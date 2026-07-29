@@ -349,6 +349,40 @@ jobs:
         shard-count: "3"
         container-name: isaac-lab-core-3-test
 
+  test-standalone-demos:
+    name: standalone demos (headless, ${{ matrix.runtime-label }})
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - runtime-group: kit
+          runtime-label: Kit
+        - runtime-group: non-kit
+          runtime-label: non-Kit
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        include-files: "test_standalone_scripts.py"
+        standalone-script-scope: "demos"
+        standalone-script-visualizer: "none"
+        standalone-script-runtime-group: ${{ matrix.runtime-group }}
+        result-file: "test-standalone-demos-${{ matrix.runtime-group }}-report.xml"
+        container-name: isaac-lab-standalone-demos-${{ matrix.runtime-group }}-test
+        omni-github-test-type: standalone-demo
+
   test-isaaclab-rl:
     name: isaaclab_rl
     runs-on: [self-hosted, gpu]

@@ -166,6 +166,40 @@ def reorder_joint_targets_user_to_backend(
 
 
 @wp.kernel
+def reorder_joint_state_backend_to_user(
+    backend_pos: wp.array2d(dtype=wp.float32),
+    backend_vel: wp.array2d(dtype=wp.float32),
+    user_to_backend: wp.array(dtype=wp.int32),
+    user_pos: wp.array2d(dtype=wp.float32),
+    user_vel: wp.array2d(dtype=wp.float32),
+) -> None:
+    """Gather backend-order joint position and velocity into public order in one launch.
+
+    This fuses the two :func:`reorder_2d_backend_to_user` launches that the
+    post-step publish would otherwise issue for the Tier-1 joint-state shadows.
+    Both outputs share the single ``user_to_backend`` gather.
+
+    Args:
+        backend_pos: Joint positions [m or rad, depending on joint type], shaped
+            [num_envs, num_joints] in backend joint order.
+        backend_vel: Joint velocities [m/s or rad/s, depending on joint type],
+            shaped [num_envs, num_joints] in backend joint order.
+        user_to_backend: Read-only map shaped [num_joints] from each public joint
+            index to its backend joint index.
+        user_pos: Position destination [m or rad, depending on joint type] in
+            public joint order. It must not alias backend_pos for a nonidentity
+            permutation.
+        user_vel: Velocity destination [m/s or rad/s, depending on joint type] in
+            public joint order. It must not alias backend_vel for a nonidentity
+            permutation.
+    """
+    env_id, user_id = wp.tid()
+    backend_id = user_to_backend[user_id]
+    user_pos[env_id, user_id] = backend_pos[env_id, backend_id]
+    user_vel[env_id, user_id] = backend_vel[env_id, backend_id]
+
+
+@wp.kernel
 def reorder_body_wrench_user_to_backend(
     user_force: wp.array2d(dtype=wp.vec3f),
     user_torque: wp.array2d(dtype=wp.vec3f),
@@ -192,6 +226,40 @@ def reorder_body_wrench_user_to_backend(
     user_body_id = backend_to_user[backend_body_id]
     backend_force[env_id, backend_body_id] = user_force[env_id, user_body_id]
     backend_torque[env_id, backend_body_id] = user_torque[env_id, user_body_id]
+
+
+@wp.kernel
+def reorder_body_state_backend_to_user(
+    backend_pose: wp.array2d(dtype=wp.transformf),
+    backend_vel: wp.array2d(dtype=wp.spatial_vectorf),
+    user_to_backend: wp.array(dtype=wp.int32),
+    user_pose: wp.array2d(dtype=wp.transformf),
+    user_vel: wp.array2d(dtype=wp.spatial_vectorf),
+) -> None:
+    """Gather backend-order body pose and COM velocity into public order in one launch.
+
+    This fuses the two :func:`reorder_2d_backend_to_user` launches that the
+    post-step publish would otherwise issue for the Tier-1 body-state shadows.
+    Both outputs share the single ``user_to_backend`` gather.
+
+    Args:
+        backend_pose: Body link poses as [position, quaternion] transforms
+            (position [m], orientation a unit quaternion), shaped
+            [num_envs, num_bodies] in backend body order.
+        backend_vel: Body center-of-mass spatial velocities [m/s, rad/s], shaped
+            [num_envs, num_bodies] in backend body order.
+        user_to_backend: Read-only map shaped [num_bodies] from each public body
+            index to its backend body index.
+        user_pose: Pose destination (position [m], orientation a unit quaternion)
+            in public body order. It must not alias backend_pose for a
+            nonidentity permutation.
+        user_vel: Velocity destination [m/s, rad/s] in public body order. It must
+            not alias backend_vel for a nonidentity permutation.
+    """
+    env_id, user_id = wp.tid()
+    backend_id = user_to_backend[user_id]
+    user_pose[env_id, user_id] = backend_pose[env_id, backend_id]
+    user_vel[env_id, user_id] = backend_vel[env_id, backend_id]
 
 
 @wp.kernel

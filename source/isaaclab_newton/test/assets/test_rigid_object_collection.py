@@ -69,6 +69,7 @@ def generate_cubes_scene(
     has_api: bool = True,
     kinematic_enabled: bool = False,
     device: str = "cuda:0",
+    spawn_unrelated_sibling: bool = False,
 ) -> tuple[RigidObjectCollection, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
@@ -79,6 +80,7 @@ def generate_cubes_scene(
         has_api: Whether the cubes have a rigid body API on them.
         kinematic_enabled: Whether the cubes are kinematic.
         device: Device to use for the simulation.
+        spawn_unrelated_sibling: Whether to spawn a rigid body outside the collection in each environment.
 
     Returns:
         A tuple containing the rigid object collection representing the cubes and the origins of the cubes.
@@ -111,11 +113,38 @@ def generate_cubes_scene(
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3 * i, height)),
         )
         cube_config_dict[f"cube_{i}"] = cube_object_cfg
+    if spawn_unrelated_sibling:
+        spawn_cfg.func(
+            "/World/Env_.*/UnrelatedObject",
+            spawn_cfg,
+            translation=(0.0, -3.0, height),
+        )
     # create the rigid object collection
     cube_object_collection_cfg = RigidObjectCollectionCfg(rigid_objects=cube_config_dict)
     cube_object_collection = RigidObjectCollection(cfg=cube_object_collection_cfg)
 
     return cube_object_collection, origins
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_initialization_ignores_unrelated_sibling_rigid_objects(device):
+    """Test that a collection view selects only its configured rigid objects."""
+    num_envs = 2
+    num_cubes = 3
+    with _newton_sim_context(device, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        object_collection, _ = generate_cubes_scene(
+            num_envs=num_envs,
+            num_cubes=num_cubes,
+            device=device,
+            spawn_unrelated_sibling=True,
+        )
+
+        sim.reset()
+
+        assert object_collection.num_instances == num_envs
+        assert object_collection.root_view.count == num_envs * num_cubes
+        assert object_collection.data.default_body_pose.torch.shape == (num_envs, num_cubes, 7)
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])

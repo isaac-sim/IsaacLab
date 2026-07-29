@@ -28,8 +28,8 @@ from isaaclab_ppisp import PpispCfg, normalize_ppisp_cfg
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
@@ -689,7 +689,7 @@ def render_synthetic_gaussian_scene(
         published = sim.get_clone_plan()
         positions = published.positions if published is not None else None
         src, dst = "/World/envs/env_0", "/World/envs/env_{}"
-        camera_plan = cloner.ClonePlan.from_env_0(src, dst, num_envs, str(sim.device), positions)
+        camera_plan = cloner.clone_plan_from_env_0(src, dst, num_envs, str(sim.device), positions)
         cloner.replicate(camera_plan, stage=sim.stage)
         sim.reset()
         for _ in range(stabilisation_steps):

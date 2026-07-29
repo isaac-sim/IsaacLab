@@ -44,7 +44,7 @@ parser.add_argument(
     default=None,
     help="Number of tasks to use from the default order. Omit to use all tasks.",
 )
-parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
+parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = parser.parse_known_args()
