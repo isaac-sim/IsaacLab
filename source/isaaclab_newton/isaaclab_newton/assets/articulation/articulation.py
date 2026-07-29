@@ -3950,7 +3950,7 @@ class Articulation(BaseArticulation):
             velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
         )
 
-        # Write physical joint properties (armature, limits, friction) — always needed.
+        # Write physical joint properties (armature, limits, friction, passive damping) — always needed.
         self.write_joint_effort_limit_to_sim_index(
             limits=actuator.effort_limit_sim,
             joint_ids=actuator.joint_indices,
