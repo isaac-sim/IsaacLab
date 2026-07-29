@@ -108,3 +108,42 @@ def test_discover_surface_without_sim_api_uses_first_mesh():
     assert entries[0].deformable_type == "surface"
     assert entries[0].vertex_count == 3
     assert entries[0].vis_vertex_count == 3
+
+
+def test_discover_volume_prefers_named_visual_over_unrelated_sibling_mesh():
+    """When several sibling meshes exist, select the visual mesh—not the first Mesh."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody")
+    tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/SoftBody/simulation")
+    _add_api_schemas(
+        tet.GetPrim(),
+        [
+            "OmniPhysicsDeformableBodyAPI",
+            "OmniPhysicsVolumeDeformableSimAPI",
+        ],
+    )
+    points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
+    tet.CreatePointsAttr(points)
+    tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
+
+    # Lexicographically first sibling mesh (must not win over the named visual).
+    deco = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/decoration")
+    deco.CreatePointsAttr([Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)])
+    deco.CreateFaceVertexCountsAttr([3])
+    deco.CreateFaceVertexIndicesAttr([0, 1, 2])
+
+    visual = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/visual")
+    visual.CreatePointsAttr(points)
+    visual.CreateFaceVertexCountsAttr([3])
+    visual.CreateFaceVertexIndicesAttr([0, 1, 2])
+
+    # Nested under an unrelated sibling branch — must not be considered.
+    nested = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/props/unrelated")
+    nested.CreatePointsAttr(points)
+    nested.CreateFaceVertexCountsAttr([3])
+    nested.CreateFaceVertexIndicesAttr([0, 1, 2])
+
+    entries = discover_deformables_on_stage(stage)
+    assert len(entries) == 1
+    assert entries[0].vis_mesh_path.endswith("/visual")
+    assert entries[0].vis_vertex_count == 4
