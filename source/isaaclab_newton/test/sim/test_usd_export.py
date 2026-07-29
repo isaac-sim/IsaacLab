@@ -355,6 +355,57 @@ def test_visual_only_shapes_do_not_become_colliders(tmp_path):
     )
 
 
+def _rollout(model, frames: int = 40, fps: int = 60, substeps: int = 8) -> np.ndarray:
+    """Simulate ``model`` and return its body-pose trajectory, shape [frames, bodies, 7]."""
+    solver = newton.solvers.SolverXPBD(model)
+    state_in, state_out = model.state(), model.state()
+    control = model.control()
+    pipeline = newton.CollisionPipeline(model)
+    contacts = pipeline.contacts()
+    newton.eval_fk(model, model.joint_q, model.joint_qd, state_in)
+
+    dt = 1.0 / fps / substeps
+    trajectory = []
+    for _ in range(frames):
+        for _ in range(substeps):
+            state_in.clear_forces()
+            pipeline.collide(state_in, contacts)
+            solver.step(state_in, state_out, control, contacts, dt)
+            state_in, state_out = state_out, state_in
+        trajectory.append(state_in.body_q.numpy().copy())
+    return np.asarray(trajectory)
+
+
+def test_exported_stage_simulates_identically(tmp_path):
+    """The exported stage *behaves* like the one it was exported from.
+
+    This is the verification that matters: array equality shows the numbers match, but only
+    simulating both stages shows that the export reproduces the same physics. It is also less
+    brittle than comparing every model array, because it is unaffected by rebuilt acceleration
+    structures and by shape orderings that differ without changing behavior.
+
+    The joint carries an offset frame so that the rollout is actually sensitive to the joint
+    geometry -- with everything at the origin the trajectory cannot distinguish a correct export
+    from one that drops joint frames entirely.
+    """
+    source = tmp_path / "rollout_source.usda"
+    _author_source_stage(str(source), joint_local_pos0=(0.37, -0.11, 0.05))
+    m1, stage_info = _load(source)
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    m2, _ = _load(out)
+
+    traj_1, traj_2 = _rollout(m1), _rollout(m2)
+    assert traj_1.shape == traj_2.shape, f"trajectory shape {traj_1.shape} != {traj_2.shape}"
+    assert np.abs(traj_1).sum() > 0.0, "fixture never moved; test would be vacuous"
+
+    position_error = np.abs(traj_1[..., :3] - traj_2[..., :3]).max()
+    # A quaternion and its negation are the same rotation, so compare |dot| against 1.
+    rotation_error = (1.0 - np.abs((traj_1[..., 3:7] * traj_2[..., 3:7]).sum(-1))).max()
+    assert position_error < 1e-5, f"body positions diverged after export: max |delta| = {position_error:.3e}"
+    assert rotation_error < 1e-5, f"body rotations diverged after export: max error = {rotation_error:.3e}"
+
+
 def test_exported_stage_preserves_source_prim_paths(source_stage, tmp_path):
     """Bodies are exported at their original prim paths, not synthesized ones."""
     m1, stage_info = _load(source_stage)
