@@ -560,7 +560,7 @@ class MockRigidObjectCollection:
         name_keys: str | Sequence[str],
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
         """Find bodies by name regex patterns."""
         if isinstance(name_keys, str):
@@ -602,7 +602,7 @@ class MockRigidObjectCollection:
         name_keys: str | Sequence[str],
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
         """Deprecated method. Please use :meth:`find_bodies` instead."""
         warnings.warn(

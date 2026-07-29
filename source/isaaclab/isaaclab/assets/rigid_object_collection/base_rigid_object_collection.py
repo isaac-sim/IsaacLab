@@ -170,7 +170,7 @@ class BaseRigidObjectCollection(AssetBase):
         name_keys: str | Sequence[str],
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
         """Find bodies in the rigid body collection based on the name keys.
 
@@ -180,12 +180,11 @@ class BaseRigidObjectCollection(AssetBase):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
-                release and returns a device-local ``torch.int32`` tensor with a :class:`DeprecationWarning`. ``False``
-                explicitly returns that legacy tensor without the transition warning. ``True`` returns a
-                cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage. Its ``.warp`` and
-                ``.torch`` attributes are zero-copy views of the same allocation. Callers must treat the proxy
-                and both views as immutable because cache hits share this storage.
+            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
+                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
+                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
+                allocation. Callers must treat the proxy and both views as immutable because cache hits share
+                this storage.
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
         ``body_ids, _ = asset.find_bodies(".*")`` to
@@ -1117,20 +1116,18 @@ class BaseRigidObjectCollection(AssetBase):
         name_keys: str | Sequence[str],
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
         """Deprecated method that forwards to :meth:`find_bodies`.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the object names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
-                release and returns a device-local ``torch.int32`` tensor with a finder-return
-                :class:`DeprecationWarning`, in addition to this method's alias deprecation warning.
-                ``False`` explicitly returns that legacy tensor without the finder-return transition warning.
-                ``True`` returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
-                Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same allocation. Callers
-                must treat the proxy and both views as immutable because cache hits share this storage.
+            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
+                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
+                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
+                allocation. Callers must treat the proxy and both views as immutable because cache hits share
+                this storage.
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
         ``body_ids, _ = asset.find_bodies(".*")`` to

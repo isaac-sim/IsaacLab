@@ -168,7 +168,7 @@ class BaseRigidObject(AssetBase):
         name_keys: str | Sequence[str],
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
@@ -178,13 +178,11 @@ class BaseRigidObject(AssetBase):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
-                release and returns a ``list[int]`` with a :class:`DeprecationWarning`.
-                ``False`` explicitly returns a ``list[int]``
-                without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
-                backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
-                of the same allocation. Callers must treat the proxy and both views as immutable because cache
-                hits share this storage.
+            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
+                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
+                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
+                allocation. Callers must treat the proxy and both views as immutable because cache hits share
+                this storage.
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
         ``body_ids, _ = asset.find_bodies(".*")`` to

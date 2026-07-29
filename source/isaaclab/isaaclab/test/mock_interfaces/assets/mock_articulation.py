@@ -1391,7 +1391,7 @@ class MockArticulation:
         name_keys: str | Sequence[str],
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies by name regex patterns."""
         indices, names = self._find_by_regex(self._body_names, name_keys, preserve_order)
@@ -1413,7 +1413,7 @@ class MockArticulation:
         joint_subset: list[str] | None = None,
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find joints by name regex patterns."""
         names = self._joint_names
@@ -1442,7 +1442,7 @@ class MockArticulation:
         tendon_subsets: list[str] | None = None,
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find fixed tendons by name regex patterns."""
         names = self._fixed_tendon_names
@@ -1471,7 +1471,7 @@ class MockArticulation:
         tendon_subsets: list[str] | None = None,
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find spatial tendons by name regex patterns."""
         names = self._spatial_tendon_names

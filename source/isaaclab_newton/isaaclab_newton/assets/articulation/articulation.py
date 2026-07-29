@@ -438,7 +438,7 @@ class Articulation(BaseArticulation):
         name_keys: str | Sequence[str],
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the articulation based on the name keys.
 
@@ -448,12 +448,11 @@ class Articulation(BaseArticulation):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. ``None`` returns the legacy ``list[int]`` with a
-                :class:`DeprecationWarning`; ``False`` returns a ``list[int]`` without that warning;
-                ``True`` returns a cached,
-                device-local :class:`ProxyArray` backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch``
-                attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
-                as immutable because cache hits share this storage.
+            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
+                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
+                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
+                allocation. Callers must treat the proxy and both views as immutable because cache hits share
+                this storage.
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
         ``body_ids, _ = asset.find_bodies(".*")`` to
@@ -476,7 +475,7 @@ class Articulation(BaseArticulation):
         joint_subset: list[str] | None = None,
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find joints in the articulation based on the name keys.
 
@@ -488,12 +487,11 @@ class Articulation(BaseArticulation):
             joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. ``None`` returns the legacy ``list[int]`` with a
-                :class:`DeprecationWarning`; ``False`` returns a ``list[int]`` without that warning;
-                ``True`` returns a cached,
-                device-local :class:`ProxyArray` backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch``
-                attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
-                as immutable because cache hits share this storage.
+            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
+                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
+                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
+                allocation. Callers must treat the proxy and both views as immutable because cache hits share
+                this storage.
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
         ``joint_ids, _ = asset.find_joints(".*", as_proxy=True)`` and pass ``joint_ids`` to
@@ -528,7 +526,7 @@ class Articulation(BaseArticulation):
         tendon_subsets: list[str] | None = None,
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find fixed tendons in the articulation based on the name keys.
 
@@ -541,12 +539,11 @@ class Articulation(BaseArticulation):
             tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
                 all joints in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. ``None`` returns the legacy ``list[int]`` with a
-                :class:`DeprecationWarning`; ``False`` returns a ``list[int]`` without that warning;
-                ``True`` returns a cached,
-                device-local :class:`ProxyArray` backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch``
-                attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
-                as immutable because cache hits share this storage.
+            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
+                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
+                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
+                allocation. Callers must treat the proxy and both views as immutable because cache hits share
+                this storage.
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
         ``fixed_tendon_ids, _ = asset.find_fixed_tendons(".*", as_proxy=True)`` and pass
@@ -582,7 +579,7 @@ class Articulation(BaseArticulation):
         tendon_subsets: list[str] | None = None,
         preserve_order: bool = False,
         *,
-        as_proxy: bool | None = None,
+        as_proxy: bool = False,
     ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find spatial tendons in the articulation based on the name keys.
 
@@ -594,12 +591,11 @@ class Articulation(BaseArticulation):
             tendon_subsets: A subset of tendons to search for. Defaults to None, which means all tendons
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. ``None`` returns the legacy ``list[int]`` with a
-                :class:`DeprecationWarning`; ``False`` returns a ``list[int]`` without that warning;
-                ``True`` returns a cached,
-                device-local :class:`ProxyArray` backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch``
-                attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
-                as immutable because cache hits share this storage.
+            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
+                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
+                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
+                allocation. Callers must treat the proxy and both views as immutable because cache hits share
+                this storage.
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
         ``spatial_tendon_ids, _ = asset.find_spatial_tendons(".*", as_proxy=True)`` and pass

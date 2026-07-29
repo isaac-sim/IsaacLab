@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import inspect
-import warnings
 import weakref
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -264,7 +263,7 @@ class AssetBase(ABC):
         proxy_indices: Sequence[int] | None = None,
         domain: str,
         finder_name: str,
-        as_proxy: bool | None,
+        as_proxy: bool = False,
         legacy_type: Literal["list", "tensor"],
     ) -> list[int] | torch.Tensor | ProxyArray:
         """Resolve finder indices to a cached proxy or a legacy container.
@@ -274,9 +273,10 @@ class AssetBase(ABC):
             proxy_indices: Optional asset-global indices used only for proxy mode. Defaults to the legacy
                 :paramref:`indices` values.
             domain: Asset-local namespace for the selector.
-            finder_name: Finder name included in transition warnings.
-            as_proxy: Whether to return a cached :class:`ProxyArray`. ``None``
-                selects the legacy return type with a deprecation warning.
+            finder_name: Finder name associated with the selector.
+            as_proxy: Whether to return a cached :class:`ProxyArray`. False returns the legacy selector
+                representation. True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32``
+                storage. Defaults to False.
             legacy_type: Legacy container type returned when ``as_proxy`` is not
                 enabled.
 
@@ -284,10 +284,10 @@ class AssetBase(ABC):
             Cached proxy selector or a freshly allocated legacy container.
 
         Raises:
-            TypeError: If ``as_proxy`` is neither ``None`` nor a boolean.
+            TypeError: If ``as_proxy`` is not a boolean.
         """
-        if as_proxy is not None and not isinstance(as_proxy, bool):
-            raise TypeError(f"as_proxy must be a bool or None, got {type(as_proxy).__name__}.")
+        if not isinstance(as_proxy, bool):
+            raise TypeError(f"as_proxy must be a bool, got {type(as_proxy).__name__}.")
 
         normalized_indices = tuple(int(index) for index in indices)
         if as_proxy:
@@ -297,14 +297,6 @@ class AssetBase(ABC):
                 selector_cache = _AssetSelectorCache()
                 self._selector_cache = selector_cache
             return selector_cache.get(domain, normalized_proxy_indices, self.device)
-
-        if as_proxy is None:
-            warnings.warn(
-                f"{finder_name} currently returns the legacy {legacy_type} selector when as_proxy is unspecified. "
-                "Pass as_proxy=True for a cached ProxyArray or as_proxy=False for the legacy return type.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
 
         if legacy_type == "list":
             return list(normalized_indices)

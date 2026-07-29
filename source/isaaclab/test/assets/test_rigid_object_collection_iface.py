@@ -389,10 +389,9 @@ class TestCollectionFinderReturnModes:
     def test_find_bodies_returns_legacy_tensor_or_cached_proxy(self, backend):
         collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
 
-        with pytest.warns(DeprecationWarning):
-            implicit_indices, implicit_names = collection.find_bodies(".*")
         with warnings.catch_warnings(record=True) as warning_records:
             warnings.simplefilter("always")
+            implicit_indices, implicit_names = collection.find_bodies(".*")
             explicit_indices, explicit_names = collection.find_bodies(".*", as_proxy=False)
             proxy_indices, proxy_names = collection.find_bodies(explicit_names, preserve_order=True, as_proxy=True)
             repeated_indices, repeated_names = collection.find_bodies(".*", as_proxy=True)
@@ -447,11 +446,12 @@ class TestCollectionFinderReturnModes:
         with pytest.warns(DeprecationWarning) as proxy_warnings:
             proxy_indices, _ = collection.find_objects(".*", as_proxy=True)
 
-        assert len(implicit_warnings) == 2
+        assert len(implicit_warnings) == 1
         assert len(explicit_warnings) == 1
         assert len(proxy_warnings) == 1
         assert isinstance(implicit_indices, torch.Tensor)
         assert isinstance(explicit_indices, torch.Tensor)
+        assert implicit_indices.tolist() == explicit_indices.tolist()
         assert proxy_indices is collection.find_bodies(".*", as_proxy=True)[0]
 
 

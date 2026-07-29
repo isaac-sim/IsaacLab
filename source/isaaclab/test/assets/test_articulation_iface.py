@@ -263,10 +263,9 @@ class TestArticulationFinderReturnModes:
             pytest.skip("Newton does not support spatial tendons.")
         finder = getattr(art, finder_name)
 
-        with pytest.warns(DeprecationWarning):
-            implicit_indices, implicit_names = finder(".*")
         with warnings.catch_warnings(record=True) as warning_records:
             warnings.simplefilter("always")
+            implicit_indices, implicit_names = finder(".*")
             explicit_indices, explicit_names = finder(".*", as_proxy=False)
             proxy_indices, proxy_names = finder(explicit_names, preserve_order=True, as_proxy=True)
             repeated_indices, repeated_names = finder(".*", as_proxy=True)

@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import Any
 
 import pytest
@@ -130,45 +129,45 @@ def test_clear_releases_cached_entries():
     assert first.warp.ptr != second.warp.ptr
 
 
-def test_legacy_list_mode_warns_only_when_unspecified():
+def test_legacy_list_mode_is_default():
     asset = _make_asset()
 
-    with pytest.warns(DeprecationWarning) as warning_records:
-        implicit = _find(asset, [2, 5], as_proxy=None)
-    warning = str(warning_records[0].message)
-    assert "find_joints" in warning
-    assert "as_proxy=True" in warning
-    assert "as_proxy=False" in warning
+    implicit = asset._resolve_finder_indices(
+        [2, 5],
+        domain="joint",
+        finder_name="find_joints",
+        legacy_type="list",
+    )
+    explicit = _find(asset, [2, 5], as_proxy=False)
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        explicit = _find(asset, [2, 5], as_proxy=False)
-        repeated = _find(asset, [2, 5], as_proxy=False)
+    assert implicit == explicit == [2, 5]
+    assert implicit is not explicit
 
-    assert implicit == [2, 5]
-    assert explicit == [2, 5]
-    assert explicit is not repeated
+
+def test_selector_mode_rejects_none():
+    asset = _make_asset()
+
+    with pytest.raises(TypeError, match="as_proxy must be a bool"):
+        _find(asset, [2, 5], as_proxy=None)
 
 
 def test_legacy_tensor_mode_is_int32_on_asset_device():
     asset = _make_asset()
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        first = asset._resolve_finder_indices(
-            [4, 1],
-            domain="body",
-            finder_name="find_bodies",
-            as_proxy=False,
-            legacy_type="tensor",
-        )
-        second = asset._resolve_finder_indices(
-            [4, 1],
-            domain="body",
-            finder_name="find_bodies",
-            as_proxy=False,
-            legacy_type="tensor",
-        )
+    first = asset._resolve_finder_indices(
+        [4, 1],
+        domain="body",
+        finder_name="find_bodies",
+        as_proxy=False,
+        legacy_type="tensor",
+    )
+    second = asset._resolve_finder_indices(
+        [4, 1],
+        domain="body",
+        finder_name="find_bodies",
+        as_proxy=False,
+        legacy_type="tensor",
+    )
 
     assert isinstance(first, torch.Tensor)
     assert first.dtype == torch.int32

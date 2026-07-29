@@ -177,10 +177,9 @@ class TestRigidObjectFinderReturnModes:
     def test_find_bodies_returns_legacy_list_or_cached_proxy(self, backend):
         obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
 
-        with pytest.warns(DeprecationWarning):
-            implicit_indices, implicit_names = obj.find_bodies(".*")
         with warnings.catch_warnings(record=True) as warning_records:
             warnings.simplefilter("always")
+            implicit_indices, implicit_names = obj.find_bodies(".*")
             explicit_indices, explicit_names = obj.find_bodies(".*", as_proxy=False)
             proxy_indices, proxy_names = obj.find_bodies(explicit_names[0], as_proxy=True)
             repeated_indices, repeated_names = obj.find_bodies(".*", as_proxy=True)
