@@ -174,6 +174,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
     def _setup_deformable_bindings(self, physx, stage, device: str) -> None:
         """Discover deformable prims and wire OVPhysX nodal-position bindings."""
+        from isaaclab_ovphysx import tensor_types as TT
         from isaaclab_ovphysx.assets.deformable_object.views import OvPhysxDeformableBodyView
 
         entries = discover_deformables_on_stage(stage)
@@ -188,11 +189,33 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._geometry_counts = []
         entity_offset = 0
         for deformable_type in ("volume", "surface"):
+            if deformable_type == "volume":
+                sim_nodal_position_type = TT.DEFORMABLE_SIM_NODAL_POSITION
+                sim_element_indices_type = TT.DEFORMABLE_SIM_ELEMENT_INDICES
+                collision_element_indices_type = TT.DEFORMABLE_COLLISION_ELEMENT_INDICES
+                tensor_types = [
+                    sim_nodal_position_type,
+                    sim_element_indices_type,
+                    collision_element_indices_type,
+                ]
+            else:
+                sim_nodal_position_type = TT.SURFACE_DEFORMABLE_SIM_POSITION
+                sim_element_indices_type = TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES
+                collision_element_indices_type = None
+                tensor_types = [sim_nodal_position_type, sim_element_indices_type]
+
             patterns, exact_paths = grouped_paths[deformable_type]
             for pattern in [*patterns, *exact_paths]:
                 try:
                     view = OvPhysxDeformableBodyView(
-                        physx, pattern=pattern, device=device, deformable_type=deformable_type
+                        physx,
+                        pattern=pattern,
+                        device=device,
+                        tensor_types=tensor_types,
+                        eager=True,
+                        simulation_nodal_position_type=sim_nodal_position_type,
+                        simulation_element_indices_type=sim_element_indices_type,
+                        collision_element_indices_type=collision_element_indices_type,
                     )
                 except Exception as exc:
                     logger.warning("Failed to create %s deformable binding for %s: %s", deformable_type, pattern, exc)
@@ -207,6 +230,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                         "deformable_type": deformable_type,
                         "view": view,
                         "position_buf": position_buf,
+                        "sim_nodal_position_type": sim_nodal_position_type,
                         "entity_offset": entity_offset,
                         "entity_count": view.count,
                     }
@@ -244,7 +268,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         path_index = 0
         for entry in self._deformable_bindings:
             view = entry["view"]
-            view.read_simulation_nodal_positions_into(entry["position_buf"])
+            view.read_into(entry["sim_nodal_position_type"], entry["position_buf"])
             nodal = entry["position_buf"].view(wp.vec3f).reshape((view.count, -1))
             for body_idx in range(view.count):
                 count = self._geometry_counts[path_index]
