@@ -44,7 +44,8 @@ def test_discover_volume_tet_mesh_deformable():
     assert entry.vertex_count == 4
     assert entry.vis_vertex_count == 4
     assert entry.sim_mesh_path.endswith("/simulation")
-    # Visual mesh is a sibling of the simulation tet; discovery roots at the tet prim.
+    # Visual Mesh is a sibling of the API-bearing TetMesh under the SoftBody parent.
+    assert entry.vis_mesh_path.endswith("/visual")
     assert entry.vis_vertex_count == 4
 
 
