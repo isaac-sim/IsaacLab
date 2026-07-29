@@ -51,16 +51,13 @@ workflow:
           PY=/workspace/isaaclab/.venv/bin/python
 
           CKPT=""
+          KEPT=""
           PLAY_RC=""
           PLAY_STATUS="not_requested"
-{% if row.play %}
-          # Play is chained in the same task so it can read the checkpoint
-          # training just wrote, with no cross-task handoff. It is skipped when
-          # training failed: there is nothing to roll out, and a play error
-          # would otherwise mask the real verdict.
-          if [ "$rc" -ne 0 ]; then
-            PLAY_STATUS="skipped_training_failed"
-          else
+
+          # Resolve the checkpoint regardless of what happens next: retaining it
+          # and rolling it out are separate concerns.
+          if [ "$rc" -eq 0 ]; then
             CKPT=$("$PY" - "$OUT" <<'PYEOF'
           import glob, json, os, sys
           candidates = sorted(glob.glob(os.path.join(sys.argv[1], "benchmark_training_*.json")))
@@ -75,29 +72,53 @@ workflow:
                   break
           PYEOF
           )
-            if [ -z "$CKPT" ]; then
-              PLAY_STATUS="skipped_no_checkpoint"
+          fi
+{% if row.keep_checkpoint %}
+          # RL libraries write checkpoints under logs/, which OSMO does not
+          # upload: only {{ '{{output}}' }} is collected. Without this copy the
+          # checkpoint dies with the container and the run is un-replayable.
+          if [ -n "$CKPT" ] && [ -f "$CKPT" ]; then
+            mkdir -p "$OUT/checkpoint"
+            if cp "$CKPT" "$OUT/checkpoint/"; then
+              KEPT="checkpoint/$(basename "$CKPT")"
             else
-              echo "=== odin: play from $CKPT ==="
-              uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark play --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }} --checkpoint "$CKPT"{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %} --output_path "$OUT" --benchmark_formatter schema --video --video_length {{ row.video_length }}{% if row.physics %} physics={{ row.physics }}{% endif %}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}{% if row.presets %} presets={{ row.presets | join(',') }}{% endif %}
-
-              PLAY_RC=$?
-              PLAY_STATUS="ran"
-              echo "=== odin: play exit_code=$PLAY_RC ==="
+              echo "=== odin: could not copy checkpoint ==="
             fi
+          fi
+{% endif %}
+{% if row.play %}
+          # Play is chained in the same task so it can read the checkpoint
+          # training just wrote, with no cross-task handoff. It is skipped when
+          # training failed: there is nothing to roll out, and a play error
+          # would otherwise mask the real verdict.
+          if [ "$rc" -ne 0 ]; then
+            PLAY_STATUS="skipped_training_failed"
+          elif [ -z "$CKPT" ]; then
+            PLAY_STATUS="skipped_no_checkpoint"
+          else
+            echo "=== odin: play from $CKPT ==="
+            uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark play --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }} --checkpoint "$CKPT"{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %} --output_path "$OUT" --benchmark_formatter schema --video --video_length {{ row.video_length }}{% if row.physics %} physics={{ row.physics }}{% endif %}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}{% if row.presets %} presets={{ row.presets | join(',') }}{% endif %}
+
+            PLAY_RC=$?
+            PLAY_STATUS="ran"
+            echo "=== odin: play exit_code=$PLAY_RC ==="
           fi
 {% endif %}
           # A per-row record of which steps ran and why any did not. The bundles
           # say what a run measured; this says what happened, which is what you
           # need when a row comes back with less than expected.
-          "$PY" - "$OUT" "$rc" "$PLAY_STATUS" "$PLAY_RC" "$CKPT" <<'PYEOF' || echo "=== odin: could not write odin-steps.json ==="
+          "$PY" - "$OUT" "$rc" "$PLAY_STATUS" "$PLAY_RC" "$CKPT" "$KEPT" <<'PYEOF' || echo "=== odin: could not write odin-steps.json ==="
           import json, os, sys
-          out, rc, play_status, play_rc, checkpoint = sys.argv[1:6]
+          out, rc, play_status, play_rc, checkpoint, kept = sys.argv[1:7]
           record = {
               "row_key": os.environ.get("ODIN_ROW_KEY", ""),
               "dispatch_id": os.environ.get("ODIN_DISPATCH_ID", ""),
               "training": {"ran": True, "exit_code": int(rc)},
-              "checkpoint": {"found": bool(checkpoint), "path": checkpoint or None},
+              "checkpoint": {
+                  "found": bool(checkpoint),
+                  "source_path": checkpoint or None,
+                  "retained_as": kept or None,
+              },
               "play": {
                   "status": play_status,
                   "exit_code": int(play_rc) if play_rc else None,

@@ -157,3 +157,63 @@ def test_written_metadata_is_a_valid_seed_list_overlay(tmp_path: Path) -> None:
     # The overlay must carry every field plan_rows() reads.
     assert {"task_id", "rl_library", "physics", "num_envs", "max_iterations", "timeout_s"} <= set(entry)
     assert entry["observed"]["seeds"] == [42]
+
+
+def test_ab_side_b_rows_are_excluded(tmp_path: Path) -> None:
+    # Harvesting both commits into one baseline would silently average them.
+    _write_bundle(tmp_path, "row_a", seed=42, duration_s=100.0, reward=10.0)
+    _write_bundle(tmp_path, "row_b", seed=42, duration_s=900.0, reward=99.0)
+    (tmp_path / "dispatch.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "2.0",
+                "dispatch_id": "d",
+                "started_at": "x",
+                "ended_at": None,
+                "seeds": [42],
+                "images": {},
+                "osmo_workflow_ids": [],
+                "jobs": [{"row_key": "row_a", "side": "a"}, {"row_key": "row_b", "side": "b"}],
+            }
+        )
+    )
+
+    entries = harvest_dispatch(tmp_path)
+
+    assert len(entries) == 1
+    assert entries[0].duration_s_max == 100.0
+    assert entries[0].reward_final_ema_mean == 10.0
+
+
+def test_renderer_and_presets_are_not_averaged_together(tmp_path: Path) -> None:
+    # A depth rollout is not the same workload as an RGB one.
+    for name, renderer, presets in (("d", "ovrtx", ["depth"]), ("r", "ovrtx", ["rgb"])):
+        row = tmp_path / name
+        row.mkdir()
+        (row / f"benchmark_training_x_2026-07-29_12-00-0{name}.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.2",
+                    "run": {
+                        "task": "Isaac-Cam",
+                        "framework": "rsl_rl",
+                        "seed": 42,
+                        "status": "completed",
+                        "duration_s": 10.0,
+                        "num_envs": 8,
+                        "max_iterations": 5,
+                        "config": {
+                            "physics_backend": "newton_mjwarp",
+                            "rendering_backend": renderer,
+                            "presets": presets,
+                        },
+                    },
+                    "runtime": {"total_wall_time_s": 10.0},
+                }
+            )
+        )
+
+    entries = harvest_dispatch(tmp_path)
+
+    assert len(entries) == 2
+    assert {e.presets for e in entries} == {"depth", "rgb"}

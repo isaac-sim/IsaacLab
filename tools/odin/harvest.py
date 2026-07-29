@@ -50,6 +50,8 @@ class TaskMetadata:
         task_id: Gym task id.
         rl_library: RL library the runs used.
         physics: Physics backend the runs used.
+        renderer: Rendering backend the runs used, or ``none``.
+        presets: Comma-joined domain presets the runs used.
         num_envs: Resolved parallel environment count.
         max_iterations: Resolved training iteration budget.
         duration_s_max: Slowest observed wall-clock duration [s].
@@ -63,6 +65,8 @@ class TaskMetadata:
     task_id: str
     rl_library: str
     physics: str
+    renderer: str
+    presets: str
     num_envs: int | None
     max_iterations: int | None
     duration_s_max: float
@@ -129,8 +133,23 @@ def harvest_dispatch(dispatch_dir: Path, *, timeout_headroom: float = DEFAULT_TI
     if timeout_headroom <= 0:
         raise ValueError(f"timeout_headroom must be > 0, got {timeout_headroom}")
 
-    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    # An A/B dispatch holds two commits' results side by side. Harvesting both
+    # into one baseline would silently average them, so side B is excluded.
+    side_b_rows: set[str] = set()
+    state_path = dispatch_dir / "dispatch.json"
+    if state_path.exists():
+        try:
+            payload = json.loads(state_path.read_text())
+        except (OSError, ValueError):
+            payload = {}
+        side_b_rows = {
+            str(job.get("row_key")) for job in payload.get("jobs") or [] if job.get("side") not in (None, "a")
+        }
+
+    grouped: dict[tuple[str, str, str, str, str], list[dict[str, Any]]] = {}
     for row_dir in sorted(p for p in dispatch_dir.iterdir() if p.is_dir()):
+        if row_dir.name in side_b_rows:
+            continue
         bundle = read_bundle(row_dir)
         if bundle is None:
             continue
@@ -139,13 +158,19 @@ def harvest_dispatch(dispatch_dir: Path, *, timeout_headroom: float = DEFAULT_TI
             continue
         task_id = run.get("task")
         rl_library = run.get("framework")
-        physics = (run.get("config") or {}).get("physics_backend")
+        config = run.get("config") or {}
+        physics = config.get("physics_backend")
         if not (task_id and rl_library and physics):
             continue
-        grouped.setdefault((str(task_id), str(rl_library), str(physics)), []).append(bundle)
+        # Renderer and presets change what a run measures, so they must not be
+        # averaged together: a depth rollout is not the same workload as an RGB
+        # one on the same task and backend.
+        renderer = str(config.get("rendering_backend") or "none")
+        presets = ",".join(sorted(config.get("presets") or []))
+        grouped.setdefault((str(task_id), str(rl_library), str(physics), renderer, presets), []).append(bundle)
 
     entries: list[TaskMetadata] = []
-    for (task_id, rl_library, physics), bundles in sorted(grouped.items()):
+    for (task_id, rl_library, physics, renderer, presets), bundles in sorted(grouped.items()):
         durations = [_duration_of(bundle) for bundle in bundles]
         rewards = [value for value in (_reward_of(bundle) for bundle in bundles) if value is not None]
         first_run = bundles[0].get("run") or {}
@@ -155,6 +180,8 @@ def harvest_dispatch(dispatch_dir: Path, *, timeout_headroom: float = DEFAULT_TI
                 task_id=task_id,
                 rl_library=rl_library,
                 physics=physics,
+                renderer=renderer,
+                presets=presets,
                 num_envs=_optional_int(first_run.get("num_envs")),
                 max_iterations=_optional_int(first_run.get("max_iterations")),
                 duration_s_max=round(duration_max, 1),
@@ -180,6 +207,8 @@ def write_task_metadata(path: Path, entries: list[TaskMetadata]) -> None:
                 "task_id": entry.task_id,
                 "rl_library": entry.rl_library,
                 "physics": entry.physics,
+                "renderer": entry.renderer,
+                "presets": entry.presets,
                 "num_envs": entry.num_envs,
                 "max_iterations": entry.max_iterations,
                 "timeout_s": entry.timeout_s,

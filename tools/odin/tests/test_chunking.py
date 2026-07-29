@@ -19,6 +19,7 @@ def _row(key: str, timeout_s: int | None) -> PlannedRow:
         renderer=None,
         presets=(),
         play=False,
+        keep_checkpoint=False,
         video_length=200,
         seed=42,
         num_envs=None,

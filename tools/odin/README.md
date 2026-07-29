@@ -298,14 +298,13 @@ drift cannot wedge the poll loop or be misread as a benchmark crash.
   and OSMO performs the upload. Registering results as nv-datasets, if wanted,
   would be a controller-side step after fetch — the DSS client API could not be
   reached to design against.
+- **Only `--output_path` is uploaded.** OSMO collects `{{output}}`; anything an
+  RL library writes under `logs/` (tfevents, training videos) is discarded when
+  the container exits. `--keep_checkpoints` copies the checkpoint across; nothing
+  else is retained today.
 - **The seed task list is interim.** It is replaced once the upstream
   task-discovery API lands, at which point `plan.load_task_rows` swaps its
   source and nothing downstream changes.
-- **Play videos are not yet possible.** `PlayBundle.video_path` and
-  `builders.build_play_bundle(video_path=...)` exist upstream, but none of the
-  four play benchmark adapters has a `--video` flag or calls
-  `wrap_record_video`; the video CLI arguments live in `add_common_train_args`
-  and are training-only. That gap has to close upstream first.
 
 ## Running the tests
 

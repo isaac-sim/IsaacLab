@@ -34,6 +34,7 @@ _ROW = PlannedRow(
     renderer=None,
     presets=(),
     play=False,
+    keep_checkpoint=False,
     video_length=200,
     seed=42,
     num_envs=None,
@@ -270,3 +271,27 @@ def test_step_record_marks_play_not_requested_when_disabled() -> None:
 def test_step_record_failure_cannot_fail_the_task() -> None:
     # Diagnostics must never be the reason a good run goes red.
     assert "could not write odin-steps.json" in _script(_render())
+
+
+def test_checkpoint_is_not_retained_by_default() -> None:
+    assert '"$OUT/checkpoint"' not in _script(_render())
+
+
+def test_keep_checkpoint_copies_it_into_the_uploaded_output() -> None:
+    # OSMO uploads only {{output}}; RL libraries write checkpoints under logs/,
+    # so without this copy the run is un-replayable.
+    script = _script(_render(rows=(dataclasses.replace(_ROW, keep_checkpoint=True),)))
+    assert 'mkdir -p "$OUT/checkpoint"' in script
+    assert 'cp "$CKPT" "$OUT/checkpoint/"' in script
+
+
+def test_checkpoint_is_resolved_even_without_play() -> None:
+    # Retaining a checkpoint and rolling it out are separate concerns.
+    script = _script(_render(rows=(dataclasses.replace(_ROW, keep_checkpoint=True),)))
+    assert "benchmark_training_*.json" in script
+    assert "isaaclab benchmark play" not in script
+
+
+def test_step_record_reports_where_the_checkpoint_was_retained() -> None:
+    script = _script(_render(rows=(dataclasses.replace(_ROW, keep_checkpoint=True),)))
+    assert "retained_as" in script

@@ -83,6 +83,9 @@ class PlannedRow:
             ``presets=a,b``. Empty when none are selected.
         play: Whether to chain a play rollout after training, in the same
             task, reading the checkpoint training wrote.
+        keep_checkpoint: Whether to copy the trained checkpoint into the
+            uploaded output. RL libraries write it under ``logs/``, which
+            OSMO does not collect.
         video_length: Frames to record during the chained play rollout.
         seed: Environment seed.
         num_envs: Parallel environment count, or ``None`` to use the task's
@@ -103,6 +106,7 @@ class PlannedRow:
     renderer: str | None
     presets: tuple[str, ...]
     play: bool
+    keep_checkpoint: bool
     video_length: int
     seed: int
     num_envs: int | None
@@ -284,6 +288,7 @@ def plan_rows(
         renderer = entry.get("renderer")
         presets = normalize_presets(entry.get("presets"))
         play = bool(entry.get("play", False))
+        keep_checkpoint = bool(entry.get("keep_checkpoint", False))
         video_length = int(entry.get("video_length", DEFAULT_VIDEO_LENGTH))
         profile = str(entry.get("profile") or DEFAULT_PROFILE)
         extras = uv_extras_for_profile(profile)
@@ -302,6 +307,7 @@ def plan_rows(
                     renderer=renderer,
                     presets=presets,
                     play=play,
+                    keep_checkpoint=keep_checkpoint,
                     video_length=video_length,
                     seed=int(seed),
                     num_envs=_optional_int(entry.get("num_envs")),

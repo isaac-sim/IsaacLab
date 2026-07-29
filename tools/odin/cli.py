@@ -166,11 +166,15 @@ def command_dispatch(args: argparse.Namespace) -> int:
         if args.metadata_yaml is not None:
             task_rows = apply_metadata(task_rows, load_task_rows(args.metadata_yaml))
 
-    if args.play:
-        task_rows = [
-            dict(row, play=True, **({"video_length": args.video_length} if args.video_length else {}))
-            for row in task_rows
-        ]
+    if args.play or args.keep_checkpoints:
+        overrides: dict = {}
+        if args.play:
+            overrides["play"] = True
+        if args.keep_checkpoints:
+            overrides["keep_checkpoint"] = True
+        if args.video_length:
+            overrides["video_length"] = args.video_length
+        task_rows = [dict(row, **overrides) for row in task_rows]
     rows = plan_rows(task_rows=task_rows, seeds=seeds, include=args.include)
     if not rows:
         print("[odin] no rows matched; nothing to dispatch", file=sys.stderr)
@@ -535,6 +539,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Chain a play rollout after training in the same task, recording a video.",
     )
     dispatch.add_argument("--video_length", type=int, default=None, help="Frames to record during play.")
+    dispatch.add_argument(
+        "--keep_checkpoints",
+        action="store_true",
+        help="Copy the trained checkpoint into the uploaded output; OSMO does not collect logs/.",
+    )
     dispatch.add_argument("--dry_run", action="store_true")
     dispatch.add_argument(
         "--resume",
