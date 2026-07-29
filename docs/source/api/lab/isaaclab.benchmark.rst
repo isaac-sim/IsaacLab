@@ -31,9 +31,12 @@ isaaclab.benchmark
 
       BaseIsaacLabBenchmark
       BenchmarkMonitor
+      MicrobenchmarkCommand
+      MicrobenchmarkFactory
       MethodBenchmarkDefinition
       MethodBenchmarkRunner
       MethodBenchmarkRunnerConfig
+      run_microbenchmark_cli
 
    .. rubric:: Measurements and metadata
 
@@ -97,6 +100,17 @@ Request and Result Classes
 
 .. autoclass:: BenchmarkTrainingRequest
    :members:
+
+Micro-Benchmark Dispatch
+------------------------
+
+.. autoclass:: MicrobenchmarkCommand
+   :members:
+
+.. autoclass:: MicrobenchmarkFactory
+   :members:
+
+.. autofunction:: run_microbenchmark_cli
 
 Workflow Functions
 ------------------

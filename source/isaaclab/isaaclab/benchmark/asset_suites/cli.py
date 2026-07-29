@@ -25,8 +25,14 @@ def run_asset_benchmark_cli(
     include_app_launcher_args: bool = True,
 ) -> tuple[Path, ...]:
     """Parse a retained script's arguments and run both benchmark phases."""
-    adapter = get_asset_benchmark_adapter(physics, component)
-    parser = argparse.ArgumentParser(description=f"Benchmark {component} methods and data ({physics} backend).")
+    selector_parser = argparse.ArgumentParser(add_help=False)
+    selector_parser.add_argument("--physics_variant", default=physics, help="Exact physics variant")
+    selector_args, _ = selector_parser.parse_known_args(argv)
+    adapter = get_asset_benchmark_adapter(selector_args.physics_variant, component)
+    parser = argparse.ArgumentParser(
+        description=f"Benchmark {component} methods and data ({selector_args.physics_variant} backend).",
+        parents=[selector_parser],
+    )
     parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
     parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
     parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
@@ -68,7 +74,7 @@ def run_asset_benchmark_cli(
     )
     request = AssetBenchmarkRequest(
         config=config,
-        physics_variant=physics,
+        physics_variant=args.physics_variant,
         formatter_type=args.benchmark_formatter,
         output_path=args.output_path,
         check_shapes=not args.no_shape_checks,

@@ -49,6 +49,29 @@ def test_script_cli_builds_one_combined_request(monkeypatch, tmp_path) -> None:
     assert captured["request"].launcher_args is None
 
 
+def test_script_cli_uses_explicit_exact_physics_variant(monkeypatch, tmp_path) -> None:
+    """The factory-selected exact variant should override the wrapper default."""
+    adapter = SimpleNamespace(default_num_bodies=1, default_num_joints=2)
+    captured = {}
+    adapter_calls = []
+    monkeypatch.setattr(
+        cli,
+        "get_asset_benchmark_adapter",
+        lambda physics, component: adapter_calls.append((physics, component)) or adapter,
+    )
+    monkeypatch.setattr(cli, "run_asset_benchmark", lambda request, selected: captured.update(request=request) or ())
+
+    cli.run_asset_benchmark_cli(
+        "newton_mjwarp",
+        "articulation",
+        ["--physics_variant", "newton_kamino", "--output_dir", str(tmp_path), "--device", "cpu"],
+        include_app_launcher_args=False,
+    )
+
+    assert adapter_calls == [("newton_kamino", "articulation")]
+    assert captured["request"].physics_variant == "newton_kamino"
+
+
 def test_script_cli_accepts_app_launcher_device_argument(monkeypatch, tmp_path) -> None:
     """Simulator-backed scripts should share AppLauncher device parsing without conflicts."""
     adapter = SimpleNamespace(default_num_bodies=1, default_num_joints=0)

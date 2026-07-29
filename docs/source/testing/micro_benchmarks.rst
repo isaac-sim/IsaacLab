@@ -162,11 +162,11 @@ CUDA results.
 Running Asset Benchmarks
 ------------------------
 
-Choose a backend by changing the package directory:
+Use the top-level component command with an exact physics selector:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
+   ./isaaclab.sh microbenchmark --component articulation physics=physx \
        --num_instances 4096 \
        --num_bodies 12 \
        --num_joints 11 \
@@ -176,15 +176,19 @@ Choose a backend by changing the package directory:
        --backend json \
        --output_dir results/physx_articulation
 
-   ./isaaclab.sh -p source/isaaclab_newton/benchmark/assets/benchmark_articulation.py \
+   ./isaaclab.sh microbenchmark --component articulation physics=newton_mjwarp \
        --num_instances 4096 --warmup_steps 10 --num_iterations 1000
 
-   ./isaaclab.sh -p source/isaaclab_ovphysx/benchmark/assets/benchmark_articulation.py \
+   ./isaaclab.sh microbenchmark --component articulation physics=newton_kamino \
        --num_instances 4096 --warmup_steps 10 --num_iterations 1000
 
-Replace ``benchmark_articulation.py`` with the corresponding rigid-object or
-collection file. Each command measures both API surfaces and emits separate
-method and data artifacts.
+   ./isaaclab.sh microbenchmark --component articulation physics=ovphysx \
+       --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+
+Replace ``articulation`` with ``rigid_object`` or
+``rigid_object_collection``. Each command measures both API surfaces and emits
+separate method and data artifacts. The three retained scripts under each
+backend's ``benchmark/assets`` directory remain available for direct execution.
 
 Asset Arguments
 ~~~~~~~~~~~~~~~
@@ -210,7 +214,7 @@ Asset Arguments
      - Input/index modes to run; method benchmarks only
    * - ``--backend``
      - ``json``
-     - Output formatter: ``json``, ``osmo``, or ``omniperf``
+     - Output formatter: ``json``, ``osmo``, ``omniperf``, or ``summary``
    * - ``--output_dir``
      - current directory
      - Directory for the timestamped method and data result files
@@ -246,44 +250,47 @@ Common sensor defaults are substantial enough to amortize timing noise: 4096
 environments, 50 warm-up updates, and 500 timed updates. Override them for a
 quick smoke test or scaling study.
 
-Contact examples are backend-specific because PhysX and Newton expose a cadence
-workload with decimation and history controls:
+Select the same component across exact physics variants through the top-level
+command. Contact examples differ because PhysX and Newton expose cadence
+controls:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_contact_sensor.py \
+   ./isaaclab.sh microbenchmark --component contact_sensor physics=physx \
        --num_envs 4096 --warmup_steps 50 --num_steps 500 \
        --decimation 4 --history_length 0
 
-   ./isaaclab.sh -p source/isaaclab_newton/benchmark/sensors/benchmark_contact_sensor.py \
+   ./isaaclab.sh microbenchmark --component contact_sensor physics=newton_mjwarp \
        --num_envs 4096 --warmup_steps 50 --num_steps 500 \
        --decimation 4 --history_length 0
 
-   ./isaaclab.sh -p source/isaaclab_ovphysx/benchmark/sensors/benchmark_contact_sensor.py \
+   ./isaaclab.sh microbenchmark --component contact_sensor physics=ovphysx \
        --num_envs 4096 --warmup_steps 50 --num_steps 500
 
-For other sensors, set ``BACKEND`` to ``physx``, ``newton``, or ``ovphysx``:
+Other component names are ``frame_transformer``, ``imu``, ``pva``,
+``joint_wrench``, and ``ray_caster``:
 
 .. code-block:: bash
 
-   BACKEND=newton
-
-   ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_frame_transformer.py \
+   ./isaaclab.sh microbenchmark --component frame_transformer physics=newton_mjwarp \
        --num_envs 4096 --num_target_frames 4 --warmup_steps 50 --num_steps 500
 
-   ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_imu_pva.py \
-       --sensor imu --num_envs 4096 --warmup_steps 50 --num_steps 500
+   ./isaaclab.sh microbenchmark --component imu physics=newton_kamino \
+       --num_envs 4096 --warmup_steps 50 --num_steps 500
 
-   ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_imu_pva.py \
-       --sensor pva --num_envs 4096 --warmup_steps 50 --num_steps 500
+   ./isaaclab.sh microbenchmark --component pva physics=physx \
+       --num_envs 4096 --warmup_steps 50 --num_steps 500
 
-   ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_joint_wrench.py \
+   ./isaaclab.sh microbenchmark --component joint_wrench physics=ovphysx \
        --num_envs 4096 --warmup_steps 50 --num_steps 500 \
        --benchmark_formatter summary --output_path results/sensors
 
-   ./isaaclab.sh -p source/isaaclab_${BACKEND}/benchmark/sensors/benchmark_ray_caster.py \
+   ./isaaclab.sh microbenchmark --component ray_caster physics=newton_mjwarp \
        --num_envs 4096 --grid_size 1.0 --grid_resolution 0.25 \
        --warmup_steps 50 --num_steps 500
+
+The retained scripts under each backend's ``benchmark/sensors`` directory
+remain available for direct execution.
 
 Ray-caster commands run matched plane and deterministic seeded rough-terrain
 workloads by default. Results are reported separately as
@@ -519,11 +526,13 @@ Adding New Benchmarks
 Adding an Asset Method or Property
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Add input generators and a
-:class:`~isaaclab.benchmark.MethodBenchmarkDefinition` to the corresponding
-backend script. Allocate inputs before the timed call. For a data property, list
-prerequisite properties through ``derived_from`` so dependencies are populated
-before timing.
+Add shared input generators and
+:class:`~isaaclab.benchmark.MethodBenchmarkDefinition` entries to
+``isaaclab.benchmark.asset_suites``. Put only backend-specific target
+construction, refresh behavior, capabilities, and generator overrides in the
+backend adapter. Allocate inputs before the timed call. For a data property,
+list prerequisite properties through ``derived_from`` so dependencies are
+populated before timing.
 
 Keep equivalent backends aligned where the API is shared, but do not register a
 mode or property that a backend cannot implement meaningfully.
