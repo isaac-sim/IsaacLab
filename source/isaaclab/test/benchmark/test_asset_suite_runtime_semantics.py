@@ -5,6 +5,7 @@
 
 """Regression tests for backend-specific asset data setup and refresh behavior."""
 
+import sys
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -13,6 +14,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.benchmark.assets import runtime as newton_runtime
+from isaaclab_ovphysx.benchmark.assets import runtime as ovphysx_runtime
 from isaaclab_physx.benchmark.assets import runtime as physx_runtime
 
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
@@ -263,3 +265,84 @@ def test_newton_articulation_data_target_restores_model_dynamics_and_ordering(mo
     refresh(_CONFIG)
     assert data._sim_timestamp == 1.0
     assert data._fk_timestamp == 1.0
+
+
+def test_newton_articulation_open_targets_constructs_real_method_and_data_targets(monkeypatch) -> None:
+    """The combined Newton path should configure model dimensions before constructing either data target."""
+    import isaaclab.app
+    from isaaclab.benchmark.asset_suites import get_asset_benchmark_adapter
+
+    class FakeAppLauncher:
+        def __init__(self, *args, **kwargs):
+            self.app = SimpleNamespace(close=lambda: None)
+
+    monkeypatch.setattr(isaaclab.app, "AppLauncher", FakeAppLauncher)
+    adapter = get_asset_benchmark_adapter("newton_mjwarp", "articulation")
+    request = SimpleNamespace(launcher_args=None, check_shapes=True)
+
+    with newton_runtime.open_asset_targets(adapter, request, _CONFIG, _CONFIG) as targets:
+        assert targets.method_target._data._jacobian_buf.shape == (2, 3, 6, 10)
+        assert targets.data_target._jacobian_buf.shape == (2, 3, 6, 10)
+
+
+@pytest.mark.parametrize(
+    ("factory_name", "module_name", "class_name"),
+    (
+        (
+            "create_test_articulation",
+            "isaaclab_ovphysx.assets.articulation.articulation",
+            "Articulation",
+        ),
+        (
+            "create_test_rigid_object",
+            "isaaclab_ovphysx.assets.rigid_object.rigid_object",
+            "RigidObject",
+        ),
+        (
+            "create_test_collection",
+            "isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection",
+            "RigidObjectCollection",
+        ),
+        ("_create_data_target", None, None),
+    ),
+)
+def test_ovphysx_factories_use_exported_binding_set_signature(
+    monkeypatch, factory_name, module_name, class_name
+) -> None:
+    """Every OVPhysX target factory should call the exported binding constructor compatibly."""
+
+    class ConstructorAccepted(Exception):
+        pass
+
+    class StrictBindingSet:
+        def __init__(
+            self,
+            num_instances,
+            num_joints,
+            num_bodies,
+            is_fixed_base=False,
+            joint_names=None,
+            body_names=None,
+            num_fixed_tendons=0,
+            num_spatial_tendons=0,
+            *,
+            asset_kind="articulation",
+        ):
+            raise ConstructorAccepted
+
+    if module_name is not None:
+        monkeypatch.setitem(sys.modules, module_name, SimpleNamespace(**{class_name: object}))
+        monkeypatch.setitem(sys.modules, f"{module_name}_data", SimpleNamespace(**{f"{class_name}Data": object}))
+    monkeypatch.setattr(ovphysx_runtime, "MockOvPhysxBindingSet", StrictBindingSet, raising=False)
+    factory = getattr(ovphysx_runtime, factory_name)
+
+    with pytest.raises(ConstructorAccepted):
+        if factory_name == "_create_data_target":
+            factory("articulation", _CONFIG)
+        else:
+            factory(
+                num_instances=_CONFIG.num_instances,
+                num_bodies=1 if factory_name == "create_test_rigid_object" else _CONFIG.num_bodies,
+                **({"num_joints": _CONFIG.num_joints} if factory_name == "create_test_articulation" else {}),
+                device=_CONFIG.device,
+            )

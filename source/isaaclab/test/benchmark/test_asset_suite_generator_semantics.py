@@ -8,6 +8,7 @@
 import pytest
 import torch
 
+from isaaclab.benchmark.asset_suites import generators as asset_generators
 from isaaclab.benchmark.asset_suites import (
     get_asset_benchmark_adapter,
     get_asset_benchmark_suite,
@@ -92,3 +93,37 @@ def test_articulation_position_limits_preserve_lower_upper_ordering(physics) -> 
             assert isinstance(limits, torch.Tensor)
             assert torch.all(limits[..., 0] <= 0)
             assert torch.all(limits[..., 1] >= 0)
+
+
+@pytest.mark.parametrize("physics", ("physx", "newton_mjwarp", "ovphysx"))
+@pytest.mark.parametrize(
+    ("method_name", "field_name", "expected_scale"),
+    (
+        ("write_joint_stiffness_to_sim", "stiffness", 1.0),
+        ("write_joint_damping_to_sim", "damping", 1.0),
+        ("write_joint_velocity_limit_to_sim", "limits", 10.0),
+        ("write_joint_effort_limit_to_sim", "limits", 100.0),
+        ("write_joint_armature_to_sim", "armature", 0.1),
+        ("write_joint_friction_coefficient_to_sim", "joint_friction_coeff", 0.5),
+    ),
+)
+def test_articulation_joint_parameter_generators_preserve_historical_scales(
+    monkeypatch, physics, method_name, field_name, expected_scale
+) -> None:
+    """Every backend and available input mode should retain its historical parameter scale."""
+
+    def ones(*shape, **kwargs):
+        return torch.ones(*shape, device=kwargs.get("device"), dtype=kwargs.get("dtype"))
+
+    monkeypatch.setattr(asset_generators.torch, "rand", ones)
+    adapter = get_asset_benchmark_adapter(physics, "articulation")
+    definitions = resolve_method_benchmarks(get_asset_benchmark_suite("articulation"), adapter)
+    matching = [
+        definition for definition in definitions if definition.method_name in {method_name, f"{method_name}_mask"}
+    ]
+
+    assert matching
+    for definition in matching:
+        for generator in definition.input_generators.values():
+            values = generator(_CONFIG)[field_name]
+            assert torch.all(values == expected_scale)

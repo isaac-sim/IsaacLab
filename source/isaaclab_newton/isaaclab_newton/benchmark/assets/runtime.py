@@ -15,6 +15,15 @@ from isaaclab.benchmark.asset_suites.types import AssetBenchmarkTargets
 args = SimpleNamespace(no_shape_checks=False)
 
 
+def _configure_articulation_model(model, num_instances: int, num_bodies: int, num_joints: int) -> None:
+    """Configure mock model dimensions required by Newton articulation data buffers."""
+    model.articulation_count = num_instances
+    model.max_joints_per_articulation = num_bodies
+    model.max_dofs_per_articulation = num_joints + 6
+    model.joint_dof_count = num_instances * (num_joints + 6)
+    model.body_count = num_instances * num_bodies
+
+
 def _load_runtime_symbols() -> None:
     global ArticulationCfg, MockNewtonArticulationView, MockNewtonCollectionView, MockWrenchComposer
     global RigidObjectCfg, RigidObjectCollectionCfg, create_mock_newton_manager, np, wp
@@ -53,6 +62,10 @@ def create_test_articulation(
         soft_joint_pos_limit_factor=1.0,
         actuators={},
     )
+    object.__setattr__(articulation, "_initialize_handle", None)
+    object.__setattr__(articulation, "_invalidate_initialize_handle", None)
+    object.__setattr__(articulation, "_prim_deletion_handle", None)
+    object.__setattr__(articulation, "_debug_vis_handle", None)
 
     # Create Newton mock view
     mock_view = MockNewtonArticulationView(
@@ -71,9 +84,10 @@ def create_test_articulation(
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
 
     # Create ArticulationData instance (NewtonManager already mocked at call site)
-    from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
+    from isaaclab_newton.assets.articulation import articulation_data as data_module
 
-    data = ArticulationData(mock_view, device)
+    _configure_articulation_model(data_module.SimulationManager.get_model(), num_instances, num_bodies, num_joints)
+    data = data_module.ArticulationData(mock_view, device)
     object.__setattr__(articulation, "_data", data)
 
     # Create mock wrench composers
@@ -332,11 +346,7 @@ def _create_articulation_data_target(config):
     simulation_manager = globals().get("NewtonSimulationManager", data_module.SimulationManager)
     data_type = globals().get("NewtonArticulationData", data_module.ArticulationData)
     model = simulation_manager.get_model()
-    model.articulation_count = config.num_instances
-    model.max_joints_per_articulation = config.num_bodies
-    model.max_dofs_per_articulation = config.num_joints + 6
-    model.joint_dof_count = config.num_instances * (config.num_joints + 6)
-    model.body_count = config.num_instances * config.num_bodies
+    _configure_articulation_model(model, config.num_instances, config.num_bodies, config.num_joints)
     mock_view = MockNewtonArticulationView(
         num_instances=config.num_instances,
         num_bodies=config.num_bodies,

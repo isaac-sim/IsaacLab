@@ -43,7 +43,6 @@ def create_test_articulation(
         num_bodies=num_bodies,
         joint_names=joint_names,
         body_names=body_names,
-        benchmark_mode=True,
     )
     binding_set.set_random_data()
     mock_view = binding_set.view
@@ -100,7 +99,6 @@ def create_test_rigid_object(
         num_bodies=1,
         body_names=["base_link"],
         asset_kind="rigid_object",
-        benchmark_mode=True,
     )
     binding_set.set_random_data()
     mock_view = binding_set.view
@@ -142,7 +140,6 @@ def create_test_collection(
         num_joints=0,
         num_bodies=num_bodies,
         body_names=object_names,
-        benchmark_mode=True,
     )
     binding_set.set_random_data()
     mock_view = binding_set.view
@@ -180,7 +177,6 @@ def _create_data_target(component, config):
         "num_instances": config.num_instances,
         "num_joints": config.num_joints if component == "articulation" else 0,
         "num_bodies": config.num_bodies,
-        "benchmark_mode": True,
     }
     if component == "rigid_object":
         binding_kwargs["asset_kind"] = "rigid_object"

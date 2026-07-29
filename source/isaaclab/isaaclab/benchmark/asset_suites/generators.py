@@ -70,6 +70,20 @@ def make_mask_generator(
     return generate
 
 
+def make_scaled_tensor_generator(base_generator: InputGenerator, field_name: str, scale: float) -> InputGenerator:
+    """Wrap a generator so one tensor field uses the requested scale."""
+
+    def generate(config: MethodBenchmarkRunnerConfig) -> dict[str, object]:
+        inputs = base_generator(config)
+        value = inputs[field_name]
+        if not isinstance(value, torch.Tensor):
+            raise TypeError(f"Scaled field {field_name!r} must be generated as a torch.Tensor")
+        inputs[field_name] = value * scale
+        return inputs
+
+    return generate
+
+
 def make_signed_joint_limits_generator(base_generator: InputGenerator) -> InputGenerator:
     """Wrap a generator so joint position limits have ordered lower and upper bounds."""
 

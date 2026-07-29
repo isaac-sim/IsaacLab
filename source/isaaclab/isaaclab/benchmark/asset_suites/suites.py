@@ -7,7 +7,12 @@
 
 from __future__ import annotations
 
-from .generators import make_indexed_generators, make_mask_generator, make_signed_joint_limits_generator
+from .generators import (
+    make_indexed_generators,
+    make_mask_generator,
+    make_scaled_tensor_generator,
+    make_signed_joint_limits_generator,
+)
 from .types import AssetBenchmarkSuite, AssetMethodSpec, AssetPropertySpec
 
 
@@ -36,6 +41,27 @@ def _masked(method_name: str, tensor_shapes, mask_dimensions, category: str) -> 
         category=category,
         requires="warp_mask",
     )
+
+
+def _scaled_tensor_field(spec: AssetMethodSpec, field_name: str, scale: float) -> AssetMethodSpec:
+    return AssetMethodSpec(
+        name=spec.name,
+        method_name=spec.method_name,
+        input_generators={
+            mode: make_scaled_tensor_generator(generator, field_name, scale)
+            for mode, generator in spec.input_generators.items()
+        },
+        category=spec.category,
+        requires=spec.requires,
+    )
+
+
+_ARTICULATION_GENERATOR_SCALES = {
+    "write_joint_velocity_limit_to_sim": ("limits", 10.0),
+    "write_joint_effort_limit_to_sim": ("limits", 100.0),
+    "write_joint_armature_to_sim": ("armature", 0.1),
+    "write_joint_friction_coefficient_to_sim": ("joint_friction_coeff", 0.5),
+}
 
 
 def _signed_joint_limits(spec: AssetMethodSpec) -> AssetMethodSpec:
@@ -106,29 +132,45 @@ _ARTICULATION_PLAIN = (
             "joint_params",
         )
     ),
-    _indexed(
-        "write_joint_velocity_limit_to_sim",
-        {"limits": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_params",
+    _scaled_tensor_field(
+        _indexed(
+            "write_joint_velocity_limit_to_sim",
+            {"limits": ("instances", "joints")},
+            {"env_ids": "instances", "joint_ids": "joints"},
+            "joint_params",
+        ),
+        "limits",
+        10.0,
     ),
-    _indexed(
-        "write_joint_effort_limit_to_sim",
-        {"limits": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_params",
+    _scaled_tensor_field(
+        _indexed(
+            "write_joint_effort_limit_to_sim",
+            {"limits": ("instances", "joints")},
+            {"env_ids": "instances", "joint_ids": "joints"},
+            "joint_params",
+        ),
+        "limits",
+        100.0,
     ),
-    _indexed(
-        "write_joint_armature_to_sim",
-        {"armature": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_params",
+    _scaled_tensor_field(
+        _indexed(
+            "write_joint_armature_to_sim",
+            {"armature": ("instances", "joints")},
+            {"env_ids": "instances", "joint_ids": "joints"},
+            "joint_params",
+        ),
+        "armature",
+        0.1,
     ),
-    _indexed(
-        "write_joint_friction_coefficient_to_sim",
-        {"joint_friction_coeff": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_params",
+    _scaled_tensor_field(
+        _indexed(
+            "write_joint_friction_coefficient_to_sim",
+            {"joint_friction_coeff": ("instances", "joints")},
+            {"env_ids": "instances", "joint_ids": "joints"},
+            "joint_params",
+        ),
+        "joint_friction_coeff",
+        0.5,
     ),
     _indexed(
         "set_joint_position_target",
@@ -228,9 +270,11 @@ def _articulation_mask_specs() -> tuple[AssetMethodSpec, ...]:
         else:
             shapes = {"target": ("instances", "joints")}
         mask_spec = _masked(name, shapes, {"env_mask": "instances", "joint_mask": "joints"}, spec.category)
-        specs.append(
-            _signed_joint_limits(mask_spec) if spec.method_name == "write_joint_position_limit_to_sim" else mask_spec
-        )
+        if spec.method_name == "write_joint_position_limit_to_sim":
+            mask_spec = _signed_joint_limits(mask_spec)
+        elif scale := _ARTICULATION_GENERATOR_SCALES.get(spec.method_name):
+            mask_spec = _scaled_tensor_field(mask_spec, *scale)
+        specs.append(mask_spec)
     for spec in _ARTICULATION_PLAIN[20:23]:
         shape = {
             "set_masses": {"masses": ("instances", "bodies")},
