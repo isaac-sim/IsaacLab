@@ -31,12 +31,23 @@ isaaclab.benchmark
 
       BaseIsaacLabBenchmark
       BenchmarkMonitor
-      MicrobenchmarkCommand
-      MicrobenchmarkFactory
       MethodBenchmarkDefinition
       MethodBenchmarkRunner
       MethodBenchmarkRunnerConfig
+
+   .. rubric:: Micro-benchmarks
+
+   .. autosummary::
+
+      LatencyBenchmarkRunner
+      LatencySample
+      LatencyStatistics
+      MicrobenchmarkCommand
+      MicrobenchmarkFactory
+      add_latency_measurements
+      measure_latency
       run_microbenchmark_cli
+      summarize_latency
 
    .. rubric:: Measurements and metadata
 
@@ -111,6 +122,24 @@ Micro-Benchmark Dispatch
    :members:
 
 .. autofunction:: run_microbenchmark_cli
+
+Latency Micro-Benchmarks
+------------------------
+
+.. autoclass:: LatencyBenchmarkRunner
+   :members:
+
+.. autoclass:: LatencySample
+   :members:
+
+.. autoclass:: LatencyStatistics
+   :members:
+
+.. autofunction:: add_latency_measurements
+
+.. autofunction:: measure_latency
+
+.. autofunction:: summarize_latency
 
 Workflow Functions
 ------------------
