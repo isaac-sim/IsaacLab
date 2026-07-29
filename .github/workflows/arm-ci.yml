@@ -188,6 +188,9 @@ jobs:
         test-k-expr: not ovphysx
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
+        # The Spark runners are long-lived, so keep Isaac Sim's caches between
+        # runs; rebuilding them costs ~6 min of renderer warm-up.
+        persistent-cache-key: arm64-${{ needs.config.outputs.isaacsim_image_tag }}
 
     - name: Run shared Cartpole smoke
       uses: ./.github/actions/run-tests
@@ -197,6 +200,7 @@ jobs:
         container-name: isaac-lab-arm-ci-cartpole-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         volume-mount-source: ${{ github.workspace }}
+        persistent-cache-key: arm64-${{ needs.config.outputs.isaacsim_image_tag }}
 
     - name: Upload test reports
       if: always()
