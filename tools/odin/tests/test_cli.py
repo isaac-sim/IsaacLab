@@ -164,8 +164,6 @@ def test_build_image_dry_run_writes_a_dockerfile(workspace: Path, tmp_path: Path
             str(workspace / "odin.yaml"),
             "--ref",
             "HEAD",
-            "--profile",
-            "full",
             "--context_dir",
             str(tmp_path / "ctx"),
             "--dry_run",

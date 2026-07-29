@@ -9,14 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.odin.plan import (
-    PlanError,
-    apply_metadata,
-    build_row_key,
-    load_task_rows,
-    plan_rows,
-    uv_extras_for_profile,
-)
+from tools.odin.plan import UV_EXTRAS, PlanError, apply_metadata, build_row_key, load_task_rows, plan_rows
 
 # A seed list carries only (task_id, rl_library, physics). Sizing is deliberately
 # absent: upstream defaults --num_envs and --max_iterations to None and falls
@@ -47,29 +40,17 @@ def test_renderer_variants_do_not_collide() -> None:
     assert len(keys) == len(set(keys)) == 3
 
 
-def test_full_profile_holds_every_backend() -> None:
+def test_every_row_gets_the_one_extras_set() -> None:
     # One virtualenv covers Kit PhysX, OvPhysX, Newton and OVRTX, so a row's
     # physics preset never has to be resolved to a runtime before dispatch.
-    extras = uv_extras_for_profile("full")
-    for expected in ("isaacsim", "ovphysx", "ovrtx", "rsl-rl", "skrl", "rl-games", "sb3", "rerun"):
-        assert expected in extras
+    assert plan_rows(task_rows=_ROWS, seeds=[42])[0].uv_extras is UV_EXTRAS
 
 
-def test_full_profile_excludes_extras_that_cannot_co_resolve() -> None:
-    # teleop, viser, mimic, test and the `all` aggregate still conflict with
-    # isaacsim in [tool.uv].conflicts.
-    extras = uv_extras_for_profile("full")
+def test_extras_exclude_what_cannot_co_resolve_with_isaacsim() -> None:
+    # teleop, viser, mimic, test and the `all` aggregate conflict with isaacsim
+    # in [tool.uv].conflicts.
     for forbidden in ("teleop", "viser", "mimic", "test", "all"):
-        assert forbidden not in extras
-
-
-def test_unknown_profile_is_rejected() -> None:
-    with pytest.raises(PlanError, match="quantum"):
-        uv_extras_for_profile("quantum")
-
-
-def test_rows_default_to_the_full_profile() -> None:
-    assert plan_rows(task_rows=_ROWS, seeds=[42])[0].profile == "full"
+        assert forbidden not in UV_EXTRAS
 
 
 def test_rows_expand_across_seeds() -> None:
@@ -203,21 +184,16 @@ def test_task_without_a_physics_preset_is_planned() -> None:
     assert row.row_key == "rsl_rl_default_Isaac-X_seed42"
 
 
-def test_presets_accept_a_single_token() -> None:
-    row = plan_rows(task_rows=[dict(_ROWS[0], presets="depth")], seeds=[42])[0]
-    assert row.presets == ("depth",)
-
-
-def test_presets_accept_a_comma_separated_string() -> None:
-    # Discovery emits one token, but a hand-written list may compose several.
-    row = plan_rows(task_rows=[dict(_ROWS[0], presets="depth,simple_shading_full_mdl")], seeds=[42])[0]
-    assert row.presets == ("depth", "simple_shading_full_mdl")
-
-
-def test_presets_accept_a_yaml_list() -> None:
-    row = plan_rows(task_rows=[dict(_ROWS[0], presets=["depth", "albedo"])], seeds=[42])[0]
-    assert row.presets == ("depth", "albedo")
-
-
-def test_absent_presets_are_empty() -> None:
-    assert plan_rows(task_rows=_ROWS, seeds=[42])[0].presets == ()
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, ()),
+        ("depth", ("depth",)),
+        # Discovery emits one token, but a hand-written list may compose several.
+        ("depth,simple_shading_full_mdl", ("depth", "simple_shading_full_mdl")),
+        (["depth", "albedo"], ("depth", "albedo")),
+    ],
+)
+def test_presets_accept_a_token_a_string_or_a_list(value, expected: tuple[str, ...]) -> None:
+    row = plan_rows(task_rows=[dict(_ROWS[0], presets=value)], seeds=[42])[0]
+    assert row.presets == expected

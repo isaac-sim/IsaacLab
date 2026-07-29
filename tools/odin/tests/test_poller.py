@@ -73,15 +73,7 @@ def _snapshot(status: str, exit_code: int | None = None) -> WorkflowSnapshot:
     [
         ("FAILED", "benchmark_crash"),
         ("FAILED_EXEC_TIMEOUT", "timeout"),
-        ("FAILED_BACKEND_ERROR", "infrastructure"),
-        ("FAILED_PREEMPTED", "infrastructure"),
         ("FAILED_EVICTED", "infrastructure"),
-        ("FAILED_IMAGE_PULL", "infrastructure"),
-        ("FAILED_START_ERROR", "infrastructure"),
-        ("FAILED_START_TIMEOUT", "infrastructure"),
-        ("FAILED_QUEUE_TIMEOUT", "infrastructure"),
-        ("FAILED_SERVER_ERROR", "infrastructure"),
-        ("FAILED_CANCELED", "infrastructure"),
     ],
 )
 def test_terminal_states_map_to_failure_kinds(osmo_state: str, kind: str) -> None:

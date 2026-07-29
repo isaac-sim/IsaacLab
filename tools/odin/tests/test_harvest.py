@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tools.odin.harvest import HarvestError, harvest_dispatch, read_bundle, write_task_metadata
+from tools.odin.harvest import HarvestError, harvest_dispatch, write_task_metadata
 
 
 def _write_bundle(
@@ -49,18 +49,6 @@ def _write_bundle(
         payload["learning"] = {"ema_alpha": 0.1, "reward": {"final_raw": reward, "final_ema": reward}}
     (row_dir / f"benchmark_training_{task}_2026-07-28_12-00-00.json").write_text(json.dumps(payload))
     return row_dir
-
-
-def test_read_bundle_returns_none_for_an_empty_dir(tmp_path: Path) -> None:
-    (tmp_path / "row").mkdir()
-    assert read_bundle(tmp_path / "row") is None
-
-
-def test_read_bundle_parses_a_written_bundle(tmp_path: Path) -> None:
-    _write_bundle(tmp_path, "row")
-    bundle = read_bundle(tmp_path / "row")
-    assert bundle is not None
-    assert bundle["run"]["task"] == "Isaac-Ant"
 
 
 def test_harvest_groups_seeds_of_one_task(tmp_path: Path) -> None:

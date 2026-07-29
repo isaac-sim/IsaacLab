@@ -26,7 +26,6 @@ def _row(key: str, timeout_s: int | None) -> PlannedRow:
         max_iterations=None,
         timeout_s=timeout_s,
         uv_extras=("rsl-rl", "isaacsim"),
-        profile="isaacsim",
         osmo_task_name=key.lower(),
     )
 
@@ -35,14 +34,9 @@ def test_empty_input_yields_no_chunks() -> None:
     assert chunk_rows([], 25) == []
 
 
-def test_rows_are_split_at_chunk_size() -> None:
+def test_rows_are_split_at_chunk_size_with_ascending_indices() -> None:
     rows = [_row(f"t{i}", 100) for i in range(5)]
-    assert [len(chunk) for _, chunk in chunk_rows(rows, 2)] == [2, 2, 1]
-
-
-def test_chunk_indices_ascend_from_zero() -> None:
-    rows = [_row(f"t{i}", 100) for i in range(5)]
-    assert [index for index, _ in chunk_rows(rows, 2)] == [0, 1, 2]
+    assert [(index, len(chunk)) for index, chunk in chunk_rows(rows, 2)] == [(0, 2), (1, 2), (2, 1)]
 
 
 def test_rows_are_ordered_by_ascending_timeout() -> None:

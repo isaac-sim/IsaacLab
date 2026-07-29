@@ -16,6 +16,9 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        # Golden files are byte-exact renderer output; reformatting them makes
+        # the tests that compare against them fail.
+        exclude: "^tools/odin/tests/golden/"
       - id: check-symlinks
       - id: destroyed-symlinks
       - id: check-added-large-files
@@ -28,7 +31,7 @@ repos:
       - id: check-executables-have-shebangs
       - id: check-toml
       - id: end-of-file-fixer
-        exclude: "^(.agents/skills/|.claude/skills$)"
+        exclude: "^(.agents/skills/|.claude/skills$|tools/odin/tests/golden/)"
       - id: check-shebang-scripts-are-executable
       - id: detect-private-key
       - id: debug-statements
@@ -54,7 +57,7 @@ repos:
           - --license-filepath
           - .github/LICENSE_HEADER.txt
           - --use-current-year
-        exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/"
+        exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/|^tools/odin/tests/golden/"
   # Apache 2.0 license for mimic files
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.5

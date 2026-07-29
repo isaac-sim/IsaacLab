@@ -89,13 +89,14 @@ def classify_terminal_state(osmo_state: str) -> str | None:
         non-terminal states. Unrecognised ``FAILED*`` states fall back to
         ``infrastructure``.
     """
-    if osmo_state == "COMPLETED":
+    if osmo_state == "COMPLETED" or not is_terminal(osmo_state):
         return None
-    if osmo_state in OSMO_STATE_TO_FAILURE_KIND:
-        return OSMO_STATE_TO_FAILURE_KIND[osmo_state]
-    if osmo_state.startswith("FAILED"):
-        return "infrastructure"
-    return None
+    return _failure_kind(osmo_state)
+
+
+def _failure_kind(osmo_state: str) -> str:
+    """Return the failure kind for a terminal, non-``COMPLETED`` OSMO state."""
+    return OSMO_STATE_TO_FAILURE_KIND.get(osmo_state, "infrastructure")
 
 
 def _osmo_status_to_job_status(osmo_state: str) -> str:
@@ -106,7 +107,6 @@ def _osmo_status_to_job_status(osmo_state: str) -> str:
         return "running"
     if is_terminal(osmo_state):
         return "failed"
-    # SUBMITTING, WAITING, PROCESSING, SCHEDULING, INITIALIZING, RESCHEDULED.
     return "pending"
 
 
@@ -178,7 +178,7 @@ def sync_once(
                 job.transition_to(
                     "failed",
                     failure=FailureInfo(
-                        kind=classify_terminal_state(task.status) or "infrastructure",
+                        kind=_failure_kind(task.status),
                         message=f"OSMO task {task.name} reached {task.status} (exit={task.exit_code})",
                         details={"osmo_state": task.status, "exit_code": task.exit_code},
                     ),

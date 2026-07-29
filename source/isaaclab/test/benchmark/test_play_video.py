@@ -13,7 +13,6 @@ headless. These tests pin the wiring that closed that gap.
 from __future__ import annotations
 
 import argparse
-import importlib.util
 from pathlib import Path
 
 import pytest
@@ -62,39 +61,16 @@ def test_video_dir_tolerates_a_namespace_without_the_flag() -> None:
 
 
 @pytest.mark.parametrize("backend", _BACKENDS)
-def test_adapter_declares_video_arguments(backend: str) -> None:
-    assert "add_video_args(parser, include_interval=False)" in _adapter_source(backend)
-
-
-@pytest.mark.parametrize("backend", _BACKENDS)
-def test_adapter_enables_cameras_for_video(backend: str) -> None:
-    # Without this the env renders nothing and the recording is blank.
-    assert "enable_cameras_for_video" in _adapter_source(backend)
-
-
-@pytest.mark.parametrize("backend", _BACKENDS)
-def test_adapter_requests_rgb_array_render_mode(backend: str) -> None:
+def test_adapter_wires_video(backend: str) -> None:
+    source = _adapter_source(backend)
+    assert "add_video_args(parser, include_interval=False)" in source
+    # Without enabled cameras the env renders nothing and the recording is blank.
+    assert "enable_cameras_for_video" in source
     # RecordVideo needs a render mode; gym.make defaults to None.
-    assert 'render_mode="rgb_array"' in _adapter_source(backend)
-
-
-@pytest.mark.parametrize("backend", _BACKENDS)
-def test_adapter_wraps_the_env_for_recording(backend: str) -> None:
-    assert "wrap_record_video_play" in _adapter_source(backend)
-
-
-@pytest.mark.parametrize("backend", _BACKENDS)
-def test_adapter_records_the_video_path_on_the_bundle(backend: str) -> None:
+    assert 'render_mode="rgb_array"' in source
+    assert "wrap_record_video_play" in source
     # The schema field is useless if nothing ever sets it.
-    assert "video_path=_common.play_video_dir(" in _adapter_source(backend)
-
-
-@pytest.mark.parametrize("backend", _BACKENDS)
-def test_adapter_module_is_importable_source(backend: str) -> None:
-    spec = importlib.util.spec_from_file_location(
-        f"_probe_{backend}", _ADAPTER_ROOT / backend / f"benchmark_play_{backend}.py"
-    )
-    assert spec is not None
+    assert "video_path=_common.play_video_dir(" in source
 
 
 @pytest.mark.parametrize("backend", ("rsl_rl", "rl_games", "skrl"))

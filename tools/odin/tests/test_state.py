@@ -99,7 +99,7 @@ def test_read_returns_none_when_absent(tmp_path: Path) -> None:
     assert read_dispatch_state(tmp_path) is None
 
 
-def test_incompatible_major_schema_is_rejected(tmp_path: Path) -> None:
+def test_a_different_schema_version_is_rejected(tmp_path: Path) -> None:
     (tmp_path / "dispatch.json").write_text('{"schema_version": "1.6", "dispatch_id": "x"}')
     with pytest.raises(ValueError, match="schema_version"):
         read_dispatch_state(tmp_path)
@@ -116,7 +116,6 @@ def test_transition_to_running_sets_started_at() -> None:
     assert job.status == "running"
     assert job.started_at is not None
     assert job.assigned_to == "osmo:wf-1"
-    assert job.attempts == 1
 
 
 def test_transition_to_running_requires_an_assignee() -> None:
@@ -155,7 +154,6 @@ def test_same_state_transition_is_a_noop() -> None:
     first_started = job.started_at
     job.transition_to("running", assigned_to="osmo:wf-1")
     assert job.started_at == first_started
-    assert job.attempts == 1
 
 
 def test_illegal_transition_is_rejected() -> None:

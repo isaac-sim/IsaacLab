@@ -28,7 +28,7 @@ from tools.odin.client import OsmoClient
 from tools.odin.config_file import OdinConfig, OdinConfigError, load_odin_config
 from tools.odin.discover import DiscoveryError, discover_tasks, expand_rows, filter_rows, write_task_list
 from tools.odin.harvest import DEFAULT_TIMEOUT_HEADROOM, HarvestError, harvest_dispatch, write_task_metadata
-from tools.odin.image import DEFAULT_CUDA_IMAGE, PROFILES, ImageBuildError, build_image
+from tools.odin.image import DEFAULT_CUDA_IMAGE, ImageBuildError, build_image
 from tools.odin.plan import PlanError, PlannedRow, apply_metadata, chunk_rows, load_task_rows, plan_rows
 from tools.odin.poller import PollError, poll_until_terminal
 from tools.odin.results import dispatch_output_uri, fetch_results, validate_bundle
@@ -100,12 +100,10 @@ def _job_from_row(row: PlannedRow, *, side: str, image_ref: str) -> JobEntry:
 def command_build_image(args: argparse.Namespace) -> int:
     """Build, and optionally push, a commit-pinned benchmark image."""
     cfg = load_odin_config(args.config)
-    profiles = args.profile or ["full"]
     tag = build_image(
         spec=cfg.image,
         ref=args.ref,
         repo_root=_REPO_ROOT,
-        profiles=profiles,
         context_dir=args.context_dir,
         cuda_image=args.cuda_image,
         push=args.push,
@@ -357,7 +355,7 @@ def _submit_and_poll(
 
     # Preflight: OSMO uploads results itself via each task's outputs block, so a
     # read-only bucket would not surface until every task had already run.
-    if not args.skip_preflight and not client.data_check(cfg.results_uri, access="WRITE"):
+    if not args.skip_preflight and not client.data_check(cfg.results_uri):
         print(
             f"[odin] {cfg.results_uri} is not writable; results would be lost. "
             "Fix the bucket mode or pass --skip_preflight to override.",
@@ -532,13 +530,6 @@ def _build_parser() -> argparse.ArgumentParser:
     build = sub.add_parser("build-image", help="Pin a git ref into a benchmark image.")
     build.add_argument("--config", type=Path, required=True)
     build.add_argument("--ref", type=str, default="HEAD")
-    build.add_argument(
-        "--profile",
-        action="append",
-        choices=sorted(PROFILES),
-        default=None,
-        help="uv extras profile to warm; repeatable. Defaults to 'full'.",
-    )
     build.add_argument("--cuda_image", type=str, default=DEFAULT_CUDA_IMAGE)
     build.add_argument("--context_dir", type=Path, default=Path("./.odin-build"))
     build.add_argument("--push", action="store_true")

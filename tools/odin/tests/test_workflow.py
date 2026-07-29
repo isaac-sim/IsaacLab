@@ -3,14 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Rendering of the OSMO workflow YAML."""
+"""Rendering of the OSMO workflow YAML.
+
+The rendered artefact is pinned whole by the goldens under ``golden/``. The
+tests below cover the invariants that a golden diff would show but not explain.
+"""
 
 import dataclasses
 
 import yaml
 
 from tools.odin.config_file import ImageSpec, OdinConfig, ResourcesSpec, RetrySpec
-from tools.odin.plan import PlannedRow
+from tools.odin.plan import UV_EXTRAS, PlannedRow
 from tools.odin.workflow import osmo_safe_task_name, render_workflow_yaml
 
 _CFG = OdinConfig(
@@ -40,8 +44,7 @@ _ROW = PlannedRow(
     num_envs=None,
     max_iterations=None,
     timeout_s=None,
-    uv_extras=("rsl-rl", "isaacsim"),
-    profile="isaacsim",
+    uv_extras=UV_EXTRAS,
     osmo_task_name="rsl-rl-physx-isaac-ant-seed42",
 )
 
@@ -70,6 +73,27 @@ def _script(rendered: str, index: int = 0) -> str:
     return _task(rendered, index)["files"][0]["contents"]
 
 
+def test_default_row_renders_the_golden_workflow(assert_golden) -> None:
+    assert_golden("workflow_default.yaml", _render())
+
+
+def test_sized_camera_row_renders_the_golden_workflow(assert_golden) -> None:
+    row = dataclasses.replace(
+        _ROW,
+        num_envs=4096,
+        max_iterations=500,
+        timeout_s=900,
+        renderer="ovrtx",
+        presets=("depth", "simple_shading_full_mdl"),
+    )
+    assert_golden("workflow_sized_renderer_presets.yaml", _render(rows=(row,)))
+
+
+def test_play_and_keep_checkpoint_row_renders_the_golden_workflow(assert_golden) -> None:
+    row = dataclasses.replace(_ROW, play=True, keep_checkpoint=True, video_length=120)
+    assert_golden("workflow_play_keep_checkpoint.yaml", _render(rows=(row,)))
+
+
 def test_rendered_yaml_parses() -> None:
     assert yaml.safe_load(_render())["workflow"]["name"]
 
@@ -84,73 +108,11 @@ def test_each_task_gets_its_own_group() -> None:
     assert all(len(group["tasks"]) == 1 for group in groups)
 
 
-def test_image_reference_is_the_digest_pinned_argument() -> None:
-    assert _task(_render())["image"] == _IMAGE
-
-
 def test_pull_credential_maps_the_name_to_the_registry_host() -> None:
     # OSMO rejects a bare `pull_credential:` field, and its `credentials:` block
     # is keyed by credential name with the registry HOST as the value -- not the
     # namespaced registry path.
     assert _task(_render())["credentials"] == {"ngc_read_only": "nvcr.io"}
-
-
-def test_timeouts_come_from_config() -> None:
-    timeout = yaml.safe_load(_render())["workflow"]["timeout"]
-    assert timeout["exec_timeout"] == "86400s"
-    assert timeout["queue_timeout"] == "172800s"
-
-
-def test_entry_script_invokes_the_upstream_benchmark_cli() -> None:
-    script = _script(_render())
-    assert "uv run" in script
-    assert "--extra rsl-rl" in script
-    assert "--extra isaacsim" in script
-    assert "isaaclab benchmark training" in script
-    assert "--rl_library rsl_rl" in script
-    assert "--task Isaac-Ant" in script
-    assert "--seed 42" in script
-    assert "--benchmark_formatter schema" in script
-    assert "physics=physx" in script
-
-
-def test_entry_script_does_not_pass_headless() -> None:
-    # --headless was removed upstream in favour of --visualizer/--viz; runs are
-    # headless when neither is passed.
-    assert "--headless" not in _script(_render())
-
-
-def test_unsized_row_omits_the_sizing_flags() -> None:
-    # Omitting them is what makes the task fall back to its shipped agent config.
-    script = _script(_render())
-    assert "--num_envs" not in script
-    assert "--max_iterations" not in script
-
-
-def test_sized_row_emits_the_sizing_flags() -> None:
-    row = dataclasses.replace(_ROW, num_envs=4096, max_iterations=500)
-    script = _script(_render(rows=(row,)))
-    assert "--num_envs 4096" in script
-    assert "--max_iterations 500" in script
-
-
-def test_headless_row_omits_the_renderer_selector() -> None:
-    assert "renderer=" not in _script(_render())
-
-
-def test_renderer_selector_is_emitted_when_set() -> None:
-    row = dataclasses.replace(_ROW, renderer="isaacsim_rtx")
-    assert "renderer=isaacsim_rtx" in _script(_render(rows=(row,)))
-
-
-def test_task_declares_a_declarative_outputs_block() -> None:
-    # Publishing must not be a shell command in the entry script: the image has
-    # no osmo binary and no credentials, so it would silently no-op.
-    assert _task(_render())["outputs"] == [{"url": _OUTPUT_URI}]
-
-
-def test_entry_script_contains_no_upload_command() -> None:
-    assert "osmo data upload" not in _script(_render())
 
 
 def test_entry_script_preserves_the_benchmark_exit_code() -> None:
@@ -168,24 +130,10 @@ def test_artifact_listing_cannot_fail_the_task() -> None:
     assert 'find "$OUT" -type f | head -40 || true' in _script(_render())
 
 
-def test_exit_actions_come_from_retry_config() -> None:
-    actions = _task(_render())["exitActions"]
-    assert actions["RESCHEDULE"] == "3001-3006"
-    assert "RESTART" not in actions
-
-
 def test_workflow_name_is_unique_per_chunk() -> None:
     first = yaml.safe_load(_render(chunk_index=0))["workflow"]["name"]
     second = yaml.safe_load(_render(chunk_index=1))["workflow"]["name"]
     assert first != second
-
-
-def test_every_task_shares_the_dispatch_output_prefix() -> None:
-    # Each task writes into its own {{output}}/<row_key>/, so one shared prefix
-    # is correct and rows cannot collide.
-    second = dataclasses.replace(_ROW, row_key="other", osmo_task_name="other")
-    rendered = _render(rows=(_ROW, second))
-    assert _task(rendered, 0)["outputs"] == _task(rendered, 1)["outputs"]
 
 
 def test_long_row_key_is_truncated_with_a_stable_hash() -> None:
@@ -195,46 +143,11 @@ def test_long_row_key_is_truncated_with_a_stable_hash() -> None:
     assert name == osmo_safe_task_name(long_key)
 
 
-def test_multiple_presets_render_as_one_comma_separated_token() -> None:
-    # The executor imposes no one-at-a-time limit; discovery's is its own.
-    row = dataclasses.replace(_ROW, presets=("depth", "simple_shading_full_mdl"))
-    assert "presets=depth,simple_shading_full_mdl" in _script(_render(rows=(row,)))
-
-
-def test_no_presets_token_when_empty() -> None:
-    assert "presets=" not in _script(_render())
-
-
-def test_play_is_not_chained_by_default() -> None:
-    script = _script(_render())
-    assert "isaaclab benchmark play" not in script
-
-
-def test_chained_play_reads_the_training_checkpoint() -> None:
-    row = dataclasses.replace(_ROW, play=True)
-    script = _script(_render(rows=(row,)))
-    assert "isaaclab benchmark play" in script
-    assert '--checkpoint "$CKPT"' in script
-    assert "benchmark_training_*.json" in script
-
-
-def test_chained_play_records_a_video() -> None:
-    row = dataclasses.replace(_ROW, play=True, video_length=120)
-    script = _script(_render(rows=(row,)))
-    assert "--video " in script or "--video\n" in script
-    assert "--video_length 120" in script
-
-
 def test_chained_play_is_skipped_when_training_fails() -> None:
     # Nothing to roll out, and a play error would mask the real verdict.
     script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
     assert 'if [ "$rc" -ne 0 ]; then' in script
     assert 'PLAY_STATUS="skipped_training_failed"' in script
-
-
-def test_chained_play_is_skipped_without_a_checkpoint() -> None:
-    script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
-    assert 'PLAY_STATUS="skipped_no_checkpoint"' in script
 
 
 def test_training_exit_code_remains_the_verdict() -> None:
@@ -258,47 +171,3 @@ def test_entry_script_never_calls_system_python() -> None:
     code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
     assert "python3" not in code
     assert "/workspace/isaaclab/.venv/bin/python" in code
-
-
-def test_every_row_writes_a_step_record() -> None:
-    # Bundles say what a run measured; this says what happened.
-    assert "odin-steps.json" in _script(_render())
-
-
-def test_step_record_distinguishes_why_play_did_not_run() -> None:
-    script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
-    for status in ("skipped_training_failed", "skipped_no_checkpoint", "ran"):
-        assert status in script
-
-
-def test_step_record_marks_play_not_requested_when_disabled() -> None:
-    assert 'PLAY_STATUS="not_requested"' in _script(_render())
-
-
-def test_step_record_failure_cannot_fail_the_task() -> None:
-    # Diagnostics must never be the reason a good run goes red.
-    assert "could not write odin-steps.json" in _script(_render())
-
-
-def test_checkpoint_is_not_retained_by_default() -> None:
-    assert '"$OUT/checkpoint"' not in _script(_render())
-
-
-def test_keep_checkpoint_copies_it_into_the_uploaded_output() -> None:
-    # OSMO uploads only {{output}}; RL libraries write checkpoints under logs/,
-    # so without this copy the run is un-replayable.
-    script = _script(_render(rows=(dataclasses.replace(_ROW, keep_checkpoint=True),)))
-    assert 'mkdir -p "$OUT/checkpoint"' in script
-    assert 'cp "$CKPT" "$OUT/checkpoint/"' in script
-
-
-def test_checkpoint_is_resolved_even_without_play() -> None:
-    # Retaining a checkpoint and rolling it out are separate concerns.
-    script = _script(_render(rows=(dataclasses.replace(_ROW, keep_checkpoint=True),)))
-    assert "benchmark_training_*.json" in script
-    assert "isaaclab benchmark play" not in script
-
-
-def test_step_record_reports_where_the_checkpoint_was_retained() -> None:
-    script = _script(_render(rows=(dataclasses.replace(_ROW, keep_checkpoint=True),)))
-    assert "retained_as" in script

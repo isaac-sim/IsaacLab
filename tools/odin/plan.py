@@ -27,6 +27,7 @@ import yaml
 from tools.odin.workflow import osmo_safe_task_name
 
 __all__ = [
+    "UV_EXTRAS",
     "PlanError",
     "PlannedRow",
     "apply_metadata",
@@ -35,32 +36,28 @@ __all__ = [
     "chunk_rows",
     "load_task_rows",
     "plan_rows",
-    "uv_extras_for_profile",
 ]
 
 # Sizing fields a harvested metadata entry may contribute to a seed entry.
 _OVERLAY_FIELDS = ("num_envs", "max_iterations", "timeout_s")
 
-# Extras per profile. Mirrors image.PROFILES; kept here rather than imported to
-# keep plan.py free of the image-build layer.
+# The one extras set every row runs under, and the one the image is built with.
+# Holding every backend in a single virtualenv means a row's physics preset
+# never has to be resolved to a Kit/kitless runtime before dispatch, which
+# matters because a preset token does not determine the backend: ``physics=physx``
+# resolves to OvPhysX on most tasks and to Kit PhysX on a few.
 #
-# A single ``full`` profile holds every backend, so a row's physics preset no
-# longer has to be resolved to a Kit/kitless runtime before it can be dispatched
-# -- which matters because a preset token does not determine the backend:
-# `physics=physx` resolves to OvPhysX on 39 tasks and to Kit PhysX on 5.
-PROFILE_EXTRAS: dict[str, tuple[str, ...]] = {
-    "full": ("isaacsim", "ovphysx", "ovrtx", "rsl-rl", "skrl", "rl-games", "sb3", "rerun"),
-}
-
-DEFAULT_PROFILE = "full"
+# teleop, viser, mimic, test and the ``all`` aggregate are excluded because they
+# genuinely cannot co-resolve with isaacsim.
+UV_EXTRAS: tuple[str, ...] = ("isaacsim", "ovphysx", "ovrtx", "rsl-rl", "skrl", "rl-games", "sb3", "rerun")
 
 # Frames recorded during a chained play rollout.
 DEFAULT_VIDEO_LENGTH = 200
 
 _RL_LIBRARIES = frozenset({"rsl_rl", "rl_games", "skrl", "sb3"})
 
-# ``physics`` is deliberately absent: 35 of the 87 usable tasks declare no
-# physics preset at all and hard-fail on any ``physics=`` token.
+# ``physics`` is deliberately absent: many usable tasks declare no physics
+# preset at all and hard-fail on any ``physics=`` token.
 _REQUIRED_FIELDS = ("task_id", "rl_library")
 
 
@@ -95,7 +92,6 @@ class PlannedRow:
         timeout_s: Wall-clock budget [s] driving chunk ordering, or ``None`` to
             inherit the workflow-level ceiling.
         uv_extras: ``--extra`` tokens for the task's ``uv run`` invocation.
-        profile: uv profile the row runs under; ``full`` holds every backend.
         osmo_task_name: DNS-1123-safe OSMO task name derived from *row_key*.
     """
 
@@ -113,7 +109,6 @@ class PlannedRow:
     max_iterations: int | None
     timeout_s: int | None
     uv_extras: tuple[str, ...]
-    profile: str
     osmo_task_name: str
 
 
@@ -166,23 +161,6 @@ def build_row_key(
     """
     optional = "".join(f"{part}_" for part in (renderer, "-".join(presets)) if part)
     return f"{rl_library}_{physics or 'default'}_{optional}{task_id}_seed{seed}"
-
-
-def uv_extras_for_profile(profile: str) -> tuple[str, ...]:
-    """Return the full extras set for a uv profile.
-
-    Args:
-        profile: Profile name; ``full`` holds every backend.
-
-    Returns:
-        Every extra baked into that profile's virtualenv.
-
-    Raises:
-        PlanError: If *profile* is not a known profile.
-    """
-    if profile not in PROFILE_EXTRAS:
-        raise PlanError(f"unknown profile {profile!r}; expected one of {sorted(PROFILE_EXTRAS)}")
-    return PROFILE_EXTRAS[profile]
 
 
 def load_task_rows(path: Path) -> list[dict[str, Any]]:
@@ -316,8 +294,6 @@ def plan_rows(
         play = bool(entry.get("play", False))
         keep_checkpoint = bool(entry.get("keep_checkpoint", False))
         video_length = int(entry.get("video_length", DEFAULT_VIDEO_LENGTH))
-        profile = str(entry.get("profile") or DEFAULT_PROFILE)
-        extras = uv_extras_for_profile(profile)
 
         for seed in seeds:
             row_key = build_row_key(rl_library, physics, task_id, seed, renderer, presets)
@@ -339,8 +315,7 @@ def plan_rows(
                     num_envs=_optional_int(entry.get("num_envs")),
                     max_iterations=_optional_int(entry.get("max_iterations")),
                     timeout_s=_optional_int(entry.get("timeout_s")),
-                    uv_extras=extras,
-                    profile=profile,
+                    uv_extras=UV_EXTRAS,
                     osmo_task_name=osmo_safe_task_name(row_key),
                 )
             )

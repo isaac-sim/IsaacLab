@@ -26,12 +26,13 @@ from typing import Any
 
 import yaml
 
+from tools.odin.results import read_bundle
+
 __all__ = [
     "DEFAULT_TIMEOUT_HEADROOM",
     "HarvestError",
     "TaskMetadata",
     "harvest_dispatch",
-    "read_bundle",
     "write_task_metadata",
 ]
 
@@ -44,8 +45,6 @@ class HarvestError(ValueError):
 # budget. Generous because an under-budgeted row is killed mid-training, which
 # costs a whole rerun, whereas an over-budgeted one merely finishes early.
 DEFAULT_TIMEOUT_HEADROOM = 2.0
-
-_BUNDLE_GLOB = "benchmark_*.json"
 
 
 @dataclass(frozen=True)
@@ -80,28 +79,6 @@ class TaskMetadata:
     reward_final_ema_mean: float | None
     reward_final_ema_min: float | None
     seeds: list[int]
-
-
-def read_bundle(row_dir: Path) -> dict[str, Any] | None:
-    """Return the parsed schema bundle in *row_dir*, or ``None``.
-
-    Args:
-        row_dir: Directory holding one row's results.
-
-    Returns:
-        The first readable bundle mapping that declares a ``schema_version``, or
-        ``None`` when the directory holds none.
-    """
-    if not row_dir.is_dir():
-        return None
-    for candidate in sorted(row_dir.glob(_BUNDLE_GLOB)):
-        try:
-            payload = json.loads(candidate.read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
-        if isinstance(payload, dict) and payload.get("schema_version"):
-            return payload
-    return None
 
 
 def _duration_of(bundle: dict[str, Any]) -> float:

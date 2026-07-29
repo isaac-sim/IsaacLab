@@ -19,32 +19,17 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from tools.odin.config_file import ImageSpec
+from tools.odin.plan import UV_EXTRAS
 
 __all__ = [
     "BUNDLE_REF",
     "DEFAULT_CUDA_IMAGE",
-    "PROFILES",
     "ImageBuildError",
     "build_image",
     "image_tag_for",
     "render_dockerfile",
     "resolve_ref",
 ]
-
-# uv extras per profile. ``full`` is everything that co-resolves in one
-# virtualenv, so a task never reasons about which extras a workload needs and a
-# row never has to be routed to the right image.
-#
-# This became possible once the packaging cap was widened: ovphysx capped
-# packaging at <24 while isaacsim-core pinned ==26.0, which made the two extras
-# unresolvable together. The ``packaging>=20,<27`` override in the root
-# pyproject collapses them onto 26.0.
-#
-# Still excluded, because they genuinely cannot co-resolve with isaacsim:
-# teleop, viser, mimic, test, and the ``all`` aggregate.
-PROFILES: dict[str, tuple[str, ...]] = {
-    "full": ("isaacsim", "ovphysx", "ovrtx", "rsl-rl", "skrl", "rl-games", "sb3", "rerun"),
-}
 
 # x86_64 resolves torch from the cu128 index (see [tool.uv.sources] in
 # pyproject.toml); aarch64 uses cu130 and needs a matching base override.
@@ -91,37 +76,29 @@ def resolve_ref(ref: str, *, repo_root: Path, run: _Runner = subprocess.run) -> 
     return completed.stdout.strip()
 
 
-def image_tag_for(spec: ImageSpec, commit_sha: str, profiles: list[str]) -> str:
+def image_tag_for(spec: ImageSpec, commit_sha: str) -> str:
     """Return the tag for a built image.
 
     Args:
         spec: Registry coordinates.
         commit_sha: Full commit SHA; the tag uses its first seven characters.
-        profiles: Profiles baked into the image, in order.
 
     Returns:
-        ``<registry>/<repository>:<short_sha>-<profile>[-<profile>...]``.
+        ``<registry>/<repository>:<short_sha>``.
     """
-    return f"{spec.registry}/{spec.repository}:{commit_sha[:7]}-{'-'.join(profiles)}"
+    return f"{spec.registry}/{spec.repository}:{commit_sha[:7]}"
 
 
-def render_dockerfile(*, commit_sha: str, cuda_image: str, profiles: list[str]) -> str:
+def render_dockerfile(*, commit_sha: str, cuda_image: str) -> str:
     """Render the Dockerfile for a commit-pinned benchmark image.
 
     Args:
         commit_sha: Commit to check out inside the image.
         cuda_image: Base image reference.
-        profiles: Profile names to warm, each a key of :data:`PROFILES`.
 
     Returns:
         The rendered Dockerfile.
-
-    Raises:
-        ImageBuildError: If a profile is not a known profile name.
     """
-    unknown = [profile for profile in profiles if profile not in PROFILES]
-    if unknown:
-        raise ImageBuildError(f"unknown profile(s) {unknown}; expected some of {sorted(PROFILES)}")
     environment = Environment(
         loader=FileSystemLoader(str(_TEMPLATES_DIR)),
         undefined=StrictUndefined,
@@ -130,8 +107,7 @@ def render_dockerfile(*, commit_sha: str, cuda_image: str, profiles: list[str]) 
     return environment.get_template("Dockerfile.j2").render(
         commit_sha=commit_sha,
         cuda_image=cuda_image,
-        profiles=profiles,
-        profile_extras=PROFILES,
+        uv_extras=UV_EXTRAS,
         bundle_ref=BUNDLE_REF,
     )
 
@@ -141,7 +117,6 @@ def build_image(
     spec: ImageSpec,
     ref: str,
     repo_root: Path,
-    profiles: list[str],
     context_dir: Path,
     cuda_image: str = DEFAULT_CUDA_IMAGE,
     push: bool = False,
@@ -154,7 +129,6 @@ def build_image(
         spec: Registry coordinates.
         ref: Git ref to pin.
         repo_root: Repository the bundle is created from.
-        profiles: Profile names to warm.
         context_dir: Directory the build context is written to.
         cuda_image: Base image reference.
         push: Whether to ``docker push`` after a successful build.
@@ -170,12 +144,10 @@ def build_image(
             pushing fails.
     """
     commit_sha = resolve_ref(ref, repo_root=repo_root, run=run)
-    tag = image_tag_for(spec, commit_sha, profiles)
+    tag = image_tag_for(spec, commit_sha)
 
     context_dir.mkdir(parents=True, exist_ok=True)
-    (context_dir / "Dockerfile").write_text(
-        render_dockerfile(commit_sha=commit_sha, cuda_image=cuda_image, profiles=profiles)
-    )
+    (context_dir / "Dockerfile").write_text(render_dockerfile(commit_sha=commit_sha, cuda_image=cuda_image))
     if dry_run:
         return tag
 

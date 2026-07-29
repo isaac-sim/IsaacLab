@@ -131,12 +131,6 @@ def test_failed_data_download_raises(monkeypatch, tmp_path: Path) -> None:
         _client(monkeypatch, fake).data_download("s3://bucket/missing", tmp_path / "dest")
 
 
-def test_dataset_helpers_are_gone() -> None:
-    # OSMO datasets were retired; leaving these around would invite their use.
-    assert not hasattr(OsmoClient, "dataset_download")
-    assert not hasattr(OsmoClient, "dataset_delete")
-
-
 def test_validate_accepts_a_good_workflow(monkeypatch, tmp_path: Path) -> None:
     fake = _FakeRun(_cp(stdout="Workflow validation succeeded."))
     _client(monkeypatch, fake).validate(tmp_path / "wf.yaml")

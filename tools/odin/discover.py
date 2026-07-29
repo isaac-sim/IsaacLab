@@ -214,7 +214,7 @@ def filter_rows(
     return result
 
 
-def discover_tasks(*, validate_modes: bool = True) -> list[DiscoveredTask]:
+def discover_tasks() -> list[DiscoveredTask]:
     """Walk the Gym registry and return every dispatchable training task.
 
     Imports Isaac Lab, so it needs the project environment. Contrib tasks are
@@ -226,11 +226,6 @@ def discover_tasks(*, validate_modes: bool = True) -> list[DiscoveredTask]:
     cannot share a process with Kit physics, so ``isaacsim_physx + ovrtx`` is
     rejected. Discovering that here costs one config resolution per pairing;
     discovering it on a GPU costs a whole dispatch.
-
-    Args:
-        validate_modes: Check renderer pairings against the runtime validator.
-            Disabling it emits the full cross product, which is faster but will
-            include combinations that fail at startup.
 
     Returns:
         Discovered tasks sorted by ``task_id``.
@@ -268,7 +263,7 @@ def discover_tasks(*, validate_modes: bool = True) -> list[DiscoveredTask]:
                 task_id=spec.id,
                 scope="contrib" if spec.id.startswith("IsaacContrib-") else "core",
                 rl_libraries=libraries,
-                modes=_legal_modes(spec.id, physics, renderers, domains, validate=validate_modes),
+                modes=_legal_modes(spec.id, physics, renderers, domains),
             )
         )
     tasks.sort(key=lambda task: task.task_id)
@@ -285,8 +280,6 @@ def _legal_modes(
     physics: tuple[str, ...],
     renderers: tuple[str, ...],
     domains: tuple[str, ...],
-    *,
-    validate: bool,
 ) -> tuple[DiscoveredTask.Mode, ...]:
     """Return the legal physics/renderer/preset combinations for one task.
 
@@ -304,7 +297,7 @@ def _legal_modes(
     for physics_name in physics_options:
         for renderer in renderer_options:
             for domain in domain_options:
-                if validate and not _mode_resolves(task_id, physics_name, renderer, domain):
+                if not _mode_resolves(task_id, physics_name, renderer, domain):
                     continue
                 modes.append(DiscoveredTask.Mode(physics=physics_name, renderer=renderer, presets=domain))
     return tuple(modes)

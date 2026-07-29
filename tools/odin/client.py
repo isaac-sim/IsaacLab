@@ -19,7 +19,6 @@ import json
 import os
 import re
 import subprocess
-from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -196,8 +195,8 @@ class OsmoClient:
         if cp.returncode != 0:
             raise _classify(cp.stderr)(f"`osmo workflow validate` failed for {yaml_path.name}: {cp.stderr.strip()}")
 
-    def data_check(self, remote_uri: str, *, access: str = "WRITE") -> bool:
-        """Return whether the profile has *access* to *remote_uri*.
+    def data_check(self, remote_uri: str) -> bool:
+        """Return whether the profile can write to *remote_uri*.
 
         Used as a submit-time preflight. A bucket can be flipped read-only
         server-side — that is how OSMO retired datasets, which surfaces as
@@ -206,7 +205,6 @@ class OsmoClient:
 
         Args:
             remote_uri: Backend URI, e.g. ``swift://host/AUTH_x/prefix``.
-            access: Access mode to probe, e.g. ``WRITE`` or ``READ``.
 
         Returns:
             ``True`` when the check reports a pass.
@@ -214,7 +212,7 @@ class OsmoClient:
         Raises:
             OsmoAuthError, OsmoTransientError, OsmoCliError: per :func:`_classify`.
         """
-        cp = self._run([self._exe, "data", "check", remote_uri, "-a", access])
+        cp = self._run([self._exe, "data", "check", remote_uri, "-a", "WRITE"])
         if cp.returncode != 0:
             raise _classify(cp.stderr)(f"`osmo data check` failed: {cp.stderr.strip()}")
         return '"pass"' in cp.stdout or "'pass'" in cp.stdout
@@ -236,52 +234,3 @@ class OsmoClient:
         cp = self._run([self._exe, "data", "download", remote_uri, str(dest_dir)])
         if cp.returncode != 0:
             raise _classify(cp.stderr)(f"`osmo data download` failed: {cp.stderr.strip()}")
-
-    def cancel(self, workflow_id: str) -> None:
-        """Cancel an in-flight workflow.
-
-        Args:
-            workflow_id: The OSMO workflow ID.
-
-        Raises:
-            OsmoAuthError, OsmoTransientError, OsmoCliError: per :func:`_classify`.
-        """
-        cp = self._run([self._exe, "workflow", "cancel", workflow_id])
-        if cp.returncode != 0:
-            raise _classify(cp.stderr)(f"`osmo workflow cancel` failed: {cp.stderr.strip()}")
-
-    def logs(self, workflow_id: str, task_name: str, *, follow: bool = False) -> Iterator[bytes]:
-        """Yield log bytes from the named task.
-
-        With ``follow=False``, runs the command to completion and yields
-        the captured stdout as a single bytes chunk. With ``follow=True``,
-        streams stdout line-by-line until the subprocess exits.
-
-        Args:
-            workflow_id: The OSMO workflow ID.
-            task_name: The task name (must match an OSMO task name in the workflow).
-            follow: If True, follow the live stream (like ``tail -f``).
-
-        Yields:
-            Bytes chunks of stdout.
-
-        Raises:
-            OsmoAuthError, OsmoTransientError, OsmoCliError: on non-zero exit (non-follow path only).
-        """
-        cmd = [self._exe, "workflow", "logs", workflow_id, task_name]
-        if follow:
-            cmd.append("--follow")
-            return self._stream_logs(cmd)
-        cp = self._run(cmd)
-        if cp.returncode != 0:
-            raise _classify(cp.stderr)(f"`osmo workflow logs` failed: {cp.stderr.strip()}")
-        return iter([cp.stdout.encode()])
-
-    def _stream_logs(self, cmd: list[str]) -> Iterator[bytes]:
-        proc = subprocess.Popen(cmd, env=self._env(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False)
-        assert proc.stdout is not None
-        try:
-            yield from iter(proc.stdout.readline, b"")
-        finally:
-            proc.stdout.close()
-            proc.wait()

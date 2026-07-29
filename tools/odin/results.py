@@ -23,9 +23,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
-__all__ = ["dispatch_output_uri", "fetch_results", "results_uri_for", "validate_bundle"]
+__all__ = ["dispatch_output_uri", "fetch_results", "read_bundle", "results_uri_for", "validate_bundle"]
 
 # Upstream's SchemaBundleFile writes "<output_prefix>_<timestamp>.json" into
 # --output_path, where output_prefix is "benchmark_<workflow>_<task>".
@@ -67,6 +67,28 @@ def dispatch_output_uri(base_uri: str, dispatch_id: str) -> str:
     return f"{base_uri.rstrip('/')}/{dispatch_id}/"
 
 
+def read_bundle(bundle_dir: Path) -> dict[str, Any] | None:
+    """Return the parsed schema bundle in *bundle_dir*, or ``None``.
+
+    Args:
+        bundle_dir: Directory holding one row's results.
+
+    Returns:
+        The first readable bundle mapping that declares a ``schema_version``, or
+        ``None`` when the directory holds none.
+    """
+    if not bundle_dir.is_dir():
+        return None
+    for candidate in sorted(bundle_dir.glob(_BUNDLE_GLOB)):
+        try:
+            payload = json.loads(candidate.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict) and payload.get("schema_version"):
+            return payload
+    return None
+
+
 def validate_bundle(bundle_dir: Path) -> bool:
     """Return ``True`` iff *bundle_dir* holds a readable schema bundle.
 
@@ -77,19 +99,9 @@ def validate_bundle(bundle_dir: Path) -> bool:
         bundle_dir: Directory the row's results were fetched into.
 
     Returns:
-        Whether some bundle file exists, parses as JSON, and declares a
-        ``schema_version``.
+        Whether :func:`read_bundle` finds anything.
     """
-    if not bundle_dir.is_dir():
-        return False
-    for candidate in sorted(bundle_dir.glob(_BUNDLE_GLOB)):
-        try:
-            payload = json.loads(candidate.read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
-        if isinstance(payload, dict) and payload.get("schema_version"):
-            return True
-    return False
+    return read_bundle(bundle_dir) is not None
 
 
 def fetch_results(

@@ -96,7 +96,6 @@ class JobEntry:
     side: str = "a"
     status: str = "pending"
     assigned_to: str | None = None
-    attempts: int = 0
     failure: FailureInfo | None = None
     started_at: str | None = None
     ended_at: str | None = None
@@ -121,7 +120,7 @@ class JobEntry:
         """Move this job to *status*, enforcing the target's field invariants.
 
         Transitioning to the current status is a no-op, so repeated poll ticks
-        do not reset timestamps or inflate the attempt count.
+        do not reset timestamps.
 
         Args:
             status: Target status.
@@ -143,7 +142,6 @@ class JobEntry:
                 raise ValueError(f"assigned_to is required to enter 'running' (row_key={self.row_key!r})")
             self.assigned_to = assigned_to
             self.started_at = _utc_now_iso()
-            self.attempts += 1
         elif status in ("completed", "failed"):
             if status == "failed" and failure is None:
                 raise ValueError(f"failure is required to enter 'failed' (row_key={self.row_key!r})")
@@ -206,7 +204,6 @@ def _job_to_dict(job: JobEntry) -> dict[str, Any]:
         "side": job.side,
         "status": job.status,
         "assigned_to": job.assigned_to,
-        "attempts": job.attempts,
         "started_at": job.started_at,
         "ended_at": job.ended_at,
         "failure": failure,
@@ -245,18 +242,10 @@ def _job_from_dict(payload: dict[str, Any]) -> JobEntry:
         side=str(payload.get("side", "a")),
         status=str(payload.get("status", "pending")),
         assigned_to=_optional_str(payload.get("assigned_to")),
-        attempts=int(payload.get("attempts", 0)),
         failure=failure,
         started_at=_optional_str(payload.get("started_at")),
         ended_at=_optional_str(payload.get("ended_at")),
     )
-
-
-def _schema_version_compatible(got: str) -> bool:
-    """Return ``True`` iff *got* shares a major version with :data:`SCHEMA_VERSION`."""
-    if not got:
-        return False
-    return got.split(".", 1)[0] == SCHEMA_VERSION.split(".", 1)[0]
 
 
 def read_dispatch_state(dispatch_dir: Path) -> DispatchState | None:
@@ -269,15 +258,15 @@ def read_dispatch_state(dispatch_dir: Path) -> DispatchState | None:
         The parsed state, or ``None`` when the file does not exist.
 
     Raises:
-        ValueError: If the file declares an incompatible major schema version.
+        ValueError: If the file declares a different schema version.
     """
     path = dispatch_dir / _DISPATCH_FILENAME
     if not path.exists():
         return None
     payload = json.loads(path.read_text())
     got = str(payload.get("schema_version", ""))
-    if not _schema_version_compatible(got):
-        raise ValueError(f"unsupported dispatch.json schema_version {got!r} (expected major {SCHEMA_VERSION!r})")
+    if got != SCHEMA_VERSION:
+        raise ValueError(f"unsupported dispatch.json schema_version {got!r} (expected {SCHEMA_VERSION!r})")
     return DispatchState(
         schema_version=got,
         dispatch_id=str(payload["dispatch_id"]),

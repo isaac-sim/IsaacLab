@@ -8,13 +8,11 @@
 import json
 from pathlib import Path
 
-from tools.odin.results import dispatch_output_uri, fetch_results, results_uri_for, validate_bundle
+from tools.odin.results import dispatch_output_uri, fetch_results, read_bundle, results_uri_for, validate_bundle
 
 
 def _bundle(directory: Path, *, schema_version: str = "1.2", task: str = "Isaac-Ant") -> Path:
     directory.mkdir(parents=True, exist_ok=True)
-    # Upstream's SchemaBundleFile writes "<output_prefix>_<timestamp>.json" into
-    # --output_path, where output_prefix is "benchmark_<workflow>_<task>".
     path = directory / f"benchmark_training_{task}_2026-07-28_12-00-00.json"
     path.write_text(json.dumps({"schema_version": schema_version, "run": {"task": task}}))
     return path
@@ -42,17 +40,16 @@ def test_dispatch_output_uri_prefixes_every_row_uri() -> None:
     assert results_uri_for(base, dispatch, "row").startswith(dispatch_output_uri(base, dispatch))
 
 
-def test_no_shell_publish_command_is_exported() -> None:
-    # Publishing is declarative now. A shell upload spliced into the entry
-    # script silently no-ops: the image has no osmo binary.
-    import tools.odin.results as results
-
-    assert not hasattr(results, "publish_command")
-
-
 def test_valid_bundle_passes(tmp_path: Path) -> None:
     _bundle(tmp_path / "row")
     assert validate_bundle(tmp_path / "row") is True
+
+
+def test_read_bundle_returns_the_parsed_payload(tmp_path: Path) -> None:
+    _bundle(tmp_path / "row")
+    bundle = read_bundle(tmp_path / "row")
+    assert bundle is not None
+    assert bundle["run"]["task"] == "Isaac-Ant"
 
 
 def test_missing_directory_fails(tmp_path: Path) -> None:

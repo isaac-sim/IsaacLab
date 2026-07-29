@@ -8,8 +8,6 @@
 import importlib
 from pathlib import Path
 
-import pytest
-
 _ODIN_ROOT = Path(__file__).resolve().parents[1]
 
 # Sub-packages that belonged to the fleet-and-OSMO harness OdinV2 replaced.
@@ -18,9 +16,9 @@ _ODIN_ROOT = Path(__file__).resolve().parents[1]
 _REMOVED_SUBPACKAGES = ("asgard", "valhalla", "hugin", "munin", "common", "bifrost", "scripts")
 
 
-@pytest.mark.parametrize("name", _REMOVED_SUBPACKAGES)
-def test_removed_subpackage_is_absent(name: str) -> None:
-    assert not (_ODIN_ROOT / name).exists(), f"tools/odin/{name} should not exist in OdinV2"
+def test_removed_subpackages_are_absent() -> None:
+    present = [name for name in _REMOVED_SUBPACKAGES if (_ODIN_ROOT / name).exists()]
+    assert not present, f"the fleet stack reappeared under tools/odin/: {present}"
 
 
 def test_package_imports() -> None:
