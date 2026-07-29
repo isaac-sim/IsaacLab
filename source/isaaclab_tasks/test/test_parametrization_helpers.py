@@ -8,6 +8,8 @@
 import pytest
 from rendering_test_utils import (
     make_kitless_rendering_params,
+    make_kitless_rendering_params_dexsuite,
+    make_kitless_rendering_params_franka,
     make_skip_rendering_params,
     make_xfail_rendering_params,
 )
@@ -84,3 +86,33 @@ def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
 
     assert [mark.name for mark in marked[0].marks] == ["skip"]
     assert marked[0].marks[0].kwargs["reason"] == "Native renderer crash."
+
+
+def test_dexsuite_factory_applies_shared_native_crash_policy() -> None:
+    """Both stage variants should share the ticketed Dexsuite MDL skips."""
+    params = {param.id: param for param in make_kitless_rendering_params_dexsuite()}
+
+    for variant in ("legacy", "ovstage"):
+        for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
+            param = params[f"{variant}-newton-ovrtx-{data_type}"]
+            assert [mark.name for mark in param.marks] == ["skip"]
+            assert "NVBUG#6524987" in param.marks[0].kwargs["reason"]
+
+
+def test_franka_factory_adds_cloth_only_motion_policy() -> None:
+    """Franka suites should share table xfails while cloth adds motion-vector xfails."""
+    soft_params = {param.id: param for param in make_kitless_rendering_params_franka()}
+    cloth_params = {
+        param.id: param for param in make_kitless_rendering_params_franka(include_cloth_motion_vectors=True)
+    }
+
+    table_id = "legacy-newton-newton_warp-rgb"
+    assert [mark.name for mark in soft_params[table_id].marks] == ["xfail"]
+    assert [mark.name for mark in cloth_params[table_id].marks] == ["xfail"]
+    assert "OMPE-103086" in soft_params[table_id].marks[0].kwargs["reason"]
+
+    for variant in ("legacy", "ovstage"):
+        motion_id = f"{variant}-newton-ovrtx-motion_vectors"
+        assert "xfail" not in [mark.name for mark in soft_params[motion_id].marks]
+        assert [mark.name for mark in cloth_params[motion_id].marks] == ["xfail"]
+        assert "NVBUG#6489754" in cloth_params[motion_id].marks[0].kwargs["reason"]

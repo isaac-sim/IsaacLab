@@ -157,6 +157,10 @@ _OVRTX_TEXTURE_READINESS_DATA_TYPES = (
     "simple_shading_full_mdl",
 )
 _OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
+_KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
+_DEXSUITE_RENDERER_CRASH_SKIP_REASON = "Dexsuite kitless OVRTX rendering may crash or time out (NVBUG#6524987)."
+_NEWTON_WARP_MISSING_TABLE_XFAIL_REASON = "Missing table in Newton Warp renderer (OMPE-103086)."
+_OVRTX_CLOTH_MOTION_XFAIL_REASON = "Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754)."
 
 
 def make_xfail_rendering_params(
@@ -238,7 +242,7 @@ def make_kitless_rendering_params(params: list[pytest.param]) -> list[pytest.par
     expanded_params = []
     for param in params:
         renderer = param.values[1]
-        variants = ("legacy", "ovstage") if renderer == "ovrtx_renderer" else ("legacy",)
+        variants = _KITLESS_STAGE_VARIANTS if renderer == "ovrtx_renderer" else (_KITLESS_STAGE_VARIANTS[0],)
         for variant in variants:
             expanded_params.append(
                 pytest.param(
@@ -309,6 +313,36 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
         for data_type in _OVRTX_TEXTURE_READINESS_DATA_TYPES
     },
 )
+
+
+def make_kitless_rendering_params_dexsuite() -> list[pytest.param]:
+    """Create kitless Dexsuite parameters with known native-crash cases skipped."""
+    return make_skip_rendering_params(
+        make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
+        {
+            (variant, "newton", "ovrtx_renderer", data_type): _DEXSUITE_RENDERER_CRASH_SKIP_REASON
+            for variant in _KITLESS_STAGE_VARIANTS
+            for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl")
+        },
+    )
+
+
+def make_kitless_rendering_params_franka(*, include_cloth_motion_vectors: bool = False) -> list[pytest.param]:
+    """Create kitless Franka parameters with known content regressions marked."""
+    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    expected_failures = {
+        tuple(param.values): _NEWTON_WARP_MISSING_TABLE_XFAIL_REASON
+        for param in params
+        if param.values[1] == "newton" and param.values[2] == "newton_renderer"
+    }
+    if include_cloth_motion_vectors:
+        expected_failures.update(
+            {
+                (variant, "newton", "ovrtx_renderer", "motion_vectors"): _OVRTX_CLOTH_MOTION_XFAIL_REASON
+                for variant in _KITLESS_STAGE_VARIANTS
+            }
+        )
+    return make_xfail_rendering_params(params, expected_failures)
 
 
 # Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
