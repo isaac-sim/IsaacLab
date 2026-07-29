@@ -13,7 +13,7 @@
 - Generate goldens only for supported OvPhysX + OVRTX combinations.
 - Keep existing Newton-renderer and documented crashing-AOV skips unchanged.
 - Use one shared baseline set for legacy and OvStage OVRTX.
-- Generate exactly 11 `franka_soft` images and 10 `franka_cloth` images.
+- Generate exactly 12 `franka_soft` images and 11 `franka_cloth` images.
 - Do not widen pixel-difference or SSIM thresholds.
 - Run `./isaaclab.sh -f` before committing and again before pushing.
 
@@ -54,15 +54,16 @@ Run:
 ```
 
 Expected: the rendering case reaches `validate_camera_outputs()` and reports that
-`golden_images/franka_soft/ovphysx-ovrtx_renderer-rgb.png` was missing. The helper
-may retry and pass after bootstrapping the file, so also verify the new PNG exists.
+the `rgb` and `rgba` Franka soft goldens were missing. The helper
+may retry and pass after bootstrapping both files, so also verify the two new PNGs exist.
 
-- [ ] **Step 4: Remove the single probe image before the full matrix generation**
+- [ ] **Step 4: Remove the probe images before the full matrix generation**
 
-Delete only:
+Delete only these two generated files:
 
 ```text
 source/isaaclab_tasks/test/golden_images/franka_soft/ovphysx-ovrtx_renderer-rgb.png
+source/isaaclab_tasks/test/golden_images/franka_soft/ovphysx-ovrtx_renderer-rgba.png
 ```
 
 This restores a uniform missing-baseline state for Task 2.
@@ -77,7 +78,7 @@ This restores a uniform missing-baseline state for Task 2.
 
 **Interfaces:**
 - Consumes: the activated rendering functions from Task 1.
-- Produces: 21 PNG baselines consumed by both legacy and OvStage rendering tests.
+- Produces: 23 PNG baselines consumed by both legacy and OvStage rendering tests.
 
 - [ ] **Step 1: Bootstrap all legacy OvPhysX + OVRTX images**
 
@@ -104,7 +105,7 @@ find source/isaaclab_tasks/test/golden_images/franka_cloth \
   -maxdepth 1 -type f -name 'ovphysx-ovrtx_renderer-*.png' | sort
 ```
 
-Expected: 11 soft paths and 10 cloth paths, with no
+Expected: 12 soft paths and 11 cloth paths, with no
 `ovphysx-newton_renderer-*.png` files.
 
 - [ ] **Step 3: Build task-specific review montages**
@@ -162,7 +163,7 @@ golden files appear and `git diff --exit-code` reports no PNG modifications.
 - Test: `source/isaaclab_tasks/test/core/test_rendering_franka_cloth_kitless.py`
 
 **Interfaces:**
-- Consumes: the 21 legacy-generated PNGs from Task 2.
+- Consumes: the 23 legacy-generated PNGs from Task 2.
 - Produces: evidence that OvStage renders within the existing comparison thresholds against the same baselines.
 
 - [ ] **Step 1: Run the OvStage matrix**
@@ -239,7 +240,7 @@ Expected: neither edited row advertises the automatic `physx` selector.
 - Test: all files changed by Tasks 1-4.
 
 **Interfaces:**
-- Consumes: activated rendering coverage, 21 inspected PNGs, and corrected catalog rows.
+- Consumes: activated rendering coverage, 23 inspected PNGs, and corrected catalog rows.
 - Produces: a verified additive commit on PR #6674.
 
 - [ ] **Step 1: Update the tasks changelog fragment**
@@ -289,7 +290,7 @@ git status --short
 git diff --stat
 ```
 
-Expected: only the intended helper/test/docs/changelog files and 21 PNGs are
+Expected: only the intended helper/test/docs/changelog files and 23 PNGs are
 present.
 
 - [ ] **Step 5: Commit the implementation**

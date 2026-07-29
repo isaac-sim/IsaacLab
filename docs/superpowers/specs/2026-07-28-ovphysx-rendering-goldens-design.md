@@ -15,10 +15,11 @@ OVRTX combination.
 - Use one baseline per task and AOV for both the legacy and OvStage OVRTX
   implementations.
 
-The expected output is 21 PNG files:
+The expected output is 23 PNG files. A requested ``rgb`` output also exposes
+and validates ``rgba``, matching the existing rendering-baseline convention:
 
-- 11 for `franka_soft`.
-- 10 for `franka_cloth`, where `instance_segmentation` and `motion_vectors`
+- 12 for `franka_soft`.
+- 11 for `franka_cloth`, where `instance_segmentation` and `motion_vectors`
   remain skipped for their existing NVBUGs.
 
 ## Generation and Review
