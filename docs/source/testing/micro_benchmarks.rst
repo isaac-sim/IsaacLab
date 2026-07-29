@@ -285,6 +285,12 @@ For other sensors, set ``BACKEND`` to ``physx``, ``newton``, or ``ovphysx``:
        --num_envs 4096 --grid_size 1.0 --grid_resolution 0.25 \
        --warmup_steps 50 --num_steps 500
 
+Ray-caster commands run matched plane and deterministic seeded rough-terrain
+workloads by default. Results are reported separately as
+``plane_sensor_update`` and ``rough_sensor_update`` phases with matching
+observer and validation phases. Pass ``--terrain plane`` or ``--terrain rough``
+to run only one workload.
+
 Sensor Arguments
 ~~~~~~~~~~~~~~~~
 
@@ -325,6 +331,9 @@ Sensor Arguments
    * - ``--grid_size``
      - 1.0
      - Ray-grid width and length [m]
+   * - ``--terrain``
+     - ``all``
+     - Select both ray-caster terrain workloads, ``plane``, or ``rough``
    * - ``--grid_resolution``
      - 0.25
      - Ray-grid spacing [m]
@@ -416,7 +425,8 @@ p50 and p95 are separate measurements in the same phase. For example:
    Cost of the same synchronized timing boundary around a no-op. It quantifies
    measurement overhead and is never subtracted automatically. Contact cadence
    reports an observer sample with the same ``decimation + 1`` boundaries as its
-   sensor sample.
+   sensor sample. Ray-caster benchmarks report a matching observer phase for
+   each selected terrain workload.
 
 ``p50`` and ``p95``
    Median and 95th-percentile latency within one process. They expose jitter that
@@ -435,7 +445,9 @@ p50 and p95 are separate measurements in the same phase. For example:
 ``validation``
    Counts prove that the workload produced expected contacts, finite frames,
    sensor outputs, nonzero wrenches, or ray hits. The script exits with an error
-   instead of writing a valid-looking result when these checks fail.
+   instead of writing a valid-looking result when these checks fail. Ray-caster
+   validation is terrain-specific: plane hits are checked against z=0, while
+   rough-terrain validation reports the finite hit-height range.
 
 Use ``--benchmark_formatter json`` for JSON without the terminal summary, or
 ``osmo`` and ``omniperf`` for their ingestion formats.
@@ -448,7 +460,8 @@ For a performance claim:
 1. Use the same workstation, GPU and CPU conditions, software environment,
    device, benchmark file, dimensions, warm-up count, and timed count. CPU model,
    frequency, and load still affect Python, dispatch, and synchronization costs
-   when the measured tensors live on the GPU.
+   when the measured tensors live on the GPU. For ray-caster results, compare
+   the same plane or rough-terrain phase.
 2. Run baseline and candidate configurations from separate clean processes.
 3. Use at least three repetitions per configuration and report the mean plus
    between-run standard deviation.

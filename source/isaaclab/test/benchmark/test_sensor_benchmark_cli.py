@@ -51,3 +51,17 @@ def test_sensor_entrypoint_rejects_invalid_common_arguments(
 
     assert result.returncode == 2
     assert message in result.stderr
+
+
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_ray_caster_entrypoint_rejects_unknown_terrain_workload(backend: str) -> None:
+    """An unknown terrain workload should fail cleanly before simulator startup."""
+    result = subprocess.run(
+        _script_args(backend, "ray_caster", "--terrain", "unknown"),
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "invalid choice" in result.stderr
