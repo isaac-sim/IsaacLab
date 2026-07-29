@@ -41,6 +41,7 @@ from isaaclab_newton.assets.articulation.articulation_data import ArticulationDa
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton import JointTargetMode, ModelBuilder, ModelFlags
+from newton.solvers import SolverMuJoCo
 
 from pxr import UsdPhysics
 
@@ -625,13 +626,25 @@ def sim(request):
 def _make_target_mode_builder(
     joint_names: list[str], target_modes: list[JointTargetMode], stiffness: list[float], damping: list[float]
 ) -> ModelBuilder:
-    """Build a minimal pre-finalization model builder for target-mode tests."""
+    """Build a zero-gain articulated model builder for target-mode tests."""
     builder = ModelBuilder()
+    inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+    parent = -1
+    joint_ids = []
+    for joint_name in joint_names:
+        link = builder.add_link(mass=1.0, inertia=inertia, label=f"/World/Env_0/Robot/{joint_name}_link")
+        joint_ids.append(
+            builder.add_joint_revolute(
+                parent,
+                link,
+                target_ke=0.0,
+                target_kd=0.0,
+                label=f"/World/Env_0/Robot/{joint_name}",
+            )
+        )
+        parent = link
+    builder.add_articulation(joint_ids, label="/World/Env_0/Robot")
     builder.articulation_label = ["/World/Env_0/Robot"]
-    builder.articulation_start = [0]
-    builder.articulation_end = [len(joint_names)]
-    builder.joint_qd_start = list(range(len(joint_names)))
-    builder.joint_label = [f"/World/Env_0/Robot/{name}" for name in joint_names]
     builder.joint_target_mode = [int(mode) for mode in target_modes]
     builder.joint_target_ke = stiffness
     builder.joint_target_kd = damping
@@ -650,24 +663,41 @@ def _dispatch_model_init(articulation: Articulation, builder: ModelBuilder) -> N
 
 
 @pytest.mark.parametrize(
-    ("actuator_cfg", "expected_mode"),
+    ("actuator_cfg", "expected_mode", "expected_actuator_indices"),
     [
-        (ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0), JointTargetMode.POSITION),
-        (ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=2.0), JointTargetMode.VELOCITY),
+        (
+            ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0),
+            JointTargetMode.POSITION,
+            [0, 1],
+        ),
+        (
+            ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=2.0),
+            JointTargetMode.VELOCITY,
+            [-2, -3],
+        ),
         (
             ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0),
             JointTargetMode.POSITION_VELOCITY,
+            [0, -2, 1, -3],
         ),
-        (ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0), JointTargetMode.EFFORT),
-        (IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0), JointTargetMode.EFFORT),
+        (
+            ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0),
+            JointTargetMode.EFFORT,
+            None,
+        ),
+        (
+            IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0),
+            JointTargetMode.EFFORT,
+            None,
+        ),
     ],
 )
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
 @pytest.mark.parametrize("device", test_devices())
 def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
-    sim, device, articulation_type, actuator_cfg, expected_mode
+    sim, device, articulation_type, actuator_cfg, expected_mode, expected_actuator_indices
 ):
-    """Resolve configured actuator gains before Newton finalizes its solver topology."""
+    """Resolve configured modes before finalization constructs MuJoCo actuators."""
     articulation_cfg = ArticulationCfg(
         prim_path="/World/Env_.*/Robot",
         actuators={"joint": actuator_cfg},
@@ -677,7 +707,12 @@ def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
         ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
     )
     _dispatch_model_init(articulation, builder)
-    assert builder.joint_target_mode == [int(expected_mode), int(expected_mode)]
+    model = builder.finalize(device="cpu")
+    solver = SolverMuJoCo(model, use_mujoco_cpu=True)
+    assert model.joint_target_mode.numpy().tolist() == [int(expected_mode), int(expected_mode)]
+    assert (
+        solver.mjc_actuator_to_newton_idx.numpy().tolist() if solver.mjc_actuator_to_newton_idx is not None else None
+    ) == expected_actuator_indices
 
 
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
@@ -713,6 +748,32 @@ def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported(sim, devi
     )
     _dispatch_model_init(articulation, builder)
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION), int(JointTargetMode.VELOCITY)]
+
+
+@pytest.mark.parametrize(
+    ("stiffness", "damping", "expected_modes"),
+    [
+        ({"left_joint": 10.0}, 0.0, [JointTargetMode.POSITION, JointTargetMode.EFFORT]),
+        ({"left_joint": 10.0}, {"right_joint": 2.0}, [JointTargetMode.POSITION, JointTargetMode.VELOCITY]),
+    ],
+)
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("device", test_devices())
+def test_actuator_cfg_aligns_partial_dictionary_gains_by_joint_name(
+    sim, device, articulation_type, stiffness, damping, expected_modes
+):
+    """Resolve sparse stiffness and damping dictionaries independently by joint name."""
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Env_.*/Robot",
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
+        )
+    )
+    builder = _make_target_mode_builder(
+        ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
+    )
+    _dispatch_model_init(articulation, builder)
+    assert builder.joint_target_mode == [int(mode) for mode in expected_modes]
 
 
 @pytest.mark.parametrize("device", ["cpu"])

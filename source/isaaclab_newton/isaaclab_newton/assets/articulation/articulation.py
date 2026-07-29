@@ -63,6 +63,21 @@ def _target_mode_from_gains(stiffness: float, damping: float) -> JointTargetMode
     return JointTargetMode.from_gains(stiffness, damping, has_drive=True)
 
 
+def _resolve_actuator_gain_values(
+    gains: float | dict[str, float] | None, dof_names: list[str], imported_gains: list[float]
+) -> list[float]:
+    """Resolve actuator gains into values aligned with the selected DOF names."""
+    if gains is None:
+        return imported_gains
+    if isinstance(gains, dict):
+        values = [0.0] * len(dof_names)
+        indices, _, matched_values = resolve_matching_names_values(gains, dof_names)
+        for index, value in zip(indices, matched_values, strict=True):
+            values[index] = value
+        return values
+    return [gains] * len(dof_names)
+
+
 def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None:
     """Resolve configured actuator gains into Newton builder target modes before finalization."""
     articulation_ids, _ = resolve_matching_names(cfg.prim_path, builder.articulation_label, raise_when_no_match=False)
@@ -90,20 +105,19 @@ def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None
             if not matched_indices:
                 continue
             selected_dof_ids = [dof_ids[index] for index in matched_indices]
-
-            def _resolve_gains(gains: float | dict[str, float] | None) -> list[float | None]:
-                if isinstance(gains, dict):
-                    _, _, values = resolve_matching_names_values(gains, matched_names)
-                    return values
-                return [gains] * len(selected_dof_ids)
-
-            stiffness_values = _resolve_gains(actuator_cfg.stiffness)
-            damping_values = _resolve_gains(actuator_cfg.damping)
+            stiffness_values = _resolve_actuator_gain_values(
+                actuator_cfg.stiffness,
+                matched_names,
+                [builder.joint_target_ke[dof_id] for dof_id in selected_dof_ids],
+            )
+            damping_values = _resolve_actuator_gain_values(
+                actuator_cfg.damping,
+                matched_names,
+                [builder.joint_target_kd[dof_id] for dof_id in selected_dof_ids],
+            )
             for dof_id, stiffness, damping in zip(selected_dof_ids, stiffness_values, damping_values, strict=True):
-                effective_stiffness = builder.joint_target_ke[dof_id] if stiffness is None else stiffness
-                effective_damping = builder.joint_target_kd[dof_id] if damping is None else damping
                 builder.joint_target_mode[dof_id] = int(
-                    _target_mode_from_gains(effective_stiffness, effective_damping)
+                    _target_mode_from_gains(stiffness, damping)
                     if _is_implicit_actuator_cfg(actuator_cfg)
                     else JointTargetMode.EFFORT
                 )
