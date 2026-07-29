@@ -54,6 +54,9 @@ PROFILE_EXTRAS: dict[str, tuple[str, ...]] = {
 
 DEFAULT_PROFILE = "full"
 
+# Frames recorded during a chained play rollout.
+DEFAULT_VIDEO_LENGTH = 200
+
 _RL_LIBRARIES = frozenset({"rsl_rl", "rl_games", "skrl", "sb3"})
 
 # ``physics`` is deliberately absent: 35 of the 87 usable tasks declare no
@@ -78,6 +81,9 @@ class PlannedRow:
         renderer: Renderer preset token, or ``None`` to run headless.
         presets: Domain preset tokens, emitted as a comma-separated
             ``presets=a,b``. Empty when none are selected.
+        play: Whether to chain a play rollout after training, in the same
+            task, reading the checkpoint training wrote.
+        video_length: Frames to record during the chained play rollout.
         seed: Environment seed.
         num_envs: Parallel environment count, or ``None`` to use the task's
             shipped agent-config default.
@@ -96,6 +102,8 @@ class PlannedRow:
     physics: str | None
     renderer: str | None
     presets: tuple[str, ...]
+    play: bool
+    video_length: int
     seed: int
     num_envs: int | None
     max_iterations: int | None
@@ -275,6 +283,8 @@ def plan_rows(
         physics = str(physics) if physics else None
         renderer = entry.get("renderer")
         presets = normalize_presets(entry.get("presets"))
+        play = bool(entry.get("play", False))
+        video_length = int(entry.get("video_length", DEFAULT_VIDEO_LENGTH))
         profile = str(entry.get("profile") or DEFAULT_PROFILE)
         extras = uv_extras_for_profile(profile)
 
@@ -291,6 +301,8 @@ def plan_rows(
                     physics=physics,
                     renderer=renderer,
                     presets=presets,
+                    play=play,
+                    video_length=video_length,
                     seed=int(seed),
                     num_envs=_optional_int(entry.get("num_envs")),
                     max_iterations=_optional_int(entry.get("max_iterations")),

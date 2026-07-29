@@ -43,9 +43,44 @@ workflow:
           uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark training --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }}{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %}{% if row.max_iterations is not none %} --max_iterations {{ row.max_iterations }}{% endif %} --output_path "$OUT" --benchmark_formatter schema{% if row.physics %} physics={{ row.physics }}{% endif %}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}{% if row.presets %} presets={{ row.presets | join(',') }}{% endif %}
 
           rc=$?
+          echo "=== odin: training exit_code=$rc ==="
+{% if row.play %}
+          # Play is chained in the same task so it can read the checkpoint
+          # training just wrote, with no cross-task handoff. It is skipped when
+          # training failed: there is nothing to roll out, and a play error
+          # would otherwise mask the real verdict.
+          if [ "$rc" -eq 0 ]; then
+            CKPT=$(python3 - "$OUT" <<'PYEOF'
+          import glob, json, os, sys
+          candidates = sorted(glob.glob(os.path.join(sys.argv[1], "benchmark_training_*.json")))
+          for path in reversed(candidates):
+              try:
+                  payload = json.load(open(path))
+              except (OSError, ValueError):
+                  continue
+              checkpoint = payload.get("checkpoint_path")
+              if checkpoint:
+                  print(checkpoint)
+                  break
+          PYEOF
+          )
+            if [ -n "$CKPT" ]; then
+              echo "=== odin: play from $CKPT ==="
+              uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark play --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }} --checkpoint "$CKPT"{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %} --output_path "$OUT" --benchmark_formatter schema --video --video_length {{ row.video_length }}{% if row.physics %} physics={{ row.physics }}{% endif %}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}{% if row.presets %} presets={{ row.presets | join(',') }}{% endif %}
+
+              play_rc=$?
+              echo "=== odin: play exit_code=$play_rc ==="
+            else
+              echo "=== odin: training wrote no checkpoint; skipping play ==="
+            fi
+          else
+            echo "=== odin: training failed; skipping play ==="
+          fi
+{% endif %}
           set -e
-          echo "=== odin: benchmark exit_code=$rc ==="
           find "$OUT" -type f | head -40
+          # Training is the verdict: a play failure must not turn a good
+          # training run into a red row.
           exit $rc
       # OSMO uploads {{ '{{output}}' }} itself, after exec and regardless of exit
       # code, so a crashed run still returns what it produced and no publishing

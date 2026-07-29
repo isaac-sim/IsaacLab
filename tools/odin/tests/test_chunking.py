@@ -18,6 +18,8 @@ def _row(key: str, timeout_s: int | None) -> PlannedRow:
         physics="physx",
         renderer=None,
         presets=(),
+        play=False,
+        video_length=200,
         seed=42,
         num_envs=None,
         max_iterations=None,

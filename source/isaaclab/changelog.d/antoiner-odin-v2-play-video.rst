@@ -11,3 +11,11 @@ Added
   :func:`~isaaclab_rl.entrypoints.common.play_video_dir`. Recording starts at the first
   step rather than on a periodic trigger, since a play run is a single bounded rollout;
   ``--video_interval`` therefore stays training-only.
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.benchmark.schema.TrainingBundle.checkpoint_path` being reported as
+  ``None`` by the RSL-RL, RL-Games, and SKRL training benchmarks. The field is now populated
+  from the checkpoint the run actually wrote, so downstream play workflows can roll out a
+  freshly trained policy without reconstructing the path.

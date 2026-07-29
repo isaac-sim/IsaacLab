@@ -95,3 +95,35 @@ def test_adapter_module_is_importable_source(backend: str) -> None:
         f"_probe_{backend}", _ADAPTER_ROOT / backend / f"benchmark_play_{backend}.py"
     )
     assert spec is not None
+
+
+@pytest.mark.parametrize("backend", ("rsl_rl", "rl_games", "skrl"))
+def test_training_reports_the_checkpoint_it_wrote(backend: str) -> None:
+    # checkpoint_path was hardcoded None in three of four train adapters, so the
+    # schema field was dead and a chained play step had nothing to read.
+    source = (_ADAPTER_ROOT / backend / f"benchmark_train_{backend}.py").read_text()
+    assert "latest_checkpoint_path(" in source
+    assert "checkpoint_path = None" not in source
+    assert "checkpoint_path=None" not in source
+
+
+def test_latest_checkpoint_path_finds_the_newest(tmp_path: Path) -> None:
+    from isaaclab_rl.entrypoints.common import latest_checkpoint_path
+
+    nested = tmp_path / "nn"
+    nested.mkdir()
+    (nested / "model_100.pt").write_text("x")
+    older = nested / "model_100.pt"
+    newer = nested / "model_200.pt"
+    newer.write_text("x")
+    import os
+
+    os.utime(older, (1, 1))
+
+    assert latest_checkpoint_path(str(tmp_path)) == str(newer.resolve())
+
+
+def test_latest_checkpoint_path_is_none_when_nothing_was_written(tmp_path: Path) -> None:
+    from isaaclab_rl.entrypoints.common import latest_checkpoint_path
+
+    assert latest_checkpoint_path(str(tmp_path)) is None

@@ -164,6 +164,25 @@ Both sides run the identical row set. Side B's row keys and OSMO task names take
 a `_b` suffix so the two coexist in one dispatch, and `dispatch.json` records the
 image reference per side.
 
+## Videos and checkpoints
+
+`--play` chains a play rollout after training **inside the same OSMO task**, so
+it reads the checkpoint training just wrote with no cross-task handoff:
+
+```bash
+uv run python -m tools.odin.cli dispatch --config tools/odin/config/odin.yaml \
+    --image <digest> --seeds 42 --play [--video_length 200]
+```
+
+The chained step is skipped when training failed or wrote no checkpoint, and the
+task exits with the **training** exit code — a play failure must not turn a good
+training run into a red row. Both steps receive the same physics, renderer and
+preset tokens, so the rollout matches what was trained.
+
+The checkpoint is read from the training bundle's `checkpoint_path`. That field
+was hardcoded `None` in three of the four train adapters until this branch, so
+it reported nothing; it now records what actually landed on disk.
+
 ## Recover a dispatch
 
 A controller that dies mid-poll leaves rows stuck in `running` while OSMO keeps

@@ -166,6 +166,11 @@ def command_dispatch(args: argparse.Namespace) -> int:
         if args.metadata_yaml is not None:
             task_rows = apply_metadata(task_rows, load_task_rows(args.metadata_yaml))
 
+    if args.play:
+        task_rows = [
+            dict(row, play=True, **({"video_length": args.video_length} if args.video_length else {}))
+            for row in task_rows
+        ]
     rows = plan_rows(task_rows=task_rows, seeds=seeds, include=args.include)
     if not rows:
         print("[odin] no rows matched; nothing to dispatch", file=sys.stderr)
@@ -524,6 +529,12 @@ def _build_parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--chunk_size", type=int, default=None)
     dispatch.add_argument("--poll_interval", type=float, default=15.0)
     dispatch.add_argument("--runs_root", type=Path, default=Path("./odin_runs"))
+    dispatch.add_argument(
+        "--play",
+        action="store_true",
+        help="Chain a play rollout after training in the same task, recording a video.",
+    )
+    dispatch.add_argument("--video_length", type=int, default=None, help="Frames to record during play.")
     dispatch.add_argument("--dry_run", action="store_true")
     dispatch.add_argument(
         "--resume",

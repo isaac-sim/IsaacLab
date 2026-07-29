@@ -33,6 +33,8 @@ _ROW = PlannedRow(
     physics="physx",
     renderer=None,
     presets=(),
+    play=False,
+    video_length=200,
     seed=42,
     num_envs=None,
     max_iterations=None,
@@ -193,3 +195,48 @@ def test_multiple_presets_render_as_one_comma_separated_token() -> None:
 
 def test_no_presets_token_when_empty() -> None:
     assert "presets=" not in _script(_render())
+
+
+def test_play_is_not_chained_by_default() -> None:
+    script = _script(_render())
+    assert "isaaclab benchmark play" not in script
+
+
+def test_chained_play_reads_the_training_checkpoint() -> None:
+    row = dataclasses.replace(_ROW, play=True)
+    script = _script(_render(rows=(row,)))
+    assert "isaaclab benchmark play" in script
+    assert '--checkpoint "$CKPT"' in script
+    assert "benchmark_training_*.json" in script
+
+
+def test_chained_play_records_a_video() -> None:
+    row = dataclasses.replace(_ROW, play=True, video_length=120)
+    script = _script(_render(rows=(row,)))
+    assert "--video " in script or "--video\n" in script
+    assert "--video_length 120" in script
+
+
+def test_chained_play_is_skipped_when_training_fails() -> None:
+    # Nothing to roll out, and a play error would mask the real verdict.
+    script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
+    assert 'if [ "$rc" -eq 0 ]; then' in script
+    assert "training failed; skipping play" in script
+
+
+def test_chained_play_is_skipped_without_a_checkpoint() -> None:
+    script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
+    assert "wrote no checkpoint; skipping play" in script
+
+
+def test_training_exit_code_remains_the_verdict() -> None:
+    # A play failure must not turn a good training run red.
+    script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
+    assert script.rstrip().endswith("exit $rc")
+
+
+def test_chained_script_carries_the_same_presets_to_both_steps() -> None:
+    row = dataclasses.replace(_ROW, play=True, presets=("depth",), renderer="ovrtx")
+    script = _script(_render(rows=(row,)))
+    assert script.count("presets=depth") == 2
+    assert script.count("renderer=ovrtx") == 2

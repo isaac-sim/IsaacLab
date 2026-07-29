@@ -559,6 +559,31 @@ def wrap_sensor_capture(env: gym.Env, log_dir: str, args_cli: argparse.Namespace
     return CaptureEnvSensors(env, **sensor_capture_kwargs)
 
 
+def latest_checkpoint_path(log_dir: str, patterns: tuple[str, ...] = ("model_*.pt", "*.pth", "*.zip")) -> str | None:
+    """Return the newest checkpoint a training run wrote under *log_dir*.
+
+    RL libraries name and place checkpoints differently and none of them return
+    the path, so the training workflows report what actually landed on disk
+    rather than reconstructing a name that may not exist.
+
+    Args:
+        log_dir: Training log directory.
+        patterns: Glob patterns to search, in priority order.
+
+    Returns:
+        Absolute path to the most recently modified match, or ``None`` when the
+        run wrote no checkpoint.
+    """
+    import glob
+
+    matches: list[str] = []
+    for pattern in patterns:
+        matches.extend(glob.glob(os.path.join(log_dir, "**", pattern), recursive=True))
+    if not matches:
+        return None
+    return os.path.abspath(max(matches, key=os.path.getmtime))
+
+
 def add_video_args(parser: argparse.ArgumentParser, *, include_interval: bool) -> None:
     """Add the video-recording arguments shared by training and play.
 
