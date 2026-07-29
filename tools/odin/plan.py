@@ -49,9 +49,23 @@ _RL_LIBRARY_EXTRAS: dict[str, str] = {
     "sb3": "sb3",
 }
 
-# Physics presets that require Isaac Sim in the virtualenv.
-_ISAACSIM_PHYSICS = frozenset({"physx"})
-# Renderers that require Isaac Sim in the virtualenv.
+# Legacy preset aliases, mirroring PresetTarget.all_legacy_aliases(). Normalised
+# before profile selection so ``physics=newton`` and ``physics=newton_mjwarp``
+# resolve identically.
+_PRESET_ALIASES: dict[str, str] = {
+    "newton": "newton_mjwarp",
+    "kamino": "newton_kamino",
+    "ovrtx_renderer": "ovrtx",
+    "isaacsim_rtx_renderer": "isaacsim_rtx",
+}
+
+# Physics presets that require Isaac Sim in the virtualenv. Both ``physx`` and
+# its explicit ``isaacsim_physx`` spelling are registered across the task tree;
+# they are distinct preset names, not aliases of each other.
+_ISAACSIM_PHYSICS = frozenset({"physx", "isaacsim_physx"})
+# Renderers that require Isaac Sim in the virtualenv. Note the separate ``rtx``
+# preset (5 tasks) is deliberately absent: it has not been confirmed to need
+# Isaac Sim, and guessing wrong either breaks the venv or silently drops it.
 _ISAACSIM_RENDERERS = frozenset({"isaacsim_rtx"})
 # Extras added alongside the RL library when Isaac Sim is required. Nothing from
 # [tool.uv].conflicts' isaacsim row (all, test, mimic, teleop, ovphysx, viser)
@@ -138,12 +152,15 @@ def uv_extras_for(rl_library: str, physics: str, renderer: str | None) -> tuple[
     if rl_library not in _RL_LIBRARY_EXTRAS:
         raise PlanError(f"unknown rl_library {rl_library!r}; expected one of {sorted(_RL_LIBRARY_EXTRAS)}")
 
+    physics = _PRESET_ALIASES.get(physics, physics)
+    renderer = _PRESET_ALIASES.get(renderer or "", renderer or "")
+
     extras: list[str] = [_RL_LIBRARY_EXTRAS[rl_library]]
-    if physics in _ISAACSIM_PHYSICS or (renderer or "") in _ISAACSIM_RENDERERS:
+    if physics in _ISAACSIM_PHYSICS or renderer in _ISAACSIM_RENDERERS:
         extras.extend(_ISAACSIM_COMPANIONS)
     else:
         extras.extend(_NEWTON_COMPANIONS)
-        extras.extend(token for token in (physics, renderer or "") if token in _OV_TOKENS)
+        extras.extend(token for token in (physics, renderer) if token in _OV_TOKENS)
     return tuple(dict.fromkeys(extras))
 
 

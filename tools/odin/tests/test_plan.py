@@ -157,3 +157,31 @@ def test_metadata_matches_on_physics_too() -> None:
     # Same task and library on a different backend must not inherit sizing.
     metadata = [{"task_id": "Isaac-Ant", "rl_library": "rsl_rl", "physics": "newton_mjwarp", "num_envs": 4096}]
     assert apply_metadata(_ROWS, metadata)[0].get("num_envs") is None
+
+
+def test_isaacsim_physx_preset_selects_the_isaacsim_profile() -> None:
+    # 'isaacsim_physx' is a distinct registered preset (10 tasks), not an alias
+    # of 'physx'. Treating it as a newton row would build a venv without Isaac
+    # Sim and fail at runtime.
+    assert "isaacsim" in uv_extras_for("rsl_rl", "isaacsim_physx", None)
+
+
+def test_legacy_newton_alias_resolves_like_its_target() -> None:
+    assert uv_extras_for("rsl_rl", "newton", None) == uv_extras_for("rsl_rl", "newton_mjwarp", None)
+
+
+def test_legacy_kamino_alias_resolves_like_its_target() -> None:
+    assert uv_extras_for("rsl_rl", "kamino", None) == uv_extras_for("rsl_rl", "newton_kamino", None)
+
+
+def test_legacy_renderer_aliases_resolve_like_their_targets() -> None:
+    assert uv_extras_for("rsl_rl", "newton_mjwarp", "ovrtx_renderer") == uv_extras_for(
+        "rsl_rl", "newton_mjwarp", "ovrtx"
+    )
+    assert uv_extras_for("rsl_rl", "newton_mjwarp", "isaacsim_rtx_renderer") == uv_extras_for(
+        "rsl_rl", "newton_mjwarp", "isaacsim_rtx"
+    )
+
+
+def test_newton_kamino_stays_off_isaacsim() -> None:
+    assert "isaacsim" not in uv_extras_for("rsl_rl", "newton_kamino", None)
