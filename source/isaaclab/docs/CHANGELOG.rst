@@ -1,6 +1,111 @@
 Changelog
 ---------
 
+13.3.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` to
+  :class:`~isaaclab.sensors.camera.CameraCfg` as a unified cross-backend way to set the camera
+  background to a solid color. Accepts normalized RGB floats ``(r, g, b)`` in ``[0, 1]``;
+  defaults to ``None`` (each backend's original default background).
+
+Changed
+^^^^^^^
+
+* Bundled ``ovstage`` into the ``ovrtx`` and ``ovphysx`` install extras so it is installed
+  automatically alongside either OV runtime. The standalone ``ov[ovstage]`` selector has been
+  removed; use ``ov[ovrtx]`` or ``ov[ovphysx]`` (or ``ov[all]``) instead.
+* Changed the OmniClient dependency to require ``omniverseclient==2.72.3``
+  for compatibility with OVPhysX 0.5.
+* **Breaking:** Changed the root ``uv run`` extras from ``ov`` and ``rtx`` to
+  ``ovphysx`` and ``ovrtx``. Use ``--extra ovphysx`` and ``--extra ovrtx``.
+* Changed the experience-file fallback for the asset root to read
+  ``persistent.isaac.asset_root.default`` before the legacy
+  ``persistent.isaac.asset_root.cloud``, matching the setting that Isaac Sim resolves.
+  Redirecting Isaac Lab assets by editing only ``persistent.isaac.asset_root.cloud`` in an
+  experience file therefore no longer has any effect, because the shipped experiences leave
+  ``persistent.isaac.asset_root.default`` pointing at the cloud. Set the
+  ``ISAACSIM_ASSET_ROOT`` environment variable instead, or edit
+  ``persistent.isaac.asset_root.default``.
+
+* Changed the ``isaaclab.python`` and ``isaaclab.python.headless`` experiences to load
+  ``isaacsim.storage.native``, so the Isaac Sim asset-root APIs apply
+  ``ISAACSIM_ASSET_ROOT`` as well.
+
+Fixed
+^^^^^
+
+* Fixed the asset root ignoring the documented ``ISAACSIM_ASSET_ROOT`` environment
+  variable, which prevented local, self-hosted, and air-gapped asset roots from being
+  used with :attr:`~isaaclab.utils.assets.NUCLEUS_ASSET_ROOT_DIR` and the paths derived
+  from it.
+* Fixed :class:`~isaaclab.devices.Se3SpaceMouse` and
+  :class:`~isaaclab.devices.Se2SpaceMouse` not detecting the 3Dconnexion
+  SpaceNavigator.
+
+
+13.2.1 (2026-07-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab.sim.schemas.modify_articulation_root_properties` to author
+  the fixed-root-link world joint directly with USD on every backend instead of calling
+  ``omni.physx.scripts.utils.createJoint``. This removes the ``omni.physx`` dependency
+  from the spawn path, which previously raised ``ModuleNotFoundError`` when spawning
+  fixed-base articulations on kitless backends (e.g. Newton).
+
+
+13.2.0 (2026-07-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``newton:heightfield:resolution`` attribute on generated terrain colliders in
+  :class:`~isaaclab.terrains.TerrainImporter`, recording the terrain's horizontal grid spacing so
+  backends that support heightfield collision can replace the terrain collision mesh with an
+  equivalent heightfield. The attribute is inert for backends that do not consume it.
+* Added :attr:`~isaaclab.terrains.SubTerrainBaseCfg.convert_to_heightfield` to control whether a
+  sub-terrain is converted to a heightfield. Height field sub-terrains
+  (:class:`~isaaclab.terrains.height_field.HfTerrainBaseCfg`) default it to True since the conversion
+  is exact for them, while mesh sub-terrains default it to False since the conversion is lossy. The
+  terrain is only converted when every sub-terrain enables the flag.
+
+Changed
+^^^^^^^
+
+* Changed the ``physx`` launcher selector to resolve to Isaac Sim PhysX when a
+  Kit renderer or Kit viewer is requested and to OvPhysX otherwise. Use
+  ``isaacsim_physx`` to force Isaac Sim PhysX.
+* Changed the mesh sub-terrains in ``ROUGH_TERRAINS_CFG`` to enable
+  :attr:`~isaaclab.terrains.SubTerrainBaseCfg.convert_to_heightfield`, so the rough locomotion terrain
+  is collided against as a heightfield on backends that support it. Set the flag back to False on the
+  ``pyramid_stairs``, ``pyramid_stairs_inv``, or ``boxes`` sub-terrains to collide against the original
+  mesh instead.
+
+Fixed
+^^^^^
+
+* Fixed ``./isaaclab.sh --install`` unnecessarily building ``nlopt==2.6.2`` on
+  ARM Linux (e.g. DGX Spark), where it fails with CMake 4.x. The ARM-only
+  ``nlopt`` pre-install and its temporary ``swig`` install were removed because
+  ``nlopt`` is only pulled in by Linux x86_64 dependencies.
+
+* Fixed unavoidable ARM source builds such as ``egl-probe==1.0.2`` failing when
+  CMake 4.x rejects policy compatibility older than 3.5. The installer now
+  temporarily sets ``CMAKE_POLICY_VERSION_MINIMUM=3.5`` during ARM dependency
+  builds.
+* Fixed :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_material` crashing on the Newton
+  Kamino solver, which shares contact materials across shapes and environments and rejects
+  per-shape overrides. On Kamino it now samples one value per build-time material group and
+  broadcasts it to every environment; all other Newton solvers keep per-shape sampling.
+
+
 13.1.0 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~~
 

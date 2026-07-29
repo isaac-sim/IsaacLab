@@ -68,8 +68,10 @@ class UniformPoseCommand(CommandTerm):
         # -- metrics
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
-        # -- per-episode sticky success bit (only used when cfg.position_success_threshold is set)
-        self._track_success = cfg.position_success_threshold is not None
+        # -- per-episode sticky success bit (only used when at least one success threshold is set)
+        self._track_success = (
+            cfg.position_success_threshold is not None or cfg.orientation_success_threshold is not None
+        )
         if self._track_success:
             self._succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
@@ -96,11 +98,33 @@ class UniformPoseCommand(CommandTerm):
         """
         return self.pose_command_b
 
+    def compute_success(self) -> torch.Tensor:
+        """Compute whether the current body pose satisfies the configured success thresholds.
+
+        Successful entries are also recorded by the episode-level success tracker when enabled.
+
+        Returns:
+            A boolean tensor indicating which environments satisfy every configured threshold.
+            If no success threshold is configured, all entries are false.
+        """
+        position_error, orientation_error = self._compute_error()
+        success = self._compute_success(position_error, orientation_error)
+        if self._track_success:
+            self._succeeded |= success
+        return success
+
     """
     Implementation specific functions.
     """
 
     def _update_metrics(self):
+        position_error, orientation_error = self._compute_error()
+        self.metrics["position_error"] = position_error
+        self.metrics["orientation_error"] = orientation_error
+        if self._track_success:
+            self._succeeded |= self._compute_success(position_error, orientation_error)
+
+    def _compute_error(self) -> tuple[torch.Tensor, torch.Tensor]:
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
             self.robot.data.root_pos_w.torch,
@@ -115,10 +139,17 @@ class UniformPoseCommand(CommandTerm):
             self.robot.data.body_pos_w.torch[:, self.body_idx],
             self.robot.data.body_quat_w.torch[:, self.body_idx],
         )
-        self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
-        self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
-        if self._track_success:
-            self._succeeded |= self.metrics["position_error"] < self.cfg.position_success_threshold
+        return torch.linalg.norm(pos_error, dim=-1), torch.linalg.norm(rot_error, dim=-1)
+
+    def _compute_success(self, position_error: torch.Tensor, orientation_error: torch.Tensor) -> torch.Tensor:
+        success = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+        if self.cfg.position_success_threshold is not None:
+            success &= position_error < self.cfg.position_success_threshold
+        if self.cfg.orientation_success_threshold is not None:
+            success &= orientation_error < self.cfg.orientation_success_threshold
+        if not self._track_success:
+            success[:] = False
+        return success
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         extras = super().reset(env_ids)

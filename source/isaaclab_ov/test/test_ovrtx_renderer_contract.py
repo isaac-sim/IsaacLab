@@ -28,11 +28,18 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderData, OVRTXRenderer  # noqa: E402
+    from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
+        OVRTXRenderData,
+        OVRTXRenderer,
+        ovrtx_use_ovstage_enabled,
+    )
 else:
     OVRTXRenderData = None
     OVRTXRenderer = None
     OVRTXRendererCfg = None
+    ovrtx_renderer_module = None
+    ovrtx_use_ovstage_enabled = None
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -323,3 +330,37 @@ def test_ovrtx_instance_segmentation_spec_follows_colorize_flag():
     assert non_colorized.supported_output_types()[RenderBufferKind.INSTANCE_SEGMENTATION] == RenderBufferSpec(
         1, wp.int32
     )
+
+
+def test_ovrtx_use_ovstage_defaults_to_disabled(monkeypatch):
+    """The ovstage path is off unless explicitly opted into, so existing deployments are unaffected."""
+    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
+    assert ovrtx_use_ovstage_enabled() is False
+
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
+    assert ovrtx_use_ovstage_enabled() is False
+
+
+def test_ovrtx_use_ovstage_enabled_when_requested_and_available(monkeypatch):
+    """Setting the variable to 1 selects the ovstage path when ovstage is importable."""
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
+    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", True)
+    assert ovrtx_use_ovstage_enabled() is True
+
+
+def test_ovrtx_use_ovstage_raises_when_requested_but_unavailable(monkeypatch):
+    """An explicit opt-in must fail loudly rather than silently falling back to the legacy path."""
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
+    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", False)
+
+    with pytest.raises(RuntimeError, match="ov\\[ovstage\\]"):
+        ovrtx_use_ovstage_enabled()
+
+
+def test_ovrtx_use_ovstage_rejects_non_boolean_values(monkeypatch):
+    """Values other than 0/1 are a configuration error, not a silent disable."""
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "true")
+    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", True)
+
+    with pytest.raises(ValueError, match="Expected 0 or 1"):
+        ovrtx_use_ovstage_enabled()

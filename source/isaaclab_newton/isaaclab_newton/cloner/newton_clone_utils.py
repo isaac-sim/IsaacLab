@@ -13,9 +13,9 @@ import torch
 import warp as wp
 from newton import GeoType, ModelBuilder, ShapeFlags, solvers
 
-from pxr import Usd, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
-from isaaclab.cloner.cloner_utils import replace_path_prefix
+from isaaclab import cloner
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 # USD ``physics:approximation`` token (lower case) -> Newton remeshing method.
@@ -66,6 +66,66 @@ def _unauthored_collision_mesh_shapes(builder: ModelBuilder, authored_shape_indi
         and (builder.shape_flags[index] & ShapeFlags.COLLIDE_SHAPES)
         and index not in authored_shape_indices
     ]
+
+
+def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
+    """Return whether a prim hierarchy contains visible geometry without collision."""
+    root_prim = stage.GetPrimAtPath(prim_path)
+    if not root_prim:
+        return False
+    for prim in Usd.PrimRange(root_prim):
+        if not prim.IsA(UsdGeom.Gprim) or prim.HasAPI(UsdPhysics.CollisionAPI):
+            continue
+        imageable = UsdGeom.Imageable(prim)
+        if imageable.ComputeVisibility() != UsdGeom.Tokens.invisible and imageable.ComputePurpose() in (
+            UsdGeom.Tokens.default_,
+            UsdGeom.Tokens.proxy,
+        ):
+            return True
+    return False
+
+
+def _restore_visible_colliders_without_visual_shapes(
+    builder: ModelBuilder, stage: Usd.Stage, path_shape_map: dict[str, int] | None
+) -> None:
+    """Show viewport-visible colliders on bodies without separate visual shapes.
+
+    Newton normally hides every collider when any visual-only shape exists in the
+    imported model. Isaac Lab procedural shapes use one default-purpose USD geometry
+    for both collision and visualization, so an unrelated visual asset must not hide
+    them. Imported collision meshes, guide-purpose collision geometry, and
+    colliders on bodies with separate visual shapes remain hidden.
+    """
+    if not path_shape_map:
+        return
+    bodies_with_visual_shapes = {
+        builder.shape_body[index]
+        for index, flags in enumerate(builder.shape_flags)
+        if builder.shape_body[index] >= 0 and flags & ShapeFlags.VISIBLE and not flags & ShapeFlags.COLLIDE_SHAPES
+    }
+    static_parent_paths = {
+        path.rpartition("/")[0] for path, index in path_shape_map.items() if builder.shape_body[index] < 0
+    }
+    static_parents_with_visual_shapes = {
+        path for path in static_parent_paths if _has_visible_non_collision_geometry(stage, path)
+    }
+    for path, index in path_shape_map.items():
+        flags = builder.shape_flags[index]
+        body_index = builder.shape_body[index]
+        if (
+            not flags & ShapeFlags.COLLIDE_SHAPES
+            or builder.shape_type[index] == GeoType.MESH
+            or body_index in bodies_with_visual_shapes
+            or (body_index < 0 and path.rpartition("/")[0] in static_parents_with_visual_shapes)
+        ):
+            continue
+        imageable = UsdGeom.Imageable(stage.GetPrimAtPath(path))
+        if (
+            imageable
+            and imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
+            and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy)
+        ):
+            builder.shape_flags[index] = flags | ShapeFlags.VISIBLE
 
 
 def build_source_builders(
@@ -133,6 +193,7 @@ def _build_source_builder(
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
     )
+    _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
     if authored:
         authored_shape_indices = _apply_authored_approximations(builder, import_result["path_shape_map"], authored)
         if simplify_meshes:
@@ -165,13 +226,49 @@ def replicate_builder_mapping(
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.size(1)
     local_site_map: dict[str, list[list[int]]] = {}
-    world_xforms: list[wp.transform] = []
+    world_xforms = [wp.transform(positions[col], quaternions[col]) for col in range(num_worlds)]
+
+    can_batch = (
+        len(sources) == 1
+        and mapping.size(0) == 1
+        and num_worlds > 0
+        and bool(mapping.all().item())
+        and not per_world_builder_hooks
+    )
+    if can_batch:
+        source_builder = source_builders[sources[0]]
+
+        # Inject env-root sites into the source so replicate() copies them. Prefixed
+        # by world_xforms[0] so R_w = world_xform_w * inv(world_xform_0) lands each
+        # copy at world_xform_w * xform.
+        site_local_indices: dict[str, list[int]] = {}
+        for label, xform in env_root_sites.items():
+            idx = source_builder.add_site(body=-1, xform=wp.transform_multiply(world_xforms[0], xform), label=label)
+            site_local_indices.setdefault(label, []).append(idx)
+        for label, indices in source_site_indices.get(id(source_builder), {}).items():
+            site_local_indices.setdefault(label, []).extend(indices)
+
+        # Site index after replicate: base_shape + world * stride + source_local_index.
+        base_shape = builder.shape_count
+        stride = source_builder.shape_count
+        source_xform_inv = wp.transform_inverse(world_xforms[0])
+        xforms = [wp.transform_multiply(world_xform, source_xform_inv) for world_xform in world_xforms]
+        builder.replicate(source_builder, num_worlds, xforms=xforms)
+
+        for label, local_indices in site_local_indices.items():
+            local_site_map[label] = [
+                [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
+            ]
+
+        for hook in post_replicate_hooks:
+            hook(builder)
+        return local_site_map, world_xforms
+
     source_world_indices = mapping.to(dtype=torch.int64).argmax(dim=1)
 
     for col in range(num_worlds):
         builder.begin_world()
-        world_xform = wp.transform(positions[col], quaternions[col])
-        world_xforms.append(world_xform)
+        world_xform = world_xforms[col]
 
         for label, xform in env_root_sites.items():
             site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(world_xform, xform), label=label)
@@ -181,7 +278,7 @@ def replicate_builder_mapping(
             source_builder = source_builders[sources[int(row)]]
             offset = builder.shape_count
             source_col = int(source_world_indices[int(row)])
-            source_xform = wp.transform(positions[source_col], quaternions[source_col])
+            source_xform = world_xforms[source_col]
             builder.add_builder(
                 source_builder, xform=wp.transform_multiply(world_xform, wp.transform_inverse(source_xform))
             )
@@ -231,7 +328,7 @@ def rename_builder_labels(
                     continue
                 world_root = world_roots.get(int(world))
                 if isinstance(value, str) and world_root is not None:
-                    renamed_value = replace_path_prefix(value, source_root, world_root)
+                    renamed_value = cloner.path.rebase(value, source_root, world_root)
                     if renamed_value != value:
                         values[index] = renamed_value
                         if collect_body_bindings:
