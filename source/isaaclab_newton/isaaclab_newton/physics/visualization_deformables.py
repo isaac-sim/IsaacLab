@@ -16,7 +16,13 @@ from newton import ModelBuilder
 
 from pxr import Usd
 
-from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, discover_deformables_on_stage, path_to_env_regex, path_to_env_wildcard
+from isaaclab.scene_data.deformable_discovery import (
+    DeformableStageEntry,
+    discover_deformables_on_stage,
+    path_to_env_regex,
+    path_to_env_wildcard,
+    sort_deformable_entries_for_geometry_sync,
+)
 from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 logger = logging.getLogger(__name__)
@@ -79,7 +85,11 @@ def add_shadow_deformables_to_builder(
         wildcard_root = path_to_env_regex(template.root_path)
         wildcard_sim = path_to_env_regex(template.sim_mesh_path)
         wildcard_vis = path_to_env_regex(template.vis_mesh_path)
-        asset_suffix = wildcard_root.split("/World/envs/env_.*/", 1)[-1] if "/World/envs/" in wildcard_root else wildcard_root.rsplit("/", 1)[-1]
+        asset_suffix = (
+            wildcard_root.split("/World/envs/env_.*/", 1)[-1]
+            if "/World/envs/" in wildcard_root
+            else wildcard_root.rsplit("/", 1)[-1]
+        )
         group = ShadowDeformableRegistryGroup(
             prim_path=f"/World/envs/env_.*/{asset_suffix}",
             sim_mesh_prim_path=wildcard_sim,
@@ -99,21 +109,32 @@ def add_shadow_deformables_to_builder(
             )
 
         for entry in sorted(group_entries, key=lambda item: item.root_path):
-            env_prefix = entry.root_path.split("/World/envs/")[1].split("/", 1)[0] if "/World/envs/" in entry.root_path else None
-            env_id = int(env_prefix.replace("env_", "")) if env_prefix is not None and env_prefix.startswith("env_") else 0
-            env_path = env_path_by_id.get(env_id)
-            if env_path is None:
-                pos = (0.0, 0.0, 0.0)
-                quat = (0.0, 0.0, 0.0, 1.0)
+            root_prim = stage.GetPrimAtPath(entry.root_path)
+            if root_prim.IsValid():
+                pos, quat = resolve_prim_pose(root_prim)
             else:
-                pos, quat = resolve_prim_pose(stage.GetPrimAtPath(env_path))
+                env_prefix = (
+                    entry.root_path.split("/World/envs/")[1].split("/", 1)[0]
+                    if "/World/envs/" in entry.root_path
+                    else None
+                )
+                env_id = (
+                    int(env_prefix.replace("env_", ""))
+                    if env_prefix is not None and env_prefix.startswith("env_")
+                    else 0
+                )
+                env_path = env_path_by_id.get(env_id)
+                if env_path is None:
+                    pos = (0.0, 0.0, 0.0)
+                    quat = (0.0, 0.0, 0.0, 1.0)
+                else:
+                    pos, quat = resolve_prim_pose(stage.GetPrimAtPath(env_path))
 
             before_count = int(getattr(builder, "particle_count", 0))
-            env_pos = wp.vec3(float(pos[0]), float(pos[1]), float(pos[2]))
-            env_rot = wp.quat(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]))
-            body_pos = env_pos
-            body_rot = env_rot
+            body_pos = wp.vec3(float(pos[0]), float(pos[1]), float(pos[2]))
+            body_rot = wp.quat(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]))
 
+            # Visualization-only material parameters; they do not drive PhysX/OVPhysX simulation.
             if entry.deformable_type == "volume":
                 builder.add_soft_mesh(
                     pos=body_pos,
@@ -164,6 +185,10 @@ def add_shadow_deformables_to_builder(
         if group.entities:
             group.particles_per_body = group.entities[0].particle_count
             registry_groups.append(group)
+
+    ordered_roots = [entry.root_path for entry in sort_deformable_entries_for_geometry_sync(entries)]
+    entity_by_root = {entity.root_path: entity for entity in flat_entities}
+    flat_entities = [entity_by_root[root_path] for root_path in ordered_roots]
 
     return flat_entities, registry_groups
 

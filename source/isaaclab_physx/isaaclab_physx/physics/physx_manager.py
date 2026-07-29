@@ -38,6 +38,7 @@ from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     build_deformable_vertex_count_lookup,
     discover_deformables_on_stage,
+    group_deformable_root_paths_for_views,
     resolve_deformable_vertex_count,
 )
 from isaaclab.utils.string import to_camel_case
@@ -248,32 +249,18 @@ class PhysxSceneDataBackend(SceneDataBackend):
 
         path_to_count = build_deformable_vertex_count_lookup(entries)
         path_to_type = {entry.root_path: entry.deformable_type for entry in entries}
-        all_paths = list(path_to_type.keys())
-        non_rigid_names: set[str] = set()
-        for path in all_paths:
-            if re.search(r"/World/envs/env_\d+/", path):
-                non_rigid_names.add(path.rsplit("/", 1)[-1])
+        grouped_paths = group_deformable_root_paths_for_views(list(path_to_type.keys()), path_to_type)
 
-        volume_patterns: set[str] = set()
-        surface_patterns: set[str] = set()
-        exact_volume: list[str] = []
-        exact_surface: list[str] = []
-        for path in all_paths:
-            body_name = path.rsplit("/", 1)[-1]
-            wildcard = re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", path)
-            is_volume = path_to_type[path] == "volume"
-            if body_name in non_rigid_names and wildcard != path:
-                (volume_patterns if is_volume else surface_patterns).add(wildcard)
-            else:
-                (exact_volume if is_volume else exact_surface).append(path)
+        volume_patterns, exact_volume = grouped_paths["volume"]
+        surface_patterns, exact_surface = grouped_paths["surface"]
 
         if volume_patterns or exact_volume:
             self._volume_deformable_view = self._simulation_view.create_volume_deformable_body_view(
-                [*sorted(volume_patterns), *exact_volume]
+                [*volume_patterns, *exact_volume]
             )
         if surface_patterns or exact_surface:
             self._surface_deformable_view = self._simulation_view.create_surface_deformable_body_view(
-                [*sorted(surface_patterns), *exact_surface]
+                [*surface_patterns, *exact_surface]
             )
 
         device = PhysicsManager._device or "cpu"
@@ -289,8 +276,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
                 resolved = resolve_deformable_vertex_count(path, path_to_count, fallback=-1)
                 if resolved < 0:
                     logger.warning(
-                        "No USD vertex count for deformable path '%s'; using padded "
-                        "max_simulation_nodes_per_body=%d.",
+                        "No USD vertex count for deformable path '%s'; using padded max_simulation_nodes_per_body=%d.",
                         path,
                         max_nodes,
                     )
