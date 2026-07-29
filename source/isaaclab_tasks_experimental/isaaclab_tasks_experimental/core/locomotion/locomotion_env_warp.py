@@ -378,7 +378,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
             joint_gears = self.cfg.joint_gears
         self.joint_gears = wp.array(joint_gears, dtype=wp.float32, device=self.sim.device)
         self.motor_effort_ratio = wp.ones_like(self.joint_gears, device=self.sim.device)
-        self._joint_dof_idx, _ = self.robot.find_joints(".*", as_proxy=False)
+        self._joint_dof_idx, _ = self.robot.find_joints(".*")
 
         # Simulation bindings
         # Note: these are direct memory views into the Newton simulation data, they should not be modified directly

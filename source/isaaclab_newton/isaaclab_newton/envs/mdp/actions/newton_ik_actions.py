@@ -342,7 +342,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
             )
 
     def _resolve_isaac_body_index(self, body_name: str) -> int:
-        body_ids, body_names = self._asset.find_bodies(body_name, as_proxy=False)
+        body_ids, body_names = self._asset.find_bodies(body_name)
         if len(body_ids) != 1:
             raise ValueError(
                 f"Expected one match for Newton IK body_name={body_name}. Found {len(body_ids)}: {body_names}."

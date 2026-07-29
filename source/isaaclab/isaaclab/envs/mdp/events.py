@@ -2229,7 +2229,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
         pos_joint_ids = []
         for joint_name, joint_range in cfg.params["position_range"].items():
             # find the joint ids
-            joint_ids = self._asset.find_joints(joint_name, as_proxy=False)[0]
+            joint_ids = self._asset.find_joints(joint_name)[0]
             pos_joint_ids.extend(joint_ids)
 
             # set the joint position ranges based on the given values
@@ -2258,7 +2258,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
         vel_joint_ids = []
         for joint_name, joint_range in cfg.params["velocity_range"].items():
             # find the joint ids
-            joint_ids = self._asset.find_joints(joint_name, as_proxy=False)[0]
+            joint_ids = self._asset.find_joints(joint_name)[0]
             vel_joint_ids.extend(joint_ids)
 
             # set the joint velocity ranges based on the given values

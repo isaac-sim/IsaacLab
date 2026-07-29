@@ -3740,7 +3740,7 @@ class Articulation(BaseArticulation):
                     else issubclass(cls_type, ImplicitActuator)
                 ):
                     continue
-                joint_ids, _ = self.find_joints(actuator_cfg.joint_names_expr, as_proxy=False)
+                joint_ids, _ = self.find_joints(actuator_cfg.joint_names_expr)
                 explicit_joint_ids.extend(int(j) for j in joint_ids)
             if explicit_joint_ids:
                 explicit_ids_t = torch.tensor(
