@@ -68,6 +68,57 @@ def _fd_joint_acc(
 
 
 @wp.kernel
+def shift_jacobian_com_to_origin(
+    body_link_pose: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
+    link_offset: wp.int32,
+    src: wp.array4d(dtype=wp.float32),
+    dst: wp.array4d(dtype=wp.float32),
+):
+    """Shift the linear-velocity rows of a Jacobian from COM to link origin.
+
+    OvPhysX computed Jacobians are referenced at each link's center of mass. The public
+    :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` contract instead
+    requires the linear rows at the USD link origin. Each column is shifted with
+    ``v_origin = v_com - omega x (R * body_com_pos_b)``.
+
+    Args:
+        body_link_pose: Per-body link poses in world frame [m, -]. Shape is
+            (num_instances, num_bodies).
+        body_com_pos_b: Per-body center-of-mass offsets in link frame [m]. Shape is
+            (num_instances, num_bodies).
+        link_offset: Offset from a Jacobian body row to the full public body index.
+            This is 1 for a fixed base and 0 for a floating base.
+        src: COM-referenced Jacobian. Shape is
+            (num_instances, num_jacobian_bodies, 6, num_joints + num_base_dofs).
+        dst: Link-origin Jacobian output with the same shape and units as :paramref:`src`.
+    """
+    env_id, jacobian_body_id, dof_id = wp.tid()
+    body_id = jacobian_body_id + link_offset
+
+    link_rotation = wp.transform_get_rotation(body_link_pose[env_id, body_id])
+    com_offset_w = wp.quat_rotate(link_rotation, body_com_pos_b[env_id, body_id])
+    com_linear_velocity = wp.vec3(
+        src[env_id, jacobian_body_id, 0, dof_id],
+        src[env_id, jacobian_body_id, 1, dof_id],
+        src[env_id, jacobian_body_id, 2, dof_id],
+    )
+    angular_velocity = wp.vec3(
+        src[env_id, jacobian_body_id, 3, dof_id],
+        src[env_id, jacobian_body_id, 4, dof_id],
+        src[env_id, jacobian_body_id, 5, dof_id],
+    )
+    link_linear_velocity = com_linear_velocity - wp.cross(angular_velocity, com_offset_w)
+
+    dst[env_id, jacobian_body_id, 0, dof_id] = link_linear_velocity[0]
+    dst[env_id, jacobian_body_id, 1, dof_id] = link_linear_velocity[1]
+    dst[env_id, jacobian_body_id, 2, dof_id] = link_linear_velocity[2]
+    dst[env_id, jacobian_body_id, 3, dof_id] = angular_velocity[0]
+    dst[env_id, jacobian_body_id, 4, dof_id] = angular_velocity[1]
+    dst[env_id, jacobian_body_id, 5, dof_id] = angular_velocity[2]
+
+
+@wp.kernel
 def _compose_body_com_poses(
     link_pose: wp.array(dtype=wp.transformf, ndim=2),
     com_pose_b: wp.array(dtype=wp.transformf, ndim=2),
