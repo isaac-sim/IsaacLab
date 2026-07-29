@@ -206,15 +206,19 @@ class OvPhysxManager(PhysicsManager):
     _ovstage: ClassVar[Any] = None
     _stage_usda: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
+    _requires_full_stage: ClassVar[bool] = False
     # First device selected by IsaacLab for this process. OVPhysX 0.5.9 makes
     # CPU-only mode sticky but does not symmetrically lock GPU mode. IsaacLab
     # nevertheless pins the first choice so all contexts follow one predictable
     # process lifecycle and a CPU-first process is never asked to switch modes.
     _locked_device: ClassVar[str | None] = None
-    # Pending (source, targets, parent_positions) triples queued by
-    # replication is queued before the PhysX instance exists.  Replayed via
-    # physx.clone() in _warmup_and_load().
+    # Active (source, targets, parent_positions) replication recipes for the
+    # current SimulationContext. They survive the consumable pending queue so a
+    # forced re-warmup can rebuild serialized-stage or runtime-only clones.
     # parent_positions is a list of (x, y, z) tuples — one per target.
+    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
+    # Consumable snapshot of the active recipes. Full-stage warmup materializes
+    # these into serialized USDA; env-0-only warmup replays them with physx.clone().
     _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
@@ -223,6 +227,11 @@ class OvPhysxManager(PhysicsManager):
     def get_dt(cls) -> float:
         """Get the physics timestep. Alias for get_physics_dt()."""
         return cls.get_physics_dt()
+
+    @classmethod
+    def require_full_stage(cls) -> None:
+        """Load every authored environment during the next stage warmup."""
+        cls._requires_full_stage = True
 
     @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
@@ -240,12 +249,13 @@ class OvPhysxManager(PhysicsManager):
     def register_clone(
         cls, source: str, targets: list[str], parent_positions: list[tuple[float, float, float]] | None = None
     ) -> None:
-        """Register a (source, targets, parent_positions) triple for replay via physx.clone().
+        """Register a clone recipe for the current simulation context.
 
         Called by :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate` during
-        scene setup, before the PhysX instance exists.  The clone operations
-        are executed in :meth:`_warmup_and_load` immediately after
-        attaching the populated OVStage.
+        scene setup, before the PhysX instance exists. Full-stage warmups
+        materialize the recipe in serialized USDA before attaching OVStage;
+        env-0-only warmups replay it through ``physx.clone()`` after loading.
+        Recipes are retained so forced re-warmups rebuild the same topology.
 
         Args:
             source: Source prim path (env_0 articulation root).
@@ -256,7 +266,17 @@ class OvPhysxManager(PhysicsManager):
                 at their correct grid locations, preventing solver divergence
                 during the warmup step.
         """
-        cls._pending_clones.append((source, targets, parent_positions or []))
+        recipe = (source, list(targets), list(parent_positions or []))
+        cls._active_clone_recipes.append(recipe)
+        cls._pending_clones.append(recipe)
+
+    @classmethod
+    def _rearm_pending_clones(cls) -> None:
+        """Refresh the consumable clone queue from active context recipes."""
+        cls._pending_clones = [
+            (source, list(targets), list(parent_positions))
+            for source, targets, parent_positions in cls._active_clone_recipes
+        ]
 
     _physx_schemas_registered: ClassVar[bool] = False
 
@@ -297,8 +317,10 @@ class OvPhysxManager(PhysicsManager):
         super().initialize(sim_context)
         cls._ensure_physx_schemas_registered()
         cls._warmup_done = False
+        cls._requires_full_stage = False
         cls._stage_usda = None
         cls._pending_clones = []
+        cls._active_clone_recipes = []
         # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
         # captures a real instance (not ``None``) when it builds the central
         # :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
@@ -318,9 +340,14 @@ class OvPhysxManager(PhysicsManager):
         - Populates and attaches an OVStage
         - Warms up GPU buffers (if on CUDA)
         - Dispatches PHYSICS_READY
+
+        A forced re-warm dispatches :attr:`~isaaclab.physics.PhysicsEvent.STOP`
+        before replacing the attached stage so listeners discard stale bindings.
         """
         if not soft:
             if not cls._warmup_done:
+                if cls._ovstage is not None:
+                    cls.dispatch_event(PhysicsEvent.STOP, payload={})
                 cls._warmup_and_load()
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
 
@@ -364,6 +391,9 @@ class OvPhysxManager(PhysicsManager):
             finally:
                 cls._stage_usda = None
                 cls._warmup_done = False
+                cls._requires_full_stage = False
+                cls._active_clone_recipes = []
+                cls._pending_clones = []
                 # Drop the SceneDataBackend singleton: its cached bindings and buffers
                 # belong to the runtime instance just released. The next
                 # SimulationContext re-creates it in initialize().
@@ -433,7 +463,6 @@ class OvPhysxManager(PhysicsManager):
         physx = cls._physx
         if physx is None:
             return
-        cls.dispatch_event(PhysicsEvent.STOP, payload={})
         cls._close_physx_views(physx)
         cls._reset_physx_stage(physx)
         cls._destroy_ovstage()
@@ -511,15 +540,133 @@ class OvPhysxManager(PhysicsManager):
         return layer.ExportToString()
 
     @classmethod
+    def _serialize_selected_stage(cls, sim_stage: Any) -> str:
+        """Serialize either the complete stage or the env-0 clone source."""
+        if cls._requires_full_stage:
+            return sim_stage.Flatten().ExportToString()
+        return cls._serialize_env0_only_stage(sim_stage)
+
+    @classmethod
+    def _materialize_pending_clones(cls, stage_usda: str) -> str:
+        """Materialize queued clone targets into serialized full-stage USDA.
+
+        OVPhysX runtime cloning is unsafe after a heterogeneous full-stage load:
+        cloning one leaf can disturb tensor discovery for already loaded sibling
+        assets. Missing targets are copied into the serialized stage. When another
+        clone has already created a target ancestor, an internal reference overlays
+        the source physics without replacing authored descendants. The live USD
+        stage remains unchanged.
+
+        Args:
+            stage_usda: Flattened full-stage USDA content to augment.
+
+        Returns:
+            Full-stage USDA content containing every materialized clone target.
+        """
+        from pxr import Sdf, Usd  # noqa: PLC0415
+
+        pending_clones = list(cls._pending_clones)
+        cls._pending_clones.clear()
+        if not pending_clones:
+            return stage_usda
+
+        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+        if not layer.ImportFromString(stage_usda):
+            raise RuntimeError("OvPhysxManager: failed to import serialized full stage.")
+        exported_stage = Usd.Stage.Open(layer)
+        if exported_stage is None:
+            raise RuntimeError("OvPhysxManager: failed to open serialized full stage.")
+
+        envs_path = Sdf.Path("/World/envs")
+        operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
+        processed_targets: set[Sdf.Path] = set()
+        for source, targets, _ in pending_clones:
+            source_path = Sdf.Path(source)
+            if layer.GetPrimAtPath(source_path) is None:
+                raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from serialized full stage.")
+            for target in targets:
+                target_path = Sdf.Path(target)
+                if target_path in processed_targets:
+                    continue
+                boundary_path = target_path.GetParentPath()
+                for prefix in target_path.GetPrefixes():
+                    if prefix.GetParentPath() == envs_path:
+                        boundary_path = prefix
+                        break
+                if layer.GetPrimAtPath(boundary_path) is None:
+                    raise RuntimeError(f"OvPhysxManager: clone target parent is absent for {target!r}.")
+                operations.append((source_path, target_path, layer.GetPrimAtPath(target_path) is not None))
+                processed_targets.add(target_path)
+
+        operations.sort(key=lambda operation: len(operation[1].GetPrefixes()))
+        for source_path, target_path, target_exists in operations:
+            parent_path = target_path.GetParentPath()
+            parent_spec = layer.GetPrimAtPath(parent_path)
+            if parent_spec is None:
+                generated_paths: list[Sdf.Path] = []
+                # ``CreatePrimInLayer`` authors missing ancestors as ``over`` specs. Track only
+                # paths absent before creation so generated ancestors become defined without
+                # changing existing authored specs.
+                ancestor_path = parent_path
+                while layer.GetPrimAtPath(ancestor_path) is None:
+                    generated_paths.append(ancestor_path)
+                    ancestor_path = ancestor_path.GetParentPath()
+                if Sdf.CreatePrimInLayer(layer, parent_path) is None:
+                    raise RuntimeError(
+                        f"OvPhysxManager: failed to materialize clone target parent {str(parent_path)!r}."
+                    )
+                for generated_path in generated_paths:
+                    generated_spec = layer.GetPrimAtPath(generated_path)
+                    if generated_spec is not None and generated_spec.specifier == Sdf.SpecifierOver:
+                        generated_spec.specifier = Sdf.SpecifierDef
+            if target_exists:
+                target_prim = exported_stage.GetPrimAtPath(target_path)
+                if not target_prim.GetReferences().AddInternalReference(source_path):
+                    raise RuntimeError(f"OvPhysxManager: failed to overlay clone target {str(target_path)!r}.")
+            elif not Sdf.CopySpec(layer, source_path, layer, target_path):
+                raise RuntimeError(f"OvPhysxManager: failed to materialize clone target {str(target_path)!r}.")
+
+        if operations:
+            logger.info("OvPhysxManager: materialized %d clone targets in full-stage USDA", len(operations))
+        return layer.ExportToString()
+
+    @classmethod
+    def _replay_pending_clones(cls, physx: Any, requires_full_stage: bool) -> None:
+        """Replay runtime clones unless the serialized stage already contains them."""
+        pending_clones = list(cls._pending_clones)
+        cls._pending_clones.clear()
+
+        if requires_full_stage:
+            return
+
+        for source, targets, parent_positions in pending_clones:
+            if not targets:
+                continue
+            logger.info(
+                "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
+                source,
+                len(targets),
+                targets[0],
+                targets[-1],
+            )
+            if parent_positions:
+                transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
+            else:
+                transforms = None
+            op_idx = physx.clone(source, targets, transforms)
+            physx.wait_op(op_idx)
+
+    @classmethod
     def _warmup_and_load(cls) -> None:
         """Serialize the USD stage and attach it to the ovphysx runtime.
 
         When no runtime is active, constructs a new :class:`ovphysx.PhysX`
         instance. The first construction also records IsaacLab's process device
-        choice. On subsequent calls before :meth:`close`, it invalidates existing
-        handles, reuses the active instance, attaches the new USD through OVStage,
-        replays pending clones, and (on GPU) re-runs ``warmup_gpu`` so the new
-        stage's bodies are resident.
+        choice and registers process-exit cleanup. On a forced re-warm before
+        :meth:`close`, it reuses the active instance, attaches the new USD through
+        OVStage, rebuilds active clone recipes through full-stage materialization
+        or runtime replay, and (on GPU) re-runs ``warmup_gpu`` so the new stage's
+        bodies are resident.
 
         Raises:
             RuntimeError: If ``SimulationContext`` is not set, or if a device
@@ -563,16 +710,16 @@ class OvPhysxManager(PhysicsManager):
         # ``create_tensor_binding`` call into an O(N) USD enumeration -- the
         # hang you'd see at large env counts.
         #
-        # The workaround: strip ``/World/envs/env_<i>`` for i != 0 from the
-        # flattened layer before handing it to the wheel. Sensors that read
-        # USD directly (RayCaster, Camera, ContactSensor discovery) still see
-        # the full N-env stage; only the wheel-side physics ingestion is
-        # scoped to env_0, and ``physx.clone()`` re-populates env_1..N in
-        # the physics runtime with proper clone lineage (which is what the
-        # binding fast path expects).
-        stage_usda = cls._serialize_env0_only_stage(sim.stage)
+        # By default the serialized stage keeps only env_0 and runtime cloning
+        # re-populates env_1..N. Features that need distinct authored physics in
+        # every environment request the full stage. Missing heterogeneous clone
+        # targets are copied into the serialized stage before it is attached.
+        cls._rearm_pending_clones()
+        stage_usda = cls._serialize_selected_stage(sim.stage)
+        if cls._requires_full_stage:
+            stage_usda = cls._materialize_pending_clones(stage_usda)
         cls._stage_usda = stage_usda
-        logger.info("OvPhysxManager: serialized env_0-scoped USD stage in memory")
+        logger.info("OvPhysxManager: serialized selected USD stage in memory")
 
         if cls._physx is None:
             cls._construct_physx(ovphysx_device, gpu_index)
@@ -586,29 +733,7 @@ class OvPhysxManager(PhysicsManager):
         cls._attach_ovstage(stage_usda)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
-        # Replay pending physics clones registered by ovphysx_replicate().
-        # The USD stage contains only env_0's physics; env_1..N are empty
-        # Xform containers.  physx.clone() creates the remaining environments
-        # in the physics runtime without modifying the attached OVStage.
-        if cls._pending_clones:
-            # The cfg-level OvPhysX replicator registers pending clones for physics
-            # regardless of whether USD copies were also queued for rendering. Execute
-            # unconditionally — no USD content heuristic is needed.
-            for source, targets, parent_positions in cls._pending_clones:
-                logger.info(
-                    "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
-                    source,
-                    len(targets),
-                    targets[0],
-                    targets[-1],
-                )
-                if parent_positions:
-                    transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
-                else:
-                    transforms = None
-                op_idx = cls._physx.clone(source, targets, transforms)
-                cls._physx.wait_op(op_idx)
-            cls._pending_clones = []
+        cls._replay_pending_clones(cls._physx, requires_full_stage=cls._requires_full_stage)
 
         # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
         # instance carries its old buffer layout from the previous stage.

@@ -372,7 +372,9 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # return observations
         self._get_observations()
-        return {"policy": self.torch_obs_buf.clone()}, self.extras
+        # store the returned buffer so RslRlVecEnvWrapper.get_observations() can read env.obs_buf
+        self.obs_buf = {"policy": self.torch_obs_buf.clone()}
+        return self.obs_buf, self.extras
 
     @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMER_STEP or DEBUG_TIMERS)
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
@@ -455,8 +457,10 @@ class DirectRLEnvWarp(DirectRLEnv):
             self._post_step_visualize()
 
         # return observations, rewards, resets and extras
+        # store the returned buffer so RslRlVecEnvWrapper.get_observations() can read env.obs_buf
+        self.obs_buf = {"policy": self.torch_obs_buf.clone()}
         return (
-            {"policy": self.torch_obs_buf.clone()},
+            self.obs_buf,
             self.torch_reward_buf,
             self.torch_reset_terminated,
             self.torch_reset_time_outs,

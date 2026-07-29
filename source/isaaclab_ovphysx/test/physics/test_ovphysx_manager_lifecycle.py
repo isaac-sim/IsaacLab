@@ -169,7 +169,7 @@ def test_close_dispatches_stop_before_runtime_release(monkeypatch, manager_modul
     assert events == ["stop", "release"]
 
 
-def test_stage_reuse_invalidates_bindings_before_reset(monkeypatch, manager_module):
+def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
     manager = manager_module.OvPhysxManager
     events = []
 
@@ -184,19 +184,13 @@ def test_stage_reuse_invalidates_bindings_before_reset(monkeypatch, manager_modu
     physx = FakePhysX()
     manager._physx = physx
     monkeypatch.setattr(
-        manager, "dispatch_event", classmethod(lambda cls, event, payload=None: events.append(("stop", event, payload)))
-    )
-    monkeypatch.setattr(
         manager, "_close_physx_views", staticmethod(lambda value: events.append(("close_views", value)))
     )
     monkeypatch.setattr(manager, "_destroy_ovstage", classmethod(lambda cls: events.append("destroy_stage")))
 
     manager._prepare_physx_for_stage_reuse()
 
-    from isaaclab.physics import PhysicsEvent
-
     assert events == [
-        ("stop", PhysicsEvent.STOP, {}),
         ("close_views", physx),
         "reset",
         ("wait", 9),

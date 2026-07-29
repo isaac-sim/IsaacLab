@@ -36,27 +36,13 @@ from isaaclab_contrib.controllers.lee_position_control_cfg import LeePosControll
 from isaaclab_contrib.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
 
 
-class _DummyRootView:
-    """Stub articulation view with ``get_masses`` and ``get_inertias`` for controller tests."""
-
-    def __init__(self, num_envs: int, num_bodies: int, device: torch.device):
-        inertia_flat = torch.eye(3, device=device).reshape(9)
-        self._inertias = inertia_flat.unsqueeze(0).unsqueeze(0).expand(num_envs, num_bodies, 9).clone()
-        self._masses = torch.ones((num_envs, num_bodies), device=device)
-
-    def get_inertias(self) -> torch.Tensor:
-        return self._inertias
-
-    def get_masses(self) -> torch.Tensor:
-        return self._masses
-
-
 class _DummyRobot:
     """Minimal multirotor stub exposing the attributes used by the controllers."""
 
     def __init__(self, num_envs: int, num_bodies: int, device: torch.device):
         self.num_bodies = num_bodies
         quat_id = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
+        inertia_flat = torch.eye(3, device=device).reshape(1, 1, 9)
         self.data = types.SimpleNamespace(
             root_link_quat_w=quat_id.repeat(num_envs, 1),
             root_quat_w=quat_id.repeat(num_envs, 1),
@@ -67,8 +53,9 @@ class _DummyRobot:
             body_link_quat_w=quat_id.repeat(num_envs, num_bodies, 1),
             body_com_pos_b=torch.zeros((num_envs, num_bodies, 3), device=device),
             body_com_quat_b=quat_id.repeat(num_envs, num_bodies, 1),
+            body_mass=torch.ones((num_envs, num_bodies), device=device),
+            body_inertia=inertia_flat.repeat(num_envs, num_bodies, 1),
         )
-        self.root_view = _DummyRootView(num_envs, num_bodies, device)
 
 
 class _DummySimCfg:

@@ -74,7 +74,7 @@ from isaaclab_physx.test.benchmark import make_tensor_body_ids, make_tensor_env_
 from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.test.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
+from isaaclab.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
 # Suppress deprecation warnings during benchmarking

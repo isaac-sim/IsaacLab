@@ -15,7 +15,7 @@ import warp as wp
 from pxr import Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
+from isaaclab import cloner
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
@@ -211,7 +211,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         if plan is not None and target_cfg.track_mesh_transforms:
             plan_tracked_target_exprs: list[str] = []
             prim_expr = target_cfg.prim_expr
-            for source_root, destination_template, source_path, env_ids in iter_clone_plan_matches(plan, prim_expr):
+            for source_root, destination_template, source_path, env_ids in cloner.query.iter_sources(plan, prim_expr):
                 target_in_plan = True
 
                 # Load meshes from the authored source entry.

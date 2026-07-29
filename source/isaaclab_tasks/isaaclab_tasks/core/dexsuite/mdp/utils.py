@@ -18,7 +18,7 @@ from trimesh.sample import sample_surface
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
+from isaaclab import cloner
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 
 if TYPE_CHECKING:
@@ -54,7 +54,7 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
 
     sample_targets: list[tuple[str, tuple[int, ...]]] = []
     clone_plan = sim_utils.SimulationContext.instance().get_clone_plan()
-    for _, _, source_path, env_ids in iter_clone_plan_matches(clone_plan, prim_path):
+    for _, _, source_path, env_ids in cloner.query.iter_sources(clone_plan, prim_path):
         sample_targets.append((source_path, env_ids))
 
     for obj_path, env_ids in sample_targets:
