@@ -174,6 +174,91 @@ class TestSendClientMessage:
         assert json.loads(lifecycle._pending_client_messages[-1].data[0].payload.decode())["index"] == 99
 
 
+class TestQueueLifetimeAcrossStart:
+    """Messages queued before ``start()`` must survive it.
+
+    ``start()`` runs from ``IsaacTeleopDevice.__enter__``, which the teleop
+    scripts reach hundreds of lines after building the device, so there is a
+    wide window in which a caller can queue a message. Clearing the queue in
+    ``start()`` dropped those silently, contradicting what
+    :meth:`send_client_message` documents.
+    """
+
+    def _start_without_a_session(self, lifecycle, monkeypatch):
+        """Run ``start()`` far enough to exercise the queue, with no XR stack."""
+        from isaaclab_teleop import system_check
+
+        # Neutralize everything start() does after the queue handling: the
+        # pipeline build and session creation need Kit/OpenXR.
+        monkeypatch.setattr(
+            system_check, "check_system_requirements", lambda device=None: system_check.SystemCheckResult()
+        )
+        monkeypatch.setattr(type(lifecycle), "_build_combined_pipeline", lambda self, pipeline: MagicMock())
+        monkeypatch.setattr(type(lifecycle), "_try_start_session", lambda self: False)
+        lifecycle.start()
+
+    def test_message_queued_before_start_survives(self, teleop, monkeypatch):
+        lifecycle = _make_lifecycle(teleop)
+        lifecycle.send_client_message({"type": "custom", "message": {"n": 1}})
+
+        self._start_without_a_session(lifecycle, monkeypatch)
+
+        (batch,) = lifecycle._pending_client_messages
+        assert json.loads(batch.data[0].payload.decode())["type"] == "custom"
+
+    def test_start_still_queues_its_own_notice(self, teleop, monkeypatch):
+        # The path that already works must keep working: a failing check queues
+        # a notice during start() even with nothing queued beforehand.
+        from isaaclab_teleop import system_check
+
+        lifecycle = _make_lifecycle(teleop)
+        monkeypatch.setattr(
+            system_check,
+            "check_system_requirements",
+            lambda device=None: system_check.SystemCheckResult(
+                items=(system_check.SystemCheckItem("CPU governor", False, "powersave", "performance"),)
+            ),
+        )
+        monkeypatch.setattr(type(lifecycle), "_build_combined_pipeline", lambda self, pipeline: MagicMock())
+        monkeypatch.setattr(type(lifecycle), "_try_start_session", lambda self: False)
+
+        lifecycle.start()
+
+        (batch,) = lifecycle._pending_client_messages
+        assert json.loads(batch.data[0].payload.decode())["type"] == "system_notice"
+
+    def test_caller_message_and_startup_notice_coexist(self, teleop, monkeypatch):
+        from isaaclab_teleop import system_check
+
+        lifecycle = _make_lifecycle(teleop)
+        lifecycle.send_client_message({"type": "custom"})
+        monkeypatch.setattr(
+            system_check,
+            "check_system_requirements",
+            lambda device=None: system_check.SystemCheckResult(
+                items=(system_check.SystemCheckItem("CPU governor", False, "powersave", "performance"),)
+            ),
+        )
+        monkeypatch.setattr(type(lifecycle), "_build_combined_pipeline", lambda self, pipeline: MagicMock())
+        monkeypatch.setattr(type(lifecycle), "_try_start_session", lambda self: False)
+
+        lifecycle.start()
+
+        types = [json.loads(b.data[0].payload.decode())["type"] for b in lifecycle._pending_client_messages]
+        assert types == ["custom", "system_notice"]
+
+    def test_stop_clears_undelivered_messages(self, teleop, monkeypatch):
+        # stop() remains the session-boundary cleanup, so a notice from one
+        # session cannot leak into the next.
+        lifecycle = _make_lifecycle(teleop)
+        self._start_without_a_session(lifecycle, monkeypatch)
+        lifecycle.send_client_message({"type": "custom"})
+
+        lifecycle.stop()
+
+        assert not lifecycle._pending_client_messages
+
+
 class TestSystemCheckOnStart:
     """The startup check feeding the client notice."""
 

@@ -447,20 +447,23 @@ class TeleopSessionLifecycle:
         "Start AR"), session creation is deferred and will be retried on each
         :meth:`step` call.
         """
+        # Measure the workstation before anything expensive starts. Any notice is
+        # queued now and delivered when the client connects. The queue is not
+        # cleared here: send_client_message promises that messages queued before
+        # the session is built still arrive, and callers can queue between
+        # construction and this call -- start() runs from __enter__, which the
+        # teleop scripts reach hundreds of lines after building the device.
+        # Prior-session state is cleared by stop() instead.
+        # Skipped in replay: there is no live operator to warn.
+        if not self._is_replay:
+            self._run_system_check()
+
         # CloudXR is per-run, not per-mode: when the caller passes a profile
         # we spawn the runtime so a real client has something to attach to.
         # This is true for live recording (operator wears the headset) and
         # for spectate-on-replay (operator wears the headset to view a
         # captured trajectory). Pure CI replay leaves cloudxr_env_file at
         # None and gets the previous no-launcher behavior.
-        # Measure the workstation before anything expensive starts. Any notice is
-        # queued now and delivered when the client connects. Drop stale notices
-        # from a previous start() first so a re-entry does not stack duplicates.
-        # Skipped in replay: there is no live operator to warn.
-        if not self._is_replay:
-            self._pending_client_messages.clear()
-            self._run_system_check()
-
         if self._cloudxr_env_file is not None:
             self._ensure_cloudxr_runtime()
 
