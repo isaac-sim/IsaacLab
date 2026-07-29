@@ -382,6 +382,8 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: ${{ matrix.runtime-group }}
+        # deformables.py tetrahedralizes its volume meshes at startup
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         result-file: "test-standalone-demos-${{ matrix.runtime-group }}-report.xml"
         container-name: isaac-lab-standalone-demos-${{ matrix.runtime-group }}-test
         omni-github-test-type: standalone-demo
