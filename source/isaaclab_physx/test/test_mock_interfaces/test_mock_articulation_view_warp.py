@@ -248,6 +248,26 @@ class TestMockArticulationViewWarpSetters:
         result_np = result.numpy()
         np.testing.assert_allclose(result_np, new_data, rtol=1e-5)
 
+    @pytest.mark.parametrize(
+        ("setter_name", "getter_name", "width"),
+        [
+            ("set_root_transforms", "get_root_transforms", 7),
+            ("set_root_velocities", "get_root_velocities", 6),
+        ],
+    )
+    def test_set_root_state_with_indices_uses_matching_global_rows(self, view, setter_name, getter_name, width):
+        """Test indexed root writes from global inputs select the matching source rows."""
+        baseline = np.zeros((4, width), dtype=np.float32)
+        getattr(view, setter_name)(wp.array(baseline, dtype=wp.float32, device="cpu"))
+        new_data = np.arange(4 * width, dtype=np.float32).reshape(4, width)
+        indices = wp.array([0, 2], dtype=wp.int32, device="cpu")
+
+        getattr(view, setter_name)(wp.array(new_data, dtype=wp.float32, device="cpu"), indices=indices)
+
+        expected = baseline.copy()
+        expected[[0, 2]] = new_data[[0, 2]]
+        np.testing.assert_array_equal(getattr(view, getter_name)().numpy(), expected)
+
     def test_set_dof_positions(self, view):
         """Test setting DOF positions."""
         new_data = np.random.randn(4, 12).astype(np.float32)
@@ -257,16 +277,22 @@ class TestMockArticulationViewWarpSetters:
         result_np = result.numpy()
         np.testing.assert_allclose(result_np, new_data, rtol=1e-5)
 
-    def test_set_dof_positions_with_indices(self, view):
-        """Test setting DOF positions with indices."""
-        new_data = np.random.randn(2, 12).astype(np.float32)
-        new_positions = wp.array(new_data, dtype=wp.float32, device="cpu")
+    @pytest.mark.parametrize(
+        ("setter_name", "getter_name"),
+        [("set_dof_positions", "get_dof_positions"), ("set_dof_velocities", "get_dof_velocities")],
+    )
+    def test_set_dof_state_with_indices_uses_matching_global_rows(self, view, setter_name, getter_name):
+        """Test indexed writes from global inputs select the matching source rows."""
+        baseline = np.zeros((4, 12), dtype=np.float32)
+        getattr(view, setter_name)(wp.array(baseline, dtype=wp.float32, device="cpu"))
+        new_data = np.arange(48, dtype=np.float32).reshape(4, 12)
         indices = wp.array([0, 2], dtype=wp.int32, device="cpu")
-        view.set_dof_positions(new_positions, indices=indices)
-        result = view.get_dof_positions()
-        result_np = result.numpy()
-        np.testing.assert_allclose(result_np[0], new_data[0], rtol=1e-5)
-        np.testing.assert_allclose(result_np[2], new_data[1], rtol=1e-5)
+
+        getattr(view, setter_name)(wp.array(new_data, dtype=wp.float32, device="cpu"), indices=indices)
+
+        expected = baseline.copy()
+        expected[[0, 2]] = new_data[[0, 2]]
+        np.testing.assert_array_equal(getattr(view, getter_name)().numpy(), expected)
 
     def test_set_dof_velocities(self, view):
         """Test setting DOF velocities."""

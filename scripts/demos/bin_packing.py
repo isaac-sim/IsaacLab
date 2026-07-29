@@ -41,7 +41,9 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
@@ -58,7 +60,7 @@ import isaaclab.utils.math as math_utils
 ##
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -67,6 +69,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObjectCollection
+    from isaaclab.scene import InteractiveScene
 
 ##
 # Scene Configuration
@@ -358,9 +361,10 @@ def main():
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         # The default newton mjwarp solver configuration needs to be tuned for this demo.
         if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
-            physics_cfg.solver_cfg.nconmax = 128
-            physics_cfg.solver_cfg.naconmax = 2048
-            physics_cfg.solver_cfg.njmax = 512
+            physics_cfg.solver_cfg.nconmax = 4096
+            physics_cfg.solver_cfg.njmax = 1024
+            # MJWarp's internal convex CCD does not support the decomposed YCB collision meshes.
+            physics_cfg.solver_cfg.use_mujoco_contacts = False
 
         # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)

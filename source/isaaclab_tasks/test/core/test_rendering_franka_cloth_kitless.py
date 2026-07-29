@@ -14,21 +14,11 @@ from rendering_test_utils import (
     make_determinism_fixture,
     make_generate_html_report_fixture,
     make_require_ovlibs_install_fixture,
-    make_xfail_rendering_params,
     rendering_test_franka_cloth,
 )
 
-pytestmark = [
-    pytest.mark.isaacsim_ci,
-    # FrankaClothSceneCfg inherits _FrankaSoftSceneCfg, so it spawns the same
-    # SeattleLabTable asset that broke test_rendering_franka_soft_kitless.
-    pytest.mark.skip(reason="The table is missing from the Franka soft asset, so the golden images no longer match."),
-]
+pytestmark = pytest.mark.isaacsim_ci
 
-_RENDERING_PARAMS = make_xfail_rendering_params(
-    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
-    {("newton", "ovrtx_renderer", "motion_vectors"): ("OVRTX 0.4 omits deformable motion vectors (NVBUG#6489754).")},
-)
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -37,7 +27,7 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
-@pytest.mark.parametrize("physics_backend,renderer,data_type", _RENDERING_PARAMS)
+@pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def test_rendering_franka_cloth_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Camera output must match golden images for the Franka cloth test setup."""
     rendering_test_franka_cloth(physics_backend, renderer, data_type, _COMPARISON_SCORES)

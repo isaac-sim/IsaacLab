@@ -78,7 +78,7 @@ class _FakeVisualizationModelBuilder:
     def add_usd(self, stage, root_path=None, ignore_paths=None, schema_resolvers=None, **kwargs):
         del stage, ignore_paths, schema_resolvers, kwargs
         if root_path is None:
-            return
+            return {"path_shape_map": {}}
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
         for attr in _VIS_BUILTIN_LABEL_ATTRS:
@@ -90,6 +90,7 @@ class _FakeVisualizationModelBuilder:
         self.custom_attributes["mujoco:equality_constraint_world"].values.append(self._current_world or 0)
         self.geometry_sources.append(root_path)
         self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
+        return {"path_shape_map": {}}
 
     def add_builder(self, builder, xform=None):
         del xform
@@ -401,6 +402,41 @@ class TestVisualizationClonePlan(unittest.TestCase):
         xform = UsdGeom.Xform.Define(stage, path)
         if translation is not None:
             xform.AddTranslateOp().Set(translation)
+
+    def test_visualization_builder_imports_standalone_stage_as_one_world(self):
+        stage = Usd.Stage.CreateInMemory()
+        self._define_xform(stage, "/World")
+        self._define_xform(stage, "/World/Robot")
+        builder = mock.Mock()
+        builder.add_usd.return_value = {"path_shape_map": {}}
+
+        with (
+            mock.patch.object(visualization_builder_module, "ModelBuilder", return_value=builder),
+            mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: "newton"),
+            mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: "physx"),
+        ):
+            result = visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], None)
+
+        self.assertIs(result, builder)
+        builder.add_usd.assert_called_once_with(stage, schema_resolvers=["newton", "physx"])
+
+    def test_visualization_builder_rejects_clone_plan_without_environment_paths(self):
+        """A cloned scene must not be cached as an incomplete single-world model."""
+        stage = Usd.Stage.CreateInMemory()
+        self._define_xform(stage, "/World")
+        clone_plan = ClonePlan(
+            sources=(),
+            destinations=(),
+            clone_mask=torch.empty((0, 0), dtype=torch.bool),
+            env_ids=torch.empty(0, dtype=torch.long),
+        )
+
+        with (
+            mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: object()),
+            mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
+            self.assertRaisesRegex(ValueError, "requires at least one environment path"),
+        ):
+            visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], clone_plan)
 
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
         stage = Usd.Stage.CreateInMemory()

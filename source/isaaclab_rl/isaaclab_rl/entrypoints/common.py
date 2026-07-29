@@ -16,7 +16,8 @@ import re
 import runpy
 import sys
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
@@ -36,6 +37,58 @@ RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 logger = logging.getLogger(__name__)
+_MISSING = object()
+
+
+@contextmanager
+def preserve_attribute(target: object, name: str) -> Iterator[None]:
+    """Restore an attribute after a scoped operation.
+
+    The attribute is deleted on exit when it did not exist before entering the
+    context.
+
+    Args:
+        target: Object containing the attribute.
+        name: Name of the attribute to restore.
+    """
+    previous = getattr(target, name, _MISSING)
+    try:
+        yield
+    finally:
+        if previous is _MISSING:
+            if hasattr(target, name):
+                delattr(target, name)
+        else:
+            setattr(target, name, previous)
+
+
+@contextmanager
+def scoped_torch_backend_flags(
+    *,
+    cuda_matmul_allow_tf32: bool,
+    cudnn_allow_tf32: bool,
+    cudnn_deterministic: bool,
+    cudnn_benchmark: bool,
+) -> Iterator[None]:
+    """Temporarily configure Torch backend flags.
+
+    Args:
+        cuda_matmul_allow_tf32: Whether CUDA matrix multiplication may use TF32.
+        cudnn_allow_tf32: Whether cuDNN may use TF32.
+        cudnn_deterministic: Whether cuDNN uses deterministic algorithms.
+        cudnn_benchmark: Whether cuDNN benchmarks convolution algorithms.
+    """
+    settings = (
+        (torch.backends.cuda.matmul, "allow_tf32", cuda_matmul_allow_tf32),
+        (torch.backends.cudnn, "allow_tf32", cudnn_allow_tf32),
+        (torch.backends.cudnn, "deterministic", cudnn_deterministic),
+        (torch.backends.cudnn, "benchmark", cudnn_benchmark),
+    )
+    with ExitStack() as cleanup:
+        for target, name, value in settings:
+            cleanup.enter_context(preserve_attribute(target, name))
+            setattr(target, name, value)
+        yield
 
 
 class CaptureEnvSensors(gym.Wrapper):
