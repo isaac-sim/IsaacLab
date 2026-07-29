@@ -291,11 +291,11 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
     ``particle_q`` buffer — that left OVRTX rendering rest-pose cloth under OVPhysX.
     """
     import warp as wp
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics.visualization_deformables import ShadowDeformableEntity
 
     from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
     from isaaclab.scene_data.scene_data_provider import SceneDataProvider
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics.visualization_deformables import ShadowDeformableEntity
 
     class _ClothPointsBackend(SceneDataBackend):
         def __init__(self):
@@ -340,9 +340,7 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
 
     provider = SceneDataProvider(_ClothPointsBackend())
     # This test covers particle sync only; stub rigid-body transform refresh.
-    monkeypatch.setattr(
-        provider, "get_transforms", lambda output, mapping=None, allow_passthrough=True: True
-    )
+    monkeypatch.setattr(provider, "get_transforms", lambda output, mapping=None, allow_passthrough=True: True)
 
     particle_q = wp.zeros(2, dtype=wp.vec3f, device="cpu")
     NewtonManager._model = SimpleNamespace(body_label=["/World/envs/env_0/Robot"])
@@ -360,3 +358,73 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
     copied = particle_q.numpy()
     assert copied[0].tolist() == [1.0, 2.0, 3.0]
     assert copied[1].tolist() == [4.0, 5.0, 6.0]
+
+
+def test_shadow_deformable_entity_order_matches_scene_data_geometry_order():
+    """Shadow deformable entities follow volume-then-surface SceneData geometry order."""
+    from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
+
+    from pxr import Gf, Sdf, Usd, UsdGeom
+
+    from isaaclab.scene_data.deformable_discovery import (
+        discover_deformables_on_stage,
+        sort_deformable_entries_for_geometry_sync,
+    )
+
+    def _add_api_schemas(prim, schemas):
+        api_schemas = Sdf.TokenListOp()
+        api_schemas.explicitItems = schemas
+        prim.SetMetadata("apiSchemas", api_schemas)
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_1")
+
+    for env_id, name, deformable_type in (
+        (0, "Cloth", "surface"),
+        (1, "Cloth", "surface"),
+        (0, "Soft", "volume"),
+    ):
+        if deformable_type == "volume":
+            UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/{name}")
+            mesh = UsdGeom.TetMesh.Define(stage, f"/World/envs/env_{env_id}/{name}/simulation")
+            _add_api_schemas(
+                mesh.GetPrim(),
+                ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsVolumeDeformableSimAPI"],
+            )
+            mesh.CreatePointsAttr(
+                [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
+            )
+            mesh.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
+            vis = UsdGeom.Mesh.Define(stage, f"/World/envs/env_{env_id}/{name}/visual")
+            vis.CreatePointsAttr(mesh.GetPointsAttr().Get())
+            vis.CreateFaceVertexCountsAttr([3])
+            vis.CreateFaceVertexIndicesAttr([0, 1, 2])
+        else:
+            mesh = UsdGeom.Mesh.Define(stage, f"/World/envs/env_{env_id}/{name}")
+            _add_api_schemas(
+                mesh.GetPrim(),
+                ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsSurfaceDeformableSimAPI"],
+            )
+            points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)]
+            mesh.CreatePointsAttr(points)
+            mesh.CreateFaceVertexCountsAttr([3])
+            mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+
+    class _FakeBuilder:
+        particle_count = 0
+
+        def add_soft_mesh(self, **kwargs):
+            self.particle_count += 4
+
+        def add_cloth_mesh(self, **kwargs):
+            self.particle_count += 3
+
+    builder = _FakeBuilder()
+    env_paths = [(0, "/World/envs/env_0"), (1, "/World/envs/env_1")]
+    flat_entities, _registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths)
+
+    entries = discover_deformables_on_stage(stage)
+    expected_geometry_paths = [entry.root_path for entry in sort_deformable_entries_for_geometry_sync(entries)]
+    assert [entity.root_path for entity in flat_entities] == expected_geometry_paths
+    assert len(flat_entities) == 3
