@@ -9,11 +9,11 @@ Added
 Changed
 ^^^^^^^
 
-* **Breaking:** Renamed ``--warmup_frames`` to ``--warmup_steps`` for runtime
-  and play benchmarks, and renamed ``warmup_frames`` to ``warmup_steps`` in
-  :class:`~isaaclab.benchmark.BenchmarkRuntimeRequest` and
-  :class:`~isaaclab.benchmark.BenchmarkPlayRequest`. Use the step-based names.
-  Pass ``0`` to include every step in timing.
+* **Breaking:** Renamed ``--num_frames`` and ``--warmup_frames`` to
+  ``--num_steps`` and ``--warmup_steps`` for runtime and play benchmarks, and
+  renamed the corresponding ``num_frames`` and ``warmup_frames`` typed request
+  fields to ``num_steps`` and ``warmup_steps``. Use the step-based names. Pass
+  ``0`` warm-up steps to include every step in timing.
 
 Fixed
 ^^^^^

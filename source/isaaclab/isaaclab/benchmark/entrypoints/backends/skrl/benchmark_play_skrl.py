@@ -46,7 +46,7 @@ def _parse_args(argv: list[str]):
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
     parser.add_argument(
-        "--num_frames", type=parse_positive_int, default=100, help="Number of inference steps to benchmark."
+        "--num_steps", type=parse_positive_int, default=100, help="Number of inference steps to benchmark."
     )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument(
@@ -198,7 +198,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                     "metadata": [
                         {"name": "task", "data": args_cli.task},
                         {"name": "num_envs", "data": args_cli.num_envs},
-                        {"name": "num_frames", "data": args_cli.num_frames},
+                        {"name": "num_steps", "data": args_cli.num_steps},
                         {"name": "algorithm", "data": args_cli.algorithm},
                         {
                             "name": "environment_step_measurement_mode",
@@ -254,9 +254,9 @@ def run(argv: list[str]) -> BenchmarkResult:
                 measure_synchronized_step_breakdown=args_cli.measure_sync_step,
                 warmup_steps=args_cli.warmup_steps,
             )
-            total_frames = args_cli.warmup_steps + args_cli.num_frames
+            total_steps = args_cli.warmup_steps + args_cli.num_steps
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
-                all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_frames)
+                all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_steps)
 
             first_step_s = all_step_times[0]
             step_times = all_step_times[args_cli.warmup_steps :]

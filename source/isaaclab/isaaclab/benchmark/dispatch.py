@@ -129,7 +129,7 @@ def _request_argv(request: BenchmarkRequest) -> list[str]:
     _append_value(argv, "--seed", getattr(request, "seed", None))
 
     if request.workflow == "runtime":
-        _append_value(argv, "--num_frames", request.num_frames)
+        _append_value(argv, "--num_steps", request.num_steps)
         _append_value(argv, "--warmup_steps", request.warmup_steps)
     elif request.workflow == "startup":
         _append_value(argv, "--top_n", request.top_n)
@@ -162,7 +162,7 @@ def _request_argv(request: BenchmarkRequest) -> list[str]:
     elif request.workflow == "play":
         _append_value(argv, "--checkpoint", request.checkpoint)
         _append_value(argv, "--agent", request.agent)
-        _append_value(argv, "--num_frames", request.num_frames)
+        _append_value(argv, "--num_steps", request.num_steps)
         _append_value(argv, "--warmup_steps", request.warmup_steps)
 
     if getattr(request, "measure_synchronized_step_breakdown", False):

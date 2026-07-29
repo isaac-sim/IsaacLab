@@ -67,8 +67,8 @@ human-readable summary:
        BenchmarkRuntimeRequest(
            task="Isaac-Cartpole-Direct",
            num_envs=4096,
-           num_frames=1000,
-           warmup_frames=50,
+           num_steps=1000,
+           warmup_steps=50,
            seed=42,
            presets=("newton_mjwarp",),
            output=BenchmarkOutputConfig(
@@ -177,7 +177,7 @@ Pass the persisted ``checkpoint_path`` to a play request in a **new process**:
            task="Isaac-Cartpole-Direct",
            checkpoint=checkpoint,
            num_envs=4096,
-           num_frames=1000,
+           num_steps=1000,
            warmup_steps=50,
            seed=42,
            presets=("newton_mjwarp",),
@@ -232,7 +232,7 @@ Workflow requests add the following measurement controls:
      - Fields
      - Meaning
    * - Runtime
-     - ``num_frames``, ``warmup_frames``
+     - ``num_steps``, ``warmup_steps``
      - Measured environment steps and preceding excluded steps.
    * - Startup
      - ``top_n``, ``whitelist_config``
@@ -242,7 +242,7 @@ Workflow requests add the following measurement controls:
      - RL library, learning iterations, and initial environment steps excluded
        from environment-step timing.
    * - Play
-     - ``backend``, ``checkpoint``, ``num_frames``, ``warmup_steps``
+     - ``backend``, ``checkpoint``, ``num_steps``, ``warmup_steps``
      - RL library, policy, measured inference steps, and initial excluded steps.
 
 Training exposes additional learning, video, sensor capture, and convergence

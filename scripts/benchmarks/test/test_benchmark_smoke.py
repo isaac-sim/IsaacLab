@@ -45,7 +45,7 @@ def _load_adapter(library: str, workflow: str):
 
 
 @pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
-@pytest.mark.parametrize(("workflow", "argument"), [("play", "--num_frames"), ("train", "--max_iterations")])
+@pytest.mark.parametrize(("workflow", "argument"), [("play", "--num_steps"), ("train", "--max_iterations")])
 def test_adapters_reject_non_positive_workloads(library: str, workflow: str, argument: str, monkeypatch, capsys):
     """Benchmark adapters reject workloads that cannot produce timing samples."""
     module = _load_adapter(library, workflow)
@@ -106,12 +106,12 @@ def test_adapters_accept_short_synchronized_step_flag(library: str, workflow: st
 def test_play_adapters_accept_warmup_larger_than_measured_workload(library: str, monkeypatch):
     """Play warm-up adds calls without consuming the measured workload."""
     module = _load_adapter(library, "play")
-    argv = ["--task", _TASK, "--num_frames", "2", "--warmup_steps", "3", "--headless"]
+    argv = ["--task", _TASK, "--num_steps", "2", "--warmup_steps", "3", "--headless"]
     monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
 
     args = module._parse_args(argv)[0]
 
-    assert args.num_frames == 2
+    assert args.num_steps == 2
     assert args.warmup_steps == 3
 
 
@@ -204,7 +204,7 @@ def test_training_and_play_write_bundles(
             "-p",
             "scripts/benchmarks/play.py",
             *common_args,
-            "--num_frames",
+            "--num_steps",
             "250",
             "--checkpoint",
             "latest",
@@ -238,7 +238,7 @@ def test_training_and_play_write_bundles(
                 *common_args[:6],
                 "--measure_sync_step",
                 *common_args[6:],
-                "--num_frames",
+                "--num_steps",
                 "10",
                 "--checkpoint",
                 "latest",

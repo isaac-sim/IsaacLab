@@ -83,7 +83,7 @@ class BenchmarkRuntimeRequest:
     Args:
         task: Registered Gym task identifier.
         num_envs: Number of parallel environments.
-        num_frames: Number of measured environment steps.
+        num_steps: Number of measured environment steps.
         warmup_steps: Number of warm-up steps excluded from throughput measurements.
         seed: Environment seed.
         measure_synchronized_step_breakdown: Whether to collect serialized synchronized
@@ -96,7 +96,7 @@ class BenchmarkRuntimeRequest:
 
     task: str
     num_envs: int | None = None
-    num_frames: int = 1000
+    num_steps: int = 1000
     warmup_steps: int = 50
     seed: int | None = None
     measure_synchronized_step_breakdown: bool = False
@@ -223,7 +223,7 @@ class BenchmarkPlayRequest:
             published checkpoint.
         agent: Optional task agent configuration entry point.
         num_envs: Number of parallel environments.
-        num_frames: Number of measured inference steps.
+        num_steps: Number of measured inference steps.
         warmup_steps: Number of initial environment steps excluded from environment-step timing.
         seed: Environment seed.
         measure_synchronized_step_breakdown: Whether to collect serialized synchronized
@@ -240,7 +240,7 @@ class BenchmarkPlayRequest:
     checkpoint: str | None = None
     agent: str | None = None
     num_envs: int | None = None
-    num_frames: int = 100
+    num_steps: int = 100
     warmup_steps: int = 1
     seed: int | None = None
     measure_synchronized_step_breakdown: bool = False

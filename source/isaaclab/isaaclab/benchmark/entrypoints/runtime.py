@@ -15,7 +15,7 @@ Usage example::
 
     uv run isaaclab benchmark runtime \\
         --task Isaac-Cartpole-Direct \\
-        --num_envs 16 --num_frames 1000 --warmup_steps 50 \\
+        --num_envs 16 --num_steps 1000 --warmup_steps 50 \\
         presets=newton_mjwarp --headless
 """
 
@@ -49,7 +49,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
     parser.add_argument(
-        "--num_frames", type=parse_positive_int, default=1000, help="Number of environment steps to benchmark."
+        "--num_steps", type=parse_positive_int, default=1000, help="Number of environment steps to benchmark."
     )
     parser.add_argument(
         "--warmup_steps",
@@ -142,7 +142,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 "metadata": [
                     {"name": "task", "data": args.task},
                     {"name": "num_envs", "data": args.num_envs},
-                    {"name": "num_frames", "data": args.num_frames},
+                    {"name": "num_steps", "data": args.num_steps},
                     {"name": "environment_step_warmup_steps", "data": args.warmup_steps},
                     {
                         "name": "environment_step_measurement_mode",
@@ -164,7 +164,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 env, measure_synchronized_step_breakdown=args.measure_sync_step
             )
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
-                step_times_s = stepping.run_runtime_loop(env, args.num_frames, reset=False)
+                step_times_s = stepping.run_runtime_loop(env, args.num_steps, reset=False)
 
             first_step_s = warmup_step_times_s[0] if warmup_step_times_s else step_times_s[0]
 

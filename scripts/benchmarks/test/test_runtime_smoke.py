@@ -27,7 +27,7 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool)
         _TASK,
         "--num_envs",
         "16",
-        "--num_frames",
+        "--num_steps",
         "20",
         "--warmup_steps",
         "0",
