@@ -147,3 +147,33 @@ def test_discover_volume_prefers_named_visual_over_unrelated_sibling_mesh():
     assert len(entries) == 1
     assert entries[0].vis_mesh_path.endswith("/visual")
     assert entries[0].vis_vertex_count == 4
+
+
+def test_discover_volume_builds_barycentric_remap_when_counts_differ():
+    """Volume deformables with fewer visual verts get a sim-to-visual barycentric remap."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody")
+    tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/SoftBody/simulation")
+    _add_api_schemas(
+        tet.GetPrim(),
+        [
+            "OmniPhysicsDeformableBodyAPI",
+            "OmniPhysicsVolumeDeformableSimAPI",
+        ],
+    )
+    points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
+    tet.CreatePointsAttr(points)
+    tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
+    visual = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/visual")
+    visual.CreatePointsAttr([Gf.Vec3f(0.25, 0.25, 0.25)])
+    visual.CreateFaceVertexCountsAttr([3])
+    visual.CreateFaceVertexIndicesAttr([0, 0, 0])
+
+    entries = discover_deformables_on_stage(stage)
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.vertex_count == 4
+    assert entry.vis_vertex_count == 1
+    assert entry.volume_vis_remap is not None
+    assert entry.volume_vis_remap.tet_vertex_indices.shape == (1, 4)
+    assert entry.volume_vis_remap.bary_weights.shape == (1, 4)
