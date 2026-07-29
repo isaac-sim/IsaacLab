@@ -189,6 +189,7 @@ def _build_source_builder(
         stage,
         root_path=source,
         load_visual_shapes=True,
+        hide_collision_shapes=True,
         skip_mesh_approximation=True,
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
