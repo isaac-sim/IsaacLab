@@ -11,9 +11,12 @@ import logging
 import re
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap, build_volume_vis_barycentric_remap
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +46,9 @@ class DeformableStageEntry:
     vis_vertex_count: int
     vertices: list = field(default_factory=list)
     indices: list = field(default_factory=list)
+    vis_vertices: list = field(default_factory=list)
+    vis_indices: list = field(default_factory=list)
+    volume_vis_remap: VolumeVisRemap | None = None
     init_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
     init_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
 
@@ -104,7 +110,9 @@ def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: i
         name = prim.GetName().lower()
         name_bonus = int(any(token in name for token in ("visual", "render", "display", "proxy")))
         sibling_bonus = int(
-            sim_parent_path is not None and prim.GetParent() is not None and prim.GetParent().GetPath() == sim_parent_path
+            sim_parent_path is not None
+            and prim.GetParent() is not None
+            and prim.GetParent().GetPath() == sim_parent_path
         )
         count_bonus = int(_mesh_point_count(prim) == sim_vertex_count)
         path = prim.GetPath().pathString
@@ -113,8 +121,10 @@ def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: i
     return max(vis_candidates, key=_score)
 
 
-def _classify_deformable_meshes(root_prim) -> tuple[str, object, object, int, int, list, list]:
-    """Return deformable type, sim mesh prim, vis mesh prim, counts, vertices, and indices."""
+def _classify_deformable_meshes(
+    root_prim,
+) -> tuple[str, object, object, int, int, list, list, list, list, VolumeVisRemap | None]:
+    """Return deformable type, sim/vis prims, counts, sim/vis topology, and optional volume remap."""
     import warp as wp
 
     root_path = root_prim.GetPath()
@@ -163,7 +173,43 @@ def _classify_deformable_meshes(root_prim) -> tuple[str, object, object, int, in
         baked = mesh_to_parent_frame.Transform(Gf.Vec3d(float(point[0]), float(point[1]), float(point[2])))
         vertices.append(wp.vec3(float(baked[0]), float(baked[1]), float(baked[2])))
 
-    return deformable_type, mesh_prim, vis_mesh_prim, len(pts), vis_count, vertices, indices
+    vis_mesh_to_parent_frame = (
+        xform_cache.GetLocalToWorldTransform(vis_mesh_prim)
+        * xform_cache.GetLocalToWorldTransform(root_prim.GetParent()).GetInverse()
+    )
+    vis_vertices: list = []
+    for point in vis_pts or []:
+        baked = vis_mesh_to_parent_frame.Transform(Gf.Vec3d(float(point[0]), float(point[1]), float(point[2])))
+        vis_vertices.append(wp.vec3(float(baked[0]), float(baked[1]), float(baked[2])))
+
+    vis_indices: list[int] = []
+    if vis_mesh_prim.GetTypeName() == "Mesh":
+        vis_indices = list(UsdGeom.Mesh(vis_mesh_prim).GetFaceVertexIndicesAttr().Get() or [])
+
+    volume_vis_remap: VolumeVisRemap | None = None
+    if deformable_type == "volume" and vis_count != len(pts) and vis_vertices and vis_indices:
+        sim_np = np.array([[float(v[0]), float(v[1]), float(v[2])] for v in vertices], dtype=np.float32)
+        vis_np = np.array([[float(v[0]), float(v[1]), float(v[2])] for v in vis_vertices], dtype=np.float32)
+        volume_vis_remap = build_volume_vis_barycentric_remap(sim_np, np.asarray(indices, dtype=np.int32), vis_np)
+        if volume_vis_remap is None:
+            logger.warning(
+                "Volume deformable '%s' could not build a sim-to-visual barycentric remap; "
+                "renderers may fall back to rest-pose visual geometry.",
+                root_path,
+            )
+
+    return (
+        deformable_type,
+        mesh_prim,
+        vis_mesh_prim,
+        len(pts),
+        vis_count,
+        vertices,
+        indices,
+        vis_vertices,
+        vis_indices,
+        volume_vis_remap,
+    )
 
 
 def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry]:
@@ -177,9 +223,18 @@ def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry
         if not _prim_has_schema(prim, "OmniPhysicsDeformableBodyAPI"):
             continue
         try:
-            deformable_type, sim_mesh_prim, vis_mesh_prim, vertex_count, vis_vertex_count, vertices, indices = (
-                _classify_deformable_meshes(prim)
-            )
+            (
+                deformable_type,
+                sim_mesh_prim,
+                vis_mesh_prim,
+                vertex_count,
+                vis_vertex_count,
+                vertices,
+                indices,
+                vis_vertices,
+                vis_indices,
+                volume_vis_remap,
+            ) = _classify_deformable_meshes(prim)
         except ValueError as exc:
             logger.warning("Skipping deformable prim '%s': %s", prim.GetPath(), exc)
             continue
@@ -193,6 +248,9 @@ def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry
                 vis_vertex_count=vis_vertex_count,
                 vertices=vertices,
                 indices=indices,
+                vis_vertices=vis_vertices,
+                vis_indices=vis_indices,
+                volume_vis_remap=volume_vis_remap,
             )
         )
     return entries
