@@ -6,6 +6,7 @@
 """Unit tests: the Newton cloner imports visual-only geometry only when it is drawn."""
 
 import newton
+from isaaclab_newton.cloner import newton_clone_utils
 from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import build_source_builders
 from newton import ShapeFlags
@@ -35,6 +36,18 @@ def _shape_counts(builder: newton.ModelBuilder) -> tuple[int, int]:
     return colliding, len(builder.shape_flags) - colliding
 
 
+class _CountingStage:
+    """Stage proxy that counts the prim lookups a pass performs."""
+
+    def __init__(self, stage: Usd.Stage):
+        self._stage = stage
+        self.prim_lookups = 0
+
+    def GetPrimAtPath(self, path: str) -> Usd.Prim:  # noqa: N802  (USD API spelling)
+        self.prim_lookups += 1
+        return self._stage.GetPrimAtPath(path)
+
+
 def _build(stage: Usd.Stage, **kwargs) -> newton.ModelBuilder:
     return build_source_builders(
         stage,
@@ -59,6 +72,34 @@ class TestClonerVisualShapeImport:
         colliding, visual_only = _shape_counts(_build(_make_stage(), load_visual_shapes=False))
         assert colliding == 1
         assert visual_only == 0
+
+    def test_skipping_visual_shapes_skips_collider_visibility_resolution(self):
+        """Without visual shapes no collider is hidden, so the restore pass must not run.
+
+        The pass resolves USD visibility and purpose once per collider shape, which is pure
+        overhead in a run that imports no visual geometry: the flags it would set are set
+        already, and nothing draws them.
+        """
+        stage = _make_stage()
+        builder = _build(stage, load_visual_shapes=False)
+        path_shape_map = {f"{_SOURCE}/collision": 0}
+        flags_before = list(builder.shape_flags)
+
+        headless_stage = _CountingStage(stage)
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(
+            builder, headless_stage, path_shape_map, load_visual_shapes=False
+        )
+        assert headless_stage.prim_lookups == 0
+        assert list(builder.shape_flags) == flags_before
+
+        # The same call with the flag on does reach the stage, so the guard is what saved it.
+        rendering_stage = _CountingStage(stage)
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(
+            builder, rendering_stage, path_shape_map, load_visual_shapes=True
+        )
+        assert rendering_stage.prim_lookups == 1
+        # ...and the collider was visible either way, so skipping it changed nothing.
+        assert list(builder.shape_flags) == flags_before
 
 
 class _StubSim:

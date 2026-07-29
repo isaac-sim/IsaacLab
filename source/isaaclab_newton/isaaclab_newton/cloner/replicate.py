@@ -71,7 +71,7 @@ def _build_newton_builder_from_mapping(
         schema_resolvers=schema_resolvers,
         load_visual_shapes=load_visual_shapes,
     )
-    _restore_visible_colliders_without_visual_shapes(builder, stage, stage_info["path_shape_map"])
+    _restore_visible_colliders_without_visual_shapes(builder, stage, stage_info["path_shape_map"], load_visual_shapes)
     replace_newton_builder_shape_colors(builder, stage)
 
     # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.

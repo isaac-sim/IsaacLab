@@ -86,7 +86,10 @@ def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> boo
 
 
 def _restore_visible_colliders_without_visual_shapes(
-    builder: ModelBuilder, stage: Usd.Stage, path_shape_map: dict[str, int] | None
+    builder: ModelBuilder,
+    stage: Usd.Stage,
+    path_shape_map: dict[str, int] | None,
+    load_visual_shapes: bool = True,
 ) -> None:
     """Show viewport-visible colliders on bodies without separate visual shapes.
 
@@ -95,20 +98,22 @@ def _restore_visible_colliders_without_visual_shapes(
     for both collision and visualization, so an unrelated visual asset must not hide
     them. Imported collision meshes, guide-purpose collision geometry, and
     colliders on bodies with separate visual shapes remain hidden.
+
+    With ``load_visual_shapes=False`` the pass is skipped: Newton never hides a collider
+    when the model holds no visual-only shapes, so every flag it would set is already set,
+    and nothing draws them in a run that opted out of visual geometry. The skipped USD
+    visibility/purpose resolution is per collider shape, so it is worth avoiding.
     """
-    if not path_shape_map:
+    if not path_shape_map or not load_visual_shapes:
         return
     bodies_with_visual_shapes = {
         builder.shape_body[index]
         for index, flags in enumerate(builder.shape_flags)
         if builder.shape_body[index] >= 0 and flags & ShapeFlags.VISIBLE and not flags & ShapeFlags.COLLIDE_SHAPES
     }
-    static_parent_paths = {
-        path.rpartition("/")[0] for path, index in path_shape_map.items() if builder.shape_body[index] < 0
-    }
-    static_parents_with_visual_shapes = {
-        path for path in static_parent_paths if _has_visible_non_collision_geometry(stage, path)
-    }
+    # Resolved on first use: a static parent whose colliders are all filtered out below is
+    # never traversed at all.
+    static_parents_with_visual_shapes: dict[str, bool] = {}
     for path, index in path_shape_map.items():
         flags = builder.shape_flags[index]
         body_index = builder.shape_body[index]
@@ -116,9 +121,14 @@ def _restore_visible_colliders_without_visual_shapes(
             not flags & ShapeFlags.COLLIDE_SHAPES
             or builder.shape_type[index] == GeoType.MESH
             or body_index in bodies_with_visual_shapes
-            or (body_index < 0 and path.rpartition("/")[0] in static_parents_with_visual_shapes)
         ):
             continue
+        if body_index < 0:
+            parent_path = path.rpartition("/")[0]
+            if parent_path not in static_parents_with_visual_shapes:
+                static_parents_with_visual_shapes[parent_path] = _has_visible_non_collision_geometry(stage, parent_path)
+            if static_parents_with_visual_shapes[parent_path]:
+                continue
         imageable = UsdGeom.Imageable(stage.GetPrimAtPath(path))
         if (
             imageable
@@ -213,7 +223,9 @@ def _build_source_builder(
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
     )
-    _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
+    _restore_visible_colliders_without_visual_shapes(
+        builder, stage, import_result["path_shape_map"], load_visual_shapes
+    )
     if authored:
         authored_shape_indices = _apply_authored_approximations(builder, import_result["path_shape_map"], authored)
         if simplify_meshes:
@@ -335,11 +347,14 @@ def replicate_builder_mapping(
     # Same for the source placements, but only for the occupied ``(row, col)`` pairs of the
     # mapping: composing a dense ``num_rows x num_worlds`` table would blow up on heterogeneous
     # plans where each row is present in a handful of worlds.
-    rows_per_world = [torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist() for col in range(num_worlds)]
+    # One scan of the transposed mapping yields the occupied pairs in world-major order, which
+    # is the order both indices want; scanning per world instead costs a torch call and a
+    # device sync per world.
+    rows_per_world: list[list[int]] = [[] for _ in range(num_worlds)]
     worlds_per_row: dict[int, list[int]] = {}
-    for col, rows in enumerate(rows_per_world):
-        for row in rows:
-            worlds_per_row.setdefault(row, []).append(col)
+    for col, row in mapping.t().nonzero(as_tuple=False).tolist():
+        rows_per_world[col].append(row)
+        worlds_per_row.setdefault(row, []).append(col)
     source_xforms: dict[tuple[int, int], np.ndarray] = {}
     for row, cols in worlds_per_row.items():
         source_col = source_world_indices[row]
