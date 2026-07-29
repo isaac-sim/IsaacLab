@@ -121,9 +121,7 @@ def test_dry_run_writes_the_context_but_invokes_no_docker(tmp_path: Path) -> Non
 
 def test_build_bundles_one_ref_and_invokes_docker_build(tmp_path: Path) -> None:
     fake = _FakeRun()
-    build_image(
-        spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["newton"], context_dir=tmp_path / "ctx", run=fake
-    )
+    build_image(spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["newton"], context_dir=tmp_path / "ctx", run=fake)
     assert fake.ran("git", "update-ref", f"refs/heads/{BUNDLE_REF}")
     assert fake.ran("git", "bundle", "create")
     assert fake.ran("docker", "build")
@@ -131,9 +129,7 @@ def test_build_bundles_one_ref_and_invokes_docker_build(tmp_path: Path) -> None:
 
 def test_temp_ref_is_deleted_after_bundling(tmp_path: Path) -> None:
     fake = _FakeRun()
-    build_image(
-        spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["newton"], context_dir=tmp_path / "ctx", run=fake
-    )
+    build_image(spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["newton"], context_dir=tmp_path / "ctx", run=fake)
     assert fake.ran("git", "update-ref", "-d", f"refs/heads/{BUNDLE_REF}")
 
 
@@ -148,9 +144,7 @@ def test_temp_ref_is_deleted_even_when_bundling_fails(tmp_path: Path) -> None:
 
 def test_push_is_skipped_unless_requested(tmp_path: Path) -> None:
     fake = _FakeRun()
-    build_image(
-        spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["newton"], context_dir=tmp_path / "ctx", run=fake
-    )
+    build_image(spec=_SPEC, ref="HEAD", repo_root=tmp_path, profiles=["newton"], context_dir=tmp_path / "ctx", run=fake)
     assert not fake.ran("docker", "push")
 
 

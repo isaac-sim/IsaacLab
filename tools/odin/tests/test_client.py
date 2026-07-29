@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.odin.client import OsmoAuthError, OsmoCliError, OsmoClient, OsmoTransientError
+from tools.odin.client import OsmoAuthError, OsmoClient, OsmoCliError, OsmoTransientError
 
 
 class _FakeRun:

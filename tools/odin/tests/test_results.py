@@ -107,9 +107,9 @@ def test_fetch_is_idempotent_when_a_valid_bundle_exists(tmp_path: Path) -> None:
         def data_download(self, remote_uri: str, dest_dir: Path) -> None:
             raise AssertionError("should not re-download a valid bundle")
 
-    assert fetch_results(
-        client=_Client(), base_uri="s3://b", dispatch_id="d", row_key="row", dest_dir=tmp_path
-    ) == (tmp_path / "row")
+    assert fetch_results(client=_Client(), base_uri="s3://b", dispatch_id="d", row_key="row", dest_dir=tmp_path) == (
+        tmp_path / "row"
+    )
 
 
 def test_fetch_returns_the_row_dir_even_when_the_bundle_is_bad(tmp_path: Path) -> None:

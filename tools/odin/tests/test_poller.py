@@ -162,9 +162,7 @@ def test_unknown_task_names_are_ignored(tmp_path: Path) -> None:
         workflow_id="wf-1", status="RUNNING", tasks=[TaskSnapshot(name="stranger", status="COMPLETED", exit_code=0)]
     )
     state = _state(_job())
-    sync_once(
-        client=_FakeClient(snapshot), state=state, dispatch_dir=tmp_path, on_task_completed=lambda job: None
-    )
+    sync_once(client=_FakeClient(snapshot), state=state, dispatch_dir=tmp_path, on_task_completed=lambda job: None)
     assert state.jobs[0].status == "pending"
 
 

@@ -153,7 +153,7 @@ def load_task_rows(path: Path) -> list[dict[str, Any]]:
         Raw task entries, unvalidated; :func:`plan_rows` validates them.
 
     Raises:
-        PlanError: If the file is unreadable, unparseable, or lacks a ``tasks``
+        PlanError: If the file is unreadable, unparsable, or lacks a ``tasks``
             list.
     """
     try:
@@ -261,8 +261,7 @@ def chunk_rows(rows: list[PlannedRow], chunk_size: int) -> list[tuple[int, list[
         return []
     ordered = sorted(rows, key=_sort_key)
     return [
-        (index, ordered[start : start + chunk_size])
-        for index, start in enumerate(range(0, len(ordered), chunk_size))
+        (index, ordered[start : start + chunk_size]) for index, start in enumerate(range(0, len(ordered), chunk_size))
     ]
 
 
