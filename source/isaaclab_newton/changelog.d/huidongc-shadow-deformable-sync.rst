@@ -22,6 +22,9 @@ Fixed
   :func:`~isaaclab_newton.physics.visualization_deformables.add_shadow_deformables_to_builder`.
 * Fixed standalone (no clone plan) shadow-model builds to populate deformable registry
   metadata so OVRTX can bind visual mesh points outside cloned multi-env scenes.
+* Fixed shadow deformable registry ``prim_path`` / mesh paths for deformables outside
+  ``/World/envs`` so OVRTX and cloner patterns keep the authored standalone path instead of
+  inventing an ``env_.*`` prefix.
 * Fixed shadow deformable entity ordering so geometry mappings align with PhysX/OVPhysX
   SceneData ``geometry_paths`` (volume bodies before surface bodies).
 * Fixed shadow deformable placement to resolve the deformable root pose instead of only the

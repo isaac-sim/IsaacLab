@@ -479,6 +479,34 @@ def test_standalone_visualization_builder_populates_shadow_deformable_metadata(m
     assert len(registry_groups) == 1
 
 
+def test_shadow_deformable_registry_keeps_standalone_paths_outside_envs():
+    """Standalone deformables outside ``/World/envs`` must not invent env-scoped registry paths."""
+    from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
+
+    from pxr import Gf, Sdf, Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    cloth = UsdGeom.Mesh.Define(stage, "/World/Assets/Cloth")
+    api_schemas = Sdf.TokenListOp()
+    api_schemas.explicitItems = ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsSurfaceDeformableSimAPI"]
+    cloth.GetPrim().SetMetadata("apiSchemas", api_schemas)
+    cloth.CreatePointsAttr([Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)])
+    cloth.CreateFaceVertexCountsAttr([3])
+    cloth.CreateFaceVertexIndicesAttr([0, 1, 2])
+
+    class _FakeBuilder:
+        particle_count = 0
+
+        def add_cloth_mesh(self, **kwargs):
+            self.particle_count += 3
+
+    _entities, registry_groups = add_shadow_deformables_to_builder(_FakeBuilder(), stage, env_paths=[])
+    assert len(registry_groups) == 1
+    assert registry_groups[0].prim_path == "/World/Assets/Cloth"
+    assert registry_groups[0].vis_mesh_prim_path == "/World/Assets/Cloth"
+    assert "/World/envs/" not in registry_groups[0].prim_path
+
+
 def test_shadow_deformable_entity_order_matches_scene_data_geometry_order():
     """Shadow deformable entities follow volume-then-surface SceneData geometry order."""
     from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
