@@ -491,7 +491,7 @@ def sim(request):
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
     """Write selected joint state with an int64 joint selector and int32 OVPhysX environment selector."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
+    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
     sim.reset()
     assert articulation.num_joints >= 2
@@ -517,7 +517,7 @@ def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_set_masses_accepts_int64_selector(sim, device, gravity_enabled):
     """Set selected body masses with an int64 body selector and int32 OVPhysX environment selector."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
+    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
     sim.reset()
     assert articulation.num_bodies >= 2
@@ -557,6 +557,7 @@ def test_set_fixed_tendon_stiffness_accepts_int64_selector(sim, device, gravity_
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.skip(reason=_SPATIAL_TENDON_OVSTAGE_GAP_REASON)
 def test_set_spatial_tendon_stiffness_accepts_int64_selector(sim, device, gravity_enabled):
     """Set selected spatial-tendon stiffness with an int64 tendon selector."""
     articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")

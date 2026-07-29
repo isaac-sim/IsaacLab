@@ -26,3 +26,7 @@ Fixed
   32-bit.
 * Fixed stale pose-, velocity-, and center-of-mass-derived rigid asset data
   immediately after simulation state and property writes.
+* Fixed fixed and spatial tendon property writers to accept the selector
+  arguments advertised by the common articulation interface.
+* Fixed stale mass matrix and gravity compensation reads immediately after
+  mass, inertia, and armature writes.

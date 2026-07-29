@@ -231,7 +231,7 @@ class WrenchComposer:
         forces: wp.array | torch.Tensor | None = None,
         torques: wp.array | torch.Tensor | None = None,
         positions: wp.array | torch.Tensor | None = None,
-        body_ids: torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         env_ids: torch.Tensor | None = None,
         is_global: bool = False,
     ):
@@ -290,7 +290,7 @@ class WrenchComposer:
         forces: wp.array | torch.Tensor | None = None,
         torques: wp.array | torch.Tensor | None = None,
         positions: wp.array | torch.Tensor | None = None,
-        body_ids: wp.array | torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         env_ids: wp.array | torch.Tensor | None = None,
         is_global: bool = False,
     ):
@@ -622,7 +622,7 @@ class WrenchComposer:
         forces: wp.array | torch.Tensor | None = None,
         torques: wp.array | torch.Tensor | None = None,
         positions: wp.array | torch.Tensor | None = None,
-        body_ids: torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         env_ids: torch.Tensor | None = None,
         is_global: bool = False,
     ):
@@ -643,7 +643,7 @@ class WrenchComposer:
         forces: wp.array | torch.Tensor | None = None,
         torques: wp.array | torch.Tensor | None = None,
         positions: wp.array | torch.Tensor | None = None,
-        body_ids: wp.array | torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         env_ids: wp.array | torch.Tensor | None = None,
         is_global: bool = False,
     ):
@@ -690,7 +690,9 @@ class WrenchComposer:
             f"env_ids must be None, slice(None), list, torch.Tensor, or wp.array, got {type(env_ids).__name__}"
         )
 
-    def _resolve_body_ids(self, body_ids: wp.array | torch.Tensor | list | slice | None) -> wp.array:
+    def _resolve_body_ids(
+        self, body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None
+    ) -> wp.array:
         """Resolve body IDs to a signed-integer Warp array.
 
         Args:
@@ -704,16 +706,19 @@ class WrenchComposer:
         """
         if body_ids is None:
             return self._ALL_BODY_INDICES
+        if isinstance(body_ids, ProxyArray):
+            return body_ids.warp
         if isinstance(body_ids, torch.Tensor):
             return wp.from_torch(body_ids.contiguous())
         if isinstance(body_ids, wp.array):
             return body_ids
         if body_ids == slice(None):
             return self._ALL_BODY_INDICES
-        if isinstance(body_ids, list):
+        if isinstance(body_ids, Sequence):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         raise TypeError(
-            f"body_ids must be None, slice(None), list, torch.Tensor, or wp.array, got {type(body_ids).__name__}"
+            "body_ids must be None, slice(None), a sequence, torch.Tensor, wp.array, or ProxyArray, "
+            f"got {type(body_ids).__name__}"
         )
 
     def _ensure_composed(self):

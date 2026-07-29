@@ -2084,6 +2084,7 @@ class Articulation(BaseArticulation):
             self.data._joint_armature, self.data._joint_armature_backend
         )
         self.root_view.set_dof_armatures(wp.clone(joint_armature_backend, device="cpu"), indices=cpu_env_ids)
+        self.data._reset_dynamics(mass_matrix=True)
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -2553,6 +2554,7 @@ class Articulation(BaseArticulation):
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         self.root_view.set_masses(wp.clone(body_mass_backend, device="cpu"), indices=cpu_env_ids)
+        self.data._reset_dynamics(mass_matrix=True, gravity_compensation=True)
 
     def set_masses_mask(
         self,
@@ -2740,6 +2742,7 @@ class Articulation(BaseArticulation):
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         self.root_view.set_inertias(wp.clone(body_inertia_backend, device="cpu"), indices=cpu_env_ids)
+        self.data._reset_dynamics(mass_matrix=True)
 
     def set_inertias_mask(
         self,
@@ -3621,17 +3624,22 @@ class Articulation(BaseArticulation):
     def write_fixed_tendon_properties_to_sim_index(
         self,
         *,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation using indices.
+
+        PhysX writes complete tendon-property rows for each selected environment.
+        ``fixed_tendon_ids`` is accepted for interface parity; setters update only
+        the selected cached values before this method pushes the complete rows.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            fixed_tendon_ids: The fixed tendon indices to write the properties for. Defaults to None
-                (all fixed tendons).
+            fixed_tendon_ids: Fixed tendon indices whose cached properties were updated. The PhysX write pushes
+                all fixed tendons for the selected environments.
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve indices
@@ -3650,15 +3658,22 @@ class Articulation(BaseArticulation):
     def write_fixed_tendon_properties_to_sim_mask(
         self,
         *,
+        fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation using masks.
+
+        PhysX writes complete tendon-property rows for each selected environment.
+        ``fixed_tendon_mask`` is accepted for interface parity; mask setters update
+        only the selected cached values before this method pushes the complete rows.
 
         .. tip::
             For maximum performance we recommend using the mask method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
+            fixed_tendon_mask: Fixed tendon mask whose cached properties were updated. The PhysX write pushes
+                all fixed tendons for the selected environments.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
@@ -4077,22 +4092,26 @@ class Articulation(BaseArticulation):
     def write_spatial_tendon_properties_to_sim_index(
         self,
         *,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write spatial tendon properties into the simulation using indices.
+
+        PhysX writes complete tendon-property rows for each selected environment.
+        ``spatial_tendon_ids`` is accepted for interface parity; setters update only
+        the selected cached values before this method pushes the complete rows.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
+            spatial_tendon_ids: Spatial tendon indices whose cached properties were updated. The PhysX write pushes
+                all spatial tendons for the selected environments.
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve indices
-        if (env_ids is None) or (env_ids == slice(None)):
-            env_ids = self._ALL_INDICES
-        elif isinstance(env_ids, list):
-            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        env_ids = self._resolve_env_ids(env_ids)
         # Write spatial tendon properties to the simulation.
         self.root_view.set_spatial_tendon_properties(
             self.data.spatial_tendon_stiffness.warp,
@@ -4110,12 +4129,17 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Write spatial tendon properties into the simulation using masks.
 
+        PhysX writes complete tendon-property rows for each selected environment.
+        ``spatial_tendon_mask`` identifies which cached values were updated before
+        this method pushes the complete rows.
+
         .. tip::
             For maximum performance we recommend using the mask method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
+            spatial_tendon_mask: Spatial tendon mask whose cached properties were updated. The PhysX write pushes
+                all spatial tendons for the selected environments.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.

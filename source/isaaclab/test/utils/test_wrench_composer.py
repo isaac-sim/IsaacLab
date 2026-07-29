@@ -10,6 +10,7 @@ import warp as wp
 
 from isaaclab.test.mock_interfaces.assets import MockRigidObjectCollection
 from isaaclab.test.utils import test_devices
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import kernels as warp_kernels
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -1044,6 +1045,26 @@ def test_index_dtype_combinations_preserve_selected_wrench_cells(
     expected_torques[2] = 0.0
     np.testing.assert_array_equal(composer.local_force_b.numpy(), expected_forces)
     np.testing.assert_array_equal(composer.local_torque_b.numpy(), expected_torques)
+
+
+@pytest.mark.parametrize("method_name", ["set_forces_and_torques_index", "add_forces_and_torques_index"])
+def test_index_methods_accept_proxy_body_ids_without_materializing_torch(method_name: str) -> None:
+    """Apply selected wrenches directly from a finder-style body proxy."""
+    composer = WrenchComposer(create_mock_asset(num_envs=2, num_bodies=3, device="cpu"))
+    env_ids = torch.tensor([1], dtype=torch.int32)
+    body_ids = ProxyArray(wp.array([2, 0], dtype=wp.int32, device="cpu"))
+    forces_np = np.arange(1, 7, dtype=np.float32).reshape(1, 2, 3)
+
+    getattr(composer, method_name)(
+        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device="cpu"),
+        body_ids=body_ids,
+        env_ids=env_ids,
+    )
+
+    expected_forces = np.zeros((2, 3, 3), dtype=np.float32)
+    expected_forces[1, [2, 0]] = forces_np[0]
+    np.testing.assert_array_equal(composer.local_force_b.numpy(), expected_forces)
+    assert body_ids._torch_cache is None
 
 
 @pytest.mark.parametrize("device", test_devices())

@@ -352,6 +352,26 @@ def test_scene_entity_cfg_does_not_pass_asset_mode_to_sensor_finder():
     assert entity_cfg.body_names == ["foot_1"]
 
 
+def test_scene_entity_cfg_does_not_pass_asset_mode_to_body_sensor_finder():
+    """Test body-based sensor finders keep their legacy call signature."""
+
+    class FakeBodySensor:
+        body_names = ["body_0", "body_1"]
+        num_bodies = 2
+
+        def find_bodies(self, name_keys, preserve_order=False):
+            assert name_keys == ["body_1"]
+            assert preserve_order
+            return [1], ["body_1"]
+
+    entity_cfg = SceneEntityCfg("sensor", body_names=["body_1"], preserve_order=True)
+
+    entity_cfg.resolve({"sensor": FakeBodySensor()})
+
+    assert entity_cfg.body_ids == [1]
+    assert entity_cfg.body_names == ["body_1"]
+
+
 # ==============================================================================
 # MockArticulation Tests
 # ==============================================================================

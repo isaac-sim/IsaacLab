@@ -60,6 +60,78 @@ def _articulation_class():
     return Articulation
 
 
+def _model_writer_articulation(Articulation) -> tuple[SimpleNamespace, SimpleNamespace]:
+    """Create a minimal receiver for PhysX model-property writer methods."""
+    ArticulationData = Articulation.__init__.__globals__["ArticulationData"]
+    env_ids = _selector([0], wp.int32)
+    joint_ids = _selector([0], wp.int32)
+    body_ids = _selector([0], wp.int32)
+    data = SimpleNamespace(
+        _sim_timestamp=3.0,
+        _joint_armature=wp.zeros((1, 1), dtype=wp.float32, device="cpu"),
+        _joint_armature_backend=None,
+        _body_mass=SimpleNamespace(data=wp.zeros((1, 1), dtype=wp.float32, device="cpu"), timestamp=3.0),
+        _body_mass_backend=None,
+        _body_inertia=SimpleNamespace(data=wp.zeros((1, 1, 9), dtype=wp.float32, device="cpu"), timestamp=3.0),
+        _body_inertia_backend=None,
+        _body_com_jacobian_w=SimpleNamespace(timestamp=3.0),
+        _mass_matrix=SimpleNamespace(timestamp=3.0),
+        _gravity_compensation_forces=SimpleNamespace(timestamp=3.0),
+        has_body_ordering=False,
+    )
+    data._reset_dynamics = lambda **kwargs: ArticulationData._reset_dynamics(data, **kwargs)
+    articulation = SimpleNamespace(
+        data=data,
+        device="cpu",
+        num_instances=1,
+        num_joints=1,
+        num_bodies=1,
+        root_view=SimpleNamespace(
+            set_dof_armatures=lambda *args, **kwargs: None,
+            set_masses=lambda *args, **kwargs: None,
+            set_inertias=lambda *args, **kwargs: None,
+        ),
+        _resolve_env_ids=lambda ids: env_ids,
+        _resolve_joint_ids=lambda ids: joint_ids,
+        _resolve_body_ids=lambda ids: body_ids,
+        _get_cpu_env_ids=lambda ids: env_ids,
+        _get_backend_ordered_joint_buffer=lambda user, backend: user,
+        _body_user_to_backend_map=lambda: body_ids,
+        assert_shape_and_dtype=lambda *args, **kwargs: None,
+    )
+    return articulation, data
+
+
+@pytest.mark.parametrize(
+    ("writer_name", "kwargs", "invalidates_gravity"),
+    [
+        ("write_joint_armature_to_sim_index", {"armature": 1.0}, False),
+        ("set_masses_index", {"masses": wp.ones((1, 1), dtype=wp.float32, device="cpu")}, True),
+        ("set_inertias_index", {"inertias": wp.ones((1, 1, 9), dtype=wp.float32, device="cpu")}, False),
+    ],
+)
+def test_model_property_writers_invalidate_same_timestamp_dynamics(
+    writer_name: str, kwargs: dict, invalidates_gravity: bool
+) -> None:
+    """Invalidate every computed-dynamics cache affected by a PhysX model write."""
+    Articulation = _articulation_class()
+    articulation, data = _model_writer_articulation(Articulation)
+    method = getattr(Articulation, writer_name)
+    globals_ = method.__globals__
+
+    with (
+        patch.object(globals_["wp"], "launch"),
+        patch.object(globals_["ordering_kernels"], "write_float_user_to_backend_with_indices"),
+        patch.object(globals_["ordering_kernels"], "write_3d_user_to_backend_with_indices"),
+    ):
+        method(articulation, **kwargs)
+
+    assert data._mass_matrix.timestamp == -1.0
+    expected_gravity_timestamp = -1.0 if invalidates_gravity else 3.0
+    assert data._gravity_compensation_forces.timestamp == expected_gravity_timestamp
+    assert data._body_com_jacobian_w.timestamp == 3.0
+
+
 @pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
 @pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
 def test_external_env_resolvers_return_int32_with_preserved_values(resolver_name: str, env_dtype: type) -> None:

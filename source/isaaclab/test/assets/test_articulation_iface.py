@@ -2747,6 +2747,11 @@ class TestArticulationWritersTendonToSim:
         art.write_fixed_tendon_properties_to_sim_index()
         # subset envs
         art.write_fixed_tendon_properties_to_sim_index(env_ids=_make_env_ids(device, True))
+        # cached finder proxy
+        tendon_ids, _ = art.find_fixed_tendons(".*", as_proxy=True)
+        art.write_fixed_tendon_properties_to_sim_index(fixed_tendon_ids=tendon_ids)
+        # int64 selector
+        art.write_fixed_tendon_properties_to_sim_index(fixed_tendon_ids=wp.array([0], dtype=wp.int64, device=device))
 
     @_tendon_backends
     @_tendon_dims
@@ -2770,6 +2775,8 @@ class TestArticulationWritersTendonToSim:
         art.write_fixed_tendon_properties_to_sim_mask()
         # partial env mask
         art.write_fixed_tendon_properties_to_sim_mask(env_mask=_make_env_mask(num_instances, device, True))
+        # partial tendon mask
+        art.write_fixed_tendon_properties_to_sim_mask(fixed_tendon_mask=_make_item_mask(num_fixed_tendons, [0], device))
 
     @_tendon_backends
     @_tendon_dims
@@ -2793,6 +2800,13 @@ class TestArticulationWritersTendonToSim:
         art.write_spatial_tendon_properties_to_sim_index()
         # subset envs
         art.write_spatial_tendon_properties_to_sim_index(env_ids=_make_env_ids(device, True))
+        # cached finder proxy
+        tendon_ids, _ = art.find_spatial_tendons(".*", as_proxy=True)
+        art.write_spatial_tendon_properties_to_sim_index(spatial_tendon_ids=tendon_ids)
+        # int64 selector
+        art.write_spatial_tendon_properties_to_sim_index(
+            spatial_tendon_ids=wp.array([0], dtype=wp.int64, device=device)
+        )
 
     @_tendon_backends
     @_tendon_dims
@@ -2816,3 +2830,7 @@ class TestArticulationWritersTendonToSim:
         art.write_spatial_tendon_properties_to_sim_mask()
         # partial env mask
         art.write_spatial_tendon_properties_to_sim_mask(env_mask=_make_env_mask(num_instances, device, True))
+        # partial tendon mask
+        art.write_spatial_tendon_properties_to_sim_mask(
+            spatial_tendon_mask=_make_item_mask(num_spatial_tendons, [0], device)
+        )

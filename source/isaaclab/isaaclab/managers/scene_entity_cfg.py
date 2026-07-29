@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
+from inspect import Parameter, signature
 from typing import TYPE_CHECKING
 
 from isaaclab.utils.configclass import configclass
@@ -236,7 +237,10 @@ class SceneEntityCfg:
             _find_fn = entity.find_sensors if is_sensor else entity.find_bodies
             _num_bodies = entity.num_sensors if is_sensor else entity.num_bodies
             _find_kwargs = {"preserve_order": self.preserve_order}
-            if not is_sensor:
+            _find_parameters = signature(_find_fn).parameters
+            if "as_proxy" in _find_parameters or any(
+                parameter.kind == Parameter.VAR_KEYWORD for parameter in _find_parameters.values()
+            ):
                 _find_kwargs["as_proxy"] = False
             if self.body_names is not None and self.body_ids != slice(None):
                 if isinstance(self.body_names, str):

@@ -16,3 +16,6 @@ Fixed
 
 * Fixed shared articulation ordering and external wrench paths to accept signed
   32-bit and signed 64-bit selectors without allocating Torch conversion tensors.
+* Fixed manager entity resolution for sensors with legacy body finder signatures.
+* Fixed external wrench composition to consume cached body selector proxies
+  without materializing Torch tensors.
