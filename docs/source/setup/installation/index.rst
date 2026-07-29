@@ -491,24 +491,25 @@ From an Isaac Lab checkout, one command runs the whole build-and-wire-up sequenc
    uv run isaaclab --isaacsim_source ./IsaacSim
 
 It builds Isaac Sim (skipped when the checkout is already built), packages the build as wheels,
-links them into Isaac Lab as ``_isaac_sim_wheels``, pins the ``isaacsim-local`` extra to the
-version it just built, and re-resolves Isaac Sim from those wheels. When it finishes, run Isaac Lab
-against your build:
+links them into Isaac Lab as ``_isaac_sim_wheels``, points ``uv`` at that directory through
+``find-links``, pins the ``isaacsim-local`` extra to the version it just built, and re-resolves
+Isaac Sim from those wheels. When it finishes, run Isaac Lab against your build:
 
 .. code-block:: bash
 
-   export UV_FIND_LINKS=_isaac_sim_wheels
    uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct presets=isaacsim_physx
 
-The pin lands in the tracked ``pyproject.toml`` and the re-resolve rewrites the tracked
-``uv.lock``. Both edits describe your machine only — leave them uncommitted, and drop them with
-``git checkout pyproject.toml uv.lock`` when you go back to the published Isaac Sim.
+The ``find-links`` entry and the pin land in the tracked ``pyproject.toml``, and the re-resolve
+rewrites the tracked ``uv.lock``. All of these describe your machine only — leave them uncommitted,
+and drop them with ``git checkout pyproject.toml uv.lock`` when you go back to the published Isaac
+Sim. Drop them the same way if you delete or move the wheel directory: ``uv`` refuses to run at all
+while ``find-links`` points at a directory that does not exist.
 
 The four steps below are the same sequence performed by hand. Follow them when you want to run the
 build outside the Isaac Lab checkout or need to debug a failing step. On Windows, creating
-``_isaac_sim_wheels`` needs an elevated prompt; without one the command falls back to reporting the
-absolute wheel path to use for ``UV_FIND_LINKS``.
+``_isaac_sim_wheels`` needs an elevated prompt; without one the command falls back to recording the
+absolute wheel path in ``find-links``.
 
 .. rubric:: Step 1 — Build Isaac Sim
 
@@ -612,19 +613,29 @@ git-ignored, and it gives ``uv`` a stable path that survives shell restarts:
          :: requires a Command Prompt with Administrator access
          mklink /D _isaac_sim_wheels <path-to>\IsaacSim\_build\packages\dist
 
-      If you cannot create symbolic links, skip this and set ``UV_FIND_LINKS`` to the absolute
-      ``dist`` path in the next step instead.
+      If you cannot create symbolic links, skip this and use the absolute ``dist`` path in the
+      next step instead.
 
 .. rubric:: Step 4 — Run Isaac Lab against your build
 
-``UV_FIND_LINKS`` tells ``uv`` where your wheels are, and the ``isaacsim-local`` extra selects
-Isaac Sim from them. Pin that extra to the version you built, re-resolve once, then run as usual.
+Two edits to ``pyproject.toml`` wire the wheels in: ``find-links`` tells ``uv`` where they are, and
+the ``isaacsim-local`` extra selects Isaac Sim from them. Make both, re-resolve once, then run as
+usual.
 
-The pin is required. Source builds carry a pre-release local version such as
+Add the wheel directory to the ``[tool.uv]`` table (use the absolute ``dist`` path if you skipped
+the symbolic link). It is part of the project configuration, so it keeps applying after a shell
+restart:
+
+.. code-block:: toml
+
+   [tool.uv]
+   find-links = ["_isaac_sim_wheels"]
+
+The pin is required as well. Source builds carry a pre-release local version such as
 ``6.0.1rc7+develop.0.98701505.local``, which sorts *below* the published release, so an unpinned
 extra always resolves back to ``pypi.nvidia.com`` instead of your wheels. Read the version off the
 wheel filename (``ls _isaac_sim_wheels/isaacsim-*.whl``) and edit the ``isaacsim-local`` entry under
-``[project.optional-dependencies]`` in ``pyproject.toml``:
+``[project.optional-dependencies]``:
 
 .. code-block:: toml
 
@@ -637,8 +648,6 @@ wheel filename (``ls _isaac_sim_wheels/isaacsim-*.whl``) and edit the ``isaacsim
       :sync: linux
 
       .. code-block:: bash
-
-         export UV_FIND_LINKS=_isaac_sim_wheels
 
          # one time: re-resolve Isaac Sim against your wheels
          uv lock --upgrade-package isaacsim
@@ -655,8 +664,6 @@ wheel filename (``ls _isaac_sim_wheels/isaacsim-*.whl``) and edit the ``isaacsim
 
       .. code-block:: batch
 
-         set UV_FIND_LINKS=_isaac_sim_wheels
-
          :: one time: re-resolve Isaac Sim against your wheels
          uv lock --upgrade-package isaacsim
 
@@ -667,9 +674,8 @@ wheel filename (``ls _isaac_sim_wheels/isaacsim-*.whl``) and edit the ``isaacsim
          uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl ^
             --task Isaac-Cartpole-Direct presets=isaacsim_physx
 
-The first launch can take over ten minutes while Isaac Sim downloads extensions. Add
-``export UV_FIND_LINKS=_isaac_sim_wheels`` to your shell profile so every later ``uv`` command keeps
-seeing your build. ``uv lock`` rewrites the tracked ``uv.lock``; leave that change uncommitted.
+The first launch can take over ten minutes while Isaac Sim downloads extensions. ``uv lock``
+rewrites the tracked ``uv.lock``; leave that change uncommitted.
 
 After rebuilding Isaac Sim, repeat step 2 and then:
 
@@ -686,6 +692,12 @@ After rebuilding Isaac Sim, repeat step 2 and then:
    ``pyproject.toml`` and ``uv.lock`` are both tracked files, and the steps above rewrite each to
    describe your machine. Leave those edits uncommitted, and drop them with
    ``git checkout pyproject.toml uv.lock`` when you switch back to the published Isaac Sim.
+
+.. note::
+
+   ``uv`` reads every ``find-links`` directory before it resolves anything, and errors out when one
+   is missing. If you delete or move the wheels, every ``uv`` command in the checkout fails with
+   ``Failed to read --find-links directory`` until you remove the entry (or restore the directory).
 
 .. note::
 
