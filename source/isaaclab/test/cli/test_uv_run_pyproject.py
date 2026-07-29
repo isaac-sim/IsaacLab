@@ -169,8 +169,13 @@ def test_uv_run_isaacsim_extra_is_conflict_forked():
 
     # isaacsim is forked away from every extra whose pins clash with it.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("teleop", "ovphysx", "viser", "mimic", "all", "test"):
+    for extra in ("teleop", "viser", "mimic", "all", "test"):
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
+
+    # ovphysx is deliberately absent: its only clash with isaacsim was the
+    # packaging cap (ovphysx pinned <24, isaacsim-core ==26.0), resolved by the
+    # packaging>=20,<27 override, so the two now co-resolve in one environment.
+    assert {"isaacsim", "ovphysx"} not in conflict_groups
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
