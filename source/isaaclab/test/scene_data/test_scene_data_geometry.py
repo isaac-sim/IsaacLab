@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 import warp as wp
 
 from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat

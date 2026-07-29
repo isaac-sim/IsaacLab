@@ -2474,9 +2474,7 @@ class NewtonManager(PhysicsManager):
             cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
 
         cls._scene_data.transforms = cls._state_0.body_q
-        scene_data_provider.get_transforms(
-            cls._scene_data, mapping=cls._scene_data_mapping, allow_passthrough=False
-        )
+        scene_data_provider.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping, allow_passthrough=False)
 
         if cls._state_0.particle_q is not None and scene_data_provider.point_count > 0:
             if cls._scene_data_points is None:
