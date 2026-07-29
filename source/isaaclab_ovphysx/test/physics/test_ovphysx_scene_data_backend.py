@@ -986,3 +986,75 @@ def test_transforms_logs_warning_when_a_binding_read_fails(caplog):
     # Good row was still written; bad row is left at the merged buffer's prior contents (zeros).
     flat = out.transforms.numpy().view("<f4").reshape((2, 7))
     assert flat[0, 0] == 7.0
+
+
+def test_setup_deformable_bindings_passes_surface_tensor_types(monkeypatch):
+    """Surface SceneData views must pass OVPhysX deformable tensor-type kwargs.
+
+    Regression: constructing ``OvPhysxDeformableBodyView`` without
+    ``simulation_nodal_position_type`` / ``simulation_element_indices_type``
+    left cloth ``point_count`` at 0, so OVRTX wrote identity-xformed rest
+    buffers and the Franka cloth disappeared.
+    """
+    import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
+    from isaaclab_ovphysx import tensor_types as TT
+    from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxSceneDataBackend
+
+    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
+
+    b = OvPhysxSceneDataBackend()
+    captured: dict = {}
+
+    class _FakeView:
+        count = 2
+        max_simulation_nodes_per_body = 4
+        prim_paths = ["/World/envs/env_0/Deformable", "/World/envs/env_1/Deformable"]
+
+        def __init__(self, physx, **kwargs):
+            captured.update(kwargs)
+
+        def read_into(self, tensor_type, dst):
+            captured["read_tensor_type"] = tensor_type
+
+    monkeypatch.setattr(
+        "isaaclab_ovphysx.assets.deformable_object.views.OvPhysxDeformableBodyView",
+        _FakeView,
+    )
+    monkeypatch.setattr(
+        om_mod,
+        "discover_deformables_on_stage",
+        lambda stage: [
+            DeformableStageEntry(
+                root_path="/World/envs/env_0/Deformable",
+                sim_mesh_path="/World/envs/env_0/Deformable/sim_mesh",
+                vis_mesh_path="/World/envs/env_0/Deformable/geometry/mesh",
+                deformable_type="surface",
+                vertex_count=4,
+                vis_vertex_count=4,
+            ),
+            DeformableStageEntry(
+                root_path="/World/envs/env_1/Deformable",
+                sim_mesh_path="/World/envs/env_1/Deformable/sim_mesh",
+                vis_mesh_path="/World/envs/env_1/Deformable/geometry/mesh",
+                deformable_type="surface",
+                vertex_count=4,
+                vis_vertex_count=4,
+            ),
+        ],
+    )
+
+    b._setup_deformable_bindings(physx=object(), stage=object(), device="cpu")
+
+    assert captured["simulation_nodal_position_type"] == TT.SURFACE_DEFORMABLE_SIM_POSITION
+    assert captured["simulation_element_indices_type"] == TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES
+    assert TT.SURFACE_DEFORMABLE_SIM_POSITION in captured["tensor_types"]
+    assert TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES in captured["tensor_types"]
+    assert b.point_count == 8
+    assert b.geometry_paths == [
+        "/World/envs/env_0/Deformable",
+        "/World/envs/env_1/Deformable",
+    ]
+    assert b.geometry_counts == [4, 4]
+
+    _ = b.points
+    assert captured["read_tensor_type"] == TT.SURFACE_DEFORMABLE_SIM_POSITION
