@@ -23,6 +23,7 @@ from isaaclab.scene_data.deformable_discovery import (
     path_to_env_wildcard,
     sort_deformable_entries_for_geometry_sync,
 )
+from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap
 from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 logger = logging.getLogger(__name__)
@@ -33,8 +34,21 @@ class ShadowDeformableEntity:
     """One shadow-model deformable entity used for SceneData geometry mapping."""
 
     root_path: str
-    particle_offset: int
-    particle_count: int
+    sim_particle_offset: int
+    sim_particle_count: int
+    render_particle_offset: int
+    render_particle_count: int
+    volume_vis_remap: VolumeVisRemap | None = None
+
+    @property
+    def particle_offset(self) -> int:
+        """Render-slot offset in ``particle_q`` (backward compatible alias)."""
+        return self.render_particle_offset
+
+    @property
+    def particle_count(self) -> int:
+        """Render-slot count in ``particle_q`` (backward compatible alias)."""
+        return self.render_particle_count
 
 
 @dataclass
@@ -51,12 +65,20 @@ class ShadowDeformableRegistryGroup:
     entities: list[ShadowDeformableEntity] = field(default_factory=list)
 
 
+def _uses_volume_vis_remap(entry: DeformableStageEntry) -> bool:
+    return entry.deformable_type == "volume" and entry.volume_vis_remap is not None
+
+
 def add_shadow_deformables_to_builder(
     builder: ModelBuilder,
     stage: Usd.Stage,
     env_paths: Sequence[tuple[int, str]],
 ) -> tuple[list[ShadowDeformableEntity], list[ShadowDeformableRegistryGroup]]:
     """Add PhysX/OVPhysX deformable meshes to a shadow Newton builder.
+
+    Volume deformables with a sim-to-visual barycentric remap are added as visual
+    triangle meshes (:meth:`~newton.ModelBuilder.add_cloth_mesh`) so Newton Warp and
+    OVRTX render the paired visual mesh rather than the tet simulation topology.
 
     Args:
         builder: Shadow :class:`~newton.ModelBuilder` under construction.
@@ -79,27 +101,37 @@ def add_shadow_deformables_to_builder(
 
     flat_entities: list[ShadowDeformableEntity] = []
     registry_groups: list[ShadowDeformableRegistryGroup] = []
+    sim_particle_cursor = 0
+    render_particle_cursor = 0
 
     for (_wildcard_root, _wildcard_sim_key, _wildcard_vis_key), group_entries in sorted(wildcard_groups.items()):
         template = group_entries[0]
-        # ``path_to_env_regex`` rewrites cloned env ids; standalone roots outside
-        # ``/World/envs`` are kept exact so OVRTX/cloner patterns do not invent env paths.
         wildcard_root = path_to_env_regex(template.root_path)
         wildcard_sim = path_to_env_regex(template.sim_mesh_path)
         wildcard_vis = path_to_env_regex(template.vis_mesh_path)
+        uses_remap = _uses_volume_vis_remap(template)
+        render_count = template.vis_vertex_count if uses_remap else template.vertex_count
         group = ShadowDeformableRegistryGroup(
             prim_path=wildcard_root,
             sim_mesh_prim_path=wildcard_sim,
             vis_mesh_prim_path=wildcard_vis,
             deformable_type=template.deformable_type,
-            particles_per_body=template.vertex_count,
-            register_for_ovrtx=template.vertex_count == template.vis_vertex_count,
+            particles_per_body=render_count,
+            register_for_ovrtx=uses_remap or template.vertex_count == template.vis_vertex_count,
         )
 
         if not group.register_for_ovrtx and template.deformable_type == "surface":
-            logger.debug(
+            logger.warning(
                 "Skipping OVRTX registry for shadow deformable '%s' because sim (%d) and visual (%d) "
-                "vertex counts differ.",
+                "vertex counts differ and no remap is available.",
+                wildcard_root,
+                template.vertex_count,
+                template.vis_vertex_count,
+            )
+        elif not group.register_for_ovrtx and template.deformable_type == "volume":
+            logger.warning(
+                "Skipping OVRTX registry for volume deformable '%s' because sim (%d) and visual (%d) "
+                "counts differ and barycentric remap failed.",
                 wildcard_root,
                 template.vertex_count,
                 template.vis_vertex_count,
@@ -127,12 +159,28 @@ def add_shadow_deformables_to_builder(
                 else:
                     pos, quat = resolve_prim_pose(stage.GetPrimAtPath(env_path))
 
-            before_count = int(getattr(builder, "particle_count", 0))
             body_pos = wp.vec3(float(pos[0]), float(pos[1]), float(pos[2]))
             body_rot = wp.quat(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]))
 
+            before_render = int(getattr(builder, "particle_count", 0))
             # Visualization-only material parameters; they do not drive PhysX/OVPhysX simulation.
-            if entry.deformable_type == "volume":
+            if entry.deformable_type == "volume" and _uses_volume_vis_remap(entry):
+                builder.add_cloth_mesh(
+                    pos=body_pos,
+                    rot=body_rot,
+                    scale=1.0,
+                    vel=wp.vec3(0.0, 0.0, 0.0),
+                    vertices=entry.vis_vertices,
+                    indices=entry.vis_indices,
+                    density=1.0,
+                    tri_ke=1e4,
+                    tri_ka=1e4,
+                    tri_kd=1.5e-6,
+                    edge_ke=5.0,
+                    edge_kd=1e-2,
+                    particle_radius=0.008,
+                )
+            elif entry.deformable_type == "volume":
                 builder.add_soft_mesh(
                     pos=body_pos,
                     rot=body_rot,
@@ -162,25 +210,25 @@ def add_shadow_deformables_to_builder(
                     particle_radius=0.008,
                 )
 
-            offset = before_count
-            added = int(getattr(builder, "particle_count", 0)) - before_count
-            count = added if added > 0 else entry.vertex_count
-            if added > 0 and added != entry.vertex_count:
-                logger.warning(
-                    "Shadow deformable '%s' allocated %d Newton particles but USD "
-                    "reports %d vertices; using allocated count for SceneData mapping.",
-                    entry.root_path,
-                    added,
-                    entry.vertex_count,
-                )
-            flat_entities.append(
-                ShadowDeformableEntity(root_path=entry.root_path, particle_offset=offset, particle_count=count)
+            added_render = int(getattr(builder, "particle_count", 0)) - before_render
+            render_count = added_render if added_render > 0 else render_count
+            sim_count = entry.vertex_count
+            entity = ShadowDeformableEntity(
+                root_path=entry.root_path,
+                sim_particle_offset=sim_particle_cursor,
+                sim_particle_count=sim_count,
+                render_particle_offset=render_particle_cursor,
+                render_particle_count=render_count,
+                volume_vis_remap=entry.volume_vis_remap,
             )
-            group.particle_offsets.append(offset)
-            group.entities.append(flat_entities[-1])
+            sim_particle_cursor += sim_count
+            render_particle_cursor += render_count
+            flat_entities.append(entity)
+            group.particle_offsets.append(entity.render_particle_offset)
+            group.entities.append(entity)
 
         if group.entities:
-            group.particles_per_body = group.entities[0].particle_count
+            group.particles_per_body = group.entities[0].render_particle_count
             registry_groups.append(group)
 
     ordered_roots = [entry.root_path for entry in sort_deformable_entries_for_geometry_sync(entries)]
