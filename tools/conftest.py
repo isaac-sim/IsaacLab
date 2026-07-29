@@ -541,6 +541,7 @@ _RESULT_PRIORITY = {
     "TIMEOUT": 3,
     "FAILED": 2,
     "passed (shutdown hanged)": 1,
+    "passed (module skipped)": 0,
     "passed (no tests selected)": 0,
     "passed": 0,
 }
@@ -891,9 +892,11 @@ def _run_one_pass(
     )
 
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
-    deselected_to_zero = returncode == pytest.ExitCode.NO_TESTS_COLLECTED and (k_expr is not None or ctx.ci_marker)
-    if deselected_to_zero:
-        logger.warning(f"⚠️  {ctx.test_file}{suffix}: no tests selected by filters, nothing ran")
+    no_tests_collected = returncode == pytest.ExitCode.NO_TESTS_COLLECTED
+    expected_empty_selection = k_expr is not None or ctx.ci_marker or skipped > 0
+    if no_tests_collected and expected_empty_selection:
+        result = "passed (module skipped)" if skipped else "passed (no tests selected)"
+        logger.warning(f"⚠️  {ctx.test_file}{suffix}: no tests collected — {result}")
         return (
             report,
             {
@@ -901,7 +904,7 @@ def _run_one_pass(
                 "failures": failures,
                 "skipped": skipped,
                 "tests": tests,
-                "result": "passed (no tests selected)",
+                "result": result,
                 "time_elapsed": time_elapsed,
                 "wall_time": wall_time,
             },

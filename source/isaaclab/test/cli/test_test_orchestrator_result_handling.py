@@ -55,6 +55,21 @@ def _write_partial_junit_report(report_file: str) -> None:
     )
 
 
+def _write_module_skipped_junit_report(report_file: str) -> None:
+    """Write the JUnit shape produced by a module-level ``pytest.importorskip``."""
+    path = Path(report_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        (
+            '<?xml version="1.0" encoding="utf-8"?><testsuites>'
+            '<testsuite tests="1" skipped="1"><testcase name="">'
+            '<skipped message="collection skipped"/></testcase>'
+            "</testsuite></testsuites>"
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_exact_node_ids_selecting_zero_tests_fail(monkeypatch, tmp_path: Path) -> None:
     """Stale exact node IDs must fail independently of the subprocess exit code."""
     orchestrator = _load_orchestrator_module()
@@ -162,4 +177,38 @@ def test_filter_deselecting_all_tests_is_not_a_failure(monkeypatch, tmp_path: Pa
     assert status["result"] == "passed (no tests selected)"
     assert status["errors"] == 0
     assert status["tests"] == 0
+    assert not was_failure
+
+
+def test_module_importorskip_is_not_a_failure(monkeypatch, tmp_path: Path) -> None:
+    """A module-level collection skip should remain non-failing without filters."""
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+
+    def _capture(*_args, report_file: str, **_kwargs):
+        _write_module_skipped_junit_report(report_file)
+        return 5, b"collected 0 items / 1 skipped", b"", "", 0.1, ""
+
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert report is not None
+    assert status["result"] == "passed (module skipped)"
+    assert status["errors"] == 0
+    assert status["skipped"] == 1
+    assert status["tests"] == 1
     assert not was_failure
