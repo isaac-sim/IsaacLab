@@ -206,6 +206,7 @@ class MockNewtonArticulationView:
         is_fixed_base: bool = False,
         joint_names: list[str] | None = None,
         body_names: list[str] | None = None,
+        tendon_names: list[str] | None = None,
     ):
         """Initialize the mock Newton articulation view.
 
@@ -213,10 +214,12 @@ class MockNewtonArticulationView:
             num_instances: Number of articulation instances.
             num_bodies: Number of bodies (links).
             num_joints: Number of joints (DOFs).
+            num_tendons: Number of fixed tendons.
             device: Device for array allocation ("cpu" or "cuda:N").
             is_fixed_base: Whether the articulation has a fixed base.
             joint_names: Names of joints. Defaults to ["joint_0", ...].
             body_names: Names of bodies. Defaults to ["body_0", ...].
+            tendon_names: Names of fixed tendons. Defaults to ["tendon_0", ...].
         """
         self._count = num_instances
         self._link_count = num_bodies
@@ -229,6 +232,7 @@ class MockNewtonArticulationView:
         # Set joint and body names
         self._joint_dof_names = joint_names if joint_names is not None else [f"joint_{i}" for i in range(num_joints)]
         self._body_names = body_names if body_names is not None else [f"body_{i}" for i in range(num_bodies)]
+        self._tendon_names = tendon_names if tendon_names is not None else [f"tendon_{i}" for i in range(num_tendons)]
 
         # Internal state (lazily initialized)
         self._root_transforms: wp.array | None = None
@@ -301,8 +305,14 @@ class MockNewtonArticulationView:
         return self._body_names
 
     @property
-    def tendon_count(self):
+    def tendon_count(self) -> int:
+        """Number of fixed tendons per instance."""
         return self._tendon_count
+
+    @property
+    def tendon_names(self) -> list[str]:
+        """Names of fixed tendons."""
+        return self._tendon_names
 
     @property
     def articulation_ids(self) -> wp.array:

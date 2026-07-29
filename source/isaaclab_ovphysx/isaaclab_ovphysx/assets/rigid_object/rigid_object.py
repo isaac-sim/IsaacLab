@@ -21,6 +21,7 @@ from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
@@ -194,20 +195,42 @@ class RigidObject(BaseRigidObject):
     Operations - Finders.
     """
 
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Keyword-only selector return mode. ``None`` returns the legacy ``list[int]`` with a
+                :class:`DeprecationWarning`; ``False`` returns a ``list[int]`` without that warning;
+                ``True`` returns a cached,
+                device-local :class:`ProxyArray` backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch``
+                attributes are zero-copy views of the same allocation. Callers must treat the proxy and both views
+                as immutable because cache hits share this storage.
+
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
+        ``body_ids, _ = asset.find_bodies(".*")`` to
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
+        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple containing the body indices and a fresh list of matched names. The indices are a
+            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
-        return resolve_matching_names(name_keys, self._body_names, preserve_order)
+        body_ids, body_names = resolve_matching_names(name_keys, self._body_names, preserve_order)
+        resolved_ids = self._resolve_finder_indices(
+            body_ids, domain="body", finder_name="find_bodies", as_proxy=as_proxy, legacy_type="list"
+        )
+        return resolved_ids, body_names
 
     """
     Operations - Write to simulation.
@@ -675,7 +698,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies using indices.
@@ -748,7 +771,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass pose of all bodies using indices.
@@ -828,7 +851,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies using indices.
@@ -1055,7 +1078,7 @@ class RigidObject(BaseRigidObject):
             env_ids = wp.clone(env_ids, device=self._device)
         return env_ids
 
-    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
+    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None) -> wp.array:
         """Resolve body indices to a warp array.
 
         Args:
@@ -1064,6 +1087,8 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp array of body indices on ``self._device``.
         """
+        if isinstance(body_ids, ProxyArray):
+            return body_ids.warp
         if body_ids is None or body_ids == slice(None):
             return self._ALL_BODY_INDICES
         if isinstance(body_ids, list):

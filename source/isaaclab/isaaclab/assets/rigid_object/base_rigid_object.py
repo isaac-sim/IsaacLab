@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from ..asset_base import AssetBase
@@ -162,18 +163,37 @@ class BaseRigidObject(AssetBase):
     """
 
     @abstractmethod
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
+                release and returns a ``list[int]`` with a :class:`DeprecationWarning`.
+                ``False`` explicitly returns a ``list[int]``
+                without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
+                backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
+                of the same allocation. Callers must treat the proxy and both views as immutable because cache
+                hits share this storage.
+
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
+        ``body_ids, _ = asset.find_bodies(".*")`` to
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
+        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple containing the body indices and a fresh list of matched names. The indices are a
+            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         raise NotImplementedError()
 
@@ -546,7 +566,7 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies.
@@ -594,7 +614,7 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies.
@@ -644,7 +664,7 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies.
@@ -832,7 +852,7 @@ class BaseRigidObject(AssetBase):
     def set_masses(
         self,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | slice | None = None,
+        body_ids: Sequence[int] | ProxyArray | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_masses_index`."""
@@ -846,7 +866,7 @@ class BaseRigidObject(AssetBase):
     def set_coms(
         self,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_coms_index`."""
@@ -860,7 +880,7 @@ class BaseRigidObject(AssetBase):
     def set_inertias(
         self,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_inertias_index`."""
@@ -877,7 +897,7 @@ class BaseRigidObject(AssetBase):
         forces: torch.Tensor | wp.array,
         torques: torch.Tensor | wp.array,
         positions: torch.Tensor | wp.array | None = None,
-        body_ids: Sequence[int] | slice | None = None,
+        body_ids: Sequence[int] | ProxyArray | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         is_global: bool = False,
     ) -> None:

@@ -20,6 +20,7 @@ import warp as wp
 from ...sim import SimulationContext
 from ...utils.buffers import TimestampedBufferWarp
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
+from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
 from . import ordering_kernels
 from .ordering import ArticulationNameMap, ArticulationOrderingConvention, build_articulation_name_map
@@ -508,25 +509,49 @@ class BaseArticulation(AssetBase):
     """
 
     @abstractmethod
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the articulation based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
+                release and returns a ``list[int]`` with a :class:`DeprecationWarning`.
+                ``False`` explicitly returns a ``list[int]``
+                without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
+                backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
+                of the same allocation. Callers must treat the proxy and both views as immutable because cache
+                hits share this storage.
+
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
+        ``body_ids, _ = asset.find_bodies(".*")`` to
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
+        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple containing the body indices and a fresh list of matched names. The indices are a
+            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_joints(
-        self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        joint_subset: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find joints in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -537,16 +562,37 @@ class BaseArticulation(AssetBase):
             joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
+                release and returns a ``list[int]`` with a :class:`DeprecationWarning`.
+                ``False`` explicitly returns a ``list[int]``
+                without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
+                backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
+                of the same allocation. Callers must treat the proxy and both views as immutable because cache
+                hits share this storage.
+
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
+        ``joint_ids, _ = asset.find_joints(".*", as_proxy=True)`` and pass ``joint_ids`` to
+        :meth:`set_joint_position_target_index`; use ``joint_ids.warp`` in Warp code or ``joint_ids.torch`` for
+        Torch indexing.
+
+        Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
+        subset-local indices.
 
         Returns:
-            A tuple of lists containing the joint indices, names.
+            A tuple containing the joint indices and a fresh list of matched names. The indices are a
+            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_fixed_tendons(
-        self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        tendon_subsets: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find fixed tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -558,16 +604,37 @@ class BaseArticulation(AssetBase):
             tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
                 all joints in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
+                release and returns a ``list[int]`` with a :class:`DeprecationWarning`.
+                ``False`` explicitly returns a ``list[int]``
+                without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
+                backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
+                of the same allocation. Callers must treat the proxy and both views as immutable because cache
+                hits share this storage.
+
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
+        ``fixed_tendon_ids, _ = asset.find_fixed_tendons(".*", as_proxy=True)`` and pass
+        ``fixed_tendon_ids`` to :meth:`write_fixed_tendon_properties_to_sim_index`; use
+        ``fixed_tendon_ids.warp`` in Warp code or ``fixed_tendon_ids.torch`` for Torch indexing.
+
+        Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
+        subset-local indices.
 
         Returns:
-            A tuple of lists containing the tendon indices, names.
+            A tuple containing the fixed-tendon indices and a fresh list of matched names. The indices are a
+            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_spatial_tendons(
-        self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        tendon_subsets: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find spatial tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -578,9 +645,25 @@ class BaseArticulation(AssetBase):
             tendon_subsets: A subset of tendons to search for. Defaults to None, which means all tendons
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Keyword-only selector return mode. ``None`` is the deprecated legacy default for this
+                release and returns a ``list[int]`` with a :class:`DeprecationWarning`.
+                ``False`` explicitly returns a ``list[int]``
+                without the transition warning. ``True`` returns a cached, device-local :class:`ProxyArray`
+                backed by ``wp.int32`` storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views
+                of the same allocation. Callers must treat the proxy and both views as immutable because cache
+                hits share this storage.
+
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
+        ``spatial_tendon_ids, _ = asset.find_spatial_tendons(".*", as_proxy=True)`` and pass
+        ``spatial_tendon_ids`` to :meth:`write_spatial_tendon_properties_to_sim_index`; use
+        ``spatial_tendon_ids.warp`` in Warp code or ``spatial_tendon_ids.torch`` for Torch indexing.
+
+        Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
+        subset-local indices.
 
         Returns:
-            A tuple of lists containing the tendon indices, names.
+            A tuple containing the spatial-tendon indices and a fresh list of matched names. The indices are a
+            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         raise NotImplementedError()
 
@@ -949,7 +1032,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         position: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -1003,7 +1086,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         velocity: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -1061,7 +1144,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         stiffness: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint stiffness into the simulation.
@@ -1109,7 +1192,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         damping: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint damping into the simulation.
@@ -1157,7 +1240,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limits: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         warn_limit_violation: bool = True,
     ) -> None:
@@ -1213,7 +1296,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limits: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint max velocity to the simulation.
@@ -1269,7 +1352,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limits: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint effort limits into the simulation.
@@ -1323,7 +1406,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         armature: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint armature into the simulation.
@@ -1377,7 +1460,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         joint_friction_coeff: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         r"""Write backend-specific joint friction values into the simulation.
@@ -1439,7 +1522,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies in the simulation world frame.
@@ -1487,7 +1570,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass pose of all bodies in their respective body link frames.
@@ -1538,7 +1621,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies in the simulation world frame.
@@ -1587,7 +1670,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint position targets into internal buffers.
@@ -1643,7 +1726,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint velocity targets into internal buffers.
@@ -1699,7 +1782,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint efforts into internal buffers.
@@ -1758,7 +1841,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         stiffness: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers.
@@ -1815,7 +1898,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         damping: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon damping into internal buffers.
@@ -1872,7 +1955,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limit_stiffness: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon limit stiffness into internal buffers.
@@ -1929,7 +2012,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limit: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon position limits into internal buffers.
@@ -1986,7 +2069,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         rest_length: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon rest length into internal buffers.
@@ -2043,7 +2126,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         offset: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon offset into internal buffers.
@@ -2099,7 +2182,7 @@ class BaseArticulation(AssetBase):
     def write_fixed_tendon_properties_to_sim_index(
         self,
         *,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation.
@@ -2145,7 +2228,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         stiffness: float | torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial tendon stiffness into internal buffers.
@@ -2202,7 +2285,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         damping: float | torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial tendon damping into internal buffers.
@@ -2259,7 +2342,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limit_stiffness: float | torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial tendon limit stiffness into internal buffers.
@@ -2317,7 +2400,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         offset: float | torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial tendon offset into internal buffers.
@@ -2373,7 +2456,7 @@ class BaseArticulation(AssetBase):
     def write_spatial_tendon_properties_to_sim_index(
         self,
         *,
-        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write spatial tendon properties into the simulation.
@@ -2578,6 +2661,21 @@ class BaseArticulation(AssetBase):
     """
     Internal helpers -- Actuators.
     """
+
+    def _select_actuator_joint_ids(self, joint_ids: ProxyArray, joint_names: list[str]) -> slice | ProxyArray:
+        """Keep a partial actuator selector proxy or optimize a full ordered selection.
+
+        Args:
+            joint_ids: Cached joint selector returned by :meth:`find_joints`.
+            joint_names: Joint names matched by the finder, in selector order.
+
+        Returns:
+            ``slice(None)`` when every joint is selected in public order, otherwise
+            the original cached selector.
+        """
+        if joint_names == self.joint_names:
+            return slice(None)
+        return joint_ids
 
     @abstractmethod
     def _process_actuators_cfg(self) -> None:

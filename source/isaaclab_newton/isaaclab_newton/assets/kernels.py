@@ -3,7 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 import warp as wp
+
+from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+
+if TYPE_CHECKING:
+    import torch
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
 
@@ -510,7 +520,7 @@ Root-level write kernels (1D — used by RigidObject + Articulation).
 @wp.kernel
 def set_root_link_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     root_link_pose_w: wp.array(dtype=wp.transformf),
 ):
     """Write root link pose data to simulation buffers.
@@ -523,7 +533,8 @@ def set_root_link_pose_to_sim_index(
         root_link_pose_w: Output array where root link poses are written. Shape is (num_envs,).
     """
     i = wp.tid()
-    root_link_pose_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_link_pose_w[env_id] = data[i]
 
 
 @wp.kernel
@@ -550,7 +561,7 @@ def set_root_link_pose_to_sim_mask(
 def set_root_com_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     root_com_pose_w: wp.array(dtype=wp.transformf),
     root_link_pose_w: wp.array(dtype=wp.transformf),
 ):
@@ -569,11 +580,10 @@ def set_root_com_pose_to_sim_index(
             Shape is (num_envs,).
     """
     i = wp.tid()
-    root_com_pose_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_com_pose_w[env_id] = data[i]
     # Get the com pose in the link frame
-    root_link_pose_w[env_ids[i]] = get_com_pose_in_link_frame_func(
-        root_com_pose_w[env_ids[i]], body_com_pos_b[env_ids[i], 0]
-    )
+    root_link_pose_w[env_id] = get_com_pose_in_link_frame_func(root_com_pose_w[env_id], body_com_pos_b[env_id, 0])
 
 
 @wp.kernel
@@ -608,7 +618,7 @@ def set_root_com_pose_to_sim_mask(
 @wp.kernel
 def set_root_com_velocity_to_sim_index(
     data: wp.array(dtype=wp.spatial_vectorf),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     num_bodies: wp.int32,
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
@@ -627,10 +637,11 @@ def set_root_com_velocity_to_sim_index(
             (num_envs, num_bodies).
     """
     i = wp.tid()
-    root_com_velocity_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_com_velocity_w[env_id] = data[i]
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
-        body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        body_acc_w[env_id, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 @wp.kernel
@@ -667,7 +678,7 @@ def set_root_link_velocity_to_sim_index(
     data: wp.array(dtype=wp.spatial_vectorf),
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     link_pose_w: wp.array(dtype=wp.transformf),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     num_bodies: wp.int32,
     root_link_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
@@ -694,14 +705,15 @@ def set_root_link_velocity_to_sim_index(
             Shape is (num_envs, num_bodies).
     """
     i = wp.tid()
-    root_link_velocity_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_link_velocity_w[env_id] = data[i]
     # Get the link velocity in the com frame
-    root_com_velocity_w[env_ids[i]] = get_link_velocity_in_com_frame_func(
-        root_link_velocity_w[env_ids[i]], link_pose_w[env_ids[i]], body_com_pos_b[env_ids[i], 0]
+    root_com_velocity_w[env_id] = get_link_velocity_in_com_frame_func(
+        root_link_velocity_w[env_id], link_pose_w[env_id], body_com_pos_b[env_id, 0]
     )
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
-        body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        body_acc_w[env_id, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 @wp.kernel
@@ -745,6 +757,34 @@ def set_root_link_velocity_to_sim_mask(
         # Make the acceleration zero to prevent reporting old values
         for j in range(num_bodies):
             body_acc_w[i, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+
+_SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(set_root_link_pose_to_sim_index, ("env_ids",))
+_SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(set_root_com_pose_to_sim_index, ("env_ids",))
+_SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(set_root_com_velocity_to_sim_index, ("env_ids",))
+_SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(
+    set_root_link_velocity_to_sim_index, ("env_ids",)
+)
+
+
+def set_root_link_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
+    """Select the root-link pose writer matching the environment selector dtype."""
+    return _SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
+
+
+def set_root_com_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
+    """Select the root-COM pose writer matching the environment selector dtype."""
+    return _SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
+
+
+def set_root_com_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
+    """Select the root-COM velocity writer matching the environment selector dtype."""
+    return _SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
+
+
+def set_root_link_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
+    """Select the root-link velocity writer matching the environment selector dtype."""
+    return _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
 """
@@ -914,8 +954,8 @@ Generic buffer-writing kernels (used by Articulation + RigidObject + RigidObject
 @wp.kernel
 def write_2d_data_to_buffer_with_indices(
     in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     out_data: wp.array2d(dtype=wp.float32),
 ):
     """Write 2D float data to a buffer at specified indices.
@@ -930,7 +970,21 @@ def write_2d_data_to_buffer_with_indices(
         out_data: Output array where data is written. Shape is (num_envs, num_joints).
     """
     i, j = wp.tid()
-    out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    out_data[env_id, joint_id] = in_data[i, j]
+
+
+_WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
+    write_2d_data_to_buffer_with_indices, ("env_ids", "joint_ids")
+)
+
+
+def write_2d_data_to_buffer_with_indices_kernel(
+    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
+) -> wp.Kernel:
+    """Select the 2-D buffer writer matching the selector dtypes."""
+    return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel
@@ -1268,3 +1322,18 @@ def update_wrench_array_with_force_and_torque(
             forces[env_index, body_index],
             torques[env_index, body_index],
         )
+
+
+# Keep generic bodies private while preserving the legacy direct-launch int32 symbols.
+_SET_ROOT_LINK_POSE_TO_SIM_INDEX_GENERIC = set_root_link_pose_to_sim_index
+_SET_ROOT_COM_POSE_TO_SIM_INDEX_GENERIC = set_root_com_pose_to_sim_index
+_SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_GENERIC = set_root_com_velocity_to_sim_index
+_SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_GENERIC = set_root_link_velocity_to_sim_index
+_WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_GENERIC = write_2d_data_to_buffer_with_indices
+set_root_link_pose_to_sim_index = _SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+set_root_com_pose_to_sim_index = _SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+set_root_com_velocity_to_sim_index = _SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+set_root_link_velocity_to_sim_index = _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER.select_dtypes(wp.int32)
+write_2d_data_to_buffer_with_indices = _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select_dtypes(
+    wp.int32, wp.int32
+)

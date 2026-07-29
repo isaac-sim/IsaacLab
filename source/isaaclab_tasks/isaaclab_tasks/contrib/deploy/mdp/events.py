@@ -195,7 +195,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         self.hand_close_width = env.cfg.hand_close_width
 
         # Find end effector index once
-        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
+        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name], as_proxy=False)
         if len(eef_indices) == 0:
             raise ValueError(f"End effector body '{self.end_effector_body_name}' not found in robot")
         self.eef_idx = eef_indices[0]
@@ -204,7 +204,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         self.jacobi_body_idx = self.eef_idx - 1
 
         # Find all joints once
-        all_joints, all_joints_names = self.robot_asset.find_joints([".*"])
+        all_joints, all_joints_names = self.robot_asset.find_joints([".*"], as_proxy=False)
         self.all_joints = all_joints
         self.finger_joints = all_joints[self.num_arm_joints :]
 

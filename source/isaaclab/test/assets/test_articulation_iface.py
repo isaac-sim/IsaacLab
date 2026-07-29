@@ -13,6 +13,8 @@ the base articulation class advertises. All articulation interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 import torch
@@ -72,6 +74,9 @@ _default_dims = pytest.mark.parametrize(
 _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 _index_resolution_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+)
+_production_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
 )
 
 
@@ -234,6 +239,99 @@ class TestArticulationFinders:
         indices, names = art.find_joints(first_joint)
         assert indices == [0]
         assert names == [first_joint]
+
+
+class TestArticulationFinderReturnModes:
+    """Test finder return modes on production articulation backends."""
+
+    @_production_backends
+    @pytest.mark.parametrize(
+        "finder_name",
+        ["find_bodies", "find_joints", "find_fixed_tendons", "find_spatial_tendons"],
+    )
+    def test_finder_returns_legacy_list_or_cached_proxy(self, backend, finder_name):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=2,
+            num_bodies=2,
+            num_fixed_tendons=2,
+            num_spatial_tendons=2,
+            device="cpu",
+        )
+        if backend == "newton" and finder_name == "find_spatial_tendons":
+            pytest.skip("Newton does not support spatial tendons.")
+        finder = getattr(art, finder_name)
+
+        with pytest.warns(DeprecationWarning):
+            implicit_indices, implicit_names = finder(".*")
+        with warnings.catch_warnings(record=True) as warning_records:
+            warnings.simplefilter("always")
+            explicit_indices, explicit_names = finder(".*", as_proxy=False)
+            proxy_indices, proxy_names = finder(explicit_names, preserve_order=True, as_proxy=True)
+            repeated_indices, repeated_names = finder(".*", as_proxy=True)
+            empty_indices, empty_names = finder([], as_proxy=True)
+            repeated_empty_indices, repeated_empty_names = finder([], as_proxy=True)
+
+        assert not warning_records
+        assert isinstance(implicit_indices, list)
+        assert isinstance(explicit_indices, list)
+        assert implicit_indices == explicit_indices == proxy_indices.torch.tolist()
+        assert implicit_names == explicit_names == proxy_names == repeated_names
+        assert proxy_names is not repeated_names
+        assert proxy_indices.dtype == wp.int32
+        assert str(proxy_indices.device) == art.device
+        assert proxy_indices is repeated_indices
+        assert proxy_indices.warp.ptr == repeated_indices.warp.ptr
+        assert empty_names == repeated_empty_names == []
+        assert empty_indices.torch.tolist() == []
+        assert empty_indices is repeated_empty_indices
+        assert empty_indices.warp is repeated_empty_indices.warp
+        assert empty_indices.torch is repeated_empty_indices.torch
+
+    @_production_backends
+    def test_finder_domains_do_not_share_cached_storage(self, backend):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=2,
+            num_bodies=2,
+            num_fixed_tendons=2,
+            num_spatial_tendons=2,
+            device="cpu",
+        )
+
+        selectors = [
+            art.find_bodies(".*", as_proxy=True)[0],
+            art.find_joints(".*", as_proxy=True)[0],
+            art.find_fixed_tendons(".*", as_proxy=True)[0],
+        ]
+        if backend != "newton":
+            selectors.append(art.find_spatial_tendons(".*", as_proxy=True)[0])
+        non_empty_selectors = [selector for selector in selectors if len(selector) > 0]
+
+        assert len({id(selector) for selector in selectors}) == len(selectors)
+        assert len({id(selector.warp) for selector in selectors}) == len(selectors)
+        assert len({selector.warp.ptr for selector in non_empty_selectors}) == len(non_empty_selectors)
+
+    @_production_backends
+    def test_finder_cache_is_asset_local_and_cleared_on_invalidation(self, backend):
+        first_art, _ = get_articulation(backend, num_joints=2, num_bodies=2, device="cpu")
+        second_art, _ = get_articulation(backend, num_joints=2, num_bodies=2, device="cpu")
+
+        first = first_art.find_joints(".*", as_proxy=True)[0]
+        other_asset = second_art.find_joints(".*", as_proxy=True)[0]
+        assert first_art._root_view is not None
+        first_art._invalidate_initialize_callback(None)
+        after_reinitialization = first_art.find_joints(".*", as_proxy=True)[0]
+
+        assert first_art._root_view is None
+        assert first is not other_asset
+        assert first.warp is not other_asset.warp
+        assert first.warp.ptr != other_asset.warp.ptr
+        assert first is not after_reinitialization
+        assert first.warp is not after_reinitialization.warp
+        assert first.warp.ptr != after_reinitialization.warp.ptr
 
 
 # ---------------------------------------------------------------------------

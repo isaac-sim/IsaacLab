@@ -71,7 +71,7 @@ def get_robot_joint_state(
     joint_names: list[str],
 ) -> torch.Tensor:
     # hand_joint_names is a list of regex, use find_joints
-    indexes, _ = env.scene["robot"].find_joints(joint_names)
+    indexes, _ = env.scene["robot"].find_joints(joint_names, as_proxy=False)
     indexes = torch.tensor(indexes, dtype=torch.long)
     robot_joint_states = env.scene["robot"].data.joint_pos.torch[:, indexes]
 

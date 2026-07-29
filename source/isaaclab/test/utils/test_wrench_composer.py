@@ -10,9 +10,38 @@ import warp as wp
 
 from isaaclab.test.mock_interfaces.assets import MockRigidObjectCollection
 from isaaclab.test.utils import test_devices
+from isaaclab.utils.warp import kernels as warp_kernels
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize("index_dtype", [wp.int16, wp.int64])
+def test_public_wrench_reset_kernel_rejects_non_int32_direct_launch(index_dtype: type) -> None:
+    """The public Wrench raw symbol accepts direct launches only with int32 selectors."""
+    env_ids = wp.array([0], dtype=index_dtype, device="cpu")
+    buffers = [wp.zeros((1, 1), dtype=wp.vec3f, device="cpu") for _ in range(7)]
+    with pytest.raises(RuntimeError):
+        wp.launch(
+            warp_kernels.reset_wrench_composer_index,
+            dim=(1, 1),
+            inputs=[env_ids, *buffers],
+            device="cpu",
+        )
+
+
+def test_public_wrench_reset_kernel_factory_launches_int64_specialization() -> None:
+    """The public Wrench factory exposes the validated int64 specialization."""
+    env_ids = wp.array([0], dtype=wp.int64, device="cpu")
+    buffers = [wp.ones((1, 1), dtype=wp.vec3f, device="cpu") for _ in range(7)]
+    wp.launch(
+        warp_kernels.reset_wrench_composer_index_kernel(env_ids),
+        dim=(1, 1),
+        inputs=[env_ids, *buffers],
+        device="cpu",
+    )
+    for buffer in buffers:
+        np.testing.assert_array_equal(buffer.numpy(), np.zeros((1, 1, 3), dtype=np.float32))
 
 
 def create_mock_asset(
@@ -964,6 +993,57 @@ def test_add_forces_mask_global(device: str, num_envs: int, num_bodies: int):
 # ============================================================================
 # set_forces_and_torques_index Tests
 # ============================================================================
+
+
+@pytest.mark.parametrize("env_dtype", [torch.int32, torch.int64])
+@pytest.mark.parametrize("body_dtype", [torch.int32, torch.int64])
+def test_index_dtype_combinations_preserve_selected_wrench_cells(
+    env_dtype: torch.dtype, body_dtype: torch.dtype, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Set, add, and reset selected cells without narrowing either Torch selector eagerly."""
+    composer = WrenchComposer(create_mock_asset(num_envs=3, num_bodies=3, device="cpu"))
+    env_ids = torch.tensor([2, 0], dtype=env_dtype)
+    body_ids = torch.tensor([1, 2], dtype=body_dtype)
+    reset_env_ids = env_ids[:1]
+    set_forces_np = np.arange(1, 13, dtype=np.float32).reshape(2, 2, 3)
+    set_torques_np = set_forces_np + 20.0
+    add_forces_np = np.full((2, 2, 3), 100.0, dtype=np.float32)
+    add_torques_np = np.full((2, 2, 3), 200.0, dtype=np.float32)
+
+    original_to = torch.Tensor.to
+
+    def reject_selector_narrowing(tensor, *args, **kwargs):
+        if tensor is env_ids or tensor is body_ids or tensor is reset_env_ids:
+            pytest.fail("index selectors must not be narrowed through Tensor.to(torch.int32)")
+        return original_to(tensor, *args, **kwargs)
+
+    monkeypatch.setattr(torch.Tensor, "to", reject_selector_narrowing)
+
+    composer.set_forces_and_torques_index(
+        forces=wp.from_numpy(set_forces_np, dtype=wp.vec3f, device="cpu"),
+        torques=wp.from_numpy(set_torques_np, dtype=wp.vec3f, device="cpu"),
+        env_ids=env_ids,
+        body_ids=body_ids,
+    )
+    composer.add_forces_and_torques_index(
+        forces=wp.from_numpy(add_forces_np, dtype=wp.vec3f, device="cpu"),
+        torques=wp.from_numpy(add_torques_np, dtype=wp.vec3f, device="cpu"),
+        env_ids=env_ids,
+        body_ids=body_ids,
+    )
+
+    expected_forces = np.zeros((3, 3, 3), dtype=np.float32)
+    expected_torques = np.zeros_like(expected_forces)
+    expected_forces[np.ix_([2, 0], [1, 2])] = set_forces_np + add_forces_np
+    expected_torques[np.ix_([2, 0], [1, 2])] = set_torques_np + add_torques_np
+    np.testing.assert_array_equal(composer.local_force_b.numpy(), expected_forces)
+    np.testing.assert_array_equal(composer.local_torque_b.numpy(), expected_torques)
+
+    composer.reset(env_ids=reset_env_ids)
+    expected_forces[2] = 0.0
+    expected_torques[2] = 0.0
+    np.testing.assert_array_equal(composer.local_force_b.numpy(), expected_forces)
+    np.testing.assert_array_equal(composer.local_torque_b.numpy(), expected_torques)
 
 
 @pytest.mark.parametrize("device", test_devices())

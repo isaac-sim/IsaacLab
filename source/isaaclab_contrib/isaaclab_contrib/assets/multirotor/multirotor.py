@@ -345,7 +345,7 @@ class Multirotor(Articulation):
                 continue
 
             # Use find_bodies to count thrusters for this actuator
-            body_indices, thruster_names = self.find_bodies(actuator_cfg.thruster_names_expr)
+            body_indices, thruster_names = self.find_bodies(actuator_cfg.thruster_names_expr, as_proxy=False)
             total_thrusters += len(body_indices)
 
         if total_thrusters == 0:
@@ -431,7 +431,7 @@ class Multirotor(Articulation):
         all_thruster_names = []
 
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
-            body_indices, thruster_names = self.find_bodies(actuator_cfg.thruster_names_expr)
+            body_indices, thruster_names = self.find_bodies(actuator_cfg.thruster_names_expr, as_proxy=False)
 
             # Create 0-based thruster array indices starting from current count
             start_idx = len(all_thruster_names)

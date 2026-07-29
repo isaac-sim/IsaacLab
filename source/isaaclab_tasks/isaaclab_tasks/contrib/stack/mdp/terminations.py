@@ -76,7 +76,7 @@ def cubes_stacked(
 
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
-            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
+            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names, as_proxy=False)
             assert len(gripper_joint_ids) >= 1, "Terminations require at least one gripper joint"
             # Success also requires the gripper to be released (every jaw back at the open value).
             open_val = torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device)

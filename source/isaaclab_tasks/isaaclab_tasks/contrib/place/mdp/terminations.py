@@ -57,7 +57,7 @@ def object_placed_upright(
 
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
-            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
+            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names, as_proxy=False)
             success = torch.logical_and(
                 success,
                 torch.abs(torch.abs(robot.data.joint_pos.torch[:, gripper_joint_ids[0]]) - env.cfg.gripper_open_val)
@@ -105,7 +105,7 @@ def object_a_is_into_b(
 
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
-            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
+            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names, as_proxy=False)
             assert len(gripper_joint_ids) == 2, "Terminations only support parallel gripper for now"
 
             success = torch.logical_and(

@@ -23,6 +23,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -161,7 +162,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def reset(
         self,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        object_ids: slice | torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | ProxyArray | None = None,
         env_mask: wp.array | None = None,
         object_mask: wp.array | None = None,
     ) -> None:
@@ -226,22 +227,40 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     """
 
     def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool | None = None,
+    ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
         """Find bodies in the rigid body collection based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Keyword-only selector return mode. ``None`` returns the legacy device-local
+                ``torch.int32`` tensor with a :class:`DeprecationWarning`; ``False`` returns it without that
+                warning; ``True`` returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32``
+                storage. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same allocation.
+                Callers must treat the proxy and both views as immutable because cache hits share this storage.
+
+        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
+        ``body_ids, _ = asset.find_bodies(".*")`` to
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
+        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple containing the body indices and a fresh list of matched names. The indices are a device-local
+            ``torch.int32`` tensor for legacy modes and a cached :class:`ProxyArray` for proxy mode.
         """
         obj_ids, obj_names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
-        return torch.tensor(obj_ids, device=self.device, dtype=torch.int32), obj_names
+        resolved_ids = self._resolve_finder_indices(
+            obj_ids, domain="body", finder_name="find_bodies", as_proxy=as_proxy, legacy_type="tensor"
+        )
+        return resolved_ids, obj_names
 
     """
     Operations - Write to simulation.
@@ -251,7 +270,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         body_poses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -321,7 +340,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -403,7 +422,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         body_poses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
         skip_forward: bool = False,
@@ -462,7 +481,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         skip_forward: bool = False,
     ) -> None:
         """Set the body link pose over selected environment mask into the simulation.
@@ -500,7 +519,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         body_poses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
         skip_forward: bool = False,
@@ -562,7 +581,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass pose over selected environment mask into the simulation.
@@ -602,7 +621,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
         skip_forward: bool = False,
@@ -669,7 +688,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass velocity over selected environment mask into the simulation.
@@ -716,7 +735,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
         skip_forward: bool = False,
@@ -786,7 +805,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | slice | None = None,
         skip_forward: bool = False,
     ) -> None:
         """Set the body link velocity over selected environment mask into the simulation.
@@ -836,7 +855,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies using indices.
@@ -859,7 +878,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Write to consolidated buffer
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
@@ -923,7 +942,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass position of all bodies using indices.
@@ -1020,7 +1039,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies using indices.
@@ -1263,6 +1282,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             A warp array of body indices.
         """
+        if isinstance(body_ids, ProxyArray):
+            return body_ids.warp
         if isinstance(body_ids, list):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
@@ -1386,7 +1407,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         body_states: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | None = None,
+        body_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and
         :meth:`write_body_com_velocity_to_sim_index`."""
@@ -1405,7 +1426,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         body_states: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | None = None,
+        body_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_com_pose_to_sim_index` and
         :meth:`write_body_com_velocity_to_sim_index`."""
@@ -1424,7 +1445,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         body_states: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | None = None,
+        body_ids: slice | torch.Tensor | ProxyArray | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and
         :meth:`write_body_link_velocity_to_sim_index`."""

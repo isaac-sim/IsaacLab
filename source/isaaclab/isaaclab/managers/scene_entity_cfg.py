@@ -159,7 +159,7 @@ class SceneEntityCfg:
                     self.joint_names = [self.joint_names]
                 if isinstance(self.joint_ids, int):
                     self.joint_ids = [self.joint_ids]
-                joint_ids, _ = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
+                joint_ids, _ = entity.find_joints(self.joint_names, preserve_order=self.preserve_order, as_proxy=False)
                 joint_names = [entity.joint_names[i] for i in self.joint_ids]
                 if joint_ids != self.joint_ids or joint_names != self.joint_names:
                     raise ValueError(
@@ -172,7 +172,9 @@ class SceneEntityCfg:
             elif self.joint_names is not None:
                 if isinstance(self.joint_names, str):
                     self.joint_names = [self.joint_names]
-                self.joint_ids, _ = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
+                self.joint_ids, _ = entity.find_joints(
+                    self.joint_names, preserve_order=self.preserve_order, as_proxy=False
+                )
                 # performance optimization (slice offers faster indexing than list of indices)
                 # only all joint in the entity order are selected
                 if len(self.joint_ids) == entity.num_joints and self.joint_names == entity.joint_names:
@@ -194,7 +196,7 @@ class SceneEntityCfg:
                 if isinstance(self.fixed_tendon_ids, int):
                     self.fixed_tendon_ids = [self.fixed_tendon_ids]
                 fixed_tendon_ids, _ = entity.find_fixed_tendons(
-                    self.fixed_tendon_names, preserve_order=self.preserve_order
+                    self.fixed_tendon_names, preserve_order=self.preserve_order, as_proxy=False
                 )
                 fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
                 if fixed_tendon_ids != self.fixed_tendon_ids or fixed_tendon_names != self.fixed_tendon_names:
@@ -209,7 +211,7 @@ class SceneEntityCfg:
                 if isinstance(self.fixed_tendon_names, str):
                     self.fixed_tendon_names = [self.fixed_tendon_names]
                 self.fixed_tendon_ids, _ = entity.find_fixed_tendons(
-                    self.fixed_tendon_names, preserve_order=self.preserve_order
+                    self.fixed_tendon_names, preserve_order=self.preserve_order, as_proxy=False
                 )
                 # performance optimization (slice offers faster indexing than list of indices)
                 # only all fixed tendon in the entity order are selected
@@ -230,14 +232,18 @@ class SceneEntityCfg:
             entity: RigidObject = scene[self.name]
             # -- if both are not their default values, check if they are valid
             # use find_sensors/num_sensors for ContactSensor, find_bodies/num_bodies for others
-            _find_fn = entity.find_sensors if hasattr(entity, "find_sensors") else entity.find_bodies
-            _num_bodies = entity.num_sensors if hasattr(entity, "num_sensors") else entity.num_bodies
+            is_sensor = hasattr(entity, "find_sensors")
+            _find_fn = entity.find_sensors if is_sensor else entity.find_bodies
+            _num_bodies = entity.num_sensors if is_sensor else entity.num_bodies
+            _find_kwargs = {"preserve_order": self.preserve_order}
+            if not is_sensor:
+                _find_kwargs["as_proxy"] = False
             if self.body_names is not None and self.body_ids != slice(None):
                 if isinstance(self.body_names, str):
                     self.body_names = [self.body_names]
                 if isinstance(self.body_ids, int):
                     self.body_ids = [self.body_ids]
-                body_ids, _ = _find_fn(self.body_names, preserve_order=self.preserve_order)
+                body_ids, _ = _find_fn(self.body_names, **_find_kwargs)
                 body_names = [entity.body_names[i] for i in self.body_ids]
                 if body_ids != self.body_ids or body_names != self.body_names:
                     raise ValueError(
@@ -250,7 +256,7 @@ class SceneEntityCfg:
             elif self.body_names is not None:
                 if isinstance(self.body_names, str):
                     self.body_names = [self.body_names]
-                self.body_ids, _ = _find_fn(self.body_names, preserve_order=self.preserve_order)
+                self.body_ids, _ = _find_fn(self.body_names, **_find_kwargs)
                 # performance optimization (slice offers faster indexing than list of indices)
                 # only all bodies in the entity order are selected
                 if len(self.body_ids) == _num_bodies and self.body_names == entity.body_names:
@@ -271,7 +277,9 @@ class SceneEntityCfg:
                     self.object_collection_names = [self.object_collection_names]
                 if isinstance(self.object_collection_ids, int):
                     self.object_collection_ids = [self.object_collection_ids]
-                object_ids, _ = entity.find_objects(self.object_collection_names, preserve_order=self.preserve_order)
+                object_ids, _ = entity.find_objects(
+                    self.object_collection_names, preserve_order=self.preserve_order, as_proxy=False
+                )
                 object_names = [entity.object_names[i] for i in self.object_collection_ids]
                 if object_ids != self.object_collection_ids or object_names != self.object_collection_names:
                     raise ValueError(
@@ -286,7 +294,7 @@ class SceneEntityCfg:
                 if isinstance(self.object_collection_names, str):
                     self.object_collection_names = [self.object_collection_names]
                 self.object_collection_ids, _ = entity.find_objects(
-                    self.object_collection_names, preserve_order=self.preserve_order
+                    self.object_collection_names, preserve_order=self.preserve_order, as_proxy=False
                 )
             # -- from object indices to object names
             elif self.object_collection_ids != slice(None):

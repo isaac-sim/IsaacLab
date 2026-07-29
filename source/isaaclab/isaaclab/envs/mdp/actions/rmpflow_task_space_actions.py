@@ -43,10 +43,10 @@ class RMPFlowAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
+        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=False)
         self._num_joints = len(self._joint_ids)
         # parse the body index
-        body_ids, body_names = self._asset.find_bodies(self.cfg.body_name)
+        body_ids, body_names = self._asset.find_bodies(self.cfg.body_name, as_proxy=False)
         if len(body_ids) != 1:
             raise ValueError(
                 f"Expected one match for the body name: {self.cfg.body_name}. Found {len(body_ids)}: {body_names}."

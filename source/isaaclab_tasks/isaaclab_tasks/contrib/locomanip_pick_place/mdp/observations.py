@@ -29,7 +29,7 @@ def upper_body_last_action(
         raise ValueError("asset_cfg must have 'joint_names' attribute for upper_body_last_action.")
 
     # Find joint indices matching the provided joint_names (supports regex)
-    joint_indices, _ = asset.find_joints(joint_names)
+    joint_indices, _ = asset.find_joints(joint_names, as_proxy=False)
     joint_indices = torch.tensor(joint_indices, dtype=torch.long)
 
     # Get upper body joint positions for all environments

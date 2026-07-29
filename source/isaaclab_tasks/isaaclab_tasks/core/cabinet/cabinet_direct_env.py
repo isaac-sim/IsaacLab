@@ -62,8 +62,8 @@ class CabinetDirectEnv(DirectRLEnv):
         self.robot_dof_upper_limits = self._robot.data.soft_joint_pos_limits.torch[0, :, 1].to(device=self.device)
 
         self.robot_dof_speed_scales = torch.ones_like(self.robot_dof_lower_limits)
-        self.robot_dof_speed_scales[self._robot.find_joints("panda_finger_joint1")[0]] = 0.1
-        self.robot_dof_speed_scales[self._robot.find_joints("panda_finger_joint2")[0]] = 0.1
+        self.robot_dof_speed_scales[self._robot.find_joints("panda_finger_joint1", as_proxy=False)[0]] = 0.1
+        self.robot_dof_speed_scales[self._robot.find_joints("panda_finger_joint2", as_proxy=False)[0]] = 0.1
 
         self.robot_dof_targets = torch.zeros((self.num_envs, self._robot.num_joints), device=self.device)
 
@@ -115,11 +115,11 @@ class CabinetDirectEnv(DirectRLEnv):
             (self.num_envs, 1)
         )
 
-        self.hand_link_idx = self._robot.find_bodies("panda_link7")[0][0]
-        self.left_finger_link_idx = self._robot.find_bodies("panda_leftfinger")[0][0]
-        self.right_finger_link_idx = self._robot.find_bodies("panda_rightfinger")[0][0]
-        self.drawer_link_idx = self._cabinet.find_bodies("drawer_top")[0][0]
-        self.drawer_joint_idx = self._cabinet.find_joints("drawer_top_joint")[0][0]
+        self.hand_link_idx = self._robot.find_bodies("panda_link7", as_proxy=False)[0][0]
+        self.left_finger_link_idx = self._robot.find_bodies("panda_leftfinger", as_proxy=False)[0][0]
+        self.right_finger_link_idx = self._robot.find_bodies("panda_rightfinger", as_proxy=False)[0][0]
+        self.drawer_link_idx = self._cabinet.find_bodies("drawer_top", as_proxy=False)[0][0]
+        self.drawer_joint_idx = self._cabinet.find_joints("drawer_top_joint", as_proxy=False)[0][0]
 
         self.robot_grasp_rot = torch.zeros((self.num_envs, 4), device=self.device)
         self.robot_grasp_pos = torch.zeros((self.num_envs, 3), device=self.device)

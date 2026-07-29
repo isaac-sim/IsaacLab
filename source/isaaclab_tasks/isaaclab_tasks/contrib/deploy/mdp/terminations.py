@@ -115,7 +115,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         }
 
         # Find end effector index once
-        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
+        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name], as_proxy=False)
         if len(eef_indices) == 0:
             logger.warning(
                 f"{self.end_effector_body_name} not found in robot body names. Cannot check gear drop condition."
@@ -248,7 +248,7 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
         }
 
         # Find end effector index once
-        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
+        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name], as_proxy=False)
         if len(eef_indices) == 0:
             logger.warning(
                 f"{self.end_effector_body_name} not found in robot body names. Cannot check gear orientation condition."

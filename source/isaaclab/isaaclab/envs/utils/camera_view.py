@@ -224,7 +224,7 @@ def _scene_articulation_positions(scene: Any, prim_path_template: str, env_indic
         body_name = follow_env0.removeprefix(prefix).split("/")[-1]
         if body_name not in asset.body_names:
             continue
-        body_ids, _ = asset.find_bodies(body_name)
+        body_ids, _ = asset.find_bodies(body_name, as_proxy=False)
         if not body_ids:
             continue
         return asset.data.body_pos_w.torch[env_indices, int(body_ids[0])].detach().cpu()

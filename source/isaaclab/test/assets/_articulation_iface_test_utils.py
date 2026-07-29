@@ -313,6 +313,8 @@ def create_newton_articulation(
     num_instances: int = 2,
     num_joints: int = 6,
     num_bodies: int = 7,
+    num_fixed_tendons: int = 0,
+    num_spatial_tendons: int = 0,
     device: str = "cuda:0",
     is_fixed_base: bool = False,
     joint_ordering: tuple[str, ...] | None = None,
@@ -323,6 +325,7 @@ def create_newton_articulation(
 
     joint_names = [f"joint_{i}" for i in range(num_joints)]
     body_names = [f"body_{i}" for i in range(num_bodies)]
+    fixed_tendon_names = [f"fixed_tendon_{i}" for i in range(num_fixed_tendons)]
 
     # Create Newton mock view
     mock_view = NewtonMockArticulationView(
@@ -333,6 +336,7 @@ def create_newton_articulation(
         is_fixed_base=is_fixed_base,
         joint_names=joint_names,
         body_names=body_names,
+        tendon_names=fixed_tendon_names,
     )
     mock_view.set_random_mock_data()
     mock_view._noop_setters = True
@@ -366,6 +370,7 @@ def create_newton_articulation(
         data = NewtonArticulationData(mock_view, device)
     finally:
         newton_data_module.SimulationManager = original_sim_manager
+    mock_view._tendon_count = num_fixed_tendons
 
     # Create Articulation shell (bypass __init__)
     articulation = object.__new__(NewtonArticulation)
@@ -383,10 +388,10 @@ def create_newton_articulation(
     object.__setattr__(articulation, "_data", data)
     object.__setattr__(articulation, "_test_simulation_manager", mock_manager)
 
-    # Tendon names (Newton doesn't support tendons)
-    object.__setattr__(articulation, "_fixed_tendon_names", [])
+    # Newton supports fixed tendons but not spatial tendons.
+    object.__setattr__(articulation, "_fixed_tendon_names", fixed_tendon_names)
     object.__setattr__(articulation, "_spatial_tendon_names", [])
-    data.fixed_tendon_names = []
+    data.fixed_tendon_names = fixed_tendon_names
     data.spatial_tendon_names = []
 
     # Mock wrench composers
@@ -422,9 +427,15 @@ def create_newton_articulation(
     articulation._resolve_and_install_ordering_maps()
     articulation._ordering_configure_backend_staging()
 
-    # Tendon arrays (empty)
-    object.__setattr__(articulation, "_ALL_FIXED_TENDON_INDICES", wp.array(np.array([], dtype=np.int32), device=device))
-    object.__setattr__(articulation, "_ALL_FIXED_TENDON_MASK", wp.ones((0,), dtype=wp.bool, device=device))
+    # Tendon arrays
+    object.__setattr__(
+        articulation,
+        "_ALL_FIXED_TENDON_INDICES",
+        wp.array(np.arange(num_fixed_tendons, dtype=np.int32), device=device),
+    )
+    object.__setattr__(
+        articulation, "_ALL_FIXED_TENDON_MASK", wp.ones((num_fixed_tendons,), dtype=wp.bool, device=device)
+    )
     object.__setattr__(
         articulation, "_ALL_SPATIAL_TENDON_INDICES", wp.array(np.array([], dtype=np.int32), device=device)
     )
@@ -519,6 +530,8 @@ def get_articulation(
             num_instances,
             num_joints,
             num_bodies,
+            num_fixed_tendons,
+            num_spatial_tendons,
             device,
             is_fixed_base=is_fixed_base,
             joint_ordering=joint_ordering,

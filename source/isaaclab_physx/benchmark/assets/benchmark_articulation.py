@@ -6,10 +6,14 @@
 """Micro-benchmarking framework for Articulation class (PhysX backend).
 
 This module provides a benchmarking framework to measure the performance of setter and writer
-methods in the Articulation class. Each method is benchmarked under two scenarios:
+methods in the Articulation class. Each method is benchmarked under six scenarios:
 
 1. **Torch List**: Inputs are PyTorch tensors with list indices.
-2. **Torch Tensor**: Inputs are PyTorch tensors with tensor indices.
+2. **Torch Tensor Int32**: Item IDs are 32-bit PyTorch tensors.
+3. **Torch Tensor Int64**: Item IDs are 64-bit PyTorch tensors.
+4. **Warp Int32**: Item IDs are raw Warp ``int32`` arrays.
+5. **Warp Int64**: Item IDs are raw Warp ``int64`` arrays.
+6. **Proxy Int32**: Item IDs are cached finder ``ProxyArray`` objects backed by Warp ``int32`` storage.
 
 Usage:
     python benchmark_articulation.py [--num_iterations N] [--warmup_steps W]
@@ -18,7 +22,7 @@ Usage:
 Example:
     python benchmark_articulation.py --num_iterations 1000 --warmup_steps 10
     python benchmark_articulation.py --mode torch_list  # Only run list-based benchmarks
-    python benchmark_articulation.py --mode torch_tensor  # Only run tensor-based benchmarks
+    python benchmark_articulation.py --mode torch_tensor_int64  # Only run 64-bit tensor benchmarks
 """
 
 from __future__ import annotations
@@ -36,7 +40,14 @@ parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warm
 parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
 parser.add_argument("--num_bodies", type=int, default=12, help="Number of bodies")
 parser.add_argument("--num_joints", type=int, default=11, help="Number of joints")
-parser.add_argument("--mode", type=str, default="all", help="Benchmark mode (all, torch_list, torch_tensor)")
+parser.add_argument(
+    "--mode",
+    type=str,
+    default="all",
+    help=(
+        "Benchmark mode (all, torch_list, torch_tensor_int32, torch_tensor_int64, warp_int32, warp_int64, proxy_int32)"
+    ),
+)
 parser.add_argument("--output_dir", type=str, default=".", help="Output directory for results")
 parser.add_argument("--backend", type=str, default="json", choices=["json", "osmo", "omniperf"], help="Metrics backend")
 parser.add_argument("--no_shape_checks", action="store_true", help="Disable shape/dtype assertions")
@@ -53,9 +64,11 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import logging
+import time
 import warnings
 from unittest.mock import MagicMock
 
+import numpy as np
 import torch
 
 # Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity
@@ -70,11 +83,15 @@ SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_si
 import warp as wp
 from isaaclab_physx.assets.articulation.articulation import Articulation
 from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
-from isaaclab_physx.test.benchmark import make_tensor_body_ids, make_tensor_env_ids, make_tensor_joint_ids
 from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
+from isaaclab.benchmark import (
+    DictMeasurement,
+    MethodBenchmarkDefinition,
+    MethodBenchmarkRunner,
+    MethodBenchmarkRunnerConfig,
+)
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
 # Suppress deprecation warnings during benchmarking
@@ -204,6 +221,21 @@ def create_test_articulation(
 # =============================================================================
 
 
+def make_tensor_env_ids(num_instances: int, device: str, dtype: torch.dtype) -> torch.Tensor:
+    """Create a tensor of environment IDs."""
+    return torch.arange(num_instances, dtype=dtype, device=device)
+
+
+def make_tensor_joint_ids(num_joints: int, device: str, dtype: torch.dtype) -> torch.Tensor:
+    """Create a tensor of joint IDs."""
+    return torch.arange(num_joints, dtype=dtype, device=device)
+
+
+def make_tensor_body_ids(num_bodies: int, device: str, dtype: torch.dtype) -> torch.Tensor:
+    """Create a tensor of body IDs."""
+    return torch.arange(num_bodies, dtype=dtype, device=device)
+
+
 # --- Root Link Pose ---
 def gen_root_link_pose_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list env_ids for write_root_link_pose_to_sim."""
@@ -217,7 +249,7 @@ def gen_root_link_pose_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict
     """Generate Torch inputs with tensor env_ids for write_root_link_pose_to_sim."""
     return {
         "root_pose": torch.rand(config.num_instances, 7, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -234,7 +266,7 @@ def gen_root_com_pose_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor env_ids for write_root_com_pose_to_sim."""
     return {
         "root_pose": torch.rand(config.num_instances, 7, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -251,7 +283,7 @@ def gen_root_link_velocity_torch_tensor(config: MethodBenchmarkRunnerConfig) -> 
     """Generate Torch inputs with tensor env_ids for write_root_link_velocity_to_sim."""
     return {
         "root_velocity": torch.rand(config.num_instances, 6, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -268,7 +300,7 @@ def gen_root_com_velocity_torch_tensor(config: MethodBenchmarkRunnerConfig) -> d
     """Generate Torch inputs with tensor env_ids for write_root_com_velocity_to_sim."""
     return {
         "root_velocity": torch.rand(config.num_instances, 6, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -285,7 +317,7 @@ def gen_root_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor env_ids for write_root_state_to_sim."""
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -302,7 +334,7 @@ def gen_root_com_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict
     """Generate Torch inputs with tensor env_ids for write_root_com_state_to_sim."""
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -319,7 +351,7 @@ def gen_root_link_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dic
     """Generate Torch inputs with tensor env_ids for write_root_link_state_to_sim."""
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
     }
 
 
@@ -339,8 +371,8 @@ def gen_joint_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "position": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
         "velocity": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -358,8 +390,8 @@ def gen_joint_position_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict
     """Generate Torch inputs with tensor ids for write_joint_position_to_sim."""
     return {
         "position": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -377,8 +409,8 @@ def gen_joint_velocity_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict
     """Generate Torch inputs with tensor ids for write_joint_velocity_to_sim."""
     return {
         "velocity": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -396,8 +428,8 @@ def gen_joint_stiffness_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dic
     """Generate Torch inputs with tensor ids for write_joint_stiffness_to_sim."""
     return {
         "stiffness": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -415,8 +447,8 @@ def gen_joint_damping_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_damping_to_sim."""
     return {
         "damping": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -440,8 +472,8 @@ def gen_joint_position_limit_torch_tensor(config: MethodBenchmarkRunnerConfig) -
     upper = torch.rand(config.num_instances, config.num_joints, 1, device=config.device, dtype=torch.float32) * 3.14
     return {
         "limits": torch.cat([lower, upper], dim=-1),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -459,8 +491,8 @@ def gen_joint_velocity_limit_torch_tensor(config: MethodBenchmarkRunnerConfig) -
     """Generate Torch inputs with tensor ids for write_joint_velocity_limit_to_sim."""
     return {
         "limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 10.0,
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -482,8 +514,8 @@ def gen_joint_effort_limit_torch_tensor(config: MethodBenchmarkRunnerConfig) -> 
         "limits": (
             torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 100.0
         ),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -505,8 +537,8 @@ def gen_joint_armature_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict
         "armature": (
             torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.1
         ),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -528,8 +560,8 @@ def gen_joint_friction_coefficient_torch_tensor(config: MethodBenchmarkRunnerCon
         "joint_friction_coeff": (
             torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.5
         ),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -547,8 +579,8 @@ def gen_set_joint_position_target_torch_tensor(config: MethodBenchmarkRunnerConf
     """Generate Torch inputs with tensor ids for set_joint_position_target."""
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -566,8 +598,8 @@ def gen_set_joint_velocity_target_torch_tensor(config: MethodBenchmarkRunnerConf
     """Generate Torch inputs with tensor ids for set_joint_velocity_target."""
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -585,8 +617,8 @@ def gen_set_joint_effort_target_torch_tensor(config: MethodBenchmarkRunnerConfig
     """Generate Torch inputs with tensor ids for set_joint_effort_target."""
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "joint_ids": make_tensor_joint_ids(config.num_joints, config.device, torch.int32),
     }
 
 
@@ -606,8 +638,8 @@ def gen_set_masses_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     # Articulation masses shape is (N, B)
     return {
         "masses": torch.rand(config.num_instances, config.num_bodies, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "body_ids": make_tensor_body_ids(config.num_bodies, config.device, torch.int32),
     }
 
 
@@ -625,8 +657,8 @@ def gen_set_coms_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for set_coms."""
     return {
         "coms": torch.rand(config.num_instances, config.num_bodies, 7, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "body_ids": make_tensor_body_ids(config.num_bodies, config.device, torch.int32),
     }
 
 
@@ -646,8 +678,8 @@ def gen_set_inertias_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     # Articulation inertias shape is (N, B, 9) - flattened 3x3 matrix
     return {
         "inertias": torch.rand(config.num_instances, config.num_bodies, 9, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-        "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "body_ids": make_tensor_body_ids(config.num_bodies, config.device, torch.int32),
     }
 
 
@@ -658,6 +690,7 @@ def gen_set_external_force_and_torque_torch_list(config: MethodBenchmarkRunnerCo
         "forces": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "torques": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "env_ids": list(range(config.num_instances)),
+        "body_ids": list(range(config.num_bodies)),
     }
 
 
@@ -666,13 +699,409 @@ def gen_set_external_force_and_torque_torch_tensor(config: MethodBenchmarkRunner
     return {
         "forces": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "torques": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device, torch.int32),
+        "body_ids": make_tensor_body_ids(config.num_bodies, config.device, torch.int32),
     }
 
 
 # =============================================================================
 # Benchmarks
 # =============================================================================
+
+
+def _make_tensor_dtype_generator(base_gen_fn, dtype: torch.dtype):
+    """Create a PhysX generator with item selectors of the requested dtype."""
+
+    def generator(config):
+        inputs = base_gen_fn(config)
+        for key in ("joint_ids", "body_ids"):
+            value = inputs.get(key)
+            if isinstance(value, torch.Tensor):
+                inputs[key] = value.to(dtype)
+        return inputs
+
+    return generator
+
+
+ITEM_SELECTOR_MODES = (
+    "torch_list",
+    "torch_tensor_int32",
+    "torch_tensor_int64",
+    "warp_int32",
+    "warp_int64",
+    "proxy_int32",
+)
+"""Fair item-selector modes; every case shares one prebuilt ``torch.int32`` environment selector."""
+
+ITEM_SELECTOR_KEYS = {
+    "write_joint_state_to_sim": "joint_ids",
+    "write_joint_position_to_sim": "joint_ids",
+    "write_joint_velocity_to_sim": "joint_ids",
+    "write_joint_stiffness_to_sim": "joint_ids",
+    "write_joint_damping_to_sim": "joint_ids",
+    "write_joint_position_limit_to_sim": "joint_ids",
+    "write_joint_velocity_limit_to_sim": "joint_ids",
+    "write_joint_effort_limit_to_sim": "joint_ids",
+    "write_joint_armature_to_sim": "joint_ids",
+    "write_joint_friction_coefficient_to_sim": "joint_ids",
+    "set_joint_position_target": "joint_ids",
+    "set_joint_velocity_target": "joint_ids",
+    "set_joint_effort_target": "joint_ids",
+    "set_masses": "body_ids",
+    "set_coms": "body_ids",
+    "set_inertias": "body_ids",
+    "set_external_force_and_torque": "body_ids",
+}
+"""Actual articulation benchmarks that vary a joint/body selector representation."""
+
+
+class _ItemSelectorInputFactory:
+    """Prepare all item-selector representations once, outside writer timing."""
+
+    def __init__(self, base_generator, item_key: str):
+        self._base_generator = base_generator
+        self._item_key = item_key
+        self._inputs_by_mode = None
+        self._proxy_selector = None
+        self._setup_count = 0
+
+    @property
+    def setup_count(self) -> int:
+        """Number of times selector setup ran."""
+        return self._setup_count
+
+    @property
+    def proxy_selector(self):
+        """Prepared cached proxy selector, or ``None`` before setup."""
+        return self._proxy_selector
+
+    def assert_proxy_unmaterialized(self) -> None:
+        """Assert the prepared proxy still has no cached Torch view."""
+        if self._proxy_selector is None:
+            raise AssertionError("proxy selector setup has not run")
+        if self._proxy_selector._torch_cache is not None:
+            raise AssertionError("prepared proxy selector materialized a Torch view")
+
+    def _prepare(self, config) -> None:
+        base_inputs = self._base_generator(config)
+        env_ids = base_inputs.get("env_ids")
+        if not isinstance(env_ids, torch.Tensor) or env_ids.dtype != torch.int32:
+            raise AssertionError("item-selector benchmarks require one prebuilt torch.int32 environment selector")
+        item_ids = base_inputs.get(self._item_key)
+        if not isinstance(item_ids, torch.Tensor) or item_ids.dtype != torch.int32:
+            raise AssertionError(f"{self._item_key} setup must start from torch.int32")
+
+        articulation = config.articulation
+        finder_name = "find_joints" if self._item_key == "joint_ids" else "find_bodies"
+        finder = getattr(articulation, finder_name)
+        legacy, _ = finder(".*", as_proxy=False)
+        proxy, _ = finder(".*", as_proxy=True)
+        repeated_proxy, _ = finder(".*", as_proxy=True)
+        if proxy is not repeated_proxy:
+            raise AssertionError(f"{finder_name} did not reuse its cached ProxyArray")
+        if proxy.dtype != wp.int32:
+            raise AssertionError(f"{finder_name} proxy must use warp.int32 storage")
+
+        item_values = item_ids.tolist()
+        if legacy != item_values:
+            raise AssertionError(f"{finder_name} full-range result differs from the benchmark workload")
+        selectors = {
+            "torch_list": legacy,
+            "torch_tensor_int32": item_ids,
+            "torch_tensor_int64": item_ids.to(torch.int64),
+            "warp_int32": wp.array(item_values, dtype=wp.int32, device=config.device),
+            "warp_int64": wp.array(item_values, dtype=wp.int64, device=config.device),
+            "proxy_int32": proxy,
+        }
+        self._inputs_by_mode = {mode: {**base_inputs, self._item_key: selector} for mode, selector in selectors.items()}
+        self._proxy_selector = proxy
+        self._setup_count += 1
+        self.assert_proxy_unmaterialized()
+
+    def make_generator(self, mode: str):
+        """Return a generator that reuses its prepared input dictionary."""
+
+        def generator(config):
+            if self._inputs_by_mode is None:
+                self._prepare(config)
+            return self._inputs_by_mode[mode]
+
+        return generator
+
+
+def _register_item_selector_modes(benchmark, item_key: str) -> _ItemSelectorInputFactory:
+    """Replace legacy tensor generators with the complete fair representation grid."""
+    base_generator = benchmark.input_generators["torch_tensor"]
+    factory = _ItemSelectorInputFactory(base_generator, item_key)
+    benchmark.input_generators = {mode: factory.make_generator(mode) for mode in ITEM_SELECTOR_MODES}
+    return factory
+
+
+def _register_benchmark_selector_modes(benchmarks) -> dict[str, _ItemSelectorInputFactory]:
+    """Register item grids on actual item-bearing definitions and typed root modes elsewhere."""
+    factories = {}
+    for benchmark in benchmarks:
+        item_key = ITEM_SELECTOR_KEYS.get(benchmark.name)
+        if item_key is not None:
+            factories[benchmark.name] = _register_item_selector_modes(benchmark, item_key)
+        elif "torch_tensor" in benchmark.input_generators:
+            base_generator = benchmark.input_generators.pop("torch_tensor")
+            benchmark.input_generators.update(
+                {
+                    "torch_tensor_int32": _make_tensor_dtype_generator(base_generator, torch.int32),
+                    "torch_tensor_int64": _make_tensor_dtype_generator(base_generator, torch.int64),
+                }
+            )
+    return factories
+
+
+def _measure_callable(callable_, num_iterations: int, warmup_steps: int, before_each=None, after_each=None) -> dict:
+    """Measure a callable while keeping optional per-sample ownership setup outside timing."""
+    for _ in range(warmup_steps):
+        if before_each is not None:
+            before_each()
+        try:
+            callable_()
+        finally:
+            if after_each is not None:
+                after_each()
+
+    samples = []
+    for _ in range(num_iterations):
+        if before_each is not None:
+            before_each()
+        try:
+            start = time.perf_counter()
+            callable_()
+            end = time.perf_counter()
+        finally:
+            if after_each is not None:
+                after_each()
+        samples.append((end - start) * 1e6)
+    return {
+        "median": float(np.median(samples)),
+        "iqr": float(np.percentile(samples, 75) - np.percentile(samples, 25)),
+        "mean": float(np.mean(samples)),
+        "std": float(np.std(samples)),
+        "n": len(samples),
+        "attempts": num_iterations,
+        "failures": 0,
+    }
+
+
+def _measure_finder_paths(articulation, finder_name: str, num_iterations: int, warmup_steps: int) -> dict:
+    """Measure cold allocation and cached lookup with explicit untimed selector ownership."""
+    finder = getattr(articulation, finder_name)
+    cold_selector = None
+
+    def _clear_cache():
+        clear_method = getattr(articulation, "_clear_selector_cache", None)
+        if clear_method is not None:
+            clear_method()
+        else:
+            selector_cache = getattr(articulation, "_selector_cache", None)
+            if selector_cache is not None:
+                selector_cache.clear()
+
+    def prepare_cold_sample():
+        nonlocal cold_selector
+        cold_selector = None
+        _clear_cache()
+        wp.synchronize()
+
+    def cold_allocation():
+        nonlocal cold_selector
+        cold_selector, _ = finder(".*", as_proxy=True)
+        wp.synchronize()
+        if cold_selector._torch_cache is not None:
+            raise AssertionError("cold finder benchmark materialized a Torch view")
+
+    def release_cold_sample():
+        nonlocal cold_selector
+        cold_selector = None
+        _clear_cache()
+        wp.synchronize()
+
+    cold_stats = _measure_callable(
+        cold_allocation,
+        num_iterations,
+        warmup_steps,
+        before_each=prepare_cold_sample,
+        after_each=release_cold_sample,
+    )
+
+    cached_selector, _ = finder(".*", as_proxy=True)
+    wp.synchronize()
+
+    def cached_lookup():
+        selector, _ = finder(".*", as_proxy=True)
+        if selector is not cached_selector:
+            raise AssertionError("steady-state finder lookup missed the proxy cache")
+        if selector._torch_cache is not None:
+            raise AssertionError("cached finder benchmark materialized a Torch view")
+
+    cached_stats = _measure_callable(cached_lookup, num_iterations, warmup_steps)
+    if cached_selector._torch_cache is not None:
+        raise AssertionError("cached finder benchmark materialized a Torch view")
+    return {"cold_allocation": cold_stats, "cached_lookup": cached_stats}
+
+
+def _expected_item_selector_modes(configured_mode: str | list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    """Return item-selector modes expected from the configured CLI selection."""
+    if configured_mode == "all":
+        return ITEM_SELECTOR_MODES
+    requested_modes = {configured_mode} if isinstance(configured_mode, str) else set(configured_mode)
+    return tuple(mode for mode in ITEM_SELECTOR_MODES if mode in requested_modes)
+
+
+def _summarize_writer_results(
+    results: dict[str, dict], item_benchmark_names, expected_modes: tuple[str, ...] | None = None
+) -> dict:
+    """Summarize only registered item benchmarks and add ratios against both P10 baselines."""
+    grouped = {}
+    item_benchmark_names = set(item_benchmark_names)
+    for result_name, stats in results.items():
+        for mode in ITEM_SELECTOR_MODES:
+            suffix = f"_{mode}"
+            if result_name.endswith(suffix):
+                method_name = result_name[: -len(suffix)]
+                if method_name not in item_benchmark_names:
+                    break
+                grouped.setdefault(method_name, {})[mode] = {
+                    "median_us": stats["median"],
+                    "iqr_us": stats["iqr"],
+                    "n": stats["n"],
+                    "attempts": stats["attempts"],
+                    "failures": stats["failures"],
+                }
+                break
+    if expected_modes is not None:
+        invalid_modes = tuple(mode for mode in expected_modes if mode not in ITEM_SELECTOR_MODES)
+        if invalid_modes:
+            raise ValueError(f"Unknown expected item-selector modes: {', '.join(invalid_modes)}")
+        missing = {
+            method_name: tuple(mode for mode in expected_modes if mode not in grouped.get(method_name, {}))
+            for method_name in item_benchmark_names
+        }
+        missing = {method_name: modes for method_name, modes in missing.items() if modes}
+        if missing:
+            details = "; ".join(f"{method_name}: {', '.join(modes)}" for method_name, modes in sorted(missing.items()))
+            raise RuntimeError(f"Missing expected selector benchmark modes: {details}")
+    for modes in grouped.values():
+        tensor_stats = modes.get("torch_tensor_int32")
+        list_stats = modes.get("torch_list")
+        tensor_baseline = (
+            tensor_stats["median_us"]
+            if tensor_stats and tensor_stats["failures"] == 0 and tensor_stats["n"] == tensor_stats["attempts"]
+            else None
+        )
+        list_baseline = (
+            list_stats["median_us"]
+            if list_stats and list_stats["failures"] == 0 and list_stats["n"] == list_stats["attempts"]
+            else None
+        )
+        for stats in modes.values():
+            median = stats["median_us"]
+            valid = stats["failures"] == 0 and stats["n"] == stats["attempts"]
+            stats["ratio_vs_torch_tensor_int32"] = median / tensor_baseline if valid and tensor_baseline else None
+            stats["ratio_vs_torch_list"] = median / list_baseline if valid and list_baseline else None
+    return grouped
+
+
+class _SelectorBenchmarkRunner(MethodBenchmarkRunner):
+    """Method runner that retains complete median/IQR samples for registered item benchmarks."""
+
+    def __init__(self, *args, selector_factories=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._selector_factories = selector_factories or {}
+        self._item_benchmark_names = set(self._selector_factories)
+        self.selector_results = {}
+
+    def _factory_for_result(self, method_name: str):
+        for mode in ITEM_SELECTOR_MODES:
+            suffix = f"_{mode}"
+            if method_name.endswith(suffix):
+                return self._selector_factories.get(method_name[: -len(suffix)])
+        return None
+
+    def _benchmark_method(self, method, method_name: str, generator, dependencies: list[str]) -> dict | None:
+        """Benchmark only the prepared writer callable and fail on incomplete sampling."""
+        factory = self._factory_for_result(method_name)
+        if method is None:
+            if factory is not None:
+                raise AttributeError(f"registered selector benchmark method is missing: {method_name}")
+            return None
+        try:
+            inputs = generator(self._config)
+            method(**inputs)
+        except NotImplementedError as error:
+            if factory is not None:
+                raise
+            return {"skipped": True, "skip_reason": f"NotImplementedError: {error}"}
+        except Exception as error:
+            if factory is not None:
+                raise
+            return {"skipped": True, "skip_reason": f"Error: {type(error).__name__}: {error}"}
+        if factory is not None:
+            factory.assert_proxy_unmaterialized()
+
+        for _ in range(self._config.warmup_steps):
+            method(**inputs)
+            if self._config.device.startswith("cuda"):
+                self._sync_device()
+        if factory is not None:
+            factory.assert_proxy_unmaterialized()
+
+        samples = []
+        for _ in range(self._config.num_iterations):
+            if self._config.device.startswith("cuda"):
+                self._sync_device()
+            start = time.perf_counter()
+            method(**inputs)
+            if self._config.device.startswith("cuda"):
+                self._sync_device()
+            samples.append((time.perf_counter() - start) * 1e6)
+        if factory is not None:
+            factory.assert_proxy_unmaterialized()
+
+        result = {
+            "mean": float(np.mean(samples)),
+            "std": float(np.std(samples)),
+            "median": float(np.median(samples)),
+            "iqr": float(np.percentile(samples, 75) - np.percentile(samples, 25)),
+            "n": len(samples),
+            "attempts": self._config.num_iterations,
+            "failures": 0,
+        }
+        if factory is not None:
+            self.selector_results[method_name] = result
+        return result
+
+
+def _print_selector_summary(finder_results: dict, writer_summary: dict) -> None:
+    """Print finder and writer selector statistics with sample completeness."""
+    print("\n" + "=" * 80)
+    print("Finder and item-selector representation summary (median / IQR, us)")
+    print("=" * 80)
+    for domain, paths in finder_results.items():
+        for path, stats in paths.items():
+            print(
+                f"{domain:>5} {path:>15}: {stats['median']:.3f} / {stats['iqr']:.3f}"
+                f"  n={stats['n']}/{stats['attempts']} failures={stats['failures']}"
+            )
+    for method_name, modes in writer_summary.items():
+        print(method_name)
+        for mode, stats in modes.items():
+            tensor_ratio = stats["ratio_vs_torch_tensor_int32"]
+            list_ratio = stats["ratio_vs_torch_list"]
+            tensor_ratio_text = f"{tensor_ratio:.3f}" if tensor_ratio is not None else "n/a"
+            list_ratio_text = f"{list_ratio:.3f}" if list_ratio is not None else "n/a"
+            print(
+                f"  {mode:>20}: {stats['median_us']:.3f} / {stats['iqr_us']:.3f}"
+                f"  n={stats['n']}/{stats['attempts']} failures={stats['failures']}"
+                f"  x torch.int32={tensor_ratio_text}  x list={list_ratio_text}"
+            )
+
 
 BENCHMARKS = [
     # --- Root State (Deprecated) ---
@@ -899,6 +1328,8 @@ BENCHMARKS = [
     ),
 ]
 
+ITEM_SELECTOR_FACTORIES = _register_benchmark_selector_modes(BENCHMARKS)
+
 
 # =============================================================================
 # Fill-Ratio Benchmarks (5%, 95%, 100% of env_ids filled)
@@ -918,15 +1349,15 @@ def _make_fill_ratio_generator(base_gen_fn, fill_ratio):
         n = max(1, int(config.num_instances * fill_ratio))
         base_inputs = base_gen_fn(config)
         inputs = {}
-        for key, val in base_inputs.items():
+        for key, value in base_inputs.items():
             if key == "env_ids":
                 inputs[key] = (
-                    torch.randperm(config.num_instances, device=config.device)[:n].sort().values.to(torch.int32)
+                    torch.randperm(config.num_instances, device=config.device)[:n].sort().values.to(value.dtype)
                 )
-            elif isinstance(val, torch.Tensor) and val.dim() >= 1 and val.shape[0] == config.num_instances:
-                inputs[key] = val[:n]
+            elif isinstance(value, torch.Tensor) and value.dim() >= 1 and value.shape[0] == config.num_instances:
+                inputs[key] = value[:n]
             else:
-                inputs[key] = val
+                inputs[key] = value
         return inputs
 
     return generator
@@ -936,12 +1367,11 @@ def _build_fill_benchmarks():
     """Auto-generate fill-ratio benchmark definitions from the torch_tensor generators."""
     fill_benchmarks = []
     for bm in BENCHMARKS:
-        if "torch_tensor" not in bm.input_generators:
-            continue
-        base_gen = bm.input_generators["torch_tensor"]
         generators = {}
-        for suffix, ratio in FILL_RATIOS.items():
-            generators[f"tensor_{suffix}"] = _make_fill_ratio_generator(base_gen, ratio)
+        for mode in ("torch_tensor_int32", "torch_tensor_int64"):
+            base_gen = bm.input_generators[mode]
+            for suffix, ratio in FILL_RATIOS.items():
+                generators[f"{mode}_{suffix}"] = _make_fill_ratio_generator(base_gen, ratio)
         fill_benchmarks.append(
             MethodBenchmarkDefinition(
                 name=bm.name,
@@ -976,21 +1406,50 @@ def main():
         device=config.device,
     )
 
+    config.articulation = articulation
     print(
         f"Benchmarking Articulation (PhysX) with {config.num_instances} instances, {config.num_bodies} bodies,"
         f" {config.num_joints} joints..."
     )
 
     # Create runner and run benchmarks
-    runner = MethodBenchmarkRunner(
+    runner = _SelectorBenchmarkRunner(
         benchmark_name="articulation_benchmark",
         config=config,
+        selector_factories=ITEM_SELECTOR_FACTORIES,
         backend_type=args.backend,
         output_path=args.output_dir,
         use_recorders=True,
     )
 
     runner.run_benchmarks(BENCHMARKS, articulation)
+
+    finder_results = {
+        "joint": _measure_finder_paths(articulation, "find_joints", config.num_iterations, config.warmup_steps),
+        "body": _measure_finder_paths(articulation, "find_bodies", config.num_iterations, config.warmup_steps),
+    }
+    writer_summary = _summarize_writer_results(
+        runner.selector_results,
+        ITEM_SELECTOR_FACTORIES,
+        expected_modes=_expected_item_selector_modes(config.mode),
+    )
+    selector_summary = {
+        "config": {
+            "num_iterations": config.num_iterations,
+            "warmup_steps": config.warmup_steps,
+            "num_instances": config.num_instances,
+            "num_bodies": config.num_bodies,
+            "num_joints": config.num_joints,
+            "device": config.device,
+        },
+        "finder": finder_results,
+        "writer": writer_summary,
+    }
+    runner.add_measurement(
+        "selector_representation_summary",
+        DictMeasurement(name="selector_representation_summary", value=selector_summary),
+    )
+    _print_selector_summary(finder_results, writer_summary)
 
     print("\n" + "=" * 80)
     print("Fill-Ratio Benchmarks (env_ids at 5%, 95%, 100% fill)")

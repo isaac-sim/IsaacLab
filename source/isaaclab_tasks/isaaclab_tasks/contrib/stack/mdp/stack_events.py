@@ -91,7 +91,7 @@ def randomize_joint_by_gaussian_offset(
         # Backward-compatible fallback for callers that do not configure gripper joint names.
         joint_pos[:, -2:] = asset.data.default_joint_pos.torch[env_ids, -2:]
     elif gripper_joint_names:
-        gripper_ids, _ = asset.find_joints(gripper_joint_names)
+        gripper_ids, _ = asset.find_joints(gripper_joint_names, as_proxy=False)
         joint_pos[:, gripper_ids] = asset.data.default_joint_pos.torch[env_ids][:, gripper_ids]
 
     # Set into the physics simulation

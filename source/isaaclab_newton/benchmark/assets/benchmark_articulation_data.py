@@ -254,6 +254,9 @@ def main():
     with create_mock_newton_manager(
         "isaaclab_newton.assets.articulation.articulation_data.SimulationManager",
         gravity=(0.0, 0.0, -9.81),
+        num_instances=config.num_instances,
+        num_bodies=config.num_bodies,
+        num_joints=config.num_joints,
     ):
         # Setup mock environment
         mock_view = setup_mock_environment(config)

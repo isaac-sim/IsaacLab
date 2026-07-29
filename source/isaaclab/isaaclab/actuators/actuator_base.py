@@ -13,6 +13,7 @@ import torch
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
@@ -118,7 +119,7 @@ class ActuatorBase(ABC):
         self,
         cfg: ActuatorBaseCfg,
         joint_names: list[str],
-        joint_ids: slice | torch.Tensor,
+        joint_ids: slice | torch.Tensor | ProxyArray,
         num_envs: int,
         device: str,
         stiffness: torch.Tensor | float = 0.0,
@@ -227,7 +228,7 @@ class ActuatorBase(ABC):
         """Returns: A string representation of the actuator group."""
         # resolve joint indices for printing
         joint_indices = self.joint_indices
-        if joint_indices == slice(None):
+        if isinstance(joint_indices, slice):
             joint_indices = list(range(self.num_joints))
         # resolve model type (implicit or explicit)
         model_type = "implicit" if self.is_implicit_model else "explicit"
@@ -256,7 +257,7 @@ class ActuatorBase(ABC):
         return self._joint_names
 
     @property
-    def joint_indices(self) -> slice | torch.Tensor:
+    def joint_indices(self) -> slice | torch.Tensor | ProxyArray:
         """Articulation's joint indices that are part of the group.
 
         Note:
@@ -306,7 +307,12 @@ class ActuatorBase(ABC):
             self.joint_property_resolution_table[actuator_param] = []
         table = self.joint_property_resolution_table[actuator_param]
 
-        ids = joint_ids if isinstance(joint_ids, torch.Tensor) else list(range(len(joint_names)))
+        if isinstance(joint_ids, ProxyArray):
+            ids = joint_ids.torch
+        elif isinstance(joint_ids, torch.Tensor):
+            ids = joint_ids
+        else:
+            ids = list(range(len(joint_names)))
         for idx, name in enumerate(joint_names):
             cfg_val_log = "Not Specified" if cfg_val is None else float(new_val[idx])
             default_usd_val = usd_val if isinstance(usd_val, (float, int)) else float(usd_val[0][idx])

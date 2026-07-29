@@ -32,9 +32,9 @@ class PendulumEnv(DirectMARLEnv):
     def __init__(self, cfg: PendulumEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
-        self._cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name)
-        self._pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name)
-        self._pendulum_dof_idx, _ = self.robot.find_joints(self.cfg.pendulum_dof_name)
+        self._cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name, as_proxy=False)
+        self._pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name, as_proxy=False)
+        self._pendulum_dof_idx, _ = self.robot.find_joints(self.cfg.pendulum_dof_name, as_proxy=False)
 
         self.joint_pos = self.robot.data.joint_pos.torch
         self.joint_vel = self.robot.data.joint_vel.torch

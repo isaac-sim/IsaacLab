@@ -111,7 +111,7 @@ def _resolve_joint_ids(element_names: list | None, entity: Any) -> list[int] | N
         )
     if joint_names == entity_joint_names:
         return None
-    joint_ids, _ = entity.find_joints(joint_names, preserve_order=True)
+    joint_ids, _ = entity.find_joints(joint_names, preserve_order=True, as_proxy=False)
     return joint_ids
 
 

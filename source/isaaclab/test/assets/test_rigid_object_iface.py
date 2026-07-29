@@ -13,6 +13,8 @@ the base rigid object class advertises. All rigid object interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 import torch
@@ -57,6 +59,9 @@ _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 _index_resolution_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
 )
+_production_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
+)
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +82,19 @@ class TestRigidObjectIndexResolution:
 
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
+
+    @_production_backends
+    def test_resolve_body_ids_unwraps_proxy_without_materializing_torch(self, backend):
+        from isaaclab.utils.warp import ProxyArray
+
+        obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
+        body_ids_array = wp.array([0], dtype=wp.int32, device="cpu")
+        body_ids = ProxyArray(body_ids_array)
+
+        resolved = obj._resolve_body_ids(body_ids)
+
+        assert resolved is body_ids_array
+        assert body_ids._torch_cache is None
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +168,62 @@ class TestRigidObjectFinders:
         indices, names = obj.find_bodies(first_body)
         assert indices == [0]
         assert names == [first_body]
+
+
+class TestRigidObjectFinderReturnModes:
+    """Test finder return modes on production rigid-object backends."""
+
+    @_production_backends
+    def test_find_bodies_returns_legacy_list_or_cached_proxy(self, backend):
+        obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
+
+        with pytest.warns(DeprecationWarning):
+            implicit_indices, implicit_names = obj.find_bodies(".*")
+        with warnings.catch_warnings(record=True) as warning_records:
+            warnings.simplefilter("always")
+            explicit_indices, explicit_names = obj.find_bodies(".*", as_proxy=False)
+            proxy_indices, proxy_names = obj.find_bodies(explicit_names[0], as_proxy=True)
+            repeated_indices, repeated_names = obj.find_bodies(".*", as_proxy=True)
+            empty_indices, empty_names = obj.find_bodies([], as_proxy=True)
+            repeated_empty_indices, repeated_empty_names = obj.find_bodies([], as_proxy=True)
+
+        assert not warning_records
+        assert isinstance(implicit_indices, list)
+        assert isinstance(explicit_indices, list)
+        assert implicit_indices == explicit_indices == proxy_indices.torch.tolist()
+        assert implicit_names == explicit_names == proxy_names == repeated_names
+        assert proxy_names is not repeated_names
+        assert proxy_indices.dtype == wp.int32
+        assert str(proxy_indices.device) == obj.device
+        assert proxy_indices is repeated_indices
+        assert proxy_indices.warp.ptr == repeated_indices.warp.ptr
+        assert empty_names == repeated_empty_names == []
+        assert empty_indices.torch.tolist() == []
+        assert empty_indices is repeated_empty_indices
+        assert empty_indices.warp is repeated_empty_indices.warp
+        assert empty_indices.torch is repeated_empty_indices.torch
+
+    @_production_backends
+    def test_find_bodies_cache_is_asset_local_and_cleared_on_invalidation(self, backend):
+        first_obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
+        second_obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
+
+        first = first_obj.find_bodies(".*", as_proxy=True)[0]
+        other_asset = second_obj.find_bodies(".*", as_proxy=True)[0]
+        assert first_obj._root_view is not None
+        root_view = first_obj._root_view
+        first_obj._invalidate_initialize_callback(None)
+        assert not first_obj._selector_cache._entries
+        first_obj._root_view = root_view
+        after_reinitialization = first_obj.find_bodies(".*", as_proxy=True)[0]
+
+        assert first_obj._root_view is root_view
+        assert first is not other_asset
+        assert first.warp is not other_asset.warp
+        assert first.warp.ptr != other_asset.warp.ptr
+        assert first is not after_reinitialization
+        assert first.warp is not after_reinitialization.warp
+        assert first.warp.ptr != after_reinitialization.warp.ptr
 
 
 # ---------------------------------------------------------------------------
