@@ -2135,46 +2135,40 @@ class ArticulationData(BaseArticulationData):
     def _refresh_user_order_joint_state(self) -> None:
         """Reorder the live backend joint state into the user-order shadows.
 
-        Launches :func:`ordering_kernels.reorder_2d_backend_to_user` for
-        ``_sim_bind_joint_pos`` -> ``_joint_pos_user`` and ``_sim_bind_joint_vel``
-        -> ``_joint_vel_user``. No-op under identity ordering (the shadows are the
-        sim-bound arrays themselves).
+        Launches :func:`ordering_kernels.reorder_joint_state_backend_to_user` once
+        to gather ``_sim_bind_joint_pos`` -> ``_joint_pos_user`` and
+        ``_sim_bind_joint_vel`` -> ``_joint_vel_user`` under the shared joint map.
+        No-op under identity ordering (the shadows are the sim-bound arrays
+        themselves).
         """
         if not self.has_joint_ordering:
             return
-        for backend_data, user_data in (
-            (self._sim_bind_joint_pos, self._joint_pos_user),
-            (self._sim_bind_joint_vel, self._joint_vel_user),
-        ):
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[backend_data, self.joint_ordering.user_to_backend],
-                outputs=[user_data],
-                device=self.device,
-            )
+        wp.launch(
+            ordering_kernels.reorder_joint_state_backend_to_user,
+            dim=(self._num_instances, self._num_joints),
+            inputs=[self._sim_bind_joint_pos, self._sim_bind_joint_vel, self.joint_ordering.user_to_backend],
+            outputs=[self._joint_pos_user, self._joint_vel_user],
+            device=self.device,
+        )
 
     def _refresh_user_order_body_state(self) -> None:
         """Reorder the live backend body state into the user-order shadows.
 
-        Launches :func:`ordering_kernels.reorder_2d_backend_to_user` for
-        ``_sim_bind_body_link_pose_w`` -> ``_body_link_pose_w_user`` and
-        ``_sim_bind_body_com_vel_w`` -> ``_body_com_vel_w_user``. No-op under
-        identity ordering (the shadows are the sim-bound arrays themselves).
+        Launches :func:`ordering_kernels.reorder_body_state_backend_to_user` once
+        to gather ``_sim_bind_body_link_pose_w`` -> ``_body_link_pose_w_user`` and
+        ``_sim_bind_body_com_vel_w`` -> ``_body_com_vel_w_user`` under the shared
+        body map. No-op under identity ordering (the shadows are the sim-bound
+        arrays themselves).
         """
         if not self.has_body_ordering:
             return
-        for backend_data, user_data in (
-            (self._sim_bind_body_link_pose_w, self._body_link_pose_w_user),
-            (self._sim_bind_body_com_vel_w, self._body_com_vel_w_user),
-        ):
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[backend_data, self.body_ordering.user_to_backend],
-                outputs=[user_data],
-                device=self.device,
-            )
+        wp.launch(
+            ordering_kernels.reorder_body_state_backend_to_user,
+            dim=(self._num_instances, self._num_bodies),
+            inputs=[self._sim_bind_body_link_pose_w, self._sim_bind_body_com_vel_w, self.body_ordering.user_to_backend],
+            outputs=[self._body_link_pose_w_user, self._body_com_vel_w_user],
+            device=self.device,
+        )
 
     def _refresh_user_order_state(self) -> None:
         """Republish all Tier-1 user-order state shadows from live backend state.

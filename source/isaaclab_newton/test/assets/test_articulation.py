@@ -43,6 +43,7 @@ from newton import ModelFlags
 
 from pxr import UsdPhysics
 
+import isaaclab.assets.articulation.ordering_kernels as ordering_kernels
 import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -1143,6 +1144,68 @@ def test_newton_clear_callbacks_deregisters_post_step_hook(
     assert articulation._post_step_callback is None
     assert registered_callback not in SimulationManager._post_step_callbacks
     assert _other_callback in SimulationManager._post_step_callbacks
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.parametrize("use_newton_actuators", [False, True])
+@pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
+    sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators, ordering_mode, monkeypatch
+):
+    """Launch the fused target gather only under active ordering; copy straight through otherwise.
+
+    Regression for the identity fast path: an earlier rework launched
+    :func:`ordering_kernels.reorder_joint_targets_user_to_backend` unconditionally
+    in :meth:`write_data_to_sim`, so a scene with no ordering configured paid for a
+    per-step gather that the pre-ordering code never issued. This test records the
+    kernels launched during ``write_data_to_sim`` and asserts the target gather runs
+    only when ordering is active. With the unconditional launch reinstated, the
+    ``ordering_mode == "none"`` cases fail (the gather is recorded). Both the
+    Newton-actuator and Lab-actuator branches are covered.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
+    )
+    if ordering_mode == "reversed":
+        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    has_ordering = ordering_mode == "reversed"
+    assert (articulation.data.joint_ordering is not None) is has_ordering
+    on_newton_path = getattr(articulation, "_has_newton_actuators", False)
+    if use_newton_actuators and not on_newton_path:
+        pytest.skip("newton.actuators unavailable; the Newton-actuator branch is not exercised")
+
+    # Drive an in-limits position target so the write path has data to forward.
+    articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
+
+    # Record every kernel launched during write_data_to_sim, then delegate to the
+    # real launch so the sim-bound buffers are still written.
+    launched_kernels: list = []
+    real_launch = wp.launch
+
+    def recording_launch(kernel, *args, **kwargs):
+        launched_kernels.append(kernel)
+        return real_launch(kernel, *args, **kwargs)
+
+    monkeypatch.setattr(wp, "launch", recording_launch)
+    articulation.write_data_to_sim()
+    monkeypatch.undo()
+
+    target_gather = ordering_kernels.reorder_joint_targets_user_to_backend
+    if has_ordering:
+        assert target_gather in launched_kernels
+    else:
+        # Identity ordering copies straight into the sim binds -- no target gather,
+        # and the sim-bound position target mirrors its user-order source.
+        assert target_gather not in launched_kernels
+        expected_source = articulation.data._joint_pos_target if on_newton_path else articulation._joint_pos_target_sim
+        np.testing.assert_allclose(articulation.data._sim_bind_joint_position_target.numpy(), expected_source.numpy())
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

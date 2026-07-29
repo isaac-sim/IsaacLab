@@ -726,6 +726,8 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         #    self.fingertip_force_sensors = self.hand.root_physx_view.get_link_incoming_joint_force()[
         #        :, self.finger_bodies
         #    ]
+        # NOTE: if re-enabled, `self.finger_bodies` holds public-order indices (from `body_names.index`)
+        # and must be translated to backend view order before indexing this `root_physx_view` array.
         if self.cfg.obs_type == "openai":
             self.compute_reduced_observations()
         elif self.cfg.obs_type == "full":

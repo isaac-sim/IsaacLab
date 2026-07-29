@@ -1664,13 +1664,26 @@ class TestArticulationOrderingRootWriteParity:
 class TestArticulationOrderingWriteParity:
     """Test that partial joint writes preserve unselected backend state."""
 
-    @_all_backends
-    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
-    @pytest.mark.parametrize("selection", ["index", "mask"])
-    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
+    # Pairwise covering array for the partial-write matrix. The full cartesian is
+    # backend(3) x ordering(2) x selection(2) x operation(3) x coverage(2) = 72 cases.
+    # These 12 rows retain every backend x ordering x selection triple and every
+    # cross-pair involving operation or coverage.
     @pytest.mark.parametrize(
-        "coverage",
-        ["all_envs_one_item", "one_env_all_items"],
+        ("backend", "ordering_mode", "selection", "operation", "coverage"),
+        [
+            _backend_param("physx", "none", "index", "state", "all_envs_one_item"),
+            _backend_param("physx", "none", "mask", "position", "one_env_all_items"),
+            _backend_param("physx", "reversed", "index", "position", "one_env_all_items"),
+            _backend_param("physx", "reversed", "mask", "velocity", "all_envs_one_item"),
+            _backend_param("ovphysx", "none", "index", "position", "all_envs_one_item"),
+            _backend_param("ovphysx", "none", "mask", "position", "one_env_all_items"),
+            _backend_param("ovphysx", "reversed", "index", "velocity", "all_envs_one_item"),
+            _backend_param("ovphysx", "reversed", "mask", "state", "one_env_all_items"),
+            _backend_param("newton", "none", "index", "state", "all_envs_one_item"),
+            _backend_param("newton", "none", "mask", "velocity", "all_envs_one_item"),
+            _backend_param("newton", "reversed", "index", "position", "one_env_all_items"),
+            _backend_param("newton", "reversed", "mask", "velocity", "one_env_all_items"),
+        ],
     )
     def test_partial_joint_write_preserves_backend_rows(
         self,

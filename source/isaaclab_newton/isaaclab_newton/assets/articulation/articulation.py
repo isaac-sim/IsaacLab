@@ -302,20 +302,38 @@ class Articulation(BaseArticulation):
             # item axes), and it must precede ``_apply_actuator_model``, which
             # produces the target inputs. A merged kernel would need a divergent
             # max-dim launch and would break that ordering, so there is no win.
-            wp.launch(
-                articulation_kernels.update_wrench_array_with_force_and_torque_ordered,
-                dim=(self.num_instances, self.num_bodies),
-                device=self.device,
-                inputs=[
-                    composer.out_force_b.warp,
-                    composer.out_torque_b.warp,
-                    self._body_user_to_backend_map(),
-                    self.data.has_body_ordering,
-                    self._data._sim_bind_body_external_wrench,
-                    self._ALL_ENV_MASK,
-                    self._ALL_BODY_MASK,
-                ],
-            )
+            #
+            # The body-ordering decision is branched here in Python rather than
+            # carried into the step kernel: identity ordering writes straight into
+            # the sim-bound wrench with no body remap (the reorder-free data path),
+            # while non-identity ordering scatters through the body map.
+            if self.data.has_body_ordering:
+                wp.launch(
+                    articulation_kernels.update_wrench_array_with_force_and_torque_ordered,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        composer.out_force_b.warp,
+                        composer.out_torque_b.warp,
+                        self._body_user_to_backend_map(),
+                        self._data._sim_bind_body_external_wrench,
+                        self._ALL_ENV_MASK,
+                        self._ALL_BODY_MASK,
+                    ],
+                )
+            else:
+                wp.launch(
+                    shared_kernels.update_wrench_array_with_force_and_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        composer.out_force_b,
+                        composer.out_torque_b,
+                        self._data._sim_bind_body_external_wrench,
+                        self._ALL_ENV_MASK,
+                        self._ALL_BODY_MASK,
+                    ],
+                )
         if self._instantaneous_wrench_composer.active:
             self._instantaneous_wrench_composer.reset()
 
@@ -328,61 +346,79 @@ class Articulation(BaseArticulation):
             # the user's effort target across all DOFs here; the adapter step
             # will zero it at explicit DOFs and overwrite them with each
             # actuator's computed effort, while implicit DOFs keep the FF.
-            # Gather the four per-step targets into backend order in one launch;
-            # the effort source is read once and feeds both joint_act and
-            # joint_effort. Under identity ordering ``_joint_backend_to_user_map``
-            # returns the identity arange, so this single gather also serves the
-            # no-reorder case without a dedicated per-buffer copy.
-            wp.launch(
-                ordering_kernels.reorder_joint_targets_user_to_backend,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    self._data._joint_effort_target,
-                    self._data._joint_pos_target,
-                    self._data._joint_vel_target,
-                    self._joint_backend_to_user_map(),
-                    True,
-                    True,
-                    True,
-                    True,
-                ],
-                outputs=[
-                    self.data._sim_bind_joint_effort,
-                    self.data._sim_bind_joint_position_target,
-                    self.data._sim_bind_joint_velocity_target,
-                    self.data._sim_bind_joint_act,
-                ],
-                device=self.device,
-            )
+            # Identity ordering copies the four targets straight into the
+            # sim-bound buffers: the asset joint map is then an identity arange,
+            # so the fused gather would be a pure identity permutation. Branching
+            # here keeps the no-reorder case at zero launch overhead, matching the
+            # pre-ordering data path. Non-identity ordering fuses the four
+            # per-buffer reorders into one gather; the effort source is read once
+            # and feeds both joint_act and joint_effort.
+            if not self.data.has_joint_ordering:
+                self.data._sim_bind_joint_position_target.assign(self._data._joint_pos_target)
+                self.data._sim_bind_joint_velocity_target.assign(self._data._joint_vel_target)
+                self.data._sim_bind_joint_act.assign(self._data._joint_effort_target)
+                self.data._sim_bind_joint_effort.assign(self._data._joint_effort_target)
+            else:
+                wp.launch(
+                    ordering_kernels.reorder_joint_targets_user_to_backend,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[
+                        self._data._joint_effort_target,
+                        self._data._joint_pos_target,
+                        self._data._joint_vel_target,
+                        self._joint_backend_to_user_map(),
+                        True,
+                        True,
+                        True,
+                        True,
+                    ],
+                    outputs=[
+                        self.data._sim_bind_joint_effort,
+                        self.data._sim_bind_joint_position_target,
+                        self.data._sim_bind_joint_velocity_target,
+                        self.data._sim_bind_joint_act,
+                    ],
+                    device=self.device,
+                )
         else:
             # Standard Lab actuator path
             self._apply_actuator_model()
-            # Gather the effort target with the optional position/velocity targets
-            # in one launch. The last output aliases the effort buffer because
-            # write_joint_act is off, so it is never indexed. Under identity
-            # ordering ``_joint_backend_to_user_map`` returns the identity arange,
-            # so this single gather also serves the no-reorder case.
-            wp.launch(
-                ordering_kernels.reorder_joint_targets_user_to_backend,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    self._joint_effort_target_sim,
-                    self._joint_pos_target_sim,
-                    self._joint_vel_target_sim,
-                    self._joint_backend_to_user_map(),
-                    True,
-                    self._has_implicit_actuators,
-                    self._has_implicit_actuators,
-                    False,
-                ],
-                outputs=[
-                    self.data._sim_bind_joint_effort,
-                    self.data._sim_bind_joint_position_target,
-                    self.data._sim_bind_joint_velocity_target,
-                    self.data._sim_bind_joint_effort,
-                ],
-                device=self.device,
-            )
+            # Identity ordering copies the computed targets straight into the
+            # sim-bound buffers; position/velocity are only forwarded when an
+            # implicit actuator consumes them. Branching here keeps the no-reorder
+            # case at zero launch overhead, matching the pre-ordering data path.
+            # Non-identity ordering fuses the effort reorder with the optional
+            # position/velocity reorders. The last gather output targets the
+            # dedicated joint-act buffer (unused here: write_joint_act is off, so
+            # it is never written) rather than aliasing the effort buffer, keeping
+            # the launch's output dependencies distinct for graph capture.
+            if not self.data.has_joint_ordering:
+                self.data._sim_bind_joint_effort.assign(self._joint_effort_target_sim)
+                if self._has_implicit_actuators:
+                    self.data._sim_bind_joint_position_target.assign(self._joint_pos_target_sim)
+                    self.data._sim_bind_joint_velocity_target.assign(self._joint_vel_target_sim)
+            else:
+                wp.launch(
+                    ordering_kernels.reorder_joint_targets_user_to_backend,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[
+                        self._joint_effort_target_sim,
+                        self._joint_pos_target_sim,
+                        self._joint_vel_target_sim,
+                        self._joint_backend_to_user_map(),
+                        True,
+                        self._has_implicit_actuators,
+                        self._has_implicit_actuators,
+                        False,
+                    ],
+                    outputs=[
+                        self.data._sim_bind_joint_effort,
+                        self.data._sim_bind_joint_position_target,
+                        self.data._sim_bind_joint_velocity_target,
+                        self.data._sim_bind_joint_act,
+                    ],
+                    device=self.device,
+                )
 
     def update(self, dt: float):
         """Updates the simulation data.
