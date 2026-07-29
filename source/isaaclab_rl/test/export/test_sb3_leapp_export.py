@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Unit tests for SB3-specific LEAPP export helpers."""
+
 import importlib.util
 import sys
 import types
@@ -18,7 +20,7 @@ sb3_contrib = pytest.importorskip("sb3_contrib")
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _EXPORT_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "sb3" / "export.py"
-_EXPORT_MODULE_NAME = "_isaaclab_sb3_leapp_export_helpers"
+_EXPORT_MODULE_NAME = "_isaaclab_sb3_leapp_export"
 
 
 def _load_export_module():
@@ -71,6 +73,17 @@ def test_sb3_export_args_use_common_defaults():
     assert args.agent == "sb3_cfg_entry_point"
     assert args.headless
     assert not hasattr(args, "seed")
+    assert {
+        "task",
+        "agent",
+        "checkpoint",
+        "use_pretrained_checkpoint",
+        "export_task_name",
+        "export_method",
+        "export_save_path",
+        "validation_steps",
+        "disable_graph_visualization",
+    }.issubset(vars(args))
 
 
 def test_sb3_vec_normalize_path_matches_play_convention():
