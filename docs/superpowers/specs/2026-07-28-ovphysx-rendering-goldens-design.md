@@ -44,4 +44,3 @@ No comparison thresholds will be widened as part of baseline generation.
 - The existing deformable configuration, live task, and articulation dynamics
   regressions continue to pass.
 - Full repository pre-commit passes before committing and before pushing.
-
