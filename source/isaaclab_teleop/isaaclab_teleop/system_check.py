@@ -84,11 +84,14 @@ CPU_GOVERNOR_FIX = "sudo cpupower frequency-set -g performance"
 GPU_VRAM_MIN_GB = 24.0
 """Minimum GPU memory [GB]."""
 
-GPU_COMPUTE_CAPABILITY_MIN = (8, 9)
-"""Minimum CUDA compute capability (Ada Lovelace).
+GPU_ARCH_MIN = 89
+"""Minimum CUDA architecture (Ada Lovelace, compute 8.9).
 
-The recommended GPUs -- RTX PRO 6000 and RTX 5090 -- are Blackwell (12.0); an
-RTX 4090 is Ada (8.9).  Anything older lacks the encode throughput for
+Expressed the way Warp reports :attr:`warp.Device.arch` -- compute capability
+without the decimal point, so 8.9 is ``89`` and 12.0 is ``120``.
+
+The recommended GPUs -- RTX PRO 6000 and RTX 5090 -- are Blackwell (120); an
+RTX 4090 is Ada (89).  Anything older lacks the encode throughput for
 comfortable 45 FPS stereo streaming.
 """
 
@@ -290,6 +293,18 @@ def _measure_cpu_ns_per_iter() -> float | None:
     return best
 
 
+def _format_arch(arch: int) -> str:
+    """Render a Warp CUDA architecture as a compute capability.
+
+    Args:
+        arch: Compute capability without the decimal point, e.g. ``89``.
+
+    Returns:
+        The dotted form, e.g. ``"8.9"``.
+    """
+    return f"{arch // 10}.{arch % 10}"
+
+
 def _read_cpu_governor() -> str | None:
     """Read the cpufreq governor of CPU 0.
 
@@ -436,37 +451,45 @@ def _check_cpu() -> list[SystemCheckItem]:
     return items
 
 
-def _resolve_cuda_index(device: str | int | None) -> int:
-    """Resolve *device* to a CUDA ordinal to probe.
+def _resolve_gpu_device(device: str | int | None):
+    """Resolve *device* to the Warp CUDA device to probe.
 
     Args:
-        device: A torch device string (``"cuda:1"``), a CUDA ordinal, or
-            ``None``.  ``None``, a bare ``"cuda"``, and non-CUDA strings such as
-            ``"cpu"`` all fall back to the process's current CUDA device.  A
-            CPU simulation device still warrants probing a GPU, because CloudXR
-            encodes on one regardless.
+        device: A device string (``"cuda:1"``), a CUDA ordinal, or ``None``.
+            ``None``, a bare ``"cuda"``, an unknown ordinal, and non-CUDA
+            values such as ``"cpu"`` all fall back to Warp's default CUDA
+            device.  A CPU simulation device still warrants probing a GPU,
+            because CloudXR encodes on one regardless.
 
     Returns:
-        The CUDA ordinal to measure.  Falls back to ``0`` when the requested
-        ordinal does not exist, so an out-of-range device string cannot crash
-        the check.
+        The ``warp.Device`` to measure, or ``None`` when the host has no CUDA
+        device at all.
     """
-    import torch
+    import warp as wp
 
-    index: int | None = None
-    if isinstance(device, int):
-        index = device
-    elif isinstance(device, str) and device.startswith("cuda"):
-        _, _, ordinal = device.partition(":")
-        if ordinal.isdigit():
-            index = int(ordinal)
+    if not wp.is_cuda_available():
+        return None
 
-    if index is None:
-        index = torch.cuda.current_device()
-    if not 0 <= index < torch.cuda.device_count():
-        logger.debug(f"CUDA device {device!r} is out of range; probing device 0 instead")
-        index = 0
-    return index
+    if device is not None:
+        alias = f"cuda:{device}" if isinstance(device, int) else str(device)
+        try:
+            resolved = wp.get_device(alias)
+        except Exception:
+            # Unknown alias (e.g. an ordinal this host does not have).
+            logger.debug(f"Device {alias!r} is not available; probing the default CUDA device", exc_info=True)
+        else:
+            if resolved.is_cuda:
+                return resolved
+
+    try:
+        default = wp.get_device()
+        if default.is_cuda:
+            return default
+    except Exception:
+        logger.debug("Could not resolve the default Warp device", exc_info=True)
+
+    cuda_devices = wp.get_cuda_devices()
+    return cuda_devices[0] if cuda_devices else None
 
 
 def _check_gpu(device: str | int | None = None) -> list[SystemCheckItem]:
@@ -476,11 +499,10 @@ def _check_gpu(device: str | int | None = None) -> list[SystemCheckItem]:
         device: The device teleoperation will run on.  Probing a fixed ordinal
             would measure the wrong adapter on a multi-GPU workstation whose
             simulation runs on, say, ``cuda:1``, producing a false warning or a
-            false pass.  See :func:`_resolve_cuda_index` for how this resolves.
+            false pass.  See :func:`_resolve_gpu_device` for how this resolves.
     """
-    import torch
-
-    if not torch.cuda.is_available():
+    gpu = _resolve_gpu_device(device)
+    if gpu is None:
         return [
             SystemCheckItem(
                 name="NVIDIA GPU",
@@ -491,29 +513,25 @@ def _check_gpu(device: str | int | None = None) -> list[SystemCheckItem]:
             )
         ]
 
-    index = _resolve_cuda_index(device)
-
     items: list[SystemCheckItem] = []
-    props = torch.cuda.get_device_properties(index)
 
-    vram_gb = props.total_memory / 1e9
+    vram_gb = gpu.total_memory / 1e9
     items.append(
         SystemCheckItem(
             name="GPU memory",
             passed=vram_gb >= GPU_VRAM_MIN_GB,
-            # Name the ordinal so a multi-GPU host shows which adapter was measured.
-            actual=f"{vram_gb:.0f} GB (cuda:{index} {props.name})",
+            # Name the device so a multi-GPU host shows which adapter was measured.
+            actual=f"{vram_gb:.0f} GB ({gpu.alias} {gpu.name})",
             required=f">= {GPU_VRAM_MIN_GB:.0f} GB",
         )
     )
 
-    capability = (props.major, props.minor)
     items.append(
         SystemCheckItem(
             name="GPU architecture",
-            passed=capability >= GPU_COMPUTE_CAPABILITY_MIN,
-            actual=f"compute {props.major}.{props.minor}",
-            required=f">= compute {GPU_COMPUTE_CAPABILITY_MIN[0]}.{GPU_COMPUTE_CAPABILITY_MIN[1]}",
+            passed=gpu.arch >= GPU_ARCH_MIN,
+            actual=f"compute {_format_arch(gpu.arch)}",
+            required=f">= compute {_format_arch(GPU_ARCH_MIN)}",
             detail="Pre-Ada GPUs lack the encode throughput for 45 FPS stereo streaming.",
         )
     )
