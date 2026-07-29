@@ -53,6 +53,68 @@ Prerequisites
    Teleoperation is not currently supported on DGX Spark.
 
 
+.. _teleop-workstation-capability-check:
+
+Workstation capability check
+----------------------------
+
+When a teleop session starts, Isaac Lab measures the workstation against the spec above and
+reports any unmet requirement. The result is printed to the terminal and pushed to the connected
+XR client, where it appears as a dismissible banner in the headset -- so the warning is visible
+to the operator wearing the device, not only in a terminal they cannot see.
+
+The check is **advisory and never blocks a session**. It reports:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Requirement
+     - Threshold
+   * - CPU single-thread
+     - At least 70% of the reference CPU (AMD Ryzen Threadripper 7960X)
+   * - CPU governor
+     - ``performance``
+   * - CPU boost clock
+     - 4.0 GHz
+   * - CPU physical cores
+     - 8
+   * - GPU memory
+     - 24 GB
+   * - GPU architecture
+     - Compute capability 8.9 (Ada) or newer
+   * - NVIDIA driver
+     - 580 or newer
+   * - System memory
+     - 60 GiB (a nominal 64 GB machine)
+   * - CPU architecture
+     - ``x86_64``
+
+Thresholds are numeric rather than a list of approved CPU and GPU models, so equivalent hardware
+passes. CPU single-thread throughput is weighted most heavily and is measured with a short
+benchmark rather than inferred from the core count: Pink IK and CPU-side physics are
+single-thread bound, so a machine with fewer but faster cores teleoperates better than one with
+many slow cores.
+
+.. tip::
+
+   **The most common finding is the CPU frequency governor.** Ubuntu defaults to ``powersave``,
+   which measurably increases IK solve latency. Switch to ``performance``:
+
+   .. code-block:: bash
+
+      sudo cpupower frequency-set -g performance
+
+If a probe is unavailable (for example, ``cpufreq`` is not exposed inside a container), that item
+is reported as skipped rather than failed.
+
+To use the check on its own -- for example to qualify a machine before setting up a session:
+
+.. code-block:: bash
+
+   uv run python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
+
+
 .. _install-isaac-teleop:
 
 Install Isaac Teleop

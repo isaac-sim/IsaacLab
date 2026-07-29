@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import collections
+import json
 import logging
 import os
 import time
@@ -46,6 +48,18 @@ class SupportsDLPack(Protocol):
 logger = logging.getLogger(__name__)
 
 _DLDEVICE_CPU = 1
+
+_MAX_PENDING_CLIENT_MESSAGES = 32
+"""Bound on host-originated messages awaiting delivery to the XR client.
+
+Small on purpose: these are user-facing notices, so dropping the oldest when a
+client never connects is preferable to growing without limit."""
+
+_MAX_CLIENT_MESSAGE_BYTES = 64 * 1024
+"""Maximum encoded size of a single client message.
+
+Matches the default ``max_message_size`` of the underlying message channel;
+oversized payloads are rejected rather than silently truncated on the wire."""
 
 
 def _to_numpy_4x4(mat: np.ndarray | torch.Tensor | SupportsDLPack) -> np.ndarray:
@@ -229,6 +243,12 @@ class TeleopSessionLifecycle:
         self._pipeline = None
         self._teleop_control_pipeline = None
         self._message_processor: TeleopMessageProcessor | None = None
+        # Outbound (host -> client) half of the control channel. Handed to the
+        # MessageChannelSource when the control pipeline is built; the source
+        # drains it on every poll once the channel is connected. Created here so
+        # messages can be queued before the pipeline exists (e.g. the startup
+        # workstation check, which runs before the session is built).
+        self._pending_client_messages: collections.deque[bytes] = collections.deque(maxlen=_MAX_PENDING_CLIENT_MESSAGES)
         self._last_right_controller = None
         self._last_left_controller = None
         self._last_step_result: dict | None = None
@@ -433,6 +453,14 @@ class TeleopSessionLifecycle:
         # for spectate-on-replay (operator wears the headset to view a
         # captured trajectory). Pure CI replay leaves cloudxr_env_file at
         # None and gets the previous no-launcher behavior.
+        # Measure the workstation before anything expensive starts. Any notice is
+        # queued now and delivered when the client connects. Drop stale notices
+        # from a previous start() first so a re-entry does not stack duplicates.
+        # Skipped in replay: there is no live operator to warn.
+        if not self._is_replay:
+            self._pending_client_messages.clear()
+            self._run_system_check()
+
         if self._cloudxr_env_file is not None:
             self._ensure_cloudxr_runtime()
 
@@ -517,6 +545,9 @@ class TeleopSessionLifecycle:
         self._last_left_controller = None
         self._haptic_sink = None
         self._haptic_tracker = None
+        # Undelivered notices belong to the session that queued them; a later
+        # start() re-runs its own checks rather than replaying stale ones.
+        self._pending_client_messages.clear()
 
         if self._cloudxr_launcher is not None:
             try:
@@ -596,12 +627,16 @@ class TeleopSessionLifecycle:
     # Control pipeline construction
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _build_control_pipeline(channel_uuid: bytes) -> tuple[Any, TeleopMessageProcessor]:
+    def _build_control_pipeline(self, channel_uuid: bytes) -> tuple[Any, TeleopMessageProcessor]:
         """Build a ``teleop_control_pipeline`` from a message channel UUID.
 
-        Wires ``MessageChannelSource`` -> :class:`TeleopMessageProcessor`
-        -> :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
+        Wires the inbound half, ``MessageChannelSource`` ->
+        :class:`TeleopMessageProcessor` ->
+        :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`,
+        The same ``MessageChannelTracker`` carries the outbound half, so the
+        client sees a single bidirectional channel under *channel_uuid*.
+        Host-originated messages are queued by :meth:`send_client_message` and
+        flushed by the source once the channel reports ``CONNECTED``.
 
         Args:
             channel_uuid: 16-byte UUID for the OpenXR opaque data channel.
@@ -609,13 +644,23 @@ class TeleopSessionLifecycle:
         Returns:
             A ``(teleop_control_pipeline, message_processor)`` tuple.
         """
-        from isaacteleop.retargeting_engine.deviceio_source_nodes import message_channel_config
+        import isaacteleop.deviceio as deviceio
+        from isaacteleop.retargeting_engine.deviceio_source_nodes import MessageChannelSource
         from isaacteleop.teleop_session_manager import DefaultTeleopStateManager
 
-        source, _sink = message_channel_config(
-            name="_teleop_control",
-            channel_uuid=channel_uuid,
-        )
+        # Build the source directly rather than via ``message_channel_config``:
+        # the factory owns the outbound queue internally, and the lifecycle needs
+        # a handle on it to enqueue host-originated messages (see
+        # :meth:`send_client_message`).  The paired ``MessageChannelSink`` is
+        # deliberately not built -- it is a plain ``BaseRetargeter``, not an
+        # ``IDeviceIOSink``, so it cannot go in ``TeleopSessionConfig(sinks=...)``,
+        # and it is unnecessary here: the sink's only job is to append to this
+        # same queue, which the source drains on every ``poll_tracker``.
+        #
+        # The source name must stay ``_teleop_control_source``: replay sessions
+        # match the recorded channel by that name.
+        tracker = deviceio.MessageChannelTracker(channel_uuid, "", _MAX_CLIENT_MESSAGE_BYTES)
+        source = MessageChannelSource("_teleop_control_source", tracker, self._pending_client_messages)
 
         processor = TeleopMessageProcessor(name="_teleop_msg_processor")
         processor_graph = processor.connect({processor.INPUT_MESSAGES: source.output("messages_tracked")})
@@ -697,6 +742,75 @@ class TeleopSessionLifecycle:
             fixed[:keep] = vec[:keep]
             vec = fixed
         self._haptic_forces[endpoint] = vec
+
+    def send_client_message(self, message: dict) -> None:
+        """Queue a JSON message for delivery to the connected XR client.
+
+        The message travels over the outbound half of the teleop control
+        channel and is picked up by the client's message-channel receiver.  It
+        follows the same envelope convention as inbound control commands, so
+        *message* should carry a ``"type"`` discriminator the client
+        recognizes, e.g. ``{"type": "system_notice", "message": {...}}``.
+
+        Delivery is deferred, not immediate: the payload is queued here and put
+        on the wire by the control channel's source once the channel reports
+        ``CONNECTED``.  A message queued before the headset connects -- or even
+        before the session is built -- is therefore delivered on connect rather
+        than dropped, which is what makes startup notices reach the operator.
+
+        A no-op when no control channel is configured
+        (:attr:`~isaaclab_teleop.IsaacTeleopCfg.control_channel_uuid` is
+        ``None``).
+
+        Args:
+            message: A JSON-serializable dict to deliver to the client.
+        """
+        if self._cfg.control_channel_uuid is None:
+            logger.debug("No control channel configured; dropping client message")
+            return
+
+        try:
+            payload = json.dumps(message).encode()
+        except (TypeError, ValueError):
+            logger.exception("Client message is not JSON-serializable; dropping it")
+            return
+
+        if len(payload) > _MAX_CLIENT_MESSAGE_BYTES:
+            logger.warning(
+                f"Client message is {len(payload)} bytes, above the {_MAX_CLIENT_MESSAGE_BYTES}-byte channel"
+                " limit; dropping it"
+            )
+            return
+
+        from isaacteleop.schema import MessageChannelMessages, MessageChannelMessagesTrackedT
+
+        # One message per batch: the source drains whole batches, and keeping
+        # them separate means a partial send can be resumed message-by-message.
+        self._pending_client_messages.append(MessageChannelMessagesTrackedT([MessageChannelMessages(payload)]))
+
+    def _run_system_check(self) -> None:
+        """Measure the workstation against the recommended spec and report.
+
+        Logs the full result table and, when a requirement is unmet, queues a
+        ``system_notice`` for the XR client so the warning is visible in the
+        headset rather than only in the terminal the operator is not wearing.
+
+        Advisory only: a failed check never prevents the session from starting.
+        """
+        from .system_check import check_system_requirements
+
+        try:
+            result = check_system_requirements()
+        except Exception:
+            logger.debug("Teleop workstation check failed; continuing without it", exc_info=True)
+            return
+
+        if result.passed:
+            logger.info(result.format_table())
+            return
+
+        logger.warning(result.format_table())
+        self.send_client_message(result.to_message())
 
     def reset_haptics(self) -> None:
         """Zero all cached haptic output so feedback stops (e.g. on episode reset)."""

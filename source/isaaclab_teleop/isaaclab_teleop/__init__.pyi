@@ -16,11 +16,14 @@ __all__ = [
     "IsaacTeleopCfg",
     "IsaacTeleopDevice",
     "SupportsControlEvents",
+    "SystemCheckItem",
+    "SystemCheckResult",
     "TELEOP_CONTROL_CHANNEL_UUID",
     "XrAnchorRotationMode",
     "XrAnchorSynchronizer",
     "XrCfg",
     "create_haptic_feedback_driver",
+    "check_system_requirements",
     "create_isaac_teleop_device",
     "poll_control_events",
     "remove_camera_configs",
@@ -37,5 +40,6 @@ from .haptic_feedback import (
 )
 from .isaac_teleop_cfg import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV, IsaacTeleopCfg
 from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
+from .system_check import SystemCheckItem, SystemCheckResult, check_system_requirements
 from .xr_anchor_utils import XrAnchorSynchronizer
 from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs
