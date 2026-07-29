@@ -26,9 +26,9 @@ _FINDER_FILES = (
     "source/isaaclab_ovphysx/isaaclab_ovphysx/assets/rigid_object_collection/rigid_object_collection.py",
 )
 _BACKEND_FRAGMENTS = (
-    "source/isaaclab_physx/changelog.d/articulation-reordering-p11.rst",
-    "source/isaaclab_newton/changelog.d/articulation-reordering-p11.rst",
-    "source/isaaclab_ovphysx/changelog.d/articulation-reordering-p11.rst",
+    "source/isaaclab_physx/changelog.d/antoiner-articulation-reordering-integration.rst",
+    "source/isaaclab_newton/changelog.d/antoiner-articulation-reordering-integration.rst",
+    "source/isaaclab_ovphysx/changelog.d/antoiner-articulation-reordering-integration.rst",
 )
 
 
