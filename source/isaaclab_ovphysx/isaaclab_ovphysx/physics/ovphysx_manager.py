@@ -508,9 +508,14 @@ class OvPhysxManager(PhysicsManager):
         - Populates and attaches an OVStage
         - Warms up GPU buffers (if on CUDA)
         - Dispatches PHYSICS_READY
+
+        A forced re-warm dispatches :attr:`~isaaclab.physics.PhysicsEvent.STOP`
+        before replacing the attached stage so listeners discard stale bindings.
         """
         if not soft:
             if not cls._warmup_done:
+                if cls._ovstage is not None:
+                    cls.dispatch_event(PhysicsEvent.STOP, payload={})
                 cls._warmup_and_load()
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
 
