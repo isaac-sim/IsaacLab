@@ -183,6 +183,25 @@ The checkpoint is read from the training bundle's `checkpoint_path`. That field
 was hardcoded `None` in three of the four train adapters until this branch, so
 it reported nothing; it now records what actually landed on disk.
 
+### What ran, and what did not
+
+Every row writes `odin-steps.json` alongside its bundles — a record of what
+happened, as opposed to what a run measured:
+
+```json
+{
+  "row_key": "rsl_rl_physx_Isaac-Ant_seed42",
+  "training": {"ran": true, "exit_code": 0},
+  "checkpoint": {"found": true, "path": "/workspace/logs/.../model_500.pt"},
+  "play": {"status": "ran", "exit_code": 0},
+  "artifacts": ["benchmark_training_...json", "videos/play/rl-video-step-0.mp4"]
+}
+```
+
+`play.status` is one of `not_requested`, `skipped_training_failed`,
+`skipped_no_checkpoint`, or `ran`, so a row that comes back with less than
+expected says why. Writing the record can never fail the task.
+
 ## Recover a dispatch
 
 A controller that dies mid-poll leaves rows stuck in `running` while OSMO keeps

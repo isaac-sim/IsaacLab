@@ -220,13 +220,13 @@ def test_chained_play_records_a_video() -> None:
 def test_chained_play_is_skipped_when_training_fails() -> None:
     # Nothing to roll out, and a play error would mask the real verdict.
     script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
-    assert 'if [ "$rc" -eq 0 ]; then' in script
-    assert "training failed; skipping play" in script
+    assert 'if [ "$rc" -ne 0 ]; then' in script
+    assert 'PLAY_STATUS="skipped_training_failed"' in script
 
 
 def test_chained_play_is_skipped_without_a_checkpoint() -> None:
     script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
-    assert "wrote no checkpoint; skipping play" in script
+    assert 'PLAY_STATUS="skipped_no_checkpoint"' in script
 
 
 def test_training_exit_code_remains_the_verdict() -> None:
@@ -240,3 +240,33 @@ def test_chained_script_carries_the_same_presets_to_both_steps() -> None:
     script = _script(_render(rows=(row,)))
     assert script.count("presets=depth") == 2
     assert script.count("renderer=ovrtx") == 2
+
+
+def test_entry_script_never_calls_system_python() -> None:
+    # The base image is nvidia/cuda plus uv, which manages its own Python, so
+    # there is no system interpreter on PATH. Invoking one silently yielded an
+    # empty checkpoint and a misleading "no checkpoint" diagnosis.
+    script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
+    code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    assert "python3" not in code
+    assert "/workspace/isaaclab/.venv/bin/python" in code
+
+
+def test_every_row_writes_a_step_record() -> None:
+    # Bundles say what a run measured; this says what happened.
+    assert "odin-steps.json" in _script(_render())
+
+
+def test_step_record_distinguishes_why_play_did_not_run() -> None:
+    script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
+    for status in ("skipped_training_failed", "skipped_no_checkpoint", "ran"):
+        assert status in script
+
+
+def test_step_record_marks_play_not_requested_when_disabled() -> None:
+    assert 'PLAY_STATUS="not_requested"' in _script(_render())
+
+
+def test_step_record_failure_cannot_fail_the_task() -> None:
+    # Diagnostics must never be the reason a good run goes red.
+    assert "could not write odin-steps.json" in _script(_render())
