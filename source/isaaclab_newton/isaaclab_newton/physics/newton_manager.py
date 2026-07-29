@@ -2511,7 +2511,10 @@ class NewtonManager(PhysicsManager):
         :meth:`_is_all_graphable` is ``True``, captured) region right after the
         final solver substep of the decimation loop and before
         :meth:`_update_sensors`, so the launches it issues are recorded into
-        every captured CUDA graph and replayed on each tick. Callbacks must be
+        every captured CUDA graph and replayed on each tick. The hook fires
+        exactly once per :meth:`step` call, reflecting the state after all
+        decimation iterations (and their solver substeps) have completed -- not
+        once per substep and not once per decimation iteration. Callbacks must be
         graph-safe (fixed shapes, no host branching on device data) and must be
         registered before capture. Articulations with non-identity ordering
         register their backend-to-user state republish here; all registered

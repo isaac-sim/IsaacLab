@@ -33,7 +33,7 @@ class FactoryEnv(DirectRLEnv):
 
         super().__init__(cfg, render_mode, **kwargs)
 
-        factory_utils.set_body_inertias(self._robot, self.scene.num_envs)
+        factory_utils.set_body_inertias(self._robot)
         self._init_tensors()
         self._set_default_dynamics_parameters()
 

@@ -57,13 +57,11 @@ class DisassemblyEnv(DirectRLEnv):
 
     def _set_body_inertias(self):
         """Note: this is to account for the asset_options.armature parameter in IGE."""
-        inertias = wp.to_torch(self._robot.root_view.get_inertias())
-        offset = torch.zeros_like(inertias)
-        offset[:, :, [0, 4, 8]] += 0.01
-        new_inertias = inertias + offset
-        self._robot.root_view.set_inertias(
-            wp.from_torch(new_inertias), wp.from_torch(torch.arange(self.num_envs, dtype=torch.int32))
-        )
+        # Apply the offset through the asset setter (instead of the raw tensor view) so
+        # ``data.body_inertia`` stays coherent and the update is ordering-safe by construction.
+        inertias = self._robot.data.body_inertia.torch.clone()
+        inertias[:, :, [0, 4, 8]] += 0.01
+        self._robot.set_inertias_index(inertias=inertias)
 
     def _set_default_dynamics_parameters(self):
         """Set parameters defining dynamic interactions."""
