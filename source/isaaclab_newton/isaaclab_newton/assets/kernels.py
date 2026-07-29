@@ -1003,6 +1003,39 @@ def write_body_inertia_to_buffer_mask(
             out_data[i, j, k] = in_data[i, j, k]
 
 
+@wp.func
+def _update_body_inertial_properties_inverse(
+    env_id: int,
+    body_id: int,
+    body_mass: wp.array2d(dtype=wp.float32),
+    body_inertia: wp.array3d(dtype=wp.float32),
+    update_inv_mass: bool,
+    body_inv_mass: wp.array2d(dtype=wp.float32),
+    body_inv_inertia: wp.array2d(dtype=wp.mat33f),
+):
+    """Update inverse inertial properties for one resolved backend body."""
+    mass = body_mass[env_id, body_id]
+    if mass > 0.0:
+        if update_inv_mass:
+            body_inv_mass[env_id, body_id] = 1.0 / mass
+        inertia = wp.mat33f(
+            body_inertia[env_id, body_id, 0],
+            body_inertia[env_id, body_id, 1],
+            body_inertia[env_id, body_id, 2],
+            body_inertia[env_id, body_id, 3],
+            body_inertia[env_id, body_id, 4],
+            body_inertia[env_id, body_id, 5],
+            body_inertia[env_id, body_id, 6],
+            body_inertia[env_id, body_id, 7],
+            body_inertia[env_id, body_id, 8],
+        )
+        body_inv_inertia[env_id, body_id] = wp.inverse(inertia)
+    else:
+        if update_inv_mass:
+            body_inv_mass[env_id, body_id] = 0.0
+        body_inv_inertia[env_id, body_id] = wp.mat33f(0.0)
+
+
 @wp.kernel
 def update_body_inertial_properties_inverse_index(
     body_mass: wp.array2d(dtype=wp.float32),
@@ -1033,27 +1066,9 @@ def update_body_inertial_properties_inverse_index(
     body_id = body_ids[j]
     if has_body_ordering:
         body_id = body_user_to_backend[body_id]
-
-    mass = body_mass[env_id, body_id]
-    if mass > 0.0:
-        if update_inv_mass:
-            body_inv_mass[env_id, body_id] = 1.0 / mass
-        inertia = wp.mat33f(
-            body_inertia[env_id, body_id, 0],
-            body_inertia[env_id, body_id, 1],
-            body_inertia[env_id, body_id, 2],
-            body_inertia[env_id, body_id, 3],
-            body_inertia[env_id, body_id, 4],
-            body_inertia[env_id, body_id, 5],
-            body_inertia[env_id, body_id, 6],
-            body_inertia[env_id, body_id, 7],
-            body_inertia[env_id, body_id, 8],
-        )
-        body_inv_inertia[env_id, body_id] = wp.inverse(inertia)
-    else:
-        if update_inv_mass:
-            body_inv_mass[env_id, body_id] = 0.0
-        body_inv_inertia[env_id, body_id] = wp.mat33f(0.0)
+    _update_body_inertial_properties_inverse(
+        env_id, body_id, body_mass, body_inertia, update_inv_mass, body_inv_mass, body_inv_inertia
+    )
 
 
 @wp.kernel
@@ -1086,27 +1101,9 @@ def update_body_inertial_properties_inverse_mask(
         body_id = j
         if has_body_ordering:
             body_id = body_user_to_backend[body_id]
-
-        mass = body_mass[i, body_id]
-        if mass > 0.0:
-            if update_inv_mass:
-                body_inv_mass[i, body_id] = 1.0 / mass
-            inertia = wp.mat33f(
-                body_inertia[i, body_id, 0],
-                body_inertia[i, body_id, 1],
-                body_inertia[i, body_id, 2],
-                body_inertia[i, body_id, 3],
-                body_inertia[i, body_id, 4],
-                body_inertia[i, body_id, 5],
-                body_inertia[i, body_id, 6],
-                body_inertia[i, body_id, 7],
-                body_inertia[i, body_id, 8],
-            )
-            body_inv_inertia[i, body_id] = wp.inverse(inertia)
-        else:
-            if update_inv_mass:
-                body_inv_mass[i, body_id] = 0.0
-            body_inv_inertia[i, body_id] = wp.mat33f(0.0)
+        _update_body_inertial_properties_inverse(
+            i, body_id, body_mass, body_inertia, update_inv_mass, body_inv_mass, body_inv_inertia
+        )
 
 
 @wp.kernel
