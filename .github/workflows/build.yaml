@@ -349,6 +349,40 @@ jobs:
         shard-count: "3"
         container-name: isaac-lab-core-3-test
 
+  test-standalone-demos:
+    name: standalone demos (headless, ${{ matrix.runtime-label }})
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - runtime-group: kit
+          runtime-label: Kit
+        - runtime-group: non-kit
+          runtime-label: non-Kit
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        include-files: "test_standalone_scripts.py"
+        standalone-script-scope: "demos"
+        standalone-script-visualizer: "none"
+        standalone-script-runtime-group: ${{ matrix.runtime-group }}
+        result-file: "test-standalone-demos-${{ matrix.runtime-group }}-report.xml"
+        container-name: isaac-lab-standalone-demos-${{ matrix.runtime-group }}-test
+        omni-github-test-type: standalone-demo
+
   test-isaaclab-rl:
     name: isaaclab_rl
     runs-on: [self-hosted, gpu]
@@ -542,11 +576,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
-        # isaaclab_ovphysx requires ovphysx >= 0.5.1, which is only available from the
-        # NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip index
-        # and keep only the ovrtx-based isaaclab_ov coverage.
-        exclude-pattern: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'isaaclab_ovphysx' }}
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} ovphysx', steps.ov_pins.outputs.ovrtx) }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         container-name: isaac-lab-ov-test
@@ -729,11 +759,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        # ovphysx-backed test params require ovphysx >= 0.5.1, which is only available
-        # from the NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip
-        # index and keep the newton/ovrtx kitless rendering coverage.
-        test-k-expr: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'not ovphysx' }}
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} ovphysx', steps.ov_pins.outputs.ovrtx) }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
