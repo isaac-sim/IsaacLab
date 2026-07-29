@@ -36,6 +36,7 @@ from isaaclab_ovphysx.assets.kernels import (
 from isaaclab_ovphysx.physics import OvPhysxManager
 from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
+from . import kernels as articulation_kernels
 from .kernels import _fd_joint_acc
 
 # import logger
@@ -216,6 +217,9 @@ class ArticulationData(BaseArticulationData):
                 self._body_state_w_buf,
                 self._body_link_state_w_buf,
                 self._body_com_state_w_buf,
+                self._body_com_jacobian_w,
+                self._mass_matrix,
+                self._gravity_compensation_forces,
             ]
         )
         # Force a kinematic refresh on the next FK-dependent read.
@@ -1094,6 +1098,95 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_pose_b_ta
 
     """
+    Dynamics quantities (task-space controllers).
+    """
+
+    @property
+    def body_com_jacobian_w(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`."""
+        if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
+            has_body_ordering = self.has_body_ordering
+            has_joint_ordering = self.has_joint_ordering
+            if has_body_ordering or has_joint_ordering:
+                self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w_backend)
+                wp.launch(
+                    ordering_kernels.reorder_jacobian_backend_to_user,
+                    dim=self._body_com_jacobian_w.data.shape,
+                    inputs=[
+                        self._body_com_jacobian_w_backend,
+                        self._jacobian_body_user_to_backend,
+                        self._jacobian_joint_user_to_backend,
+                        self._num_base_dofs,
+                        has_body_ordering,
+                        has_joint_ordering,
+                    ],
+                    outputs=[self._body_com_jacobian_w.data],
+                    device=self.device,
+                )
+            else:
+                self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w.data)
+            self._body_com_jacobian_w.timestamp = self._sim_timestamp
+        return self._body_com_jacobian_w_ta
+
+    @property
+    def body_link_jacobian_w(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.body_link_jacobian_w`."""
+        wp.launch(
+            articulation_kernels.shift_jacobian_com_to_origin,
+            dim=self._body_link_jacobian_w.shape[:2] + (self._body_link_jacobian_w.shape[3],),
+            inputs=[
+                self.body_link_pose_w.warp,
+                self.body_com_pos_b.warp,
+                self._jacobian_link_offset,
+                self.body_com_jacobian_w.warp,
+            ],
+            outputs=[self._body_link_jacobian_w],
+            device=self.device,
+        )
+        return self._body_link_jacobian_w_ta
+
+    def _refresh_generalized_dynamics_buffer(
+        self, buffer: TimestampedBuffer, backend_buffer: wp.array, tensor_type: int, reorder_kernel: wp.Kernel
+    ) -> None:
+        """Refresh a generalized dynamics buffer and gather its joint axes when needed."""
+        if buffer.timestamp >= self._sim_timestamp:
+            return
+        if self.has_joint_ordering:
+            self._binding_read(tensor_type, backend_buffer)
+            wp.launch(
+                reorder_kernel,
+                dim=buffer.data.shape,
+                inputs=[backend_buffer, self._jacobian_joint_user_to_backend, self._num_base_dofs, True],
+                outputs=[buffer.data],
+                device=self.device,
+            )
+        else:
+            self._binding_read(tensor_type, buffer.data)
+        buffer.timestamp = self._sim_timestamp
+
+    @property
+    def mass_matrix(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`."""
+        self._refresh_generalized_dynamics_buffer(
+            self._mass_matrix,
+            self._mass_matrix_backend,
+            TT.MASS_MATRIX,
+            ordering_kernels.reorder_mass_matrix_backend_to_user,
+        )
+        return self._mass_matrix_ta
+
+    @property
+    def gravity_compensation_forces(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`."""
+        self._refresh_generalized_dynamics_buffer(
+            self._gravity_compensation_forces,
+            self._gravity_compensation_forces_backend,
+            TT.GRAVITY_FORCE,
+            ordering_kernels.reorder_generalized_vector_backend_to_user,
+        )
+        return self._gravity_compensation_forces_ta
+
+    """
     Joint state properties.
     """
 
@@ -1631,6 +1724,24 @@ class ArticulationData(BaseArticulationData):
         self._joint_acc = TimestampedBuffer((N, D), dev, wp.float32)
         self._previous_joint_vel = wp.zeros((N, D), dtype=wp.float32, device=dev)
 
+        # -- Dynamics quantities for task-space controllers
+        self._jacobian_link_offset = 1 if self._view.is_fixed_base else 0
+        self._num_base_dofs = 0 if self._view.is_fixed_base else 6
+        num_jacobian_bodies = L - self._jacobian_link_offset
+        num_generalized_dofs = D + self._num_base_dofs
+        jacobian_shape = (N, num_jacobian_bodies, 6, num_generalized_dofs)
+        mass_matrix_shape = (N, num_generalized_dofs, num_generalized_dofs)
+        gravity_shape = (N, num_generalized_dofs)
+        self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
+        self._jacobian_joint_user_to_backend = wp.array(range(D), dtype=wp.int32, device=dev)
+        self._body_com_jacobian_w = TimestampedBuffer(jacobian_shape, dev, wp.float32)
+        self._body_com_jacobian_w_backend = wp.zeros(jacobian_shape, dtype=wp.float32, device=dev)
+        self._body_link_jacobian_w = wp.zeros(jacobian_shape, dtype=wp.float32, device=dev)
+        self._mass_matrix = TimestampedBuffer(mass_matrix_shape, dev, wp.float32)
+        self._mass_matrix_backend = wp.zeros(mass_matrix_shape, dtype=wp.float32, device=dev)
+        self._gravity_compensation_forces = TimestampedBuffer(gravity_shape, dev, wp.float32)
+        self._gravity_compensation_forces_backend = wp.zeros(gravity_shape, dtype=wp.float32, device=dev)
+
         # -- Joint properties (CPU-only; timestamped so they can be re-read after writes)
         self._joint_stiffness = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_damping = TimestampedBuffer((N, D), dev, wp.float32)
@@ -2077,6 +2188,16 @@ class ArticulationData(BaseArticulationData):
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Configure public-order buffers after articulation ordering maps are installed."""
         self._configure_ordering_buffers()
+        self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
+        if self.has_joint_ordering:
+            self._jacobian_joint_user_to_backend = self.joint_ordering.user_to_backend
+        reset_timestamps(
+            [
+                self._body_com_jacobian_w,
+                self._mass_matrix,
+                self._gravity_compensation_forces,
+            ]
+        )
 
     def _pin_proxy_arrays(self) -> None:
         """Create pinned ProxyArray wrappers for all data buffers.
@@ -2134,6 +2255,11 @@ class ArticulationData(BaseArticulationData):
         self._body_com_vel_w_ta: ProxyArray | None = None
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
+        # Dynamics quantities (task-space controllers)
+        self._body_com_jacobian_w_ta = ProxyArray(self._body_com_jacobian_w.data)
+        self._body_link_jacobian_w_ta = ProxyArray(self._body_link_jacobian_w)
+        self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
+        self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None
