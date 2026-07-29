@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from newton import JointType, ModelFlags
+from newton import JointTargetMode, JointType, ModelFlags
 from newton.selection import ArticulationView
 from prettytable import PrettyTable
 
@@ -48,6 +48,65 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+def _is_implicit_actuator_cfg(actuator_cfg: ActuatorBaseCfg) -> bool:
+    """Return whether an actuator config constructs an implicit actuator without instantiating it."""
+    class_type = actuator_cfg.class_type
+    return "ImplicitActuator" in class_type if isinstance(class_type, str) else issubclass(class_type, ImplicitActuator)
+
+
+def _target_mode_from_gains(stiffness: float, damping: float) -> JointTargetMode:
+    """Infer the Newton target mode for an implicit actuator's effective gains."""
+    if stiffness != 0.0 and damping != 0.0:
+        return JointTargetMode.POSITION_VELOCITY
+    return JointTargetMode.from_gains(stiffness, damping, has_drive=True)
+
+
+def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None:
+    """Resolve configured actuator gains into Newton builder target modes before finalization."""
+    articulation_ids, _ = resolve_matching_names(cfg.prim_path, builder.articulation_label, raise_when_no_match=False)
+    for articulation_id in articulation_ids:
+        joint_start = builder.articulation_start[articulation_id]
+        joint_end = builder.articulation_end[articulation_id]
+        dof_ids: list[int] = []
+        dof_names: list[str] = []
+        for joint_id in range(joint_start, joint_end):
+            dof_start = builder.joint_qd_start[joint_id]
+            dof_end = (
+                builder.joint_qd_start[joint_id + 1]
+                if joint_id + 1 < len(builder.joint_qd_start)
+                else len(builder.joint_target_mode)
+            )
+            joint_name = builder.joint_label[joint_id].rsplit("/", maxsplit=1)[-1]
+            for axis_index, dof_id in enumerate(range(dof_start, dof_end)):
+                dof_ids.append(dof_id)
+                dof_names.append(joint_name if dof_end - dof_start == 1 else f"{joint_name}:{axis_index}")
+
+        for actuator_cfg in cfg.actuators.values():
+            matched_indices, matched_names = resolve_matching_names(
+                actuator_cfg.joint_names_expr, dof_names, raise_when_no_match=False
+            )
+            if not matched_indices:
+                continue
+            selected_dof_ids = [dof_ids[index] for index in matched_indices]
+
+            def _resolve_gains(gains: float | dict[str, float] | None) -> list[float | None]:
+                if isinstance(gains, dict):
+                    _, _, values = resolve_matching_names_values(gains, matched_names)
+                    return values
+                return [gains] * len(selected_dof_ids)
+
+            stiffness_values = _resolve_gains(actuator_cfg.stiffness)
+            damping_values = _resolve_gains(actuator_cfg.damping)
+            for dof_id, stiffness, damping in zip(selected_dof_ids, stiffness_values, damping_values, strict=True):
+                effective_stiffness = builder.joint_target_ke[dof_id] if stiffness is None else stiffness
+                effective_damping = builder.joint_target_kd[dof_id] if damping is None else damping
+                builder.joint_target_mode[dof_id] = int(
+                    _target_mode_from_gains(effective_stiffness, effective_damping)
+                    if _is_implicit_actuator_cfg(actuator_cfg)
+                    else JointTargetMode.EFFORT
+                )
 
 
 class Articulation(BaseArticulation):
@@ -127,6 +186,21 @@ class Articulation(BaseArticulation):
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+
+    def _register_callbacks(self) -> None:
+        """Register Newton lifecycle callbacks required before model finalization."""
+        super()._register_callbacks()
+        self._model_init_handle = SimulationManager.register_callback(
+            self._configure_joint_target_modes,
+            PhysicsEvent.MODEL_INIT,
+            name=f"articulation_target_modes_{self.cfg.prim_path}",
+        )
+
+    def _configure_joint_target_modes(self, _event) -> None:
+        """Apply configured actuator modes to the private Newton model builder."""
+        builder = SimulationManager._builder
+        if builder is not None:
+            _configure_builder_joint_target_modes(builder, self.cfg)
 
     """
     Properties
@@ -3448,6 +3522,9 @@ class Articulation(BaseArticulation):
     def _clear_callbacks(self) -> None:
         """Clears all registered callbacks, including the physics-ready rebind handle."""
         super()._clear_callbacks()
+        if hasattr(self, "_model_init_handle") and self._model_init_handle is not None:
+            self._model_init_handle.deregister()
+            self._model_init_handle = None
         if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
             self._physics_ready_handle.deregister()
             self._physics_ready_handle = None

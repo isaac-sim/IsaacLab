@@ -40,7 +40,7 @@ from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from newton import ModelFlags
+from newton import JointTargetMode, ModelBuilder, ModelFlags
 
 from pxr import UsdPhysics
 
@@ -60,6 +60,7 @@ from isaaclab.controllers import (
 )
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, subtract_frame_transforms
@@ -619,6 +620,99 @@ def sim(request):
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
+
+
+def _make_target_mode_builder(
+    joint_names: list[str], target_modes: list[JointTargetMode], stiffness: list[float], damping: list[float]
+) -> ModelBuilder:
+    """Build a minimal pre-finalization model builder for target-mode tests."""
+    builder = ModelBuilder()
+    builder.articulation_label = ["/World/Env_0/Robot"]
+    builder.articulation_start = [0]
+    builder.articulation_end = [len(joint_names)]
+    builder.joint_qd_start = list(range(len(joint_names)))
+    builder.joint_label = [f"/World/Env_0/Robot/{name}" for name in joint_names]
+    builder.joint_target_mode = [int(mode) for mode in target_modes]
+    builder.joint_target_ke = stiffness
+    builder.joint_target_kd = damping
+    return builder
+
+
+def _dispatch_model_init(articulation: Articulation, builder: ModelBuilder) -> None:
+    """Dispatch model initialization with a temporary builder and clear the asset callbacks."""
+    previous_builder = SimulationManager._builder
+    try:
+        SimulationManager._builder = builder
+        SimulationManager.dispatch_event(PhysicsEvent.MODEL_INIT)
+    finally:
+        SimulationManager._builder = previous_builder
+        articulation._clear_callbacks()
+
+
+@pytest.mark.parametrize(
+    ("actuator_cfg", "expected_mode"),
+    [
+        (ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0), JointTargetMode.POSITION),
+        (ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=2.0), JointTargetMode.VELOCITY),
+        (
+            ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0),
+            JointTargetMode.POSITION_VELOCITY,
+        ),
+        (ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0), JointTargetMode.EFFORT),
+        (IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0), JointTargetMode.EFFORT),
+    ],
+)
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("device", test_devices())
+def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
+    sim, device, articulation_type, actuator_cfg, expected_mode
+):
+    """Resolve configured actuator gains before Newton finalizes its solver topology."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_.*/Robot",
+        actuators={"joint": actuator_cfg},
+    )
+    articulation = Articulation(articulation_cfg)
+    builder = _make_target_mode_builder(
+        ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
+    )
+    _dispatch_model_init(articulation, builder)
+    assert builder.joint_target_mode == [int(expected_mode), int(expected_mode)]
+
+
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("device", test_devices())
+def test_actuator_cfg_keeps_imported_newton_target_mode_for_none_gain(sim, device, articulation_type):
+    """Retain the imported stiffness when an implicit actuator config leaves it unset."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_.*/Robot",
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=0.0)},
+    )
+    articulation = Articulation(articulation_cfg)
+    builder = _make_target_mode_builder(["joint"], [JointTargetMode.EFFORT], [10.0], [0.0])
+    _dispatch_model_init(articulation, builder)
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
+
+
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("device", test_devices())
+def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported(sim, device, articulation_type):
+    """Leave target modes for DOFs outside an actuator group unchanged."""
+    subset_cfg = ArticulationCfg(
+        prim_path="/World/Env_.*/Robot",
+        actuators={
+            "shoulder": ImplicitActuatorCfg(joint_names_expr=["left_shoulder"], stiffness=10.0, damping=0.0),
+        },
+    )
+    articulation = Articulation(subset_cfg)
+    builder = _make_target_mode_builder(
+        ["left_shoulder", "right_shoulder"],
+        [JointTargetMode.NONE, JointTargetMode.VELOCITY],
+        [0.0, 0.0],
+        [0.0, 2.0],
+    )
+    _dispatch_model_init(articulation, builder)
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION), int(JointTargetMode.VELOCITY)]
 
 
 @pytest.mark.parametrize("device", ["cpu"])
