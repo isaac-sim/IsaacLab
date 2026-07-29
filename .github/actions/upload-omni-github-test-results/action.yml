@@ -6,20 +6,13 @@
 name: 'Upload omni-github test results'
 description: >
   Converts a JUnit XML report into the omni-github test-result artifact
-  contract and uploads it with the current GitHub repository identity.
+  contract, splits it into one log file per test, and uploads it with the
+  current GitHub repository identity.
 
 inputs:
   junit-file:
     description: 'Path to the JUnit XML report to convert'
     required: true
-  junit-log-url:
-    description: 'URL of the uploaded JUnit XML artifact'
-    default: ''
-    required: false
-  comparison-images-url:
-    description: 'URL of the uploaded comparison images artifact'
-    default: ''
-    required: false
   artifact-prefix:
     description: 'Artifact name prefix'
     required: true
@@ -74,7 +67,9 @@ runs:
         # Run attempt > 1 means this job is a re-run, so adjust the retries count accordingly
         [[ "$run_attempt" =~ ^[1-9][0-9]*$ ]] && retries=$((run_attempt - 1))
 
-        # Base directory for the artifact, which will be uploaded to GitHub
+        # Base directory for the artifact, which will be uploaded to GitHub. The converter
+        # writes the result JSON plus one log file per test under _testoutput/logs, so every
+        # log_paths entry resolves inside this uploaded artifact.
         artifact_dir="${RUNNER_TEMP}/omni-github-test-results/${ARTIFACT_PREFIX}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
         rm -rf "$artifact_dir"
         mkdir -p "$artifact_dir"
@@ -87,8 +82,6 @@ runs:
           --app-platform "$app_platform" \
           --app-config "${GITHUB_JOB:-github-job}" \
           --group-name "${GITHUB_WORKFLOW:-github-workflow} / ${GITHUB_JOB:-github-job}" \
-          --junit-log-url "${{ inputs.junit-log-url }}" \
-          --comparison-images-url "${{ inputs.comparison-images-url }}" \
           --retries "$retries"
 
         result_json="$artifact_dir/_testoutput/test_results.json"
