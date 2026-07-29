@@ -668,11 +668,12 @@ VALID_EXTRA_FEATURES: set[str] = {
     "newton",
     "ov",
     "rl",
+    "simready",
     "visualizer",
 }
 
 # Extra features excluded from the automatic ``-i all`` / ``-i`` install.
-MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov"}
+MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov", "simready"}
 
 
 def split_install_items(install_type: str) -> list[str]:
@@ -833,6 +834,10 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
             _install_root_extra(backend)
     elif feature_name == "ov":
         _install_ov_extra_dependencies(selector)
+    elif feature_name == "simready":
+        if selector:
+            print_warning(f"'simready' does not support selectors (got '{selector}').")
+        _install_root_extra("simready")
     else:
         print_warning(
             f"Unknown extra feature '{feature_name}'. "

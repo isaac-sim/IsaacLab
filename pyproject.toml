@@ -150,6 +150,8 @@ teleop = [
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
 ]
+# SimReady USD-Search asset resolution (isaaclab.sim.spawners.simready).
+simready = ["simready-search>=2026.4.2"]
 # RLinf VLA post-training (externally contributed).
 rlinf = [
     "ray[default]>=2.47.0",
