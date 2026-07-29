@@ -40,7 +40,7 @@ workflow:
           OUT="{{ '{{output}}' }}/{{ row.row_key }}"
           mkdir -p "$OUT"
           set +e
-          uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark training --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }}{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %}{% if row.max_iterations is not none %} --max_iterations {{ row.max_iterations }}{% endif %} --output_path "$OUT" --benchmark_formatter schema{% if row.physics %} physics={{ row.physics }}{% endif %}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}
+          uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark training --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }}{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %}{% if row.max_iterations is not none %} --max_iterations {{ row.max_iterations }}{% endif %} --output_path "$OUT" --benchmark_formatter schema{% if row.physics %} physics={{ row.physics }}{% endif %}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}{% if row.presets %} presets={{ row.presets | join(',') }}{% endif %}
 
           rc=$?
           set -e

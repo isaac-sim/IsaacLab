@@ -85,6 +85,7 @@ def _job_from_row(row: PlannedRow, *, side: str, image_ref: str) -> JobEntry:
         rl_library=row.rl_library,
         physics=row.physics,
         renderer=row.renderer,
+        presets=row.presets,
         seed=row.seed,
         num_envs=row.num_envs,
         max_iterations=row.max_iterations,
@@ -293,6 +294,7 @@ def command_discover(args: argparse.Namespace) -> int:
         libraries=args.library,
         physics=args.physics,
         renderers=args.renderer,
+        presets=args.presets,
         scope=args.scope,
         max_rows=args.max_rows,
     )
@@ -391,6 +393,9 @@ def _build_parser() -> argparse.ArgumentParser:
     discover.add_argument("--library", action="append", default=None, help="Restrict the library axis; repeatable.")
     discover.add_argument("--physics", action="append", default=None, help="Restrict the physics axis; repeatable.")
     discover.add_argument("--renderer", action="append", default=None, help="Restrict the renderer axis; repeatable.")
+    discover.add_argument(
+        "--presets", action="append", default=None, help="Restrict the domain-preset axis; repeatable."
+    )
     discover.add_argument("--scope", choices=["core", "contrib", "all"], default="all")
     discover.add_argument("--max_rows", type=int, default=None, help="Deterministic head of the sorted order.")
 

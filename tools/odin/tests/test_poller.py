@@ -36,6 +36,7 @@ def _job() -> JobEntry:
         rl_library="rsl_rl",
         physics="physx",
         renderer=None,
+        presets=(),
         seed=42,
         num_envs=None,
         max_iterations=None,

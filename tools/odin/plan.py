@@ -31,6 +31,7 @@ __all__ = [
     "PlannedRow",
     "apply_metadata",
     "build_row_key",
+    "normalize_presets",
     "chunk_rows",
     "load_task_rows",
     "plan_rows",
@@ -75,6 +76,8 @@ class PlannedRow:
         physics: Physics preset token passed as ``physics=<value>``, or ``None``
             for tasks that declare no physics preset.
         renderer: Renderer preset token, or ``None`` to run headless.
+        presets: Domain preset tokens, emitted as a comma-separated
+            ``presets=a,b``. Empty when none are selected.
         seed: Environment seed.
         num_envs: Parallel environment count, or ``None`` to use the task's
             shipped agent-config default.
@@ -92,6 +95,7 @@ class PlannedRow:
     rl_library: str
     physics: str | None
     renderer: str | None
+    presets: tuple[str, ...]
     seed: int
     num_envs: int | None
     max_iterations: int | None
@@ -101,13 +105,41 @@ class PlannedRow:
     osmo_task_name: str
 
 
-def build_row_key(rl_library: str, physics: str | None, task_id: str, seed: int, renderer: str | None = None) -> str:
+def normalize_presets(value: Any) -> tuple[str, ...]:
+    """Normalise a task entry's ``presets`` field into a token tuple.
+
+    Hand-written task lists may give a single token, a comma-separated string,
+    or a list. Discovery only ever emits one token because domain presets that
+    target the same field conflict, but the executor imposes no such limit — a
+    human who knows two presets compose can ask for both.
+
+    Args:
+        value: Raw ``presets`` value: ``None``, a string, or a sequence.
+
+    Returns:
+        Preset tokens in the given order, with blanks removed.
+    """
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return tuple(part.strip() for part in value.split(",") if part.strip())
+    return tuple(str(part).strip() for part in value if str(part).strip())
+
+
+def build_row_key(
+    rl_library: str,
+    physics: str | None,
+    task_id: str,
+    seed: int,
+    renderer: str | None = None,
+    presets: tuple[str, ...] = (),
+) -> str:
     """Return the deterministic identity for one row.
 
-    The renderer segment is only present when a renderer is selected, so keys
-    for headless rows are unchanged. It cannot be omitted when one *is*
-    selected: a camera task expands across several renderers on the same
-    physics, and those rows would otherwise collide.
+    The renderer and preset segments are only present when selected, so keys for
+    plain headless rows are unchanged. They cannot be omitted when they *are*
+    selected: a camera task expands across several renderers and domain presets
+    on the same physics, and those rows would otherwise collide.
 
     Args:
         rl_library: RL library token.
@@ -115,12 +147,13 @@ def build_row_key(rl_library: str, physics: str | None, task_id: str, seed: int,
         task_id: Gym task id.
         seed: Environment seed.
         renderer: Renderer preset token, or ``None`` for headless.
+        presets: Domain preset tokens; empty when none are selected.
 
     Returns:
-        ``{rl_library}_{physics}[_{renderer}]_{task_id}_seed{seed}``.
+        ``{rl_library}_{physics}[_{renderer}][_{presets}]_{task_id}_seed{seed}``.
     """
-    renderer_segment = f"{renderer}_" if renderer else ""
-    return f"{rl_library}_{physics or 'default'}_{renderer_segment}{task_id}_seed{seed}"
+    optional = "".join(f"{part}_" for part in (renderer, "-".join(presets)) if part)
+    return f"{rl_library}_{physics or 'default'}_{optional}{task_id}_seed{seed}"
 
 
 def uv_extras_for_profile(profile: str) -> tuple[str, ...]:
@@ -241,11 +274,12 @@ def plan_rows(
         physics = entry.get("physics")
         physics = str(physics) if physics else None
         renderer = entry.get("renderer")
+        presets = normalize_presets(entry.get("presets"))
         profile = str(entry.get("profile") or DEFAULT_PROFILE)
         extras = uv_extras_for_profile(profile)
 
         for seed in seeds:
-            row_key = build_row_key(rl_library, physics, task_id, seed, renderer)
+            row_key = build_row_key(rl_library, physics, task_id, seed, renderer, presets)
             if row_key in seen:
                 raise PlanError(f"duplicate row key {row_key!r}; check tasks.yaml for repeated entries")
             seen.add(row_key)
@@ -256,6 +290,7 @@ def plan_rows(
                     rl_library=rl_library,
                     physics=physics,
                     renderer=renderer,
+                    presets=presets,
                     seed=int(seed),
                     num_envs=_optional_int(entry.get("num_envs")),
                     max_iterations=_optional_int(entry.get("max_iterations")),

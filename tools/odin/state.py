@@ -67,6 +67,7 @@ class JobEntry:
         rl_library: One of ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``.
         physics: Physics preset token passed as ``physics=<value>``.
         renderer: Renderer preset token, or ``None`` to run headless.
+        presets: Domain preset tokens applied to the run.
         seed: Environment seed.
         num_envs: Parallel environment count, or ``None`` to use the task's
             shipped agent-config default.
@@ -84,6 +85,7 @@ class JobEntry:
     rl_library: str
     physics: str
     renderer: str | None
+    presets: tuple[str, ...]
     seed: int
     num_envs: int | None
     max_iterations: int | None
@@ -193,6 +195,7 @@ def _job_to_dict(job: JobEntry) -> dict[str, Any]:
         "rl_library": job.rl_library,
         "physics": job.physics,
         "renderer": job.renderer,
+        "presets": list(job.presets),
         "seed": job.seed,
         "num_envs": job.num_envs,
         "max_iterations": job.max_iterations,
@@ -227,6 +230,7 @@ def _job_from_dict(payload: dict[str, Any]) -> JobEntry:
         rl_library=str(payload["rl_library"]),
         physics=str(payload["physics"]),
         renderer=payload.get("renderer"),
+        presets=tuple(payload.get("presets") or ()),
         seed=int(payload["seed"]),
         num_envs=_optional_int(payload.get("num_envs")),
         max_iterations=_optional_int(payload.get("max_iterations")),

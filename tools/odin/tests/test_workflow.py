@@ -32,6 +32,7 @@ _ROW = PlannedRow(
     rl_library="rsl_rl",
     physics="physx",
     renderer=None,
+    presets=(),
     seed=42,
     num_envs=None,
     max_iterations=None,
@@ -182,3 +183,13 @@ def test_long_row_key_is_truncated_with_a_stable_hash() -> None:
     name = osmo_safe_task_name(long_key)
     assert len(name) <= 63
     assert name == osmo_safe_task_name(long_key)
+
+
+def test_multiple_presets_render_as_one_comma_separated_token() -> None:
+    # The executor imposes no one-at-a-time limit; discovery's is its own.
+    row = dataclasses.replace(_ROW, presets=("depth", "simple_shading_full_mdl"))
+    assert "presets=depth,simple_shading_full_mdl" in _script(_render(rows=(row,)))
+
+
+def test_no_presets_token_when_empty() -> None:
+    assert "presets=" not in _script(_render())

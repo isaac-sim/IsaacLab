@@ -44,6 +44,31 @@ RL_LIBRARY_PRIORITY: tuple[str, ...] = ("rsl_rl", "rl_games", "skrl", "sb3")
 # variant rather than a backend under test.
 _SKIP_PHYSICS = frozenset({"newton_mjwarp_vbd_proxy"})
 
+# Backend names that also appear under ``PresetTarget.DOMAIN`` on some tasks.
+# They are selected with ``physics=`` / ``renderer=``, so emitting them as a
+# ``presets=`` token would be a duplicate at best and wrong at worst. A per-task
+# check is not enough: a task can list ``newton_mjwarp`` under DOMAIN without
+# declaring it under PHYSICS. Mirrors the same guard in tools/environ_docs.py.
+_BACKEND_MIRROR_NAMES = frozenset(
+    {
+        "newton_kamino",
+        "newton_mjwarp",
+        "newton_mjwarp_vbd",
+        "newton_mjwarp_vbd_proxy",
+        "ovphysx",
+        "physx",
+        "isaacsim_physx",
+        "newton",
+        "kamino",
+        "isaacsim_rtx",
+        "isaacsim_rtx_renderer",
+        "newton_renderer",
+        "ovrtx",
+        "ovrtx_renderer",
+        "rtx",
+    }
+)
+
 
 class DiscoveryError(RuntimeError):
     """Raised when the registry cannot be walked."""
@@ -71,10 +96,15 @@ class DiscoveredTask:
             physics: Physics preset token, or ``None`` for tasks that declare
                 none and reject any ``physics=`` selector.
             renderer: Renderer preset token, or ``None`` to run headless.
+            presets: Domain preset token passed as ``presets=<value>``, or
+                ``None``. Exactly one at a time: domain presets that target the
+                same field conflict outright, e.g. ``presets=depth,rgb`` is
+                rejected with "Conflicting global presets".
         """
 
         physics: str | None
         renderer: str | None
+        presets: str | None
 
     task_id: str
     scope: str
@@ -122,6 +152,8 @@ def expand_rows(tasks: list[DiscoveredTask]) -> list[dict[str, Any]]:
                     row["physics"] = mode.physics
                 if mode.renderer is not None:
                     row["renderer"] = mode.renderer
+                if mode.presets is not None:
+                    row["presets"] = mode.presets
                 rows.append(row)
 
     rows.sort(key=lambda row: (row["task_id"], row["rl_library"], row.get("physics") or "", row.get("renderer") or ""))
@@ -136,6 +168,7 @@ def filter_rows(
     libraries: list[str] | None = None,
     physics: list[str] | None = None,
     renderers: list[str] | None = None,
+    presets: list[str] | None = None,
     scope: str | None = None,
     max_rows: int | None = None,
 ) -> list[dict[str, Any]]:
@@ -150,6 +183,8 @@ def filter_rows(
             are kept only when ``"default"`` is listed.
         renderers: Restrict to these renderer presets. Rows are headless unless
             a renderer was requested, so ``"none"`` keeps headless rows.
+        presets: Restrict to these domain presets. ``"default"`` keeps rows that
+            select none.
         scope: ``core``, ``contrib``, or ``all``.
         max_rows: Deterministic head of the sorted order, as a cost valve.
 
@@ -169,6 +204,9 @@ def filter_rows(
     if renderers:
         wanted_renderers = set(renderers)
         result = [row for row in result if (row.get("renderer") or "none") in wanted_renderers]
+    if presets:
+        wanted_presets = set(presets)
+        result = [row for row in result if (row.get("presets") or "default") in wanted_presets]
     if scope and scope != "all":
         result = [row for row in result if row.get("scope") == scope]
     if max_rows is not None:
@@ -224,40 +262,55 @@ def discover_tasks(*, validate_modes: bool = True) -> list[DiscoveredTask]:
         preset_map = enumerate_task_presets(spec.id)
         physics = _canonical_physics(tuple(sorted(preset_map.get(PresetTarget.PHYSICS, [])))) if preset_map else ()
         renderers = tuple(sorted(preset_map.get(PresetTarget.RENDERER, []))) if preset_map else ()
+        domains = _domain_presets(preset_map.get(PresetTarget.DOMAIN, [])) if preset_map else ()
         tasks.append(
             DiscoveredTask(
                 task_id=spec.id,
                 scope="contrib" if spec.id.startswith("IsaacContrib-") else "core",
                 rl_libraries=libraries,
-                modes=_legal_modes(spec.id, physics, renderers, validate=validate_modes),
+                modes=_legal_modes(spec.id, physics, renderers, domains, validate=validate_modes),
             )
         )
     tasks.sort(key=lambda task: task.task_id)
     return tasks
 
 
+def _domain_presets(names: list[str]) -> tuple[str, ...]:
+    """Return the domain presets worth dispatching, dropping backend mirrors."""
+    return tuple(sorted(name for name in names if name not in _BACKEND_MIRROR_NAMES))
+
+
 def _legal_modes(
-    task_id: str, physics: tuple[str, ...], renderers: tuple[str, ...], *, validate: bool
+    task_id: str,
+    physics: tuple[str, ...],
+    renderers: tuple[str, ...],
+    domains: tuple[str, ...],
+    *,
+    validate: bool,
 ) -> tuple[DiscoveredTask.Mode, ...]:
-    """Return the legal physics/renderer combinations for one task.
+    """Return the legal physics/renderer/preset combinations for one task.
 
     A task declaring renderers is always expanded across them: benchmarking a
-    camera task headless measures everything except the thing under test.
+    camera task headless measures everything except the thing under test. Domain
+    presets are expanded one at a time, never combined, because presets
+    targeting the same field conflict outright.
     """
     physics_options: tuple[str | None, ...] = physics or (None,)
-    if not renderers:
-        return tuple(DiscoveredTask.Mode(physics=name, renderer=None) for name in physics_options)
+    renderer_options: tuple[str | None, ...] = renderers or (None,)
+    # ``None`` keeps the task's own default alongside each explicit preset.
+    domain_options: tuple[str | None, ...] = (None, *domains) if domains else (None,)
 
     modes: list[DiscoveredTask.Mode] = []
     for physics_name in physics_options:
-        for renderer in renderers:
-            if validate and not _mode_resolves(task_id, physics_name, renderer):
-                continue
-            modes.append(DiscoveredTask.Mode(physics=physics_name, renderer=renderer))
+        for renderer in renderer_options:
+            for domain in domain_options:
+                if validate and not _mode_resolves(task_id, physics_name, renderer, domain):
+                    continue
+                modes.append(DiscoveredTask.Mode(physics=physics_name, renderer=renderer, presets=domain))
     return tuple(modes)
 
 
-def _mode_resolves(task_id: str, physics: str | None, renderer: str | None) -> bool:
+def _mode_resolves(task_id: str, physics: str | None, renderer: str | None, presets: str | None = None) -> bool:
     """Return whether a physics/renderer pairing resolves and passes validation.
 
     Any failure — an unknown preset, an unloadable config, or a rejected backend
@@ -279,6 +332,8 @@ def _mode_resolves(task_id: str, physics: str | None, renderer: str | None) -> b
         argv.append(f"physics={physics}")
     if renderer is not None:
         argv.append(f"renderer={renderer}")
+    if presets is not None:
+        argv.append(f"presets={presets}")
 
     original_argv = list(sys.argv)
     try:

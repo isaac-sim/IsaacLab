@@ -83,14 +83,35 @@ pairings survive for a Cartpole camera task. Discovery checks each pairing
 against the runtime validator, which costs about 7 seconds for the whole
 registry and saves finding out on a GPU.
 
-Current shape: **87 tasks → 429 rows**, of which 109 carry a renderer across the
-5 camera-capable tasks.
+Domain presets — `depth`, `rgb`, `albedo`, `semantic_segmentation`, shading and
+scene variants — are a third axis, selected with `presets=`. Backend names that
+also appear under DOMAIN on 31 tasks are filtered out, since those are chosen
+with `physics=`.
+
+**Known limitation:** discovery emits domain presets **one at a time** and never
+combines them. Presets targeting the same field conflict outright
+(`presets=depth,rgb` fails with *"Conflicting global presets"*), and there is no
+rule available for which pairs compose. Orthogonal combinations that would be
+valid — a data type plus a shading variant — are therefore not generated.
+The **executor has no such limit**: a hand-written list may give
+`presets: [depth, simple_shading_full_mdl]`, or the comma-separated string form,
+and it is passed through as one `presets=a,b` token.
+
+Current shape: **87 tasks → 1663 rows**, up from 429 before the preset axis.
+That is far more than you would run, so whitelisting is the normal path:
+
+```bash
+# depth on cartpole, every legal physics/renderer pairing
+uv run python -m tools.odin.cli discover \
+    --include 'Isaac-Cartpole-Camera*' --presets depth --library rsl_rl
+```
 
 | Filter | Effect |
 |---|---|
 | `--library rsl_rl` | restrict the RL library axis; repeatable |
 | `--physics newton_mjwarp` | restrict the physics axis; repeatable |
 | `--renderer none` | restrict the renderer axis; repeatable (`none` keeps headless rows) |
+| `--presets depth` | restrict the domain-preset axis; repeatable (`default` keeps rows selecting none) |
 | `--scope {core,contrib,all}` | core vs contrib, from the explicit `scope` field |
 | `--include` / `--exclude` | `task_id` globs |
 | `--max_rows N` | deterministic head of the sorted order, as a cost valve |

@@ -22,22 +22,24 @@ _ANT = DiscoveredTask(
     task_id="Isaac-Ant",
     scope="core",
     rl_libraries=("rsl_rl", "rl_games", "skrl"),
-    modes=(Mode("newton_kamino", None), Mode("newton_mjwarp", None), Mode("physx", None)),
+    modes=(Mode("newton_kamino", None, None), Mode("newton_mjwarp", None, None), Mode("physx", None, None)),
 )
 _CONTRIB = DiscoveredTask(
     task_id="IsaacContrib-Walk",
     scope="contrib",
     rl_libraries=("rsl_rl",),
-    modes=(Mode("newton_mjwarp", None),),
+    modes=(Mode("newton_mjwarp", None, None),),
 )
 # 35 real tasks declare no physics preset and reject any physics= token.
-_NO_PHYSICS = DiscoveredTask(task_id="Isaac-Intrinsic", scope="core", rl_libraries=("skrl",), modes=(Mode(None, None),))
+_NO_PHYSICS = DiscoveredTask(
+    task_id="Isaac-Intrinsic", scope="core", rl_libraries=("skrl",), modes=(Mode(None, None, None),)
+)
 # A camera task: renderers are always expanded, and one pairing is illegal.
 _CAMERA = DiscoveredTask(
     task_id="Isaac-Cartpole-Camera",
     scope="core",
     rl_libraries=("rsl_rl",),
-    modes=(Mode("newton_mjwarp", "ovrtx"), Mode("isaacsim_physx", "isaacsim_rtx")),
+    modes=(Mode("newton_mjwarp", "ovrtx", None), Mode("isaacsim_physx", "isaacsim_rtx", None)),
 )
 _TASKS = [_ANT, _CONTRIB, _NO_PHYSICS]
 
@@ -63,7 +65,7 @@ def test_physics_filter_replaces_a_cross_backend_selection() -> None:
         task_id="Isaac-X",
         scope="core",
         rl_libraries=("rsl_rl",),
-        modes=(Mode("newton_mjwarp", None), Mode("ovphysx", None), Mode("newton_kamino", None)),
+        modes=(Mode("newton_mjwarp", None, None), Mode("ovphysx", None, None), Mode("newton_kamino", None, None)),
     )
     rows = filter_rows(expand_rows([task]), physics=["newton_mjwarp", "ovphysx"])
     assert {row["physics"] for row in rows} == {"newton_mjwarp", "ovphysx"}

@@ -265,8 +265,8 @@ def test_discover_writes_a_planner_ready_task_list(workspace: Path, tmp_path: Pa
         cli_module,
         "discover_tasks",
         lambda: [
-            DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), (DiscoveredTask.Mode("newton_mjwarp", None),)),
-            DiscoveredTask("IsaacContrib-Walk", "contrib", ("rsl_rl",), (DiscoveredTask.Mode("ovphysx", None),)),
+            DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), (DiscoveredTask.Mode("newton_mjwarp", None, None),)),
+            DiscoveredTask("IsaacContrib-Walk", "contrib", ("rsl_rl",), (DiscoveredTask.Mode("ovphysx", None, None),)),
         ],
     )
     out = tmp_path / "tasks.yaml"
@@ -285,6 +285,6 @@ def test_discover_scope_filter_can_empty_the_list(tmp_path: Path, monkeypatch) -
     monkeypatch.setattr(
         cli_module,
         "discover_tasks",
-        lambda: [DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), (DiscoveredTask.Mode(None, None),))],
+        lambda: [DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), (DiscoveredTask.Mode(None, None, None),))],
     )
     assert main(["discover", "--scope", "contrib", "--output", str(tmp_path / "t.yaml")]) != 0

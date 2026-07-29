@@ -17,6 +17,7 @@ def _row(key: str, timeout_s: int | None) -> PlannedRow:
         rl_library="rsl_rl",
         physics="physx",
         renderer=None,
+        presets=(),
         seed=42,
         num_envs=None,
         max_iterations=None,

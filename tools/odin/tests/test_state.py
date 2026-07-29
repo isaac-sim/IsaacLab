@@ -27,6 +27,7 @@ def _job(row_key: str = "rsl_rl_physx_Isaac-Ant_seed42") -> JobEntry:
         rl_library="rsl_rl",
         physics="physx",
         renderer=None,
+        presets=(),
         seed=42,
         num_envs=4096,
         max_iterations=500,

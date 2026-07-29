@@ -178,3 +178,23 @@ def test_task_without_a_physics_preset_is_planned() -> None:
     row = plan_rows(task_rows=[{"task_id": "Isaac-X", "rl_library": "rsl_rl"}], seeds=[42])[0]
     assert row.physics is None
     assert row.row_key == "rsl_rl_default_Isaac-X_seed42"
+
+
+def test_presets_accept_a_single_token() -> None:
+    row = plan_rows(task_rows=[dict(_ROWS[0], presets="depth")], seeds=[42])[0]
+    assert row.presets == ("depth",)
+
+
+def test_presets_accept_a_comma_separated_string() -> None:
+    # Discovery emits one token, but a hand-written list may compose several.
+    row = plan_rows(task_rows=[dict(_ROWS[0], presets="depth,simple_shading_full_mdl")], seeds=[42])[0]
+    assert row.presets == ("depth", "simple_shading_full_mdl")
+
+
+def test_presets_accept_a_yaml_list() -> None:
+    row = plan_rows(task_rows=[dict(_ROWS[0], presets=["depth", "albedo"])], seeds=[42])[0]
+    assert row.presets == ("depth", "albedo")
+
+
+def test_absent_presets_are_empty() -> None:
+    assert plan_rows(task_rows=_ROWS, seeds=[42])[0].presets == ()
