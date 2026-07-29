@@ -551,6 +551,10 @@ class DirectRLEnv(gym.Env):
         if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
+        # Note: "rgb_array" intentionally returns None here. Frame capture is handled internally
+        # by VideoRecorder (see cfg.video_recorders), which sources frames from the active
+        # visualizer or a scene sensor every step(). gym.wrappers.RecordVideo is therefore not
+        # supported; use VideoRecorderCfg instead.
         if self.render_mode == "human" or self.render_mode is None or self.render_mode == "rgb_array":
             return None
         else:

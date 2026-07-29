@@ -490,6 +490,10 @@ class DirectMARLEnv(gym.Env):
             if "interval" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="interval", dt=self.step_dt)
 
+        # advance video recorders (after render, before obs)
+        for recorder in self.video_recorders:
+            recorder.step()
+
         # update observations and the list of current agents (sorted as in possible_agents)
         self.obs_dict = self._get_observations()
         self.agents = [agent for agent in self.possible_agents if agent in self.obs_dict]
@@ -573,6 +577,10 @@ class DirectMARLEnv(gym.Env):
         if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
+        # Note: "rgb_array" intentionally returns None here. Frame capture is handled internally
+        # by VideoRecorder (see cfg.video_recorders), which sources frames from the active
+        # visualizer or a scene sensor every step(). gym.wrappers.RecordVideo is therefore not
+        # supported; use VideoRecorderCfg instead.
         if self.render_mode == "human" or self.render_mode is None or self.render_mode == "rgb_array":
             return None
         else:

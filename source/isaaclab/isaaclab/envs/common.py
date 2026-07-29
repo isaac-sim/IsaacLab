@@ -134,6 +134,12 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
         return
 
     if getattr(sim_cfg, "default_visualizer_cfg", None) is not None:
+        _logging.getLogger(__name__).warning(
+            "env_cfg.viewer is deprecated, but its non-default values (eye, lookat, origin_type) "
+            "could NOT be forwarded automatically because env_cfg.sim.default_visualizer_cfg is "
+            "already set. To silence this warning and preserve your camera settings, migrate to "
+            "KitVisualizerCfg: env_cfg.sim.default_visualizer_cfg = KitVisualizerCfg(eye=..., lookat=...)."
+        )
         return
 
     # Map deprecated origin_type values to the new KitVisualizerCfg fields.

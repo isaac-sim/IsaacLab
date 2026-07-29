@@ -79,6 +79,9 @@ class VideoRecorder:
         self._frames_step_count = 0
         self._clip_index = 0
         self._recording = False
+        # Set to True after the first unrecoverable frame-capture error so that
+        # subsequent steps do not propagate the exception or repeat the log message.
+        self._frame_error_logged: bool = False
 
     def step(self) -> None:
         """Advance the recorder by one env step."""
@@ -121,13 +124,25 @@ class VideoRecorder:
         return effective_step % self.cfg.video_interval == 0
 
     def _get_frame(self) -> np.ndarray | None:
-        kind, type_or_name, sub = _parse_source(self.cfg.source)
-        if kind == "visualizer":
-            return self._frame_from_visualizer(type_or_name, sub)
-        if kind == "sensor":
-            return self._frame_from_sensor(type_or_name)
-        # Unreachable: kind was validated in __init__, but keeps type checkers happy.
-        return None  # pragma: no cover
+        if self._frame_error_logged:
+            return None
+        try:
+            kind, type_or_name, sub = _parse_source(self.cfg.source)
+            if kind == "visualizer":
+                return self._frame_from_visualizer(type_or_name, sub)
+            if kind == "sensor":
+                return self._frame_from_sensor(type_or_name)
+            # Unreachable: kind was validated in __init__, but keeps type checkers happy.
+            return None  # pragma: no cover
+        except RuntimeError as exc:
+            logger.error(
+                "[VideoRecorder] Frame capture failed; recording will be disabled for this stream. "
+                "source=%r  error: %s",
+                self.cfg.source,
+                exc,
+            )
+            self._frame_error_logged = True
+            return None
 
     def _frame_from_visualizer(self, viz_type: str, sub: str) -> np.ndarray | None:
         sim = getattr(self._env, "sim", None)
@@ -182,6 +197,10 @@ class VideoRecorder:
         return viz.render_rgb_array()
 
     def _frame_from_sensor(self, name: str) -> np.ndarray | None:
+        # Note: only the "rgb" channel is currently supported for sensor sources.
+        # Sub-channel specifiers such as "sensor:<name>:depth" are parsed but the sub
+        # field is ignored — depth colorization is not implemented.  To record depth,
+        # retrieve the depth tensor manually in a custom recorder subclass.
         scene = getattr(self._env, "scene", None)
         if scene is None:
             raise RuntimeError(

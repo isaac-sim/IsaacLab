@@ -187,10 +187,15 @@ def test_visualizer_source_auto_picks_first_with_render_rgb_array():
     assert viz.render_calls == 1
 
 
-def test_visualizer_source_auto_no_visualizer_raises():
+def test_visualizer_source_auto_no_visualizer_logs_and_returns_none(caplog):
+    """source='visualizer' with no visualizers logs an error once and returns None instead of raising."""
+    import logging
+
     recorder = VideoRecorder(_cfg(source="visualizer"), _make_env(visualizers=[]))
-    with pytest.raises(RuntimeError, match="no recording-capable visualizer"):
-        recorder._get_frame()
+    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
+        frame = recorder._get_frame()
+    assert frame is None
+    assert any("no recording-capable visualizer" in r.message for r in caplog.records)
 
 
 def test_kit_visualizer_newton_physics_logs_warning(caplog):
@@ -231,12 +236,16 @@ def test_sensor_source_reads_rgb():
     assert frame.shape == (8, 12, 3)
 
 
-def test_sensor_source_missing_raises():
-    """Missing sensor raises RuntimeError listing available sensors."""
+def test_sensor_source_missing_logs_and_returns_none(caplog):
+    """Missing sensor logs an error (listing available sensors) and returns None instead of raising."""
+    import logging
+
     sensors = {"tiled_camera": MagicMock()}
     recorder = VideoRecorder(_cfg(source="sensor:missing"), _make_env(sensors=sensors))
-    with pytest.raises(RuntimeError, match="tiled_camera"):
-        recorder._get_frame()
+    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
+        frame = recorder._get_frame()
+    assert frame is None
+    assert any("tiled_camera" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
