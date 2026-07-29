@@ -53,10 +53,7 @@ from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
 wp.init()
 
 # OVPhysX/Warp and the PyTorch reference use different float32 operation order on CUDA.
-# The relative bound has to hold for the spawn-transient wrenches too, which reach ~1e9 N
-# on the first step after reset; a cross product plus a quaternion rotation at that
-# magnitude drifts by tens of ulp, which is well above a 1e-6-scale bound.
-_OVPHYSX_WRENCH_RTOL = 1e-4
+_OVPHYSX_WRENCH_RTOL = 1e-5
 _OVPHYSX_WRENCH_ATOL = 1e-5
 
 # ---------------------------------------------------------------------------

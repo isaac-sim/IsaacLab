@@ -12,7 +12,7 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from ._fabric_notices import disabled_fabric_change_notifies
-from .cloner_utils import split_clone_template
+from .path import split
 
 
 def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
@@ -118,7 +118,7 @@ class UsdReplicateContext:
         for depth in sorted(depth_to_items.keys()):
             with Sdf.ChangeBlock():
                 for src, tmpl, target_envs, positions, quaternions in depth_to_items[depth]:
-                    _, clone_suffix = split_clone_template(tmpl)
+                    _, clone_suffix = split(tmpl)
                     is_instance_root = clone_suffix == ""
 
                     for wid in target_envs.tolist():

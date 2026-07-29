@@ -7,7 +7,7 @@ from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.reach.config.franka import joint_pos_env_cfg
+from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
 
 ##
 # Pre-defined configs
@@ -16,7 +16,7 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: ski
 
 
 @configclass
-class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
+class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

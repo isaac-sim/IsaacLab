@@ -109,7 +109,13 @@ class MockTensorBinding:
 
             if isinstance(tensor, wp.array):
                 tmp = wp.from_numpy(self._data, dtype=wp.float32, device=tensor.device)
-                wp.copy(tensor, tmp)
+                scalar = getattr(tensor.dtype, "_wp_scalar_type_", tensor.dtype)
+                if scalar is not wp.float32:
+                    raise RuntimeError(
+                        f"incompatible destination dtype: expected float32 scalar elements, got {tensor.dtype}"
+                    )
+                destination = tensor if tensor.dtype == wp.float32 else tensor.view(wp.float32)
+                wp.copy(destination, tmp)
                 return
         except ImportError:
             pass

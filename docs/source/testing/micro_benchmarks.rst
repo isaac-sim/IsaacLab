@@ -269,12 +269,12 @@ Key Components
    - ``MockArticulationView`` - Mimics PhysX ArticulationView
    - ``MockRigidBodyView`` - Mimics PhysX RigidBodyView
 
-2. **Benchmark Framework** (``isaaclab/test/benchmark/``)
+2. **Benchmark Framework** (``isaaclab/benchmark/``)
 
-   - :class:`~isaaclab.test.benchmark.MethodBenchmarkRunner` - Runner extending
-     :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark` for method-level benchmarks
-   - :class:`~isaaclab.test.benchmark.MethodBenchmarkRunnerConfig` - Configuration dataclass
-   - :class:`~isaaclab.test.benchmark.MethodBenchmarkDefinition` - Benchmark definition
+   - :class:`~isaaclab.benchmark.MethodBenchmarkRunner` - Runner extending
+     :class:`~isaaclab.benchmark.BaseIsaacLabBenchmark` for method-level benchmarks
+   - :class:`~isaaclab.benchmark.MethodBenchmarkRunnerConfig` - Configuration dataclass
+   - :class:`~isaaclab.benchmark.MethodBenchmarkDefinition` - Benchmark definition
    - Multiple output backends (JSON, Osmo, OmniPerf)
 
 3. **Module Mocking**
@@ -292,7 +292,7 @@ Adding a Method Benchmark
 
 .. code-block:: python
 
-   from isaaclab.test.benchmark import MethodBenchmarkRunnerConfig
+   from isaaclab.benchmark import MethodBenchmarkRunnerConfig
 
    def gen_my_method_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
        return {
@@ -310,7 +310,7 @@ Adding a Method Benchmark
 
 .. code-block:: python
 
-   from isaaclab.test.benchmark import MethodBenchmarkDefinition
+   from isaaclab.benchmark import MethodBenchmarkDefinition
 
    MethodBenchmarkDefinition(
        name="my_method",

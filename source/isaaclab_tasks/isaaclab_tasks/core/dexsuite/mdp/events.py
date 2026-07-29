@@ -15,7 +15,7 @@ import warp as wp
 from tqdm import tqdm
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
+from isaaclab import cloner
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.utils.math import quat_apply, random_orientation, sample_uniform
 
@@ -461,7 +461,7 @@ class mesh_clearance(ManagerTermBase):
         env_object_mesh = np.zeros(env.num_envs, dtype=np.int32)
         mesh_by_path: dict[str, int] = {}
         clone_plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        for _, _, source_path, env_ids in iter_clone_plan_matches(clone_plan, self._object.cfg.prim_path):
+        for _, _, source_path, env_ids in cloner.query.iter_sources(clone_plan, self._object.cfg.prim_path):
             if source_path not in mesh_by_path:
                 object_prim = sim_utils.get_current_stage().GetPrimAtPath(source_path)
                 object_mesh_by_id = collect_collision_meshes(object_prim, lambda prim: (0, object_prim))

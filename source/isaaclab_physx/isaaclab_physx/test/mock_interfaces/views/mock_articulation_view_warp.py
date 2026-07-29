@@ -13,7 +13,7 @@ from ..utils.kernels_mock import (
     init_identity_inertias_2d,
     init_identity_transforms_1d_flat,
     init_identity_transforms_2d_flat,
-    scatter_floats_2d,
+    scatter_floats_2d_global_rows,
 )
 from ..utils.mock_shared_metatype import MockSharedMetatype
 
@@ -472,7 +472,7 @@ class MockArticulationViewWarp:
         """Set world transforms of root links.
 
         Args:
-            transforms: Warp array of shape (N, 7) or (len(indices), 7) with dtype=wp.float32.
+            transforms: Warp array of shape (N, 7) with dtype=wp.float32.
             indices: Optional indices of articulations to update.
         """
         if self._noop_setters:
@@ -481,7 +481,7 @@ class MockArticulationViewWarp:
             self._root_transforms = self._create_identity_transforms_1d(self._count)
         if indices is not None:
             wp.launch(
-                scatter_floats_2d,
+                scatter_floats_2d_global_rows,
                 dim=(indices.shape[0], 7),
                 inputs=[transforms, indices, self._root_transforms],
                 device=self._device,
@@ -497,7 +497,7 @@ class MockArticulationViewWarp:
         """Set velocities of root links.
 
         Args:
-            velocities: Warp array of shape (N, 6) or (len(indices), 6) with dtype=wp.float32.
+            velocities: Warp array of shape (N, 6) with dtype=wp.float32.
             indices: Optional indices of articulations to update.
         """
         if self._noop_setters:
@@ -506,7 +506,7 @@ class MockArticulationViewWarp:
             self._root_velocities = wp.zeros((self._count, 6), dtype=wp.float32, device=self._device)
         if indices is not None:
             wp.launch(
-                scatter_floats_2d,
+                scatter_floats_2d_global_rows,
                 dim=(indices.shape[0], 6),
                 inputs=[velocities, indices, self._root_velocities],
                 device=self._device,
@@ -524,7 +524,7 @@ class MockArticulationViewWarp:
         """Set positions of all DOFs.
 
         Args:
-            positions: Warp array of shape (N, J) or (len(indices), J) with dtype=wp.float32.
+            positions: Warp array of shape (N, J) with dtype=wp.float32.
             indices: Optional indices of articulations to update.
         """
         if self._noop_setters:
@@ -533,7 +533,7 @@ class MockArticulationViewWarp:
             self._dof_positions = wp.zeros((self._count, self._num_dofs), dtype=wp.float32, device=self._device)
         if indices is not None:
             wp.launch(
-                scatter_floats_2d,
+                scatter_floats_2d_global_rows,
                 dim=(indices.shape[0], self._num_dofs),
                 inputs=[positions, indices, self._dof_positions],
                 device=self._device,
@@ -549,7 +549,7 @@ class MockArticulationViewWarp:
         """Set velocities of all DOFs.
 
         Args:
-            velocities: Warp array of shape (N, J) or (len(indices), J) with dtype=wp.float32.
+            velocities: Warp array of shape (N, J) with dtype=wp.float32.
             indices: Optional indices of articulations to update.
         """
         if self._noop_setters:
@@ -558,7 +558,7 @@ class MockArticulationViewWarp:
             self._dof_velocities = wp.zeros((self._count, self._num_dofs), dtype=wp.float32, device=self._device)
         if indices is not None:
             wp.launch(
-                scatter_floats_2d,
+                scatter_floats_2d_global_rows,
                 dim=(indices.shape[0], self._num_dofs),
                 inputs=[velocities, indices, self._dof_velocities],
                 device=self._device,
