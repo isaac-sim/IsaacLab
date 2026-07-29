@@ -8,6 +8,8 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 import isaaclab.benchmark.asset_suites.cli as cli
 
 
@@ -87,3 +89,32 @@ def test_script_cli_accepts_app_launcher_device_argument(monkeypatch, tmp_path) 
 
     assert captured["request"].config.device == "cpu"
     assert captured["request"].launcher_args.device == "cpu"
+
+
+@pytest.mark.parametrize(
+    ("option", "value", "message"),
+    [
+        ("--num_iterations", "0", "must be greater than zero"),
+        ("--warmup_steps", "-1", "must be non-negative"),
+        ("--num_instances", "0", "must be greater than zero"),
+        ("--num_bodies", "0", "must be greater than zero"),
+        ("--num_joints", "-1", "must be non-negative"),
+    ],
+)
+def test_script_cli_reports_invalid_counts_as_argument_errors(
+    monkeypatch, capsys, option: str, value: str, message: str
+) -> None:
+    """Invalid benchmark counts should exit through argparse without a traceback."""
+    adapter = SimpleNamespace(default_num_bodies=1, default_num_joints=0)
+    monkeypatch.setattr(cli, "get_asset_benchmark_adapter", lambda physics, component: adapter)
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.run_asset_benchmark_cli(
+            "physx",
+            "rigid_object",
+            [option, value, "--device", "cpu"],
+            include_app_launcher_args=False,
+        )
+
+    assert exc_info.value.code == 2
+    assert message in capsys.readouterr().err

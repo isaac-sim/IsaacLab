@@ -71,6 +71,13 @@ def test_factory_rejects_unknown_component_with_available_choices() -> None:
         MicrobenchmarkFactory().build_command("physx", "unknown", [])
 
 
+@pytest.mark.parametrize("override", [["--physics_variant", "newton_mjwarp"], ["--physics_variant=newton_mjwarp"]])
+def test_factory_rejects_passthrough_physics_variant_override(override: list[str]) -> None:
+    """Passthrough arguments must not replace the exact selected physics variant."""
+    with pytest.raises(ValueError, match="physics_variant"):
+        MicrobenchmarkFactory().build_command("newton_kamino", "articulation", override)
+
+
 def test_microbenchmark_cli_launches_selected_command() -> None:
     """The public CLI should launch the selected workload in a clean child process."""
     with mock.patch("isaaclab.benchmark.microbenchmark.run_python_command") as run_python:

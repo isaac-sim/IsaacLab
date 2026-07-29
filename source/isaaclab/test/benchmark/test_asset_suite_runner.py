@@ -21,11 +21,11 @@ class _FakeRunner:
     events: list[tuple] = []
     next_index = 0
 
-    def __init__(self, benchmark_name, config, backend_type, output_path, use_recorders):
+    def __init__(self, benchmark_name, config, backend_type, output_path, use_recorders, physics_variant=None):
         self.index = _FakeRunner.next_index
         _FakeRunner.next_index += 1
         self.benchmark_name = benchmark_name
-        _FakeRunner.events.append(("create", benchmark_name, config.num_bodies))
+        _FakeRunner.events.append(("create", benchmark_name, config.num_bodies, physics_variant))
 
     def run_benchmarks(self, definitions, target):
         _FakeRunner.events.append(("methods", self.benchmark_name, tuple(d.method_name for d in definitions), target))
@@ -102,6 +102,8 @@ def test_combined_command_preserves_two_historical_artifacts_and_order(tmp_path)
         Path("rigid_object_benchmark.json"),
         Path("rigid_object_data_benchmark.json"),
     )
+    create_events = [event for event in _FakeRunner.events if event[0] == "create"]
+    assert [event[3] for event in create_events] == ["physx", "physx"]
     assert [event[:2] for event in _FakeRunner.events] == [
         ("enter", 4),
         ("create", "rigid_object_benchmark"),

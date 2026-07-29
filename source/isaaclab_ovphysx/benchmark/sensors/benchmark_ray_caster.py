@@ -20,6 +20,7 @@ import argparse
 from functools import partial
 
 from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark._ray_caster import rough_terrain_size
 
 parser = argparse.ArgumentParser(description="Benchmark the OVPhysX RayCaster update path.")
 parser.add_argument("--physics_variant", choices=("ovphysx",), default="ovphysx", help="Exact physics variant.")
@@ -70,7 +71,8 @@ from isaaclab.utils.seed import configure_seed
 wp.init()
 
 _ROUGH_TERRAIN_SEED = 0
-_ROUGH_TERRAIN_SIZE = max(3.0, args_cli.grid_size + 1.0)
+_ENV_SPACING = 2.0
+_ROUGH_TERRAIN_SIZE = rough_terrain_size(args_cli.num_envs, _ENV_SPACING, args_cli.grid_size)
 _WORKLOADS = ("plane", "rough")
 
 
@@ -133,7 +135,7 @@ def main() -> None:
     with build_simulation_context(device=args_cli.device, sim_cfg=sim_cfg) as sim:
         scene_cfg = RayCasterBenchmarkSceneCfg(
             num_envs=args_cli.num_envs,
-            env_spacing=2.0,
+            env_spacing=_ENV_SPACING,
             lazy_sensor_update=True,
         )
         workloads = _WORKLOADS if args_cli.terrain == "all" else (args_cli.terrain,)

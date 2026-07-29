@@ -64,6 +64,9 @@ class MicrobenchmarkFactory:
 
     def build_command(self, physics: str, component: str, passthrough_args: list[str]) -> MicrobenchmarkCommand:
         """Resolve one exact physics/component selection."""
+        if any(arg == "--physics_variant" or arg.startswith("--physics_variant=") for arg in passthrough_args):
+            raise ValueError("--physics_variant is reserved; select the variant with physics=<variant>.")
+
         try:
             descriptor = self._PHYSICS[physics]
         except KeyError as exc:

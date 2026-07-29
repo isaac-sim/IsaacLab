@@ -126,6 +126,7 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         backend_type: str = "json",
         output_path: str = ".",
         use_recorders: bool = True,
+        physics_variant: str | None = None,
     ):
         """Initialize the method benchmark runner.
 
@@ -135,6 +136,7 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             backend_type: Output backend type ("json", "osmo", "omni_perf").
             output_path: Directory to write output files.
             use_recorders: Whether to collect hardware/version info.
+            physics_variant: Exact physics backend selector, when applicable.
         """
         self._config = config
 
@@ -149,6 +151,8 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
                 {"name": "device", "data": config.device},
             ]
         }
+        if physics_variant is not None:
+            workflow_metadata["metadata"].append({"name": "physics_variant", "data": physics_variant})
 
         super().__init__(
             benchmark_name=benchmark_name,

@@ -89,6 +89,7 @@ def run_asset_benchmark(
             backend_type=request.formatter_type,
             output_path=str(request.output_path),
             use_recorders=True,
+            physics_variant=request.physics_variant,
         )
         method_runner.run_benchmarks(definitions, targets.method_target)
         fill_benchmarks = build_fill_benchmarks(definitions, capabilities=adapter.capabilities)
@@ -106,6 +107,7 @@ def run_asset_benchmark(
             backend_type=request.formatter_type,
             output_path=str(request.output_path),
             use_recorders=True,
+            physics_variant=request.physics_variant,
         )
         data_runner.run_property_benchmarks(
             target_data=targets.data_target,

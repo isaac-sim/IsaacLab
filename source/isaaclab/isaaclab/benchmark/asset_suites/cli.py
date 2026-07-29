@@ -11,6 +11,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
+from .._cli import parse_non_negative_int, parse_positive_int
 from ..method_benchmark import MethodBenchmarkRunnerConfig
 from .dispatch import get_asset_benchmark_adapter
 from .runner import run_asset_benchmark
@@ -33,11 +34,15 @@ def run_asset_benchmark_cli(
         description=f"Benchmark {component} methods and data ({selector_args.physics_variant} backend).",
         parents=[selector_parser],
     )
-    parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
-    parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
-    parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
-    parser.add_argument("--num_bodies", type=int, default=adapter.default_num_bodies, help="Number of bodies")
-    parser.add_argument("--num_joints", type=int, default=adapter.default_num_joints, help="Number of joints")
+    parser.add_argument("--num_iterations", type=parse_positive_int, default=1000, help="Number of iterations")
+    parser.add_argument("--warmup_steps", type=parse_non_negative_int, default=10, help="Number of warmup steps")
+    parser.add_argument("--num_instances", type=parse_positive_int, default=4096, help="Number of instances")
+    parser.add_argument(
+        "--num_bodies", type=parse_positive_int, default=adapter.default_num_bodies, help="Number of bodies"
+    )
+    parser.add_argument(
+        "--num_joints", type=parse_non_negative_int, default=adapter.default_num_joints, help="Number of joints"
+    )
     parser.add_argument("--mode", type=str, default="all", help="Benchmark input mode")
     parser.add_argument(
         "--output_path",
