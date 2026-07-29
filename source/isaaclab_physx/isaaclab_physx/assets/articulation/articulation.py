@@ -229,9 +229,8 @@ class Articulation(BaseArticulation):
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        # use ellipses object to skip initial indices.
-        if (env_ids is None) or (env_ids == slice(None)):
-            env_ids = slice(None)
+        if isinstance(env_ids, slice) and env_ids == slice(None):
+            env_ids = None
         # reset actuators (including Newton-native adapter which owns its states)
         for actuator in self.actuators.values():
             actuator.reset(env_ids)

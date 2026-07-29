@@ -18,6 +18,8 @@ that adopt this view as ``root_view``; it is not (and is not meant to be) re-cov
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import pytest
 
@@ -38,7 +40,33 @@ from isaaclab_ovphysx.sim.views.ovphysx_view import (  # noqa: E402
 from ovphysx.types import TensorType  # noqa: E402
 
 wp.init()
+wp.set_device("cpu")
 _HAS_CUDA = wp.get_cuda_device_count() > 0
+
+_EXPECTED_READ_ONLY_NAMES = frozenset(
+    {
+        "rigid_body_acceleration",
+        "rigid_body_inv_mass",
+        "rigid_body_inv_inertia",
+        "articulation_link_acceleration",
+        "articulation_body_inv_mass",
+        "articulation_body_inv_inertia",
+        "articulation_dof_projected_joint_force",
+        "articulation_link_incoming_joint_force",
+        "articulation_mass_center_world",
+        "articulation_mass_center_local",
+        "articulation_jacobian",
+        "articulation_mass_matrix",
+        "articulation_centroidal_momentum",
+        "articulation_coriolis_and_centrifugal_force",
+        "articulation_gravity_force",
+        "deformable_rest_nodal_position",
+        "deformable_sim_element_indices",
+        "deformable_collision_element_indices",
+        "surface_deformable_rest_position",
+        "surface_deformable_sim_element_indices",
+    }
+)
 
 # Per-type shapes used by the fakes (only the types touched by the tests).
 _SHAPES = {
@@ -46,6 +74,25 @@ _SHAPES = {
     TensorType.RIGID_BODY_VELOCITY: lambda n: (n, 6),
     TensorType.RIGID_BODY_MASS: lambda n: (n,),  # CPU-only
     TensorType.RIGID_BODY_ACCELERATION: lambda n: (n, 6),  # read-only
+    TensorType.DEFORMABLE_SIM_ELEMENT_INDICES: lambda n: (n, 1),
+    TensorType.RIGID_BODY_DISABLE_SIMULATION: lambda n: (n, 1),
+}
+
+
+@dataclass(frozen=True)
+class _FakeDtype:
+    code: int
+    bits: int
+    lanes: int = 1
+
+
+_FLOAT32 = _FakeDtype(code=2, bits=32)
+_INT32 = _FakeDtype(code=0, bits=32)
+_UINT8 = _FakeDtype(code=1, bits=8)
+
+_DTYPES = {
+    TensorType.DEFORMABLE_SIM_ELEMENT_INDICES: _INT32,
+    TensorType.RIGID_BODY_DISABLE_SIMULATION: _UINT8,
 }
 
 
@@ -55,6 +102,7 @@ class _FakeBinding:
     def __init__(self, tensor_type, n: int):
         self.tensor_type = tensor_type
         self.shape = _SHAPES.get(tensor_type, lambda k: (k, 1))(n)
+        self.dtype = _DTYPES.get(tensor_type, _FLOAT32)
         self.count = n
         self.prim_paths = [f"/World/env_{i}/body" for i in range(n)]
         self.dof_names: list[str] = []
@@ -126,10 +174,11 @@ def test_resolve_unknown_name_raises():
 
 
 def test_read_only_names_are_valid_vocabulary():
-    # Every read-only name must resolve to a real TensorType, so the hand-maintained
-    # set stays coupled to the wheel enum (no dead names).
+    # The expected inventory keeps the manually maintained production set complete;
+    # vocabulary coverage also rejects stale names after wheel enum changes.
     from isaaclab_ovphysx.sim.views import ovphysx_view as mod
 
+    assert mod._READ_ONLY_NAMES == _EXPECTED_READ_ONLY_NAMES
     assert set(attribute_vocabulary()) >= mod._READ_ONLY_NAMES
 
 
@@ -184,6 +233,40 @@ def test_eager_default_sweep_empty_view_raises():
 # -----------------------------------------------------------------------------
 # get_attribute / read_into
 # -----------------------------------------------------------------------------
+
+
+def test_get_attribute_uses_binding_reported_int32_dtype():
+    view = _make_view(n=2)
+    values = view.get_attribute(TensorType.DEFORMABLE_SIM_ELEMENT_INDICES)
+    assert values.dtype == wp.int32
+    assert tuple(values.shape) == (2, 1)
+
+
+def test_get_attribute_uses_binding_reported_uint8_dtype():
+    view = _make_view(n=2)
+    values = view.get_attribute(TensorType.RIGID_BODY_DISABLE_SIMULATION)
+    assert values.dtype == wp.uint8
+
+
+def test_int32_binding_accepts_int32_and_rejects_float32():
+    view = _make_view(n=2)
+    view.read_into(
+        TensorType.DEFORMABLE_SIM_ELEMENT_INDICES,
+        wp.zeros((2, 1), dtype=wp.int32, device="cpu"),
+    )
+    with pytest.raises(OvPhysxView.DtypeMismatch, match="int32"):
+        view.read_into(
+            TensorType.DEFORMABLE_SIM_ELEMENT_INDICES,
+            wp.zeros((2, 1), dtype=wp.float32, device="cpu"),
+        )
+
+
+def test_missing_or_unsupported_binding_dtype_raises_compatibility_error():
+    view = _make_view(n=1)
+    binding = view.binding_for(TensorType.RIGID_BODY_MASS)
+    binding.dtype = _FakeDtype(code=2, bits=64)
+    with pytest.raises(OvPhysxView.DtypeMismatch, match="DLPack"):
+        view.get_attribute(TensorType.RIGID_BODY_MASS)
 
 
 def test_get_attribute_allocates_fresh_typed_buffer_each_call():
@@ -253,6 +336,32 @@ def test_read_into_caches_per_destination_buffer():
     view_b = binding.last_read_obj
     assert view_a is not view_b  # distinct reinterprets per destination buffer
     assert view_a.ptr == a.ptr and view_b.ptr == b.ptr
+
+
+def test_read_into_revalidates_shape_when_destination_crosses_bindings():
+    view = _make_view(n=3)
+    dst = wp.zeros((3,), dtype=wp.transformf, device="cpu")
+    view.read_into("rigid_body_pose", dst)
+
+    velocity_binding = view.binding_for(TensorType.RIGID_BODY_VELOCITY)
+    with pytest.raises(OvPhysxView.ShapeMismatch):
+        view.read_into("rigid_body_velocity", dst)
+    assert velocity_binding.read_calls == 0
+
+
+def test_get_attribute_out_revalidates_dtype_when_destination_crosses_bindings():
+    view = _make_view(n=2)
+    int3 = wp.types.vector(length=3, dtype=wp.int32)
+    dst = wp.zeros((2,), dtype=int3, device="cpu")
+    index_binding = view.binding_for(TensorType.DEFORMABLE_SIM_ELEMENT_INDICES)
+    index_binding.shape = (2, 3)
+    view.read_into(TensorType.DEFORMABLE_SIM_ELEMENT_INDICES, dst)
+
+    mass_binding = view.binding_for(TensorType.RIGID_BODY_MASS)
+    mass_binding.shape = (2, 3)
+    with pytest.raises(OvPhysxView.DtypeMismatch, match="float32"):
+        view.get_attribute(TensorType.RIGID_BODY_MASS, out=dst)
+    assert mass_binding.read_calls == 0
 
 
 def test_get_attribute_out_param_is_filled_and_returned():
@@ -337,12 +446,14 @@ def test_set_attribute_reinterprets_structured_source():
     assert (dtype, shape) == (wp.float32, (3, 7))
 
 
-def test_set_attribute_read_only_raises_and_does_not_bind():
+@pytest.mark.parametrize("name", sorted(_EXPECTED_READ_ONLY_NAMES))
+def test_set_attribute_read_only_raises_and_does_not_bind(name: str):
     view = _make_view(n=3)
-    values = wp.zeros((3, 6), dtype=wp.float32, device="cpu")
+    values = wp.zeros((3, 1), dtype=wp.float32, device="cpu")
     with pytest.raises(OvPhysxView.ReadOnlyAttribute, match="read-only"):
-        view.set_attribute("rigid_body_acceleration", values)
-    assert TensorType.RIGID_BODY_ACCELERATION not in view._bindings
+        view.set_attribute(name, values)
+    assert resolve_tensor_type(name) not in view._bindings
+    assert view._physx.created == []
 
 
 def test_set_attribute_shape_mismatch_raises():

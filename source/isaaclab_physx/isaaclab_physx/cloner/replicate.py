@@ -12,7 +12,7 @@ import torch
 from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
-from isaaclab.cloner.cloner_utils import split_clone_template
+from isaaclab import cloner
 
 
 def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
@@ -82,10 +82,9 @@ class PhysxReplicateContext:
         for i, src in enumerate(sources):
             worlds = _select_env_ids(env_ids, mapping, i).tolist()
             if exclude_self_replication:
-                pre, suf = split_clone_template(destinations[i])
-                self_id = src.removeprefix(pre).removesuffix(suf)
-                if self_id.isdigit():
-                    filtered = [w for w in worlds if w != int(self_id)]
+                matched = cloner.path.match(src, destinations[i])
+                if matched is not None and matched.instance.isdigit():
+                    filtered = [w for w in worlds if w != int(matched.instance)]
                     worlds = filtered if filtered else worlds
             self.queue(src, destinations[i], worlds)
 
@@ -107,7 +106,7 @@ class PhysxReplicateContext:
         def _is_self_only(src: str, destination: str, target_envs: tuple[int, ...]) -> bool:
             if len(target_envs) != 1:
                 return False
-            pre, suf = split_clone_template(destination)
+            pre, suf = cloner.path.split(destination)
             return src == f"{pre}{target_envs[0]}{suf}"
 
         if all(_is_self_only(src, dst, envs) for src, dst, envs in physx_queue):

@@ -165,26 +165,6 @@ def container_pose_at_time(sim_time: float):
     return pos, quat_y(angle), twist
 
 
-def launch_omniverse_asset_resolver():
-    """Start Kit for Newton-only runs that need to resolve remote USD layers.
-
-    The default teapot container is served from Nucleus over HTTPS, which plain
-    ``pxr`` cannot resolve; Kit ships the asset resolver that can. Kit-visualizer
-    runs boot Kit anyway, so this only applies to Newton-only runs.
-    """
-    if "kit" in (args_cli.visualizer or []):
-        return None
-
-    from isaaclab.utils import has_kit
-
-    if has_kit():
-        return None
-
-    from isaaclab.app import AppLauncher
-
-    return AppLauncher(args_cli)
-
-
 def create_demo_bowl_mesh(num_segments: int = 96):
     """Build one local-space open bowl mesh used by the catch-bowl collider."""
     theta = np.linspace(0.0, 2.0 * math.pi, num_segments, endpoint=False)
@@ -507,29 +487,24 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Set up and run the Isaac Lab Newton MPM particle-pour demo."""
-    app_launcher = launch_omniverse_asset_resolver()
-    try:
-        sim_cfg = create_sim_cfg()
-        with launch_simulation(sim_cfg, args_cli):
-            import isaaclab.sim as sim_utils
-            from isaaclab.scene import InteractiveScene
+    sim_cfg = create_sim_cfg()
+    with launch_simulation(sim_cfg, args_cli):
+        import isaaclab.sim as sim_utils
+        from isaaclab.scene import InteractiveScene
 
-            sim = sim_utils.SimulationContext(sim_cfg)
-            scene = InteractiveScene(create_scene_cfg())
-            sim.reset()
-            sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        scene = InteractiveScene(create_scene_cfg())
+        sim.reset()
+        sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
 
-            print(
-                "[INFO]: Isaac Lab Newton particle-pour MPM demo ready."
-                f" Spawned {particle_count(scene)} MPM particles;"
-                f" voxel size {VOXEL_SIZE:.4g} m;"
-                f" the teapot will tilt after {HOLD_TIME:.2f}s.",
-                flush=True,
-            )
-            run_simulator(sim, scene)
-    finally:
-        if app_launcher is not None:
-            app_launcher.app.close()
+        print(
+            "[INFO]: Isaac Lab Newton particle-pour MPM demo ready."
+            f" Spawned {particle_count(scene)} MPM particles;"
+            f" voxel size {VOXEL_SIZE:.4g} m;"
+            f" the teapot will tilt after {HOLD_TIME:.2f}s.",
+            flush=True,
+        )
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":

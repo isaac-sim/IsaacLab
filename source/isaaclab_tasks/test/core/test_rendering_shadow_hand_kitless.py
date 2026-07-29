@@ -30,6 +30,6 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
-def test_rendering_shadow_hand_kitless(physics_backend, renderer, data_type):
+def test_rendering_shadow_hand_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Test shadow hand environment rendering correctness."""
     rendering_test_shadow_hand(physics_backend, renderer, data_type, _COMPARISON_SCORES)
