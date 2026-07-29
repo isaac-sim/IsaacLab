@@ -1,15 +1,11 @@
 Added
 ^^^^^
 
-* Added an opt-in cached :class:`~isaaclab.utils.warp.ProxyArray` return mode
-  to asset finder methods for zero-copy Torch and Warp index views.
-
-Deprecated
-^^^^^^^^^^
-
-* Deprecated relying on the implicit legacy return type of asset finder
-  methods. Pass ``as_proxy=True`` for cached proxy selectors or
-  ``as_proxy=False`` to retain the current legacy representation explicitly.
+* Added the ``as_proxy`` return-mode option to asset finder methods.
+  ``as_proxy=False`` is the default and returns the legacy selector
+  representation, while ``as_proxy=True`` opts into cached
+  :class:`~isaaclab.utils.warp.ProxyArray` selectors with zero-copy Torch and
+  Warp index views.
 
 Fixed
 ^^^^^

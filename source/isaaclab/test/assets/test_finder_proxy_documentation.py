@@ -25,7 +25,8 @@ _FINDER_FILES = (
     "source/isaaclab_ovphysx/isaaclab_ovphysx/assets/rigid_object/rigid_object.py",
     "source/isaaclab_ovphysx/isaaclab_ovphysx/assets/rigid_object_collection/rigid_object_collection.py",
 )
-_BACKEND_FRAGMENTS = (
+_CHANGELOG_FRAGMENTS = (
+    "source/isaaclab/changelog.d/antoiner-articulation-reordering-integration.rst",
     "source/isaaclab_physx/changelog.d/antoiner-articulation-reordering-integration.rst",
     "source/isaaclab_newton/changelog.d/antoiner-articulation-reordering-integration.rst",
     "source/isaaclab_ovphysx/changelog.d/antoiner-articulation-reordering-integration.rst",
@@ -118,10 +119,10 @@ def test_articulation_body_finder_migration_example_uses_body_domain(path: str) 
     assert "tendon_ids" not in docstring
 
 
-@pytest.mark.parametrize("path", _BACKEND_FRAGMENTS)
-def test_backend_fragments_include_deprecation_migration_guidance(path: str) -> None:
+@pytest.mark.parametrize("path", _CHANGELOG_FRAGMENTS)
+def test_changelog_fragments_document_false_default_and_true_opt_in(path: str) -> None:
     fragment = (_REPO_ROOT / path).read_text()
 
-    assert "Deprecated" in fragment
-    assert "as_proxy=True" in fragment
-    assert "as_proxy=False" in fragment
+    assert "``as_proxy=False`` is the default" in fragment
+    assert "``as_proxy=True`` opts into" in fragment
+    assert "implicit legacy" not in fragment

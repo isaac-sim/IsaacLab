@@ -78,15 +78,13 @@ _ALL_FINDER_CASES = _LIST_FINDER_CASES + ["collection_bodies"]
 
 
 @pytest.mark.parametrize("case", _ALL_FINDER_CASES)
-def test_finders_support_transitional_return_modes(case):
-    """Test implicit legacy, explicit legacy, and proxy finder return modes."""
+def test_finders_default_to_legacy_and_support_proxy_mode(case):
+    """Test omitted false, explicit false, and explicit true finder return modes."""
     asset, finder, name_keys = _make_finder_case(case)
-
-    with pytest.warns(DeprecationWarning, match="as_proxy"):
-        implicit_indices, implicit_names = finder(name_keys)
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
+        default_indices, default_names = finder(name_keys)
         explicit_indices, explicit_names = finder(name_keys, as_proxy=False)
         proxy_indices, proxy_names = finder(name_keys, as_proxy=True)
         empty_indices, empty_names = finder([], as_proxy=True)
@@ -95,21 +93,21 @@ def test_finders_support_transitional_return_modes(case):
     expected_indices = [0] if case == "rigid_object_bodies" else [0, 1]
     expected_names = ["item_0"] if case == "rigid_object_bodies" else ["item_0", "item_1"]
     if case == "collection_bodies":
-        assert isinstance(implicit_indices, torch.Tensor)
+        assert isinstance(default_indices, torch.Tensor)
         assert isinstance(explicit_indices, torch.Tensor)
-        assert implicit_indices.dtype == torch.int32
+        assert default_indices.dtype == torch.int32
         assert explicit_indices.dtype == torch.int32
-        assert implicit_indices.device.type == asset.device
+        assert default_indices.device.type == asset.device
         assert explicit_indices.device.type == asset.device
-        assert implicit_indices.tolist() == expected_indices
+        assert default_indices.tolist() == expected_indices
         assert explicit_indices.tolist() == expected_indices
     else:
-        assert implicit_indices == expected_indices
+        assert default_indices == expected_indices
         assert explicit_indices == expected_indices
 
-    assert implicit_names == expected_names
-    assert explicit_names == implicit_names
-    assert proxy_names == implicit_names
+    assert default_names == expected_names
+    assert explicit_names == default_names
+    assert proxy_names == default_names
     assert isinstance(proxy_indices, ProxyArray)
     assert proxy_indices.warp.dtype == wp.int32
     assert str(proxy_indices.warp.device) == asset.device
@@ -164,8 +162,7 @@ def test_articulation_finders_cache_after_subset_remapping(finder_name, subset_a
     )
     finder = getattr(robot, finder_name)
 
-    with pytest.warns(DeprecationWarning):
-        implicit_indices, implicit_names = finder(".*", **{subset_arg: ["item_2", "item_0"]}, preserve_order=True)
+    default_indices, default_names = finder(".*", **{subset_arg: ["item_2", "item_0"]}, preserve_order=True)
     explicit_indices, explicit_names = finder(
         ".*", **{subset_arg: ["item_2", "item_0"]}, preserve_order=True, as_proxy=False
     )
@@ -174,8 +171,8 @@ def test_articulation_finders_cache_after_subset_remapping(finder_name, subset_a
     )
     direct_indices, direct_names = finder(["item_2", "item_0"], preserve_order=True, as_proxy=True)
 
-    assert implicit_indices == explicit_indices == [2, 0]
-    assert implicit_names == explicit_names == ["item_2", "item_0"]
+    assert default_indices == explicit_indices == [2, 0]
+    assert default_names == explicit_names == ["item_2", "item_0"]
     assert subset_indices is direct_indices
     assert subset_indices.torch.tolist() == [2, 0]
     assert subset_names == direct_names == ["item_2", "item_0"]
@@ -202,11 +199,11 @@ def test_collection_find_objects_forwards_return_mode():
 
     with warnings.catch_warnings(record=True) as warning_records:
         warnings.simplefilter("always", DeprecationWarning)
-        implicit_indices, implicit_names = collection.find_objects(name_keys)
-    assert len(warning_records) == 2
-    assert all(issubclass(record.category, DeprecationWarning) for record in warning_records)
-    assert any("find_objects" in str(record.message) for record in warning_records)
-    assert any("as_proxy" in str(record.message) for record in warning_records)
+        default_indices, default_names = collection.find_objects(name_keys)
+    assert len(warning_records) == 1
+    assert issubclass(warning_records[0].category, DeprecationWarning)
+    assert "find_objects" in str(warning_records[0].message)
+    assert "as_proxy" not in str(warning_records[0].message)
 
     for as_proxy in (False, True):
         with warnings.catch_warnings(record=True) as warning_records:
@@ -216,14 +213,14 @@ def test_collection_find_objects_forwards_return_mode():
         assert issubclass(warning_records[0].category, DeprecationWarning)
         assert "find_objects" in str(warning_records[0].message)
         assert "as_proxy" not in str(warning_records[0].message)
-        assert names == implicit_names
+        assert names == default_names
         if as_proxy:
             assert isinstance(indices, ProxyArray)
             assert indices is collection.find_bodies(name_keys, as_proxy=True)[0]
         else:
             assert isinstance(indices, torch.Tensor)
             assert indices.dtype == torch.int32
-            assert torch.equal(indices, implicit_indices)
+            assert torch.equal(indices, default_indices)
 
 
 def test_binary_joint_action_reuses_cached_proxy_without_torch_materialization():

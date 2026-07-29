@@ -3,21 +3,16 @@ Added
 
 * Added OVPhysX articulation Jacobians, mass matrices, and gravity
   compensation through the backend-agnostic articulation data API.
-* Added cached :class:`~isaaclab.utils.warp.ProxyArray` selector support to
-  OVPhysX asset finder methods.
+* Added the ``as_proxy`` return-mode option to OVPhysX asset finder methods.
+  ``as_proxy=False`` is the default and returns the legacy selector
+  representation, while ``as_proxy=True`` opts into cached
+  :class:`~isaaclab.utils.warp.ProxyArray` selectors.
 
 Changed
 ^^^^^^^
 
 * Cached stable OVPhysX articulation read launches outside CUDA graph capture.
   No user migration is required.
-
-Deprecated
-^^^^^^^^^^
-
-* Deprecated relying on implicit legacy finder returns. Pass
-  ``as_proxy=True`` for cached proxy selectors or ``as_proxy=False`` to retain
-  the current legacy representation explicitly.
 
 Fixed
 ^^^^^
