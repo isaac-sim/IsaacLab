@@ -132,25 +132,19 @@ The ``source`` string selects what to capture:
    * - ``"visualizer"``
      - First active recording-capable visualizer (auto)
    * - ``"visualizer:kit"``
-     - Kit viewport camera (PhysX only — errors with Newton physics)
+     - Kit visualizer viewport
    * - ``"visualizer:kit:tiled"``
-     - Kit tiled-camera grid panel
+     - Kit visualizer tiled-camera grid panel
    * - ``"visualizer:newton"``
-     - Newton GL visualizer framebuffer
+     - Newton GL visualizer viewport
    * - ``"visualizer:newton:tiled"``
-     - Newton tiled camera panel
+     - Newton GL visualizer tiled-camera panel
    * - ``"sensor:<name>"``
      - ``env.scene.sensors[name]``, RGB channel
 
 The camera angle, resolution, and other visualizer settings are configured on the
 corresponding :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` or
 :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg`, not on the recorder.
-
-.. note::
-
-   ``source="visualizer:kit"`` does not work with Newton physics — Kit Replicator
-   cannot read Newton Fabric transforms and the recorder logs an error.
-   Use ``source="visualizer:newton"`` instead when Newton is active.
 
 
 Clip control
@@ -242,6 +236,18 @@ Requirements
 
 * For ``source="sensor:<name>"``: the named field must exist on the scene config and
   have ``"rgb"`` in its ``data_types``.
+
+
+Limitations
+-----------
+
+* ``source="visualizer:kit"`` and ``source="visualizer:kit:tiled"`` require PhysX physics.
+  Kit Replicator cannot read Newton Fabric scene transforms, so these sources log an error
+  and produce no clip when Newton is active.  Use ``source="visualizer:newton"`` instead.
+
+* ``source="visualizer:newton:tiled"`` captures the Newton GL window framebuffer when
+  ``tiled_cam_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg`.
+  Newton does not implement a separate ``render_tiled_rgb_array()`` path.
 
 
 See also
