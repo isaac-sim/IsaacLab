@@ -45,9 +45,7 @@ class MicrobenchmarkFactory:
         }
     )
     _ASSET_COMPONENTS = frozenset({"articulation", "rigid_object", "rigid_object_collection"})
-    _SENSOR_COMPONENTS = frozenset(
-        {"contact_sensor", "frame_transformer", "imu", "pva", "joint_wrench", "ray_caster"}
-    )
+    _SENSOR_COMPONENTS = frozenset({"contact_sensor", "frame_transformer", "imu", "pva", "joint_wrench", "ray_caster"})
 
     @classmethod
     def repository_root(cls) -> Path:
@@ -64,9 +62,7 @@ class MicrobenchmarkFactory:
         """Return discoverable component workloads."""
         return tuple(sorted(cls._ASSET_COMPONENTS | cls._SENSOR_COMPONENTS))
 
-    def build_command(
-        self, physics: str, component: str, passthrough_args: list[str]
-    ) -> MicrobenchmarkCommand:
+    def build_command(self, physics: str, component: str, passthrough_args: list[str]) -> MicrobenchmarkCommand:
         """Resolve one exact physics/component selection."""
         try:
             descriptor = self._PHYSICS[physics]

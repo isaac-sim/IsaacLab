@@ -74,9 +74,7 @@ def test_factory_rejects_unknown_component_with_available_choices() -> None:
 def test_microbenchmark_cli_launches_selected_command() -> None:
     """The public CLI should launch the selected workload in a clean child process."""
     with mock.patch("isaaclab.benchmark.microbenchmark.run_python_command") as run_python:
-        status = run_microbenchmark_cli(
-            ["--component", "joint_wrench", "physics=newton_kamino", "--num_steps", "2"]
-        )
+        status = run_microbenchmark_cli(["--component", "joint_wrench", "physics=newton_kamino", "--num_steps", "2"])
 
     assert status == 0
     script, args = run_python.call_args.args
