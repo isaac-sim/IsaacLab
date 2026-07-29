@@ -597,7 +597,6 @@ class NewtonManager(PhysicsManager):
                         NewtonManager._transforms_dirty = False
                     return
 
-                NewtonManager._newton_fabric_ready = True
                 fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
                 newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
                 wp.launch(
@@ -608,6 +607,7 @@ class NewtonManager(PhysicsManager):
                 )
                 wp.synchronize_device(PhysicsManager._device)
 
+                NewtonManager._newton_fabric_ready = True
                 NewtonManager._transforms_dirty = False
 
                 if use_cubric and fabric_hierarchy is not None:

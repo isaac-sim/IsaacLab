@@ -1523,7 +1523,7 @@ def _make_shadow_hand_env(
     are resolved before the env is constructed.
     """
     env_cfg = copy.deepcopy(ShadowHandEnvCfg())
-    preset_key = "newton_mjwarp" if backend_kind == "newton" else "default"
+    preset_key = "newton_mjwarp" if backend_kind == "newton" else "physx"
     env_cfg.sim.physics = getattr(env_cfg.sim.physics, preset_key)
     env_cfg.scene = getattr(env_cfg.scene, preset_key)
     env_cfg.robot_cfg = getattr(env_cfg.robot_cfg, preset_key)
