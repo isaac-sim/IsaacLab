@@ -8,6 +8,7 @@
 The following configurations are available:
 
 * :obj:`FRANKA_PANDA_CFG`: Franka Emika Panda robot with Panda hand
+* :obj:`FRANKA_PANDA_MENAGERIE_CFG`: Franka Emika Panda robot converted from MuJoCo Menagerie
 * :obj:`FRANKA_PANDA_HIGH_PD_CFG`: Franka Emika Panda robot with Panda hand with stiffer PD control
 * :obj:`FRANKA_ROBOTIQ_GRIPPER_CFG`: Franka robot with Robotiq_2f_85 gripper
 
@@ -73,6 +74,30 @@ FRANKA_PANDA_CFG = ArticulationCfg(
     soft_joint_pos_limit_factor=1.0,
 )
 """Configuration of Franka Emika Panda robot."""
+
+
+FRANKA_PANDA_MENAGERIE_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_PANDA_MENAGERIE_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
+FRANKA_PANDA_MENAGERIE_CFG.actuators = {
+    "panda_arm": ImplicitActuatorCfg(
+        joint_names_expr=["panda_joint[1-7]"],
+        # Override the converter-authored angular drives with SI gains until the USD is corrected.
+        velocity_limit_sim={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
+        stiffness={"panda_joint[1-2]": 1000.0, "panda_joint[3-4]": 750.0, "panda_joint[5-7]": 300.0},
+        damping={"panda_joint[1-2]": 20.0, "panda_joint[3-4]": 4.0, "panda_joint[5-7]": 2.0},
+    ),
+    "panda_hand": ImplicitActuatorCfg(
+        joint_names_expr=["panda_finger_joint.*"],
+        stiffness=None,
+        damping=None,
+    ),
+}
+"""Configuration of the MuJoCo Menagerie-derived Franka Emika Panda robot.
+
+The converted model has different inertial and drive authoring from the legacy asset used by
+:attr:`FRANKA_PANDA_CFG`. The explicit arm gains and solver velocity limits provide consistent
+resolved drives across physics backends, while the hand retains its USD-authored drives.
+"""
 
 
 FRANKA_PANDA_HIGH_PD_CFG = FRANKA_PANDA_CFG.copy()

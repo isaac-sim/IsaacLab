@@ -7,20 +7,18 @@ from isaaclab.controllers.operational_space_cfg import OperationalSpaceControlle
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.utils.configclass import configclass
 
-from . import joint_pos_env_cfg
+from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
 
 
 @configclass
-class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
-    def __post_init__(self):
+class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
+    def __post_init__(self) -> None:
         # post init of parent
         super().__post_init__()
 
-        # Remove stiffness and damping for the shoulder and forearm joints for effort control
-        self.scene.robot.actuators["panda_shoulder"].stiffness = 0.0
-        self.scene.robot.actuators["panda_shoulder"].damping = 0.0
-        self.scene.robot.actuators["panda_forearm"].stiffness = 0.0
-        self.scene.robot.actuators["panda_forearm"].damping = 0.0
+        # Remove stiffness and damping from the arm for effort control.
+        self.scene.robot.actuators["panda_arm"].stiffness = 0.0
+        self.scene.robot.actuators["panda_arm"].damping = 0.0
         self.scene.robot.spawn.rigid_props.disable_gravity = True
 
         # If closed-loop contact force control is desired, contact sensors should be enabled for the robot

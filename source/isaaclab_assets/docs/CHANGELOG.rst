@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.6.0 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_assets.robots.franka.FRANKA_PANDA_MENAGERIE_CFG` for the
+  MuJoCo Menagerie-derived Franka asset with cross-backend actuator overrides.
+* Added ``SHADOW_HAND_NEWTON_CFG``, the Newton (MJWarp) Shadow Hand configuration,
+  shared by the reorientation and handover tasks.
+
+
 0.5.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 
