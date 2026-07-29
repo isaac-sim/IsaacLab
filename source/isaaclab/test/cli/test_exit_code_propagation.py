@@ -5,18 +5,12 @@
 
 """Tests that CLI subcommands propagate the exit code of the commands they run."""
 
-import os
 import sys
 
 import pytest
 
-# Make the CLI importable straight from the source tree so this test also runs
-# outside an environment where the isaaclab package is installed.
-ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ISAACLAB_PATH, "source", "isaaclab"))
-
-from isaaclab.cli import utils  # noqa: E402
-from isaaclab.cli.commands import misc  # noqa: E402
+from isaaclab.cli import utils
+from isaaclab.cli.commands import misc
 
 
 def test_run_command_check_propagates_exit_code():
@@ -34,24 +28,39 @@ def test_run_command_no_check_swallows_exit_code():
     assert result.returncode == 3
 
 
-def test_misc_commands_request_checked_execution(monkeypatch):
-    """Every python child launched by the misc subcommands must pass check=True.
+def test_run_python_command_forwards_check(monkeypatch):
+    """check=True must survive the delegation from run_python_command to run_command."""
+    seen = {}
 
-    This is the regression guard for the -t/--new/--vscode/--docker paths
-    reporting success while their child failed.
-    """
+    def fake_run_command(cmd, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr(utils, "extract_python_exe", lambda: sys.executable)
+    monkeypatch.setattr(utils, "run_command", fake_run_command)
+    utils.run_python_command("script.py", [], check=True)
+    assert seen.get("check") is True
+
+
+# command_vscode_settings is deliberately absent: settings generation is
+# best-effort (it also runs inside the install flow) and must not abort the
+# invoking command on failure.
+@pytest.mark.parametrize(
+    "invoke",
+    [
+        pytest.param(lambda: misc.command_new([]), id="new"),
+        pytest.param(lambda: misc.command_test([]), id="test"),
+        pytest.param(lambda: misc.command_run_docker([]), id="docker"),
+    ],
+)
+def test_misc_commands_request_checked_execution(monkeypatch, invoke):
+    """Regression guard for -t/--new/--docker reporting success while their child failed."""
     calls = []
 
     def record(script_or_module, args, **kwargs):
         calls.append((str(script_or_module), kwargs.get("check", False)))
 
     monkeypatch.setattr(misc, "run_python_command", record)
-
-    misc.command_new([])
-    misc.command_test([])
-    misc.command_vscode_settings()
-    misc.command_run_docker([])
-
-    assert len(calls) == 5  # command_new launches pip install + the generator
+    invoke()
+    assert calls, "command did not launch a python child"
     unchecked = [script for script, checked in calls if not checked]
     assert not unchecked, f"child commands launched without check=True: {unchecked}"

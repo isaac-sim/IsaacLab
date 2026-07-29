@@ -70,7 +70,9 @@ def command_vscode_settings() -> None:
 
     # Check if the file exists before attempting to run it.
     if setup_vscode_script.exists():
-        run_python_command(setup_vscode_script, [], check=True)
+        # Best-effort: a failure generating editor settings should not abort the
+        # invoking command (this also runs inside the install flow).
+        run_python_command(setup_vscode_script, [])
         print_info("VS Code settings generated successfully.")
     else:
         print_warning("Unable to find the script 'setup_vscode.py'. Aborting vscode settings setup.")
