@@ -20,6 +20,8 @@ Fixed
 * Fixed shadow deformable particle double-allocation during visualization model build by
   ignoring PhysX/OVPhysX deformable prims in source USD import before
   :func:`~isaaclab_newton.physics.visualization_deformables.add_shadow_deformables_to_builder`.
+* Fixed standalone (no clone plan) shadow-model builds to populate deformable registry
+  metadata so OVRTX can bind visual mesh points outside cloned multi-env scenes.
 * Fixed shadow deformable entity ordering so geometry mappings align with PhysX/OVPhysX
   SceneData ``geometry_paths`` (volume bodies before surface bodies).
 * Fixed shadow deformable placement to resolve the deformable root pose instead of only the
