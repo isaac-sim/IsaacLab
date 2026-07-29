@@ -137,7 +137,7 @@ def build_fill_benchmarks(
     *,
     capabilities: frozenset[str],
 ) -> list[MethodBenchmarkDefinition]:
-    """Build the historical tensor and mask fill-ratio workloads."""
+    """Build the tensor and mask fill-ratio workloads."""
     fill_benchmarks: list[MethodBenchmarkDefinition] = []
     for benchmark in benchmarks:
         generators: dict[str, InputGenerator] = {}

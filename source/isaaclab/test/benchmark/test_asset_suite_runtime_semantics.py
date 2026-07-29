@@ -168,6 +168,9 @@ def test_newton_collection_refresh_rebinds_regenerated_sources(monkeypatch) -> N
 
 def test_ovphysx_data_targets_are_independent_and_properties_preflight_when_available() -> None:
     """OVPhysX property targets should be independent and expose every declared runtime property."""
+    if not torch.cuda.is_available():
+        pytest.skip("OVPhysX target construction requires CUDA pinned memory")
+
     from isaaclab_ovphysx.benchmark.assets import runtime as ovphysx_runtime
 
     from isaaclab.benchmark.asset_suites import (

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for retained asset micro-benchmark script dispatch."""
+"""Tests for asset micro-benchmark script dispatch."""
 
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,7 +14,7 @@ import isaaclab.benchmark.asset_suites.cli as cli
 
 
 def test_script_cli_builds_one_combined_request(monkeypatch, tmp_path) -> None:
-    """A retained script should dispatch one method-and-data request."""
+    """An asset script should dispatch one method-and-data request."""
     adapter = SimpleNamespace(default_num_bodies=4, default_num_joints=0)
     captured = {}
     monkeypatch.setattr(cli, "get_asset_benchmark_adapter", lambda physics, component: adapter)

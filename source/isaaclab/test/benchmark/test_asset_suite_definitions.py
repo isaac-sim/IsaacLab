@@ -67,7 +67,7 @@ def test_method_manifests_preserve_backend_workloads(
     definition_count: int,
     workload_count: int,
 ) -> None:
-    """Capability resolution should reproduce every historical method workload."""
+    """Capability resolution should produce every declared method workload."""
     suite = get_asset_benchmark_suite(component)
     adapter = SimpleNamespace(
         physics=physics,

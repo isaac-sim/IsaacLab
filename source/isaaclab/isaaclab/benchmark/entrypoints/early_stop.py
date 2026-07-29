@@ -257,9 +257,7 @@ def get_success_tracker(
 ) -> SuccessRateTracker | None:
     """Return a tracker with recorded history, or ``None`` if neither source has data.
 
-    Prefers the per-iteration TensorBoard series because it is the value presented by the
-    training logger. When available, it replaces the live tracker's step-averaged history.
-    Falls back to *live_tracker* only when TensorBoard contains no success metric.
+    Prefer logged per-iteration history; fall back to the live tracker.
 
     Args:
         args_cli: Parsed arg namespace with the ``--success_*`` flags.

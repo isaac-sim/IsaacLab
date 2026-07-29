@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""CLI bridge used by retained per-backend asset benchmark scripts."""
+"""CLI bridge used by per-backend asset benchmark scripts."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def run_asset_benchmark_cli(
     *,
     include_app_launcher_args: bool = True,
 ) -> tuple[Path, ...]:
-    """Parse a retained script's arguments and run both benchmark phases."""
+    """Parse an asset script's arguments and run both benchmark phases."""
     selector_parser = argparse.ArgumentParser(add_help=False)
     selector_parser.add_argument("--physics_variant", default=physics, help="Exact physics variant")
     selector_args, _ = selector_parser.parse_known_args(argv)

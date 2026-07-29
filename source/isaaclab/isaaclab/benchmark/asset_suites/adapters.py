@@ -42,20 +42,20 @@ class PackageAssetBenchmarkAdapter:
 
     @property
     def method_benchmark_name(self) -> str:
-        """Return the historical method workflow name."""
+        """Return the method-workload output name."""
         return f"{self.artifact_prefix}{self.component}_benchmark"
 
     @property
     def data_benchmark_name(self) -> str:
-        """Return the historical data workflow name."""
+        """Return the data-workload output name."""
         return f"{self.artifact_prefix}{self.component}_data_benchmark"
 
     def method_config(self, request: AssetBenchmarkRequest) -> MethodBenchmarkRunnerConfig:
-        """Return the combined command's requested method configuration."""
+        """Return the requested method-workload configuration."""
         return request.config
 
     def data_config(self, request: AssetBenchmarkRequest) -> MethodBenchmarkRunnerConfig:
-        """Return the combined command's requested data configuration."""
+        """Return the requested data-workload configuration."""
         return request.config
 
     def open_targets(

@@ -17,7 +17,14 @@ from isaaclab.cli.utils import run_python_command
 
 @dataclass(frozen=True)
 class MicrobenchmarkCommand:
-    """Resolved micro-benchmark child command."""
+    """Resolved micro-benchmark child command.
+
+    Attributes:
+        physics: Exact physics variant selected for the workload.
+        component: Component workload to benchmark.
+        script: Benchmark entrypoint to execute.
+        args: Arguments passed to the benchmark entrypoint.
+    """
 
     physics: str
     component: str
@@ -34,7 +41,7 @@ class _PhysicsDescriptor:
 
 
 class MicrobenchmarkFactory:
-    """Resolve exact physics variants and components to retained entrypoints."""
+    """Resolve exact physics variants and components to benchmark entrypoints."""
 
     _PHYSICS = MappingProxyType(
         {
@@ -49,21 +56,46 @@ class MicrobenchmarkFactory:
 
     @classmethod
     def repository_root(cls) -> Path:
-        """Return the Isaac Lab repository root."""
+        """Return the Isaac Lab repository root.
+
+        Returns:
+            Repository root containing the backend benchmark entrypoints.
+        """
         return Path(__file__).parents[4]
 
     @classmethod
     def physics_variants(cls) -> tuple[str, ...]:
-        """Return discoverable exact physics variants."""
+        """Return discoverable exact physics variants.
+
+        Returns:
+            Exact physics selectors accepted by :meth:`build_command`.
+        """
         return tuple(cls._PHYSICS)
 
     @classmethod
     def components(cls) -> tuple[str, ...]:
-        """Return discoverable component workloads."""
+        """Return discoverable component workloads.
+
+        Returns:
+            Sorted component names accepted by :meth:`build_command`.
+        """
         return tuple(sorted(cls._ASSET_COMPONENTS | cls._SENSOR_COMPONENTS))
 
     def build_command(self, physics: str, component: str, passthrough_args: list[str]) -> MicrobenchmarkCommand:
-        """Resolve one exact physics/component selection."""
+        """Resolve one exact physics/component selection.
+
+        Args:
+            physics: Exact physics variant.
+            component: Asset or sensor component workload.
+            passthrough_args: Additional arguments for the selected entrypoint.
+
+        Returns:
+            Child command for the selected workload.
+
+        Raises:
+            ValueError: If the physics variant or component is unknown, or if
+                :paramref:`passthrough_args` overrides the selected variant.
+        """
         if any(arg == "--physics_variant" or arg.startswith("--physics_variant=") for arg in passthrough_args):
             raise ValueError("--physics_variant is reserved; select the variant with physics=<variant>.")
 
@@ -107,7 +139,18 @@ def _create_parser(factory: MicrobenchmarkFactory) -> argparse.ArgumentParser:
 
 
 def run_microbenchmark_cli(args: list[str] | None = None) -> int:
-    """Parse and run ``isaaclab microbenchmark``."""
+    """Parse and run ``isaaclab microbenchmark``.
+
+    Args:
+        args: Command arguments. Uses :data:`sys.argv` when ``None``.
+
+    Returns:
+        Zero after the child benchmark completes successfully.
+
+    Raises:
+        SystemExit: If command arguments are invalid.
+        subprocess.CalledProcessError: If the child benchmark fails.
+    """
     factory = MicrobenchmarkFactory()
     parser = _create_parser(factory)
     parser.add_argument("--component", required=True, choices=factory.components())

@@ -67,7 +67,6 @@ def create_test_articulation(
     object.__setattr__(articulation, "_prim_deletion_handle", None)
     object.__setattr__(articulation, "_debug_vis_handle", None)
 
-    # Create Newton mock view
     mock_view = MockNewtonArticulationView(
         num_instances=num_instances,
         num_bodies=num_bodies,
@@ -83,20 +82,18 @@ def create_test_articulation(
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
 
-    # Create ArticulationData instance (NewtonManager already mocked at call site)
     from isaaclab_newton.assets.articulation import articulation_data as data_module
 
+    # ArticulationData allocates buffers from the model dimensions at construction.
     _configure_articulation_model(data_module.SimulationManager.get_model(), num_instances, num_bodies, num_joints)
     data = data_module.ArticulationData(mock_view, device)
     object.__setattr__(articulation, "_data", data)
 
-    # Create mock wrench composers
     mock_inst_wrench = MockWrenchComposer(articulation)
     mock_perm_wrench = MockWrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
-    # Set up other required attributes
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
     object.__setattr__(articulation, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
@@ -114,7 +111,6 @@ def create_test_articulation(
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_INDICES", wp.array([], dtype=wp.int32, device=device))
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_MASK", wp.zeros((0,), dtype=wp.bool, device=device))
 
-    # Initialize joint targets
     object.__setattr__(
         articulation, "_joint_pos_target_sim", wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
     )
@@ -148,7 +144,6 @@ def create_test_rigid_object(
         prim_path="/World/Object",
     )
 
-    # Create Newton mock view
     mock_view = MockNewtonArticulationView(
         num_instances=num_instances,
         num_bodies=num_bodies,
@@ -164,19 +159,16 @@ def create_test_rigid_object(
     object.__setattr__(rigid_object, "_device", device)
     object.__setattr__(rigid_object, "_check_shapes", not args.no_shape_checks)
 
-    # Create RigidObjectData instance (NewtonManager already mocked at call site)
     from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
 
     data = RigidObjectData(mock_view, device)
     object.__setattr__(rigid_object, "_data", data)
 
-    # Create mock wrench composers
     mock_inst_wrench = MockWrenchComposer(rigid_object)
     mock_perm_wrench = MockWrenchComposer(rigid_object)
     object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(rigid_object, "_permanent_wrench_composer", mock_perm_wrench)
 
-    # Set up other required attributes
     object.__setattr__(rigid_object, "actuators", {})
     object.__setattr__(rigid_object, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
     object.__setattr__(
@@ -205,13 +197,11 @@ def create_test_collection(
 
     collection = object.__new__(RigidObjectCollection)
 
-    # Create a minimal config with dummy rigid objects
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 
     rigid_objects = {name: RigidObjectCfg(prim_path=f"/World/{name}") for name in object_names}
     collection.cfg = RigidObjectCollectionCfg(rigid_objects=rigid_objects)
 
-    # Create Newton mock view
     mock_view = MockNewtonCollectionView(
         num_envs=num_instances,
         num_bodies=num_bodies,
@@ -226,19 +216,16 @@ def create_test_collection(
     object.__setattr__(collection, "_body_names_list", object_names)
     object.__setattr__(collection, "_check_shapes", not args.no_shape_checks)
 
-    # Create RigidObjectCollectionData instance (NewtonManager already mocked at call site)
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
 
     data = RigidObjectCollectionData(mock_view, num_bodies, device)
     object.__setattr__(collection, "_data", data)
 
-    # Create mock wrench composers
     mock_inst_wrench = MockWrenchComposer(collection)
     mock_perm_wrench = MockWrenchComposer(collection)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
-    # Set up other required attributes
     object.__setattr__(
         collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
     )

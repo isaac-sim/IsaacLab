@@ -16,7 +16,11 @@ from isaaclab.benchmark.micro import (
     measure_latency,
     summarize_latency,
 )
-from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
+from isaaclab.benchmark.sensor_suites import (
+    add_sensor_latency_measurements,
+    collect_sensor_latency_samples,
+    run_contact_sensor_workload,
+)
 
 pytestmark = pytest.mark.benchmark
 
@@ -240,3 +244,50 @@ def test_add_sensor_latency_measurements_reports_standard_phases_and_native_rema
     estimated = benchmark.calls[2][2]
     assert estimated.name == "Estimated Synchronized Non-read Time"
     assert estimated.value == pytest.approx(3.0)
+
+
+def test_contact_sensor_workload_runs_shared_cadence_validation_and_reporting(monkeypatch) -> None:
+    """The contact workload should keep physics outside each timed sensor operation."""
+    events: list[str] = []
+
+    class Benchmark:
+        def __init__(self, **kwargs) -> None:
+            events.append(f"benchmark:{kwargs['benchmark_name']}")
+
+        def add_latency_samples(self, phase_name, samples):
+            events.append(f"latency:{phase_name}:{len(samples)}")
+            return SimpleNamespace(mean_s=0.0)
+
+        def add_synchronized_samples(self, phase_name, _name, samples):
+            events.append(f"synchronized:{phase_name}:{len(samples)}")
+
+        def add_measurement(self, phase_name, _measurement):
+            events.append(f"measurement:{phase_name}")
+
+        def finalize(self) -> None:
+            events.append("finalize")
+
+    monkeypatch.setattr("isaaclab.benchmark.sensor_suites.contact.LatencyBenchmarkRunner", Benchmark)
+
+    run_contact_sensor_workload(
+        benchmark_name="contact",
+        formatter_type="summary",
+        output_path=".",
+        metadata={},
+        num_steps=2,
+        warmup_steps=1,
+        decimation=2,
+        expected_contacts=4,
+        step=lambda: events.append("step"),
+        update=lambda: events.append("update"),
+        read=lambda: events.append("read"),
+        count_contacts=lambda: 4,
+        synchronize=lambda: events.append("sync"),
+    )
+
+    assert events.count("step") == 6
+    assert events.count("update") == 6
+    assert events.count("read") == 3
+    assert "latency:sensor_cadence:2" in events
+    assert "synchronized:observer:2" in events
+    assert events[-1] == "finalize"

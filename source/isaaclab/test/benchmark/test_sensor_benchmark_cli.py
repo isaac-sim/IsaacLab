@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for retained sensor micro-benchmark argument contracts."""
+"""Tests for sensor micro-benchmark argument contracts."""
 
 import subprocess
 import sys

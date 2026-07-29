@@ -28,7 +28,11 @@ from functools import partial
 
 from isaaclab.app import AppLauncher
 from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
-from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
+from isaaclab.benchmark.sensor_suites import (
+    add_sensor_benchmark_args,
+    create_contact_sensor_scene_cfg,
+    run_contact_sensor_workload,
+)
 
 parser = argparse.ArgumentParser(description="Benchmark the PhysX contact sensor update.")
 add_sensor_benchmark_args(
@@ -54,39 +58,7 @@ simulation_app = app_launcher.app
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
-from isaaclab.benchmark import LatencyBenchmarkRunner, LatencySample, SingleMeasurement
-from isaaclab.benchmark.micro import measure_latency
-from isaaclab.benchmark.sensor_suites import SensorLatencySamples, add_sensor_latency_measurements
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
-from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
-
-
-@configclass
-class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
-    """Scene with one cube per environment and a contact sensor on the cube."""
-
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-            activate_contact_sensors=True,
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.3)),
-    )
-
-    contact_sensor = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        track_air_time=True,
-        update_period=0.0,
-        history_length=args_cli.history_length,
-    )
+from isaaclab.scene import InteractiveScene
 
 
 def main():
@@ -94,7 +66,10 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=sim_dt, device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
 
-    scene_cfg = ContactSensorBenchmarkSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, lazy_sensor_update=True)
+    scene_cfg = create_contact_sensor_scene_cfg(
+        history_length=args_cli.history_length,
+        num_envs=args_cli.num_envs,
+    )
     scene = InteractiveScene(scene_cfg)
     sim.reset()
     scene.reset()
@@ -103,48 +78,9 @@ def main():
     if args_cli.disable_graph:
         sensor._use_graph = False
 
-    # Warm up the simulation and capture the sensor graph when enabled.
-    for _ in range(args_cli.warmup_steps):
-        for _ in range(args_cli.decimation):
-            sim.step(render=False)
-            sensor.update(sim_dt)
-        _ = sensor.data
-    wp.synchronize_device(sim.device)
-
-    # Time only sensor work. Physics steps happen outside the timed regions.
     synchronize_device = partial(wp.synchronize_device, sim.device)
-    cadence_samples: list[LatencySample] = []
-    for _ in range(args_cli.num_steps):
-        cadence_synchronized = 0.0
-        cadence_submission = 0.0
-        for _ in range(args_cli.decimation):
-            sim.step(render=False)
-            sample = measure_latency(operation=lambda: sensor.update(sim_dt), synchronize=synchronize_device)
-            cadence_synchronized += sample.synchronized_s
-            cadence_submission += sample.submission_s
-
-        sample = measure_latency(operation=lambda: getattr(sensor, "data"), synchronize=synchronize_device)
-        cadence_synchronized += sample.synchronized_s
-        cadence_submission += sample.submission_s
-        cadence_samples.append(LatencySample(submission_s=cadence_submission, synchronized_s=cadence_synchronized))
-
-    observer_synchronized_s = [
-        sum(
-            measure_latency(operation=lambda: None, synchronize=synchronize_device).synchronized_s
-            for _ in range(args_cli.decimation + 1)
-        )
-        for _ in range(args_cli.num_steps)
-    ]
-
     mode = "eager" if args_cli.disable_graph else "graph"
-    # Cubes rest on the ground, so every sensor must report an upward net force.
-    net_forces = sensor.data.net_forces_w.torch
-    num_in_contact = int((net_forces.norm(dim=-1) > 0.1).sum().item())
-
-    if num_in_contact != args_cli.num_envs:
-        raise RuntimeError(f"Expected {args_cli.num_envs} contacting sensors, received {num_in_contact}.")
-
-    benchmark = LatencyBenchmarkRunner(
+    run_contact_sensor_workload(
         benchmark_name="physx_contact_sensor",
         formatter_type=args_cli.benchmark_formatter,
         output_path=args_cli.output_path,
@@ -159,19 +95,16 @@ def main():
             "decimation": args_cli.decimation,
             "history_length": args_cli.history_length,
         },
+        num_steps=args_cli.num_steps,
+        warmup_steps=args_cli.warmup_steps,
+        decimation=args_cli.decimation,
+        expected_contacts=args_cli.num_envs,
+        step=lambda: sim.step(render=False),
+        update=lambda: sensor.update(sim_dt),
+        read=lambda: getattr(sensor, "data"),
+        count_contacts=lambda: int((sensor.data.net_forces_w.torch.norm(dim=-1) > 0.1).sum().item()),
+        synchronize=synchronize_device,
     )
-    add_sensor_latency_measurements(
-        benchmark,
-        samples=SensorLatencySamples(cadence_samples, observer_synchronized_s, []),
-        validation=[
-            SingleMeasurement(name="Sensors in Contact", value=num_in_contact, unit="count"),
-            SingleMeasurement(name="Expected Sensors", value=args_cli.num_envs, unit="count"),
-        ],
-        update_phase="sensor_cadence",
-        observer_phase="observer",
-        validation_phase="validation",
-    )
-    benchmark.finalize()
 
 
 if __name__ == "__main__":

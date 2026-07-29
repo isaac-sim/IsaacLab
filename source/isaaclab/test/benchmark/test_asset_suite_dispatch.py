@@ -17,7 +17,7 @@ pytestmark = pytest.mark.benchmark
 
 
 def test_provider_lookup_is_lazy_and_component_specific(monkeypatch) -> None:
-    """The future factory should import only the selected physics provider."""
+    """Provider lookup should import only the selected physics package."""
 
     @dataclass(frozen=True)
     class FakeAdapter:
@@ -49,7 +49,7 @@ def test_provider_lookup_is_lazy_and_component_specific(monkeypatch) -> None:
     ),
 )
 def test_provider_lookup_rejects_unknown_selection(physics: str, component: str, message: str) -> None:
-    """Invalid future factory selections should fail before backend imports."""
+    """Invalid provider selections should fail before backend imports."""
     with pytest.raises(ValueError, match=message):
         get_asset_benchmark_adapter(physics, component)
 
@@ -64,7 +64,7 @@ def test_provider_lookup_rejects_unknown_selection(physics: str, component: str,
         ("newton_kamino", "newton"),
     ),
 )
-def test_exact_physics_variant_is_retained_separately_from_family(variant, family) -> None:
+def test_exact_physics_variant_is_preserved_separately_from_family(variant, family) -> None:
     """Exact selectors should survive provider resolution without changing package family dispatch."""
     adapter = get_asset_benchmark_adapter(variant, "articulation")
 

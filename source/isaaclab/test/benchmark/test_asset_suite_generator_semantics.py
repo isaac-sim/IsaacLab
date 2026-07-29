@@ -107,10 +107,10 @@ def test_articulation_position_limits_preserve_lower_upper_ordering(physics) -> 
         ("write_joint_friction_coefficient_to_sim", "joint_friction_coeff", 0.5),
     ),
 )
-def test_articulation_joint_parameter_generators_preserve_historical_scales(
+def test_articulation_joint_parameter_generators_preserve_workload_scales(
     monkeypatch, physics, method_name, field_name, expected_scale
 ) -> None:
-    """Every backend and available input mode should retain its historical parameter scale."""
+    """Every backend and available input mode should preserve its workload parameter scale."""
 
     def ones(*shape, **kwargs):
         return torch.ones(*shape, device=kwargs.get("device"), dtype=kwargs.get("dtype"))

@@ -36,7 +36,7 @@ def test_validate_warmup_steps_rejects_exhausted_workload(warmup_steps: int, ava
 
 
 def test_sensor_argument_helper_registers_one_consistent_common_contract() -> None:
-    """Every retained sensor script should share the same workload and output arguments."""
+    """Every sensor script should share the same workload and output arguments."""
     parser = argparse.ArgumentParser()
     add_sensor_benchmark_args(
         parser,

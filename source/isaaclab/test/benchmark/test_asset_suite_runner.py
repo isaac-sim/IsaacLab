@@ -78,7 +78,7 @@ class _FakeAdapter:
             _FakeRunner.events.append(("exit",))
 
 
-def test_combined_command_preserves_two_historical_artifacts_and_order(tmp_path) -> None:
+def test_asset_command_writes_method_and_data_artifacts_in_order(tmp_path) -> None:
     """One command should run methods then data while retaining both workflow names."""
     _FakeRunner.events = []
     _FakeRunner.next_index = 0
