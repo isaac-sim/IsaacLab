@@ -9,8 +9,16 @@ from __future__ import annotations
 
 import hashlib
 import re
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-__all__ = ["osmo_safe_task_name"]
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+
+if TYPE_CHECKING:
+    from tools.odin.config_file import OdinConfig
+    from tools.odin.plan import PlannedRow
+
+__all__ = ["osmo_safe_task_name", "render_workflow_yaml"]
 
 
 _DNS_1123_LABEL_MAX = 63
@@ -46,3 +54,50 @@ def osmo_safe_task_name(row_key: str) -> str:
         return collapsed
     digest = hashlib.sha256(row_key.encode("utf-8")).hexdigest()[:6]
     return f"{collapsed[: _DNS_1123_LABEL_MAX - _HASH_SUFFIX_LEN].rstrip('-')}-{digest}"
+
+
+_TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+def render_workflow_yaml(
+    *,
+    dispatch_id: str,
+    chunk_index: int,
+    rows: list[PlannedRow],
+    cfg: OdinConfig,
+    image_ref: str,
+    publish_commands: dict[str, str],
+) -> str:
+    """Render the OSMO workflow YAML for one dispatch chunk.
+
+    Args:
+        dispatch_id: Dispatch identifier, ``YYYYMMDD-HHMMSS``.
+        chunk_index: Zero-based chunk position; disambiguates workflow names.
+        rows: Rows belonging to this chunk.
+        cfg: Validated ``odin.yaml`` contents.
+        image_ref: Digest-pinned image reference every task in this chunk runs.
+        publish_commands: Shell snippet per ``row_key``, spliced into the entry
+            script after the benchmark call.
+
+    Returns:
+        The rendered workflow YAML.
+
+    Raises:
+        KeyError: If a row has no entry in *publish_commands*.
+    """
+    missing = [row.row_key for row in rows if row.row_key not in publish_commands]
+    if missing:
+        raise KeyError(f"publish_commands is missing entries for: {missing}")
+    env = Environment(
+        loader=FileSystemLoader(str(_TEMPLATES_DIR)),
+        undefined=StrictUndefined,
+        keep_trailing_newline=True,
+    )
+    return env.get_template("dispatch.yaml.j2").render(
+        dispatch_id=dispatch_id,
+        chunk_index=chunk_index,
+        rows=rows,
+        cfg=cfg,
+        image_ref=image_ref,
+        publish_commands=publish_commands,
+    )

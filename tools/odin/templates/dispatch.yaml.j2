@@ -1,0 +1,58 @@
+workflow:
+  name: odin-{{ dispatch_id }}-{{ chunk_index }}
+  timeout:
+    exec_timeout: {{ cfg.exec_timeout_s }}s
+    queue_timeout: {{ cfg.queue_timeout_s }}s
+  resources:
+    default:
+      cpu: {{ cfg.resources.cpu }}
+      gpu: {{ cfg.resources.gpu }}
+      memory: {{ cfg.resources.memory }}
+      storage: {{ cfg.resources.storage }}
+      platform: {{ cfg.resources.platform }}
+  # Every task is wrapped in its own single-task group. OSMO's workflow-level
+  # exec_timeout clock starts at each group's transition to RUNNING, so with
+  # tasks at the workflow root a late-scheduled task would be killed for other
+  # tasks' queue time.
+  groups:
+{% for row in rows %}
+  - name: g-{{ row.osmo_task_name }}
+    tasks:
+    - name: {{ row.osmo_task_name }}
+      image: {{ image_ref }}
+{% if cfg.image.pull_credential %}
+      pull_credential: {{ cfg.image.pull_credential }}
+{% endif %}
+      environment:
+        ACCEPT_EULA: "Y"
+        OMNI_KIT_ALLOW_ROOT: "1"
+        ODIN_DISPATCH_ID: "{{ dispatch_id }}"
+        ODIN_ROW_KEY: "{{ row.row_key }}"
+      command: ["bash"]
+      args: ["/tmp/entry.sh"]
+      files:
+      - path: /tmp/entry.sh
+        contents: |
+          set -euxo pipefail
+          cd /workspace/isaaclab
+          OUT="{{ '{{output}}' }}/{{ row.row_key }}"
+          mkdir -p "$OUT"
+          set +e
+          uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark training --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }}{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %}{% if row.max_iterations is not none %} --max_iterations {{ row.max_iterations }}{% endif %} --output_path "$OUT" --benchmark_formatter schema physics={{ row.physics }}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}
+
+          rc=$?
+          set -e
+          echo "=== odin: benchmark exit_code=$rc ==="
+          find "$OUT" -type f | head -40
+          {{ publish_commands[row.row_key] }}
+          exit $rc
+{% if cfg.retry.reschedule_codes or cfg.retry.restart_codes %}
+      exitActions:
+{% if cfg.retry.reschedule_codes %}
+        RESCHEDULE: {{ cfg.retry.reschedule_codes }}
+{% endif %}
+{% if cfg.retry.restart_codes %}
+        RESTART: {{ cfg.retry.restart_codes }}
+{% endif %}
+{% endif %}
+{% endfor %}
