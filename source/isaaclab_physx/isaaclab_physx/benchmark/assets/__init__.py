@@ -38,30 +38,36 @@ _COLLECTION_EXCLUDED = {
 }
 
 
-def _tensor_generator(shapes, indices):
-    return make_indexed_generators(shapes, indices)["torch_tensor"]
+def _indexed_overrides(method_name, shapes, indices):
+    return {
+        (method_name, mode): generator
+        for mode, generator in make_indexed_generators(shapes, indices).items()
+    }
 
 
 def _generator_overrides(component: str):
     if component == "rigid_object":
-        return {
-            ("set_masses", "torch_tensor"): _tensor_generator(
-                {"masses": ("instances", "bodies")}, {"env_ids": "instances"}
-            ),
-            ("set_coms", "torch_tensor"): _tensor_generator(
-                {"coms": ("instances", "bodies", 3)}, {"env_ids": "instances"}
-            ),
-            ("set_inertias", "torch_tensor"): _tensor_generator(
-                {"inertias": ("instances", "bodies", 9)}, {"env_ids": "instances"}
-            ),
-        }
-    if component == "rigid_object_collection":
-        return {
-            ("set_inertias", "torch_tensor"): _tensor_generator(
-                {"inertias": ("instances", "bodies", 3, 3)},
-                {"env_ids": "instances", "body_ids": "bodies"},
+        overrides = {}
+        overrides.update(
+            _indexed_overrides("set_masses", {"masses": ("instances", "bodies")}, {"env_ids": "instances"})
+        )
+        overrides.update(
+            _indexed_overrides(
+                "set_coms", {"coms": ("instances", "bodies", 3)}, {"env_ids": "instances"}
             )
-        }
+        )
+        overrides.update(
+            _indexed_overrides(
+                "set_inertias", {"inertias": ("instances", "bodies", 9)}, {"env_ids": "instances"}
+            )
+        )
+        return overrides
+    if component == "rigid_object_collection":
+        return _indexed_overrides(
+            "set_inertias",
+            {"inertias": ("instances", "bodies", 3, 3)},
+            {"env_ids": "instances", "body_ids": "bodies"},
+        )
     return {}
 
 
@@ -84,6 +90,7 @@ def get_asset_benchmark_adapter(component: str) -> PackageAssetBenchmarkAdapter:
     )
     return PackageAssetBenchmarkAdapter(
         physics="physx",
+        physics_variant="physx",
         component=component,
         artifact_prefix="",
         runtime_module="isaaclab_physx.benchmark.assets.runtime",

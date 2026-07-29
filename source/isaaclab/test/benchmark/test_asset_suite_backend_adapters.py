@@ -13,22 +13,23 @@ pytestmark = pytest.mark.benchmark
 
 
 @pytest.mark.parametrize(
-    ("physics", "prefix", "capabilities", "property_counts"),
+    ("physics_variant", "physics_family", "prefix", "capabilities", "property_counts"),
     [
-        ("physx", "", {"physx_legacy_state", "tensor_fill"}, (65, 40, 69)),
-        ("newton", "newton_", {"warp_mask", "tensor_fill", "mask_fill"}, (64, 40, 78)),
-        ("ovphysx", "ovphysx_", {"warp_mask"}, (62, 40, 78)),
+        ("physx", "physx", "", {"physx_legacy_state", "tensor_fill"}, (65, 40, 69)),
+        ("newton_mjwarp", "newton", "newton_", {"warp_mask", "tensor_fill", "mask_fill"}, (64, 40, 78)),
+        ("ovphysx", "ovphysx", "ovphysx_", {"warp_mask"}, (62, 40, 78)),
     ],
 )
 def test_backend_provider_preserves_names_capabilities_and_properties(
-    physics, prefix, capabilities, property_counts
+    physics_variant, physics_family, prefix, capabilities, property_counts
 ) -> None:
     """Provider adapters should preserve historical artifacts and backend surfaces."""
     components = ("articulation", "rigid_object", "rigid_object_collection")
 
     for component, property_count in zip(components, property_counts, strict=True):
-        adapter = get_asset_benchmark_adapter(physics, component)
-        assert adapter.physics == physics
+        adapter = get_asset_benchmark_adapter(physics_variant, component)
+        assert adapter.physics == physics_family
+        assert adapter.physics_variant == physics_variant
         assert adapter.component == component
         assert adapter.method_benchmark_name == f"{prefix}{component}_benchmark"
         assert adapter.data_benchmark_name == f"{prefix}{component}_data_benchmark"
@@ -42,9 +43,9 @@ def test_backend_provider_preserves_names_capabilities_and_properties(
         ("physx", "articulation", 12, 11),
         ("physx", "rigid_object", 1, 0),
         ("physx", "rigid_object_collection", 4, 0),
-        ("newton", "articulation", 12, 11),
-        ("newton", "rigid_object", 1, 0),
-        ("newton", "rigid_object_collection", 3, 0),
+        ("newton_mjwarp", "articulation", 12, 11),
+        ("newton_mjwarp", "rigid_object", 1, 0),
+        ("newton_mjwarp", "rigid_object_collection", 3, 0),
         ("ovphysx", "articulation", 12, 11),
         ("ovphysx", "rigid_object", 1, 0),
         ("ovphysx", "rigid_object_collection", 3, 0),

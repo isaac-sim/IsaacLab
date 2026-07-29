@@ -237,10 +237,83 @@ def create_test_collection(
 # Input Generators
 
 
-def _refresh_data(data, component: str) -> None:
+def _refresh_articulation_data(data, _config) -> None:
     data._sim_timestamp += 1.0
+    data._fk_timestamp = data._sim_timestamp
+
+
+def _refresh_rigid_object_data(mock_view, data, config) -> None:
+    mock_view.set_mock_transforms(
+        wp.from_torch(torch.randn(config.num_instances, 7, device=config.device), dtype=wp.float32)
+    )
+    mock_view.set_mock_velocities(
+        wp.from_torch(torch.randn(config.num_instances, 6, device=config.device), dtype=wp.float32)
+    )
+    mock_view.set_mock_accelerations(
+        wp.from_torch(torch.randn(config.num_instances, 6, device=config.device), dtype=wp.float32)
+    )
+    mock_view.set_mock_coms(wp.from_torch(torch.randn(config.num_instances, 7, device=config.device), dtype=wp.float32))
+    data._sim_timestamp += 1.0
+
+
+def _refresh_collection_data(mock_view, data, config) -> None:
+    total_count = config.num_instances * config.num_bodies
+    mock_view.set_mock_transforms(wp.from_torch(torch.randn(total_count, 7, device=config.device), dtype=wp.float32))
+    mock_view.set_mock_velocities(wp.from_torch(torch.randn(total_count, 6, device=config.device), dtype=wp.float32))
+    mock_view.set_mock_accelerations(wp.from_torch(torch.randn(total_count, 6, device=config.device), dtype=wp.float32))
+    mock_view.set_mock_coms(wp.from_torch(torch.randn(total_count, 7, device=config.device), dtype=wp.float32))
+    data._sim_timestamp += 1.0
+
+
+def _configure_articulation_view(mock_view, config) -> None:
+    mock_view.get_root_transforms = lambda: mock_view._as_structured(
+        mock_view._root_transforms, wp.transformf, (mock_view._count,)
+    )
+    mock_view.get_root_velocities = lambda: mock_view._as_structured(
+        mock_view._root_velocities, wp.spatial_vectorf, (mock_view._count,)
+    )
+    mock_view.get_link_transforms = lambda: mock_view._as_structured(
+        mock_view._link_transforms, wp.transformf, (mock_view._count, mock_view._num_links)
+    )
+    mock_view.get_link_velocities = lambda: mock_view._as_structured(
+        mock_view._link_velocities, wp.spatial_vectorf, (mock_view._count, mock_view._num_links)
+    )
+    mock_view.get_link_accelerations = lambda: mock_view._as_structured(
+        mock_view._link_accelerations, wp.spatial_vectorf, (mock_view._count, mock_view._num_links)
+    )
+    mock_view.get_dof_positions = lambda: mock_view._dof_positions
+    mock_view.get_dof_velocities = lambda: mock_view._dof_velocities
+    num_dofs = config.num_joints + 6
+    jacobians = wp.zeros((config.num_instances, config.num_bodies, 6, num_dofs), dtype=wp.float32, device=config.device)
+    mass_matrices = wp.zeros((config.num_instances, num_dofs, num_dofs), dtype=wp.float32, device=config.device)
+    gravity_forces = wp.zeros((config.num_instances, num_dofs), dtype=wp.float32, device=config.device)
+    mock_view.get_jacobians = lambda: jacobians
+    mock_view.get_generalized_mass_matrices = lambda: mass_matrices
+    mock_view.get_gravity_compensation_forces = lambda: gravity_forces
+
+
+def _create_data_target(component, config):
     if component == "articulation":
-        data._fk_timestamp = data._sim_timestamp
+        mock_view = MockArticulationViewWarp(
+            count=config.num_instances,
+            num_links=config.num_bodies,
+            num_dofs=config.num_joints,
+            device=config.device,
+        )
+        mock_view.set_random_mock_data()
+        _configure_articulation_view(mock_view, config)
+        data = ArticulationData(mock_view, config.device)
+        data._apply_ordering_maps_after_resolve()
+        return data, lambda cfg: _refresh_articulation_data(data, cfg)
+    if component == "rigid_object":
+        mock_view = MockRigidBodyViewWarp(count=config.num_instances, device=config.device)
+        mock_view.set_random_mock_data()
+        data = RigidObjectData(mock_view, config.device)
+        return data, lambda cfg: _refresh_rigid_object_data(mock_view, data, cfg)
+    mock_view = MockRigidBodyViewWarp(count=config.num_instances * config.num_bodies, device=config.device)
+    mock_view.set_random_mock_data()
+    data = RigidObjectCollectionData(mock_view, config.num_bodies, config.device)
+    return data, lambda cfg: _refresh_collection_data(mock_view, data, cfg)
 
 
 @contextmanager
@@ -276,11 +349,11 @@ def open_asset_targets(adapter, request, method_config, data_config):
                     num_bodies=method_config.num_bodies,
                     device=method_config.device,
                 )
-            data = target._data
+            data, refresh_data = _create_data_target(adapter.component, data_config)
             yield AssetBenchmarkTargets(
                 method_target=target,
                 data_target=data,
-                refresh_data=lambda _config: _refresh_data(data, adapter.component),
+                refresh_data=refresh_data,
             )
     finally:
         app_launcher.app.close()

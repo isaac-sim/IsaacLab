@@ -42,6 +42,7 @@ def test_script_cli_builds_one_combined_request(monkeypatch, tmp_path) -> None:
 
     assert result == ()
     assert captured["adapter"] is adapter
+    assert captured["request"].physics_variant == "physx"
     assert captured["request"].config.num_bodies == 4
     assert captured["request"].config.num_joints == 0
     assert captured["request"].output_path == Path(tmp_path)

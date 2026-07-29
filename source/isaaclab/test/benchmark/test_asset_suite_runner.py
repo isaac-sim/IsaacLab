@@ -42,6 +42,7 @@ class _FakeRunner:
 
 class _FakeAdapter:
     physics = "physx"
+    physics_variant = "physx"
     component = "rigid_object"
     method_benchmark_name = "rigid_object_benchmark"
     data_benchmark_name = "rigid_object_data_benchmark"
@@ -90,6 +91,7 @@ def test_combined_command_preserves_two_historical_artifacts_and_order(tmp_path)
             num_joints=0,
             device="cpu",
         ),
+        physics_variant="physx",
         formatter_type="json",
         output_path=tmp_path,
     )
@@ -126,6 +128,7 @@ def test_target_context_exits_when_method_benchmark_fails(tmp_path) -> None:
     _FakeRunner.next_index = 0
     request = AssetBenchmarkRequest(
         config=MethodBenchmarkRunnerConfig(num_iterations=1, warmup_steps=0, device="cpu"),
+        physics_variant="physx",
         formatter_type="json",
         output_path=tmp_path,
     )

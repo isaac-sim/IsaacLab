@@ -246,10 +246,136 @@ def create_test_collection(
 # Input Generators (Torch-only for Newton backend)
 
 
-def _refresh_data(data, component: str) -> None:
+def _refresh_articulation_data(data, _config) -> None:
     data._sim_timestamp += 1.0
+    data._fk_timestamp = data._sim_timestamp
+
+
+def _refresh_rigid_object_data(mock_view, data, config) -> None:
+    num_instances, num_bodies, device = config.num_instances, config.num_bodies, config.device
+    root_transforms = np.random.randn(num_instances, 1, 7).astype(np.float32)
+    root_transforms[..., 3:7] /= np.linalg.norm(root_transforms[..., 3:7], axis=-1, keepdims=True)
+    mock_view.set_mock_root_transforms(wp.array(root_transforms, dtype=wp.transformf, device=device))
+    mock_view.set_mock_root_velocities(
+        wp.array(
+            np.random.randn(num_instances, 1, 6).astype(np.float32),
+            dtype=wp.spatial_vectorf,
+            device=device,
+        )
+    )
+    link_transforms = np.random.randn(num_instances, 1, num_bodies, 7).astype(np.float32)
+    link_transforms[..., 3:7] /= np.linalg.norm(link_transforms[..., 3:7], axis=-1, keepdims=True)
+    mock_view.set_mock_link_transforms(wp.array(link_transforms, dtype=wp.transformf, device=device))
+    mock_view.set_mock_link_velocities(
+        wp.array(
+            np.random.randn(num_instances, 1, num_bodies, 6).astype(np.float32),
+            dtype=wp.spatial_vectorf,
+            device=device,
+        )
+    )
+    mock_view.set_mock_coms(
+        wp.array(
+            np.random.randn(num_instances, 1, num_bodies, 3).astype(np.float32),
+            dtype=wp.vec3f,
+            device=device,
+        )
+    )
+    mock_view.set_mock_inertias(
+        wp.array(
+            np.random.randn(num_instances, 1, num_bodies, 9).astype(np.float32),
+            dtype=wp.mat33f,
+            device=device,
+        )
+    )
+    mock_view.set_mock_masses(
+        wp.array(
+            (np.random.rand(num_instances, 1, num_bodies) * 10 + 0.1).astype(np.float32),
+            dtype=wp.float32,
+            device=device,
+        )
+    )
+    data._sim_timestamp += 1.0
+
+
+def _refresh_collection_data(mock_view, data, config) -> None:
+    num_instances, num_bodies, device = config.num_instances, config.num_bodies, config.device
+    root_transforms = np.random.randn(num_instances, num_bodies, 7).astype(np.float32)
+    root_transforms[..., 3:7] /= np.linalg.norm(root_transforms[..., 3:7], axis=-1, keepdims=True)
+    mock_view._root_transforms = wp.array(root_transforms, dtype=wp.transformf, device=device)
+    mock_view._root_velocities = wp.array(
+        np.random.randn(num_instances, num_bodies, 6).astype(np.float32),
+        dtype=wp.spatial_vectorf,
+        device=device,
+    )
+    mock_view._attributes["body_com"] = wp.array(
+        np.random.randn(num_instances, num_bodies, 1, 3).astype(np.float32),
+        dtype=wp.vec3f,
+        device=device,
+    )
+    mock_view._attributes["body_mass"] = wp.array(
+        (np.random.rand(num_instances, num_bodies, 1) * 10 + 0.1).astype(np.float32),
+        dtype=wp.float32,
+        device=device,
+    )
+    mock_view._attributes["body_inertia"] = wp.array(
+        np.random.randn(num_instances, num_bodies, 1, 9).astype(np.float32),
+        dtype=wp.mat33f,
+        device=device,
+    )
+    data._create_simulation_bindings()
+    data._sim_timestamp += 1.0
+
+
+def _create_articulation_data_target(config):
+    from isaaclab_newton.assets.articulation import articulation_data as data_module
+
+    simulation_manager = globals().get("NewtonSimulationManager", data_module.SimulationManager)
+    data_type = globals().get("NewtonArticulationData", data_module.ArticulationData)
+    model = simulation_manager.get_model()
+    model.articulation_count = config.num_instances
+    model.max_joints_per_articulation = config.num_bodies
+    model.max_dofs_per_articulation = config.num_joints + 6
+    model.joint_dof_count = config.num_instances * (config.num_joints + 6)
+    model.body_count = config.num_instances * config.num_bodies
+    mock_view = MockNewtonArticulationView(
+        num_instances=config.num_instances,
+        num_bodies=config.num_bodies,
+        num_joints=config.num_joints,
+        device=config.device,
+    )
+    mock_view.set_random_mock_data()
+    mock_view.eval_jacobian = lambda state, *, J, joint_S_s: None
+    mock_view.eval_mass_matrix = lambda state, *, H, J, body_I_s, joint_S_s: None
+    data = data_type(mock_view, config.device)
+    data._apply_ordering_maps_after_resolve()
+    return data, lambda cfg: _refresh_articulation_data(data, cfg)
+
+
+def _create_data_target(component, config):
     if component == "articulation":
-        data._fk_timestamp = data._sim_timestamp
+        return _create_articulation_data_target(config)
+    if component == "rigid_object":
+        from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
+
+        mock_view = MockNewtonArticulationView(
+            num_instances=config.num_instances,
+            num_bodies=config.num_bodies,
+            num_joints=0,
+            device=config.device,
+        )
+        mock_view.set_random_mock_data()
+        data = RigidObjectData(mock_view, config.device)
+        return data, lambda cfg: _refresh_rigid_object_data(mock_view, data, cfg)
+    from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data import (
+        RigidObjectCollectionData,
+    )
+
+    mock_view = MockNewtonCollectionView(
+        num_envs=config.num_instances, num_bodies=config.num_bodies, device=config.device
+    )
+    mock_view.set_random_mock_data()
+    data = RigidObjectCollectionData(mock_view, config.num_bodies, config.device)
+    return data, lambda cfg: _refresh_collection_data(mock_view, data, cfg)
 
 
 def _manager_modules(component: str) -> tuple[str, str]:
@@ -290,11 +416,11 @@ def open_asset_targets(adapter, request, method_config, data_config):
                     num_bodies=method_config.num_bodies,
                     device=method_config.device,
                 )
-            data = target._data
+            data, refresh_data = _create_data_target(adapter.component, data_config)
             yield AssetBenchmarkTargets(
                 method_target=target,
                 data_target=data,
-                refresh_data=lambda _config: _refresh_data(data, adapter.component),
+                refresh_data=refresh_data,
             )
     finally:
         app_launcher.app.close()

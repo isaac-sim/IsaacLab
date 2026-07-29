@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from .generators import make_indexed_generators, make_mask_generator
+from .generators import make_indexed_generators, make_mask_generator, make_signed_joint_limits_generator
 from .types import AssetBenchmarkSuite, AssetMethodSpec, AssetPropertySpec
 
 
@@ -35,6 +35,18 @@ def _masked(method_name: str, tensor_shapes, mask_dimensions, category: str) -> 
         input_generators={"warp_mask": make_mask_generator(tensor_shapes, mask_dimensions)},
         category=category,
         requires="warp_mask",
+    )
+
+
+def _signed_joint_limits(spec: AssetMethodSpec) -> AssetMethodSpec:
+    return AssetMethodSpec(
+        name=spec.name,
+        method_name=spec.method_name,
+        input_generators={
+            mode: make_signed_joint_limits_generator(generator) for mode, generator in spec.input_generators.items()
+        },
+        category=spec.category,
+        requires=spec.requires,
     )
 
 
@@ -86,11 +98,13 @@ _ARTICULATION_PLAIN = (
         {"env_ids": "instances", "joint_ids": "joints"},
         "joint_params",
     ),
-    _indexed(
-        "write_joint_position_limit_to_sim",
-        {"limits": ("instances", "joints", 2)},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_params",
+    _signed_joint_limits(
+        _indexed(
+            "write_joint_position_limit_to_sim",
+            {"limits": ("instances", "joints", 2)},
+            {"env_ids": "instances", "joint_ids": "joints"},
+            "joint_params",
+        )
     ),
     _indexed(
         "write_joint_velocity_limit_to_sim",
@@ -213,7 +227,10 @@ def _articulation_mask_specs() -> tuple[AssetMethodSpec, ...]:
             shapes = {"joint_friction_coeff": ("instances", "joints")}
         else:
             shapes = {"target": ("instances", "joints")}
-        specs.append(_masked(name, shapes, {"env_mask": "instances", "joint_mask": "joints"}, spec.category))
+        mask_spec = _masked(name, shapes, {"env_mask": "instances", "joint_mask": "joints"}, spec.category)
+        specs.append(
+            _signed_joint_limits(mask_spec) if spec.method_name == "write_joint_position_limit_to_sim" else mask_spec
+        )
     for spec in _ARTICULATION_PLAIN[20:23]:
         shape = {
             "set_masses": {"masses": ("instances", "bodies")},

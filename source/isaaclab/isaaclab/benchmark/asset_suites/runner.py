@@ -71,6 +71,11 @@ def run_asset_benchmark(
     runner_factory: Callable[..., MethodBenchmarkRunner] = MethodBenchmarkRunner,
 ) -> tuple[Path, ...]:
     """Run one asset concept's method and data suites as two compatible artifacts."""
+    if request.physics_variant != adapter.physics_variant:
+        raise ValueError(
+            f"Request physics variant {request.physics_variant!r} does not match adapter variant "
+            f"{adapter.physics_variant!r}"
+        )
     suite = get_asset_benchmark_suite(adapter.component)
     method_config = adapter.method_config(request)
     data_config = adapter.data_config(request)

@@ -70,6 +70,22 @@ def make_mask_generator(
     return generate
 
 
+def make_signed_joint_limits_generator(base_generator: InputGenerator) -> InputGenerator:
+    """Wrap a generator so joint position limits have ordered lower and upper bounds."""
+
+    def generate(config: MethodBenchmarkRunnerConfig) -> dict[str, object]:
+        inputs = base_generator(config)
+        limits = inputs["limits"]
+        if not isinstance(limits, torch.Tensor):
+            raise TypeError("Joint position limits must be generated as a torch.Tensor")
+        lower = -torch.rand_like(limits[..., :1]) * 3.14
+        upper = torch.rand_like(limits[..., 1:]) * 3.14
+        inputs["limits"] = torch.cat((lower, upper), dim=-1)
+        return inputs
+
+    return generate
+
+
 def _make_tensor_fill_generator(base_generator: InputGenerator, fill_ratio: float) -> InputGenerator:
     def generate(config: MethodBenchmarkRunnerConfig) -> dict[str, object]:
         count = max(1, int(config.num_instances * fill_ratio))

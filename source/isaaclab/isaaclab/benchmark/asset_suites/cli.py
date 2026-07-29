@@ -68,6 +68,7 @@ def run_asset_benchmark_cli(
     )
     request = AssetBenchmarkRequest(
         config=config,
+        physics_variant=physics,
         formatter_type=args.benchmark_formatter,
         output_path=args.output_path,
         check_shapes=not args.no_shape_checks,

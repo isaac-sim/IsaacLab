@@ -17,6 +17,8 @@ from .types import (
     AssetBenchmarkRequest,
     AssetBenchmarkTargets,
     AssetComponent,
+    AssetPhysicsFamily,
+    AssetPhysicsVariant,
     InputGenerator,
     WorkloadKey,
 )
@@ -26,7 +28,8 @@ from .types import (
 class PackageAssetBenchmarkAdapter:
     """Describe a backend suite while deferring heavyweight runtime imports."""
 
-    physics: str
+    physics: AssetPhysicsFamily
+    physics_variant: AssetPhysicsVariant
     component: AssetComponent
     artifact_prefix: str
     runtime_module: str

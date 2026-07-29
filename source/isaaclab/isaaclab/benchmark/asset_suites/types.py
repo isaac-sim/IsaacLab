@@ -16,6 +16,8 @@ from typing import Literal, Protocol
 from ..method_benchmark import MethodBenchmarkRunnerConfig
 
 AssetComponent = Literal["articulation", "rigid_object", "rigid_object_collection"]
+AssetPhysicsFamily = Literal["physx", "newton", "ovphysx"]
+AssetPhysicsVariant = Literal["physx", "isaacsim_physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
 InputGenerator = Callable[[MethodBenchmarkRunnerConfig], dict[str, object]]
 WorkloadKey = tuple[str, str]
 
@@ -53,6 +55,7 @@ class AssetBenchmarkRequest:
     """One backend-specific execution request for a shared asset suite."""
 
     config: MethodBenchmarkRunnerConfig
+    physics_variant: AssetPhysicsVariant
     formatter_type: str | tuple[str, ...]
     output_path: Path
     check_shapes: bool = True
@@ -71,7 +74,8 @@ class AssetBenchmarkTargets:
 class AssetBenchmarkAdapter(Protocol):
     """Backend adapter consumed by shared asset-suite orchestration."""
 
-    physics: str
+    physics: AssetPhysicsFamily
+    physics_variant: AssetPhysicsVariant
     component: AssetComponent
     method_benchmark_name: str
     data_benchmark_name: str

@@ -175,6 +175,36 @@ def _refresh_data(data, component: str) -> None:
         data._fk_timestamp = data._sim_timestamp
 
 
+def _create_data_target(component, config):
+    binding_kwargs = {
+        "num_instances": config.num_instances,
+        "num_joints": config.num_joints if component == "articulation" else 0,
+        "num_bodies": config.num_bodies,
+        "benchmark_mode": True,
+    }
+    if component == "rigid_object":
+        binding_kwargs["asset_kind"] = "rigid_object"
+    binding_set = MockOvPhysxBindingSet(**binding_kwargs)
+    binding_set.set_random_data()
+    mock_view = binding_set.view
+    if component == "articulation":
+        from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData
+
+        data = ArticulationData(mock_view, config.device)
+        data._apply_ordering_maps_after_resolve()
+    elif component == "rigid_object":
+        from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData
+
+        data = RigidObjectData(mock_view, config.device, check_shapes=not args.no_shape_checks)
+    else:
+        from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection_data import (
+            RigidObjectCollectionData,
+        )
+
+        data = RigidObjectCollectionData(mock_view, config.num_bodies, config.device)
+    return data, lambda _config: _refresh_data(data, component)
+
+
 @contextmanager
 def open_asset_targets(adapter, request, method_config, data_config):
     """Open the selected kitless Omniverse PhysX mock target."""
@@ -199,9 +229,9 @@ def open_asset_targets(adapter, request, method_config, data_config):
             num_bodies=method_config.num_bodies,
             device=method_config.device,
         )
-    data = target._data
+    data, refresh_data = _create_data_target(adapter.component, data_config)
     yield AssetBenchmarkTargets(
         method_target=target,
         data_target=data,
-        refresh_data=lambda _config: _refresh_data(data, adapter.component),
+        refresh_data=refresh_data,
     )

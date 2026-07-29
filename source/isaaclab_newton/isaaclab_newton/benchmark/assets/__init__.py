@@ -11,7 +11,7 @@ from isaaclab.benchmark.asset_suites.dependencies import (
     BODY_COLLECTION_DEPENDENCIES,
     RIGID_OBJECT_DEPENDENCIES,
 )
-from isaaclab.benchmark.asset_suites.generators import make_indexed_generators
+from isaaclab.benchmark.asset_suites.generators import make_indexed_generators, make_mask_generator
 from isaaclab.benchmark.asset_suites.suites import get_asset_benchmark_suite
 
 _CAPABILITIES = frozenset({"warp_mask", "tensor_fill", "mask_fill"})
@@ -28,12 +28,15 @@ _ARTICULATION_EXCLUDED = {
 _COLLECTION_EXCLUDED = {"default_body_state", "body_state_w", "body_link_state_w", "body_com_state_w"}
 
 
-def _articulation_com_generator(config):
-    generators = make_indexed_generators(
-        {"coms": ("instances", "bodies", 3)},
-        {"env_ids": "instances", "body_ids": "bodies"},
-    )
-    return generators["torch_tensor"](config)
+def _articulation_generator_overrides():
+    shapes = {"coms": ("instances", "bodies", 3)}
+    indexed = make_indexed_generators(shapes, {"env_ids": "instances", "body_ids": "bodies"})
+    mask = make_mask_generator(shapes, {"env_mask": "instances", "body_mask": "bodies"})
+    return {
+        ("set_coms", "torch_list"): indexed["torch_list"],
+        ("set_coms", "torch_tensor"): indexed["torch_tensor"],
+        ("set_coms_mask", "warp_mask"): mask,
+    }
 
 
 def get_asset_benchmark_adapter(component: str) -> PackageAssetBenchmarkAdapter:
@@ -53,9 +56,10 @@ def get_asset_benchmark_adapter(component: str) -> PackageAssetBenchmarkAdapter:
     properties = frozenset(
         prop.name for prop in get_asset_benchmark_suite(component).properties if prop.name not in excluded
     )
-    overrides = {("set_coms", "torch_tensor"): _articulation_com_generator} if component == "articulation" else {}
+    overrides = _articulation_generator_overrides() if component == "articulation" else {}
     return PackageAssetBenchmarkAdapter(
         physics="newton",
+        physics_variant="newton_mjwarp",
         component=component,
         artifact_prefix="newton_",
         runtime_module="isaaclab_newton.benchmark.assets.runtime",
