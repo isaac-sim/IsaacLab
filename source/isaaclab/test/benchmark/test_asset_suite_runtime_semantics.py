@@ -5,6 +5,7 @@
 
 """Regression tests for backend-specific asset data setup and refresh behavior."""
 
+import importlib
 import sys
 from dataclasses import replace
 from types import SimpleNamespace
@@ -346,3 +347,32 @@ def test_ovphysx_factories_use_exported_binding_set_signature(
                 **({"num_joints": _CONFIG.num_joints} if factory_name == "create_test_articulation" else {}),
                 device=_CONFIG.device,
             )
+
+
+@pytest.mark.parametrize("read_mode", ("numpy", "structured_warp", "view_preflight"))
+def test_mock_ovphysx_binding_reads_latest_data_without_optional_runtime(monkeypatch, read_mode) -> None:
+    """Repository mock reads should support every consumer mode and reflect subsequent writes."""
+    monkeypatch.setitem(sys.modules, "isaaclab_ovphysx.tensor_types", SimpleNamespace())
+    bindings_module = importlib.import_module("isaaclab_ovphysx.test.mock_interfaces.views.mock_ovphysx_bindings")
+    binding = bindings_module.MockTensorBinding(tensor_type=0, shape=(2, 7), count=2)
+    first = np.arange(14, dtype=np.float32).reshape(2, 7)
+    latest = first + 100.0
+
+    view = bindings_module.MockOvPhysxView({0: binding})
+
+    def read_binding():
+        if read_mode == "numpy":
+            destination = np.zeros_like(first)
+            binding.read(destination)
+            return destination
+        if read_mode == "structured_warp":
+            destination = wp.zeros((2,), dtype=wp.transformf, device="cpu")
+            binding.read(destination)
+            return destination.view(wp.float32).numpy()
+        return view.get_attribute(0).numpy()
+
+    binding.write(first)
+    np.testing.assert_array_equal(read_binding(), first)
+
+    binding.write(latest)
+    np.testing.assert_array_equal(read_binding(), latest)
