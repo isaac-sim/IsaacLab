@@ -104,6 +104,7 @@ def test_parse_args_accepts_kit_viz_with_isaac_sim(monkeypatch: pytest.MonkeyPat
 def test_preview_opens_kit_viewport(monkeypatch: pytest.MonkeyPatch):
     # '--viz kit' shows the converted asset in the viewport of the Kit app that ran the conversion.
     calls: list = []
+    monkeypatch.setattr(converter_cli.AppLauncher, "has_gui", staticmethod(lambda: True))
     monkeypatch.setattr(sim_utils, "show_stage_in_viewport", lambda usd_path: calls.append(usd_path))
 
     converter_cli.ConverterCli.preview(argparse.Namespace(viz="kit"), object(), "/tmp/robot.usd")
@@ -157,3 +158,29 @@ def test_parse_args_auto_viz_selects_newton_without_isaac_sim(monkeypatch: pytes
 
     assert args_cli.viz == "newton"
     assert simulation_app is None
+
+
+def test_preview_skips_kit_without_gui(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture):
+    # a Kit app resolved without a GUI has no viewport to show or close, so the preview is skipped.
+    calls: list = []
+    monkeypatch.setattr(converter_cli.AppLauncher, "has_gui", staticmethod(lambda: False))
+    monkeypatch.setattr(sim_utils, "show_stage_in_viewport", lambda usd_path: calls.append(usd_path))
+
+    with caplog.at_level("WARNING"):
+        converter_cli.ConverterCli.preview(argparse.Namespace(viz="kit"), object(), "/tmp/robot.usd")
+
+    assert calls == []
+    assert "without a GUI" in caplog.text
+
+
+def test_preview_failure_does_not_fail_conversion(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture):
+    # the asset is already written, so a preview that cannot run is reported instead of raising.
+    def _boom(usd_path, visualizer):
+        raise ValueError("The model must have at least one joint")
+
+    monkeypatch.setattr(converter_cli.ConverterCli, "_preview_kitless", _boom)
+
+    with caplog.at_level("ERROR"):
+        converter_cli.ConverterCli.preview(argparse.Namespace(viz="newton"), None, "/tmp/robot.usd")
+
+    assert "at least one joint" in caplog.text

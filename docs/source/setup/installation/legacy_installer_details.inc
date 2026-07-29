@@ -92,12 +92,13 @@ To install Isaac Sim, use :ref:`installation-method-python-env`.
 .. rubric:: Standalone URDF/MJCF importers
 
 The URDF and MJCF converter scripts can run without Isaac Sim when the standalone
-``isaacsim-asset-isolated`` wheel is installed in the active environment:
+``isaacsim-asset-isolated`` wheel is installed in the active environment. The wheel is not
+published on PyPI, so replace ``PACKAGE_INDEX_URL`` with the package index that hosts it:
 
 .. code-block:: bash
 
    uv pip install "isaacsim-asset-isolated>=6.0,<6.1" \
-     --extra-index-url <package-index-url>
+     --extra-index-url "PACKAGE_INDEX_URL"
 
 After installing the wheel, run conversion in the kitless environment. Optionally pass
 ``--viz newton`` (or ``rerun`` / ``viser``) to preview the converted asset in a kitless

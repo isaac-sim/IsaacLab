@@ -126,15 +126,27 @@ class ConverterCli:
         visualizer = getattr(args_cli, "viz", "none")
         if visualizer == "none":
             return
-        if visualizer == "kit":
-            # ``parse_args`` rejects '--viz kit' without Isaac Sim, so Kit is running here.
-            from isaaclab.sim.utils import show_stage_in_viewport  # noqa: PLC0415
 
-            show_stage_in_viewport(usd_path)
-            return
-        # ``parse_args`` rejects the kitless visualizers when Isaac Sim is installed, so no Kit app
-        # is running here.
-        cls._preview_kitless(usd_path, visualizer)
+        # The asset is already converted and written at this point, so a preview that cannot run
+        # is reported and skipped rather than failing the conversion.
+        try:
+            if visualizer == "kit":
+                # ``parse_args`` rejects '--viz kit' without Isaac Sim, so Kit is running here.
+                if not AppLauncher.has_gui():
+                    logger.warning(
+                        "Skipping the Kit preview: the app resolved without a GUI, so there is no"
+                        " viewport to display the converted asset in."
+                    )
+                    return
+                from isaaclab.sim.utils import show_stage_in_viewport  # noqa: PLC0415
+
+                show_stage_in_viewport(usd_path)
+                return
+            # ``parse_args`` rejects the kitless visualizers when Isaac Sim is installed, so no Kit
+            # app is running here.
+            cls._preview_kitless(usd_path, visualizer)
+        except Exception:
+            logger.exception("Preview with the '%s' visualizer failed; the converted asset is at %s.", visualizer, usd_path)
 
     @classmethod
     def _preview_kitless(cls, usd_path: str, visualizer: str) -> None:
