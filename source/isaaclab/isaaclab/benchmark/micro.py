@@ -7,12 +7,13 @@
 
 from __future__ import annotations
 
-import statistics
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
+
+import numpy as np
 
 from .benchmark_core import BaseIsaacLabBenchmark
 from .measurements import Measurement, SingleMeasurement, StatisticalMeasurement
@@ -106,12 +107,13 @@ def summarize_latency(samples_s: Sequence[float]) -> LatencyStatistics:
     """
     if not samples_s:
         raise ValueError("Latency statistics require at least one sample.")
+    samples = np.asarray(samples_s, dtype=np.float64)
     return LatencyStatistics(
-        mean_s=statistics.mean(samples_s),
-        std_s=statistics.stdev(samples_s) if len(samples_s) > 1 else 0.0,
-        p50_s=_percentile(samples_s, 0.50),
-        p95_s=_percentile(samples_s, 0.95),
-        n=len(samples_s),
+        mean_s=float(np.mean(samples)),
+        std_s=float(np.std(samples, ddof=1)) if len(samples) > 1 else 0.0,
+        p50_s=float(np.percentile(samples, 50, method="linear")),
+        p95_s=float(np.percentile(samples, 95, method="linear")),
+        n=len(samples),
     )
 
 
@@ -152,15 +154,6 @@ def add_latency_measurements(
         measurement=SingleMeasurement(name=f"{name} p95", value=stats.p95_s * 1000.0, unit="ms"),
     )
     return stats
-
-
-def _percentile(samples: Sequence[float], fraction: float) -> float:
-    """Return a linearly interpolated percentile from a non-empty series."""
-    ordered = sorted(samples)
-    position = (len(ordered) - 1) * fraction
-    lower = int(position)
-    upper = min(lower + 1, len(ordered) - 1)
-    return ordered[lower] + (position - lower) * (ordered[upper] - ordered[lower])
 
 
 class LatencyBenchmarkRunner(BaseIsaacLabBenchmark):

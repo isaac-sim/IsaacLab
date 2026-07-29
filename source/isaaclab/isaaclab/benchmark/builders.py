@@ -281,15 +281,13 @@ def build_learning(
         Populated :class:`~isaaclab.benchmark.schema.Learning`. Absent or empty
         success history produces a ``None`` success-rate curve.
     """
-    rewards = list(reward_series)
-    ep_lengths = list(ep_length_series)
-    success_rates = list(success_rate_series) if success_rate_series else []
-
     return Learning(
         ema_alpha=ema_alpha,
-        reward=_build_learning_curve(rewards, ema_alpha, keep_series),
-        ep_length=_build_learning_curve(ep_lengths, ema_alpha, keep_series),
-        success_rate=(_build_learning_curve(success_rates, ema_alpha, keep_series) if success_rates else None),
+        reward=_build_learning_curve(reward_series, ema_alpha, keep_series),
+        ep_length=_build_learning_curve(ep_length_series, ema_alpha, keep_series),
+        success_rate=(
+            _build_learning_curve(success_rate_series, ema_alpha, keep_series) if success_rate_series else None
+        ),
     )
 
 
