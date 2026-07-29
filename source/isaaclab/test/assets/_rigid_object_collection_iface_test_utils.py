@@ -229,13 +229,14 @@ def create_ovphysx_rigid_object_collection(
 
     object.__setattr__(collection, "_device", device)
     object.__setattr__(collection, "_ovphysx", MagicMock())
+    object.__setattr__(collection, "_root_view", mock_bindings.view)
     object.__setattr__(collection, "_bindings", mock_bindings.bindings)
     object.__setattr__(collection, "_num_instances", num_instances)
     object.__setattr__(collection, "_num_bodies", num_bodies)
     object.__setattr__(collection, "_body_names_list", body_names)
 
     # Create RigidObjectCollectionData
-    data = OvPhysxRigidObjectCollectionData(mock_bindings.bindings, num_bodies, device)
+    data = OvPhysxRigidObjectCollectionData(mock_bindings.view, num_bodies, device)
     data.num_instances = num_instances
     data.num_bodies = num_bodies
     data._is_primed = True
