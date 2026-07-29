@@ -1,0 +1,2 @@
+Test-only: stabilized kitless rendering selection, expected-failure reporting, and known native-crash
+coverage. No user-facing API change.
