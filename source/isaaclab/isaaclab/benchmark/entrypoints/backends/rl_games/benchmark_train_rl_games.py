@@ -341,7 +341,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 max_iterations=agent_cfg["params"]["config"].get("max_epochs"),
             )
 
-            checkpoint_path = None
+            checkpoint_path = _common.latest_checkpoint_path(run_log_dir)
             video_path = os.path.join(run_log_dir, "videos") if getattr(args_cli, "video", False) else None
 
             bundle = builders.build_training_bundle(

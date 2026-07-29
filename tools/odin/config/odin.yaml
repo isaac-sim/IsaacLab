@@ -1,0 +1,47 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# OdinV2 dispatch configuration.
+osmo_profile: default
+pool: isaac-dev-l40-03
+priority: NORMAL
+
+image:
+  registry: nvcr.io/nvidian
+  repository: antoiner-isaac-lab
+  pull_credential: ngc_read_only
+
+resources:
+  cpu: 8
+  gpu: 1
+  memory: 64Gi
+  storage: 64Gi
+  platform: ovx-l40
+
+# Every task is wrapped in its own single-task group, so OSMO's clock is
+# per-group and this is a ceiling that catches wedged tasks rather than a
+# per-task budget. Short tasks finish and exit on their own.
+exec_timeout_s: 86400
+
+# At dev-pool oversubscription rates a task can wait many hours before k8s
+# schedules it. The pool admin may clamp this at submit time; the enforced
+# value shows up in workflow.timeout.queue_timeout after submission.
+queue_timeout_s: 172800
+
+# Maximum tasks per submitted OSMO workflow.
+chunk_size: 25
+
+# Storage prefix results are published under. Emitted as each task's OSMO
+# `outputs:` block, so OSMO performs the upload itself — no credentials and no
+# osmo binary are needed inside the container.
+#
+# OSMO datasets were retired: `outputs: - dataset:` is rejected server-side with
+# "Bucket isaac mode is read-only". Direct swift writes to this prefix pass
+# `osmo data check -a WRITE`, which `dispatch` runs as a preflight.
+results_uri: swift://pdx.s8k.io/AUTH_team-isaac/datasets/odin
+
+retry:
+  reschedule_codes: "3001-3006"
+  restart_codes: ""

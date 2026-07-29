@@ -451,7 +451,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 resources=resources,
                 learning=learning,
                 success_rate=success_rate,
-                checkpoint_path=None,
+                checkpoint_path=_common.latest_checkpoint_path(log_dir),
                 video_path=os.path.join(log_dir, "videos") if args_cli.video else None,
             )
 

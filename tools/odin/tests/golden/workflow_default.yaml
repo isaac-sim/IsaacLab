@@ -1,0 +1,130 @@
+workflow:
+  name: odin-20260728-120000-0
+  timeout:
+    exec_timeout: 86400s
+    queue_timeout: 172800s
+  resources:
+    default:
+      cpu: 8
+      gpu: 1
+      memory: 64Gi
+      storage: 64Gi
+      platform: ovx-l40s
+  # Every task is wrapped in its own single-task group. OSMO's workflow-level
+  # exec_timeout clock starts at each group's transition to RUNNING, so with
+  # tasks at the workflow root a late-scheduled task would be killed for other
+  # tasks' queue time.
+  groups:
+
+  - name: g-rsl-rl-physx-isaac-ant-seed42
+    tasks:
+    - name: rsl-rl-physx-isaac-ant-seed42
+      image: nvcr.io/nvidian/antoiner-isaac-lab@sha256:abc
+
+      # OSMO maps a credential name to the registry host it authenticates.
+      credentials:
+        ngc_read_only: nvcr.io
+
+      environment:
+        ACCEPT_EULA: "Y"
+        OMNI_KIT_ALLOW_ROOT: "1"
+        ODIN_DISPATCH_ID: "20260728-120000"
+        ODIN_ROW_KEY: "rsl_rl_physx_Isaac-Ant_seed42"
+      command: ["bash"]
+      args: ["/tmp/entry.sh"]
+      files:
+      - path: /tmp/entry.sh
+        contents: |
+          set -euxo pipefail
+          cd /workspace/isaaclab
+          OUT="{{output}}/rsl_rl_physx_Isaac-Ant_seed42"
+          mkdir -p "$OUT"
+          set +e
+          uv run --frozen --extra isaacsim --extra ovphysx --extra ovrtx --extra rsl-rl --extra skrl --extra rl-games --extra sb3 --extra rerun isaaclab benchmark training --rl_library rsl_rl --task Isaac-Ant --seed 42 --output_path "$OUT" --benchmark_formatter schema physics=physx
+
+          rc=$?
+          echo "=== odin: training exit_code=$rc ==="
+
+          # The base image is nvidia/cuda plus uv, which manages its own Python:
+          # there is no system python3 on PATH. Use the venv interpreter that
+          # `uv sync` created at build time.
+          PY=/workspace/isaaclab/.venv/bin/python
+
+          CKPT=""
+          KEPT=""
+          PLAY_RC=""
+          PLAY_STATUS="not_requested"
+
+          # Resolve the checkpoint regardless of what happens next: retaining it
+          # and rolling it out are separate concerns.
+          if [ "$rc" -eq 0 ]; then
+            CKPT=$("$PY" - "$OUT" <<'PYEOF'
+          import glob, json, os, sys
+          candidates = sorted(glob.glob(os.path.join(sys.argv[1], "benchmark_training_*.json")))
+          for path in reversed(candidates):
+              try:
+                  payload = json.load(open(path))
+              except (OSError, ValueError):
+                  continue
+              checkpoint = payload.get("checkpoint_path")
+              if checkpoint:
+                  print(checkpoint)
+                  break
+          PYEOF
+          )
+          fi
+
+
+          # A per-row record of which steps ran and why any did not. The bundles
+          # say what a run measured; this says what happened, which is what you
+          # need when a row comes back with less than expected.
+          "$PY" - "$OUT" "$rc" "$PLAY_STATUS" "$PLAY_RC" "$CKPT" "$KEPT" <<'PYEOF' || echo "=== odin: could not write odin-steps.json ==="
+          import json, os, sys
+          out, rc, play_status, play_rc, checkpoint, kept = sys.argv[1:7]
+          record = {
+              "row_key": os.environ.get("ODIN_ROW_KEY", ""),
+              "dispatch_id": os.environ.get("ODIN_DISPATCH_ID", ""),
+              "training": {"ran": True, "exit_code": int(rc)},
+              "checkpoint": {
+                  "found": bool(checkpoint),
+                  "source_path": checkpoint or None,
+                  "retained_as": kept or None,
+              },
+              "play": {
+                  "status": play_status,
+                  "exit_code": int(play_rc) if play_rc else None,
+              },
+              "artifacts": sorted(
+                  os.path.relpath(os.path.join(root, name), out)
+                  for root, _dirs, files in os.walk(out)
+                  for name in files
+              )[:200],
+          }
+          with open(os.path.join(out, "odin-steps.json"), "w") as handle:
+              json.dump(record, handle, indent=2)
+          print("=== odin: steps ===")
+          print(json.dumps({k: v for k, v in record.items() if k != "artifacts"}, indent=2))
+          PYEOF
+
+          set -e
+          # `head` closes the pipe early, so `find` dies of SIGPIPE and the
+          # pipeline exits 141. Under `set -o pipefail` that would end the
+          # script before it could exit with the training verdict.
+          find "$OUT" -type f | head -40 || true
+          # Training is the verdict: a play failure must not turn a good
+          # training run into a red row.
+          exit $rc
+      # OSMO uploads {{output}} itself, after exec and regardless of exit
+      # code, so a crashed run still returns what it produced and no publishing
+      # step can mask the benchmark's verdict. Each task writes into its own
+      # {{output}}/<row_key>/, so uploads never collide under this shared prefix.
+      outputs:
+      - url: swift://h/AUTH_team-isaac/results/20260728-120000/
+
+      exitActions:
+
+        RESCHEDULE: 3001-3006
+
+
+
+
