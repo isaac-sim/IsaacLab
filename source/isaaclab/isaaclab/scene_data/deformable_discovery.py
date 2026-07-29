@@ -57,20 +57,60 @@ def _collect_type_prims(root_prim, type_name: str) -> list:
     When ``OmniPhysicsDeformableBodyAPI`` is applied directly on a simulation TetMesh or
     Mesh, the visual Mesh is often a sibling under the parent Xform. Child-only search
     would miss that sibling and fall back to binding the sim mesh for OVRTX.
+
+    Sibling search only inspects direct children of the parent so nested meshes under
+    unrelated sibling branches are not treated as visual candidates.
     """
     stage = root_prim.GetStage()
     root_path = root_prim.GetPath()
     prims = list(sim_utils.get_all_matching_child_prims(root_path, lambda p: p.GetTypeName() == type_name, stage=stage))
     parent = root_prim.GetParent()
     if parent is not None and parent.IsValid() and root_prim.GetTypeName() in ("TetMesh", "Mesh"):
-        sibling_prims = sim_utils.get_all_matching_child_prims(
-            parent.GetPath(), lambda p: p.GetTypeName() == type_name, stage=stage
-        )
         known_paths = {prim.GetPath() for prim in prims}
-        for prim in sibling_prims:
-            if prim.GetPath() not in known_paths:
-                prims.append(prim)
+        for child in parent.GetChildren():
+            if child.GetTypeName() != type_name or child.GetPath() in known_paths:
+                continue
+            prims.append(child)
     return prims
+
+
+def _mesh_point_count(prim) -> int:
+    """Return the number of points authored on a Mesh or TetMesh prim."""
+    if prim.GetTypeName() == "Mesh":
+        pts = UsdGeom.Mesh(prim).GetPointsAttr().Get()
+    elif prim.GetTypeName() == "TetMesh":
+        pts = UsdGeom.TetMesh(prim).GetPointsAttr().Get()
+    else:
+        return 0
+    return len(pts or [])
+
+
+def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: int):
+    """Choose the visual mesh among candidates when several non-sim meshes exist.
+
+    Prefers a direct sibling of the simulation mesh, then name hints
+    (``visual`` / ``render`` / ``display`` / ``proxy``), then a matching point
+    count, then a shorter / lexicographically stable path.
+    """
+    if not vis_candidates:
+        return sim_mesh_prim
+    if len(vis_candidates) == 1:
+        return vis_candidates[0]
+
+    sim_parent = sim_mesh_prim.GetParent()
+    sim_parent_path = sim_parent.GetPath() if sim_parent is not None and sim_parent.IsValid() else None
+
+    def _score(prim) -> tuple:
+        name = prim.GetName().lower()
+        name_bonus = int(any(token in name for token in ("visual", "render", "display", "proxy")))
+        sibling_bonus = int(
+            sim_parent_path is not None and prim.GetParent() is not None and prim.GetParent().GetPath() == sim_parent_path
+        )
+        count_bonus = int(_mesh_point_count(prim) == sim_vertex_count)
+        path = prim.GetPath().pathString
+        return (sibling_bonus, name_bonus, count_bonus, -path.count("/"), path)
+
+    return max(vis_candidates, key=_score)
 
 
 def _classify_deformable_meshes(root_prim) -> tuple[str, object, object, int, int, list, list]:
@@ -104,7 +144,7 @@ def _classify_deformable_meshes(root_prim) -> tuple[str, object, object, int, in
     else:
         raise ValueError(f"No simulation mesh found under deformable root '{root_path}'.")
 
-    vis_mesh_prim = vis_candidates[0] if vis_candidates else mesh_prim
+    vis_mesh_prim = _select_visual_mesh(vis_candidates, mesh_prim, len(pts))
     vis_pts = (
         UsdGeom.Mesh(vis_mesh_prim).GetPointsAttr().Get()
         if vis_mesh_prim.GetTypeName() == "Mesh"
