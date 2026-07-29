@@ -380,11 +380,16 @@ jobs:
       with:
         fetch-depth: 1
         lfs: true
+    - name: Resolve OVPhysX runtime pin from pyproject
+      if: matrix.runtime-group == 'non-kit'
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        extra-pip-packages: ${{ steps.ov_pins.outputs.ovphysx }}
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"

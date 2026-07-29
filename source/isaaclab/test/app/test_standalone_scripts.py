@@ -382,15 +382,6 @@ def test_backend_availability_resolves_implementation_package(monkeypatch, backe
     assert queried == [package]
 
 
-def test_ovphysx_backend_availability_requires_runtime(monkeypatch):
-    """OvPhysX gating must require its optional runtime in addition to its implementation package."""
-    available = {"isaaclab_ovphysx"}
-    monkeypatch.setattr(script_cases.importlib.util, "find_spec", lambda name: object() if name in available else None)
-    assert not backend_is_available("ovphysx")
-    available.add("ovphysx")
-    assert backend_is_available("ovphysx")
-
-
 def test_builtin_backend_availability_handles_default_and_isaac_rtx(monkeypatch):
     """Built-in backend gates must not require an extension package lookup."""
     monkeypatch.setattr(script_cases.importlib.util, "find_spec", lambda name: None)
@@ -470,9 +461,9 @@ def test_standalone_script_remains_healthy_after_startup(case):
     if case.visualizer in {"kit", "newton"} and not gui_is_available():
         pytest.skip("GUI smoke test requires DISPLAY or WAYLAND_DISPLAY")
     if not backend_is_available(case.physics_backend):
-        pytest.skip(f"physics backend {case.physics_backend!r} is not available")
+        pytest.skip(f"physics backend package for {case.physics_backend!r} is not installed")
     if not backend_is_available(case.renderer_backend):
-        pytest.skip(f"renderer backend {case.renderer_backend!r} is not available")
+        pytest.skip(f"renderer backend package for {case.renderer_backend!r} is not installed")
     if not visualizer_is_available(case.visualizer):
         pytest.skip(f"visualizer package for {case.visualizer!r} is not installed")
 
@@ -537,9 +528,9 @@ def test_launch_matrix_skips_unavailable_runtime_capabilities(monkeypatch):
         test_standalone_script_remains_healthy_after_startup(replace(base_case, visualizer="kit"))
 
     monkeypatch.setattr(module, "backend_is_available", lambda backend: backend != "missing")
-    with pytest.raises(pytest.skip.Exception, match="physics backend"):
+    with pytest.raises(pytest.skip.Exception, match="physics backend package"):
         test_standalone_script_remains_healthy_after_startup(replace(base_case, physics_backend="missing"))
-    with pytest.raises(pytest.skip.Exception, match="renderer backend"):
+    with pytest.raises(pytest.skip.Exception, match="renderer backend package"):
         test_standalone_script_remains_healthy_after_startup(replace(base_case, renderer_backend="missing"))
 
     monkeypatch.setattr(module, "visualizer_is_available", lambda visualizer: False)

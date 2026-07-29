@@ -318,7 +318,7 @@ def select_runtime_group(cases: list[LaunchCase], runtime_group: str) -> list[La
 
 
 def backend_is_available(backend: str) -> bool:
-    """Return whether the implementation package and optional runtime for a backend are importable."""
+    """Return whether the package implementing a selected backend is importable."""
     if backend == "default":
         return True
     if backend == "isaac_rtx":
@@ -327,9 +327,7 @@ def backend_is_available(backend: str) -> bool:
         package = "isaaclab_physx"
     else:
         package = "isaaclab_newton" if backend.startswith("newton") else f"isaaclab_{backend}"
-    if importlib.util.find_spec(package) is None:
-        return False
-    return backend != "ovphysx" or importlib.util.find_spec("ovphysx") is not None
+    return importlib.util.find_spec(package) is not None
 
 
 def module_is_available(module: str) -> bool:
