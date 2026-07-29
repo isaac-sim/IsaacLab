@@ -115,6 +115,13 @@ to list presets for every registered environment.
 See the :doc:`Hydra preset system documentation </source/features/hydra>`
 for all available backend names and how the typed selectors work.
 
+.. note::
+
+   The DexSuite Kuka Allegro tasks use the homogeneous ``cube`` object preset with
+   ``physics=ovphysx``. The heterogeneous ``shapes`` preset is not supported with
+   OvPhysX; selecting both causes configuration validation to fail. Use
+   ``presets=cube`` or choose another supported physics backend.
+
 
 Single-agent
 ------------
