@@ -2331,6 +2331,24 @@ class Articulation(BaseArticulation):
             self.data._sim_bind_body_mass,
             device=self.device,
         )
+        wp.launch(
+            shared_kernels.update_body_inertial_properties_inverse_index,
+            dim=(env_ids.shape[0], body_ids.shape[0]),
+            inputs=[
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inertia,
+                env_ids,
+                body_ids,
+                self._body_user_to_backend_map(),
+                has_body_ordering,
+                True,
+            ],
+            outputs=[
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
+            ],
+            device=self.device,
+        )
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2368,6 +2386,24 @@ class Articulation(BaseArticulation):
             has_body_ordering,
             self.data._body_mass_user if has_body_ordering else self.data._sim_bind_body_mass,
             self.data._sim_bind_body_mass,
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.update_body_inertial_properties_inverse_mask,
+            dim=(env_mask.shape[0], body_mask.shape[0]),
+            inputs=[
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inertia,
+                env_mask,
+                body_mask,
+                self._body_user_to_backend_map(),
+                has_body_ordering,
+                True,
+            ],
+            outputs=[
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
+            ],
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
@@ -2508,6 +2544,24 @@ class Articulation(BaseArticulation):
             dtype=wp.float32,
             device=self.device,
         )
+        wp.launch(
+            shared_kernels.update_body_inertial_properties_inverse_index,
+            dim=(env_ids.shape[0], body_ids.shape[0]),
+            inputs=[
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inertia,
+                env_ids,
+                body_ids,
+                self._body_user_to_backend_map(),
+                has_body_ordering,
+                False,
+            ],
+            outputs=[
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
+            ],
+            device=self.device,
+        )
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2546,6 +2600,24 @@ class Articulation(BaseArticulation):
             self.data._body_inertia_user if has_body_ordering else self.data._sim_bind_body_inertia,
             self.data._sim_bind_body_inertia,
             dtype=wp.float32,
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.update_body_inertial_properties_inverse_mask,
+            dim=(env_mask.shape[0], body_mask.shape[0]),
+            inputs=[
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inertia,
+                env_mask,
+                body_mask,
+                self._body_user_to_backend_map(),
+                has_body_ordering,
+                False,
+            ],
+            outputs=[
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
+            ],
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated

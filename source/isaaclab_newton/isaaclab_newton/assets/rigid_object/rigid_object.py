@@ -781,6 +781,24 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        wp.launch(
+            shared_kernels.update_body_inertial_properties_inverse_index,
+            dim=(env_ids.shape[0], body_ids.shape[0]),
+            inputs=[
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inertia,
+                env_ids,
+                body_ids,
+                self._ALL_BODY_INDICES,
+                False,
+                True,
+            ],
+            outputs=[
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
+            ],
+            device=self.device,
+        )
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -821,6 +839,24 @@ class RigidObject(BaseRigidObject):
             ],
             outputs=[
                 self.data.body_mass,
+            ],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.update_body_inertial_properties_inverse_mask,
+            dim=(env_mask.shape[0], body_mask.shape[0]),
+            inputs=[
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inertia,
+                env_mask,
+                body_mask,
+                self._ALL_BODY_INDICES,
+                False,
+                True,
+            ],
+            outputs=[
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
             ],
             device=self.device,
         )
@@ -961,6 +997,24 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        wp.launch(
+            shared_kernels.update_body_inertial_properties_inverse_index,
+            dim=(env_ids.shape[0], body_ids.shape[0]),
+            inputs=[
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inertia,
+                env_ids,
+                body_ids,
+                self._ALL_BODY_INDICES,
+                False,
+                False,
+            ],
+            outputs=[
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
+            ],
+            device=self.device,
+        )
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -1001,6 +1055,24 @@ class RigidObject(BaseRigidObject):
             ],
             outputs=[
                 self.data.body_inertia,
+            ],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.update_body_inertial_properties_inverse_mask,
+            dim=(env_mask.shape[0], body_mask.shape[0]),
+            inputs=[
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inertia,
+                env_mask,
+                body_mask,
+                self._ALL_BODY_INDICES,
+                False,
+                False,
+            ],
+            outputs=[
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
             ],
             device=self.device,
         )
