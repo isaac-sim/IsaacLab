@@ -557,6 +557,12 @@ class ViserVisualizer(BaseVisualizer):
         with contextlib.suppress(Exception):
             server.gui.set_panel_label("Isaac Lab")
 
+            reset_button = server.gui.add_button("Reset Episode")
+
+            @reset_button.on_click
+            def _(_):
+                self._reset_requested = True
+
             live_plots_folder = server.gui.add_folder("Live Plots", expand_by_default=False)
             viewer._live_plots_folder = live_plots_folder
 

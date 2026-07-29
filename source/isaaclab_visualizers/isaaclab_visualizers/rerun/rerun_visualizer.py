@@ -132,6 +132,7 @@ class NewtonViewerRerun(ViewerRerun):
                 stack.callback(setattr, rr, "serve_web_viewer", original_serve_web_viewer)
                 super().__init__(*args, **kwargs)
         self._paused_rendering = False
+        self._reset_requested = False
 
     def _get_blueprint(self):
         """Return a per-manager blueprint when live plots are registered, else the default.
@@ -162,6 +163,12 @@ class NewtonViewerRerun(ViewerRerun):
         """Return whether rendering is paused by viewer controls."""
         return self._paused_rendering
 
+    def consume_reset_request(self) -> bool:
+        """Return whether an episode reset was requested and clear the flag."""
+        requested = self._reset_requested
+        self._reset_requested = False
+        return requested
+
     def _render_ui(self):
         """Extend base UI with Isaac Lab rendering pause toggle."""
         super()._render_ui()
@@ -176,6 +183,8 @@ class NewtonViewerRerun(ViewerRerun):
         if imgui.collapsing_header("IsaacLab Controls"):
             if imgui.button("Pause Rendering" if not self._paused_rendering else "Resume Rendering"):
                 self._paused_rendering = not self._paused_rendering
+            if imgui.button("Reset Episode"):
+                self._reset_requested = True
 
     def log_geo(
         self,
@@ -493,3 +502,9 @@ class RerunVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()
+
+    def consume_reset_request(self) -> bool:
+        """Return whether an episode reset was requested from viewer controls and clear the flag."""
+        if not self._is_initialized or self._viewer is None:
+            return False
+        return self._viewer.consume_reset_request()

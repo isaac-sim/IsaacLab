@@ -285,6 +285,15 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # trigger recorder terms for post-reset calls
             self.recorder_manager.record_post_reset(reset_env_ids)
 
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            # Only reset envs not already reset this step to avoid redundant resets.
+            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+            not_yet_reset[reset_env_ids] = False
+            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
+            if len(manual_reset_ids) > 0:
+                self._reset_idx(manual_reset_ids)
+
         # -- update command
         self.command_manager.compute(dt=self.step_dt)
         # -- step interval events
