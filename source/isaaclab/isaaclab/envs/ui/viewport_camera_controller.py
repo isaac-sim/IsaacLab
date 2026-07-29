@@ -25,22 +25,10 @@ class ViewportCameraController:
 
     .. deprecated::
         :class:`ViewportCameraController` has been removed. Camera tracking is now built into
-        :class:`~isaaclab_visualizers.kit.KitVisualizer`. Configure it via
-        :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`::
-
-            from isaaclab.sim import SimulationCfg
-            from isaaclab_visualizers.kit import KitVisualizerCfg
-
-            sim_cfg = SimulationCfg(
-                visualizer_cfgs=[
-                    KitVisualizerCfg(
-                        eye=(7.5, 7.5, 7.5),
-                        lookat=(0.0, 0.0, 0.0),
-                        origin_type="asset",
-                        origin_track_path="robot",
-                    )
-                ]
-            )
+        :class:`~isaaclab_visualizers.kit.KitVisualizer`. Set ``origin_type``,
+        ``origin_track_path``, ``eye``, and ``lookat`` directly on
+        :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` and pass it to
+        :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
     """
 
     def __init__(self, env: object, cfg: ViewerCfg):
