@@ -164,6 +164,28 @@ Both sides run the identical row set. Side B's row keys and OSMO task names take
 a `_b` suffix so the two coexist in one dispatch, and `dispatch.json` records the
 image reference per side.
 
+## Recover a dispatch
+
+A controller that dies mid-poll leaves rows stuck in `running` while OSMO keeps
+going. Re-attach rather than re-submitting — the workflow ids are already
+recorded, and submitting again would duplicate every task:
+
+```bash
+uv run python -m tools.odin.cli dispatch --config tools/odin/config/odin.yaml \
+    --resume LATEST
+```
+
+Failed rows are never retried automatically: a benchmark crash usually repeats,
+and silently re-running it wastes GPU time. Retry explicitly, which starts a new
+dispatch containing only those rows and links it back via `parent_dispatch_id`:
+
+```bash
+uv run python -m tools.odin.cli dispatch --config tools/odin/config/odin.yaml \
+    --image <digest> --retry_failed LATEST
+```
+
+Retries reuse the parent's seeds, so `--seeds` is not needed.
+
 ## Inspect and re-pull
 
 ```bash

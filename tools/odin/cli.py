@@ -38,6 +38,7 @@ from tools.odin.state import (
     FailureInfo,
     JobEntry,
     read_dispatch_state,
+    reset_in_flight_to_pending,
     write_dispatch_state,
 )
 from tools.odin.workflow import osmo_safe_task_name, render_workflow_yaml
@@ -114,15 +115,58 @@ def command_build_image(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_dispatch_id(runs_root: Path, target: str) -> str:
+    """Resolve a dispatch id, accepting ``LATEST`` for the most recent one.
+
+    Args:
+        runs_root: Directory holding dispatches.
+        target: A dispatch id, or ``LATEST``.
+
+    Returns:
+        The resolved dispatch id.
+
+    Raises:
+        PlanError: If *target* is ``LATEST`` and no dispatch exists.
+    """
+    if target != "LATEST":
+        return target
+    candidates = sorted(path.name for path in runs_root.iterdir() if (path / "dispatch.json").exists())
+    if not candidates:
+        raise PlanError(f"no dispatch found under {runs_root}")
+    return candidates[-1]
+
+
 def command_dispatch(args: argparse.Namespace) -> int:
     """Plan rows, render workflows, and (unless dry-running) submit and poll."""
     cfg = load_odin_config(args.config)
+    if args.resume is not None:
+        return _resume_dispatch(args=args, cfg=cfg)
     chunk_size = args.chunk_size if args.chunk_size is not None else cfg.chunk_size
 
-    task_rows = load_task_rows(args.tasks_yaml)
-    if args.metadata_yaml is not None:
-        task_rows = apply_metadata(task_rows, load_task_rows(args.metadata_yaml))
-    rows = plan_rows(task_rows=task_rows, seeds=args.seeds, include=args.include)
+    # --image and --seeds are only optional on the resume path, which re-attaches
+    # to work that was already planned and submitted.
+    if args.image is None:
+        print("[odin] --image is required unless resuming", file=sys.stderr)
+        return 1
+    if args.seeds is None and args.retry_failed is None:
+        print("[odin] --seeds is required unless retrying (retries reuse the parent's seeds)", file=sys.stderr)
+        return 1
+
+    parent_dispatch_id: str | None = None
+    if args.retry_failed is not None:
+        parent_dispatch_id = _resolve_dispatch_id(args.runs_root, args.retry_failed)
+        task_rows, seeds = _failed_rows_from(args.runs_root / parent_dispatch_id)
+        if not task_rows:
+            print(f"[odin] {parent_dispatch_id} has no failed rows to retry", file=sys.stderr)
+            return 1
+        print(f"[odin] retrying {len(task_rows)} failed row(s) from {parent_dispatch_id}")
+    else:
+        task_rows = load_task_rows(args.tasks_yaml)
+        seeds = args.seeds
+        if args.metadata_yaml is not None:
+            task_rows = apply_metadata(task_rows, load_task_rows(args.metadata_yaml))
+
+    rows = plan_rows(task_rows=task_rows, seeds=seeds, include=args.include)
     if not rows:
         print("[odin] no rows matched; nothing to dispatch", file=sys.stderr)
         return 1
@@ -141,9 +185,10 @@ def command_dispatch(args: argparse.Namespace) -> int:
         dispatch_id=dispatch_id,
         started_at=_utc_now_iso(),
         ended_at=None,
-        seeds=list(args.seeds),
+        seeds=list(seeds),
         images={side: image for side, image in sides},
         jobs=[_job_from_row(row, side=side, image_ref=image) for side, image in sides for row in sided_rows[side]],
+        parent_dispatch_id=parent_dispatch_id,
     )
     write_dispatch_state(dispatch_dir, state)
 
@@ -168,6 +213,97 @@ def command_dispatch(args: argparse.Namespace) -> int:
         return 0
 
     return _submit_and_poll(args=args, cfg=cfg, state=state, dispatch_dir=dispatch_dir, rendered=rendered)
+
+
+def _failed_rows_from(dispatch_dir: Path) -> tuple[list[dict], list[int]]:
+    """Return task rows and seeds reconstructed from a dispatch's failed jobs.
+
+    Only one row per identity is emitted even when several seeds failed; the
+    seed axis is carried separately so :func:`plan_rows` re-expands it exactly
+    as the original dispatch did.
+
+    Args:
+        dispatch_dir: Directory of the dispatch to retry.
+
+    Returns:
+        ``(task_rows, seeds)`` suitable for :func:`plan_rows`.
+
+    Raises:
+        PlanError: If the dispatch cannot be read.
+    """
+    state = read_dispatch_state(dispatch_dir)
+    if state is None:
+        raise PlanError(f"no dispatch.json under {dispatch_dir}")
+
+    failed = [job for job in state.jobs if job.status == "failed"]
+    seen: set[tuple] = set()
+    task_rows: list[dict] = []
+    for job in failed:
+        identity = (job.task_id, job.rl_library, job.physics, job.renderer, job.presets)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        row: dict = {"task_id": job.task_id, "rl_library": job.rl_library}
+        if job.physics is not None:
+            row["physics"] = job.physics
+        if job.renderer is not None:
+            row["renderer"] = job.renderer
+        if job.presets:
+            row["presets"] = list(job.presets)
+        if job.num_envs is not None:
+            row["num_envs"] = job.num_envs
+        if job.max_iterations is not None:
+            row["max_iterations"] = job.max_iterations
+        if job.timeout_s is not None:
+            row["timeout_s"] = job.timeout_s
+        task_rows.append(row)
+
+    return task_rows, sorted({job.seed for job in failed})
+
+
+def _resume_dispatch(*, args: argparse.Namespace, cfg: OdinConfig) -> int:
+    """Re-attach to a dispatch whose workflows are already submitted.
+
+    A crashed controller leaves rows stuck in ``running`` while OSMO carries on,
+    so resuming flips those back to ``pending`` and re-enters the poll loop.
+    Nothing is re-submitted: the workflow ids are already recorded, and
+    submitting again would duplicate every task.
+
+    Args:
+        args: Parsed ``dispatch`` arguments.
+        cfg: Validated ``odin.yaml`` contents.
+
+    Returns:
+        Process exit code.
+    """
+    dispatch_id = _resolve_dispatch_id(args.runs_root, args.resume)
+    dispatch_dir = args.runs_root / dispatch_id
+    state = read_dispatch_state(dispatch_dir)
+    if state is None:
+        print(f"[odin] no dispatch.json under {dispatch_dir}", file=sys.stderr)
+        return 1
+    if not state.osmo_workflow_ids:
+        print(
+            f"[odin] {dispatch_id} has no submitted workflows; it never got past planning. "
+            "Start a fresh dispatch instead.",
+            file=sys.stderr,
+        )
+        return 1
+
+    in_flight = sum(1 for job in state.jobs if job.status == "running")
+    reset_in_flight_to_pending(state)
+    write_dispatch_state(dispatch_dir, state)
+    print(
+        f"[odin] resuming {dispatch_id}: {in_flight} in-flight row(s) reset, {len(state.osmo_workflow_ids)} workflow(s)"
+    )
+
+    return _poll_to_completion(
+        client=OsmoClient(profile=cfg.osmo_profile),
+        cfg=cfg,
+        state=state,
+        dispatch_dir=dispatch_dir,
+        poll_interval_s=args.poll_interval,
+    )
 
 
 def _submit_and_poll(
@@ -207,6 +343,25 @@ def _submit_and_poll(
         print(f"[odin] submitted {path.name} -> {workflow_id}")
         write_dispatch_state(dispatch_dir, state)
 
+    return _poll_to_completion(
+        client=client, cfg=cfg, state=state, dispatch_dir=dispatch_dir, poll_interval_s=args.poll_interval
+    )
+
+
+def _poll_to_completion(
+    *,
+    client: OsmoClient,
+    cfg: OdinConfig,
+    state: DispatchState,
+    dispatch_dir: Path,
+    poll_interval_s: float,
+) -> int:
+    """Poll submitted workflows to completion, fetching each row as it lands.
+
+    Shared by a fresh dispatch and by ``--resume``: once workflows are
+    submitted, recovering a crashed controller is exactly this loop again.
+    """
+
     def on_completed(job: JobEntry) -> None:
         row_dir = fetch_results(
             client=client,
@@ -230,14 +385,13 @@ def _submit_and_poll(
         state=state,
         dispatch_dir=dispatch_dir,
         on_task_completed=on_completed,
-        poll_interval_s=args.poll_interval,
+        poll_interval_s=poll_interval_s,
     )
 
     state.ended_at = _utc_now_iso()
     write_dispatch_state(dispatch_dir, state)
-    failed = [job for job in state.jobs if job.status == "failed"]
     _print_summary(state)
-    return 1 if failed else 0
+    return 1 if any(job.status == "failed" for job in state.jobs) else 0
 
 
 def _print_summary(state: DispatchState) -> None:
@@ -354,10 +508,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     dispatch = sub.add_parser("dispatch", help="Plan, submit, and poll a dispatch.")
     dispatch.add_argument("--config", type=Path, required=True)
-    dispatch.add_argument("--tasks_yaml", type=Path, required=True)
-    dispatch.add_argument("--image", type=str, required=True, help="Digest-pinned image for side A.")
+    dispatch.add_argument("--tasks_yaml", type=Path, default=Path(__file__).resolve().parent / "config" / "tasks.yaml")
+    dispatch.add_argument("--image", type=str, default=None, help="Digest-pinned image for side A.")
     dispatch.add_argument("--image_b", type=str, default=None, help="Digest-pinned image for side B; enables A/B mode.")
-    dispatch.add_argument("--seeds", type=_parse_seeds, required=True)
+    dispatch.add_argument("--seeds", type=_parse_seeds, default=None)
     dispatch.add_argument("--include", type=str, default=None, help="Glob filter over task_id.")
     dispatch.add_argument(
         "--metadata_yaml",
@@ -371,6 +525,20 @@ def _build_parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--poll_interval", type=float, default=15.0)
     dispatch.add_argument("--runs_root", type=Path, default=Path("./odin_runs"))
     dispatch.add_argument("--dry_run", action="store_true")
+    dispatch.add_argument(
+        "--resume",
+        type=str,
+        default=None,
+        metavar="DISPATCH_ID",
+        help="Re-attach to an already-submitted dispatch and keep polling. Accepts LATEST.",
+    )
+    dispatch.add_argument(
+        "--retry_failed",
+        type=str,
+        default=None,
+        metavar="DISPATCH_ID",
+        help="Start a new dispatch containing only the failed rows of another. Accepts LATEST.",
+    )
     dispatch.add_argument(
         "--skip_preflight",
         action="store_true",

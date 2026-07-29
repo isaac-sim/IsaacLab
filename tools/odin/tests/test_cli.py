@@ -288,3 +288,237 @@ def test_discover_scope_filter_can_empty_the_list(tmp_path: Path, monkeypatch) -
         lambda: [DiscoveredTask("Isaac-Ant", "core", ("rsl_rl",), (DiscoveredTask.Mode(None, None, None),))],
     )
     assert main(["discover", "--scope", "contrib", "--output", str(tmp_path / "t.yaml")]) != 0
+
+
+def _mark_failed(workspace: Path, kind: str = "benchmark_crash", limit: int = 2) -> str:
+    """Fail the first *limit* jobs of the newest dispatch and return its id."""
+    dispatch_dir = _dispatch_dir(workspace)
+    state = json.loads((dispatch_dir / "dispatch.json").read_text())
+    state["osmo_workflow_ids"] = ["wf-1"]
+    for job in state["jobs"][:limit]:
+        job["status"] = "failed"
+        job["ended_at"] = "2026-07-29T12:00:00Z"
+        job["failure"] = {"kind": kind, "message": "boom", "details": {}}
+    (dispatch_dir / "dispatch.json").write_text(json.dumps(state))
+    return dispatch_dir.name
+
+
+def test_dispatch_requires_an_image_unless_resuming(workspace: Path, capsys) -> None:
+    code = main(
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--tasks_yaml",
+            str(workspace / "tasks.yaml"),
+            "--seeds",
+            "42",
+            "--runs_root",
+            str(workspace / "runs"),
+            "--dry_run",
+        ]
+    )
+    assert code == 1
+    assert "--image is required" in capsys.readouterr().err
+
+
+def test_dispatch_requires_seeds_unless_retrying(workspace: Path, capsys) -> None:
+    code = main(
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--tasks_yaml",
+            str(workspace / "tasks.yaml"),
+            "--image",
+            "img",
+            "--runs_root",
+            str(workspace / "runs"),
+            "--dry_run",
+        ]
+    )
+    assert code == 1
+    assert "--seeds is required" in capsys.readouterr().err
+
+
+def test_resume_rejects_a_dispatch_that_never_submitted(workspace: Path, capsys) -> None:
+    # Nothing was submitted, so there is no workflow to re-attach to.
+    main(_dispatch_argv(workspace))
+    dispatch_id = _dispatch_dir(workspace).name
+    code = main(
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--runs_root",
+            str(workspace / "runs"),
+            "--resume",
+            dispatch_id,
+        ]
+    )
+    assert code == 1
+    assert "never got past planning" in capsys.readouterr().err
+
+
+def test_resume_rejects_an_unknown_dispatch(workspace: Path, capsys) -> None:
+    code = main(
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--runs_root",
+            str(workspace / "runs"),
+            "--resume",
+            "20260101-000000",
+        ]
+    )
+    assert code == 1
+    assert "no dispatch.json" in capsys.readouterr().err
+
+
+def test_resume_latest_with_no_dispatches_is_an_error(workspace: Path, capsys) -> None:
+    (workspace / "runs").mkdir(parents=True, exist_ok=True)
+    code = main(
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--runs_root",
+            str(workspace / "runs"),
+            "--resume",
+            "LATEST",
+        ]
+    )
+    assert code == 1
+    assert "no dispatch found" in capsys.readouterr().err
+
+
+def test_retry_failed_plans_only_the_failed_rows(workspace: Path) -> None:
+    main(_dispatch_argv(workspace, "--include", "Isaac-Cartpole-Direct"))
+    parent = _mark_failed(workspace, limit=2)
+    failed_ids = {
+        job["task_id"]
+        for job in json.loads((_dispatch_dir(workspace) / "dispatch.json").read_text())["jobs"]
+        if job["status"] == "failed"
+    }
+
+    code = main(
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--image",
+            "img@sha256:abc",
+            "--runs_root",
+            str(workspace / "runs"),
+            "--retry_failed",
+            parent,
+            "--dry_run",
+        ]
+    )
+
+    assert code == 0
+    child = sorted((workspace / "runs").iterdir())[-1]
+    state = json.loads((child / "dispatch.json").read_text())
+    assert state["parent_dispatch_id"] == parent
+    assert {job["task_id"] for job in state["jobs"]} <= failed_ids
+
+
+def test_retry_failed_reuses_the_parent_seeds(workspace: Path) -> None:
+    main(_dispatch_argv(workspace, "--seeds", "42,43", "--include", "Isaac-Cartpole-Direct"))
+    parent = _mark_failed(workspace, limit=2)
+
+    main(
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--image",
+            "img@sha256:abc",
+            "--runs_root",
+            str(workspace / "runs"),
+            "--retry_failed",
+            parent,
+            "--dry_run",
+        ]
+    )
+
+    child = sorted((workspace / "runs").iterdir())[-1]
+    assert json.loads((child / "dispatch.json").read_text())["seeds"]
+
+
+def test_retry_failed_on_a_clean_dispatch_is_an_error(workspace: Path, capsys) -> None:
+    main(_dispatch_argv(workspace))
+    parent = _dispatch_dir(workspace).name
+    code = main(
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--image",
+            "img",
+            "--runs_root",
+            str(workspace / "runs"),
+            "--retry_failed",
+            parent,
+            "--dry_run",
+        ]
+    )
+    assert code == 1
+    assert "no failed rows" in capsys.readouterr().err
+
+
+def test_resume_resets_in_flight_rows_and_polls(workspace: Path, monkeypatch, capsys) -> None:
+    # The happy path: workflows exist, so resume must re-attach rather than
+    # re-submit. Every other resume test returns early, which is how an
+    # undefined name survived until ruff caught it.
+    from tools.odin import cli as cli_module
+    from tools.odin.client import TaskSnapshot, WorkflowSnapshot
+
+    main(_dispatch_argv(workspace, "--include", "Isaac-Cartpole-Direct"))
+    dispatch_dir = _dispatch_dir(workspace)
+    state = json.loads((dispatch_dir / "dispatch.json").read_text())
+    state["osmo_workflow_ids"] = ["wf-1"]
+    for job in state["jobs"]:
+        job["status"] = "running"
+        job["assigned_to"] = "osmo:wf-1"
+        job["started_at"] = "2026-07-29T12:00:00Z"
+    (dispatch_dir / "dispatch.json").write_text(json.dumps(state))
+    names = [job["osmo_task_name"] for job in state["jobs"]]
+
+    class _Client:
+        def __init__(self, *a, **k) -> None: ...
+
+        def status(self, workflow_id):
+            return WorkflowSnapshot(
+                workflow_id=workflow_id,
+                status="COMPLETED",
+                tasks=[TaskSnapshot(name=n, status="COMPLETED", exit_code=0) for n in names],
+            )
+
+        def data_download(self, remote_uri, dest_dir):
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(cli_module, "OsmoClient", _Client)
+
+    code = main(
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--runs_root",
+            str(workspace / "runs"),
+            "--resume",
+            "LATEST",
+            "--poll_interval",
+            "0",
+        ]
+    )
+
+    out = capsys.readouterr().out
+    assert "resuming" in out
+    # Nothing parseable came back, so completed rows are reclassified.
+    final = json.loads((dispatch_dir / "dispatch.json").read_text())
+    assert all(job["status"] == "failed" for job in final["jobs"])
+    assert all(job["failure"]["kind"] == "malformed_bundle" for job in final["jobs"])
+    assert code == 1
