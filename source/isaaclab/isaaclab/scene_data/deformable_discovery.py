@@ -51,14 +51,35 @@ def _is_sim_mesh(prim) -> bool:
     return _prim_has_schema(prim, "DeformableSimAPI")
 
 
+def _collect_type_prims(root_prim, type_name: str) -> list:
+    """Collect prims of ``type_name`` under ``root_prim``, including sibling meshes.
+
+    When ``OmniPhysicsDeformableBodyAPI`` is applied directly on a simulation TetMesh or
+    Mesh, the visual Mesh is often a sibling under the parent Xform. Child-only search
+    would miss that sibling and fall back to binding the sim mesh for OVRTX.
+    """
+    stage = root_prim.GetStage()
+    root_path = root_prim.GetPath()
+    prims = list(sim_utils.get_all_matching_child_prims(root_path, lambda p: p.GetTypeName() == type_name, stage=stage))
+    parent = root_prim.GetParent()
+    if parent is not None and parent.IsValid() and root_prim.GetTypeName() in ("TetMesh", "Mesh"):
+        sibling_prims = sim_utils.get_all_matching_child_prims(
+            parent.GetPath(), lambda p: p.GetTypeName() == type_name, stage=stage
+        )
+        known_paths = {prim.GetPath() for prim in prims}
+        for prim in sibling_prims:
+            if prim.GetPath() not in known_paths:
+                prims.append(prim)
+    return prims
+
+
 def _classify_deformable_meshes(root_prim) -> tuple[str, object, object, int, int, list, list]:
     """Return deformable type, sim mesh prim, vis mesh prim, counts, vertices, and indices."""
     import warp as wp
 
-    stage = root_prim.GetStage()
     root_path = root_prim.GetPath()
-    tet_prims = sim_utils.get_all_matching_child_prims(root_path, lambda p: p.GetTypeName() == "TetMesh", stage=stage)
-    mesh_prims = sim_utils.get_all_matching_child_prims(root_path, lambda p: p.GetTypeName() == "Mesh", stage=stage)
+    tet_prims = _collect_type_prims(root_prim, "TetMesh")
+    mesh_prims = _collect_type_prims(root_prim, "Mesh")
 
     if len(tet_prims) == 1:
         mesh_prim = tet_prims[0]

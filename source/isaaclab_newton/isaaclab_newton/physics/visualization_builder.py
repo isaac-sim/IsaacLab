@@ -28,17 +28,27 @@ from isaaclab_newton.physics.visualization_deformables import (
 )
 
 
-def _deformable_ignore_paths(stage: Usd.Stage, sources: Sequence[str]) -> list[str]:
-    """Collect deformable prim paths under clone sources for ``add_usd`` ignore lists.
+def _deformable_ignore_paths(stage: Usd.Stage, sources: Sequence[str] | None = None) -> list[str]:
+    """Collect deformable prim paths for ``add_usd`` ignore lists.
 
     Shadow deformables are added explicitly by :func:`add_shadow_deformables_to_builder`.
-    Ignoring them during source USD import prevents double-allocating particles in the
+    Ignoring them during USD import prevents double-allocating particles in the
     shadow ``particle_q`` buffer (which breaks geometry mapping offsets).
+
+    Args:
+        stage: USD stage to scan.
+        sources: Optional clone-source roots to restrict the ignore list. When ``None``,
+            every discovered deformable path is ignored (standalone imports).
     """
-    source_prefixes = tuple(f"{source.rstrip('/')}/" for source in sources)
+    source_prefixes: tuple[str, ...] | None = None
+    if sources is not None:
+        source_prefixes = tuple(f"{source.rstrip('/')}/" for source in sources)
     ignore_paths: list[str] = []
     for entry in discover_deformables_on_stage(stage):
         for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path):
+            if source_prefixes is None:
+                ignore_paths.append(path)
+                continue
             under_source = any(
                 path == source.rstrip("/") or path.startswith(prefix)
                 for source, prefix in zip(sources, source_prefixes, strict=True)
@@ -59,20 +69,27 @@ def build_visualization_builder_from_stage_envs(
     """Build a Newton shadow visualization builder from a USD stage.
 
     Cloned scenes use the clone plan to preserve per-environment world layout and
-    labels. Standalone scenes without a clone plan are imported as one world.
+    labels. Standalone scenes without a clone plan are imported as one world, then
+    deformables are added as shadow particles so OVRTX registry bindings stay populated.
 
     Returns:
         A tuple of the populated :class:`~newton.ModelBuilder` and shadow-deformable
-        metadata ``(shadow_entities, registry_groups)``. Standalone imports return
-        empty shadow metadata.
+        metadata ``(shadow_entities, registry_groups)``.
     """
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     builder = ModelBuilder(up_axis=up_axis)
-    empty_shadow_metadata: tuple[list, list] = ([], [])
     if clone_plan is None:
-        import_result = builder.add_usd(stage, schema_resolvers=schema_resolvers)
+        # Ignore deformables during USD import; add them as shadow particles below so
+        # SceneData mapping and OVRTX registry receive the same particle offsets.
+        deformable_ignore_paths = _deformable_ignore_paths(stage)
+        import_result = builder.add_usd(
+            stage,
+            schema_resolvers=schema_resolvers,
+            ignore_paths=deformable_ignore_paths or None,
+        )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-        return builder, empty_shadow_metadata
+        shadow_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths)
+        return builder, (shadow_entities, registry_groups)
     if not env_paths:
         raise ValueError("clone plan requires at least one environment path")
 
