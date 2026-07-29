@@ -71,7 +71,7 @@ _TASK_SHADOW = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
 # env_spacing=1.0 with 4 envs → envs centered at ±0.5 in x and y.
 # Cube spawns at ~(0, -0.39, 0.6) per env; wrist cylinder is the landmark at the top.
 _SHADOW_EYE = (0.0, -2.2, 1.8)
-_SHADOW_LOOKAT = (0.0, -0.1, 0.2)
+_SHADOW_LOOKAT = (0.0, -0.1, 0.4)
 _SHADOW_ENV_SPACING = 1.0
 
 # Tiled camera eye offset from each robot root for generated per-env cameras.
