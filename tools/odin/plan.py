@@ -9,10 +9,6 @@ A seed entry carries only ``(task_id, rl_library, physics)``. Upstream defaults
 ``--num_envs`` and ``--max_iterations`` to ``None`` and falls back to the task's
 shipped agent config, so a first dispatch runs every task at its shipped size
 and the resolved values are harvested back out of the emitted bundles.
-
-This module is also the seam the upstream task-discovery API replaces: when
-``isaaclab tasks list --json`` lands, :func:`load_task_rows` swaps its source and
-nothing downstream of :class:`PlannedRow` changes.
 """
 
 from __future__ import annotations

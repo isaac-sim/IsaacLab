@@ -5,9 +5,8 @@
 
 """Video recording on the play benchmark adapters.
 
-``PlayBundle.video_path`` and ``build_play_bundle(video_path=...)`` existed long
-before any adapter could populate them, so a camera task was benchmarked
-headless. These tests pin the wiring that closed that gap.
+Pins the wiring that lets an adapter populate ``PlayBundle.video_path``: without
+it a camera task is benchmarked headless and the schema field stays empty.
 """
 
 from __future__ import annotations
@@ -29,7 +28,6 @@ def _adapter_source(backend: str) -> str:
 
 
 def test_play_video_args_omit_the_training_interval() -> None:
-    # A play run is one bounded rollout, so there is no later interval to catch.
     parser = argparse.ArgumentParser()
     add_video_args(parser, include_interval=False)
     args = parser.parse_args([])
@@ -75,8 +73,7 @@ def test_adapter_wires_video(backend: str) -> None:
 
 @pytest.mark.parametrize("backend", ("rsl_rl", "rl_games", "skrl"))
 def test_training_reports_the_checkpoint_it_wrote(backend: str) -> None:
-    # checkpoint_path was hardcoded None in three of four train adapters, so the
-    # schema field was dead and a chained play step had nothing to read.
+    # A chained play step reads this field; a hardcoded None leaves it nothing.
     source = (_ADAPTER_ROOT / backend / f"benchmark_train_{backend}.py").read_text()
     assert "latest_checkpoint_path(" in source
     assert "checkpoint_path = None" not in source

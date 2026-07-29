@@ -29,35 +29,28 @@ tested with the changed dependency.
 uv run python -m tools.odin.cli build-image \
     --config tools/odin/config/odin.yaml \
     --ref <sha|branch|tag> \
-    --profile full \
     --push
 ```
 
 `--dry_run` writes the build context and prints the tag without invoking git
 bundling or Docker — useful for inspecting the generated Dockerfile.
 
-One profile, `full`, holding every backend:
-
-| Profile | Extras | Covers |
-|---|---|---|
-| `full` | `isaacsim, ovphysx, ovrtx, rsl-rl, skrl, rl-games, sb3, rerun` | Kit PhysX, OvPhysX, Newton, OVRTX, all four RL libraries |
-
-A single virtualenv became possible once the root `pyproject.toml` widened the
-`packaging` cap to `<27`: `ovphysx` capped it at `<24` while `isaacsim-core`
-pinned `==26.0`, which had made the two extras unresolvable together. `teleop`,
-`viser`, `mimic`, `test` and the `all` aggregate still conflict with `isaacsim`
-and are excluded.
+One virtualenv holds every backend. `plan.UV_EXTRAS` is the single list, used
+both to build the image and to run each task:
+`isaacsim, ovphysx, ovrtx, rsl-rl, skrl, rl-games, sb3, rerun` — Kit PhysX,
+OvPhysX, Newton, OVRTX, and all four RL libraries. `teleop`, `viser`, `mimic`,
+`test` and the `all` aggregate conflict with `isaacsim` and are excluded.
 
 This matters beyond convenience. A preset token does **not** determine the
-physics backend — `physics=physx` resolves to OvPhysX on 39 tasks and to Kit
-PhysX on 5 — so with split profiles a row could only be routed correctly by
-loading its env cfg first. One profile removes that dependency entirely.
+physics backend — `physics=physx` resolves to OvPhysX on most tasks and to Kit
+PhysX on a few — so with split environments a row could only be routed correctly
+by loading its env cfg first. One environment removes that dependency entirely.
 
 The build warms `UV_CACHE_DIR`, so a task's `uv run --frozen --extra ...`
 re-syncs from cache without touching the network.
 
-Images are tagged `<registry>/<repository>:<short_sha>-<profiles>`. Pass the
-resolved **digest** to `dispatch`, not the tag, so a retag cannot change what a
+Images are tagged `<registry>/<repository>:<short_sha>`. Pass the resolved
+**digest** to `dispatch`, not the tag, so a retag cannot change what a
 comparison compared.
 
 ## Generate the task list
@@ -78,15 +71,14 @@ are always expanded across them: benchmarking a camera task headless measures
 everything except the thing under test.
 
 The cross product is not all legal. OVRTX is kitless and cannot share a process
-with Kit physics, so `isaacsim_physx + ovrtx` is rejected — 15 of the 16
-pairings survive for a Cartpole camera task. Discovery checks each pairing
-against the runtime validator, which costs about 7 seconds for the whole
+with Kit physics, so `isaacsim_physx + ovrtx` is rejected. Discovery checks each
+pairing against the runtime validator, which costs a few seconds for the whole
 registry and saves finding out on a GPU.
 
 Domain presets — `depth`, `rgb`, `albedo`, `semantic_segmentation`, shading and
 scene variants — are a third axis, selected with `presets=`. Backend names that
-also appear under DOMAIN on 31 tasks are filtered out, since those are chosen
-with `physics=`.
+also appear under DOMAIN are filtered out, since those are chosen with
+`physics=`.
 
 **Known limitation:** discovery emits domain presets **one at a time** and never
 combines them. Presets targeting the same field conflict outright
@@ -127,13 +119,12 @@ uv run python -m tools.odin.cli discover --scope core --library rsl_rl
 
 Two expansion rules worth knowing. `physx` is dropped from any task that also
 declares `ovphysx`, because headless they resolve to the same backend and
-running both is an exact duplicate (28 tasks). Tasks declaring no physics preset
-get one row with the field omitted, since they reject any `physics=` token
-(35 tasks).
+running both is an exact duplicate. Tasks declaring no physics preset get one
+row with the field omitted, since they reject any `physics=` token.
 
 Beware that `physics=physx` does **not** mean Kit PhysX: it resolves to kitless
-OvPhysX on 39 tasks and to Kit PhysX on only 5. `isaacsim_physx` is the reliably
-Kit one. To sweep the whole PhysX family:
+OvPhysX on most tasks and to Kit PhysX on only a few. `isaacsim_physx` is the
+reliably Kit one. To sweep the whole PhysX family:
 `--physics physx --physics ovphysx --physics isaacsim_physx`.
 
 A hand-written list remains possible — `dispatch --tasks_yaml <file>` uses it
@@ -179,9 +170,8 @@ task exits with the **training** exit code — a play failure must not turn a go
 training run into a red row. Both steps receive the same physics, renderer and
 preset tokens, so the rollout matches what was trained.
 
-The checkpoint is read from the training bundle's `checkpoint_path`. That field
-was hardcoded `None` in three of the four train adapters until this branch, so
-it reported nothing; it now records what actually landed on disk.
+The checkpoint is read from the training bundle's `checkpoint_path`, which the
+train adapters populate from what actually landed on disk.
 
 ### What ran, and what did not
 
@@ -222,7 +212,10 @@ uv run python -m tools.odin.cli dispatch --config tools/odin/config/odin.yaml \
     --image <digest> --retry_failed LATEST
 ```
 
-Retries reuse the parent's seeds, so `--seeds` is not needed.
+Retries reuse the parent's seeds, so `--seeds` is not needed. Each identity is
+paired with the seeds it actually failed on, so a seed that passed is not re-run.
+An A/B dispatch cannot be retried: a retry runs one image, which would put side
+B's rows on side A's image. Re-dispatch each side on its own instead.
 
 ## Inspect and re-pull
 
@@ -250,8 +243,7 @@ baseline. Feed it back with `--metadata_yaml` on the next dispatch. Seed-list
 values win over harvested ones, so a hand-set override survives a re-harvest.
 
 The comparable upstream table is
-`source/isaaclab_tasks/test/benchmarking/configs.yaml`, which is where these
-values should eventually live.
+`source/isaaclab_tasks/test/benchmarking/configs.yaml`.
 
 ## On-disk layout
 
@@ -320,3 +312,12 @@ uv run --frozen --extra test python -m pytest \
 `--confcutdir` bypasses the repository-level `tools/conftest.py`, which is a CI
 orchestrator that hijacks pytest startup. `--frozen` stops an older local `uv`
 from rewriting the committed `uv.lock`.
+
+The rendered workflow YAML and Dockerfile are compared whole against the golden
+files in `tools/odin/tests/golden/`. After an intended change to a template,
+re-render them and review the diff:
+
+```bash
+ODIN_UPDATE_GOLDEN=1 uv run --frozen --extra test python -m pytest \
+    --rootdir=$PWD --confcutdir=$PWD/tools/odin/tests tools/odin/tests/ -q
+```

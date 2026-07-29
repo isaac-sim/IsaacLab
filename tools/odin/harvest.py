@@ -12,8 +12,7 @@ reward baseline. Later dispatches read that file as an overlay on the seed list,
 so the sizing table is measured rather than guessed.
 
 The comparable upstream table is
-``source/isaaclab_tasks/test/benchmarking/configs.yaml``, which is the natural
-home for these values once they have settled.
+``source/isaaclab_tasks/test/benchmarking/configs.yaml``.
 """
 
 from __future__ import annotations

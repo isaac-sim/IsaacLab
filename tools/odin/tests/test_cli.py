@@ -492,8 +492,7 @@ def test_retry_failed_on_a_clean_dispatch_is_an_error(workspace: Path, capsys) -
 
 def test_resume_resets_in_flight_rows_and_polls(workspace: Path, monkeypatch, capsys) -> None:
     # The happy path: workflows exist, so resume must re-attach rather than
-    # re-submit. Every other resume test returns early, which is how an
-    # undefined name survived until ruff caught it.
+    # re-submit. Every other resume test returns early before reaching it.
     from tools.odin import cli as cli_module
     from tools.odin.client import TaskSnapshot, WorkflowSnapshot
 

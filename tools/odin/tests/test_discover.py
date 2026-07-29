@@ -31,7 +31,7 @@ _CONTRIB = DiscoveredTask(
     rl_libraries=("rsl_rl",),
     modes=(Mode("newton_mjwarp", None, None),),
 )
-# 35 real tasks declare no physics preset and reject any physics= token.
+# Many real tasks declare no physics preset and reject any physics= token.
 _NO_PHYSICS = DiscoveredTask(
     task_id="Isaac-Intrinsic", scope="core", rl_libraries=("skrl",), modes=(Mode(None, None, None),)
 )

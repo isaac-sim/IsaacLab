@@ -177,8 +177,8 @@ def test_preset_variants_have_a_fixed_order() -> None:
 
 
 def test_task_without_a_physics_preset_is_planned() -> None:
-    # 35 of the 87 usable tasks declare no physics preset and hard-fail on any
-    # physics= token, so physics must be optional.
+    # Many tasks declare no physics preset and hard-fail on any physics= token,
+    # so physics must be optional.
     row = plan_rows(task_rows=[{"task_id": "Isaac-X", "rl_library": "rsl_rl"}], seeds=[42])[0]
     assert row.physics is None
     assert row.row_key == "rsl_rl_default_Isaac-X_seed42"

@@ -615,8 +615,7 @@ def wrap_record_video_play(env, output_dir: str, args_cli: argparse.Namespace):
     """Wrap an environment with video recording for a play rollout.
 
     Unlike :func:`wrap_record_video`, recording starts at the first step rather
-    than on a periodic trigger: a play run is one bounded rollout, so there is
-    no later interval to catch.
+    than on a periodic trigger; see :func:`add_video_args`.
 
     Args:
         env: Gymnasium environment to wrap.
@@ -641,15 +640,7 @@ def wrap_record_video_play(env, output_dir: str, args_cli: argparse.Namespace):
 
 
 def play_video_dir(output_dir: str, args_cli: argparse.Namespace) -> str | None:
-    """Return the directory a play video was written to, or ``None``.
-
-    Args:
-        output_dir: Directory passed to :func:`wrap_record_video_play`.
-        args_cli: Parsed command-line arguments.
-
-    Returns:
-        The video directory when recording was requested, else ``None``.
-    """
+    """Return the directory :func:`wrap_record_video_play` writes to, or ``None``."""
     if not getattr(args_cli, "video", False):
         return None
     return os.path.join(output_dir, "videos", "play")
