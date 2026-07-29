@@ -81,7 +81,7 @@ from pxr import Usd, UsdGeom
 
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
-from isaaclab.scene_data.deformable_vis_remap import launch_copy_particle_slice, launch_volume_vis_remap
+from isaaclab.scene_data.deformable_vis_remap import launch_volume_vis_remap
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
@@ -2514,18 +2514,17 @@ class NewtonManager(PhysicsManager):
                     cls._sim_particle_q,
                     cls._state_0.particle_q,
                     entity.sim_particle_offset,
-                    entity.render_particle_offset,
+                    entity.vis_particle_offset,
                     entity.volume_vis_remap,
                     device=device,
                 )
-            else:
-                launch_copy_particle_slice(
-                    cls._sim_particle_q,
+            elif entity.vis_particle_count > 0:
+                wp.copy(
                     cls._state_0.particle_q,
-                    entity.sim_particle_offset,
-                    entity.render_particle_offset,
-                    entity.render_particle_count,
-                    device=device,
+                    cls._sim_particle_q,
+                    dest_offset=entity.vis_particle_offset,
+                    src_offset=entity.sim_particle_offset,
+                    count=entity.vis_particle_count,
                 )
 
     @staticmethod

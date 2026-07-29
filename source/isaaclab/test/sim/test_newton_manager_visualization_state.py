@@ -428,8 +428,8 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
             root_path="/World/envs/env_0/Cloth",
             sim_particle_offset=0,
             sim_particle_count=2,
-            render_particle_offset=0,
-            render_particle_count=2,
+            vis_particle_offset=0,
+            vis_particle_count=2,
         )
     ]
     NewtonManager._sim_particle_q = wp.zeros(2, dtype=wp.vec3f, device="cpu")
@@ -520,8 +520,8 @@ def test_update_visualization_state_remaps_volume_vis_positions(monkeypatch):
             root_path="/World/envs/env_0/Soft",
             sim_particle_offset=0,
             sim_particle_count=4,
-            render_particle_offset=0,
-            render_particle_count=1,
+            vis_particle_offset=0,
+            vis_particle_count=1,
             volume_vis_remap=remap,
         )
     ]
@@ -578,10 +578,10 @@ def test_shadow_deformable_volume_remap_registers_ovrtx_with_vis_mesh(monkeypatc
     assert builder.soft_calls == 0
     assert len(flat_entities) == 1
     assert flat_entities[0].sim_particle_count == 4
-    assert flat_entities[0].render_particle_count == 1
+    assert flat_entities[0].vis_particle_count == 1
     assert flat_entities[0].volume_vis_remap is not None
     assert len(registry_groups) == 1
-    assert registry_groups[0].register_for_ovrtx is True
+    assert registry_groups[0].register_usd_vis_point_bindings is True
     assert registry_groups[0].particles_per_body == 1
 
 
