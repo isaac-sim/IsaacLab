@@ -28,6 +28,7 @@ from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     build_deformable_vertex_count_lookup,
     discover_deformables_on_stage,
+    group_deformable_root_paths_for_views,
     resolve_deformable_vertex_count,
 )
 
@@ -181,31 +182,18 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
         path_to_count = build_deformable_vertex_count_lookup(entries)
         path_to_type = {entry.root_path: entry.deformable_type for entry in entries}
-        all_paths = list(path_to_type.keys())
-        non_rigid_names: set[str] = set()
-        for path in all_paths:
-            if re.search(r"/World/envs/env_\d+/", path):
-                non_rigid_names.add(path.rsplit("/", 1)[-1])
-
-        typed_patterns: dict[str, set[str]] = {"volume": set(), "surface": set()}
-        typed_exact: dict[str, list[str]] = {"volume": [], "surface": []}
-        for path in all_paths:
-            body_name = path.rsplit("/", 1)[-1]
-            wildcard = re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", path)
-            deformable_type = path_to_type[path]
-            if body_name in non_rigid_names and wildcard != path:
-                typed_patterns[deformable_type].add(wildcard)
-            else:
-                typed_exact[deformable_type].append(path)
+        grouped_paths = group_deformable_root_paths_for_views(list(path_to_type.keys()), path_to_type)
 
         self._geometry_paths = []
         self._geometry_counts = []
         entity_offset = 0
         for deformable_type in ("volume", "surface"):
-            patterns = [*sorted(typed_patterns[deformable_type]), *typed_exact[deformable_type]]
-            for pattern in patterns:
+            patterns, exact_paths = grouped_paths[deformable_type]
+            for pattern in [*patterns, *exact_paths]:
                 try:
-                    view = OvPhysxDeformableBodyView(physx, pattern=pattern, device=device, deformable_type=deformable_type)
+                    view = OvPhysxDeformableBodyView(
+                        physx, pattern=pattern, device=device, deformable_type=deformable_type
+                    )
                 except Exception as exc:
                     logger.warning("Failed to create %s deformable binding for %s: %s", deformable_type, pattern, exc)
                     continue

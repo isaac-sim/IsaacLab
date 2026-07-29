@@ -7,12 +7,28 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 
-from pxr import Gf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+
+logger = logging.getLogger(__name__)
+
+
+def _get_applied_schema_names(prim) -> set[str]:
+    """Return applied API schema names from composed schemas and explicit ``apiSchemas`` metadata."""
+    names = set(prim.GetAppliedSchemas())
+    api_schemas = prim.GetMetadata("apiSchemas")
+    if isinstance(api_schemas, Sdf.TokenListOp):
+        names.update(str(token) for token in api_schemas.explicitItems)
+    return names
+
+
+def _prim_has_schema(prim, schema_substring: str) -> bool:
+    return any(schema_substring in name for name in _get_applied_schema_names(prim))
 
 
 @dataclass
@@ -32,16 +48,17 @@ class DeformableStageEntry:
 
 
 def _is_sim_mesh(prim) -> bool:
-    return any("DeformableSimAPI" in api for api in prim.GetPrimTypeInfo().GetAppliedAPISchemas())
+    return _prim_has_schema(prim, "DeformableSimAPI")
 
 
 def _classify_deformable_meshes(root_prim) -> tuple[str, object, object, int, int, list, list]:
     """Return deformable type, sim mesh prim, vis mesh prim, counts, vertices, and indices."""
     import warp as wp
 
+    stage = root_prim.GetStage()
     root_path = root_prim.GetPath()
-    tet_prims = sim_utils.get_all_matching_child_prims(root_path, lambda p: p.GetTypeName() == "TetMesh")
-    mesh_prims = sim_utils.get_all_matching_child_prims(root_path, lambda p: p.GetTypeName() == "Mesh")
+    tet_prims = sim_utils.get_all_matching_child_prims(root_path, lambda p: p.GetTypeName() == "TetMesh", stage=stage)
+    mesh_prims = sim_utils.get_all_matching_child_prims(root_path, lambda p: p.GetTypeName() == "Mesh", stage=stage)
 
     if len(tet_prims) == 1:
         mesh_prim = tet_prims[0]
@@ -96,13 +113,14 @@ def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry
     """
     entries: list[DeformableStageEntry] = []
     for prim in stage.Traverse():
-        if "OmniPhysicsDeformableBodyAPI" not in prim.GetAppliedSchemas():
+        if not _prim_has_schema(prim, "OmniPhysicsDeformableBodyAPI"):
             continue
         try:
             deformable_type, sim_mesh_prim, vis_mesh_prim, vertex_count, vis_vertex_count, vertices, indices = (
                 _classify_deformable_meshes(prim)
             )
-        except ValueError:
+        except ValueError as exc:
+            logger.warning("Skipping deformable prim '%s': %s", prim.GetPath(), exc)
             continue
         entries.append(
             DeformableStageEntry(
@@ -119,32 +137,49 @@ def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry
     return entries
 
 
-def compact_env_wildcard_paths(paths: list[str]) -> tuple[list[str], list[int]]:
-    """Compact env-expanded paths into wildcard patterns with per-path instance counts.
+def group_deformable_root_paths_for_views(
+    root_paths: list[str],
+    path_to_type: dict[str, str],
+) -> dict[str, tuple[list[str], list[str]]]:
+    """Group deformable root paths into PhysX/OVPhysX view patterns and exact paths.
+
+    Replicated env assets with the same trailing prim name collapse to
+    ``/World/envs/env_*`` wildcard patterns; singleton paths stay exact.
+
+    Args:
+        root_paths: Discovered deformable root prim paths.
+        path_to_type: Map from root path to ``volume`` or ``surface``.
 
     Returns:
-        Tuple of unique wildcard patterns and the number of expanded paths represented
-        by each pattern (always ``1`` for exact paths).
+        Dict keyed by deformable type with ``(wildcard_patterns, exact_paths)`` lists.
+        Wildcard patterns are sorted; exact paths preserve discovery order within type.
     """
-    patterns: dict[str, int] = {}
-    exact: list[str] = []
     non_rigid_names: set[str] = set()
-    for path in paths:
+    for path in root_paths:
         if re.search(r"/World/envs/env_\d+/", path):
             non_rigid_names.add(path.rsplit("/", 1)[-1])
 
-    for path in paths:
+    typed_patterns: dict[str, set[str]] = {"volume": set(), "surface": set()}
+    typed_exact: dict[str, list[str]] = {"volume": [], "surface": []}
+    for path in root_paths:
         body_name = path.rsplit("/", 1)[-1]
-        if body_name in non_rigid_names and re.search(r"/World/envs/env_\d+/", path):
-            wildcard = re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", path)
-            if wildcard != path:
-                patterns[wildcard] = patterns.get(wildcard, 0) + 1
-                continue
-        exact.append(path)
+        wildcard = path_to_env_wildcard(path)
+        deformable_type = path_to_type[path]
+        if body_name in non_rigid_names and wildcard != path:
+            typed_patterns[deformable_type].add(wildcard)
+        else:
+            typed_exact[deformable_type].append(path)
 
-    ordered_patterns = sorted(patterns.keys())
-    pattern_counts = [patterns[pattern] for pattern in ordered_patterns]
-    return [*ordered_patterns, *exact], pattern_counts
+    return {
+        deformable_type: ([*sorted(typed_patterns[deformable_type])], typed_exact[deformable_type])
+        for deformable_type in ("volume", "surface")
+    }
+
+
+def sort_deformable_entries_for_geometry_sync(entries: list[DeformableStageEntry]) -> list[DeformableStageEntry]:
+    """Return deformable entries in SceneData geometry path order (volume, then surface)."""
+    type_rank = {"volume": 0, "surface": 1}
+    return sorted(entries, key=lambda entry: (type_rank.get(entry.deformable_type, 2), entry.root_path))
 
 
 def path_to_env_wildcard(path: str) -> str:
@@ -158,12 +193,12 @@ def path_to_env_regex(path: str) -> str:
 
 
 def build_deformable_vertex_count_lookup(entries: list[DeformableStageEntry]) -> dict[str, int]:
-    """Map deformable root and simulation-mesh paths to unpadded vertex counts."""
+    """Map deformable root, simulation-mesh, and visual-mesh paths to unpadded vertex counts."""
     path_to_count: dict[str, int] = {}
     for entry in entries:
         path_to_count[entry.root_path] = entry.vertex_count
         path_to_count[entry.sim_mesh_path] = entry.vertex_count
-        path_to_count[entry.vis_mesh_path] = entry.vertex_count
+        path_to_count[entry.vis_mesh_path] = entry.vis_vertex_count
     return path_to_count
 
 
