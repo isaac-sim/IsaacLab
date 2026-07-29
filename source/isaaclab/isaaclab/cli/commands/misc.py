@@ -5,7 +5,6 @@
 
 """Misc commands"""
 
-import os
 import re
 import shutil
 import zipfile
@@ -123,10 +122,10 @@ def command_build_isaacsim(source_path: str) -> None:
     """Build Isaac Sim from source and make it usable through ``uv`` (--isaacsim_source).
 
     Builds the Isaac Sim checkout when it has no build output yet, packages that build into
-    Python wheels, links the wheels into the Isaac Lab repository as ``_isaac_sim_wheels``,
-    pins the ``isaacsim-local`` extra to the version that was built, and re-resolves Isaac Sim
-    from those wheels. Afterwards, run Isaac Lab against the build with
-    ``UV_FIND_LINKS=_isaac_sim_wheels uv run --extra isaacsim-local``.
+    Python wheels, links the wheels into the Isaac Lab repository as ``_isaac_sim_wheels``, points
+    uv at that directory through ``find-links``, pins the ``isaacsim-local`` extra to the version
+    that was built, and re-resolves Isaac Sim from those wheels. Afterwards, run Isaac Lab against
+    the build with ``uv run --extra isaacsim-local``.
 
     The pin is required: source builds produce pre-release local versions that sort below the
     published release, so an unpinned extra resolves back to the registry wheels instead. It
@@ -166,7 +165,7 @@ def command_build_isaacsim(source_path: str) -> None:
     local_version = _extract_local_isaacsim_version(wheel_dir)
     _check_kernel_abi(wheel_dir, build_script)
 
-    # A stable, git-ignored path inside the repository keeps ``UV_FIND_LINKS`` short and
+    # A stable, git-ignored path inside the repository keeps the find-links entry short and
     # valid across shells, the same way ``_isaac_sim`` does for the Kit build.
     link_path = ISAACLAB_ROOT / "_isaac_sim_wheels"
     if link_path.is_symlink() or link_path.exists():
@@ -184,6 +183,10 @@ def command_build_isaacsim(source_path: str) -> None:
         find_links = str(wheel_dir)
         print_warning(f"Could not create {link_path} ({error}). Using the absolute wheel path instead.")
 
+    # Point uv at the wheels from the project configuration so the setting survives shell restarts
+    # and applies to every later ``uv run``/``uv sync``.
+    _set_uv_find_links(find_links)
+
     # Source builds carry a pre-release local version (``6.0.1rc7+develop.<hash>.local``) that
     # sorts *below* the published release, so an unpinned ``isaacsim-local`` extra always resolves
     # back to the registry. uv only honors a version this specific per conflicting-extra fork when
@@ -193,24 +196,19 @@ def command_build_isaacsim(source_path: str) -> None:
     # Re-resolve Isaac Sim so the lock file picks the local wheels over the published release.
     if shutil.which("uv") is not None:
         print_info("Re-resolving Isaac Sim from the local wheels...")
-        run_command(
-            ["uv", "lock", "--upgrade-package", "isaacsim"],
-            env={**os.environ, "UV_FIND_LINKS": find_links},
-        )
+        run_command(["uv", "lock", "--upgrade-package", "isaacsim"])
     else:
         print_warning("uv was not found on PATH. Run 'uv lock --upgrade-package isaacsim' once uv is available.")
 
-    export_cmd = f"set UV_FIND_LINKS={find_links}" if is_windows() else f"export UV_FIND_LINKS={find_links}"
     print_info("Isaac Sim is ready. Run Isaac Lab against it with:")
-    print_info(f"  {export_cmd}")
     print_info(
         "  uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct"
         " presets=isaacsim_physx"
     )
     print_warning(
-        f"pyproject.toml now pins the 'isaacsim-local' extra to your build ({local_version}) and uv.lock resolves it"
-        " from _isaac_sim_wheels. Both are local-only; revert with 'git checkout pyproject.toml uv.lock' before"
-        " committing."
+        f"pyproject.toml now points uv at '{find_links}' and pins the 'isaacsim-local' extra to your build"
+        f" ({local_version}), and uv.lock resolves it from there. Both are local-only; revert with"
+        " 'git checkout pyproject.toml uv.lock' before committing."
     )
 
 
@@ -266,6 +264,46 @@ def _check_kernel_abi(wheel_dir: Path, build_script: Path) -> None:
     )
     print_info(f"Remove '{wheel_dir.parents[1]}' and rebuild with: {build_script}")
     raise SystemExit(1)
+
+
+def _set_uv_find_links(find_links: str) -> None:
+    """Point uv at a wheel directory by writing ``find-links`` into ``[tool.uv]`` in ``pyproject.toml``.
+
+    The entry is part of the project configuration, so it survives shell restarts and applies to
+    every later ``uv`` invocation in the checkout. Re-running the build rewrites the existing entry.
+
+    Args:
+        find_links: Directory holding the locally built Isaac Sim wheels, either the repository-relative
+            ``_isaac_sim_wheels`` link or an absolute path when that link could not be created.
+    """
+    pyproject = ISAACLAB_ROOT / "pyproject.toml"
+    text = pyproject.read_text(encoding="utf-8")
+
+    header = re.search(r"^\[tool\.uv\]$", text, flags=re.MULTILINE)
+    if header is None:
+        print_error(f"Could not find the '[tool.uv]' table in {pyproject}.")
+        raise SystemExit(1)
+
+    # Confine the edit to the ``[tool.uv]`` table so a ``find-links`` entry in another table is
+    # neither read nor rewritten. Windows paths are normalized to forward slashes, which uv accepts
+    # and which need no escaping in a TOML string.
+    start = header.end()
+    following = re.search(r"^\[", text[start:], flags=re.MULTILINE)
+    end = start + (following.start() if following is not None else len(text) - start)
+    section = text[start:end]
+    entry = f'find-links = ["{Path(find_links).as_posix()}"]'
+
+    # Replace through a callable: a Windows path reaches this as a literal and ``re`` would read
+    # its backslashes as escapes in a replacement string.
+    section, count = re.subn(r"^find-links = \[.*\]$", lambda _: entry, section, count=1, flags=re.MULTILINE)
+    if count == 0:
+        comment = "# Locally built Isaac Sim wheels ('isaaclab --isaacsim_source'). Local-only, do not commit."
+        section = f"\n{comment}\n{entry}{section}"
+
+    updated = text[:start] + section + text[end:]
+    if updated != text:
+        pyproject.write_text(updated, encoding="utf-8")
+    print_info(f"Pointed uv at the local wheels via 'find-links' in {pyproject.name} ({find_links}).")
 
 
 def _pin_isaacsim_local_extra(version: str) -> None:
