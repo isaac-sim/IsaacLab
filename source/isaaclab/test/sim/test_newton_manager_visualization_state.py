@@ -435,6 +435,50 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
     assert copied[1].tolist() == [4.0, 5.0, 6.0]
 
 
+def test_standalone_visualization_builder_populates_shadow_deformable_metadata(monkeypatch):
+    """Scenes without a clone plan still register shadow deformables for OVRTX."""
+    from isaaclab_newton.physics import visualization_builder as vb
+
+    from pxr import Gf, Sdf, Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    cloth = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/Cloth")
+    api_schemas = Sdf.TokenListOp()
+    api_schemas.explicitItems = ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsSurfaceDeformableSimAPI"]
+    cloth.GetPrim().SetMetadata("apiSchemas", api_schemas)
+    cloth.CreatePointsAttr([Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)])
+    cloth.CreateFaceVertexCountsAttr([3])
+    cloth.CreateFaceVertexIndicesAttr([0, 1, 2])
+
+    class _FakeBuilder:
+        body_count = 1
+        particle_count = 0
+        ignore_paths = None
+
+        def add_usd(self, stage, schema_resolvers=None, ignore_paths=None, **kwargs):
+            self.ignore_paths = list(ignore_paths or [])
+            return {"path_shape_map": {}}
+
+        def add_cloth_mesh(self, **kwargs):
+            self.particle_count += 3
+
+    fake_builder = _FakeBuilder()
+    monkeypatch.setattr(vb, "ModelBuilder", lambda up_axis="Z": fake_builder)
+    monkeypatch.setattr(vb, "_restore_visible_colliders_without_visual_shapes", lambda *args, **kwargs: None)
+
+    _builder, (shadow_entities, registry_groups) = vb.build_visualization_builder_from_stage_envs(
+        stage,
+        [(0, "/World/envs/env_0")],
+        clone_plan=None,
+    )
+
+    assert any(path.endswith("/Cloth") for path in fake_builder.ignore_paths)
+    assert len(shadow_entities) == 1
+    assert shadow_entities[0].root_path.endswith("/Cloth")
+    assert len(registry_groups) == 1
+
+
 def test_shadow_deformable_entity_order_matches_scene_data_geometry_order():
     """Shadow deformable entities follow volume-then-surface SceneData geometry order."""
     from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
