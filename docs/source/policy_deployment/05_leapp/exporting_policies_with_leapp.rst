@@ -23,38 +23,18 @@ ROS will add direct support for running LEAPP-exported policies in a future rele
 Prerequisites
 -------------
 
-This export flow requires ``leapp>=0.5.2``, Python >= 3.10, and PyTorch >= 2.6. Set up
-the LEAPP dependencies with:
+This export flow requires ``leapp``, Python >= 3.10, and PyTorch >= 2.6. Install
+LEAPP into the same Python environment used by Isaac Lab. For uv-based source environments, use
+``uv pip`` from the Isaac Lab repository root:
 
-.. tab-set::
-   :sync-group: os
+.. code-block:: bash
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
+   uv pip install leapp
 
-      .. tab-set::
-
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: bash
-
-               uv sync --extra leapp
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               ./isaaclab.sh -p -m pip install leapp
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-         isaaclab.bat -p -m pip install leapp
-
-Ensure you have a trained checkpoint for the selected RL library before proceeding. The standard
-Isaac Lab training workflow stores checkpoints under ``logs/<rl_library>/``.
+If you are using an environment with ``pip`` installed instead of uv, install the same package with
+``python -m pip install leapp`` using Isaac Lab's Python interpreter. Ensure you have a trained
+checkpoint for the selected RL library before proceeding. The standard Isaac Lab training workflow
+stores checkpoints under ``logs/<rl_library>/``.
 
 
 Why Export with LEAPP
@@ -83,7 +63,8 @@ Exporting a Policy
 ------------------
 
 Use the export script for the RL library that produced the checkpoint. The available script
-directories are ``rsl_rl``, ``rl_games``, ``skrl``, and ``sb3``:
+directories are ``rsl_rl``, ``rl_games``, ``skrl``, and ``sb3``. Export runs headless by default.
+Set the EULA variables in non-interactive shells so Isaac Sim can start without prompting:
 
 .. tab-set::
    :sync-group: os
@@ -91,34 +72,25 @@ directories are ``rsl_rl``, ``rl_games``, ``skrl``, and ``sb3``:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. tab-set::
+      .. code-block:: bash
 
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: bash
-
-               uv run --extra leapp python scripts/reinforcement_learning/leapp/<rl_library>/export.py \
-                   --task <TASK_NAME> \
-                   --checkpoint <PATH_TO_CHECKPOINT>
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/<rl_library>/export.py \
-                   --task <TASK_NAME> \
-                   --checkpoint <PATH_TO_CHECKPOINT>
+         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
+             scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+             --task <TASK_NAME> \
+             --checkpoint <PATH_TO_CHECKPOINT>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
+         set OMNI_KIT_ACCEPT_EULA=Y
+         set ACCEPT_EULA=Y
          isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
              --task <TASK_NAME> ^
              --checkpoint <PATH_TO_CHECKPOINT>
 
-For example, to export a UR10 reach policy:
+For example, to export a UR10 reach policy trained with RSL-RL:
 
 .. tab-set::
    :sync-group: os
@@ -126,29 +98,20 @@ For example, to export a UR10 reach policy:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. tab-set::
+      .. code-block:: bash
 
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: bash
-
-               uv run --extra leapp python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-                   --task Isaac-Reach-UR10 \
-                   --checkpoint logs/rsl_rl/ur10_reach/< date timestamp >/model_4999.pt
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-                   --task Isaac-Reach-UR10 \
-                   --checkpoint logs/rsl_rl/ur10_reach/< date timestamp >/model_4999.pt
+         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
+             scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+             --task Isaac-Reach-UR10 \
+             --checkpoint logs/rsl_rl/ur10_reach/<date timestamp>/model_4999.pt
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
+         set OMNI_KIT_ACCEPT_EULA=Y
+         set ACCEPT_EULA=Y
          isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
              --task Isaac-Reach-UR10 ^
              --checkpoint logs\rsl_rl\ur10_reach\<date timestamp>\model_4999.pt
@@ -188,8 +151,9 @@ backend-specific and AppLauncher arguments:
      - ``False``
      - Skip generating the pipeline graph PNG.
 
-The script also accepts the standard ``--checkpoint``, ``--load_run``, ``--load_checkpoint``,
-and ``--use_pretrained_checkpoint`` arguments for locating the trained model.
+The script also accepts ``--checkpoint`` and ``--use_pretrained_checkpoint`` for locating the
+trained model. Some backends expose additional checkpoint-selection options, such as
+``--load_run`` for RSL-RL and ``--use_last_checkpoint`` for RL-Games.
 
 
 How It Works (High Level)
@@ -220,8 +184,10 @@ configuration are needed.
    - **Complex slicing** is not fully supported. Examples include dynamic masked indexing
      using multiple traced tensors such as ``tensor[traced1, traced2]``. Slicing with constant values
      or with a single traced tensor is supported such as ``tensor[mask]`` or ``tensor[1:5]``.
-   - **Critical traced operations must be written in PyTorch.** For this release, Warp and
-     NumPy operations cannot be traced by LEAPP.
+   - **Critical traced operations should avoid unsupported third-party libraries.** PyTorch
+     operations are the best-supported path. NumPy conversions inside the traced node can be
+     captured when they do not cross the graph boundary, but external library calls may not be
+     traceable. Warp operations are not supported by this export path.
 
 
 Verifying an Export
@@ -302,10 +268,11 @@ The ``--export_method`` argument controls how the policy network is serialized:
 Recurrent Policies
 ^^^^^^^^^^^^^^^^^^
 
-Recurrent policies (e.g., using GRU or LSTM memory) are supported automatically. The export
-script detects recurrent hidden state in the RSL-RL policy, registers it as LEAPP feedback
-state, and ensures it appears in the ``feedback_flow`` section of the output YAML. The
-initial hidden state values are saved in the ``.safetensors`` file.
+LSTM recurrent policies are supported automatically. The export scripts detect actor-side LSTM
+state for RSL-RL, RL-Games, skrl, and Stable-Baselines3 policies, register it as LEAPP feedback
+state, and ensure it appears in the ``feedback_flow`` section of the output YAML. The initial
+hidden state values are saved in the ``.safetensors`` file. Other recurrent architectures are
+not currently supported by these exporters.
 
 
 Running the Exported Policy in Simulation
@@ -327,31 +294,21 @@ to see the policy running in a viewport, pass a visualization option such as ``-
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. tab-set::
+      .. code-block:: bash
 
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: bash
-
-               uv run --extra leapp python scripts/reinforcement_learning/leapp/deploy.py \
-                   --task <TASK_NAME> \
-                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
-                   --viz kit
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/deploy.py \
-                   --task <TASK_NAME> \
-                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
-                   --viz kit
+         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
+             scripts/reinforcement_learning/leapp/deploy.py \
+             --task <TASK_NAME> \
+             --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+             --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
+         set OMNI_KIT_ACCEPT_EULA=Y
+         set ACCEPT_EULA=Y
          isaaclab.bat -p scripts\reinforcement_learning\leapp\deploy.py ^
              --task <TASK_NAME> ^
              --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
