@@ -173,7 +173,7 @@ def _build_env_cfg_example_3(num_envs: int):
         lookat=_SHADOW_LOOKAT,
         window_width=1280,
         window_height=720,
-        focal_length=18.0,
+        focal_length=25.0,
     )
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
 
