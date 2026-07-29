@@ -69,34 +69,25 @@ Equivalent sets exist under:
      - Newton
      - OVPhysX
    * - ``benchmark_articulation.py``
-     - Yes
-     - Yes
-     - Yes
-   * - ``benchmark_articulation_data.py``
-     - Yes
-     - Yes
-     - Yes
+     - Method + data
+     - Method + data
+     - Method + data
    * - ``benchmark_rigid_object.py``
-     - Yes
-     - Yes
-     - Yes
-   * - ``benchmark_rigid_object_data.py``
-     - Yes
-     - Yes
-     - Yes
+     - Method + data
+     - Method + data
+     - Method + data
    * - ``benchmark_rigid_object_collection.py``
-     - Yes
-     - Yes
-     - Yes
-   * - ``benchmark_rigid_object_collection_data.py``
-     - Yes
-     - Yes
-     - Yes
+     - Method + data
+     - Method + data
+     - Method + data
 
-Method benchmarks cover state writes, targets, forces, and material or mass
-properties supported by the asset. Data benchmarks time backend-supported
-cached and derived properties. Use the same file, dimensions, and mode when
-comparing backends or commits.
+Each retained asset script runs its method phase followed by its data-property
+phase. It writes two result artifacts using the historical method and data
+workflow names, so existing result ingestion remains valid. Method benchmarks
+cover state writes, targets, forces, and material or mass properties supported
+by the asset. Data benchmarks time backend-supported cached and derived
+properties. Use the same file, dimensions, and mode when comparing backends or
+commits.
 
 Sensor Update Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -191,8 +182,9 @@ Choose a backend by changing the package directory:
    ./isaaclab.sh -p source/isaaclab_ovphysx/benchmark/assets/benchmark_articulation.py \
        --num_instances 4096 --warmup_steps 10 --num_iterations 1000
 
-Replace ``benchmark_articulation.py`` with the corresponding rigid-object,
-collection, or ``*_data.py`` file to measure another API surface.
+Replace ``benchmark_articulation.py`` with the corresponding rigid-object or
+collection file. Each command measures both API surfaces and emits separate
+method and data artifacts.
 
 Asset Arguments
 ~~~~~~~~~~~~~~~
@@ -221,7 +213,7 @@ Asset Arguments
      - Output formatter: ``json``, ``osmo``, or ``omniperf``
    * - ``--output_dir``
      - current directory
-     - Directory for the timestamped result file
+     - Directory for the timestamped method and data result files
    * - ``--no_shape_checks``
      - false
      - Disable method input shape checks when supported
