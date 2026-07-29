@@ -30,7 +30,6 @@ Changed
   :class:`~isaaclab.envs.utils.VideoRecorderCfg`. The recorder is now passive: it records
   whatever the active visualizer or physics backend renders without repositioning the camera.
 
-* When Newton is the active physics backend, :func:`~isaaclab.envs.utils.video_recorder._select_video_backend`
-  now skips Kit Replicator capture (Newton Fabric writes do not notify RTX's scene delegate,
-  producing black frames) and falls back to standalone Newton GL capture with a logged warning.
-  Kit recording continues to work with PhysX.
+* When Newton is the active physics backend, ``source="visualizer:kit"`` logs an error and
+  captures no frames — Kit Replicator cannot read Newton Fabric scene transforms.
+  Use ``source="visualizer:newton"`` instead.  Kit recording continues to work with PhysX.
