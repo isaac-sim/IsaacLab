@@ -27,7 +27,7 @@ class HumanoidPhysicsCfg(PresetCfg):
     physx: PhysxCfg = PhysxCfg()
     isaacsim_physx: PhysxCfg = PhysxCfg()
     ovphysx: OvPhysxCfg = OvPhysxCfg()
-    default = physx
+    default = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=80,

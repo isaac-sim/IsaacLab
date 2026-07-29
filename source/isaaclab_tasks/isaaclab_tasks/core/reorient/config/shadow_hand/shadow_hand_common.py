@@ -138,22 +138,24 @@ class PhysxEventCfg:
 
 @configclass
 class ShadowHandEventCfg(PresetCfg):
-    physx = PhysxEventCfg()
+    isaacsim_physx = PhysxEventCfg()
+    physx = isaacsim_physx
     newton_mjwarp = NewtonEventCfg()
-    ovphysx = physx  # OvPhysX is PhysX-based; reuse the PhysX randomization terms
+    ovphysx = isaacsim_physx  # OvPhysX is PhysX-based; reuse the PhysX randomization terms
     default = newton_mjwarp
     newton_kamino = newton_mjwarp
 
 
 @configclass
 class ShadowHandRobotCfg(PresetCfg):
-    physx = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot").replace(
+    isaacsim_physx = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot").replace(
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
             rot=(0.0, 0.0, 0.0, 1.0),
             joint_pos={".*": 0.0},
         )
     )
+    physx = isaacsim_physx
     # Newton robot lives in the asset (see isaaclab_assets.robots.shadow_hand); reorient
     # uses its default gains. The handover task consumes the same asset cfg and overrides
     # only the finger gains.
@@ -174,7 +176,7 @@ class ShadowHandRobotCfg(PresetCfg):
 
 @configclass
 class ObjectCfg(PresetCfg):
-    physx = RigidObjectCfg(
+    isaacsim_physx = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
@@ -193,6 +195,7 @@ class ObjectCfg(PresetCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(0.0, 0.0, 0.0, 1.0)),
     )
+    physx = isaacsim_physx
 
     newton_mjwarp = ArticulationCfg(
         prim_path="/World/envs/env_.*/object",
@@ -208,18 +211,19 @@ class ObjectCfg(PresetCfg):
         actuators={},
         articulation_root_prim_path="",
     )
-    ovphysx = physx  # OvPhysX is PhysX-based; use the rigid-body cube, not Newton's articulation
+    ovphysx = isaacsim_physx  # OvPhysX is PhysX-based; use the rigid-body cube, not Newton's articulation
     default = newton_mjwarp
     newton_kamino = newton_mjwarp
 
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    physx = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
         gpu_max_rigid_contact_count=2**23,
         gpu_max_rigid_patch_count=2**23,
     )
+    physx = isaacsim_physx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             integrator="implicitfast",

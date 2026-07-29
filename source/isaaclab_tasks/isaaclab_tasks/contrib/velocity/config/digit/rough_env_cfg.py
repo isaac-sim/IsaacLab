@@ -217,8 +217,9 @@ class DigitActionsCfg:
 class DigitPhysicsCfg(PresetCfg):
     """PhysX-only physics configuration for the Digit velocity environments."""
 
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    physx = default
+    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = isaacsim_physx
+    default = isaacsim_physx
 
 
 @configclass

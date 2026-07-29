@@ -290,12 +290,14 @@ class TerminationsCfg:
 class PhysicsCfg(PresetCfg):
     """Physics backend presets for stack tasks."""
 
-    default = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.01,
         gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
         gpu_total_aggregate_pairs_capacity=2**21,
         friction_correlation_distance=0.00625,
     )
+    physx = isaacsim_physx
+    default = isaacsim_physx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
@@ -316,7 +318,6 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = default
 
 
 def raise_if_surface_gripper_on_newton(env_cfg) -> None:

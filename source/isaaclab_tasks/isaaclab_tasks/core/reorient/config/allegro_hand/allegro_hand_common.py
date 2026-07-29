@@ -26,7 +26,7 @@ from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
 @configclass
 class ObjectCfg(PresetCfg):
-    physx = RigidObjectCfg(
+    isaacsim_physx = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
@@ -45,6 +45,7 @@ class ObjectCfg(PresetCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
     )
+    physx = isaacsim_physx
     newton_mjwarp = ArticulationCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
@@ -82,9 +83,10 @@ class ObjectCfg(PresetCfg):
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    physx = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
     )
+    physx = isaacsim_physx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             integrator="implicitfast",

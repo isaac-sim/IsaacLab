@@ -112,7 +112,9 @@ class PresetCfg:
 
         @configclass
         class PhysicsCfg(PresetCfg):
-            default: PhysxCfg = PhysxCfg()
+            isaacsim_physx: PhysxCfg = PhysxCfg()
+            physx: PhysxCfg = isaacsim_physx
+            default: PhysxCfg = isaacsim_physx
             newton_mjwarp: NewtonCfg = NewtonCfg()
 
     The preset *name* (``newton_mjwarp``) is decoupled from the config class
@@ -213,8 +215,11 @@ def _record_preset_selection(value, preset_name: str, fields: dict):
     """Attach preset-selection metadata when a physics preset resolves to a concrete config."""
     if not isinstance(value, PhysicsCfg):
         return value
-    if preset_name == "default" and fields.get("physx") == value:
-        preset_name = "physx"
+    if preset_name == "default":
+        if fields.get("isaacsim_physx") == value:
+            preset_name = "isaacsim_physx"
+        elif fields.get("physx") == value:
+            preset_name = "physx"
     _set_physics_preset_selection(value, preset_name, fields)
     return value
 

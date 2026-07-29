@@ -51,11 +51,12 @@ class DrLegsContactSensorCfg(PresetCfg):
         track_air_time=True,
     )
     newton_kamino = default
-    physx = PhysXContactSensorCfg(
+    isaacsim_physx = PhysXContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/foot_.*",
         history_length=3,
         track_air_time=True,
     )
+    physx = isaacsim_physx
 
 
 @configclass

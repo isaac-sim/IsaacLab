@@ -81,7 +81,8 @@ class DrLegsPhysicsCfg(PresetCfg):
 
     default: NewtonCfg = _kamino_newton_cfg()
     newton_kamino: NewtonCfg = _kamino_newton_cfg()
-    physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    physx: PhysxCfg = isaacsim_physx
 
 
 ##
@@ -133,7 +134,8 @@ class DrLegsActionsCfg(PresetCfg):
 
     default: ActionsCfg = ActionsCfg()
     newton_kamino: ActionsCfg = ActionsCfg()
-    physx: ActionsCfg = _physx_actions_cfg()
+    isaacsim_physx: ActionsCfg = _physx_actions_cfg()
+    physx: ActionsCfg = isaacsim_physx
 
 
 @configclass
@@ -253,7 +255,8 @@ class DrLegsEventCfg(PresetCfg):
 
     default: EventCfg = EventCfg()
     newton_kamino: EventCfg = EventCfg()
-    physx: EventCfg = _physx_event_cfg()
+    isaacsim_physx: EventCfg = _physx_event_cfg()
+    physx: EventCfg = isaacsim_physx
 
 
 @configclass

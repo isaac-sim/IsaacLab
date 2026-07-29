@@ -61,8 +61,9 @@ class SO101StackPhysicsCfg(PhysicsCfg):
     object surface instead of letting it tunnel through grasped objects.
     """
 
-    default = PhysicsCfg().default.replace(solve_articulation_contact_last=True)
-    physx = default
+    isaacsim_physx = PhysicsCfg().isaacsim_physx.replace(solve_articulation_contact_last=True)
+    physx = isaacsim_physx
+    default = isaacsim_physx
 
 
 @configclass

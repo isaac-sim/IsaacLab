@@ -17,7 +17,9 @@ from .rough_env_cfg import G1RoughEnvCfg
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = isaacsim_physx
+    default = isaacsim_physx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=95,

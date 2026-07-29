@@ -249,7 +249,9 @@ override is given:
 
     @configclass
     class PhysicsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
+        isaacsim_physx: PhysxCfg = PhysxCfg()
+        physx: PhysxCfg = isaacsim_physx
+        default: PhysxCfg = isaacsim_physx
         newton_mjwarp: NewtonCfg = NewtonCfg()
 
     @configclass
@@ -261,10 +263,10 @@ override is given:
     # Use Newton physics backend
     python train.py --task=Isaac-Reach-Franka env.physics=newton_mjwarp
 
-For tasks that expose automatic PhysX-family selection, ``physics=physx`` is
-resolved at launch time: Isaac Sim PhysX is used when a Kit renderer or Kit viewer
-is requested, and OvPhysX is used for fully kit-less runs. Use
-``physics=isaacsim_physx`` to force Isaac Sim PhysX.
+PhysX-backed task defaults select ``isaacsim_physx`` explicitly. For tasks that
+expose automatic PhysX-family selection, pass ``physics=physx`` to opt in: Isaac
+Sim PhysX is used when a Kit renderer or Kit viewer is requested, and OvPhysX is
+used for fully kit-less runs.
 
 The ``default`` field can be set to ``None`` to make an optional feature that is
 disabled unless explicitly selected:
@@ -313,7 +315,7 @@ Physics backend selection uses the same preset system. A task can define a
         physx: PhysxCfg = PhysxCfg()
         isaacsim_physx: PhysxCfg = PhysxCfg()
         ovphysx: OvPhysxCfg = OvPhysxCfg()
-        default = physx
+        default = isaacsim_physx
         newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3),
             num_substeps=1,

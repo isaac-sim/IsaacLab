@@ -173,7 +173,13 @@ def _shadow_hand_cfg(
         spawn=SHADOW_HAND_CFG.spawn.replace(fixed_tendons_props=None),
         init_state=SHADOW_HAND_CFG.init_state.replace(pos=init_pos, rot=init_rot),
     )
-    return preset(default=newton_mjwarp_cfg, physx=physx_cfg, newton_mjwarp=newton_mjwarp_cfg, ovphysx=ovphysx_cfg)
+    return preset(
+        default=newton_mjwarp_cfg,
+        isaacsim_physx=physx_cfg,
+        physx=physx_cfg,
+        newton_mjwarp=newton_mjwarp_cfg,
+        ovphysx=ovphysx_cfg,
+    )
 
 
 # Per-hand presets shared by the Direct environment and the manager scene.
@@ -201,7 +207,7 @@ class ObjectCfg(PresetCfg):
     thresholds, max depenetration velocity, custom physics material).
     """
 
-    physx = RigidObjectCfg(
+    isaacsim_physx = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.SphereCfg(
             radius=OBJECT_RADIUS,
@@ -222,6 +228,7 @@ class ObjectCfg(PresetCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
     )
+    physx = isaacsim_physx
     newton_mjwarp = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.SphereCfg(
@@ -237,7 +244,7 @@ class ObjectCfg(PresetCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
     )
-    ovphysx = physx
+    ovphysx = isaacsim_physx
     default = newton_mjwarp
 
 
@@ -251,11 +258,12 @@ class PhysicsCfg(PresetCfg):
     tasks; tuning may be needed for handover-specific contact dynamics.
     """
 
-    physx = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
         gpu_max_rigid_contact_count=2**23,
         gpu_max_rigid_patch_count=2**23,
     )
+    physx = isaacsim_physx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",

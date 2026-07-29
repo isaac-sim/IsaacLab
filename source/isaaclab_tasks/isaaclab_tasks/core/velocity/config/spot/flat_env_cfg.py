@@ -35,7 +35,9 @@ from isaaclab_tasks.utils import PresetCfg
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = isaacsim_physx
+    default = isaacsim_physx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=130,
@@ -228,9 +230,10 @@ class SpotPhysxEventCfg(SpotNewtonEventCfg, SpotStartupEventCfg):
 
 @configclass
 class SpotEventCfg(PresetCfg):
-    default = SpotPhysxEventCfg()
+    isaacsim_physx = SpotPhysxEventCfg()
+    physx = isaacsim_physx
+    default = isaacsim_physx
     newton_mjwarp = SpotNewtonEventCfg()
-    physx = default
     newton_kamino = newton_mjwarp
 
 

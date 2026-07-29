@@ -48,16 +48,13 @@ class CabinetSimCfg(PresetCfg):
     finer physics timestep (1/200 s) while PhysX keeps its default (1/60 s).
     """
 
-    default: SimulationCfg = SimulationCfg(
+    isaacsim_physx: SimulationCfg = SimulationCfg(
         dt=1 / 60,
         render_interval=1,
         physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
     )
-    physx: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
-        render_interval=1,
-        physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
-    )
+    physx: SimulationCfg = isaacsim_physx
+    default: SimulationCfg = isaacsim_physx
     newton_mjwarp: SimulationCfg = SimulationCfg(
         dt=1 / 600,
         render_interval=1,
@@ -263,8 +260,9 @@ class _CabinetNewtonEventCfg:
 
 @configclass
 class CabinetEventCfg(PresetCfg):
-    default: EventCfg = EventCfg()
-    physx: EventCfg = EventCfg()
+    isaacsim_physx: EventCfg = EventCfg()
+    physx: EventCfg = isaacsim_physx
+    default: EventCfg = isaacsim_physx
     newton_mjwarp: _CabinetNewtonEventCfg = _CabinetNewtonEventCfg()
 
 

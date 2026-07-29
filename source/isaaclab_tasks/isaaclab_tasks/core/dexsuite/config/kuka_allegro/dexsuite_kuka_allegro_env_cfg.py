@@ -144,6 +144,7 @@ class KukaAllegroMixinCfg:
         ovphysx_events = default_events.replace(variable_gravity=None)
         self.events = preset(
             default=default_events,
+            isaacsim_physx=default_events,
             physx=default_events,
             newton_mjwarp=default_events,
             ovphysx=ovphysx_events,
@@ -153,6 +154,7 @@ class KukaAllegroMixinCfg:
             ovphysx_curriculum = default_curriculum.replace(gravity_adr=None)
             self.curriculum = preset(
                 default=default_curriculum,
+                isaacsim_physx=default_curriculum,
                 physx=default_curriculum,
                 newton_mjwarp=default_curriculum,
                 ovphysx=ovphysx_curriculum,

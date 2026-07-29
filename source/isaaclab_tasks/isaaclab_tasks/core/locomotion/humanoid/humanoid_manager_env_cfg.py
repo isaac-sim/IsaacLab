@@ -28,8 +28,9 @@ from isaaclab_assets.robots.humanoid import HUMANOID_CFG  # isort:skip
 
 @configclass
 class HumanoidPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    physx: PhysxCfg = isaacsim_physx
+    default: PhysxCfg = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=80,
@@ -135,8 +136,9 @@ class ObservationsCfg:
 
 @configclass
 class HumanoidObservationsCfg(PresetCfg):
-    default: ObservationsCfg = ObservationsCfg()
-    physx: ObservationsCfg = ObservationsCfg()
+    isaacsim_physx: ObservationsCfg = ObservationsCfg()
+    physx: ObservationsCfg = isaacsim_physx
+    default: ObservationsCfg = isaacsim_physx
     newton_mjwarp: ObservationsCfg = ObservationsCfg()
 
 

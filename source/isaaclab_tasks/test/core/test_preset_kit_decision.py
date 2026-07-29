@@ -20,6 +20,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.app import scan
+from isaaclab.physics.physics_manager_cfg import _get_physics_preset_selection
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -27,6 +28,8 @@ from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
+_MANAGER_TASK = "Isaac-Cartpole"
+_STATE_TASK = "Isaac-Cartpole-Direct"
 
 
 def _resolve_with_presets(presets: str):
@@ -78,14 +81,36 @@ def test_isaacsim_physx_is_physics_selector():
     assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
 
 
-def test_cartpole_physx_preset_is_plain_physx_cfg():
-    """Task configs expose ``physx`` as concrete PhysX, not a public auto wrapper."""
+def test_cartpole_default_is_explicit_isaacsim_physx():
+    """PhysX-backed task defaults select Isaac Sim PhysX instead of automatic PhysX."""
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpolePhysicsCfg
 
     physics_cfg = CartpolePhysicsCfg()
 
     assert isinstance(physics_cfg.physx, PhysxCfg)
-    assert isinstance(physics_cfg.default, PhysxCfg)
+    assert physics_cfg.default == physics_cfg.isaacsim_physx
+
+    env_cfg = _resolve_with_args()
+    assert _get_physics_preset_selection(env_cfg.sim.physics) == "isaacsim_physx"
+
+    old_argv = sys.argv.copy()
+    try:
+        sys.argv = [sys.argv[0]]
+        state_env_cfg, _ = resolve_task_config(_STATE_TASK, "rsl_rl_cfg_entry_point")
+    finally:
+        sys.argv = old_argv
+
+    state_scan = scan(state_env_cfg)
+    assert isinstance(state_env_cfg.sim.physics, PhysxCfg)
+    assert state_scan.needs_kit is True
+
+
+def test_manager_task_exposes_explicit_and_automatic_physx_selectors():
+    """Migrated manager tasks retain automatic PhysX as an explicit opt-in."""
+    preset_map = enumerate_task_presets(_MANAGER_TASK)
+
+    assert preset_map is not None
+    assert {"isaacsim_physx", "physx"} <= set(preset_map[PresetTarget.PHYSICS])
 
 
 def test_physx_and_isaacsim_physx_presets_conflict():
@@ -101,24 +126,24 @@ def test_preset_mjwarp_ovrtx_does_not_need_kit():
     assert needs_kit is False
 
 
-def test_preset_rtx_resolves_to_ovphysx_and_ovrtx_without_kit():
-    """The RTX preset uses kitless PhysX-family backends when no Kit runtime is requested."""
+def test_preset_rtx_uses_isaac_sim_backends_with_default_physics():
+    """Automatic RTX follows the explicit Isaac Sim PhysX task default."""
     env_cfg = _resolve_with_presets("rtx")
     config_scan = _resolve_runtime_renderer(env_cfg)
 
-    assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
-    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+    assert config_scan.needs_kit is True
 
 
-def test_renderer_selector_rtx_resolves_to_ovphysx_and_ovrtx_without_kit():
-    """The RTX renderer selector uses kitless PhysX-family backends without Kit signals."""
+def test_renderer_selector_rtx_uses_isaac_sim_backends_with_default_physics():
+    """The typed RTX selector follows the explicit Isaac Sim PhysX task default."""
     env_cfg = _resolve_with_args("renderer=rtx")
     config_scan = _resolve_runtime_renderer(env_cfg)
 
-    assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
-    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+    assert config_scan.needs_kit is True
 
 
 def test_renderer_selector_physx_rtx_resolves_to_ovphysx_without_kit():
@@ -201,7 +226,7 @@ def test_preset_physx_with_default_kit_camera_resolves_to_physx():
 
 
 def test_preset_default_needs_kit():
-    """Default automatic PhysX plus Isaac RTX requires Kit."""
+    """Default explicit Isaac Sim PhysX plus Isaac RTX requires Kit."""
     env_cfg = _resolve_with_presets("default")
     needs_kit = scan(env_cfg).needs_kit
     assert needs_kit is True

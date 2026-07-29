@@ -72,6 +72,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     # scene — clone_in_fabric is the only backend-varying field (Newton cannot use Fabric cloning)
     scene: InteractiveSceneCfg = preset(
         default=ShadowHandSceneCfg(clone_in_fabric=False),
+        isaacsim_physx=ShadowHandSceneCfg(clone_in_fabric=True),
         physx=ShadowHandSceneCfg(clone_in_fabric=True),
         ovphysx=ShadowHandSceneCfg(clone_in_fabric=True),
         newton_mjwarp=ShadowHandSceneCfg(clone_in_fabric=False),

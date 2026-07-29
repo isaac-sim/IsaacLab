@@ -35,7 +35,7 @@ class CabinetDirectPhysicsCfg(PresetCfg):
         ),
         num_substeps=1,
     )
-    default = physx
+    default = isaacsim_physx
 
 
 @configclass

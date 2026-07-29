@@ -91,9 +91,10 @@ modes. The **Presets** column in each table below is divided into three labeled 
 * **physics=** — physics-backend name passed as ``physics=NAME``
   (e.g. ``physx``, ``isaacsim_physx``, ``newton_mjwarp``,
   ``newton_kamino``, ``ovphysx``, ``newton_mjwarp_vbd``). On tasks that
-  expose automatic PhysX-family selection, ``physx`` uses Isaac Sim PhysX when
-  a Kit renderer or Kit viewer is requested and OvPhysX otherwise; use
-  ``isaacsim_physx`` to force Isaac Sim PhysX.
+  expose automatic PhysX-family selection, ``physx`` opts into launch-time
+  selection: it uses Isaac Sim PhysX when a Kit renderer or Kit viewer is
+  requested and OvPhysX otherwise. PhysX-backed task defaults use the explicit
+  ``isaacsim_physx`` preset.
 * **renderer=** — renderer-backend name passed as ``renderer=NAME``
   (e.g. ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``)
 * **presets=** — environment-specific (domain) preset name passed as
