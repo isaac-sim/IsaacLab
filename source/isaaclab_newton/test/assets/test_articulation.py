@@ -3453,7 +3453,7 @@ def test_spatial_tendons(sim, num_articulations, device, articulation_type):
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground_plane, articulation_type):
-    """Test applying of joint position target functions correctly for a robotic arm."""
+    """Test static joint friction writes propagate directly to the Newton model."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -3462,61 +3462,62 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     # Play the simulator
     sim.reset()
 
-    for _ in range(100):
-        # perform step
-        sim.step()
-        # update buffers
-        articulation.update(sim.cfg.dt)
-
-    # apply action to the articulation
     friction = torch.rand(num_articulations, articulation.num_joints, device=device)
-
-    # The static friction must be set first to be sure the dynamic friction is not greater than static
-    # when both are set.
     articulation.write_joint_friction_coefficient_to_sim_index(
         joint_friction_coeff=friction,
     )
-    articulation.write_data_to_sim()
-
-    for _ in range(100):
-        # perform step
-        sim.step()
-        # update buffers
-        articulation.update(sim.cfg.dt)
-
     joint_friction_coeff_sim = wp.to_torch(
         articulation.root_view.get_attribute("joint_friction", SimulationManager.get_model())
     )[:, 0, :]
-    assert torch.allclose(joint_friction_coeff_sim, friction)
+    torch.testing.assert_close(joint_friction_coeff_sim, friction)
 
-    # Reset simulator to ensure a clean state for the alternative API path
+
+@pytest.mark.parametrize("selector_kind", ["index", "mask"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("device", test_devices())
+def test_write_joint_viscous_friction_to_sim(sim, device, articulation_type, selector_kind):
+    """Test passive viscous joint damping is distinct from actuator derivative gains."""
+    articulation_cfg = generate_articulation_cfg(articulation_type)
+    articulation_cfg.actuators["panda_shoulder"].viscous_friction = 0.25
+    articulation, _ = generate_articulation(articulation_cfg, 1, device)
     sim.reset()
 
-    # Warm up a few steps to populate buffers
-    for _ in range(100):
-        sim.step()
-        articulation.update(sim.cfg.dt)
-
-    # New random coefficients
-    friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
-
-    # Use the combined setter to write all three at once
-    articulation.write_joint_friction_coefficient_to_sim_index(
-        joint_friction_coeff=friction_2,
+    shoulder_joint_ids = articulation.actuators["panda_shoulder"].joint_indices
+    expected_viscous_friction = torch.full((articulation.num_instances, 4), 0.25, device=device)
+    torch.testing.assert_close(
+        articulation.data.joint_viscous_friction_coeff.torch[:, shoulder_joint_ids], expected_viscous_friction
     )
-    articulation.write_data_to_sim()
+    torch.testing.assert_close(
+        wp.to_torch(articulation.root_view.get_attribute("joint_damping", SimulationManager.get_model()))[
+            :, 0, shoulder_joint_ids
+        ],
+        expected_viscous_friction,
+    )
 
-    # Step to let sim ingest new params and refresh data buffers
-    for _ in range(100):
-        sim.step()
-        articulation.update(sim.cfg.dt)
+    expected_pd_damping = torch.full_like(expected_viscous_friction, 4.0)
+    torch.testing.assert_close(articulation.data.joint_damping.torch[:, shoulder_joint_ids], expected_pd_damping)
+    torch.testing.assert_close(
+        wp.to_torch(articulation.root_view.get_attribute("joint_target_kd", SimulationManager.get_model()))[
+            :, 0, shoulder_joint_ids
+        ],
+        expected_pd_damping,
+    )
 
-    joint_friction_coeff_sim_2 = wp.to_torch(
-        articulation.root_view.get_attribute("joint_friction", SimulationManager.get_model())
-    )[:, 0, :]
+    values = torch.full((articulation.num_instances, articulation.num_joints), 0.25, device=device)
+    if selector_kind == "index":
+        articulation.write_joint_viscous_friction_coefficient_to_sim_index(
+            joint_viscous_friction_coeff=values,
+        )
+    else:
+        articulation.write_joint_viscous_friction_coefficient_to_sim_mask(
+            joint_viscous_friction_coeff=values,
+        )
 
-    # Validate values propagated
-    assert torch.allclose(joint_friction_coeff_sim_2, friction_2)
+    torch.testing.assert_close(articulation.data.joint_viscous_friction_coeff.torch, values)
+    torch.testing.assert_close(
+        wp.to_torch(articulation.root_view.get_attribute("joint_damping", SimulationManager.get_model()))[:, 0],
+        values,
+    )
 
 
 @pytest.mark.parametrize("num_articulations", [2])

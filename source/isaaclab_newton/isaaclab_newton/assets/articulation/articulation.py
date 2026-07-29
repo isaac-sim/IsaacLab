@@ -2217,6 +2217,60 @@ class Articulation(BaseArticulation):
             env_mask=env_mask,
         )
 
+    def write_joint_viscous_friction_coefficient_to_sim_index(
+        self,
+        *,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array | float,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Write passive Newton joint damping over selected environment indices into the simulation.
+
+        Newton interprets this value as a passive force/torque proportional to joint velocity
+        [N·s/m or N·m·s/rad, depending on joint type].
+
+        Args:
+            joint_viscous_friction_coeff: Passive joint damping [N·s/m or N·m·s/rad, depending on joint type].
+                Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        self._write_joint_float_property_to_sim_index(
+            joint_viscous_friction_coeff,
+            value_name="joint_viscous_friction_coeff",
+            user_buffer=self.data._joint_viscous_friction_user,
+            backend_buffer=self.data._sim_bind_joint_viscous_friction_coeff,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+        )
+
+    def write_joint_viscous_friction_coefficient_to_sim_mask(
+        self,
+        *,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write passive Newton joint damping over selected environment masks into the simulation.
+
+        Newton interprets this value as a passive force/torque proportional to joint velocity
+        [N·s/m or N·m·s/rad, depending on joint type].
+
+        Args:
+            joint_viscous_friction_coeff: Passive joint damping [N·s/m or N·m·s/rad, depending on joint type].
+                Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+        """
+        self._write_joint_float_property_to_sim_mask(
+            joint_viscous_friction_coeff,
+            value_name="joint_viscous_friction_coeff",
+            user_buffer=self.data._joint_viscous_friction_user,
+            backend_buffer=self.data._sim_bind_joint_viscous_friction_coeff,
+            joint_mask=joint_mask,
+            env_mask=env_mask,
+        )
+
     """
     Operations - Newton Actuator Parameter Writers.
     """
@@ -3891,6 +3945,7 @@ class Articulation(BaseArticulation):
             damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
             armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
             friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
+            viscous_friction=wp.to_torch(self._data.joint_viscous_friction_coeff)[:, joint_ids],
             effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
             velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
         )
@@ -3907,6 +3962,10 @@ class Articulation(BaseArticulation):
         self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
         self.write_joint_friction_coefficient_to_sim_index(
             joint_friction_coeff=actuator.friction,
+            joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_viscous_friction_coefficient_to_sim_index(
+            joint_viscous_friction_coeff=actuator.viscous_friction,
             joint_ids=actuator.joint_indices,
         )
 

@@ -465,6 +465,15 @@ class ArticulationData(BaseArticulationData):
         return self._joint_friction_coeff_ta
 
     @property
+    def joint_viscous_friction_coeff(self) -> ProxyArray:
+        """Newton passive joint damping [N·s/m or N·m·s/rad, depending on joint type].
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_joints).
+        """
+        return self._joint_viscous_friction_coeff_ta
+
+    @property
     def joint_pos_limits_lower(self) -> ProxyArray:
         """Joint position limits lower provided to the simulation. Shape is (num_instances, num_joints)."""
         return self._joint_pos_limits_lower_ta
@@ -1626,6 +1635,9 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_damping_sim = self._root_view.get_attribute(
                 "joint_target_kd", SimulationManager.get_model()
             )[:, 0]
+            self._sim_bind_joint_viscous_friction_coeff = self._root_view.get_attribute(
+                "joint_damping", SimulationManager.get_model()
+            )[:, 0]
             self._sim_bind_joint_armature = self._root_view.get_attribute(
                 "joint_armature", SimulationManager.get_model()
             )[:, 0]
@@ -1664,6 +1676,9 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
             self._sim_bind_joint_damping_sim = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_viscous_friction_coeff = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
             self._sim_bind_joint_armature = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_friction_coeff = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
@@ -1772,9 +1787,7 @@ class ArticulationData(BaseArticulationData):
         self._joint_dynamic_friction = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        self._joint_viscous_friction = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
+        # Newton stores passive damping in the live ``joint_damping`` model field.
         self._soft_joint_vel_limits = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
@@ -1848,6 +1861,7 @@ class ArticulationData(BaseArticulationData):
         self._joint_damping_user: wp.array | None = None
         self._joint_armature_user: wp.array | None = None
         self._joint_friction_coeff_user: wp.array | None = None
+        self._joint_viscous_friction_user: wp.array | None = None
         self._joint_pos_limits_lower_user: wp.array | None = None
         self._joint_pos_limits_upper_user: wp.array | None = None
         self._joint_vel_limits_user: wp.array | None = None
@@ -1978,6 +1992,7 @@ class ArticulationData(BaseArticulationData):
             "_joint_damping_user",
             "_joint_armature_user",
             "_joint_friction_coeff_user",
+            "_joint_viscous_friction_user",
             "_joint_pos_limits_lower_user",
             "_joint_pos_limits_upper_user",
             "_joint_vel_limits_user",
@@ -2020,6 +2035,7 @@ class ArticulationData(BaseArticulationData):
                 "_joint_damping_user",
                 "_joint_armature_user",
                 "_joint_friction_coeff_user",
+                "_joint_viscous_friction_user",
                 "_joint_pos_limits_lower_user",
                 "_joint_pos_limits_upper_user",
                 "_joint_vel_limits_user",
@@ -2059,6 +2075,7 @@ class ArticulationData(BaseArticulationData):
             self._joint_damping_user = None
             self._joint_armature_user = None
             self._joint_friction_coeff_user = None
+            self._joint_viscous_friction_user = None
             self._joint_pos_limits_lower_user = None
             self._joint_pos_limits_upper_user = None
             self._joint_vel_limits_user = None
@@ -2231,6 +2248,7 @@ class ArticulationData(BaseArticulationData):
             (self._sim_bind_joint_damping_sim, self._joint_damping_user),
             (self._sim_bind_joint_armature, self._joint_armature_user),
             (self._sim_bind_joint_friction_coeff, self._joint_friction_coeff_user),
+            (self._sim_bind_joint_viscous_friction_coeff, self._joint_viscous_friction_user),
             (self._sim_bind_joint_pos_limits_lower, self._joint_pos_limits_lower_user),
             (self._sim_bind_joint_pos_limits_upper, self._joint_pos_limits_upper_user),
             (self._sim_bind_joint_vel_limits_sim, self._joint_vel_limits_user),
@@ -2306,6 +2324,11 @@ class ArticulationData(BaseArticulationData):
         joint_friction_coeff = (
             self._joint_friction_coeff_user if self.has_joint_ordering else self._sim_bind_joint_friction_coeff
         )
+        joint_viscous_friction_coeff = (
+            self._joint_viscous_friction_user
+            if self.has_joint_ordering
+            else self._sim_bind_joint_viscous_friction_coeff
+        )
         joint_pos_limits_lower = (
             self._joint_pos_limits_lower_user if self.has_joint_ordering else self._sim_bind_joint_pos_limits_lower
         )
@@ -2337,6 +2360,7 @@ class ArticulationData(BaseArticulationData):
             self._joint_damping_ta = ProxyArray(joint_damping)
             self._joint_armature_ta = ProxyArray(joint_armature)
             self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
+            self._joint_viscous_friction_coeff_ta = ProxyArray(joint_viscous_friction_coeff)
             self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
             self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
             self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
@@ -2377,6 +2401,7 @@ class ArticulationData(BaseArticulationData):
             self._joint_damping_ta = ProxyArray(joint_damping)
             self._joint_armature_ta = ProxyArray(joint_armature)
             self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
+            self._joint_viscous_friction_coeff_ta = ProxyArray(joint_viscous_friction_coeff)
             self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
             self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
             self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
