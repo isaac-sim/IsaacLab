@@ -107,6 +107,30 @@ dependencies = [
     "typing-extensions>=4.15.0",
 ]
 
+[dependency-groups]
+# Lightweight environment for building current and multi-version documentation.
+# Keep Warp unconstrained here: the project-level pin above and uv.lock select the
+# Newton-compatible version without duplicating the version in a second file.
+docs = [
+    "sphinx>=7.0,<9",
+    "sphinx-book-theme>=1.1",
+    "myst-parser",
+    "sphinxcontrib-bibtex==2.5.0",
+    "autodocsumm",
+    "sphinx-copybutton",
+    "sphinx-icon",
+    "sphinx_design",
+    "sphinx-paramlinks",
+    "sphinxemoji",
+    "sphinx-tabs",
+    "sphinx-multiversion==0.2.4",
+    "numpy",
+    "matplotlib",
+    "warp-lang",
+    "lazy_loader>=0.4",
+    "gymnasium",
+]
+
 [project.optional-dependencies]
 # Developer/test tooling.
 test = [
