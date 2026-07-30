@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import statistics
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -18,7 +17,7 @@ from isaaclab.assets.articulation.ordering_kernels import (
     write_joint_state_user_to_backend_with_indices_kernel,
 )
 
-from ..measurements import SingleMeasurement, StatisticalMeasurement
+from ..measurements import SingleMeasurement
 from ..method_benchmark import MethodBenchmarkRunnerConfig
 from .generators import FILL_RATIOS
 
@@ -125,55 +124,21 @@ def _measure_launch(
     return 1000.0 * wp.get_event_elapsed_time(start, end) / num_iterations
 
 
-def _measure_pairs(
-    int32_launch: PreparedLaunch,
-    int64_launch: PreparedLaunch,
-    device: wp.context.Device,
-    num_iterations: int,
-    num_rounds: int,
-) -> tuple[list[float], list[float]]:
-    samples = {"int32": [], "int64": []}
-    launches = {"int32": int32_launch, "int64": int64_launch}
-    for round_index in range(num_rounds):
-        order = ("int32", "int64") if round_index % 2 == 0 else ("int64", "int32")
-        for label in order:
-            samples[label].append(_measure_launch(launches[label], device, num_iterations))
-    return samples["int32"], samples["int64"]
-
-
-def _mean_and_std(samples: list[float]) -> tuple[float, float]:
-    return statistics.mean(samples), statistics.stdev(samples) if len(samples) > 1 else 0.0
-
-
 def _record_measurements(
     runner: MethodBenchmarkRunner,
     phase: str,
-    int32_samples: list[float],
-    int64_samples: list[float],
+    int32_mean: float,
+    int64_mean: float,
 ) -> None:
-    int32_mean, int32_std = _mean_and_std(int32_samples)
-    int64_mean, int64_std = _mean_and_std(int64_samples)
     delta_us = int64_mean - int32_mean
     percentage_delta = 100.0 * delta_us / int32_mean
     runner.add_measurement(
         phase,
-        StatisticalMeasurement(
-            name="int32",
-            mean=int32_mean,
-            std=int32_std,
-            n=len(int32_samples),
-            unit="us",
-        ),
+        SingleMeasurement(name="int32", value=int32_mean, unit="us"),
     )
     runner.add_measurement(
         phase,
-        StatisticalMeasurement(
-            name="int64",
-            mean=int64_mean,
-            std=int64_std,
-            n=len(int64_samples),
-            unit="us",
-        ),
+        SingleMeasurement(name="int64", value=int64_mean, unit="us"),
     )
     runner.add_measurement(
         phase,
@@ -226,16 +191,11 @@ def run_index_kernel_dtype_benchmark(
             device,
             config.warmup_steps,
         )
-        int32_samples, int64_samples = _measure_pairs(
-            int32_launch,
-            int64_launch,
-            device,
-            config.num_iterations,
-            config.num_rounds,
-        )
+        int32_mean = _measure_launch(int32_launch, device, config.num_iterations)
+        int64_mean = _measure_launch(int64_launch, device, config.num_iterations)
         _record_measurements(
             runner,
             f"index_kernel_{suffix}",
-            int32_samples,
-            int64_samples,
+            int32_mean,
+            int64_mean,
         )

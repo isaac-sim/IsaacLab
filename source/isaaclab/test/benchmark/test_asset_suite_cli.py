@@ -32,8 +32,6 @@ def test_script_cli_builds_one_combined_request(monkeypatch, tmp_path) -> None:
             "1",
             "--num_instances",
             "8",
-            "--num_rounds",
-            "7",
             "--output_dir",
             str(tmp_path),
             "--backend",
@@ -49,7 +47,6 @@ def test_script_cli_builds_one_combined_request(monkeypatch, tmp_path) -> None:
     assert captured["request"].physics_variant == "physx"
     assert captured["request"].config.num_bodies == 4
     assert captured["request"].config.num_joints == 0
-    assert captured["request"].config.num_rounds == 7
     assert captured["request"].output_path == Path(tmp_path)
     assert captured["request"].launcher_args is None
 
@@ -102,7 +99,6 @@ def test_script_cli_accepts_app_launcher_device_argument(monkeypatch, tmp_path) 
         ("--num_instances", "0", "must be greater than zero"),
         ("--num_bodies", "0", "must be greater than zero"),
         ("--num_joints", "-1", "must be non-negative"),
-        ("--num_rounds", "0", "must be greater than zero"),
     ],
 )
 def test_script_cli_reports_invalid_counts_as_argument_errors(

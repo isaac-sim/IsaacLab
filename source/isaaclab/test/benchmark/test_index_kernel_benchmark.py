@@ -41,31 +41,33 @@ def test_index_kernel_int32_and_int64_specializations_preserve_outputs_on_cpu() 
         np.testing.assert_array_equal(int32_output.numpy(), int64_output.numpy())
 
 
-def test_index_kernel_registers_paired_dtype_measurements_for_each_fill(monkeypatch) -> None:
-    """Every fill phase should record both widths and their hand-derived latency deltas."""
+def test_index_kernel_measures_one_batch_per_dtype_and_fill(monkeypatch) -> None:
+    """Every fill phase should time one batch per width and record their latency deltas."""
     runner = _MeasurementRunner()
     fake_device = SimpleNamespace(is_cuda=True)
+    measured: list[tuple[object, int]] = []
     monkeypatch.setattr(index_kernel, "_resolve_cuda_device", lambda _device: fake_device)
     monkeypatch.setattr(index_kernel, "_prepare_launch", lambda *args: args[2])
     monkeypatch.setattr(index_kernel, "_assert_output_parity", lambda *_args: None)
     monkeypatch.setattr(index_kernel, "_warm_specializations", lambda *_args: None)
-    monkeypatch.setattr(
-        index_kernel,
-        "_measure_pairs",
-        lambda *_args: ([1.0, 3.0], [2.0, 4.0]),
-    )
+
+    def measure(prepared, _device, num_iterations):
+        measured.append((prepared, num_iterations))
+        return 1.0 if prepared == wp.int32 else 1.5
+
+    monkeypatch.setattr(index_kernel, "_measure_launch", measure)
 
     index_kernel.run_index_kernel_dtype_benchmark(
         runner,
         MethodBenchmarkRunnerConfig(
-            num_iterations=2,
-            num_rounds=2,
+            num_iterations=7,
             num_instances=20,
             num_joints=4,
             device="cuda:0",
         ),
     )
 
+    assert measured == [(wp.int32, 7), (wp.int64, 7)] * 3
     assert tuple(phase for phase, _measurement in runner.measurements) == (
         "index_kernel_5pct",
         "index_kernel_5pct",
@@ -88,9 +90,9 @@ def test_index_kernel_registers_paired_dtype_measurements_for_each_fill(monkeypa
             "absolute_delta",
             "percentage_delta",
         )
-        assert measurements[0].mean == pytest.approx(2.0)
-        assert measurements[1].mean == pytest.approx(3.0)
-        assert measurements[2].value == pytest.approx(1.0)
+        assert measurements[0].value == pytest.approx(1.0)
+        assert measurements[1].value == pytest.approx(1.5)
+        assert measurements[2].value == pytest.approx(0.5)
         assert measurements[3].value == pytest.approx(50.0)
 
 
@@ -107,7 +109,6 @@ def test_index_kernel_skips_cuda_event_timing_for_cpu(monkeypatch) -> None:
         runner,
         MethodBenchmarkRunnerConfig(
             num_iterations=1,
-            num_rounds=1,
             num_instances=4,
             num_joints=3,
             device="cpu",

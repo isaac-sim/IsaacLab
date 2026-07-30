@@ -172,7 +172,6 @@ Use the top-level component command with an exact physics selector:
        --num_joints 11 \
        --warmup_steps 10 \
        --num_iterations 1000 \
-       --num_rounds 15 \
        --mode all \
        --backend json \
        --output_dir results/physx_articulation
@@ -214,9 +213,6 @@ Asset Arguments
    * - ``--warmup_steps``
      - 10
      - Untimed calls used to compile and warm caches
-   * - ``--num_rounds``
-     - 15
-     - Alternating paired rounds for the articulation raw index-kernel phase
    * - ``--num_instances``
      - 4096
      - Asset instances represented by the mock view
