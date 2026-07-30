@@ -372,22 +372,13 @@ runs:
             echo "🔵 Running volume-mounted container as host uid:gid ${host_uid}:${host_gid} (${host_user})"
           fi
 
-          # Warp compiles kernels on first launch, which dominates cold-start
-          # time. Mount a host directory (pre-populated by actions/cache in the
-          # caller) so a warm run reuses them. This must come after the
-          # volume_mount_source block, which assigns rather than appends to
-          # docker_volume_args.
+          # Must follow the volume_mount_source block, which assigns rather than
+          # appends to docker_volume_args. The caller creates the directory.
           if [ -n "$warp_cache_host_dir" ]; then
-            mkdir -p "$warp_cache_host_dir"
-            if [ ! -w "$warp_cache_host_dir" ]; then
-              echo "::error::Warp cache directory is not writable: $warp_cache_host_dir"
-              return 1
-            fi
             docker_volume_args="$docker_volume_args \
               -v ${warp_cache_host_dir}:/tmp/isaaclab-warp-cache:rw"
             docker_env_vars="$docker_env_vars \
               -e WARP_CACHE_PATH=/tmp/isaaclab-warp-cache"
-            echo "🔵 Mounting Warp kernel cache from ${warp_cache_host_dir} ($(du -sh "$warp_cache_host_dir" | cut -f1))"
           fi
 
           if [ -n "$wheelhouse_host_dir" ]; then
@@ -449,9 +440,7 @@ runs:
               unset HUB__ARGS__DETECT_ONLY
               ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flaky \"coverage>=7.6.1\"
               if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
-                # Fail loudly if Warp ignores the mount; a silently-unused cache
-                # would look like a working cache that never gets any hits.
-                ./isaaclab.sh -p -c \"import os, warp as wp; wp.init(); expected = os.path.realpath(os.environ['WARP_CACHE_PATH']); actual = os.path.realpath(wp.config.kernel_cache_dir); print(f'Warp kernel cache directory: {actual}'); raise SystemExit(0 if os.path.commonpath([actual, expected]) == expected else f'Warp cache path mismatch: expected {expected}, got {actual}')\"
+                ./isaaclab.sh -p tools/verify_warp_cache.py
               fi
               if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
                 if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then

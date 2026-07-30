@@ -211,7 +211,12 @@ runs:
       run: |
         set -euo pipefail
         mkdir -p "$HOST_DIR"
+        if [ ! -w "$HOST_DIR" ]; then
+          echo "::error::Warp cache directory is not writable: $HOST_DIR"
+          exit 1
+        fi
         echo "WARP_CACHE_MB_BEFORE=$(du -sm "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
+        echo "Warp cache at $HOST_DIR: $(du -sh "$HOST_DIR" | cut -f1)"
 
     - name: Restore NGC CLI cache
       if: inputs.wheelhouse-resource != '' && env.NGC_API_KEY != ''
