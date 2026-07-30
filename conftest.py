@@ -152,12 +152,13 @@ def pytest_ignore_collect(collection_path, config):
     except OSError:
         return None
 
-    run_ci_tests = _run_ci_tests(config)
-    # install_ci performs real installs and needs a built wheel. Its own pytest.ini makes it
-    # the rootdir when run directly, so this only excludes it from repository-wide sweeps.
-    if "install_ci" in path.parts and not run_ci_tests:
+    # install_ci performs real installs and needs a built wheel. Its own pytest.ini makes it the
+    # rootdir whenever it is addressed directly, so this hook only ever sees it as part of a
+    # repository-wide sweep, where it must not run.
+    if "install_ci" in path.parts:
         return True
 
+    run_ci_tests = _run_ci_tests(config)
     markers = module_markers(source)
     if "requires_kit" in markers:
         return config.getoption("--without-kit") or not run_ci_tests

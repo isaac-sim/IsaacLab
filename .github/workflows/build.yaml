@@ -280,8 +280,32 @@ jobs:
         shard-count: "3"
         container-name: isaac-lab-tasks-3-test
 
-  test-isaaclab-core:
-    name: isaaclab (core) [1/3]
+  test-isaaclab-core-kitless:
+    name: isaaclab (core) kitless
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 30
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
+        PYTEST_ADDOPTS: "--without-kit"
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "not isaaclab_"
+        container-name: isaac-lab-core-kitless-test
+
+  test-isaaclab-core-kit-1:
+    name: isaaclab (core) requires Kit [1/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
@@ -294,17 +318,21 @@ jobs:
         fetch-depth: 1
         lfs: true
     - uses: ./.github/actions/run-package-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
+        TEST_PYTEST_QUIET: "1"
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        ci-marker: "requires_kit"
         shard-index: "0"
         shard-count: "3"
-        container-name: isaac-lab-core-1-test
+        container-name: isaac-lab-core-kit-1-test
 
-  test-isaaclab-core-2:
-    name: isaaclab (core) [2/3]
+  test-isaaclab-core-kit-2:
+    name: isaaclab (core) requires Kit [2/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
@@ -317,17 +345,21 @@ jobs:
         fetch-depth: 1
         lfs: true
     - uses: ./.github/actions/run-package-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
+        TEST_PYTEST_QUIET: "1"
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        ci-marker: "requires_kit"
         shard-index: "1"
         shard-count: "3"
-        container-name: isaac-lab-core-2-test
+        container-name: isaac-lab-core-kit-2-test
 
-  test-isaaclab-core-3:
-    name: isaaclab (core) [3/3]
+  test-isaaclab-core-kit-3:
+    name: isaaclab (core) requires Kit [3/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
@@ -340,14 +372,18 @@ jobs:
         fetch-depth: 1
         lfs: true
     - uses: ./.github/actions/run-package-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
+        TEST_PYTEST_QUIET: "1"
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        ci-marker: "requires_kit"
         shard-index: "2"
         shard-count: "3"
-        container-name: isaac-lab-core-3-test
+        container-name: isaac-lab-core-kit-3-test
 
   test-standalone-demos:
     name: standalone demos (headless, ${{ matrix.runtime-label }})
