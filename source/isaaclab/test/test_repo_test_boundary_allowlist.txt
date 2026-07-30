@@ -46,10 +46,6 @@ missing_docstring source/isaaclab_ovphysx/test/assets/test_rigid_object_helpers.
 missing_docstring source/isaaclab_ovphysx/test/sim/test_ovphysx_view.py
 missing_docstring source/isaaclab_ovphysx/test/test_mock_ovphysx_bindings.py
 missing_docstring source/isaaclab_ov/test/test_ovrtx_renderer_kernels.py
-missing_docstring source/isaaclab_physx/test/assets/test_newton_actuators_physx.py
-missing_docstring source/isaaclab_physx/test/renderers/test_isaac_rtx_renderer_utils.py
-missing_docstring source/isaaclab_physx/test/sensors/test_contact_sensor.py
-missing_docstring source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py
 missing_docstring source/isaaclab_ppisp/test/test_ppisp_kernels.py
 missing_docstring source/isaaclab_ppisp/test/test_ppisp_pipeline_perf.py
 missing_docstring source/isaaclab_ppisp/test/test_ppisp.py

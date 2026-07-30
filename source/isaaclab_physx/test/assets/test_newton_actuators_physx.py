@@ -415,6 +415,7 @@ class _EquivalenceTestBase(unittest.TestCase):
         )
 
     def test_joint_positions_match(self):
+        """Track the Lab actuator path's joint positions within tolerance at every step."""
         for step_i, (lab, newton) in enumerate(zip(self.lab_result["joint_pos"], self.newton_result["joint_pos"])):
             torch.testing.assert_close(
                 lab,
@@ -425,6 +426,7 @@ class _EquivalenceTestBase(unittest.TestCase):
             )
 
     def test_joint_velocities_match(self):
+        """Track the Lab actuator path's joint velocities within tolerance at every step."""
         for step_i, (lab, newton) in enumerate(zip(self.lab_result["joint_vel"], self.newton_result["joint_vel"])):
             torch.testing.assert_close(
                 lab,
@@ -435,6 +437,7 @@ class _EquivalenceTestBase(unittest.TestCase):
             )
 
     def test_applied_torque_match(self):
+        """Track the Lab actuator path's applied torque within tolerance at every step."""
         for step_i, (lab, newton) in enumerate(
             zip(self.lab_result["applied_torque"], self.newton_result["applied_torque"])
         ):
@@ -447,6 +450,7 @@ class _EquivalenceTestBase(unittest.TestCase):
             )
 
     def test_computed_torque_match(self):
+        """Track the Lab actuator path's computed torque within tolerance at every step."""
         for step_i, (lab, newton) in enumerate(
             zip(self.lab_result["computed_torque"], self.newton_result["computed_torque"])
         ):
@@ -615,6 +619,7 @@ class TestHeterogeneousMultiArticulationPhysx(unittest.TestCase):
         cls.newton_result = _run_anymal_and_cartpole(use_newton_actuators=True)
 
     def test_anymal_matches_lab(self):
+        """Keep the ANYmal joint trajectory identical across the Lab and Newton actuator paths."""
         for step_i, (lab, newton) in enumerate(
             zip(self.lab_result["joint_pos_anymal"], self.newton_result["joint_pos_anymal"])
         ):
@@ -627,6 +632,7 @@ class TestHeterogeneousMultiArticulationPhysx(unittest.TestCase):
             )
 
     def test_cartpole_matches_lab(self):
+        """Keep the Cartpole joint trajectory identical when both robots share one scene."""
         for step_i, (lab, newton) in enumerate(
             zip(self.lab_result["joint_pos_cartpole"], self.newton_result["joint_pos_cartpole"])
         ):
@@ -720,6 +726,7 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
         return out
 
     def test_single_articulation(self):
+        """Randomize actuator gains through events without disturbing untargeted environments."""
         sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
         with build_simulation_context(
             device="cuda:0",
@@ -766,6 +773,7 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
                 torch.testing.assert_close(kd_after[env_idx], kd_before[env_idx])
 
     def test_two_articulations(self):
+        """Randomize gains per articulation when two articulations share the scene."""
         from isaaclab_assets import CARTPOLE_CFG  # noqa: PLC0415
 
         sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
@@ -1136,6 +1144,7 @@ class TestRemotizedPDFunctional(unittest.TestCase):
         )
 
     def test_positions_finite(self):
+        """Keep remotized PD joint positions finite across the run."""
         for step_i, pos in enumerate(self.result["joint_pos"]):
             self.assertTrue(
                 torch.isfinite(pos).all(),
@@ -1247,6 +1256,7 @@ class TestNeuralMLPFunctional(unittest.TestCase):
         os.unlink(cls.mlp_path)
 
     def test_positions_finite(self):
+        """Keep neural MLP actuator joint positions finite across the run."""
         for step_i, pos in enumerate(self.result["joint_pos"]):
             self.assertTrue(
                 torch.isfinite(pos).all(),
@@ -1286,6 +1296,7 @@ class TestNeuralLSTMFunctional(unittest.TestCase):
         os.unlink(cls.lstm_path)
 
     def test_positions_finite(self):
+        """Keep neural LSTM actuator joint positions finite across the run."""
         for step_i, pos in enumerate(self.result["joint_pos"]):
             self.assertTrue(
                 torch.isfinite(pos).all(),

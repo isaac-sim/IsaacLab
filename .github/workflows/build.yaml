@@ -559,8 +559,32 @@ jobs:
         ci-marker: "requires_kit"
         container-name: isaac-lab-newton-kit-test
 
-  test-isaaclab-physx:
-    name: isaaclab_physx
+  test-isaaclab-physx-kitless:
+    name: isaaclab_physx kitless
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 30
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
+        PYTEST_ADDOPTS: "--without-kit"
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_physx"
+        container-name: isaac-lab-physx-kitless-test
+
+  test-isaaclab-physx-kit:
+    name: isaaclab_physx requires Kit
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
@@ -573,12 +597,16 @@ jobs:
         fetch-depth: 1
         lfs: true
     - uses: ./.github/actions/run-package-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
+        TEST_PYTEST_QUIET: "1"
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
-        container-name: isaac-lab-physx-test
+        ci-marker: "requires_kit"
+        container-name: isaac-lab-physx-kit-test
 
   test-isaaclab-ov:
     name: isaaclab_ov

@@ -843,6 +843,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
 
 @pytest.mark.isaacsim_ci
 def test_invalid_prim_paths_config(setup_simulation):
+    """Reject a contact sensor configured against prim paths that carry no collider."""
     sim_dt, _, _, _, settings = setup_simulation
     settings.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
@@ -877,6 +878,7 @@ def test_invalid_prim_paths_config(setup_simulation):
 
 @pytest.mark.isaacsim_ci
 def test_invalid_max_contact_points_config(setup_simulation):
+    """Reject a contact sensor configured with an unusable max contact point count."""
     sim_dt, _, _, _, settings = setup_simulation
     settings.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"

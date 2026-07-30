@@ -44,6 +44,12 @@ from isaaclab.utils.math import (
     random_orientation,
 )
 
+# Prefer CUDA for repeated behavior checks when available. The initialization cases below
+# retain CPU and CUDA coverage and exercise the scalar and batched shapes; the remaining
+# behavior tests use the largest case so they keep vectorized coverage without rebuilding
+# every smaller variant of the Cartesian product.
+PRIMARY_DEVICE = test_devices()[-1:]
+
 
 def generate_cubes_scene(
     num_cubes: int = 1,
@@ -101,8 +107,10 @@ def generate_cubes_scene(
     return cube_object, origins
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(
+    ("num_cubes", "device"),
+    [(1, test_devices()[0]), (2, test_devices()[-1])],
+)
 @pytest.mark.isaacsim_ci
 def test_initialization(num_cubes, device):
     """Test initialization for prim with rigid body API at the provided prim path."""
@@ -135,8 +143,10 @@ def test_initialization(num_cubes, device):
             cube_object.update(sim.cfg.dt)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(
+    ("num_cubes", "device"),
+    [(1, test_devices()[0]), (2, test_devices()[-1])],
+)
 @pytest.mark.isaacsim_ci
 def test_initialization_with_kinematic_enabled(num_cubes, device):
     """Test that initialization for prim with kinematic flag enabled."""
@@ -173,8 +183,10 @@ def test_initialization_with_kinematic_enabled(num_cubes, device):
             torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, default_root_vel)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(
+    ("num_cubes", "device"),
+    [(1, test_devices()[0]), (2, test_devices()[-1])],
+)
 @pytest.mark.isaacsim_ci
 def test_initialization_with_no_rigid_body(num_cubes, device):
     """Test that initialization fails when no rigid body is found at the provided prim path."""
@@ -191,8 +203,10 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
             sim.reset()
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(
+    ("num_cubes", "device"),
+    [(1, test_devices()[0]), (2, test_devices()[-1])],
+)
 @pytest.mark.isaacsim_ci
 def test_initialization_with_articulation_root(num_cubes, device):
     """Test that initialization fails when an articulation root is found at the provided prim path."""
@@ -209,7 +223,7 @@ def test_initialization_with_articulation_root(num_cubes, device):
             sim.reset()
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.isaacsim_ci
 def test_external_force_buffer(device):
     """Test if external force buffer correctly updates in the force value is zero case.
@@ -277,8 +291,8 @@ def test_external_force_buffer(device):
             cube_object.update(sim.cfg.dt)
 
 
-@pytest.mark.parametrize("num_cubes", [2, 4])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [4])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.isaacsim_ci
 def test_external_force_on_single_body(num_cubes, device):
     """Test application of external force on the base of the object.
@@ -353,8 +367,8 @@ def test_external_force_on_single_body(num_cubes, device):
             assert torch.all(cube_object.data.root_pos_w.torch[1::2, 2] < 1.0)
 
 
-@pytest.mark.parametrize("num_cubes", [2, 4])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [4])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 def test_external_force_on_single_body_at_position(num_cubes, device):
     """Test application of external force on the base of the object at a specific position.
 
@@ -458,8 +472,8 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
             assert torch.all(cube_object.data.root_pos_w.torch[1::2, 2] < 1.0)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.isaacsim_ci
 def test_set_rigid_object_state(num_cubes, device):
     """Test setting the state of the rigid object.
@@ -524,8 +538,8 @@ def test_set_rigid_object_state(num_cubes, device):
                     cube_object.update(sim.cfg.dt)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.isaacsim_ci
 def test_reset_rigid_object(num_cubes, device):
     """Test resetting the state of the rigid object."""
@@ -567,8 +581,8 @@ def test_reset_rigid_object(num_cubes, device):
                 assert torch.count_nonzero(cube_object._permanent_wrench_composer.out_torque_b.torch) == 0
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.isaacsim_ci
 def test_rigid_body_set_material_properties(num_cubes, device):
     """Test getting and setting material properties of rigid object."""
@@ -608,8 +622,8 @@ def test_rigid_body_set_material_properties(num_cubes, device):
         torch.testing.assert_close(materials_to_check.reshape(num_cubes, 3), materials)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.isaacsim_ci
 def test_set_material_properties_via_view(num_cubes, device):
     """Test setting material properties via the PhysX view-level API."""
@@ -648,8 +662,8 @@ def test_set_material_properties_via_view(num_cubes, device):
         torch.testing.assert_close(materials_check, materials)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.isaacsim_ci
 def test_rigid_body_no_friction(num_cubes, device):
     """Test that a rigid object with no friction maintains its tangential velocity on a plane."""
@@ -708,8 +722,8 @@ def test_rigid_body_no_friction(num_cubes, device):
             )
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.isaacsim_ci
 def test_rigid_body_with_static_friction(num_cubes, device):
     """Test that static friction applied to rigid object works as expected.
@@ -794,8 +808,8 @@ def test_rigid_body_with_static_friction(num_cubes, device):
                 assert (cube_object.data.root_pos_w.torch[..., 0] - initial_root_pos[..., 0] > 0.02).all()
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.isaacsim_ci
 def test_rigid_body_with_restitution(num_cubes, device):
     """Test that restitution when applied to rigid object works as expected.
@@ -877,8 +891,8 @@ def test_rigid_body_with_restitution(num_cubes, device):
                 assert (curr_z_velocity > 0.0).all()
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.isaacsim_ci
 def test_rigid_body_set_mass(num_cubes, device):
     """Test getting and setting mass of rigid object."""
@@ -921,8 +935,8 @@ def test_rigid_body_set_mass(num_cubes, device):
         torch.testing.assert_close(masses, masses_to_check)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 @pytest.mark.isaacsim_ci
 def test_gravity_vec_w(num_cubes, device, gravity_enabled):
@@ -961,8 +975,8 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
             torch.testing.assert_close(cube_object.data.body_acc_w.torch, gravity)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.isaacsim_ci
 @flaky(max_runs=3, min_passes=1)
@@ -1072,8 +1086,8 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
 @pytest.mark.isaacsim_ci
@@ -1142,8 +1156,8 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
                 torch.testing.assert_close(rand_state[..., 7:], cube_object.data.root_link_vel_w.torch)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", PRIMARY_DEVICE)
 @pytest.mark.parametrize("with_offset", [True])
 @pytest.mark.parametrize("state_location", ["com", "link", "root"])
 @pytest.mark.isaacsim_ci

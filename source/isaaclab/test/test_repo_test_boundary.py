@@ -1,5 +1,6 @@
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
+#
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Enforce the repository test rules documented under ``## Testing Guidelines`` in AGENTS.md.
@@ -26,6 +27,7 @@ KIT_MARK = "pytest.mark." + "requires_kit"
 
 # Suites with their own documented rules, validated by their own runner.
 EXCLUDED_DIRS = ("install_ci",)
+
 
 def _load_allowlist() -> dict[str, set[str]]:
     """Read ``<rule> <path>`` entries, ignoring blank lines and ``#`` comments."""
@@ -93,7 +95,12 @@ def _calls(node: ast.AST, names: set[str]) -> bool:
 
 
 def _is_sys_modules(node: ast.AST) -> bool:
-    return isinstance(node, ast.Attribute) and node.attr == "modules" and isinstance(node.value, ast.Name) and node.value.id == "sys"
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "modules"
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "sys"
+    )
 
 
 def _mutates_sys_modules(node: ast.AST) -> bool:
@@ -113,11 +120,18 @@ def _mutates_sys_modules(node: ast.AST) -> bool:
 
 
 def _module_scope_statements(tree: ast.Module):
-    return [
-        node
-        for node in tree.body
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-    ]
+    return [node for node in tree.body if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
+
+
+def _is_fixture(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """Whether the function is a pytest fixture rather than a test."""
+    for decorator in node.decorator_list:
+        target = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if isinstance(target, ast.Attribute) and target.attr == "fixture":
+            return True
+        if isinstance(target, ast.Name) and target.id == "fixture":
+            return True
+    return False
 
 
 def _parsed(path: Path) -> tuple[str, ast.Module]:
@@ -200,6 +214,7 @@ def test_every_test_has_a_docstring(path: Path) -> None:
         for node in ast.walk(tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and node.name.startswith("test_")
+        and not _is_fixture(node)
         and ast.get_docstring(node) is None
     ]
     assert not undocumented, f"tests without a docstring: {sorted(undocumented)}"

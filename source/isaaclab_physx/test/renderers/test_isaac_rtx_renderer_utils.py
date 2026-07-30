@@ -91,18 +91,21 @@ class TestGetStageStreamingBusy:
     """Synchronous streaming status query delegates to UsdContext."""
 
     def test_returns_true_when_busy(self, mock_omni_usd):
+        """Report busy while UsdContext still reports an active streaming status."""
         mock_ctx = MagicMock()
         mock_ctx.get_stage_streaming_status.return_value = True
         mock_omni_usd.get_context.return_value = mock_ctx
         assert rtx_utils._get_stage_streaming_busy() is True
 
     def test_returns_false_when_idle(self, mock_omni_usd):
+        """Report idle once UsdContext reports streaming has finished."""
         mock_ctx = MagicMock()
         mock_ctx.get_stage_streaming_status.return_value = False
         mock_omni_usd.get_context.return_value = mock_ctx
         assert rtx_utils._get_stage_streaming_busy() is False
 
     def test_returns_false_when_no_context(self, mock_omni_usd):
+        """Report idle rather than raising when no UsdContext exists."""
         mock_omni_usd.get_context.return_value = None
         assert rtx_utils._get_stage_streaming_busy() is False
 
