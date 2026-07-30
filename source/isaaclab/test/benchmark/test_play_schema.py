@@ -177,7 +177,7 @@ def test_run_play_loop_aggregates_episodes():
     from isaaclab.benchmark.stepping import run_play_loop
 
     env = _PlayEnv()
-    step_times, reward, ep_length, success_rate = run_play_loop(env, policy=lambda obs: torch.zeros(2, 1), num_frames=3)
+    step_times, reward, ep_length, success_rate = run_play_loop(env, policy=lambda obs: torch.zeros(2, 1), num_steps=3)
     assert len(step_times) == 3
     assert all(t >= 0.0 for t in step_times)
     # env 0 completed a 2-step episode with reward 1 per step -> return 2.0, length 2.

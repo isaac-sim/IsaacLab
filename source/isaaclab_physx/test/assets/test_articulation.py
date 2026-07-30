@@ -34,6 +34,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
+from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -62,6 +63,74 @@ from isaaclab_assets import (  # isort:skip
     FRANKA_PANDA_HIGH_PD_CFG,
     SHADOW_HAND_CFG,
 )
+
+
+def test_cached_read_launch_reuses_command_and_resets(monkeypatch):
+    """The PhysX read path should record once, replay, and discard the command on reset."""
+
+    class FakeCommand:
+        launch_count = 0
+
+        def launch(self):
+            self.launch_count += 1
+
+    class FakeDevice:
+        is_cuda = True
+        is_capturing = False
+
+    device = FakeDevice()
+    command = FakeCommand()
+    launch_calls = []
+
+    def fake_launch(*args, **kwargs):
+        launch_calls.append((args, kwargs))
+        return command
+
+    module = sys.modules[ArticulationData.__module__]
+    monkeypatch.setattr(module.wp, "get_device", lambda device_name: device)
+    monkeypatch.setattr(module.wp, "launch", fake_launch)
+    data = ArticulationData.__new__(ArticulationData)
+    data.device = "cuda:0"
+    data._cached_read_launches = {}
+
+    for _ in range(2):
+        data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
+
+    assert len(launch_calls) == 1
+    assert launch_calls[0][1]["record_cmd"] is True
+    assert command.launch_count == 2
+    data._reset_cached_read_launches()
+    device.is_capturing = True
+    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
+    assert "record_cmd" not in launch_calls[-1][1]
+    assert data._cached_read_launches == {}
+
+
+def test_cached_read_launch_ignores_empty_recording(monkeypatch):
+    """PhysX should treat an empty recorded launch as a completed no-op."""
+
+    class FakeDevice:
+        is_cuda = True
+        is_capturing = False
+
+    launch_calls = []
+
+    def fake_launch(*args, **kwargs):
+        launch_calls.append((args, kwargs))
+        return
+
+    module = sys.modules[ArticulationData.__module__]
+    monkeypatch.setattr(module.wp, "get_device", lambda device_name: FakeDevice())
+    monkeypatch.setattr(module.wp, "launch", fake_launch)
+    data = ArticulationData.__new__(ArticulationData)
+    data.device = "cuda:0"
+    data._cached_read_launches = {}
+
+    data._launch_cached_read("joint_pos", object(), dim=0, inputs=[], outputs=[])
+
+    assert len(launch_calls) == 1
+    assert launch_calls[0][1]["record_cmd"] is True
+    assert data._cached_read_launches == {}
 
 
 def generate_articulation_cfg(
@@ -410,6 +479,8 @@ def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(
         _to_device_tensor(articulation.root_view.get_link_transforms(), device),
         body_user_to_backend,
     )
+    if device == "cuda:0":
+        assert articulation.data._cached_read_launches
     _assert_backend_to_user(
         articulation.data.body_com_pose_b.torch,
         _to_device_tensor(articulation.root_view.get_coms(), device),
