@@ -72,6 +72,11 @@ in a mixed module has no effect on collection.
   restore instead of parametrizing.
 - Reuse-with-reset beats rebuild, unless leaked state would make assertions order-dependent.
 
+Before narrowing a device axis, check whether the module is marked `device_split` or has an
+autouse fixture that skips the device the session is not pinned to. There the device parameter is
+how CI shards the file across processes, so collapsing it deletes coverage. Always compare the
+passed count before and after; a drop means the change removed tests rather than duplicates.
+
 `ci_only` is for startup cost, large environment matrices, long training, rendering, and expensive
 GPU integration. It is not a place to put a slow test you did not want to fix.
 
