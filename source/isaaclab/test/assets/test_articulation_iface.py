@@ -1329,6 +1329,7 @@ class TestArticulationWritersRoot:
             [
                 ("root_link_vel_w", "_root_link_vel_w"),
                 ("body_link_vel_w", "_body_link_vel_w"),
+                *([("body_com_vel_w", "_body_com_vel_w")] if backend != "newton" else []),
                 ("projected_gravity_b", "_projected_gravity_b"),
                 ("heading_w", "_heading_w"),
                 ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
@@ -1337,6 +1338,8 @@ class TestArticulationWritersRoot:
                 ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
             ],
         )
+        if backend == "ovphysx" and art.data._body_com_vel_w_backend is not None:
+            buffers.append(("_body_com_vel_w_backend", art.data._body_com_vel_w_backend))
         root_pose = _make_data_warp((art.num_instances,), "cpu", wp.transformf)
         art.write_root_link_pose_to_sim_index(root_pose=root_pose)
         _assert_buffers_stale(art.data, buffers)

@@ -222,6 +222,8 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_pose_w,
                 self._root_link_vel_w,
                 self._body_link_vel_w,
+                self._body_com_vel_w,
+                self._body_com_vel_w_backend,
                 self._projected_gravity_b,
                 self._heading_w,
                 self._root_link_lin_vel_b,
