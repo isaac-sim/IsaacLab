@@ -15,6 +15,8 @@ suite, and the CPU microbenchmark must not actually run.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from isaaclab_teleop import system_check
 from isaaclab_teleop.system_check import SystemCheckItem, SystemCheckResult, check_system_requirements
@@ -308,6 +310,71 @@ class TestSystemCheckMessage:
 
         result, _ = _at_spec(monkeypatch, score=0.4)
         assert json.loads(json.dumps(result.to_message()))["type"] == "system_notice"
+
+
+class TestMessageBudget:
+    """A notice must fit the teleop channel, which does not fragment.
+
+    Server-to-client opaque data is tunnelled as a single haptics event, so an
+    oversized notice is dropped outright. The machines this check exists for
+    fail the most requirements and therefore produce the largest payloads, so
+    an unbudgeted notice goes missing exactly when it matters most.
+    """
+
+    LIMIT = 900
+
+    def _failing(self, count: int) -> SystemCheckResult:
+        return SystemCheckResult(
+            items=tuple(
+                SystemCheckItem(
+                    f"Requirement {i}",
+                    False,
+                    "powersave",
+                    "performance (or single-thread >= 0.80)",
+                    detail=system_check.CPU_GOVERNOR_FIX,
+                )
+                for i in range(count)
+            )
+        )
+
+    @pytest.mark.parametrize("count", [1, 2, 3, 4, 5, 9, 20])
+    def test_notice_always_fits_the_budget(self, count):
+        message = self._failing(count).to_message(max_bytes=self.LIMIT)
+        assert len(json.dumps(message).encode()) <= self.LIMIT
+
+    def test_every_check_failing_at_once_fits(self):
+        # The realistic worst case: one failure per check the module performs.
+        message = self._failing(9).to_message(max_bytes=self.LIMIT)
+        assert len(json.dumps(message).encode()) <= self.LIMIT
+        assert message["message"]["items"]
+
+    def test_small_notice_keeps_its_remediation_hints(self):
+        # Budgeting must not strip the actionable part when there is room.
+        message = self._failing(1).to_message(max_bytes=self.LIMIT)
+        assert message["message"]["items"][0]["detail"] == system_check.CPU_GOVERNOR_FIX
+
+    def test_details_are_dropped_before_requirements(self):
+        # Losing a hint is better than losing a whole requirement.
+        message = self._failing(5).to_message(max_bytes=self.LIMIT)
+        assert len(message["message"]["items"]) == 5
+        assert not any(item["detail"] for item in message["message"]["items"])
+
+    def test_truncation_says_how_many_were_omitted(self):
+        message = self._failing(9).to_message(max_bytes=self.LIMIT)
+        shown = len(message["message"]["items"])
+        assert f"{9 - shown} more not shown" in message["message"]["summary"]
+
+    def test_no_budget_returns_the_full_notice(self):
+        message = self._failing(9).to_message()
+        assert len(message["message"]["items"]) == 9
+        assert all(item["detail"] for item in message["message"]["items"])
+
+    def test_budget_matches_the_transport_limit(self):
+        # Pins the test budget to what the lifecycle actually enforces, so the
+        # two cannot drift apart.
+        from isaaclab_teleop import session_lifecycle
+
+        assert session_lifecycle._MAX_CLIENT_MESSAGE_BYTES == self.LIMIT
 
 
 class TestSystemCheckFormatting:

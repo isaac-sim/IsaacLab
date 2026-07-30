@@ -55,11 +55,26 @@ _MAX_PENDING_CLIENT_MESSAGES = 32
 Small on purpose: these are user-facing notices, so dropping the oldest when a
 client never connects is preferable to growing without limit."""
 
-_MAX_CLIENT_MESSAGE_BYTES = 64 * 1024
-"""Maximum encoded size of a single client message.
+_MAX_CLIENT_MESSAGE_BYTES = 900
+"""Maximum encoded size of a single client message [bytes].
 
-Matches the default ``max_message_size`` of the underlying message channel;
-oversized payloads are rejected rather than silently truncated on the wire."""
+Far below the message channel's nominal ``max_message_size`` (64 KiB), because
+that figure is not what the transport delivers.  Server-to-client opaque data is
+tunnelled as a gamepad haptics event, and nothing in that path fragments: the
+payload is serialized into one protobuf, pushed as one input event, and
+delivered as one blob.  A message therefore has to fit a single input event,
+which is MTU-bound.  Measured empirically at roughly 940 bytes, so this leaves a
+small margin.
+
+The framing also caps things well below 64 KiB regardless: the haptics event
+carries a ``uint16_t`` size over a 4-byte header, so the representable maximum
+is 65531.  A 64 KiB payload overflows that and, with asserts compiled out in
+release builds, the size cast wraps rather than failing -- silent corruption
+instead of an error.
+
+Oversized payloads are rejected here so they fail loudly at the source.  See
+:meth:`~isaaclab_teleop.system_check.SystemCheckResult.to_message`, which
+budgets a notice down to fit rather than letting it be dropped."""
 
 
 def _to_numpy_4x4(mat: np.ndarray | torch.Tensor | SupportsDLPack) -> np.ndarray:
@@ -824,7 +839,10 @@ class TeleopSessionLifecycle:
             return
 
         logger.warning(result.format_table())
-        self.send_client_message(result.to_message())
+        # Budget the notice to the channel limit. An under-spec workstation can
+        # fail enough requirements to exceed it, and the full table is already
+        # in the terminal above.
+        self.send_client_message(result.to_message(max_bytes=_MAX_CLIENT_MESSAGE_BYTES))
 
     def reset_haptics(self) -> None:
         """Zero all cached haptic output so feedback stops (e.g. on episode reset)."""

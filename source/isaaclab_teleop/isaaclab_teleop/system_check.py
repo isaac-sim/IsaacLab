@@ -23,6 +23,7 @@ carry a top-tier GPU and still teleoperate badly.
 from __future__ import annotations
 
 import dataclasses
+import json
 import logging
 import os
 import platform
@@ -212,34 +213,79 @@ class SystemCheckResult:
                 lines.append(f"         -> {item.detail}")
         return "\n".join(lines)
 
-    def to_message(self) -> dict:
+    def to_message(self, max_bytes: int | None = None) -> dict:
         """Build the ``system_notice`` envelope sent to the XR client.
 
         Only failing items are included so the in-headset banner stays
         readable.
 
+        When *max_bytes* is given the notice is budgeted down to fit, because
+        the teleop message channel drops anything larger and the worst machines
+        -- the ones this check exists for -- fail the most requirements and so
+        produce the largest payloads.  Silently losing the warning exactly when
+        it matters most is the failure mode being avoided here.
+
+        Degradation is ordered least-useful first: the per-item ``detail`` hints
+        go before any requirement is dropped, and if items must still be
+        dropped the summary says how many, so the operator knows the list is
+        partial and can read the full table in the terminal.
+
+        Args:
+            max_bytes: Budget for the UTF-8 encoded JSON, or ``None`` for no
+                limit.
+
         Returns:
             A JSON-serializable dict matching the teleop message-channel
             envelope convention (``{"type": ..., "message": ...}``).
         """
-        return {
-            "type": "system_notice",
-            "message": {
-                "level": "warning",
-                "title": "Workstation below recommended spec",
-                "summary": "Teleoperation may run below the 45 FPS target.",
-                "items": [
-                    {
-                        "name": item.name,
-                        "actual": item.actual,
-                        "required": item.required,
-                        "detail": item.detail,
-                    }
-                    for item in self.failures
-                ],
-                "doc_url": DOC_URL,
-            },
-        }
+        summary = "Teleoperation may run below the 45 FPS target."
+        items = [
+            {
+                "name": item.name,
+                "actual": item.actual,
+                "required": item.required,
+                "detail": item.detail,
+            }
+            for item in self.failures
+        ]
+
+        def build(entries: list[dict], note: str) -> dict:
+            return {
+                "type": "system_notice",
+                "message": {
+                    "level": "warning",
+                    "title": "Workstation below recommended spec",
+                    "summary": summary + note,
+                    "items": entries,
+                    "doc_url": DOC_URL,
+                },
+            }
+
+        message = build(items, "")
+        if max_bytes is None or _encoded_size(message) <= max_bytes:
+            return message
+
+        # 1. Drop the remediation hints, the largest per-item field.
+        stripped = [{**entry, "detail": ""} for entry in items]
+        message = build(stripped, "")
+        if _encoded_size(message) <= max_bytes:
+            return message
+
+        # 2. Still too large: drop requirements from the end until it fits.
+        for kept in range(len(stripped) - 1, -1, -1):
+            omitted = len(stripped) - kept
+            message = build(stripped[:kept], f" ({omitted} more not shown; see the terminal.)")
+            if _encoded_size(message) <= max_bytes:
+                return message
+
+        # Nothing but the envelope fits; send it so the operator still sees
+        # that something is wrong.
+        return message
+
+
+def _encoded_size(message: dict) -> int:
+    """Size of *message* as it goes on the wire [bytes]."""
+    return len(json.dumps(message).encode())
 
 
 def measure_cpu_single_thread_score() -> float | None:
