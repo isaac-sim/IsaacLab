@@ -2081,10 +2081,11 @@ def define_deformable_body_properties(
                     raise
                 raise ModuleNotFoundError(
                     "Automatic tetrahedralization of volume deformables requires the optional "
-                    "tetrahedralization dependencies. Install them with ./isaaclab.sh -i "
-                    "tetrahedralization from a source checkout or pip install "
-                    '"isaaclab[tetrahedralization]" from a wheel, or provide a pre-tetrahedralized '
-                    f"UsdGeom.TetMesh under the deformable prim {prim_path}."
+                    "tetrahedralization dependencies. Install them with "
+                    "uv sync --inexact --extra tetrahedralization from a source checkout "
+                    "(or ./isaaclab.sh -i tetrahedralization with the legacy installer), or "
+                    'pip install "isaaclab[tetrahedralization]" from a wheel. Alternatively, provide '
+                    f"a pre-tetrahedralized UsdGeom.TetMesh under the deformable prim {prim_path}."
                 ) from exc
 
             tet_mesh_points, tet_mesh_indices = tetrahedralize(

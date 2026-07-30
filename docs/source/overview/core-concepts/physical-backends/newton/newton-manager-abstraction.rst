@@ -197,6 +197,12 @@ You can exercise this coupling path with the Franka soft-body lifting task:
 
    .. code-block:: bash
 
+      uv sync --inexact --extra tetrahedralization
+
+   With the legacy installer:
+
+   .. code-block:: bash
+
       ./isaaclab.sh -i tetrahedralization
 
 .. tab-set::

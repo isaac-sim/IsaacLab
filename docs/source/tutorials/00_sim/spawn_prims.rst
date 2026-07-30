@@ -12,8 +12,14 @@ demonstrates how to spawn a ground plane, lights, primitive shapes, and meshes f
 
 .. note::
 
-   This tutorial automatically tetrahedralizes a volume deformable. Install its
-   optional dependencies before running the script:
+   This tutorial automatically tetrahedralizes a volume deformable. Run it with the
+   ``tetrahedralization`` extra:
+
+   .. code-block:: bash
+
+      uv run --extra tetrahedralization python scripts/tutorials/00_sim/spawn_prims.py
+
+   With the legacy installer, install the optional dependencies first:
 
    .. code-block:: bash
 

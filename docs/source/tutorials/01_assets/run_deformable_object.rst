@@ -25,8 +25,14 @@ commands to the mesh nodes to move the soft body.
 
 .. note::
 
-   This tutorial automatically tetrahedralizes volume deformables. Install its
-   optional dependencies before running the script:
+   This tutorial automatically tetrahedralizes volume deformables. Run it with the
+   ``tetrahedralization`` extra:
+
+   .. code-block:: bash
+
+      uv run --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
+
+   With the legacy installer, install the optional dependencies first:
 
    .. code-block:: bash
 
