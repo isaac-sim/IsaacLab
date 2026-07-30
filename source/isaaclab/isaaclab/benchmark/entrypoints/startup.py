@@ -298,7 +298,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 seed=seed,
                 start_utc=start_utc,
                 end_utc=end_utc,
-                num_envs=None,
+                num_envs=env.unwrapped.num_envs,
                 max_iterations=None,
             )
 
