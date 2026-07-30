@@ -18,3 +18,4 @@ Fixed
 * Fixed manager entity resolution for sensors with legacy body finder signatures.
 * Fixed external wrench composition to consume explicit Warp views of cached
   body selectors without materializing Torch tensors.
+* Fixed articulation dynamics reads for reversed USD joint relationships.

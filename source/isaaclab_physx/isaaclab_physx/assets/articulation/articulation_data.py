@@ -59,9 +59,9 @@ class ArticulationData(BaseArticulationData):
 
     .. note::
         **ProxyArray pointer stability.** Each :class:`ProxyArray` wrapper is created once on the
-        first property access and reused thereafter. With default or identity ordering, direct
-        properties alias stable, pre-allocated PhysX GPU buffers whose device pointer does not
-        change across simulation steps. The ``wp.array`` Python objects returned by getters such
+        first property access and reused thereafter. Without ordering or joint-direction correction,
+        direct properties alias stable, pre-allocated PhysX GPU buffers whose device pointer does
+        not change across simulation steps. The ``wp.array`` Python objects returned by getters such
         as ``get_root_transforms()`` are new wrappers each call, but they alias the same underlying
         GPU memory. With nonidentity ordering, ordering-sensitive properties instead use stable,
         owned public-order shadows populated lazily from backend data. Sub-view properties
@@ -90,6 +90,8 @@ class ArticulationData(BaseArticulationData):
         self._is_primed = False
         self._fk_timestamp = 0.0
         self._read_launch_cache = _WarpLaunchCache(device)
+        self._joint_dof_signs = wp.ones(root_view.max_dofs, dtype=wp.int32, device=device)
+        self._has_reversed_joints = False
 
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
@@ -1083,15 +1085,20 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`.
 
         PhysX provides a natively center-of-mass-referenced Jacobian. The view refreshes
-        once per simulation timestamp and gathers body or joint axes when ordering is
-        active. No explicit :meth:`_ensure_fk_fresh` call is needed because PhysX
+        once per simulation timestamp and normalizes body and joint axes when needed.
+        No explicit :meth:`_ensure_fk_fresh` call is needed because PhysX
         recomputes the Jacobian from the current joint state on query.
         """
         if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
             backend_jacobian = self._root_view.get_jacobians()
             has_body_ordering = self.has_body_ordering
             has_joint_ordering = self.has_joint_ordering
-            if has_body_ordering or has_joint_ordering:
+            if has_body_ordering or has_joint_ordering or self._has_reversed_joints:
+                joint_user_to_backend = (
+                    self._jacobian_joint_user_to_backend
+                    if self._jacobian_joint_user_to_backend is not None
+                    else self._joint_dof_signs
+                )
                 self._read_launch_cache.launch(
                     "body_com_jacobian_w_ordering",
                     ordering_kernels.reorder_jacobian_backend_to_user,
@@ -1099,7 +1106,8 @@ class ArticulationData(BaseArticulationData):
                     inputs=[
                         backend_jacobian,
                         self._jacobian_body_user_to_backend,
-                        self._jacobian_joint_user_to_backend,
+                        joint_user_to_backend,
+                        self._joint_dof_signs,
                         self._num_base_dofs,
                         has_body_ordering,
                         has_joint_ordering,
@@ -1143,28 +1151,33 @@ class ArticulationData(BaseArticulationData):
         """Refresh a timestamp-lazy generalized joint-axis buffer from its backend view.
 
         Reads the backend view once when stale for the current step and either aliases
-        it (identity joint ordering) or gathers its joint axis into the owned
-        public-order buffer with :paramref:`reorder_kernel`. Unlike the world-frame pose
+        it or normalizes its joint axes into the owned public-order buffer with
+        :paramref:`reorder_kernel`. Unlike the world-frame pose
         buffers this needs no explicit :meth:`_ensure_fk_fresh`, because PhysX recomputes
         the quantity from the current joint state on query.
 
         Args:
             buf: Owned public-order buffer to refresh in place.
             view_getter: Zero-argument callable returning the backend-order view.
-            reorder_kernel: Warp kernel launched with ``[backend, joint_user_to_backend,
-                num_base_dofs, has_joint_ordering]`` to gather the joint axis into
-                public order.
+            reorder_kernel: Warp kernel that normalizes the joint axes.
         """
         if buf.timestamp >= self._sim_timestamp:
             return
         backend_source = view_getter()
         has_joint_ordering = self.has_joint_ordering
-        if has_joint_ordering:
+        if has_joint_ordering or self._has_reversed_joints:
+            joint_user_to_backend = self.joint_ordering.user_to_backend if has_joint_ordering else self._joint_dof_signs
             self._read_launch_cache.launch(
                 id(buf),
                 reorder_kernel,
                 dim=buf.data.shape,
-                inputs=[backend_source, self.joint_ordering.user_to_backend, self._num_base_dofs, has_joint_ordering],
+                inputs=[
+                    backend_source,
+                    joint_user_to_backend,
+                    self._joint_dof_signs,
+                    self._num_base_dofs,
+                    has_joint_ordering,
+                ],
                 outputs=[buf.data],
             )
         else:
@@ -2088,11 +2101,11 @@ class ArticulationData(BaseArticulationData):
             ]
         )
 
-        if self.has_body_ordering or self.has_joint_ordering:
+        if self.has_body_ordering or self.has_joint_ordering or self._has_reversed_joints:
             self._body_com_jacobian_w.data = wp.zeros(
                 self._body_com_jacobian_w.data.shape, dtype=wp.float32, device=self.device
             )
-        if self.has_joint_ordering:
+        if self.has_joint_ordering or self._has_reversed_joints:
             self._mass_matrix.data = wp.zeros(self._mass_matrix.data.shape, dtype=wp.float32, device=self.device)
             self._gravity_compensation_forces.data = wp.zeros(
                 self._gravity_compensation_forces.data.shape, dtype=wp.float32, device=self.device

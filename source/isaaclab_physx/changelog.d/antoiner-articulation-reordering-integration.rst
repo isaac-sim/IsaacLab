@@ -24,3 +24,4 @@ Fixed
   arguments advertised by the common articulation interface.
 * Fixed stale mass matrix and gravity compensation reads immediately after
   mass, inertia, and armature writes.
+* Fixed dynamics reads for reversed USD joint relationships.

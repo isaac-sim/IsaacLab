@@ -22,3 +22,4 @@ Fixed
   environment and item selectors without Torch conversion tensors.
 * Fixed stale pose-, velocity-, and center-of-mass-derived rigid asset data
   immediately after simulation state and property writes.
+* Fixed dynamics reads for reversed USD joint relationships.

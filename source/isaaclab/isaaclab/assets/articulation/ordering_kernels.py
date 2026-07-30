@@ -306,6 +306,7 @@ def reorder_jacobian_backend_to_user(
     backend_data: wp.array4d(dtype=wp.float32),
     jacobian_body_user_to_backend: wp.array(dtype=wp.int32),
     joint_user_to_backend: wp.array(dtype=wp.int32),
+    joint_dof_signs: wp.array(dtype=wp.int32),
     num_base_dofs: wp.int32,
     has_body_ordering: bool,
     has_joint_ordering: bool,
@@ -322,6 +323,7 @@ def reorder_jacobian_backend_to_user(
             rows to backend rows. Any fixed-root omission is already encoded.
         joint_user_to_backend: Read-only map from public actuated-joint columns
             to backend actuated-joint columns.
+        joint_dof_signs: Backend-to-USD direction sign for each joint DoF.
         num_base_dofs: Number of leading floating-base DoFs, either 0 or 6.
         has_body_ordering: Whether to apply the body-row map.
         has_joint_ordering: Whether to apply the joint-column map after the
@@ -340,15 +342,19 @@ def reorder_jacobian_backend_to_user(
     if has_joint_ordering and user_dof_id >= num_base_dofs:
         backend_dof_id = num_base_dofs + joint_user_to_backend[user_dof_id - num_base_dofs]
 
-    user_data[env_id, user_body_id, spatial_id, user_dof_id] = backend_data[
-        env_id, backend_body_id, spatial_id, backend_dof_id
-    ]
+    sign = 1.0
+    if user_dof_id >= num_base_dofs:
+        sign = wp.float32(joint_dof_signs[backend_dof_id - num_base_dofs])
+    user_data[env_id, user_body_id, spatial_id, user_dof_id] = (
+        sign * backend_data[env_id, backend_body_id, spatial_id, backend_dof_id]
+    )
 
 
 @wp.kernel
 def reorder_mass_matrix_backend_to_user(
     backend_data: wp.array3d(dtype=wp.float32),
     joint_user_to_backend: wp.array(dtype=wp.int32),
+    joint_dof_signs: wp.array(dtype=wp.int32),
     num_base_dofs: wp.int32,
     has_joint_ordering: bool,
     user_data: wp.array3d(dtype=wp.float32),
@@ -360,6 +366,7 @@ def reorder_mass_matrix_backend_to_user(
             shaped [num_envs, num_dofs, num_dofs], in backend joint order.
         joint_user_to_backend: Read-only map from public actuated-joint indices
             to backend actuated-joint indices.
+        joint_dof_signs: Backend-to-USD direction sign for each joint DoF.
         num_base_dofs: Number of leading floating-base DoFs, either 0 or 6.
         has_joint_ordering: Whether to apply the map to rows and columns after
             the leading base DoFs.
@@ -376,13 +383,22 @@ def reorder_mass_matrix_backend_to_user(
         if user_col_id >= num_base_dofs:
             backend_col_id = num_base_dofs + joint_user_to_backend[user_col_id - num_base_dofs]
 
-    user_data[env_id, user_row_id, user_col_id] = backend_data[env_id, backend_row_id, backend_col_id]
+    row_sign = 1.0
+    col_sign = 1.0
+    if user_row_id >= num_base_dofs:
+        row_sign = wp.float32(joint_dof_signs[backend_row_id - num_base_dofs])
+    if user_col_id >= num_base_dofs:
+        col_sign = wp.float32(joint_dof_signs[backend_col_id - num_base_dofs])
+    user_data[env_id, user_row_id, user_col_id] = (
+        row_sign * col_sign * backend_data[env_id, backend_row_id, backend_col_id]
+    )
 
 
 @wp.kernel
 def reorder_generalized_vector_backend_to_user(
     backend_data: wp.array2d(dtype=wp.float32),
     joint_user_to_backend: wp.array(dtype=wp.int32),
+    joint_dof_signs: wp.array(dtype=wp.int32),
     num_base_dofs: wp.int32,
     has_joint_ordering: bool,
     user_data: wp.array2d(dtype=wp.float32),
@@ -394,6 +410,7 @@ def reorder_generalized_vector_backend_to_user(
             shaped [num_envs, num_dofs], in backend joint order.
         joint_user_to_backend: Read-only map from public actuated-joint indices
             to backend actuated-joint indices.
+        joint_dof_signs: Backend-to-USD direction sign for each joint DoF.
         num_base_dofs: Number of leading floating-base DoFs, either 0 or 6.
         has_joint_ordering: Whether to apply the map after the leading base DoFs.
         user_data: Destination with the same shape and units in public joint
@@ -405,7 +422,10 @@ def reorder_generalized_vector_backend_to_user(
     if has_joint_ordering and user_dof_id >= num_base_dofs:
         backend_dof_id = num_base_dofs + joint_user_to_backend[user_dof_id - num_base_dofs]
 
-    user_data[env_id, user_dof_id] = backend_data[env_id, backend_dof_id]
+    sign = 1.0
+    if user_dof_id >= num_base_dofs:
+        sign = wp.float32(joint_dof_signs[backend_dof_id - num_base_dofs])
+    user_data[env_id, user_dof_id] = sign * backend_data[env_id, backend_dof_id]
 
 
 @wp.kernel

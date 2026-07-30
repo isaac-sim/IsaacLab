@@ -18,12 +18,17 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import UsdPhysics
+from pxr import Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
+from isaaclab.assets.articulation.ordering_resolvers import (
+    _BODY_KIND,
+    _JOINT_KIND,
+    _canonical_joint_dof_name,
+)
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.string import resolve_matching_names
@@ -4056,7 +4061,11 @@ class Articulation(BaseArticulation):
                 self._root_view.try_binding_for(tt)
 
         # construct the data container; counts come from the view's bindings
+        joint_dof_signs = self._resolve_joint_dof_signs(stage)
         self._data = ArticulationData(self._root_view, self._device)
+        if -1 in joint_dof_signs:
+            self._data._joint_dof_signs = wp.array(joint_dof_signs, dtype=wp.int32, device=self.device)
+            self._data._has_reversed_joints = True
         self._resolve_and_install_ordering_maps()
         self._data.fixed_tendon_names = self._fixed_tendon_names
         self._data.spatial_tendon_names = self._spatial_tendon_names
@@ -4083,6 +4092,40 @@ class Articulation(BaseArticulation):
 
         # mark data as ready
         self._data.is_primed = True
+
+    def _resolve_joint_dof_signs(self, stage: Usd.Stage) -> tuple[int, ...]:
+        """Resolve joint directions once from the source USD."""
+        source_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path, stage=stage)
+        if source_prim is None:
+            return (1,) * self.num_joints
+        joint_prims_by_name = {}
+        for prim in Usd.PrimRange(source_prim):
+            if not prim.IsA(UsdPhysics.Joint):
+                continue
+            joint_prims_by_name[_JOINT_KIND.resolve_target_name(prim)] = prim
+
+        body_indices = {name: index for index, name in enumerate(self._body_names)}
+        signs = []
+        for dof_name in self._joint_names:
+            canonical_dof_name = _canonical_joint_dof_name(dof_name)
+            matches = [
+                (name, prim)
+                for name, prim in joint_prims_by_name.items()
+                if canonical_dof_name == _canonical_joint_dof_name(name)
+                or canonical_dof_name.startswith(_canonical_joint_dof_name(name) + "_")
+            ]
+            if not matches:
+                signs.append(1)
+                continue
+            joint = UsdPhysics.Joint(max(matches, key=lambda item: len(item[0]))[1])
+            body0 = joint.GetBody0Rel().GetTargets()
+            body1 = joint.GetBody1Rel().GetTargets()
+            body0_name = _BODY_KIND.resolve_target_name(stage.GetPrimAtPath(body0[0])) if body0 else ""
+            body1_name = _BODY_KIND.resolve_target_name(stage.GetPrimAtPath(body1[0])) if body1 else ""
+            body0_index = body_indices.get(body0_name)
+            body1_index = body_indices.get(body1_name)
+            signs.append(-1 if body0_index is not None and body1_index is not None and body0_index > body1_index else 1)
+        return tuple(signs)
 
     def _create_buffers(self) -> None:
         """Allocate asset-side buffers (index/mask constants, wrench buf, pinned CPU staging)."""

@@ -4083,7 +4083,11 @@ class Articulation(BaseArticulation):
             raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
 
         # container for data access
+        joint_dof_signs = self._resolve_joint_dof_signs()
         self._data = ArticulationData(self.root_view, self.device)
+        if -1 in joint_dof_signs:
+            self._data._joint_dof_signs = wp.array(joint_dof_signs, dtype=wp.int32, device=self.device)
+            self._data._has_reversed_joints = True
 
         # create buffers
         self._create_buffers()
@@ -4099,6 +4103,19 @@ class Articulation(BaseArticulation):
         self._log_articulation_info()
         # Let the articulation data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
+
+    def _resolve_joint_dof_signs(self) -> tuple[int, ...]:
+        """Resolve joint directions once from the source USD."""
+        body_indices = {path: index for index, path in enumerate(self.root_view.link_paths[0])}
+        signs = []
+        for joint_path in self.root_view.dof_paths[0]:
+            joint = UsdPhysics.Joint.Get(self.stage, joint_path)
+            body0 = joint.GetBody0Rel().GetTargets()
+            body1 = joint.GetBody1Rel().GetTargets()
+            body0_index = body_indices.get(str(body0[0])) if body0 else None
+            body1_index = body_indices.get(str(body1[0])) if body1 else None
+            signs.append(-1 if body0_index is not None and body1_index is not None and body0_index > body1_index else 1)
+        return tuple(signs)
 
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)

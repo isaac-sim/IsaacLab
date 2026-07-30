@@ -162,6 +162,8 @@ def test_generalized_dynamics_reorder_uses_public_joint_order():
     data._read_launch_cache = _WarpLaunchCache("cpu")
     data.joint_ordering = object()
     data._jacobian_joint_user_to_backend = wp.array([1, 0], dtype=wp.int32, device="cpu")
+    data._joint_dof_signs = wp.ones(2, dtype=wp.int32, device="cpu")
+    data._has_reversed_joints = False
     data._num_base_dofs = 0
 
     backend_values = wp.array([[[1.0, 2.0], [3.0, 4.0]]], dtype=wp.float32, device="cpu")
@@ -436,6 +438,49 @@ def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
     expected_velocity[env_ids[:, None], joint_ids[None, :]] = velocity
     torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
     torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_enabled):
+    """Keep dynamics tensors consistent with public joint velocity."""
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
+            ),
+            actuators={},
+        )
+    )
+    UsdPhysics.FixedJoint.Define(sim.stage, "/World/Robot/fixed_root").GetBody1Rel().SetTargets(["/World/Robot/base"])
+    joint = UsdPhysics.RevoluteJoint.Get(sim.stage, "/World/Robot/left_elbow")
+    body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
+    joint.GetBody0Rel().SetTargets(body1)
+    joint.GetBody1Rel().SetTargets(body0)
+    sim.reset()
+
+    velocity = torch.zeros((1, articulation.num_joints), device=device)
+    velocity[:, articulation.find_joints("left_shoulder")[0][0]] = 0.4
+    velocity[:, articulation.find_joints("left_elbow")[0][0]] = 0.7
+    articulation.write_joint_velocity_to_sim_index(velocity=velocity)
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    joint_velocity = articulation.data.joint_vel.torch
+    predicted_velocity = torch.einsum("nbij,nj->nbi", articulation.data.body_com_jacobian_w.torch, joint_velocity)
+    torch.testing.assert_close(predicted_velocity, articulation.data.body_com_vel_w.torch[:, 1:], atol=1e-5, rtol=1e-5)
+
+    generalized_energy = 0.5 * torch.einsum(
+        "ni,nij,nj->n", joint_velocity, articulation.data.mass_matrix.torch, joint_velocity
+    )
+    body_velocity = articulation.data.body_com_vel_w.torch
+    body_inertia = articulation.data.body_inertia.torch.reshape(1, articulation.num_bodies, 3, 3)
+    body_energy = 0.5 * (
+        (articulation.data.body_mass.torch.unsqueeze(-1) * body_velocity[..., :3].square()).sum((-1, -2))
+        + torch.einsum("nbi,nbij,nbj->n", body_velocity[..., 3:], body_inertia, body_velocity[..., 3:])
+    )
+    torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize("num_articulations", [1])
