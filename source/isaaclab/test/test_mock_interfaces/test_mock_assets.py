@@ -10,7 +10,6 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.assets.articulation import BaseArticulation
 from isaaclab.envs.mdp.actions import BinaryJointPositionAction, BinaryJointPositionActionCfg
 from isaaclab.test.mock_interfaces.assets import (
     MockArticulation,
@@ -60,27 +59,6 @@ def test_binary_joint_action_uses_cached_proxy_warp_view():
     assert len(received_selectors) == 2
     assert all(selector is expected_selector.warp for selector in received_selectors)
     assert expected_selector._torch_cache is None
-
-
-def test_actuator_selector_uses_torch_view_and_optimizes_full_order():
-    """Use Torch selectors while optimizing a full selection."""
-    robot = MockArticulation(
-        num_instances=1,
-        num_joints=3,
-        num_bodies=1,
-        joint_names=["joint_0", "joint_1", "joint_2"],
-        device="cpu",
-    )
-    partial_ids, partial_names = robot.find_joints(["joint_2", "joint_0"], preserve_order=True, as_proxy=True)
-    full_ids, full_names = robot.find_joints(".*", as_proxy=True)
-
-    resolved_partial = BaseArticulation._select_actuator_joint_ids(robot, partial_ids, partial_names)
-    resolved_full = BaseArticulation._select_actuator_joint_ids(robot, full_ids, full_names)
-
-    assert resolved_partial is partial_ids.torch
-    assert resolved_full == slice(None)
-    assert partial_ids._torch_cache is resolved_partial
-    assert full_ids._torch_cache is None
 
 
 # ==============================================================================

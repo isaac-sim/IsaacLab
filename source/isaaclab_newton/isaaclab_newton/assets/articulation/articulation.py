@@ -3845,7 +3845,7 @@ class Articulation(BaseArticulation):
                 f"No joints found for actuator group: {actuator_name} with joint name expression:"
                 f" {actuator_cfg.joint_names_expr}."
             )
-        joint_ids = self._select_actuator_joint_ids(joint_ids, joint_names)
+        joint_ids = slice(None) if joint_names == self.joint_names else joint_ids.torch
         torch_joint_ids = joint_ids
 
         actuator: ActuatorBase = actuator_cfg.class_type(

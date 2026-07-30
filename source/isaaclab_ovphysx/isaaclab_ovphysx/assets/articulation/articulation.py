@@ -4335,7 +4335,7 @@ class Articulation(BaseArticulation):
             if not joint_names:
                 logger.warning("Actuator '%s': no joints matched '%s'", name, act_cfg.joint_names_expr)
                 continue
-            actuator_joint_ids = self._select_actuator_joint_ids(joint_ids, joint_names)
+            actuator_joint_ids = slice(None) if joint_names == self.joint_names else joint_ids.torch
             torch_joint_ids = actuator_joint_ids
             act_cfg_copy = act_cfg.copy()
             # seed the actuator with the simulation's already-correct DOF defaults

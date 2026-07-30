@@ -2605,25 +2605,6 @@ class BaseArticulation(AssetBase):
             )
         return backend_data
 
-    """
-    Internal helpers -- Actuators.
-    """
-
-    def _select_actuator_joint_ids(self, joint_ids: ProxyArray, joint_names: list[str]) -> slice | torch.Tensor:
-        """Select the Torch view for a partial actuator or optimize a full ordered selection.
-
-        Args:
-            joint_ids: Cached joint selector returned by :meth:`find_joints`.
-            joint_names: Joint names matched by the finder, in selector order.
-
-        Returns:
-            ``slice(None)`` when every joint is selected in public order, otherwise
-            the cached selector's Torch view.
-        """
-        if joint_names == self.joint_names:
-            return slice(None)
-        return joint_ids.torch
-
     @abstractmethod
     def _process_actuators_cfg(self) -> None:
         """Process and apply articulation joint properties."""
