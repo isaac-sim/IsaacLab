@@ -864,10 +864,10 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         file.write(report_html)
 
 
-def record_comparison_outcomes(
+def attach_comparison_properties(
     request: pytest.FixtureRequest, comparison_scores: list[dict], initial_count: int
 ) -> None:
-    """Record expected outcomes for HTML and attach comparison properties to JUnit XML."""
+    """Annotate expected HTML outcomes and attach comparison properties to JUnit XML."""
     xfail_marker = request.node.get_closest_marker("xfail")
     xfail_reason = xfail_marker.kwargs.get("reason") if xfail_marker is not None else None
     entries = comparison_scores[initial_count:]
@@ -923,21 +923,21 @@ def make_generate_html_report_fixture(comparison_scores: list[dict], report_file
 
 
 def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
-    """Create a fixture that records HTML outcomes and JUnit properties for one module.
+    """Create a fixture that annotates HTML outcomes and attaches JUnit properties.
 
     Args:
         comparison_scores: Module-local comparison score storage.
     """
 
     @pytest.fixture(autouse=True)
-    def _record_comparison_outcomes(request):
-        """Record expected outcomes and attach image-comparison properties."""
+    def _attach_comparison_properties(request):
+        """Annotate expected HTML outcomes and attach image-comparison properties."""
         initial_count = len(comparison_scores)
         yield
         # Function-scoped teardown runs before the session-scoped HTML report is generated.
-        record_comparison_outcomes(request, comparison_scores, initial_count)
+        attach_comparison_properties(request, comparison_scores, initial_count)
 
-    return _record_comparison_outcomes
+    return _attach_comparison_properties
 
 
 def make_require_ovlibs_install_fixture():

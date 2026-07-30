@@ -11,13 +11,13 @@ from unittest.mock import Mock
 import pytest
 import rendering_test_utils
 from rendering_test_utils import (
+    attach_comparison_properties,
     generate_html_report,
     make_kitless_rendering_params,
     make_kitless_rendering_params_dexsuite,
     make_kitless_rendering_params_franka,
     make_skip_rendering_params,
     make_xfail_rendering_params,
-    record_comparison_outcomes,
 )
 
 
@@ -160,7 +160,7 @@ def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path
     node.get_closest_marker.return_value = pytest.mark.xfail(reason=reason, strict=False).mark
     request = Mock(node=node)
 
-    record_comparison_outcomes(request, comparison_scores, initial_count=0)
+    attach_comparison_properties(request, comparison_scores, initial_count=0)
     comparison_scores.append(
         {
             "test": "shadow_hand",
@@ -176,7 +176,7 @@ def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path
             "passed": True,
         }
     )
-    record_comparison_outcomes(request, comparison_scores, initial_count=2)
+    attach_comparison_properties(request, comparison_scores, initial_count=2)
     comparison_scores.append(
         {
             "test": "ordinary",
