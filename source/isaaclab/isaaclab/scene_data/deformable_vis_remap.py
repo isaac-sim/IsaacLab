@@ -29,8 +29,8 @@ class VolumeVisRemap:
             shape ``[vis_count, 4]``, float32.
     """
 
-    tet_vertex_indices: wp.array
-    bary_weights: wp.array
+    tet_vertex_indices: wp.array2d(dtype=wp.int32)
+    bary_weights: wp.array2d(dtype=wp.float32)
 
 
 @wp.kernel
@@ -57,8 +57,8 @@ def _remap_volume_vis_positions_kernel(
 
 
 def launch_volume_vis_remap(
-    sim_particle_q: wp.array,
-    render_particle_q: wp.array,
+    sim_particle_q: wp.array(dtype=wp.vec3f),
+    render_particle_q: wp.array(dtype=wp.vec3f),
     sim_offset: int,
     render_offset: int,
     remap: VolumeVisRemap,
@@ -66,8 +66,8 @@ def launch_volume_vis_remap(
     """Barycentrically interpolate sim tet nodes into visual render slots.
 
     Args:
-        sim_particle_q: Live sim particle positions [m], shape ``[sim_count, 3]``, float.
-        render_particle_q: Shadow render buffer [m], shape ``[render_count, 3]``, float.
+        sim_particle_q: Live sim particle positions [m], shape ``[sim_count]``, ``wp.vec3f``.
+        render_particle_q: Shadow render buffer [m], shape ``[render_count]``, ``wp.vec3f``.
         sim_offset: Starting index of this body's sim particles in ``sim_particle_q``.
         render_offset: Starting index of this body's visual particles in ``render_particle_q``.
         remap: Pre-built device-resident barycentric tables for this body.
@@ -170,6 +170,6 @@ def build_volume_vis_barycentric_remap(
         )
 
     return VolumeVisRemap(
-        tet_vertex_indices=wp.array(tet_vertex_indices, dtype=wp.int32, device=device),
-        bary_weights=wp.array(bary_weights, dtype=wp.float32, device=device),
+        tet_vertex_indices=wp.array(tet_vertex_indices, dtype=wp.int32, ndim=2, device=device),
+        bary_weights=wp.array(bary_weights, dtype=wp.float32, ndim=2, device=device),
     )
