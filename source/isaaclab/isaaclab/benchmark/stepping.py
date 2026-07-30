@@ -243,8 +243,8 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
             self._original_sim_step = None
 
 
-def run_runtime_loop(env, num_frames: int, *, reset: bool = True) -> list[float]:
-    """Step the environment ``num_frames`` times and record per-step wall times [s].
+def run_runtime_loop(env, num_steps: int, *, reset: bool = True) -> list[float]:
+    """Step the environment ``num_steps`` times and record per-step wall times [s].
 
     Optionally calls ``env.reset()`` once before the loop, then on each frame
     samples random actions via :func:`sample_random_actions`, steps the
@@ -252,18 +252,18 @@ def run_runtime_loop(env, num_frames: int, *, reset: bool = True) -> list[float]
 
     Args:
         env: A Gym-compatible environment.
-        num_frames: Number of environment steps to run.
+        num_steps: Number of environment steps to run.
         reset: Whether to reset the environment before stepping.
 
     Returns:
-        A list of length ``num_frames`` containing per-step wall times [s].
+        A list of length ``num_steps`` containing per-step wall times [s].
     """
     if reset:
         env.reset()
 
     step_times: list[float] = []
 
-    for _ in range(num_frames):
+    for _ in range(num_steps):
         actions = sample_random_actions(env)
         t0 = time.perf_counter_ns()
         env.step(actions)
@@ -273,17 +273,17 @@ def run_runtime_loop(env, num_frames: int, *, reset: bool = True) -> list[float]
     return step_times
 
 
-def run_runtime_warmup(env, num_frames: int) -> list[float]:
-    """Run exactly ``num_frames`` excluded warmup steps.
+def run_runtime_warmup(env, num_steps: int) -> list[float]:
+    """Run exactly ``num_steps`` excluded warmup steps.
 
     Args:
         env: A Gym-compatible environment.
-        num_frames: Requested number of warmup environment steps.
+        num_steps: Requested number of warmup environment steps.
 
     Returns:
         Per-step wall times [s] for the requested excluded steps.
     """
-    return run_runtime_loop(env, num_frames)
+    return run_runtime_loop(env, num_steps)
 
 
 def _extract_success(extras) -> float | None:
@@ -315,8 +315,8 @@ def _extract_success(extras) -> float | None:
     return None
 
 
-def run_play_loop(env, policy, num_frames: int) -> tuple[list[float], MeanStd | None, MeanStd | None, float | None]:
-    """Roll out *policy* in *env* for *num_frames* steps and aggregate episode metrics.
+def run_play_loop(env, policy, num_steps: int) -> tuple[list[float], MeanStd | None, MeanStd | None, float | None]:
+    """Roll out *policy* in *env* for *num_steps* steps and aggregate episode metrics.
 
     Resets the environment, then on each frame runs the policy under
     ``torch.inference_mode()`` and steps the environment, recording the
@@ -335,7 +335,7 @@ def run_play_loop(env, policy, num_frames: int) -> tuple[list[float], MeanStd | 
         env: A Gym-compatible environment whose ``unwrapped`` exposes
             ``num_envs`` and ``device``.
         policy: Callable mapping an observation batch to an action batch.
-        num_frames: Number of environment steps to run.
+        num_steps: Number of environment steps to run.
 
     Returns:
         A tuple ``(step_times, reward, ep_length, success_rate)`` where
@@ -365,7 +365,7 @@ def run_play_loop(env, policy, num_frames: int) -> tuple[list[float], MeanStd | 
     episode_lengths: list[float] = []
     successes: list[float] = []
 
-    for _ in range(num_frames):
+    for _ in range(num_steps):
         t0 = time.perf_counter_ns()
         with torch.inference_mode():
             actions = policy(obs)
