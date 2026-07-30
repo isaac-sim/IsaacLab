@@ -5,6 +5,7 @@
 
 """Tests for shared micro-benchmark latency sampling."""
 
+import statistics
 from collections.abc import Callable
 from types import SimpleNamespace
 
@@ -104,13 +105,18 @@ def test_summarize_latency_uses_zero_std_for_one_sample() -> None:
 
 def test_summarize_latency_uses_sample_std_and_interpolated_percentiles() -> None:
     """Latency summaries should match the regular benchmark statistical convention."""
-    stats = summarize_latency([1.0, 2.0, 4.0])
+    samples = [1.0, 2.0, 4.0]
 
-    assert stats.mean_s == pytest.approx(7.0 / 3.0)
-    assert stats.std_s == pytest.approx(1.5275252316519468)
-    assert stats.p50_s == pytest.approx(2.0)
-    assert stats.p95_s == pytest.approx(3.8)
-    assert stats.n == 3
+    stats = summarize_latency(samples)
+
+    # Derive the expectations from the statistics module rather than numpy, so the assertions
+    # are an independent reference instead of a restatement of the implementation.
+    assert stats.mean_s == pytest.approx(statistics.fmean(samples))
+    assert stats.std_s == pytest.approx(statistics.stdev(samples))
+    assert stats.p50_s == pytest.approx(statistics.median(samples))
+    # Linear interpolation puts the 95th percentile at position 0.95 * (n - 1) = 1.9.
+    assert stats.p95_s == pytest.approx(samples[1] + 0.9 * (samples[2] - samples[1]))
+    assert stats.n == len(samples)
 
 
 def test_add_latency_measurements_converts_seconds_and_std_to_milliseconds() -> None:
