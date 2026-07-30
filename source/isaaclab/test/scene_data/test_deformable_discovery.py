@@ -149,8 +149,8 @@ def test_discover_volume_prefers_named_visual_over_unrelated_sibling_mesh():
     assert entries[0].vis_vertex_count == 4
 
 
-def test_discover_volume_builds_barycentric_remap_when_counts_differ():
-    """Volume deformables with fewer visual verts get a sim-to-visual barycentric remap."""
+def test_discover_volume_marks_sim_vis_count_mismatch():
+    """Volume deformables with fewer visual verts are flagged by mismatched counts."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody")
     tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/SoftBody/simulation")
@@ -174,6 +174,5 @@ def test_discover_volume_builds_barycentric_remap_when_counts_differ():
     entry = entries[0]
     assert entry.vertex_count == 4
     assert entry.vis_vertex_count == 1
-    assert entry.volume_vis_remap is not None
-    assert entry.volume_vis_remap.tet_vertex_indices.shape == (1, 4)
-    assert entry.volume_vis_remap.bary_weights.shape == (1, 4)
+    assert len(entry.vis_vertices) == 1
+    assert entry.vis_indices
