@@ -112,10 +112,25 @@ SUPPORTED_MACHINES = ("x86_64", "AMD64")
 """Supported CPU architectures. ARM support is not yet available for teleop."""
 
 # Raw reference measurement backing CPU_REFERENCE_SCORE [ns per kernel
-# iteration].  Measured 2026-07-29 on an AMD Ryzen Threadripper 7960X (24
-# cores), the CPU named in the recommended spec; run-to-run spread was 0.2%.
-# Recorded under the ``powersave`` governor, which the kernel's sustained load
-# boosts out of, so a ``performance``-governor host scores slightly above 1.0.
+# iteration].  Measured on an AMD Ryzen Threadripper 7960X (24 cores), the CPU
+# named in the recommended spec, and re-verified 2026-07-30 under the
+# ``performance`` governor that :ref:`install-isaac-teleop` tells operators to
+# set.  Fresh-process runs land in 10250-10390 ns under both governors, so this
+# is a central value rather than a best case: the reference machine scores
+# ~1.00, not a flattering 1.05.
+#
+# The governor does not measurably move this number.  The benchmark's warm-up
+# drives the clocks to boost under sustained load whatever the governor says,
+# so the powersave/performance difference is lost in run-to-run noise.  That is
+# exactly why the governor is checked separately rather than left to this
+# score: teleop drives the CPU in per-frame bursts, where a ``powersave`` host
+# pays ramp-up latency that a sustained-throughput benchmark never sees.
+#
+# Take a median across fresh processes when recalibrating, not the best of a
+# single burst -- within one process the spread is ~0.4%, but across processes
+# it is several percent, and a single lucky burst sets the bar too high for
+# every other machine.
+#
 # Update this together with the kernel in _measure_cpu_ns_per_iter if the
 # kernel ever changes -- the two are only meaningful as a pair.
 _CPU_REFERENCE_NS_PER_ITER = 10320.0
