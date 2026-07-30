@@ -657,21 +657,7 @@ def test_subclass_of_newton_manager(manager):
     # Subclasses must override the abstract factory.
     assert manager._build_solver is not NewtonManager._build_solver
     assert manager._create_solver is not NewtonManager._create_solver
-
-
-@pytest.mark.parametrize(
-    ("manager", "expected"),
-    [
-        (NewtonMJWarpManager, True),
-        (NewtonXPBDManager, True),
-        (NewtonFeatherstoneManager, True),
-        (NewtonKaminoManager, True),
-        (NewtonMPMManager, False),
-    ],
-)
-def test_manager_reports_rigid_body_force_input_support(manager, expected):
-    """Only rigid-body solvers opt into viewer force input."""
-    assert manager._supports_rigid_body_force_input is expected
+    assert manager._supports_rigid_body_force_input is (manager is not NewtonMPMManager)
 
 
 def test_abstract_build_solver_raises():

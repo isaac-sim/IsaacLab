@@ -476,7 +476,7 @@ Newton Visualizer
    * - **Left Click + Drag**
      - Look around
    * - **Right Click + Drag**
-     - Apply an interactive force to a dynamic rigid body (Newton MJWarp only)
+     - Apply an interactive force to a dynamic Newton rigid body
    * - **Mouse Scroll**
      - Zoom in/out
    * - **H**

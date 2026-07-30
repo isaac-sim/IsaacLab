@@ -230,7 +230,6 @@ def test_reset_initializes_visualizers_before_playing_timeline():
     events: list[str] = []
     ctx = object.__new__(SimulationContext)
     ctx._visualizers = []
-    ctx._visualizers_fully_initialized = False
 
     class _PhysicsManager:
         @staticmethod
@@ -720,9 +719,7 @@ def _make_context_with_settings(
     ctx._pending_camera_view = None
     ctx._render_generation = 0
     ctx._visualizers = []
-    ctx._visualizer_cfg_cache = None
-    ctx._initialized_visualizer_cfg_indices = set()
-    ctx._visualizers_fully_initialized = False
+    ctx._pending_visualizer_cfgs = None
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
     ctx._clone_plan = None

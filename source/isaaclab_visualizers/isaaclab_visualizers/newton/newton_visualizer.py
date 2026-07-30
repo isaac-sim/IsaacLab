@@ -137,13 +137,6 @@ class NewtonViewerGL(ViewerGL):
         except AttributeError:
             self._fallback_draw_controls = True
 
-    def apply_picking_force(self, state: State) -> None:
-        """Apply only the viewer's rigid-body picking force."""
-        if self.picking_enabled and self.picking is not None:
-            # Newton currently exposes picking only through apply_forces(),
-            # which also applies wind. Keep this integration dragging-only.
-            self.picking._apply_picking_force(state)
-
     def _patch_scalar_plot_width(self) -> None:
         """Set up ImPlot and suppress Newton's built-in floating Plots window.
 
@@ -604,7 +597,7 @@ class NewtonVisualizer(BaseVisualizer):
                 # this branch means captured inputs are no longer needed.
                 self._retained_picking = None
                 return
-            self._viewer.apply_picking_force(state)
+            self._viewer.apply_forces(state)
 
         def deactivate(self) -> None:
             """Make captured picking inert while preserving its inputs."""
@@ -696,6 +689,7 @@ class NewtonVisualizer(BaseVisualizer):
 
             pyglet.options["headless"] = True
 
+        self._picking_enabled = self.cfg.enable_picking and picking_supported and not runtime_headless
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
@@ -706,6 +700,9 @@ class NewtonVisualizer(BaseVisualizer):
 
         if self._viewer is not None:
             self._viewer.set_model(self._model)
+            if self._picking_enabled:
+                # Keep Newton's public force path scoped to picking for this integration.
+                self._viewer.wind = None
             self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_camera_focal_length()
@@ -717,7 +714,6 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer._paused = False
 
             self._apply_model_visualization_options()
-            self._picking_enabled = self.cfg.enable_picking and picking_supported and not runtime_headless
             self._viewer.picking_enabled = self._picking_enabled
 
             self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
@@ -845,6 +841,8 @@ class NewtonVisualizer(BaseVisualizer):
         self._state = NewtonManager.get_state_0()
         if self._viewer is not None:
             self._viewer.set_model(self._model)
+            if self._picking_enabled:
+                self._viewer.wind = None
             self._viewer._register_isaaclab_ui_callbacks()
             self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)

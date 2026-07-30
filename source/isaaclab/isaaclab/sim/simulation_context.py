@@ -195,9 +195,7 @@ class SimulationContext:
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
-        self._visualizer_cfg_cache: list[Any] | None = None
-        self._initialized_visualizer_cfg_indices: set[int] = set()
-        self._visualizers_fully_initialized = False
+        self._pending_visualizer_cfgs: list[Any] | None = None
         self._reset_requested: bool = False
         self._scene_data_requirements = SceneDataRequirement()
         # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
@@ -547,23 +545,14 @@ class SimulationContext:
 
     def initialize_visualizers(self) -> None:
         """Initialize visualizers from ``SimulationCfg.visualizer_cfgs``."""
-        if self._visualizers_fully_initialized:
-            if self._visualizers:
-                return
-            # Preserve the existing behavior of recreating configured visualizers
-            # after all previous instances have been closed.
-            self._visualizer_cfg_cache = None
-            self._initialized_visualizer_cfg_indices.clear()
-            self._visualizers_fully_initialized = False
+        if self._pending_visualizer_cfgs == [] or (self._pending_visualizer_cfgs is None and self._visualizers):
+            return
 
         visualizer_cfgs = self._get_visualizer_cfgs()
         if not visualizer_cfgs:
-            self._visualizers_fully_initialized = True
             return
 
         self._initialize_visualizers()
-        self._visualizers_fully_initialized = True
-        self._pending_camera_view = None
 
         if not self._visualizers and self._scene_data_provider is not None:
             close_provider = getattr(self._scene_data_provider, "close", None)
@@ -572,10 +561,10 @@ class SimulationContext:
             self._scene_data_provider = None
 
     def _get_visualizer_cfgs(self) -> list[Any]:
-        """Resolve and cache visualizer configs for the current initialization cycle."""
-        if self._visualizer_cfg_cache is None:
-            self._visualizer_cfg_cache = self._resolve_visualizer_cfgs()
-        return self._visualizer_cfg_cache
+        """Resolve visualizer configs for the current initialization cycle."""
+        if self._pending_visualizer_cfgs is None:
+            self._pending_visualizer_cfgs = self._resolve_visualizer_cfgs()
+        return self._pending_visualizer_cfgs
 
     def _initialize_visualizers(self, config_filter: Callable[[Any], bool] | None = None) -> None:
         """Initialize pending visualizers, optionally restricted by config."""
@@ -589,19 +578,19 @@ class SimulationContext:
         cli_explicit = self._is_cli_visualizer_explicit()
 
         # Resolve visualizer-driven requirements once and keep optional artifact payload untouched.
+        all_visualizer_cfgs = [viz.cfg for viz in self._visualizers] + visualizer_cfgs
         visualizer_types = [
-            cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) is not None
+            cfg.visualizer_type for cfg in all_visualizer_cfgs if getattr(cfg, "visualizer_type", None) is not None
         ]
         requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
         self._scene_data_requirements = requirements
 
+        pending_cfgs = []
         new_visualizers = []
-        for index, cfg in enumerate(visualizer_cfgs):
-            if index in self._initialized_visualizer_cfg_indices:
-                continue
+        for cfg in visualizer_cfgs:
             if config_filter is not None and not config_filter(cfg):
+                pending_cfgs.append(cfg)
                 continue
-            self._initialized_visualizer_cfg_indices.add(index)
             try:
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
@@ -619,6 +608,7 @@ class SimulationContext:
                     type(cfg).__name__,
                     exc,
                 )
+        self._pending_visualizer_cfgs = pending_cfgs
 
         # Replay any camera pose requested before visualizers were initialized.
         pending = getattr(self, "_pending_camera_view", None)
@@ -626,6 +616,8 @@ class SimulationContext:
             eye, target = pending
             for viz in new_visualizers:
                 viz.set_camera_view(eye, target)
+            if not pending_cfgs:
+                self._pending_camera_view = None
 
     def get_scene_data_provider(self) -> SceneDataProvider:
         return self._scene_data_provider
@@ -682,10 +674,6 @@ class SimulationContext:
 
     def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
         """Initialize or rebind the Newton viewer before solver graph capture."""
-        if self._visualizers_fully_initialized and not self._visualizers:
-            self._visualizer_cfg_cache = None
-            self._initialized_visualizer_cfg_indices.clear()
-            self._visualizers_fully_initialized = False
         self._initialize_visualizers(self._is_interactive_newton_cfg)
         for viz in (viz for viz in self._visualizers if self._is_interactive_newton_cfg(viz.cfg)):
             viz.reset(soft=False)
@@ -708,9 +696,8 @@ class SimulationContext:
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)
-        if not self._visualizers_fully_initialized or not self._visualizers:
-            # Initialize visualizers not prepared by a backend-specific pre-capture hook.
-            self.initialize_visualizers()
+        # Initialize visualizers not prepared by a backend-specific pre-capture hook.
+        self.initialize_visualizers()
         # Start the timeline so the play button is pressed
         self.physics_manager.play()
         self._is_playing = True
@@ -826,6 +813,8 @@ class SimulationContext:
                 logger.info("Removed visualizer: %s", type(viz).__name__)
             except Exception as exc:
                 logger.error("Error closing visualizer: %s", exc)
+        if visualizers_to_remove and not self._visualizers:
+            self._pending_visualizer_cfgs = None
 
     def _should_forward_before_visualizer_update(self) -> bool:
         """Return True if any visualizer requires pre-step forward kinematics."""

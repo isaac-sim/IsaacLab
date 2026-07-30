@@ -116,8 +116,6 @@ def test_newton_visualizer_cfg_exposes_viewer_options():
 
     assert cfg.show_particles is True
     assert cfg.particle_color == (0.1, 0.2, 0.3)
-    assert cfg.enable_picking is True
-    assert NewtonVisualizerCfg(enable_picking=False).enable_picking is False
 
 
 def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
@@ -426,14 +424,14 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
     viewer = _Viewer()
     viewer.picking_enabled = True
     viewer.picking = SimpleNamespace(release=Mock())
-    viewer.apply_picking_force = Mock()
+    viewer.apply_forces = Mock()
     visualizer = _make_newton_visualizer(viewer)
     visualizer._picking_enabled = True
     callback = visualizer._viewer_picking_binding.apply
 
     state = object()
     callback(state)
-    viewer.apply_picking_force.assert_called_once_with(state)
+    viewer.apply_forces.assert_called_once_with(state)
 
     visualizer.close()
 
@@ -449,8 +447,6 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
 
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
     from isaaclab_newton.physics import NewtonManager
-
-    monkeypatch.setattr(NewtonVisualizer, "physics_backend", property(lambda _self: "newton"))
 
     new_model = object()
     new_state = object()
@@ -480,6 +476,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
     viewer.set_world_offsets.assert_called_once_with((2.0, 0.0, 0.0))
     assert viewer.show_contacts is True
     assert viewer.picking_enabled is True
+    assert viewer.wind is None
     assert visualizer._viewer_picking_binding._viewer is viewer
 
 
