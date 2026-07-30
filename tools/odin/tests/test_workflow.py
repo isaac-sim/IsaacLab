@@ -10,6 +10,8 @@ tests below cover the invariants that a golden diff would show but not explain.
 """
 
 import dataclasses
+import subprocess
+from pathlib import Path
 
 import yaml
 
@@ -150,10 +152,35 @@ def test_chained_play_is_skipped_when_training_fails() -> None:
     assert 'PLAY_STATUS="skipped_training_failed"' in script
 
 
-def test_training_exit_code_remains_the_verdict() -> None:
-    # A play failure must not turn a good training run red.
+def _run_exit_stanza(tmp_path: Path, *, rc: int, play_status: str, play_rc: str) -> int:
+    """Execute the rendered script's final exit logic and return its exit code.
+
+    Runs the stanza from the last ``set -e`` onwards with the state variables
+    preset, so the exit contract is checked by running it rather than by
+    matching source text.
+    """
     script = _script(_render(rows=(dataclasses.replace(_ROW, play=True),)))
-    assert script.rstrip().endswith("exit $rc")
+    stanza = script[script.rindex("set -e") :]
+    preamble = f'OUT={tmp_path}\nrc={rc}\nPLAY_STATUS="{play_status}"\nPLAY_RC="{play_rc}"\n'
+    return subprocess.run(["bash", "-c", preamble + stanza], capture_output=True, text=True).returncode
+
+
+def test_a_training_failure_is_the_verdict(tmp_path: Path) -> None:
+    assert _run_exit_stanza(tmp_path, rc=1, play_status="skipped_training_failed", play_rc="") == 1
+
+
+def test_a_failed_play_fails_the_row(tmp_path: Path) -> None:
+    # Videos are the deliverable: a row that trained but produced no video must
+    # not report green, or a whole dispatch can silently yield no videos.
+    assert _run_exit_stanza(tmp_path, rc=0, play_status="ran", play_rc="1") == 90
+
+
+def test_a_successful_run_exits_zero(tmp_path: Path) -> None:
+    assert _run_exit_stanza(tmp_path, rc=0, play_status="ran", play_rc="0") == 0
+
+
+def test_a_row_without_play_exits_zero(tmp_path: Path) -> None:
+    assert _run_exit_stanza(tmp_path, rc=0, play_status="not_requested", play_rc="") == 0
 
 
 def test_chained_script_carries_the_same_presets_to_both_steps() -> None:

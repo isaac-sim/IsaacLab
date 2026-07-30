@@ -22,6 +22,7 @@ from tools.odin.state import DispatchState, FailureInfo, JobEntry, write_dispatc
 __all__ = [
     "MAX_CONSECUTIVE_POLL_FAILURES",
     "OSMO_STATE_TO_FAILURE_KIND",
+    "PLAY_FAILED_EXIT_CODE",
     "TERMINAL_OSMO_STATES",
     "PollError",
     "classify_terminal_state",
@@ -57,6 +58,11 @@ OSMO_STATE_TO_FAILURE_KIND: dict[str, str] = {
 }
 
 TERMINAL_OSMO_STATES: frozenset[str] = frozenset({"COMPLETED", *OSMO_STATE_TO_FAILURE_KIND})
+
+# Exit code the entry script uses for "training succeeded, requested play did
+# not". Distinct from the benchmark's own codes so it cannot be produced by a
+# crash inside training. Kept in sync with templates/dispatch.yaml.j2.
+PLAY_FAILED_EXIT_CODE = 90
 
 
 class _StatusClient(Protocol):
@@ -94,8 +100,18 @@ def classify_terminal_state(osmo_state: str) -> str | None:
     return _failure_kind(osmo_state)
 
 
-def _failure_kind(osmo_state: str) -> str:
-    """Return the failure kind for a terminal, non-``COMPLETED`` OSMO state."""
+def _failure_kind(osmo_state: str, exit_code: int | None = None) -> str:
+    """Return the failure kind for a terminal, non-``COMPLETED`` OSMO state.
+
+    Args:
+        osmo_state: OSMO task state string.
+        exit_code: Task exit code, used to recognise :data:`PLAY_FAILED_EXIT_CODE`.
+
+    Returns:
+        One of :data:`~tools.odin.state.FAILURE_KINDS`.
+    """
+    if osmo_state == "FAILED" and exit_code == PLAY_FAILED_EXIT_CODE:
+        return "play_failed"
     return OSMO_STATE_TO_FAILURE_KIND.get(osmo_state, "infrastructure")
 
 
@@ -178,7 +194,7 @@ def sync_once(
                 job.transition_to(
                     "failed",
                     failure=FailureInfo(
-                        kind=_failure_kind(task.status),
+                        kind=_failure_kind(task.status, task.exit_code),
                         message=f"OSMO task {task.name} reached {task.status} (exit={task.exit_code})",
                         details={"osmo_state": task.status, "exit_code": task.exit_code},
                     ),

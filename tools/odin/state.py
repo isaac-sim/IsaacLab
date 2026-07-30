@@ -34,7 +34,7 @@ __all__ = [
 SCHEMA_VERSION = "2.0"
 _DISPATCH_FILENAME = "dispatch.json"
 
-FAILURE_KINDS = frozenset({"benchmark_crash", "malformed_bundle", "timeout", "infrastructure"})
+FAILURE_KINDS = frozenset({"benchmark_crash", "malformed_bundle", "play_failed", "timeout", "infrastructure"})
 
 
 def _utc_now_iso() -> str:

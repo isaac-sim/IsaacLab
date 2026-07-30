@@ -26,6 +26,11 @@ workflow:
         ngc_read_only: nvcr.io
 
       environment:
+        # Kit's bootstrap reads OMNI_KIT_ACCEPT_EULA; without it it prompts on
+        # stdin, which is closed here, and dies with "Unable to bootstrap inner
+        # kit kernel: EOF when reading a line". ACCEPT_EULA covers the Isaac Sim
+        # layer. Both are set by .github/actions/run-tests.
+        OMNI_KIT_ACCEPT_EULA: "yes"
         ACCEPT_EULA: "Y"
         OMNI_KIT_ALLOW_ROOT: "1"
         ODIN_DISPATCH_ID: "20260728-120000"
@@ -140,9 +145,14 @@ workflow:
           # pipeline exits 141. Under `set -o pipefail` that would end the
           # script before it could exit with the training verdict.
           find "$OUT" -type f | head -40 || true
-          # Training is the verdict: a play failure must not turn a good
-          # training run into a red row.
-          exit $rc
+          # A training failure is the verdict when there is one.
+          [ "$rc" -ne 0 ] && exit $rc
+          # Play was requested and failed: the row produced no video, so it is
+          # not a success. Exit 90 rather than $PLAY_RC so the poller can tell
+          # "trained fine, no video" from a training crash -- the two triage
+          # differently and only the former leaves a usable checkpoint.
+          [ "$PLAY_STATUS" = "ran" ] && [ "$PLAY_RC" -ne 0 ] && exit 90
+          exit 0
       # OSMO uploads {{output}} itself, after exec and regardless of exit
       # code, so a crashed run still returns what it produced and no publishing
       # step can mask the benchmark's verdict. Each task writes into its own

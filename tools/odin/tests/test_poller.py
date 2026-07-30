@@ -10,7 +10,14 @@ from pathlib import Path
 import pytest
 
 from tools.odin.client import TaskSnapshot, WorkflowSnapshot
-from tools.odin.poller import PollError, classify_terminal_state, is_terminal, poll_until_terminal, sync_once
+from tools.odin.poller import (
+    PLAY_FAILED_EXIT_CODE,
+    PollError,
+    classify_terminal_state,
+    is_terminal,
+    poll_until_terminal,
+    sync_once,
+)
 from tools.odin.state import SCHEMA_VERSION, DispatchState, FailureInfo, JobEntry
 
 
@@ -82,6 +89,27 @@ def test_terminal_states_map_to_failure_kinds(osmo_state: str, kind: str) -> Non
 
 def test_completed_has_no_failure_kind() -> None:
     assert classify_terminal_state("COMPLETED") is None
+
+
+def test_play_failure_is_distinguished_from_a_training_crash(tmp_path: Path) -> None:
+    # A row that trained fine but produced no video must not read as a benchmark
+    # crash: it leaves a usable checkpoint and is retried differently.
+    state = _state(_job())
+    client = _FakeClient(_snapshot("FAILED", exit_code=PLAY_FAILED_EXIT_CODE))
+
+    sync_once(client=client, state=state, dispatch_dir=tmp_path, on_task_completed=lambda job: None)
+
+    assert state.jobs[0].status == "failed"
+    assert state.jobs[0].failure.kind == "play_failed"
+
+
+def test_a_training_crash_is_not_misread_as_a_play_failure(tmp_path: Path) -> None:
+    state = _state(_job())
+    client = _FakeClient(_snapshot("FAILED", exit_code=1))
+
+    sync_once(client=client, state=state, dispatch_dir=tmp_path, on_task_completed=lambda job: None)
+
+    assert state.jobs[0].failure.kind == "benchmark_crash"
 
 
 def test_unknown_failed_state_defaults_to_infrastructure() -> None:
