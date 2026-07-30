@@ -39,6 +39,21 @@ def test_config_accepts_zero_joints_for_rigid_assets() -> None:
     assert config.num_joints == 0
 
 
+def test_runner_records_exact_physics_variant_in_workflow_metadata(tmp_path) -> None:
+    """Exact backend selectors should remain distinguishable in output metadata."""
+    with patch("isaaclab.benchmark.method_benchmark.BaseIsaacLabBenchmark.__init__") as base_init:
+        MethodBenchmarkRunner(
+            benchmark_name="asset_benchmark",
+            config=MethodBenchmarkRunnerConfig(device="cpu"),
+            output_path=str(tmp_path),
+            use_recorders=False,
+            physics_variant="newton_kamino",
+        )
+
+    metadata = base_init.call_args.kwargs["workflow_metadata"]["metadata"]
+    assert {"name": "physics_variant", "data": "newton_kamino"} in metadata
+
+
 def _runner(*, num_iterations: int = 3, warmup_steps: int = 0) -> MethodBenchmarkRunner:
     runner = object.__new__(MethodBenchmarkRunner)
     runner._config = MethodBenchmarkRunnerConfig(
