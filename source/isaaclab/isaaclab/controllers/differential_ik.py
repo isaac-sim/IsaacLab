@@ -288,29 +288,27 @@ class DifferentialIKController:
             # (Maciejewski-Klein). Keying off the full task Jacobian damps both position and
             # orientation rank-loss configurations.
             # Both decompositions below are well-posed for any finite Jacobian (the damped normal
-            # matrix is symmetric positive-definite), so a failure here means the Jacobian itself is
-            # non-finite -- i.e. the articulation state has already diverged upstream. Re-raise with
-            # that cause instead of the misleading "matrix is singular"/"failed to converge" that
-            # LAPACK reports. The check runs only on the failure path, so the happy path is unchanged.
-            try:
-                sigma_min = torch.linalg.svdvals(jacobian)[:, -1]  # (N,)
-                ratio = (sigma_min / sigma_thresh).clamp(max=1.0)
-                lambda_sq = lambda_min**2 + (1.0 - ratio**2) * (lambda_max**2 - lambda_min**2)  # (N,)
-                jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
-                lambda_matrix = lambda_sq.view(-1, 1, 1) * torch.eye(n=jacobian.shape[1], device=self._device)
-                damped_solution = torch.linalg.solve(
-                    torch.bmm(jacobian, jacobian_T) + lambda_matrix, delta_pose.unsqueeze(-1)
+            # matrix is symmetric positive-definite), so a non-finite Jacobian is the only way they
+            # can fail -- it means the articulation state has already diverged upstream. Check it up
+            # front rather than reacting to a decomposition error: depending on the backend, LAPACK
+            # either reports a misleading "matrix is singular"/"failed to converge" or propagates the
+            # NaN silently into the joint targets. Failing here names the real cause in both cases.
+            if not torch.isfinite(jacobian).all():
+                raise RuntimeError(
+                    "Differential IK received a non-finite Jacobian, so the articulation state has already"
+                    " diverged (NaN/Inf) before this solve. This is usually caused by a NaN or degenerate"
+                    " (zero-norm quaternion) task-space command applied on an earlier step -- check the"
+                    " commands feeding the IK action term."
                 )
-            except torch.linalg.LinAlgError as err:
-                if not torch.isfinite(jacobian).all():
-                    raise RuntimeError(
-                        "Differential IK received a non-finite Jacobian, so the articulation state has already"
-                        " diverged (NaN/Inf) before this solve. This is usually caused by a NaN or degenerate"
-                        " (zero-norm quaternion) task-space command applied on an earlier step -- check the"
-                        " commands feeding the IK action term."
-                    ) from err
-                raise
-            delta_joint_pos = torch.bmm(jacobian_T, damped_solution).squeeze(-1)
+            sigma_min = torch.linalg.svdvals(jacobian)[:, -1]  # (N,)
+            ratio = (sigma_min / sigma_thresh).clamp(max=1.0)
+            lambda_sq = lambda_min**2 + (1.0 - ratio**2) * (lambda_max**2 - lambda_min**2)  # (N,)
+            jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
+            lambda_matrix = lambda_sq.view(-1, 1, 1) * torch.eye(n=jacobian.shape[1], device=self._device)
+            delta_joint_pos = torch.bmm(
+                jacobian_T,
+                torch.linalg.solve(torch.bmm(jacobian, jacobian_T) + lambda_matrix, delta_pose.unsqueeze(-1)),
+            ).squeeze(-1)
         else:
             raise ValueError(f"Unsupported inverse-kinematics method: {self.cfg.ik_method}")
 

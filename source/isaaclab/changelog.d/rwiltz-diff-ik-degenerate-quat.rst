@@ -6,6 +6,7 @@ Fixed
   the joint position targets and diverged the articulation, surfacing a step later as an unrelated
   ``torch.linalg.solve ... input matrix is singular`` error. Degenerate quaternions now hold the
   current end-effector orientation instead.
-* Fixed the ``adaptive_dls`` inverse-kinematics method reporting a non-finite Jacobian as an opaque
-  LAPACK singular-matrix or convergence failure. It now raises an error naming the actual cause: the
+* Fixed the ``adaptive_dls`` inverse-kinematics method handling of a non-finite Jacobian, which
+  backends either reported as an opaque LAPACK singular-matrix or convergence failure, or propagated
+  silently into the joint position targets. It now raises an error naming the actual cause: the
   articulation state diverged before the solve.

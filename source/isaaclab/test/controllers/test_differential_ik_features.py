@@ -122,16 +122,34 @@ def test_set_command_zero_quat_only_affects_degenerate_envs():
     torch.testing.assert_close(c.ee_quat_des[1], torch.tensor(_ID_QUAT), atol=1e-6, rtol=0.0)
 
 
-def test_adaptive_dls_reports_non_finite_jacobian_cause():
-    """A non-finite Jacobian raises an error naming the real cause, not "matrix is singular"."""
+@pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), float("-inf")])
+def test_adaptive_dls_reports_non_finite_jacobian_cause(bad_value):
+    """A non-finite Jacobian raises an error naming the real cause, not "matrix is singular".
+
+    The check is unconditional rather than a reaction to a decomposition error: backends differ in
+    whether ``svdvals``/``solve`` raise on non-finite input or propagate NaN silently, and a silent
+    NaN would otherwise reach the joint position targets.
+    """
     c = _make_controller(ik_method="adaptive_dls")
     ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
     ee_quat = torch.tensor([_ID_QUAT])
     c.set_command(torch.tensor([[0.31, -0.1, 0.2] + _ID_QUAT]), ee_pos, ee_quat)
-    jac = torch.zeros(1, 6, _NUM_JOINTS)
-    jac[0, 0, 0] = float("nan")
+    # otherwise well-conditioned, so only the non-finite entry can trigger the failure
+    jac = torch.eye(6, _NUM_JOINTS).unsqueeze(0).clone()
+    jac[0, 0, 0] = bad_value
     with pytest.raises(RuntimeError, match="non-finite Jacobian"):
         c.compute(ee_pos, ee_quat, jac, torch.zeros(1, _NUM_JOINTS))
+
+
+def test_adaptive_dls_finite_jacobian_is_unaffected_by_the_guard():
+    """The non-finite guard does not change results for a well-conditioned Jacobian."""
+    c = _make_controller(ik_method="adaptive_dls")
+    ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
+    ee_quat = torch.tensor([_ID_QUAT])
+    c.set_command(torch.tensor([[0.31, -0.1, 0.2] + _ID_QUAT]), ee_pos, ee_quat)
+    jac = torch.eye(6, _NUM_JOINTS).unsqueeze(0).clone()
+    out = c.compute(ee_pos, ee_quat, jac, torch.zeros(1, _NUM_JOINTS))
+    assert torch.isfinite(out).all()
 
 
 def test_orientation_weight_none_is_unweighted():
