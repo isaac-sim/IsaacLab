@@ -178,6 +178,8 @@ jobs:
 
     - name: Run arm_ci marker tests
       uses: ./.github/actions/run-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
       with:
         test-path: tools
         result-file: arm-ci-report.xml
@@ -190,6 +192,8 @@ jobs:
 
     - name: Run arm_ci OVPhysX marker tests
       uses: ./.github/actions/run-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
       with:
         test-path: tools
         result-file: arm-ci-ovphysx-report.xml
@@ -203,6 +207,8 @@ jobs:
 
     - name: Run shared Cartpole smoke
       uses: ./.github/actions/run-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
       with:
         test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
         result-file: arm-ci-cartpole-smoke-report.xml

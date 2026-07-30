@@ -13,6 +13,12 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = [
+    pytest.mark.requires_extra("rl-games"),
+    pytest.mark.requires_extra("sb3"),
+    pytest.mark.requires_extra("skrl"),
+]
+
 ROOT = Path(__file__).resolve().parents[3]
 
 _TASK = "Isaac-Cartpole-Direct"

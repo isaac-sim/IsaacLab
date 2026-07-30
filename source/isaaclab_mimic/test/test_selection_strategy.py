@@ -5,12 +5,7 @@
 
 import pytest
 
-from isaaclab.app import AppLauncher
-
-pytestmark = pytest.mark.requires_kit
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+pytestmark = pytest.mark.requires_extra("mimic")
 
 import numpy as np
 import torch

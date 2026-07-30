@@ -19,6 +19,8 @@ from isaaclab.benchmark.entrypoints.backends.sb3 import benchmark_train_sb3 as t
 from isaaclab.benchmark.entrypoints.backends.skrl import benchmark_play_skrl as play_skrl
 from isaaclab.benchmark.entrypoints.backends.skrl import benchmark_train_skrl as train_skrl
 
+pytestmark = [pytest.mark.requires_extra("sb3"), pytest.mark.requires_extra("skrl")]
+
 
 @pytest.mark.parametrize("library", ["rl_games", "rsl_rl", "sb3", "skrl"])
 def test_training_dispatches_libraries_to_explicitly_named_adapters(library: str):

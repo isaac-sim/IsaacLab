@@ -19,30 +19,21 @@ Two test suites are provided:
    are available.
 """
 
-"""Launch Isaac Sim Simulator first."""
+import types
 
 import pytest
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-from isaaclab.app import AppLauncher
+from isaaclab.renderers import RendererCfg
 
-pytestmark = pytest.mark.requires_kit
-
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
-
-
-import types  # noqa: E402
-
-from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
-from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
-from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
-
-from isaaclab.renderers import RendererCfg  # noqa: E402
-
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (  # noqa: E402
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
 )
-from isaaclab_tasks.utils.hydra import collect_presets  # noqa: E402
+from isaaclab_tasks.utils.hydra import collect_presets
+
+pytestmark = pytest.mark.unit
 
 # ---------------------------------------------------------------------------
 # Helpers

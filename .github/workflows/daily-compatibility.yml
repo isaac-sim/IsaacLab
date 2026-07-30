@@ -128,6 +128,8 @@ jobs:
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
       with:
         test-path: "tools"
         result-file: "isaaclab-tasks-compat-report.xml"
@@ -188,6 +190,8 @@ jobs:
 
     - name: Run General Tests
       uses: ./.github/actions/run-tests
+      env:
+        ISAACLAB_RUN_CI_TESTS: "1"
       with:
         test-path: "tools"
         result-file: "general-tests-compat-report.xml"
