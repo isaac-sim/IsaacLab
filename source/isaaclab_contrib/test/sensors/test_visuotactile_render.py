@@ -5,16 +5,9 @@
 
 """Tests for GelSight utility functions - primarily focused on GelsightRender."""
 
-"""Launch Isaac Sim Simulator first."""
-
 import pytest
 
-from isaaclab.app import AppLauncher
-
-pytestmark = pytest.mark.requires_kit
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+pytestmark = pytest.mark.requires_extra("opencv")
 
 import os
 import tempfile

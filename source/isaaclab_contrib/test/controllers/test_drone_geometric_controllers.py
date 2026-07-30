@@ -3,18 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
 import pytest
 
-from isaaclab.app import AppLauncher
-
-pytestmark = pytest.mark.requires_kit
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+pytestmark = pytest.mark.unit
 
 import types
 
