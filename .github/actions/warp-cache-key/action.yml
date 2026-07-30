@@ -1,0 +1,75 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Warp Cache Key'
+description: >
+  Computes the shared Warp kernel cache key, restore-key fallbacks, and host
+  directory used by both the cache writer (the warm-warp-cache job) and the
+  cache readers (test jobs). Keeping this in one action is what guarantees the
+  writer and readers agree on the key; if they drift, every read misses.
+
+  NOTE: The calling job must check out the code before using this action, since
+  the key hashes tracked source files.
+
+inputs:
+  isaacsim-version:
+    description: 'IsaacSim image tag; a new IsaacSim ships a new Warp and invalidates every kernel'
+    required: true
+
+outputs:
+  key:
+    description: 'Primary cache key'
+    value: ${{ steps.compute.outputs.key }}
+  restore-keys:
+    description: 'Newline-separated restore-key prefixes, most specific first'
+    value: ${{ steps.compute.outputs.restore-keys }}
+  host-dir:
+    description: 'Host directory holding the Warp cache; bind-mounted into the test container'
+    value: ${{ steps.compute.outputs.host-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute Warp cache key
+      id: compute
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Kernels are compiled per compute capability. Restoring a cache built
+        # for a different architecture would download gigabytes only for Warp to
+        # recompile, so the capability is part of the key.
+        gpu_target="$(
+          nvidia-smi --query-gpu=compute_cap --format=csv,noheader \
+            | sed 's/[ .]//g; s/^/sm_/' \
+            | sort -u \
+            | paste -sd-
+        )"
+        if [ -z "$gpu_target" ]; then
+          echo "::error::Could not determine GPU compute capability"
+          exit 1
+        fi
+
+        prefix="warp-v1-${RUNNER_OS}-${RUNNER_ARCH}-${gpu_target}"
+        scoped="${prefix}-${ISAACSIM_VERSION}"
+
+        # The key is purely content-addressed. It deliberately contains no date
+        # component: a time-varying key forces a fresh multi-gigabyte cache entry
+        # on every rollover, which is what exhausted the 10 GB repository cache
+        # quota the last time this was attempted.
+        echo "key=${scoped}-${SOURCE_HASH}" >> "$GITHUB_OUTPUT"
+        {
+          echo "restore-keys<<EOF"
+          echo "${scoped}-"
+          echo "${prefix}-"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+        echo "host-dir=${RUNNER_TEMP}/isaaclab-warp-cache" >> "$GITHUB_OUTPUT"
+
+        echo "Warp cache GPU target: ${gpu_target}"
+        echo "Warp cache key: ${scoped}-${SOURCE_HASH}"
+      env:
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
+        SOURCE_HASH: ${{ hashFiles('uv.lock', 'source/**/*.py') }}
