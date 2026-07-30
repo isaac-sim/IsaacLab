@@ -114,12 +114,13 @@ def _measure_launch(
     device: wp.context.Device,
     num_iterations: int,
 ) -> float:
-    start = wp.Event(enable_timing=True)
-    end = wp.Event(enable_timing=True)
-    wp.record_event(start)
+    start = wp.Event(device=device, enable_timing=True)
+    end = wp.Event(device=device, enable_timing=True)
+    stream = device.stream
+    stream.record_event(start)
     for _ in range(num_iterations):
         _launch_once(prepared, device)
-    wp.record_event(end)
+    stream.record_event(end)
     wp.synchronize_event(end)
     return 1000.0 * wp.get_event_elapsed_time(start, end) / num_iterations
 

@@ -75,9 +75,9 @@ class MethodBenchmarkRunnerConfig:
         num_instances: Number of environment instances.
         num_bodies: Number of bodies per instance.
         num_joints: Number of joints per instance.
-        num_rounds: Number of paired rounds in auxiliary raw-kernel timings.
         device: Device to run benchmarks on.
         mode: Which input modes to run ("all" or specific mode name).
+        num_rounds: Number of paired rounds in auxiliary raw-kernel timings.
     """
 
     num_iterations: int = 1000
@@ -85,9 +85,9 @@ class MethodBenchmarkRunnerConfig:
     num_instances: int = 4096
     num_bodies: int = 12
     num_joints: int = 11
-    num_rounds: int = 15
     device: str = "cuda:0"
     mode: str | list[str] = "all"
+    num_rounds: int = 15
 
     def __post_init__(self) -> None:
         """Validate benchmark workload sizes."""

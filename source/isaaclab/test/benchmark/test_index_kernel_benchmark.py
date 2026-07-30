@@ -115,3 +115,28 @@ def test_index_kernel_skips_cuda_event_timing_for_cpu(monkeypatch) -> None:
     )
 
     assert runner.measurements == []
+
+
+def test_index_kernel_timing_records_events_on_selected_device_stream(monkeypatch) -> None:
+    """Raw timing should not create or record events on Warp's default CUDA device."""
+    events: list[object] = []
+    recordings: list[object] = []
+    stream = SimpleNamespace(record_event=lambda event: recordings.append(event))
+    device = SimpleNamespace(stream=stream)
+
+    def create_event(*, device=None, enable_timing=False):
+        event = SimpleNamespace(device=device, enable_timing=enable_timing)
+        events.append(event)
+        return event
+
+    monkeypatch.setattr(index_kernel.wp, "Event", create_event)
+    monkeypatch.setattr(index_kernel.wp, "record_event", lambda event: recordings.append(("default", event)))
+    monkeypatch.setattr(index_kernel.wp, "synchronize_event", lambda _event: None)
+    monkeypatch.setattr(index_kernel.wp, "get_event_elapsed_time", lambda _start, _end: 0.5)
+    monkeypatch.setattr(index_kernel, "_launch_once", lambda _prepared, _device: None)
+
+    elapsed = index_kernel._measure_launch(SimpleNamespace(), device, num_iterations=2)
+
+    assert elapsed == pytest.approx(250.0)
+    assert [event.device for event in events] == [device, device]
+    assert recordings == events

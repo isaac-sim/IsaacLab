@@ -40,6 +40,15 @@ def test_config_accepts_zero_joints_for_rigid_assets() -> None:
     assert config.num_joints == 0
 
 
+def test_config_preserves_legacy_positional_argument_order() -> None:
+    """Adding auxiliary timing controls should not shift existing positional arguments."""
+    config = MethodBenchmarkRunnerConfig(1, 0, 2, 3, 4, "cpu", "all")
+
+    assert config.device == "cpu"
+    assert config.mode == "all"
+    assert config.num_rounds == 15
+
+
 def test_runner_records_exact_physics_variant_in_workflow_metadata(tmp_path) -> None:
     """Exact backend selectors should remain distinguishable in output metadata."""
     with patch("isaaclab.benchmark.method_benchmark.BaseIsaacLabBenchmark.__init__") as base_init:
