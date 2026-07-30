@@ -722,18 +722,20 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
 
     os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
     report_path = os.path.join(_COMPARISON_IMAGES_DIR, report_filename)
-    sorted_scores = sorted(comparison_scores, key=lambda e: -e["diff_pct"])
+    sorted_scores = sorted(
+        comparison_scores, key=lambda entry: (0 if entry.get("xfail_reason") else 1, -entry["diff_pct"])
+    )
 
     rows = []
     for entry in sorted_scores:
         xfail_reason = entry.get("xfail_reason") or ""
         if xfail_reason:
-            if entry["passed"]:
-                status_class = "xpass"
-                status_text = "XPASS (REVIEW XFAIL)"
-            else:
+            if entry.get("xfail_observed", not entry["passed"]):
                 status_class = "unreliable"
                 status_text = "UNRELIABLE (XFAIL)"
+            else:
+                status_class = "xpass"
+                status_text = "XPASS (REVIEW XFAIL)"
         else:
             status_class = "pass" if entry["passed"] else "fail"
             status_text = status_class.upper()
@@ -868,9 +870,12 @@ def record_comparison_outcomes(
     """Record expected outcomes for HTML and attach comparison properties to JUnit XML."""
     xfail_marker = request.node.get_closest_marker("xfail")
     xfail_reason = xfail_marker.kwargs.get("reason") if xfail_marker is not None else None
-    for entry in comparison_scores[initial_count:]:
+    entries = comparison_scores[initial_count:]
+    xfail_observed = any(not entry["passed"] for entry in entries)
+    for entry in entries:
         if xfail_reason:
             entry["xfail_reason"] = xfail_reason
+            entry["xfail_observed"] = xfail_observed
         label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
         request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
         ssim_value = f"{entry['ssim']:.4f}" if entry.get("ssim_checked", True) else f"{entry['ssim']:.4f} (N/A)"
@@ -925,14 +930,14 @@ def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
     """
 
     @pytest.fixture(autouse=True)
-    def _attach_comparison_properties(request):
+    def _record_comparison_outcomes(request):
         """Record expected outcomes and attach image-comparison properties."""
         initial_count = len(comparison_scores)
         yield
         # Function-scoped teardown runs before the session-scoped HTML report is generated.
         record_comparison_outcomes(request, comparison_scores, initial_count)
 
-    return _attach_comparison_properties
+    return _record_comparison_outcomes
 
 
 def make_require_ovlibs_install_fixture():

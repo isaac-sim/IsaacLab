@@ -125,8 +125,8 @@ def test_franka_factory_adds_cloth_only_motion_policy() -> None:
 
 
 def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path) -> None:
-    """Expected failures and stale expected-failure marks should be distinct in HTML."""
-    reason = "Known rendering regression (NVBUG#1234567)."
+    """Expected failures and unexpected passes should be distinct in HTML."""
+    reason = "Known <b>rendering</b> regression (NVBUG#1234567)."
     comparison_scores = [
         {
             "test": "cartpole",
@@ -161,10 +161,44 @@ def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path
     request = Mock(node=node)
 
     record_comparison_outcomes(request, comparison_scores, initial_count=0)
+    comparison_scores.append(
+        {
+            "test": "shadow_hand",
+            "backend": "newton",
+            "renderer": "ovrtx_renderer",
+            "ovstage_variant": "Yes",
+            "aov": "albedo",
+            "diff_pct": 0.0,
+            "threshold": 5.0,
+            "ssim": 1.0,
+            "ssim_threshold": 0.985,
+            "ssim_checked": True,
+            "passed": True,
+        }
+    )
+    record_comparison_outcomes(request, comparison_scores, initial_count=2)
+    comparison_scores.append(
+        {
+            "test": "ordinary",
+            "backend": "newton",
+            "renderer": "ovrtx_renderer",
+            "ovstage_variant": "Yes",
+            "aov": "depth",
+            "diff_pct": 50.0,
+            "threshold": 5.0,
+            "ssim": 0.5,
+            "ssim_threshold": 0.985,
+            "ssim_checked": False,
+            "passed": False,
+        }
+    )
     monkeypatch.setattr(rendering_test_utils, "_COMPARISON_IMAGES_DIR", str(tmp_path))
     generate_html_report(comparison_scores, "report.html")
 
     report = (tmp_path / "report.html").read_text(encoding="utf-8")
-    assert '<td class="status-unreliable">UNRELIABLE (XFAIL)</td>' in report
-    assert '<td class="status-xpass">XPASS (REVIEW XFAIL)</td>' in report
-    assert report.count(reason) == 2
+    escaped_reason = "Known &lt;b&gt;rendering&lt;/b&gt; regression (NVBUG#1234567)."
+    assert report.count('<td class="status-unreliable">UNRELIABLE (XFAIL)</td>') == 2
+    assert report.count('<td class="status-xpass">XPASS (REVIEW XFAIL)</td>') == 1
+    assert report.count(escaped_reason) == 3
+    assert reason not in report
+    assert report.index(escaped_reason) < report.index("<td>ordinary</td>")
