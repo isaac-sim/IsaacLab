@@ -144,17 +144,7 @@ class ProxyArray:
                 stacklevel=2,
             )
         if self._torch_cache is None:
-            if self._warp.size == 0:
-                torch_view = torch.from_dlpack(self._warp)
-                torch_view.requires_grad = self._warp.requires_grad
-                if self._warp.requires_grad and self._warp.grad is not None:
-                    torch_view.grad = torch.from_dlpack(self._warp.grad)
-                    torch_view.grad._warp_grad_array = self._warp.grad
-                # Match wp.to_torch ownership.
-                torch_view._warp_array = self._warp
-                self._torch_cache = torch_view
-            else:
-                self._torch_cache = wp.to_torch(self._warp)
+            self._torch_cache = wp.to_torch(self._warp)
         return self._torch_cache
 
     # ------------------------------------------------------------------
