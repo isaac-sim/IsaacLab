@@ -24,6 +24,7 @@ pytestmark = pytest.mark.benchmark
         ("num_instances", 0),
         ("num_bodies", 0),
         ("num_joints", -1),
+        ("num_rounds", 0),
     ),
 )
 def test_config_rejects_invalid_workload_sizes(field: str, value: int) -> None:

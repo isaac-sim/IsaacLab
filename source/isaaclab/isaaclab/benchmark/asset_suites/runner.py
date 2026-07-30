@@ -13,6 +13,7 @@ from pathlib import Path
 
 from ..method_benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner
 from .generators import build_fill_benchmarks
+from .index_kernel import run_index_kernel_dtype_benchmark
 from .suites import get_asset_benchmark_suite
 from .types import AssetBenchmarkAdapter, AssetBenchmarkRequest, AssetBenchmarkSuite
 
@@ -106,6 +107,8 @@ def run_asset_benchmark(
             print("Fill-Ratio Benchmarks (env_ids at 5%, 95%, 100% fill)")
             print("=" * 80)
             method_runner.run_benchmarks(fill_benchmarks, targets.method_target)
+        if suite.component == "articulation":
+            run_index_kernel_dtype_benchmark(method_runner, method_config)
         output_paths.extend(method_runner.finalize())
 
         properties, dependencies = resolve_property_benchmarks(suite, adapter, targets.data_target)

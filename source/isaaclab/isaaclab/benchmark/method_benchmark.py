@@ -75,6 +75,7 @@ class MethodBenchmarkRunnerConfig:
         num_instances: Number of environment instances.
         num_bodies: Number of bodies per instance.
         num_joints: Number of joints per instance.
+        num_rounds: Number of paired rounds in auxiliary raw-kernel timings.
         device: Device to run benchmarks on.
         mode: Which input modes to run ("all" or specific mode name).
     """
@@ -84,12 +85,13 @@ class MethodBenchmarkRunnerConfig:
     num_instances: int = 4096
     num_bodies: int = 12
     num_joints: int = 11
+    num_rounds: int = 15
     device: str = "cuda:0"
     mode: str | list[str] = "all"
 
     def __post_init__(self) -> None:
         """Validate benchmark workload sizes."""
-        for field_name in ("num_iterations", "num_instances", "num_bodies"):
+        for field_name in ("num_iterations", "num_instances", "num_bodies", "num_rounds"):
             if getattr(self, field_name) <= 0:
                 raise ValueError(f"{field_name} must be greater than zero")
         if self.num_joints < 0:
@@ -158,6 +160,7 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
                 {"name": "num_instances", "data": config.num_instances},
                 {"name": "num_bodies", "data": config.num_bodies},
                 {"name": "num_joints", "data": config.num_joints},
+                {"name": "num_rounds", "data": config.num_rounds},
                 {"name": "device", "data": config.device},
             ]
         }

@@ -35,6 +35,7 @@ def run_asset_benchmark_cli(
         parents=[selector_parser],
     )
     parser.add_argument("--num_iterations", type=parse_positive_int, default=1000, help="Number of iterations")
+    parser.add_argument("--num_rounds", type=parse_positive_int, default=15, help="Number of paired timing rounds")
     parser.add_argument("--warmup_steps", type=parse_non_negative_int, default=10, help="Number of warmup steps")
     parser.add_argument("--num_instances", type=parse_positive_int, default=4096, help="Number of instances")
     parser.add_argument(
@@ -74,6 +75,7 @@ def run_asset_benchmark_cli(
         num_instances=args.num_instances,
         num_bodies=args.num_bodies,
         num_joints=args.num_joints,
+        num_rounds=args.num_rounds,
         device=args.device,
         mode=args.mode,
     )
