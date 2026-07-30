@@ -532,8 +532,8 @@ class BaseArticulation(AssetBase):
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
         ``body_ids, _ = asset.find_bodies(".*")`` to
-        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
-        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids.warp`` to asset writers or
+        other Warp code, or use ``body_ids.torch`` for Torch indexing.
 
         Returns:
             A tuple containing the body indices and a fresh list of matched names. The indices are a
@@ -567,8 +567,8 @@ class BaseArticulation(AssetBase):
                 this storage.
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
-        ``joint_ids, _ = asset.find_joints(".*", as_proxy=True)`` and pass ``joint_ids`` to
-        :meth:`set_joint_position_target_index`; use ``joint_ids.warp`` in Warp code or ``joint_ids.torch`` for
+        ``joint_ids, _ = asset.find_joints(".*", as_proxy=True)`` and pass ``joint_ids.warp`` to
+        :meth:`set_joint_position_target_index`; use the same view in Warp code or ``joint_ids.torch`` for
         Torch indexing.
 
         Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
@@ -608,7 +608,7 @@ class BaseArticulation(AssetBase):
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
         ``fixed_tendon_ids, _ = asset.find_fixed_tendons(".*", as_proxy=True)`` and pass
-        ``fixed_tendon_ids`` to :meth:`write_fixed_tendon_properties_to_sim_index`; use
+        ``fixed_tendon_ids.warp`` to :meth:`write_fixed_tendon_properties_to_sim_index`; use
         ``fixed_tendon_ids.warp`` in Warp code or ``fixed_tendon_ids.torch`` for Torch indexing.
 
         Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
@@ -647,7 +647,7 @@ class BaseArticulation(AssetBase):
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
         ``spatial_tendon_ids, _ = asset.find_spatial_tendons(".*", as_proxy=True)`` and pass
-        ``spatial_tendon_ids`` to :meth:`write_spatial_tendon_properties_to_sim_index`; use
+        ``spatial_tendon_ids.warp`` to :meth:`write_spatial_tendon_properties_to_sim_index`; use
         ``spatial_tendon_ids.warp`` in Warp code or ``spatial_tendon_ids.torch`` for Torch indexing.
 
         Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing

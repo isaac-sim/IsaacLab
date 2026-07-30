@@ -12,8 +12,6 @@ from collections.abc import Mapping, Sequence
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
-
 from ..method_benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunnerConfig, TimedInputTransform
 from .types import InputGenerator
 
@@ -82,8 +80,6 @@ def make_item_selector_generators(
             item_selector = wp.array(item_values, dtype=wp.int32, device=config.device)
         elif mode == "warp_int64":
             item_selector = wp.array(item_values, dtype=wp.int64, device=config.device)
-        elif mode == "proxy_int32":
-            item_selector = ProxyArray(wp.array(item_values, dtype=wp.int32, device=config.device))
         else:
             raise ValueError(f"Unsupported item selector mode: {mode!r}")
         inputs[item_key] = item_selector
@@ -96,7 +92,6 @@ def make_item_selector_generators(
         "torch_precast_int32",
         "warp_int32",
         "warp_int64",
-        "proxy_int32",
     )
     return {mode: lambda config, mode=mode: generate(config, mode) for mode in modes}
 

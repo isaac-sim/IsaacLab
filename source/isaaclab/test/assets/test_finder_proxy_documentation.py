@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,7 @@ def test_articulation_finder_migration_examples_use_matching_domains(
 
     assert f'{selector_name}, _ = asset.{finder_name}(".*", as_proxy=True)' in docstring
     assert writer_name in docstring
+    assert re.search(rf"pass\s+``{selector_name}\.warp``\s+to", docstring.lower())
     assert "find_bodies" not in docstring
     assert "body_ids" not in docstring
 
@@ -115,6 +117,7 @@ def test_articulation_body_finder_migration_example_uses_body_domain(path: str) 
     docstring = ast.get_docstring(node) or ""
 
     assert 'body_ids, _ = asset.find_bodies(".*", as_proxy=True)' in docstring
+    assert re.search(r"pass\s+``body_ids\.warp``\s+to", docstring.lower())
     assert "joint_ids" not in docstring
     assert "tendon_ids" not in docstring
 
@@ -125,4 +128,7 @@ def test_changelog_fragments_document_false_default_and_true_opt_in(path: str) -
 
     assert "``as_proxy=False`` is the default" in fragment
     assert "``as_proxy=True`` opts into" in fragment
+    assert "explicit" in fragment
+    assert "``.warp``" in fragment
+    assert "``.torch``" in fragment
     assert "implicit legacy" not in fragment

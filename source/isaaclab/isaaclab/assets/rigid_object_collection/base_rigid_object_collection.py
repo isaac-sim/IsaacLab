@@ -188,8 +188,8 @@ class BaseRigidObjectCollection(AssetBase):
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
         ``body_ids, _ = asset.find_bodies(".*")`` to
-        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
-        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids.warp`` to asset writers or
+        other Warp code, or use ``body_ids.torch`` for Torch indexing.
 
         Returns:
             A tuple containing the body indices and a fresh list of matched names. The indices are a
@@ -1131,8 +1131,8 @@ class BaseRigidObjectCollection(AssetBase):
 
         Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
         ``body_ids, _ = asset.find_bodies(".*")`` to
-        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids`` to asset writers, use
-        ``body_ids.warp`` in Warp code, or use ``body_ids.torch`` for Torch indexing.
+        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids.warp`` to asset writers or
+        other Warp code, or use ``body_ids.torch`` for Torch indexing.
 
         Returns:
             A tuple containing the object indices and a fresh list of matched names. The indices are a

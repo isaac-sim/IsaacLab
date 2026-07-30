@@ -13,7 +13,6 @@ import warp as wp
 
 from isaaclab.benchmark.asset_suites import get_asset_benchmark_suite, resolve_method_benchmarks
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
-from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.benchmark
 
@@ -21,45 +20,45 @@ pytestmark = pytest.mark.benchmark
 @pytest.mark.parametrize(
     ("component", "physics", "capabilities", "definition_count", "workload_count"),
     (
-        ("articulation", "physx", frozenset({"tensor_fill"}), 30, 134),
+        ("articulation", "physx", frozenset({"tensor_fill"}), 30, 118),
         (
             "articulation",
             "newton",
             frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
             50,
-            154,
+            138,
         ),
-        ("articulation", "ovphysx", frozenset({"warp_mask"}), 50, 154),
+        ("articulation", "ovphysx", frozenset({"warp_mask"}), 50, 138),
         (
             "rigid_object",
             "physx",
             frozenset({"physx_legacy_state", "tensor_fill"}),
             13,
-            41,
-        ),
-        (
-            "rigid_object",
-            "newton",
-            frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
-            15,
             38,
         ),
-        ("rigid_object", "ovphysx", frozenset({"warp_mask"}), 15, 38),
+        (
+            "rigid_object",
+            "newton",
+            frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
+            15,
+            35,
+        ),
+        ("rigid_object", "ovphysx", frozenset({"warp_mask"}), 15, 35),
         (
             "rigid_object_collection",
             "physx",
             frozenset({"physx_legacy_state", "tensor_fill"}),
             13,
-            86,
+            74,
         ),
         (
             "rigid_object_collection",
             "newton",
             frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
             15,
-            58,
+            51,
         ),
-        ("rigid_object_collection", "ovphysx", frozenset({"warp_mask"}), 15, 58),
+        ("rigid_object_collection", "ovphysx", frozenset({"warp_mask"}), 15, 51),
     ),
 )
 def test_method_manifests_preserve_backend_workloads(
@@ -108,7 +107,6 @@ def test_shared_generator_preserves_item_selector_modes_and_shapes() -> None:
         "torch_precast_int32",
         "warp_int32",
         "warp_int64",
-        "proxy_int32",
     )
 
     inputs_by_mode = {mode: generator(config) for mode, generator in definition.input_generators.items()}
@@ -123,8 +121,6 @@ def test_shared_generator_preserves_item_selector_modes_and_shapes() -> None:
     assert inputs_by_mode["torch_precast_int32"]["joint_ids"].dtype is torch.int64
     assert inputs_by_mode["warp_int32"]["joint_ids"].dtype is wp.int32
     assert inputs_by_mode["warp_int64"]["joint_ids"].dtype is wp.int64
-    assert isinstance(inputs_by_mode["proxy_int32"]["joint_ids"], ProxyArray)
-    assert inputs_by_mode["proxy_int32"]["joint_ids"].dtype is wp.int32
     assert tuple(definition.timed_input_transforms) == ("torch_precast_int32",)
 
 

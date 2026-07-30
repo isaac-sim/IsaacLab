@@ -248,7 +248,7 @@ Methods indexed only by ``env_ids`` retain two modes:
 ``torch_tensor``
    Pass pre-allocated Torch ``int32`` environment IDs.
 
-Writers with ``joint_ids`` or ``body_ids`` use a seven-mode grid. Every mode
+Writers with ``joint_ids`` or ``body_ids`` use a six-mode grid. Every mode
 passes the same pre-allocated Torch ``int32`` ``env_ids`` so the measured
 difference comes from the item selector:
 
@@ -268,10 +268,6 @@ difference comes from the item selector:
 
 ``warp_int32`` and ``warp_int64``
    Pass pre-allocated Warp arrays using the corresponding signed index width.
-
-``proxy_int32``
-   Pass a pre-allocated :class:`~isaaclab.utils.warp.ProxyArray` backed by a
-   Warp ``int32`` array.
 
 ``warp_mask``
    Pass pre-allocated Warp boolean masks. This mode is available for supported

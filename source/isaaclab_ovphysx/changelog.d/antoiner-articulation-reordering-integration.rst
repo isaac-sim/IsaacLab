@@ -6,7 +6,8 @@ Added
 * Added the ``as_proxy`` return-mode option to OVPhysX asset finder methods.
   ``as_proxy=False`` is the default and returns the legacy selector
   representation, while ``as_proxy=True`` opts into cached
-  :class:`~isaaclab.utils.warp.ProxyArray` selectors.
+  :class:`~isaaclab.utils.warp.ProxyArray` selectors. Pass their explicit
+  ``.warp`` or ``.torch`` views to downstream APIs.
 
 Changed
 ^^^^^^^
