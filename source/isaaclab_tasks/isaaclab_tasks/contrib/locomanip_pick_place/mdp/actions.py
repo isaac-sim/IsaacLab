@@ -42,11 +42,12 @@ class AgileBasedLowerBodyAction(ActionTerm):
         self._env = env
 
         # Find joint ids for the lower body joints
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=True)
+        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=True)
+        self._joint_ids = joint_ids.torch
 
         # Get the scale and offset from the configuration
         self._policy_output_scale = torch.tensor(cfg.policy_output_scale, device=env.device)
-        self._policy_output_offset = self._asset.data.default_joint_pos.torch[:, self._joint_ids.torch].clone()
+        self._policy_output_offset = self._asset.data.default_joint_pos.torch[:, self._joint_ids].clone()
 
         # Create tensors to store raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, len(self._joint_ids), device=self.device)

@@ -13,7 +13,6 @@ import torch
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
-from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
@@ -119,7 +118,7 @@ class ActuatorBase(ABC):
         self,
         cfg: ActuatorBaseCfg,
         joint_names: list[str],
-        joint_ids: slice | torch.Tensor | ProxyArray,
+        joint_ids: slice | torch.Tensor,
         num_envs: int,
         device: str,
         stiffness: torch.Tensor | float = 0.0,
@@ -257,7 +256,7 @@ class ActuatorBase(ABC):
         return self._joint_names
 
     @property
-    def joint_indices(self) -> slice | torch.Tensor | ProxyArray:
+    def joint_indices(self) -> slice | torch.Tensor:
         """Articulation's joint indices that are part of the group.
 
         Note:
@@ -307,9 +306,7 @@ class ActuatorBase(ABC):
             self.joint_property_resolution_table[actuator_param] = []
         table = self.joint_property_resolution_table[actuator_param]
 
-        if isinstance(joint_ids, ProxyArray):
-            ids = joint_ids.torch
-        elif isinstance(joint_ids, torch.Tensor):
+        if isinstance(joint_ids, torch.Tensor):
             ids = joint_ids
         else:
             ids = list(range(len(joint_names)))

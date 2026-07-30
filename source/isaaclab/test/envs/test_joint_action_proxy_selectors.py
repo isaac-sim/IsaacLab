@@ -13,8 +13,6 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
-
 _REPO_ROOT = Path(__file__).parents[4]
 _ACTION_FILES = {
     "joint": _REPO_ROOT / "source/isaaclab/isaaclab/envs/mdp/actions/joint_actions.py",
@@ -50,7 +48,9 @@ def _method(file_key: str, class_name: str, method_name: str):
     ("file_key", "class_name"),
     (("joint", "JointAction"), ("limits", "JointPositionToLimitsAction")),
 )
-def test_repeated_joint_actions_request_proxy_and_keep_full_slice_fast_path(file_key: str, class_name: str) -> None:
+def test_repeated_joint_actions_select_explicit_torch_view_and_keep_full_slice_fast_path(
+    file_key: str, class_name: str
+) -> None:
     init = next(
         node
         for node in _class_node(file_key, class_name).body
@@ -64,6 +64,8 @@ def test_repeated_joint_actions_request_proxy_and_keep_full_slice_fast_path(file
     as_proxy = next(keyword.value for keyword in finder_call.keywords if keyword.arg == "as_proxy")
 
     assert isinstance(as_proxy, ast.Constant) and as_proxy.value is True
+    source = ast.get_source_segment(_ACTION_FILES[file_key].read_text(), init)
+    assert ".torch" in source
     assert any(
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
@@ -76,26 +78,22 @@ def test_repeated_joint_actions_request_proxy_and_keep_full_slice_fast_path(file
 
 
 @pytest.mark.parametrize(("file_key", "class_name", "writer_name"), _WRITER_PATHS)
-def test_joint_action_writer_keeps_proxy_without_torch_materialization(
-    file_key: str, class_name: str, writer_name: str
-) -> None:
+def test_joint_action_writer_receives_explicit_selector(file_key: str, class_name: str, writer_name: str) -> None:
     calls = []
 
     def writer(**kwargs):
         calls.append(kwargs)
 
-    body_ids_array = wp.array([2, 0], dtype=wp.int32, device="cpu")
-    body_ids = ProxyArray(body_ids_array)
+    joint_ids = wp.array([2, 0], dtype=wp.int32, device="cpu")
     action = SimpleNamespace(
         processed_actions=torch.ones((2, 2)),
-        _joint_ids=body_ids,
+        _joint_ids=joint_ids,
         _asset=SimpleNamespace(**{writer_name: writer}),
     )
 
     _method(file_key, class_name, "apply_actions")(action)
 
-    assert calls == [{"target": action.processed_actions, "joint_ids": body_ids}]
-    assert body_ids._torch_cache is None
+    assert calls == [{"target": action.processed_actions, "joint_ids": joint_ids}]
 
 
 @pytest.mark.parametrize(
@@ -109,10 +107,12 @@ def test_joint_action_writer_keeps_proxy_without_torch_materialization(
         ("limits", "EMAJointPositionToLimitsAction", "process_actions"),
     ),
 )
-def test_joint_action_torch_indexing_uses_explicit_proxy_view(file_key: str, class_name: str, method_name: str) -> None:
+def test_joint_action_torch_indexing_uses_stored_torch_selector(
+    file_key: str, class_name: str, method_name: str
+) -> None:
     class_node = _class_node(file_key, class_name)
     method = next(node for node in class_node.body if isinstance(node, ast.FunctionDef) and node.name == method_name)
     source = ast.get_source_segment(_ACTION_FILES[file_key].read_text(), method)
 
     assert "_joint_ids" in source
-    assert "_joint_ids.torch" in source
+    assert "_joint_ids.torch" not in source

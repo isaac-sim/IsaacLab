@@ -44,7 +44,6 @@ from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
-from isaaclab.utils.warp import ProxyArray
 
 from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
@@ -83,8 +82,6 @@ def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tenso
     kd = damping.torch.clone() if damping is not None else None
     for actuator in getattr(real_asset, "actuators", {}).values():
         joint_indices = actuator.joint_indices
-        if isinstance(joint_indices, ProxyArray):
-            joint_indices = joint_indices.torch
         if kp is not None:
             kp[:, joint_indices] = actuator.stiffness
         if kd is not None:

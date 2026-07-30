@@ -27,7 +27,6 @@ import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions
-from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets import DeformableObject
@@ -1293,8 +1292,6 @@ class randomize_actuator_gains(ManagerTermBase):
         for actuator in self.asset.actuators.values():
             if not isinstance(actuator, ImplicitActuator):
                 joint_ids = actuator.joint_indices
-                if isinstance(joint_ids, ProxyArray):
-                    joint_ids = joint_ids.torch
                 self.default_joint_stiffness[:, joint_ids] = actuator.stiffness
                 self.default_joint_damping[:, joint_ids] = actuator.damping
         # Same for explicit Newton actuators on either backend — their kp/kd
@@ -1343,8 +1340,6 @@ class randomize_actuator_gains(ManagerTermBase):
         # Loop through actuators and randomize gains
         for actuator in self.asset.actuators.values():
             actuator_joint_indices = actuator.joint_indices
-            if isinstance(actuator_joint_indices, ProxyArray):
-                actuator_joint_indices = actuator_joint_indices.torch
             if isinstance(self.asset_cfg.joint_ids, slice):
                 # we take all the joints of the actuator
                 actuator_indices = slice(None)

@@ -13,7 +13,6 @@ import torch
 
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
-from isaaclab.utils.warp import ProxyArray
 
 from .actuator_base import ActuatorBase
 
@@ -382,7 +381,7 @@ class RemotizedPDActuator(DelayedPDActuator):
         self,
         cfg: RemotizedPDActuatorCfg,
         joint_names: list[str],
-        joint_ids: slice | torch.Tensor | ProxyArray,
+        joint_ids: slice | torch.Tensor,
         num_envs: int,
         device: str,
         stiffness: torch.Tensor | float = 0.0,

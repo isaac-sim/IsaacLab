@@ -2654,8 +2654,8 @@ class BaseArticulation(AssetBase):
     Internal helpers -- Actuators.
     """
 
-    def _select_actuator_joint_ids(self, joint_ids: ProxyArray, joint_names: list[str]) -> slice | ProxyArray:
-        """Keep a partial actuator selector proxy or optimize a full ordered selection.
+    def _select_actuator_joint_ids(self, joint_ids: ProxyArray, joint_names: list[str]) -> slice | torch.Tensor:
+        """Select the Torch view for a partial actuator or optimize a full ordered selection.
 
         Args:
             joint_ids: Cached joint selector returned by :meth:`find_joints`.
@@ -2663,11 +2663,11 @@ class BaseArticulation(AssetBase):
 
         Returns:
             ``slice(None)`` when every joint is selected in public order, otherwise
-            the original cached selector.
+            the cached selector's Torch view.
         """
         if joint_names == self.joint_names:
             return slice(None)
-        return joint_ids
+        return joint_ids.torch
 
     @abstractmethod
     def _process_actuators_cfg(self) -> None:

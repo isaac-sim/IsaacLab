@@ -4207,7 +4207,7 @@ class Articulation(BaseArticulation):
 
         # Wrench scratch buffer (used by _apply_external_wrenches, not yet allocated above).
         # Joint-index arrays for each actuator (populated by _process_actuators_cfg).
-        self._joint_ids_per_actuator: dict[str, slice | ProxyArray] = {}
+        self._joint_ids_per_actuator: dict[str, slice | torch.Tensor] = {}
 
         # Pinned-host CPU staging for env ids/masks (PR #5329 pattern).
         self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
@@ -4419,7 +4419,7 @@ class Articulation(BaseArticulation):
                 logger.warning("Actuator '%s': no joints matched '%s'", name, act_cfg.joint_names_expr)
                 continue
             actuator_joint_ids = self._select_actuator_joint_ids(joint_ids, joint_names)
-            torch_joint_ids = actuator_joint_ids if isinstance(actuator_joint_ids, slice) else joint_ids.torch
+            torch_joint_ids = actuator_joint_ids
             act_cfg_copy = act_cfg.copy()
             # seed the actuator with the simulation's already-correct DOF defaults
             # (USD-authored ``physxJoint:maxJointVelocity`` etc. parsed at scene-load).
@@ -4475,7 +4475,7 @@ class Articulation(BaseArticulation):
         for name, act in self.actuators.items():
             joint_ids = self._joint_ids_per_actuator[name]
             all_joints = isinstance(joint_ids, slice)
-            torch_joint_ids = joint_ids if all_joints else joint_ids.torch
+            torch_joint_ids = joint_ids
 
             # Warp -> torch (zero-copy on same device via DLPack).
             jp_target_full = self._data.joint_pos_target.torch

@@ -9,7 +9,6 @@ import torch
 import warp as wp
 
 from isaaclab.actuators import ActuatorBase, ImplicitActuator
-from isaaclab.utils.warp import ProxyArray
 
 # ---------------------------------------------------------------------------
 # Adapter / per-actuator helper kernels: per-DOF zeroing, env-mask building,
@@ -234,7 +233,5 @@ def build_implicit_dof_mask(
         if isinstance(j_ids, slice) or j_ids is None:
             modes[:] = 1
         else:
-            if isinstance(j_ids, ProxyArray):
-                j_ids = j_ids.torch
             modes[j_ids.long()] = 1
     return wp.from_torch(modes, dtype=wp.int32), modes

@@ -4512,7 +4512,7 @@ class Articulation(BaseArticulation):
                 f" {actuator_cfg.joint_names_expr}."
             )
         joint_ids = self._select_actuator_joint_ids(joint_ids, joint_names)
-        torch_joint_ids = joint_ids if isinstance(joint_ids, slice) else joint_ids.torch
+        torch_joint_ids = joint_ids
 
         actuator: ActuatorBase = actuator_cfg.class_type(
             cfg=actuator_cfg,
@@ -4562,8 +4562,6 @@ class Articulation(BaseArticulation):
         j_ids = actuator.joint_indices
         if isinstance(j_ids, slice):
             j_ids = self._ALL_JOINT_INDICES
-        elif isinstance(j_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         for attr, buf in (
             (actuator.stiffness, self.data._joint_stiffness),
             (actuator.damping, self.data._joint_damping),
@@ -4625,11 +4623,7 @@ class Articulation(BaseArticulation):
         for actuator in self.actuators.values():
             # prepare input for actuator model based on cached data
             actuator_joint_indices = actuator.joint_indices
-            torch_joint_indices = (
-                actuator_joint_indices.torch
-                if isinstance(actuator_joint_indices, ProxyArray)
-                else actuator_joint_indices
-            )
+            torch_joint_indices = actuator_joint_indices
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
                 joint_positions=self._data.joint_pos_target.torch[:, torch_joint_indices],
@@ -4647,8 +4641,6 @@ class Articulation(BaseArticulation):
             joint_indices = actuator_joint_indices
             if isinstance(joint_indices, slice) or joint_indices is None:
                 joint_indices = self._ALL_JOINT_INDICES
-            elif isinstance(joint_indices, ProxyArray):
-                raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
             if hasattr(actuator, "gear_ratio"):
                 gear_ratio = actuator.gear_ratio
             else:

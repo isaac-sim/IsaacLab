@@ -62,10 +62,11 @@ class JointAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(
+        joint_ids, self._joint_names = self._asset.find_joints(
             self.cfg.joint_names, preserve_order=self.cfg.preserve_order, as_proxy=True
         )
-        self._num_joints = len(self._joint_ids)
+        self._num_joints = len(joint_ids)
+        self._joint_ids = joint_ids.torch
         # log the resolved joint names for debugging
         logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
@@ -192,8 +193,7 @@ class JointPositionAction(JointAction):
         super().__init__(cfg, env)
         # use default joint positions as offset
         if cfg.use_default_offset:
-            joint_ids = self._joint_ids if isinstance(self._joint_ids, slice) else self._joint_ids.torch
-            self._offset = self._asset.data.default_joint_pos.torch[:, joint_ids].clone()
+            self._offset = self._asset.data.default_joint_pos.torch[:, self._joint_ids].clone()
 
     def apply_actions(self):
         # set position targets
@@ -228,8 +228,7 @@ class RelativeJointPositionAction(JointAction):
 
     def apply_actions(self):
         # add current joint positions to the processed actions
-        joint_ids = self._joint_ids if isinstance(self._joint_ids, slice) else self._joint_ids.torch
-        current_actions = self.processed_actions + self._asset.data.joint_pos.torch[:, joint_ids]
+        current_actions = self.processed_actions + self._asset.data.joint_pos.torch[:, self._joint_ids]
         # set position targets
         self._asset.set_joint_position_target_index(target=current_actions, joint_ids=self._joint_ids)
 
@@ -245,8 +244,7 @@ class JointVelocityAction(JointAction):
         super().__init__(cfg, env)
         # use default joint velocity as offset
         if cfg.use_default_offset:
-            joint_ids = self._joint_ids if isinstance(self._joint_ids, slice) else self._joint_ids.torch
-            self._offset = self._asset.data.default_joint_vel.torch[:, joint_ids].clone()
+            self._offset = self._asset.data.default_joint_vel.torch[:, self._joint_ids].clone()
 
     def apply_actions(self):
         # set joint velocity targets

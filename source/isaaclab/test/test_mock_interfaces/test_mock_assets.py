@@ -223,8 +223,8 @@ def test_collection_find_objects_forwards_return_mode():
             assert torch.equal(indices, default_indices)
 
 
-def test_binary_joint_action_reuses_cached_proxy_without_torch_materialization():
-    """Test repeated action writes retain the cached finder proxy through the writer boundary."""
+def test_binary_joint_action_uses_cached_proxy_warp_view():
+    """Test repeated action writes use the cached finder's explicit Warp view."""
     robot = MockArticulation(
         num_instances=2,
         num_joints=3,
@@ -252,14 +252,14 @@ def test_binary_joint_action_reuses_cached_proxy_without_torch_materialization()
     action.apply_actions()
     action.apply_actions()
 
-    assert action._joint_ids is expected_selector
+    assert action._joint_ids is expected_selector.warp
     assert len(received_selectors) == 2
-    assert all(selector is expected_selector for selector in received_selectors)
+    assert all(selector is expected_selector.warp for selector in received_selectors)
     assert expected_selector._torch_cache is None
 
 
-def test_actuator_selector_keeps_partial_proxy_and_optimizes_full_order():
-    """Test the shared actuator branch keeps partial proxies and full ordered selections as a slice."""
+def test_actuator_selector_uses_torch_view_and_optimizes_full_order():
+    """Test the shared actuator branch uses Torch selectors and optimizes full ordered selections."""
     assert getattr(BaseArticulation._process_actuators_cfg, "__isabstractmethod__", False)
     assert not getattr(BaseArticulation._select_actuator_joint_ids, "__isabstractmethod__", False)
     robot = MockArticulation(
@@ -279,13 +279,12 @@ def test_actuator_selector_keeps_partial_proxy_and_optimizes_full_order():
     resolved_full = BaseArticulation._select_actuator_joint_ids(robot, full_ids, full_names)
 
     resolved_reordered = BaseArticulation._select_actuator_joint_ids(robot, reordered_ids, reordered_names)
-    assert resolved_partial is partial_ids
+    assert resolved_partial is partial_ids.torch
     assert resolved_full == slice(None)
-    assert partial_ids._torch_cache is None
-    assert resolved_reordered is reordered_ids
+    assert resolved_reordered is reordered_ids.torch
+    assert partial_ids._torch_cache is resolved_partial
     assert full_ids._torch_cache is None
-
-    assert reordered_ids._torch_cache is None
+    assert reordered_ids._torch_cache is resolved_reordered
 
 
 @pytest.mark.parametrize("constructor", [ActuatorBase.__init__, RemotizedPDActuator.__init__])
@@ -300,7 +299,7 @@ def test_actuator_constructor_accepts_exact_proxy_selector_annotation(constructo
     joint_ids_type = get_type_hints(constructor, globalns=type_globals)["joint_ids"]
     joint_ids_args = set(get_args(joint_ids_type))
 
-    assert joint_ids_args == {slice, torch.Tensor, ProxyArray}
+    assert joint_ids_args == {slice, torch.Tensor}
     assert object not in joint_ids_args
 
 
