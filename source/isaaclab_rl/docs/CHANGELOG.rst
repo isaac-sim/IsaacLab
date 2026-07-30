@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed reusable reinforcement learning entrypoints to restore caller Torch and
+  SKRL backend settings after in-process training and playback.
+
+
 0.10.0 (2026-07-29)
 ~~~~~~~~~~~~~~~~~~~
 

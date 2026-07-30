@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+8.1.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OvPhysX articulation Jacobians, mass matrices, and gravity compensation
+  through the backend-agnostic articulation data API.
+
+Changed
+^^^^^^^
+
+* Cached stable OvPhysX articulation read launches outside CUDA graph capture.
+  No user migration is required.
+
+
 8.1.0 (2026-07-29)
 ~~~~~~~~~~~~~~~~~~
 
