@@ -275,6 +275,8 @@ class RewardsCfg:
         weight=-2.0,
         params={"asset_cfg": _ACTUATED_JOINT_CFG},
     )
+    # Success metric (zero-weight, metric only): survived the full episode without falling/tilting.
+    success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
 @configclass
