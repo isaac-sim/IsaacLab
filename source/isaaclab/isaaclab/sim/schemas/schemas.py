@@ -1927,7 +1927,7 @@ def _fix_tet_winding_kernel(
         tet_indices[i, 3] = v2
 
 
-def define_deformable_curve_properties(prim_path: str, stage: Usd.Stage | None = None):
+def define_deformable_curve_properties(prim_path: str, stage: Usd.Stage | None = None) -> None:
     """Apply the deformable curve simulation schema.
 
     Args:

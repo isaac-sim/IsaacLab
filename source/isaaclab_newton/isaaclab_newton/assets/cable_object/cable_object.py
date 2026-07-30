@@ -44,7 +44,7 @@ class CableObject(BaseCableObject):
     __backend_name__: str = "newton"
     """The name of the backend for the cable object."""
 
-    def __init__(self, cfg: CableObjectCfg):
+    def __init__(self, cfg: CableObjectCfg) -> None:
         """Initialize the cable object.
 
         Args:

@@ -32,7 +32,7 @@ class BaseCableObject(AssetBase):
     __backend_name__: str = "base"
     """The name of the backend for the cable object."""
 
-    def __init__(self, cfg: CableObjectCfg):
+    def __init__(self, cfg: CableObjectCfg) -> None:
         """Initialize the cable object.
 
         Args:

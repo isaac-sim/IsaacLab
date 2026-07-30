@@ -11,7 +11,7 @@ from isaaclab.utils.warp import ProxyArray
 class BaseCableObjectData(ABC):
     """Abstract data container for cable segment state."""
 
-    def __init__(self, device: str):
+    def __init__(self, device: str) -> None:
         """Initialize the cable object data.
 
         Args:

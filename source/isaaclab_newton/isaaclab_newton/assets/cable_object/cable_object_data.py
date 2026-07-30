@@ -25,7 +25,7 @@ class CableObjectData(BaseCableObjectData):
     __backend_name__: str = "newton"
     """The name of the backend for the cable object data."""
 
-    def __init__(self, root_view: ArticulationView, device: str):
+    def __init__(self, root_view: ArticulationView, device: str) -> None:
         """Initialize the cable object data.
 
         Args:
