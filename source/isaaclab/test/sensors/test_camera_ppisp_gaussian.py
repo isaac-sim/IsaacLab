@@ -128,6 +128,7 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians(renderer_cfg_cls
             renderer_cfg=renderer_cfg_cls(),
             data_types=["rgb", "rgb_hdr"],
             sim_dt=SIM_DT,
+            stabilisation_steps=15,
             responsivity=ISAAC_RTX_RESPONSIVITY,
         )
     assert_ppisp_lifts_exposure(output["rgb_hdr"][0], output["rgb"][0], label="isaac_rtx")
