@@ -190,6 +190,21 @@ simulation loop.
 
 You can exercise this coupling path with the Franka soft-body lifting task:
 
+.. note::
+
+   This volume soft-body task requires automatic tetrahedralization. Install its
+   optional dependencies before running it:
+
+   .. code-block:: bash
+
+      uv sync --inexact --extra tetrahedralization
+
+   With the legacy installer:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 .. tab-set::
 
    .. tab-item:: uv (Recommended)
