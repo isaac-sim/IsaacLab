@@ -102,6 +102,17 @@ def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(tmp_path):
         assert rsl_rl_pins == [expected_pin]
 
 
+def test_wheel_builder_keeps_tetrahedralization_explicit(tmp_path):
+    """The generated wheel must expose PyTetWild only through its explicit extra."""
+    generated = _generate_wheel_pyproject(tmp_path)
+    project = generated["project"]
+    optional_dependencies = project["optional-dependencies"]
+
+    assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
+    assert optional_dependencies["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
+    assert not any(dep.startswith("pytetwild") for dep in optional_dependencies["all"])
+
+
 def test_wheel_builder_uv_overrides_match_root_pyproject(tmp_path):
     """The wheel resolver override file must mirror the root uv overrides exactly."""
     with (_repo_root() / "pyproject.toml").open("rb") as f:

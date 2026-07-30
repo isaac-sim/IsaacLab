@@ -50,11 +50,6 @@ dependencies = [
     "gymnasium>=1.2.0",
     "trimesh",
     "pyglet>=2.1.6,<3",
-    # pytetwild: keep the behavior-stable 0.2.3 pin on x86_64. 0.3.0 added manylinux
-    # aarch64 wheels; it imports pyvista at import time but only declares it in its
-    # [all] extra, so depend on that extra there.
-    "pytetwild==0.2.3 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
-    "pytetwild[all]>=0.3.0,<0.4 ; platform_machine == 'aarch64'",
     "transformers==4.57.6",
     "einops",
     "warp-lang==1.16.0.dev20260723",
@@ -108,6 +103,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Automatic surface-to-volume tetrahedralization. PyTetWild imports PyVista eagerly,
+# so its ``all`` extra is required even when only the array API is used.
+tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
+# Developer/test tooling.
 test = [
     "pytest",
     "pytest-mock",
@@ -180,7 +179,9 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-
+# Aggregate of the compatible extras. Omits teleop/ovphysx/viser, whose pins clash
+# with isaacsim (lxml, packaging<24, websockets); install those via their own extra.
+# Also omits tetrahedralization because its VTK dependency is large and narrowly used.
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf,mimic]",
 ]
