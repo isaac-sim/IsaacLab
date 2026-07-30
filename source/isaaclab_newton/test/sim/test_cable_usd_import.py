@@ -33,7 +33,7 @@ def _import_cable_joint_stiffness(**material_kwargs) -> list[float]:
 
 
 def test_newton_cable_shear_and_twist_fall_back_when_unset():
-    """Unset shear/twist must reuse stretch/bend, which is what makes the defaults backward compatible."""
+    """Test that unset shear/twist reuse the stretch/bend stiffness."""
     stiffness = _import_cable_joint_stiffness()
 
     assert stiffness[_SHEAR] == pytest.approx(stiffness[_STRETCH])
@@ -41,7 +41,7 @@ def test_newton_cable_shear_and_twist_fall_back_when_unset():
 
 
 def test_newton_cable_authored_shear_and_twist_override_fallbacks():
-    """Authoring the moduli must decouple shear from stretch and twist from bend."""
+    """Test that authored moduli decouple shear from stretch and twist from bend."""
     fallback = _import_cable_joint_stiffness()
     stiffness = _import_cable_joint_stiffness(shear_stiffness=9.0e9, twist_stiffness=7.0e7)
 
@@ -53,7 +53,7 @@ def test_newton_cable_authored_shear_and_twist_override_fallbacks():
 
 
 def test_newton_cable_partial_and_zero_shear_twist():
-    """Each modulus falls back independently, and an authored zero is not treated as unset."""
+    """Test that one authored modulus leaves the other's fallback intact and an authored zero is kept."""
     only_shear = _import_cable_joint_stiffness(shear_stiffness=9.0e9)
     assert only_shear[_SHEAR] > 100.0 * only_shear[_STRETCH]
     assert only_shear[_TWIST] == pytest.approx(only_shear[_BEND])
@@ -95,7 +95,7 @@ def test_newton_imports_cable_without_registry():
     assert cable_attrs["material"]["density"] == pytest.approx(material.density)
     assert cable_attrs["material"]["stretchStiffness"] == pytest.approx(material.stretch_stiffness)
     assert cable_attrs["material"]["bendStiffness"] == pytest.approx(material.bend_stiffness)
-    # Unset shear/twist are not authored, so Newton applies its stretch/bend fallbacks.
+    # Shear/twist are left unauthored when unset.
     assert "shearStiffness" not in cable_attrs["material"]
     assert "twistStiffness" not in cable_attrs["material"]
 

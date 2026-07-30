@@ -112,9 +112,7 @@ class NewtonVBDManager(NewtonManager):
         having Newton bind a surface mesh to volume deformable tetrahedral mesh
         in addition to removing the deformable_registry data structure.
         """
-        # Color the VBD graph once. The replicate path supplies an uncolored builder,
-        # colored here. The USD-import path leaves _builder None here, so this is skipped
-        # and super() colors it in instantiate_builder_from_stage. The guards are exclusive.
+        # Color replicated builders before model finalization.
         if cls._builder is not None:
             cls._builder.color()
         super().start_simulation()
