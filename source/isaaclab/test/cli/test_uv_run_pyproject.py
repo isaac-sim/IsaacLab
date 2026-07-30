@@ -54,6 +54,7 @@ def test_uv_run_exposes_centralized_feature_extras():
         "rsl-rl",
         "viser",
         "rerun",
+        "ov",
         "ovphysx",
         "ovrtx",
         "mimic",
@@ -66,14 +67,19 @@ def test_uv_run_exposes_centralized_feature_extras():
 
     # The Newton viewer GUI is part of the base install, so there is no ``newton`` extra.
     assert "newton" not in optional_dependencies
-    assert "ov" not in optional_dependencies
     assert "rtx" not in optional_dependencies
 
     # Concrete third-party deps live in the extras (not subpackage self-references).
-    # OVPhysX and OVRTX are separate extras, selectable via ``ov[ovphysx]`` / ``ov[ovrtx]``.
+    # ``ov`` installs both Omniverse backends; ``ovphysx`` / ``ovrtx`` select one.
+    # Every Omniverse extra carries ``ovstage``, which both backends need.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
+    assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
+    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ovphysx"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovphysx"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ovrtx"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
 def test_tetrahedralization_is_explicit_and_excluded_from_all():
