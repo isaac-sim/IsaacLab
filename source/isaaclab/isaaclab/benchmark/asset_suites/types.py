@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
 
-from ..method_benchmark import MethodBenchmarkRunnerConfig, TimedInputTransform
+from ..method_benchmark import MethodBenchmarkRunnerConfig, PrepareTarget, TimedInputTransform
 
 AssetComponent = Literal["articulation", "rigid_object", "rigid_object_collection"]
 AssetPhysicsFamily = Literal["physx", "newton", "ovphysx"]
@@ -32,6 +32,7 @@ class AssetMethodSpec:
     category: str
     requires: str | None = None
     timed_input_transforms: Mapping[str, TimedInputTransform] = field(default_factory=dict)
+    prepare_target: PrepareTarget | None = None
 
 
 @dataclass(frozen=True)

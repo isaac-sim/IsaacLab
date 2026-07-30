@@ -44,6 +44,7 @@ def resolve_method_benchmarks(
                 input_generators=generators,
                 category=spec.category,
                 timed_input_transforms=spec.timed_input_transforms,
+                prepare_target=spec.prepare_target,
             )
         )
     return definitions
