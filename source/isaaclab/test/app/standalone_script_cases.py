@@ -165,6 +165,11 @@ OVERRIDES = {
         fixed_physics_backend="newton_mpm",
     ),
     "scripts/demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
+    "scripts/demos/newton_viewer_dragging.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        fixed_physics_backend="newton_mjwarp",
+        visualizers=("newton",),
+    ),
     "scripts/demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
     "scripts/demos/sensors/multi_mesh_raycaster.py": ScriptOverride(
         args=("--flat_ground",),

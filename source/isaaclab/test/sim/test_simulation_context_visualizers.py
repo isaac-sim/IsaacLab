@@ -33,17 +33,9 @@ def test_web_visualizer_cfgs_do_not_open_browser_by_default():
 class _FakePhysicsManager:
     def __init__(self):
         self.forward_calls = 0
-        self.wait_for_playing_calls = 0
-        self.step_calls = 0
 
     def forward(self):
         self.forward_calls += 1
-
-    def wait_for_playing(self):
-        self.wait_for_playing_calls += 1
-
-    def step(self):
-        self.step_calls += 1
 
 
 class _FakeProvider:
@@ -88,7 +80,6 @@ class _FakeVisualizer:
         self._requires_forward = requires_forward
         self._pumps_app_update = pumps_app_update
         self.step_calls = []
-        self.should_step_calls = 0
         self.close_calls = 0
 
     @property
@@ -100,10 +91,6 @@ class _FakeVisualizer:
 
     def is_rendering_paused(self):
         return self._rendering_paused
-
-    def should_step(self):
-        self.should_step_calls += 1
-        return not self.is_training_paused()
 
     def is_training_paused(self):
         if self._training_paused_steps > 0:
@@ -141,7 +128,6 @@ def _make_context(visualizers, provider=None):
     ctx._visualizers = list(visualizers)
     ctx._scene_data_provider = provider
     ctx.physics_manager = _FakePhysicsManager()
-    ctx._physics_step_count = 0
     return ctx
 
 
@@ -200,58 +186,43 @@ def test_update_visualizers_skips_zero_dt_for_paused_app_pumping_visualizer():
     assert paused_app_pumping_viz.step_calls == []
 
 
-def test_step_pumps_paused_visualizer_before_physics():
+def test_update_visualizers_handles_training_pause_loop():
+    provider = _FakeProvider()
     viz = _FakeVisualizer(training_paused_steps=1)
-    ctx = _make_context([viz])
+    ctx = _make_context([viz], provider=provider)
 
-    ctx.step(render=False)
+    ctx.update_visualizers(0.2)
 
-    assert viz.step_calls == [0.0]
-    assert viz.should_step_calls == 2
-    assert ctx.physics_manager.wait_for_playing_calls == 1
-    assert ctx.physics_manager.step_calls == 1
-    assert ctx._physics_step_count == 1
-
-
-def test_step_leaves_app_backed_visualizer_to_physics_timeline_gate():
-    app_backed = _FakeVisualizer(pumps_app_update=True, training_paused_steps=100)
-    ctx = _make_context([app_backed])
-
-    ctx.step(render=False)
-
-    assert app_backed.should_step_calls == 0
-    assert app_backed.step_calls == []
-    assert ctx.physics_manager.step_calls == 1
-    assert ctx._physics_step_count == 1
+    assert viz.step_calls == [0.0, 0.2]
 
 
 def test_newton_mjwarp_visualizer_is_initialized_and_rebound_before_capture():
-    ctx = object.__new__(SimulationContext)
-    ctx._visualizers = []
-    ctx._pre_capture_visualizers = set()
-    viz = _FakeVisualizer()
-    viz.cfg = type("Cfg", (), {"visualizer_type": "newton"})()
+    created = []
     reset_calls = []
-    initialize_calls = []
-    viz.reset = lambda soft: reset_calls.append(soft)
 
-    def initialize_visualizers(only_types=None):
-        initialize_calls.append(only_types)
-        ctx._visualizers.append(viz)
+    class _Cfg:
+        def __init__(self, visualizer_type, enable_picking=False):
+            self.visualizer_type = visualizer_type
+            self.enable_picking = enable_picking
+            self.headless = False
 
-    ctx.initialize_visualizers = initialize_visualizers
+        def create_visualizer(self):
+            viz = _FakeVisualizer()
+            viz.cfg = self
+            viz.initialize = lambda _provider: created.append(self.visualizer_type)
+            viz.reset = lambda soft: reset_calls.append((self.visualizer_type, soft))
+            return viz
 
+    ctx = _make_context_with_settings({}, visualizer_cfgs=[_Cfg("newton", True), _Cfg("rerun")])
+    ctx._prepare_newton_mjwarp_visualizer_for_capture()
+    assert created == ["newton"]
+
+    ctx.initialize_visualizers()
     ctx._prepare_newton_mjwarp_visualizer_for_capture()
 
-    assert initialize_calls == [{"newton"}]
-    assert ctx._visualizers == [viz]
-    assert ctx._pre_capture_visualizers == {viz}
-
-    ctx._pre_capture_visualizers.clear()
-    ctx._prepare_newton_mjwarp_visualizer_for_capture()
-
-    assert reset_calls == [False]
-    assert ctx._pre_capture_visualizers == {viz}
+    assert created == ["newton", "rerun"]
+    assert len(ctx._visualizers) == 2
+    assert reset_calls == [("newton", False), ("newton", False)]
 
 
 def test_reset_initializes_visualizers_before_playing_timeline():
@@ -259,7 +230,7 @@ def test_reset_initializes_visualizers_before_playing_timeline():
     events: list[str] = []
     ctx = object.__new__(SimulationContext)
     ctx._visualizers = []
-    ctx._pre_capture_visualizers = set()
+    ctx._visualizers_fully_initialized = False
 
     class _PhysicsManager:
         @staticmethod
@@ -749,6 +720,9 @@ def _make_context_with_settings(
     ctx._pending_camera_view = None
     ctx._render_generation = 0
     ctx._visualizers = []
+    ctx._visualizer_cfg_cache = None
+    ctx._initialized_visualizer_cfg_indices = set()
+    ctx._visualizers_fully_initialized = False
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
     ctx._clone_plan = None

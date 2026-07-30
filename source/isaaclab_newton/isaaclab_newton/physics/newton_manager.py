@@ -2014,8 +2014,6 @@ class NewtonManager(PhysicsManager):
             cfg = PhysicsManager._cfg
             need_copy_on_last = cfg is not None and cls._num_substeps % 2 == 1
             for i in range(cls._num_substeps):
-                for callback in cls._state_force_callbacks:
-                    callback(cls._state_0)
                 cls._step_solver(cls._state_0, cls._state_1, cls._control, contacts, cls._solver_dt)
                 if need_copy_on_last and i == cls._num_substeps - 1:
                     cls._state_0.assign(cls._state_1)
@@ -2531,9 +2529,8 @@ class NewtonManager(PhysicsManager):
     def register_state_force_callback(cls, callback: Callable[[State], None]) -> None:
         """Register a graph-safe callback that applies forces before every solver substep.
 
-        Callbacks registered before solver initialization are included in the
-        existing CUDA graph capture. Late registration falls back to eager
-        execution for safety.
+        Callbacks must be registered before solver initialization so they are
+        included in CUDA graph capture.
 
         Args:
             callback: Function that adds forces [N, N·m] to the provided state.
@@ -2541,11 +2538,6 @@ class NewtonManager(PhysicsManager):
         if callback in NewtonManager._state_force_callbacks:
             return
         NewtonManager._state_force_callbacks.append(callback)
-        if NewtonManager._graph is None:
-            return
-        NewtonManager._graph = None
-        NewtonManager._graph_capture_pending = False
-        logger.info("%s switched to eager execution after a late state-force callback", cls.__name__)
 
     @classmethod
     def register_post_step_callback(cls, callback: Callable[[], None]) -> None:

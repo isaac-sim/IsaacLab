@@ -880,72 +880,33 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
         assert calls["n"] == 1 + expected_mid_loop_collides
 
 
-@pytest.mark.parametrize(
-    "use_single_state, expected_events",
-    [
-        (True, [("force", "state_0"), ("step", "state_0", "state_0")] * 2),
-        (
-            False,
-            [
-                ("force", "state_0"),
-                ("step", "state_0", "state_1"),
-                ("force", "state_1"),
-                ("step", "state_1", "state_0"),
-            ],
-        ),
-    ],
-)
-def test_state_force_callback_runs_before_every_solver_substep(monkeypatch, use_single_state, expected_events):
-    """Viewer forces are applied to the current state before every solver substep."""
+def test_state_force_callback_runs_before_every_mjwarp_substep(monkeypatch):
+    """Viewer forces are applied before every in-place MJWarp solver substep."""
     events = []
 
     class _State:
-        def __init__(self, name):
-            self.name = name
-
         def clear_forces(self):
             pass
 
-    state_0 = _State("state_0")
-    state_1 = _State("state_1")
+    state = _State()
 
-    monkeypatch.setattr(NewtonManager, "_state_0", state_0)
-    monkeypatch.setattr(NewtonManager, "_state_1", state_1)
+    monkeypatch.setattr(NewtonManager, "_state_0", state)
     monkeypatch.setattr(NewtonManager, "_control", object())
     monkeypatch.setattr(NewtonManager, "_solver_dt", 0.001)
     monkeypatch.setattr(NewtonManager, "_num_substeps", 2)
     monkeypatch.setattr(NewtonManager, "_collision_decimation", 0)
     monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False)
-    monkeypatch.setattr(NewtonManager, "_use_single_state", use_single_state)
-    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [lambda state: events.append(("force", state.name))])
+    monkeypatch.setattr(NewtonManager, "_use_single_state", True)
+    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [lambda _state: events.append("force")])
     monkeypatch.setattr(
         NewtonManager,
         "_step_solver",
-        staticmethod(
-            lambda input_state, output_state, _control, _contacts, _dt: events.append(
-                ("step", input_state.name, output_state.name)
-            )
-        ),
+        staticmethod(lambda *_args: events.append("step")),
     )
 
     NewtonManager._run_solver_substeps(contacts=None)
 
-    assert events == expected_events
-
-
-def test_late_state_force_callback_drops_captured_graph(monkeypatch):
-    def callback(_state):
-        pass
-
-    monkeypatch.setattr(NewtonManager, "_graph", object())
-    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", False)
-    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [])
-
-    NewtonManager.register_state_force_callback(callback)
-
-    assert NewtonManager._state_force_callbacks == [callback]
-    assert NewtonManager._graph is None
-    assert NewtonManager._graph_capture_pending is False
+    assert events == ["force", "step", "force", "step"]
 
 
 # ---------------------------------------------------------------------------

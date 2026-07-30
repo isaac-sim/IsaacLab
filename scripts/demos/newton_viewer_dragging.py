@@ -3,22 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Exercise Newton viewer dragging, pause, and single-step controls.
+"""Exercise Newton MJWarp rigid-body dragging.
 
 The scene uses only the Newton MJWarp rigid-body solver and contains three
-dynamic cubes. Right-click and drag any cube to apply a force, press ``Space``
-to pause or resume physics, and press ``.`` to advance one physics step.
+dynamic cubes. Right-click and drag any cube to apply an interactive force.
 
 .. code-block:: bash
 
-    uv run python scripts/demos/newton_viewer_controls.py
+    uv run python scripts/demos/newton_viewer_dragging.py
 """
 
 import argparse
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
-parser = argparse.ArgumentParser(description="Newton viewer controls with three draggable MJWarp cubes.")
+parser = argparse.ArgumentParser(description="Newton viewer dragging with three dynamic MJWarp cubes.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton"])
@@ -47,7 +46,7 @@ def cube_cfg(name: str, position: tuple[float, float, float]) -> RigidObjectCfg:
 
 
 @configclass
-class ViewerControlsSceneCfg(InteractiveSceneCfg):
+class ViewerDraggingSceneCfg(InteractiveSceneCfg):
     """Ground plane and three dynamic MJWarp cubes."""
 
     ground = AssetBaseCfg(
@@ -71,15 +70,15 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
 
 
 def main() -> None:
-    """Launch the MJWarp viewer-controls demo."""
+    """Launch the MJWarp viewer-dragging demo."""
     physics_cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg())
     with launch_simulation(cfg=physics_cfg, launcher_args=args_cli) as resolved_physics_cfg:
         sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 100.0, device=args_cli.device, physics=resolved_physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(3.0, -4.0, 2.5), target=(0.0, 0.0, 0.5))
-        scene = InteractiveScene(ViewerControlsSceneCfg(num_envs=1, env_spacing=1.0))
+        scene = InteractiveScene(ViewerDraggingSceneCfg(num_envs=1, env_spacing=1.0))
         sim.reset()
-        print("[INFO]: Right-click and drag any cube. Space pauses; '.' advances one step.", flush=True)
+        print("[INFO]: Setup complete. Right-click and drag any cube.", flush=True)
         run_simulator(sim, scene)
 
 

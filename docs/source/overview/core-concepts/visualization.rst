@@ -113,21 +113,6 @@ To run in headless mode, omit the ``--viz`` argument:
 
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
 
-Newton MJWarp Object Interaction
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-With the Newton MJWarp solver, right-click and drag a dynamic rigid body in the
-Newton visualizer to apply an interactive force. Static and kinematic bodies
-are not moved. Set
-:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.enable_picking` to
-``False`` to disable this interaction. Picking is also disabled in headless
-viewers and with other physics solvers.
-
-Newton's native ``Pause`` and ``Step`` controls pause physics and advance it by
-one step, respectively. The equivalent keyboard shortcuts are ``Space`` and
-``.``. ``Pause Rendering`` only freezes viewer rendering.
-
-
 .. _visualization-configuration:
 
 Configuration
@@ -469,6 +454,7 @@ Newton Visualizer
 
 - Lightweight OpenGL rendering with low overhead
 - Simulation and rendering pause controls
+- Right-click rigid-body dragging with the Newton MJWarp solver
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 - Visualization markers (joints, contacts, springs, COM, debug markers)
@@ -489,6 +475,8 @@ Newton Visualizer
      - Down / Up
    * - **Left Click + Drag**
      - Look around
+   * - **Right Click + Drag**
+     - Apply an interactive force to a dynamic rigid body (Newton MJWarp only)
    * - **Mouse Scroll**
      - Zoom in/out
    * - **H**
@@ -530,6 +518,7 @@ Newton Visualizer
         show_contacts=False,                      # Show contact points and normals
         show_springs=False,                       # Show spring constraints
         show_com=False,                           # Show center of mass markers
+        enable_picking=True,                      # Enable MJWarp rigid-body dragging
 
         # Rendering options
         enable_shadows=True,                      # Enable shadow rendering
@@ -541,6 +530,12 @@ Newton Visualizer
         ground_color=(0.18, 0.20, 0.25),         # Ground plane color (RGB [0,1])
         light_color=(1.0, 1.0, 1.0),             # Directional light color (RGB [0,1])
     )
+
+.. note::
+
+   Object dragging requires an interactive Newton visualizer with the Newton
+   MJWarp solver. Static and kinematic bodies are not moved, and picking is
+   disabled automatically in headless viewers and with other physics solvers.
 
 
 Rerun Visualizer

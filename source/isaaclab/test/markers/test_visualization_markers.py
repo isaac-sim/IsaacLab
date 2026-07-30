@@ -281,9 +281,6 @@ def test_newton_visualizer_step_renders_markers(monkeypatch: pytest.MonkeyPatch)
         def is_paused(self):
             return False
 
-        def is_rendering_paused(self):
-            return False
-
         def is_running(self):
             return True
 

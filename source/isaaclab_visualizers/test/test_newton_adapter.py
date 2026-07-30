@@ -111,11 +111,13 @@ def test_apply_viewer_visible_worlds_delegates_to_resolved():
     assert calls[-1] is None
 
 
-def test_newton_visualizer_cfg_exposes_particle_options():
+def test_newton_visualizer_cfg_exposes_viewer_options():
     cfg = NewtonVisualizerCfg(show_particles=True, particle_color=(0.1, 0.2, 0.3))
 
     assert cfg.show_particles is True
     assert cfg.particle_color == (0.1, 0.2, 0.3)
+    assert cfg.enable_picking is True
+    assert NewtonVisualizerCfg(enable_picking=False).enable_picking is False
 
 
 def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
@@ -363,9 +365,6 @@ class _Viewer:
     def is_paused(self):
         return False
 
-    def is_rendering_paused(self):
-        return False
-
     def is_running(self):
         return True
 
@@ -382,9 +381,6 @@ class _Viewer:
         self.logged_arrows = (name, starts, ends, colors)
 
     def end_frame(self):
-        pass
-
-    def close(self):
         pass
 
 
@@ -421,83 +417,34 @@ def _make_newton_visualizer(viewer, scene_data_provider=None):
     visualizer._viewer = viewer
     visualizer._scene_data_provider = scene_data_provider
     if viewer is not None:
-        visualizer._viewer_force_binding.bind(viewer)
+        visualizer._viewer_picking_binding.bind(viewer)
     visualizer._log_camera_sensor_image = lambda: None
     return visualizer
 
 
-def test_newton_viewer_model_swap_restores_only_cleared_ui_callbacks(monkeypatch):
-    from newton.viewer import ViewerGL
-
-    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
-    viewer.model = object()
-    registered_positions = []
-    monkeypatch.setattr(ViewerGL, "set_model", lambda self, model: setattr(self, "model", model))
-    monkeypatch.setattr(
-        viewer,
-        "register_ui_callback",
-        lambda _callback, *, position: registered_positions.append(position),
-    )
-
-    viewer.set_model(object())
-
-    assert registered_positions == ["side"]
-
-
-def test_newton_viewer_controls_use_native_pause_and_step_state():
-    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
-    viewer._paused = False
-    viewer._step_requested = False
-    viewer._paused_rendering = False
-    viewer._update_frequency = 1
-    imgui = SimpleNamespace(
-        checkbox=lambda *_args: (True, True),
-        same_line=lambda: None,
-        begin_disabled=lambda _disabled: None,
-        end_disabled=lambda: None,
-        button=lambda label: label == "Step",
-        text=lambda _text: None,
-        slider_int=lambda _label, value, *_args: (False, value),
-        is_item_hovered=lambda: False,
-    )
-
-    viewer._render_training_controls(imgui)
-
-    assert viewer._paused is True
-    assert viewer._step_requested is True
-    assert viewer._paused_rendering is False
-
-
-def test_newton_visualizer_close_neutralizes_forces_without_invalidating_graph(monkeypatch):
-    from isaaclab_newton.physics import NewtonManager
-
+def test_newton_visualizer_forwards_and_neutralizes_picking():
     viewer = _Viewer()
     viewer.picking_enabled = True
     viewer.picking = SimpleNamespace(release=Mock())
-    viewer.wind = SimpleNamespace(amplitude=3.0, update=Mock())
+    viewer.apply_picking_force = Mock()
     visualizer = _make_newton_visualizer(viewer)
-    visualizer._state_force_callback_registered = True
-    graph = object()
-    callback = visualizer._viewer_force_binding.apply
-    monkeypatch.setattr(NewtonManager, "_graph", graph)
-    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [callback])
+    visualizer._picking_enabled = True
+    callback = visualizer._viewer_picking_binding.apply
+
+    state = object()
+    callback(state)
+    viewer.apply_picking_force.assert_called_once_with(state)
 
     visualizer.close()
 
-    assert NewtonManager._graph is graph
-    assert NewtonManager._state_force_callbacks == [callback]
     assert viewer.picking_enabled is False
     viewer.picking.release.assert_called_once_with()
-    assert viewer.wind.amplitude == 0.0
-    viewer.wind.update.assert_called_once_with(0.0)
     assert visualizer._viewer is None
-    assert visualizer._viewer_force_binding._viewer is None
-    assert visualizer._viewer_force_binding._retained_force_helpers == (viewer.picking, viewer.wind)
+    assert visualizer._viewer_picking_binding._viewer is None
+    assert visualizer._viewer_picking_binding._retained_picking is viewer.picking
 
-    # Once the graph is gone, the next eager callback releases its retained helpers.
-    NewtonManager._graph = None
     callback(object())
-    assert visualizer._viewer_force_binding._retained_force_helpers == ()
+    assert visualizer._viewer_picking_binding._retained_picking is None
 
 
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
@@ -513,25 +460,27 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
     viewer = _Viewer()
     viewer.picking_enabled = False
     viewer.set_model = Mock()
+    viewer._register_isaaclab_ui_callbacks = Mock()
     viewer.set_visible_worlds = Mock()
     viewer.set_world_offsets = Mock()
     visualizer = _make_newton_visualizer(viewer)
     visualizer._resolved_visible_env_ids = [1, 3]
     visualizer._picking_enabled = True
-    visualizer._state_force_callback_registered = True
-    visualizer._viewer_force_binding._retained_force_helpers = (object(),)
     visualizer.cfg.world_spacing = (2.0, 0.0, 0.0)
+    visualizer.cfg.show_contacts = True
 
+    visualizer.reset(soft=False)
     visualizer.reset(soft=False)
 
     assert visualizer._model is new_model
     assert visualizer._state is new_state
     viewer.set_model.assert_called_once_with(new_model)
+    viewer._register_isaaclab_ui_callbacks.assert_called_once_with()
     viewer.set_visible_worlds.assert_called_once_with([1, 3])
     viewer.set_world_offsets.assert_called_once_with((2.0, 0.0, 0.0))
+    assert viewer.show_contacts is True
     assert viewer.picking_enabled is True
-    assert visualizer._viewer_force_binding._viewer is viewer
-    assert visualizer._viewer_force_binding._retained_force_helpers == ()
+    assert visualizer._viewer_picking_binding._viewer is viewer
 
 
 def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
