@@ -40,9 +40,6 @@ _DESCRIPTIONS: dict[str, str] = {
 
 _SEED = 42
 
-# the simple agents only sanity-check a task, so they keep the scene small regardless of the task default
-_DEFAULT_NUM_ENVS = 4
-
 
 def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     """Run an Isaac Lab environment with a checkpoint-free policy.
@@ -66,7 +63,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
 
     with launch_simulation(env_cfg, args_cli):
         # override with CLI arguments
-        env_cfg.scene.num_envs = args_cli.num_envs
+        env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
         env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
         if args_cli.disable_fabric:
             env_cfg.sim.use_fabric = False
@@ -80,15 +77,15 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         # reset environment
         env.reset()
         # simulate environment
-        # keep running while any visualizer is open
+        # keep running while any visualizer is open, and until the step budget is exhausted
         sim = env.unwrapped.sim
         device = env.unwrapped.device
         zero_actions = torch.zeros(env.action_space.shape, device=device)
-        while True:
-            if sim.visualizers:
-                # visualizer mode: run until the visualizer window is closed
-                if not any(v.is_running() and not v.is_closed for v in sim.visualizers):
-                    break
+        step = 0
+        while sim.is_headless_or_exist_active_visualizer():
+            if args_cli.max_steps is not None and step >= args_cli.max_steps:
+                break
+            step += 1
             # run everything in inference mode
             with torch.inference_mode():
                 if policy == "zero":
@@ -108,8 +105,11 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     parser.add_argument(
         "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
     )
-    parser.add_argument("--num_envs", type=int, default=_DEFAULT_NUM_ENVS, help="Number of environments to simulate.")
+    parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+    parser.add_argument(
+        "--max_steps", type=int, default=None, help="Number of environment steps to run. Runs unbounded when omitted."
+    )
     # append AppLauncher cli args
     add_launcher_args(parser)
     # simple agents should open Kit visualizer by default

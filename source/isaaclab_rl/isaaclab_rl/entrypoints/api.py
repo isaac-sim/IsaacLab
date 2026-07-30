@@ -83,14 +83,16 @@ class SimpleAgentRequest:
 
     Args:
         task: Registered Gym task identifier.
-        num_envs: Number of environments to simulate. Defaults to 4 when omitted.
+        num_envs: Number of environments to simulate.
         device: Simulation device identifier.
+        max_steps: Number of environment steps to run. Runs unbounded when omitted.
         hydra_args: Hydra overrides and typed preset selectors.
     """
 
     task: str
     num_envs: int | None = None
     device: str | None = None
+    max_steps: int | None = None
     hydra_args: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -174,6 +176,7 @@ def _simple_agent_argv(request: SimpleAgentRequest) -> list[str]:
     argv = ["--task", request.task]
     _append_value(argv, "--num_envs", request.num_envs)
     _append_value(argv, "--device", request.device)
+    _append_value(argv, "--max_steps", request.max_steps)
     return argv + list(request.hydra_args)
 
 
