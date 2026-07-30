@@ -585,6 +585,40 @@ def test_shadow_deformable_volume_remap_registers_ovrtx_with_vis_mesh(monkeypatc
     assert registry_groups[0].particles_per_body == 1
 
 
+def test_shadow_deformable_vis_offsets_account_for_existing_builder_particles():
+    """Render offsets must start after particles already present in the builder."""
+    from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
+
+    from pxr import Gf, Sdf, Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    cloth = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/Cloth")
+    api_schemas = Sdf.TokenListOp()
+    api_schemas.explicitItems = ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsSurfaceDeformableSimAPI"]
+    cloth.GetPrim().SetMetadata("apiSchemas", api_schemas)
+    cloth.CreatePointsAttr([Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)])
+    cloth.CreateFaceVertexCountsAttr([3])
+    cloth.CreateFaceVertexIndicesAttr([0, 1, 2])
+
+    class _FakeBuilder:
+        particle_count = 10
+
+        def add_cloth_mesh(self, **kwargs):
+            self.particle_count += 3
+
+        def add_soft_mesh(self, **kwargs):
+            raise AssertionError("surface cloth should not call add_soft_mesh")
+
+    flat_entities, registry_groups = add_shadow_deformables_to_builder(
+        _FakeBuilder(), stage, [(0, "/World/envs/env_0")]
+    )
+
+    assert len(flat_entities) == 1
+    assert flat_entities[0].vis_particle_offset == 10
+    assert flat_entities[0].vis_particle_count == 3
+    assert registry_groups[0].particle_offsets == [10]
+
+
 def test_standalone_visualization_builder_populates_shadow_deformable_metadata(monkeypatch):
     """Scenes without a clone plan still register shadow deformables for OVRTX."""
     from isaaclab_newton.physics import visualization_builder as vb

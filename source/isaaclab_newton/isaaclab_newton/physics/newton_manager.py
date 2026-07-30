@@ -997,6 +997,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._scene_data_points = None
         NewtonManager._scene_data_geometry_mapping = None
         NewtonManager._shadow_deformable_entities = None
+        NewtonManager._sim_particle_q = None
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}

@@ -10,7 +10,6 @@ Changed
 ^^^^^^^
 
 * Changed :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`
-  to sync transforms and points with ``allow_passthrough=False`` so shadow
-  ``body_q`` / ``particle_q`` buffers stay bound for ``get_state()`` consumers.
-  Callers that relied on passthrough aliasing must pass ``allow_passthrough=True``
-  explicitly.
+  to always copy SceneData transforms and points into the bound shadow
+  ``body_q`` / ``particle_q`` buffers instead of aliasing backend arrays, so
+  ``get_state()`` consumers keep stable buffer identities across syncs.
