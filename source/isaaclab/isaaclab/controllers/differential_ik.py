@@ -14,9 +14,6 @@ from isaaclab.utils.math import apply_delta_pose, compute_pose_error
 if TYPE_CHECKING:
     from .differential_ik_cfg import DifferentialIKControllerCfg
 
-_MIN_QUAT_NORM = 1e-6
-"""Smallest norm [dimensionless] a commanded quaternion may have before it is treated as degenerate."""
-
 
 class DifferentialIKController:
     r"""Differential inverse kinematics (IK) controller.
@@ -124,12 +121,20 @@ class DifferentialIKController:
         It is up to the user to ensure that the command is given in the correct frame. The method only
         applies the relative mode if the command type is ``position_rel`` or ``pose_rel``.
 
+        For absolute ``pose`` commands the commanded quaternion is renormalized, so a slightly
+        non-unit quaternion is accepted. A *degenerate* quaternion -- one that cannot be normalized
+        to a finite value, i.e. a zero quaternion or one whose norm underflows to zero -- would
+        otherwise yield NaN, so those entries fall back per-environment to :attr:`ee_quat` (holding
+        the current orientation), or to identity when :attr:`ee_quat` is not provided.
+
         Args:
             command: The input command in shape (N, 3) or (N, 6) or (N, 7).
             ee_pos: The current end-effector position in shape (N, 3).
                 This is only needed if the command type is ``position_rel`` or ``pose_rel``.
             ee_quat: The current end-effector orientation (x, y, z, w) in shape (N, 4).
-                This is only needed if the command type is ``position_*`` or ``pose_rel``.
+                This is needed if the command type is ``position_*`` or ``pose_rel``. For absolute
+                ``pose`` commands it is optional and used only as the fallback orientation for a
+                degenerate commanded quaternion (see above).
 
         Raises:
             ValueError: If the command type is ``position_*`` and :attr:`ee_quat` is None.
@@ -169,11 +174,14 @@ class DifferentialIKController:
                 # unrelated solver failure. Hold the current end-effector orientation instead
                 # (identity when no current orientation was supplied) for those environments.
                 quat = self._command[:, 3:7]
-                quat_norm = torch.linalg.norm(quat, dim=-1, keepdim=True)
+                normalized_quat = quat / torch.linalg.norm(quat, dim=-1, keepdim=True)
+                # Degeneracy is decided by whether the normalization produced a finite result, not by
+                # a magnitude threshold: a zero-norm quaternion gives 0/0, and a norm that underflows
+                # to zero gives Inf. Any quaternion that normalizes cleanly keeps its previous
+                # meaning, however small its norm (e.g. ``[0, 0, 0, 1e-7]`` is still identity).
+                is_valid = torch.isfinite(normalized_quat).all(dim=-1, keepdim=True)
                 fallback_quat = self._identity_quat if ee_quat is None else ee_quat
-                self.ee_quat_des = torch.where(
-                    quat_norm > _MIN_QUAT_NORM, quat / quat_norm.clamp(min=_MIN_QUAT_NORM), fallback_quat
-                )
+                self.ee_quat_des = torch.where(is_valid, normalized_quat, fallback_quat)
 
     def set_joint_pos_limits(self, lower: torch.Tensor, upper: torch.Tensor) -> None:
         """Provide the controlled joints' position limits for null-space joint-limit avoidance.

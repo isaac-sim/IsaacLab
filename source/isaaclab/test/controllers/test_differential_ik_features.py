@@ -102,6 +102,32 @@ def test_set_command_zero_quat_holds_current_orientation():
     torch.testing.assert_close(c.ee_quat_des, ee_quat, atol=1e-6, rtol=0.0)
 
 
+@pytest.mark.parametrize("scale", [1e-7, 1e-20])
+def test_set_command_tiny_nonzero_quat_is_still_normalized(scale):
+    """A tiny but normalizable quaternion keeps its meaning instead of taking the fallback.
+
+    Degeneracy is decided by whether the normalization yields a finite result, not by a magnitude
+    threshold, so commands that normalized cleanly before are unaffected.
+    """
+    c = _make_controller()
+    ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
+    ee_quat = torch.tensor([_quat_xyzw([1.0, 0.0, 0.0], 0.5)])  # a fallback that is NOT identity
+    cmd = torch.cat([ee_pos, torch.tensor([[0.0, 0.0, 0.0, scale]])], dim=-1)  # scaled identity
+    c.set_command(cmd, ee_pos, ee_quat)
+    torch.testing.assert_close(c.ee_quat_des, torch.tensor([_ID_QUAT]), atol=1e-5, rtol=0.0)
+
+
+def test_set_command_underflowing_quat_norm_takes_fallback():
+    """A quaternion whose norm underflows to zero cannot be normalized, so it takes the fallback."""
+    c = _make_controller()
+    ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
+    ee_quat = torch.tensor([_quat_xyzw([1.0, 0.0, 0.0], 0.5)])
+    cmd = torch.cat([ee_pos, torch.tensor([[0.0, 0.0, 0.0, 1e-38]])], dim=-1)
+    c.set_command(cmd, ee_pos, ee_quat)
+    assert torch.isfinite(c.ee_quat_des).all()
+    torch.testing.assert_close(c.ee_quat_des, ee_quat, atol=1e-6, rtol=0.0)
+
+
 def test_set_command_zero_quat_without_current_orientation_is_identity():
     """Without a current orientation to hold, a zero-norm command falls back to identity."""
     c = _make_controller()
