@@ -11,8 +11,8 @@ import os
 import pytest
 import torch
 
-from isaaclab.test.benchmark import builders
-from isaaclab.test.benchmark.schema import (
+from isaaclab.benchmark import builders
+from isaaclab.benchmark.schema import (
     SCHEMA_VERSION,
     GpuDeviceInfo,
     Hardware,
@@ -25,7 +25,7 @@ from isaaclab.test.benchmark.schema import (
     StartupTime,
     Versions,
 )
-from isaaclab.test.benchmark.serialize import write_bundle_file
+from isaaclab.benchmark.serialize import write_bundle_file
 
 
 def _versions() -> Versions:
@@ -174,7 +174,7 @@ class _PlayEnv:
 
 def test_run_play_loop_aggregates_episodes():
     """run_play_loop times each frame and aggregates returns/lengths over completed episodes."""
-    from isaaclab.test.benchmark.stepping import run_play_loop
+    from isaaclab.benchmark.stepping import run_play_loop
 
     env = _PlayEnv()
     step_times, reward, ep_length, success_rate = run_play_loop(env, policy=lambda obs: torch.zeros(2, 1), num_frames=3)

@@ -53,7 +53,8 @@ package—request those explicitly when needed.
    * - ``ov[<runtime>]``
      - OV runtime wheels. Selectors: ``ovrtx``, ``ovphysx``, ``all``. Bare
        ``ov`` installs no additional dependencies (the source packages are
-       already in core).
+       already in core). ``ovstage`` is bundled automatically with both
+       ``ovrtx`` and ``ovphysx``.
    * - ``isaacsim``
      - Isaac Sim pip package (via the install script; use only when Isaac Sim
        is not already installed)

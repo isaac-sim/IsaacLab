@@ -994,6 +994,54 @@ def _body_wrench_to_world(
 
 
 @wp.kernel
+def _body_wrench_to_world_ordered(
+    force_b: wp.array(dtype=wp.vec3f, ndim=2),
+    torque_b: wp.array(dtype=wp.vec3f, ndim=2),
+    poses: wp.array(dtype=wp.transformf, ndim=2),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    wrench_out: wp.array(dtype=wp.float32, ndim=3),
+):
+    """Rotate public-order body wrenches to world frame and write them in backend order.
+
+    The wrench (``force_b`` / ``torque_b``) is indexed in public body order while the
+    link ``poses`` are read directly from the backend-order ``LINK_POSE`` buffer. The
+    public body ``user_body_id`` and the backend body ``backend_body_id`` address the
+    same physical body, so its world-frame orientation and position are identical in
+    either order; reading the pose in backend order avoids materialising a public-order
+    pose shadow (no per-substep reorder launch).
+
+    Args:
+        force_b: Body-frame applied forces ``[N]`` in public body order. Shape is ``(N, L)``.
+        torque_b: Body-frame applied torques ``[N*m]`` in public body order. Shape is ``(N, L)``.
+        poses: Link poses in world frame in backend body order (identity when
+            ``has_ordering`` is False). Shape is ``(N, L)``.
+        user_to_backend: Map from public body index to backend body index. Shape is ``(L,)``.
+        has_ordering: Whether the public-to-backend body map is nonidentity.
+        wrench_out: Output packed wrench array in backend body order. Shape is ``(N, L, 9)``
+            with ``[0:3]`` world force ``[N]``, ``[3:6]`` world torque ``[N*m]``, ``[6:9]``
+            world link position ``[m]``.
+    """
+    i, user_body_id = wp.tid()
+    backend_body_id = user_body_id
+    if has_ordering:
+        backend_body_id = user_to_backend[user_body_id]
+    q = wp.transform_get_rotation(poses[i, backend_body_id])
+    f_w = wp.quat_rotate(q, force_b[i, user_body_id])
+    t_w = wp.quat_rotate(q, torque_b[i, user_body_id])
+    wrench_out[i, backend_body_id, 0] = f_w[0]
+    wrench_out[i, backend_body_id, 1] = f_w[1]
+    wrench_out[i, backend_body_id, 2] = f_w[2]
+    wrench_out[i, backend_body_id, 3] = t_w[0]
+    wrench_out[i, backend_body_id, 4] = t_w[1]
+    wrench_out[i, backend_body_id, 5] = t_w[2]
+    p_w = wp.transform_get_translation(poses[i, backend_body_id])
+    wrench_out[i, backend_body_id, 6] = p_w[0]
+    wrench_out[i, backend_body_id, 7] = p_w[1]
+    wrench_out[i, backend_body_id, 8] = p_w[2]
+
+
+@wp.kernel
 def _scatter_rows_partial(
     dst: wp.array2d(dtype=wp.float32),
     src: wp.array2d(dtype=wp.float32),
@@ -1181,6 +1229,44 @@ def _compose_root_com_pose(
     """
     i = wp.tid()
     com_pose_w[i] = wp.transform_multiply(link_pose[i], com_pose_b[i, 0])
+
+
+@wp.kernel
+def _fd_joint_acc_ordered(
+    cur_vel_backend: wp.array2d(dtype=wp.float32),
+    user_to_backend: wp.array(dtype=wp.int32),
+    prev_vel_user: wp.array2d(dtype=wp.float32),
+    inv_dt: float,
+    out_user: wp.array2d(dtype=wp.float32),
+):
+    """Finite-difference public-order joint acceleration from a backend-order velocity source.
+
+    Fuses the backend-to-public reorder into the finite difference: the current velocity is
+    read from the backend-order source through ``user_to_backend`` while the previous velocity,
+    the acceleration output, and the updated history are all kept in public (user) joint order.
+    Public order for ``prev_vel_user`` matches the OVPhysX joint-velocity write path
+    (:func:`~isaaclab.assets.articulation.ordering_kernels.write_joint_vel_user_to_backend_with_mask`
+    and siblings), which reset the finite-difference baseline in public order.
+
+    The public joint ``user_id`` and the backend joint ``user_to_backend[user_id]`` address the
+    same physical joint, so this yields the identity-order acceleration permuted into public
+    order without the separate backend-to-public velocity reorder launch.
+
+    Args:
+        cur_vel_backend: Current joint velocities [m/s or rad/s, depending on joint type] in
+            backend joint order. Shape is (num_envs, num_joints).
+        user_to_backend: Map from public joint index to backend joint index. Shape is (num_joints,).
+        prev_vel_user: Previous joint velocities in public joint order, updated in place with the
+            current velocity. Same shape and units as :paramref:`cur_vel_backend`.
+        inv_dt: Inverse time step ``1 / dt`` [1/s].
+        out_user: Output joint accelerations [m/s^2 or rad/s^2, depending on joint type] in
+            public joint order. Shape is (num_envs, num_joints).
+    """
+    i, user_id = wp.tid()
+    backend_id = user_to_backend[user_id]
+    cur_vel = cur_vel_backend[i, backend_id]
+    out_user[i, user_id] = (cur_vel - prev_vel_user[i, user_id]) * inv_dt
+    prev_vel_user[i, user_id] = cur_vel
 
 
 @wp.kernel

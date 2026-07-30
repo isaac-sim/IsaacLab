@@ -57,6 +57,9 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "dexsuite_kuka_hetero": 8.0,
 }
 
+# Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled.
+_CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
+
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
 # robust to uniform per-pixel noise that penalises structural changes (geometry shifts, swapped colours, missing
 # materials, etc.), so it complements the per-pixel L2 gate by catching regressions that survive a loosened pixel
@@ -81,7 +84,7 @@ _SSIM_DISABLED_DATA_TYPES: set[str] = {
     "depth",
     "distance_to_camera",
     "distance_to_image_plane",
-    "instance_segmentation_fast",
+    "instance_segmentation",
     "instance_id_segmentation_fast",
     "motion_vectors",
 }
@@ -125,7 +128,7 @@ _DEFAULT_SENSOR_DATA_TYPES = (
     "distance_to_camera",
     "distance_to_image_plane",
     "normals",
-    "instance_segmentation_fast",
+    "instance_segmentation",
     "instance_id_segmentation_fast",
     "motion_vectors",
 )
@@ -140,12 +143,12 @@ _NEWTON_WARP_DATA_TYPES = (
     "distance_to_image_plane",
     "normals",
     "semantic_segmentation",
-    "instance_segmentation_fast",
+    "instance_segmentation",
 )
 
 # Data types the OVRTX renderer supports. ``instance_id_segmentation_fast`` is intentionally
 # excluded: it has no real-world sensor equivalent, so the OVRTX integration does not support it.
-# Users should use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
+# Users should use ``instance_segmentation`` or ``semantic_segmentation`` instead.
 _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "instance_id_segmentation_fast")
 
 _OVRTX_TEXTURE_READINESS_DATA_TYPES = (
@@ -154,11 +157,15 @@ _OVRTX_TEXTURE_READINESS_DATA_TYPES = (
     "simple_shading_full_mdl",
 )
 _OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
+_KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
+_DEXSUITE_RENDERER_CRASH_SKIP_REASON = "Dexsuite kitless OVRTX rendering may crash or time out (NVBUG#6524987)."
+_NEWTON_WARP_MISSING_TABLE_XFAIL_REASON = "Missing table in Newton Warp renderer (OMPE-103086)."
+_OVRTX_CLOTH_MOTION_XFAIL_REASON = "Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754)."
 
 
 def make_xfail_rendering_params(
     params: list[pytest.param],
-    expected_failures: dict[tuple[str, str, str], str],
+    expected_failures: dict[tuple[str, ...], str],
 ) -> list[pytest.param]:
     """Mark selected rendering parameter combinations as expected failures.
 
@@ -175,8 +182,8 @@ def make_xfail_rendering_params(
         if reason is None:
             marked_params.append(param)
             continue
-        # Expected failures should run once instead of consuming the RTX flaky-retry budget.
-        marks = [mark for mark in param.marks if mark.name != "flaky"]
+        # Expected failures should run once and carry one unambiguous reason.
+        marks = [mark for mark in param.marks if mark.name not in ("flaky", "xfail")]
         marked_params.append(
             pytest.param(
                 *param.values,
@@ -185,6 +192,67 @@ def make_xfail_rendering_params(
             )
         )
     return marked_params
+
+
+def make_skip_rendering_params(
+    params: list[pytest.param],
+    expected_skips: dict[tuple[str, ...], str],
+) -> list[pytest.param]:
+    """Mark selected rendering parameter combinations as skipped.
+
+    Args:
+        params: Rendering parameters to mark.
+        expected_skips: Mapping from parameter value tuples to skip reasons.
+
+    Returns:
+        Rendering parameters with ``skip`` marks applied to matching combinations.
+    """
+    marked_params = []
+    for param in params:
+        reason = expected_skips.get(tuple(param.values))
+        if reason is None:
+            marked_params.append(param)
+            continue
+        # A native crash or timeout cannot be handled by xfail. Ensure skip takes precedence
+        # and does not retain retry or expected-failure marks inherited from the shared matrix.
+        marks = [mark for mark in param.marks if mark.name not in ("flaky", "skip", "xfail")]
+        marked_params.append(
+            pytest.param(
+                *param.values,
+                id=param.id,
+                marks=[*marks, pytest.mark.skip(reason=reason)],
+            )
+        )
+    return marked_params
+
+
+def make_kitless_rendering_params(params: list[pytest.param]) -> list[pytest.param]:
+    """Expand kitless rendering parameters across applicable OVRTX stage paths.
+
+    OVRTX runs through both the legacy renderer-owned stage path and the OVStage
+    path. The Newton Warp renderer does not use OVStage, so it is emitted only in
+    the legacy lane.
+
+    Args:
+        params: Rendering parameters containing physics backend, renderer, and data type values.
+
+    Returns:
+        Rendering parameters prefixed with the applicable stage variant.
+    """
+    expanded_params = []
+    for param in params:
+        renderer = param.values[1]
+        variants = _KITLESS_STAGE_VARIANTS if renderer == "ovrtx_renderer" else (_KITLESS_STAGE_VARIANTS[0],)
+        for variant in variants:
+            expanded_params.append(
+                pytest.param(
+                    variant,
+                    *param.values,
+                    id=f"{variant}-{param.id}",
+                    marks=param.marks,
+                )
+            )
+    return expanded_params
 
 
 def _make_sensor_data_type_params(
@@ -247,6 +315,36 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
 )
 
 
+def make_kitless_rendering_params_dexsuite() -> list[pytest.param]:
+    """Create kitless Dexsuite parameters with known native-crash cases skipped."""
+    return make_skip_rendering_params(
+        make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
+        {
+            (variant, "newton", "ovrtx_renderer", data_type): _DEXSUITE_RENDERER_CRASH_SKIP_REASON
+            for variant in _KITLESS_STAGE_VARIANTS
+            for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl")
+        },
+    )
+
+
+def make_kitless_rendering_params_franka(*, include_cloth_motion_vectors: bool = False) -> list[pytest.param]:
+    """Create kitless Franka parameters with known content regressions marked."""
+    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    expected_failures = {
+        tuple(param.values): _NEWTON_WARP_MISSING_TABLE_XFAIL_REASON
+        for param in params
+        if param.values[1] == "newton" and param.values[2] == "newton_renderer"
+    }
+    if include_cloth_motion_vectors:
+        expected_failures.update(
+            {
+                (variant, "newton", "ovrtx_renderer", "motion_vectors"): _OVRTX_CLOTH_MOTION_XFAIL_REASON
+                for variant in _KITLESS_STAGE_VARIANTS
+            }
+        )
+    return make_xfail_rendering_params(params, expected_failures)
+
+
 # Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
 # components with translations in metres, so a small absolute floor plus a relative term absorbs
 # per-platform / per-Kit-build float noise while still catching real pose changes.
@@ -255,6 +353,67 @@ _STAGE_TRANSFORM_ATOL = 1e-5
 
 # Cap on the number of reported stage differences so a large regression stays readable.
 _MAX_STAGE_DIFF_LINES = 80
+
+_HYDRA_TEXTURES_PATH_PREFIX = "/Render/OmniverseKit/HydraTextures/"
+_VOLATILE_RENDER_PRODUCT_SEGMENT_RE = re.compile(r"^(?:Replicator|rp_[0-9a-f]{32})$")
+
+
+def _is_volatile_render_product_segment(segment: str) -> bool:
+    """Return True when *segment* is a legacy or UUID Isaac RTX tiled render-product name."""
+    return _VOLATILE_RENDER_PRODUCT_SEGMENT_RE.match(segment) is not None
+
+
+def _collect_volatile_render_product_segments(paths: set[str] | dict[str, Any]) -> set[str]:
+    """Collect direct HydraTextures child names that denote volatile render products."""
+    volatile_segments: set[str] = set()
+    for path in paths:
+        if _HYDRA_TEXTURES_PATH_PREFIX not in path:
+            continue
+        parts = path.split("/")
+        try:
+            hydra_idx = parts.index("HydraTextures")
+        except ValueError:
+            continue
+        if hydra_idx + 1 >= len(parts):
+            continue
+        segment = parts[hydra_idx + 1]
+        if _is_volatile_render_product_segment(segment):
+            volatile_segments.add(segment)
+    return volatile_segments
+
+
+def _canonicalize_volatile_render_product_paths(
+    structure: dict[str, str],
+    transforms: dict[str, np.ndarray],
+) -> tuple[dict[str, str], dict[str, np.ndarray]]:
+    """Rewrite legacy ``Replicator`` and UUID ``rp_<hex>`` render-product paths to stable tokens.
+
+    Isaac RTX tiled render products are named ``rp_{uuid4.hex}`` at runtime, while older golden
+    stages still use the fixed ``Replicator`` prim. Canonicalizing both to ``rp_canonical_N`` keeps
+    golden stage comparison stable without reverting production UUID naming.
+    """
+    volatile_segments = _collect_volatile_render_product_segments(set(structure))
+    canonical_map = {segment: f"rp_canonical_{index}" for index, segment in enumerate(sorted(volatile_segments))}
+    if not canonical_map:
+        return structure, transforms
+
+    def _rewrite_path(path: str) -> str:
+        parts = path.split("/")
+        try:
+            hydra_idx = parts.index("HydraTextures")
+        except ValueError:
+            return path
+        if hydra_idx + 1 >= len(parts):
+            return path
+        segment = parts[hydra_idx + 1]
+        if segment in canonical_map:
+            parts[hydra_idx + 1] = canonical_map[segment]
+            return "/".join(parts)
+        return path
+
+    canonical_structure = {_rewrite_path(path): type_name for path, type_name in structure.items()}
+    canonical_transforms = {_rewrite_path(path): matrix for path, matrix in transforms.items()}
+    return canonical_structure, canonical_transforms
 
 
 def extract_stage_structure_and_transforms(usd_path: str) -> tuple[dict[str, str], dict[str, np.ndarray]]:
@@ -296,6 +455,12 @@ def compare_golden_stage(golden_path: str, result_path: str) -> list[str]:
     """
     golden_structure, golden_transforms = extract_stage_structure_and_transforms(golden_path)
     result_structure, result_transforms = extract_stage_structure_and_transforms(result_path)
+    golden_structure, golden_transforms = _canonicalize_volatile_render_product_paths(
+        golden_structure, golden_transforms
+    )
+    result_structure, result_transforms = _canonicalize_volatile_render_product_paths(
+        result_structure, result_transforms
+    )
 
     problems: list[str] = []
     golden_paths, result_paths = set(golden_structure), set(result_structure)
@@ -362,33 +527,28 @@ def maybe_save_stage(
     try:
         if not sim_utils.save_stage(stage_path, save_and_reload_in_place=False):
             pytest.fail(f"save_stage reported failure while writing the USD stage to {stage_path}.")
-        with open(stage_path, encoding="utf-8") as file:
-            stage_text = file.read()
+
+        from pxr import Usd  # noqa: PLC0415
+
+        # Flatten the saved stage to inline sublayer references and resolve asset paths.
+        opened_stage = Usd.Stage.Open(stage_path)
+        if opened_stage is None:
+            pytest.fail(f"Could not open the saved stage at {stage_path} to flatten.")
+        flat_layer = opened_stage.Flatten()
+        if flat_layer is None:
+            pytest.fail(f"Could not flatten the saved stage at {stage_path}.")
 
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
             out_path = os.path.join(out_dir, stage_basename)
-            with open(out_path, "w", encoding="utf-8") as file:
-                file.write(stage_text)
+            if not flat_layer.Export(out_path):
+                pytest.fail(f"Failed to export the flattened stage to {out_path}.")
             logger.info("[ISAAC_LAB_SAVE_STAGES] wrote %s", out_path)
 
         if compare_golden:
             golden_dir = os.path.join(_GOLDEN_STAGES_DIRECTORY, safe_test_name)
             os.makedirs(golden_dir, exist_ok=True)
             golden_path = os.path.join(golden_dir, f"{physics_backend}-{renderer}-{data_type}.usda")
-
-            from pxr import Usd  # noqa: PLC0415
-
-            # Open and flatten the saved stage once. Flattening inlines sublayer references so
-            # the golden carries no external paths and both the bootstrap export and the
-            # comparison work from the same flattened representation — even when save_stage
-            # writes a root layer with sublayer references. Opening the export (not the live Kit
-            # stage) also keeps volatile session render prims (OmniverseKit cameras, Replicator
-            # SDG pipeline, post-process) out of the baseline.
-            opened_stage = Usd.Stage.Open(stage_path)
-            if opened_stage is None:
-                pytest.fail(f"Could not open the saved stage at {stage_path} to flatten.")
-            flat_layer = opened_stage.Flatten()
 
             if not os.path.exists(golden_path):
                 if not flat_layer.Export(golden_path):
@@ -487,25 +647,6 @@ def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: st
 
     env_cfg.sim.physics.enable_enhanced_determinism = True
     env_cfg.sim.physics.enable_external_forces_every_iteration = True
-
-
-def _maybe_disable_instancing_for_current_stage(physics_backend: str, renderer: str, data_type: str) -> None:
-    """Disable USD instancing for the current stage to work around NVBUG#6418121.
-
-    HDC_TODO: Remove this temporary workaround once NVBUG#6418121 is fixed.
-    """
-    disable_instancing = False
-
-    if renderer == "isaacsim_rtx_renderer":
-        disable_instancing = True
-
-    if disable_instancing:
-        from isaaclab.sim.utils.prims import get_current_stage, make_uninstanceable
-
-        stage = get_current_stage()
-        make_uninstanceable("/World/envs", stage)
-
-        print("[rendering_test_utils] Disabled USD instancing for the current stage to work around NVBUG#6418121.")
 
 
 def _skip_if_newton_motion_vectors(physics_backend: str, data_type: str) -> None:
@@ -615,6 +756,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
             f"<td>{entry['test']}</td>"
             f"<td>{entry['backend']}</td>"
             f"<td>{entry['renderer']}</td>"
+            f"<td>{entry.get('ovstage_variant', 'No')}</td>"
             f"<td>{entry['aov']}</td>"
             f"<td>{entry['diff_pct']:.2f}</td>"
             f"<td>{entry['threshold']:.1f}</td>"
@@ -682,6 +824,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "<th>Test</th>"
         "<th>Backend</th>"
         "<th>Renderer</th>"
+        "<th>OVStage</th>"
         "<th>AOV</th>"
         "<th>PixelDiff&nbsp;%</th>"
         "<th>PixelDiff Threshold&nbsp;%</th>"
@@ -942,7 +1085,7 @@ def validate_camera_outputs(
         # by zeroing RGB on both images.
         result_image_for_comparison = result_image
         golden_image_for_comparison = golden_image
-        if data_type in {"instance_segmentation_fast", "instance_id_segmentation_fast"}:
+        if data_type in {"instance_segmentation", "instance_id_segmentation_fast"}:
 
             def _alpha_only(img: Image.Image) -> Image.Image:
                 r, g, b, a = img.split()
@@ -965,6 +1108,7 @@ def validate_camera_outputs(
             "test": test_name,
             "backend": physics_backend,
             "renderer": renderer,
+            "ovstage_variant": "Yes" if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE") == "1" else "No",
             "aov": data_type,
             "diff_pct": diff_pct,
             "ssim": ssim_score,
@@ -1036,13 +1180,13 @@ def maybe_validate_semantic_segmentation(
     )
 
 
-def maybe_validate_instance_segmentation_fast(
+def maybe_validate_instance_segmentation(
     data_type: str,
     camera_data: "CameraData",
     expected_prim_paths: set[str],
     expected_semantics: list[dict[str, str]],
 ) -> None:
-    """For the ``instance_segmentation_fast`` data type, assert ``camera.data.info`` matches ground truth.
+    """For the ``instance_segmentation`` data type, assert ``camera.data.info`` matches ground truth.
 
     No-op for any other data type. Instance segmentation exposes two mappings that the Isaac RTX and OVRTX
     renderers must both satisfy: ``idToLabels`` (instance -> USD prim path) and ``idToSemantics`` (instance ->
@@ -1064,17 +1208,17 @@ def maybe_validate_instance_segmentation_fast(
     Args:
         data_type: The camera data type under test.
         camera_data: The camera's :class:`~isaaclab.sensors.camera.CameraData`; its ``info`` and colorized
-            ``instance_segmentation_fast`` output image are read internally.
+            ``instance_segmentation`` output image are read internally.
         expected_prim_paths: Expected set of non-reserved ``idToLabels`` values (one USD prim path per instance).
         expected_semantics: Expected multiset of non-reserved ``idToSemantics`` values (``{semantic_type: label}``
             per instance).
     """
-    if data_type != "instance_segmentation_fast":
+    if data_type != "instance_segmentation":
         return
 
     info = camera_data.info
     assert info is not None, "camera.data.info is None; renderer did not populate segmentation metadata."
-    segmentation = info["instance_segmentation_fast"]
+    segmentation = info["instance_segmentation"]
     id_to_labels = segmentation["idToLabels"]
     id_to_semantics = segmentation["idToSemantics"]
 
@@ -1084,17 +1228,17 @@ def maybe_validate_instance_segmentation_fast(
 
     # The colorized keys are non-stable across runs, so validate them against the rendered image instead of
     # hard-coding: the map keys must be exactly the unique colors present in the image plus the reserved keys.
-    instance_image = camera_data.output["instance_segmentation_fast"]
+    instance_image = camera_data.output["instance_segmentation"]
     color_image = instance_image if isinstance(instance_image, torch.Tensor) else instance_image.torch
     color_image = color_image.reshape(-1, color_image.shape[-1]).cpu().numpy()
     unique_colors = {tuple(int(channel) for channel in row) for row in np.unique(color_image, axis=0)}
     assert set(id_to_labels) == unique_colors | reserved_keys, (
-        f"instance_segmentation_fast idToLabels keys != rendered colors + reserved.\n"
+        f"instance_segmentation idToLabels keys != rendered colors + reserved.\n"
         f"  image colors:    {sorted(unique_colors)}\n"
         f"  idToLabels keys: {sorted(id_to_labels)}"
     )
     assert set(id_to_semantics) == unique_colors | reserved_keys, (
-        f"instance_segmentation_fast idToSemantics keys != rendered colors + reserved.\n"
+        f"instance_segmentation idToSemantics keys != rendered colors + reserved.\n"
         f"  image colors:       {sorted(unique_colors)}\n"
         f"  idToSemantics keys: {sorted(id_to_semantics)}"
     )
@@ -1105,7 +1249,7 @@ def maybe_validate_instance_segmentation_fast(
 
     actual_prim_paths = {value for key, value in id_to_labels.items() if key not in reserved_keys}
     assert actual_prim_paths == expected_prim_paths, (
-        f"instance_segmentation_fast idToLabels prim paths mismatch.\n"
+        f"instance_segmentation idToLabels prim paths mismatch.\n"
         f"  expected: {sorted(expected_prim_paths)}\n"
         f"  actual:   {sorted(actual_prim_paths)}"
     )
@@ -1115,7 +1259,7 @@ def maybe_validate_instance_segmentation_fast(
 
     actual_semantics = [value for key, value in id_to_semantics.items() if key not in reserved_keys]
     assert _as_multiset(actual_semantics) == _as_multiset(expected_semantics), (
-        f"instance_segmentation_fast idToSemantics labels mismatch.\n"
+        f"instance_segmentation idToSemantics labels mismatch.\n"
         f"  expected: {expected_semantics}\n"
         f"  actual:   {actual_semantics}"
     )
@@ -1151,14 +1295,12 @@ def rendering_test_shadow_hand(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "ovphysx":
-        pytest.skip("ovphysx is not supported yet.")
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.utils.configclass import configclass
 
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env import ShadowHandCameraEnv
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
         ShadowHandCameraEnvCfg,
         ShadowHandTiledCameraCfg,
         _ShadowHandBaseTiledCameraCfg,
@@ -1169,7 +1311,7 @@ def rendering_test_shadow_hand(
         distance_to_camera = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"])
         distance_to_image_plane = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
         normals = _ShadowHandBaseTiledCameraCfg(data_types=["normals"])
-        instance_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation_fast"])
+        instance_segmentation = _ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation"])
         instance_id_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
         motion_vectors = _ShadowHandBaseTiledCameraCfg(data_types=["motion_vectors"])
 
@@ -1227,7 +1369,7 @@ def rendering_test_shadow_hand(
 
         # Instance segmentation yields one instance per env's ``class:cube`` object (num_envs=4). The colorized
         # keys are non-stable, so they are validated against the rendered image; only the values are hard-coded.
-        maybe_validate_instance_segmentation_fast(
+        maybe_validate_instance_segmentation(
             data_type,
             env._tiled_camera.data,
             expected_prim_paths={f"/World/envs/env_{i}/object" for i in range(4)},
@@ -1239,6 +1381,62 @@ def rendering_test_shadow_hand(
 
             # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
             # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+def rendering_test_shadow_hand_yellow_bg(
+    physics_backend: str,
+    renderer: str,
+    comparison_scores: list[dict],
+) -> None:
+    """Golden render test for the Shadow Hand environment with a yellow camera background (RGB only)."""
+    from isaaclab.utils.configclass import configclass
+
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
+        ShadowHandCameraEnvCfg,
+        ShadowHandTiledCameraCfg,
+        _ShadowHandBaseTiledCameraCfg,
+    )
+
+    _YELLOW = (1.0, 1.0, 0.0)
+
+    @configclass
+    class _YellowBgCameraCfg(_ShadowHandBaseTiledCameraCfg):
+        data_types: list[str] = ["rgb"]
+        background_color: tuple[float, float, float] | None = _YELLOW
+
+    @configclass
+    class _YellowBgTiledCameraCfg(ShadowHandTiledCameraCfg):
+        default: _YellowBgCameraCfg = _YellowBgCameraCfg()
+        rgb: _YellowBgCameraCfg = _YellowBgCameraCfg()
+
+    @configclass
+    class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
+        tiled_camera: _YellowBgTiledCameraCfg = _YellowBgTiledCameraCfg()
+
+    env_cfg = _YellowBgEnvCfg()
+    env_cfg.feature_extractor.enabled = False
+    env_cfg.scene.num_envs = 4
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},rgb"])
+
+    if renderer == "ovrtx":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
+    env = None
+    try:
+        env = ShadowHandCameraEnv(env_cfg)
+        validate_camera_outputs(
+            "shadow_hand_yellow_bg",
+            physics_backend,
+            renderer,
+            env._tiled_camera.data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["shadow_hand"],
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if env is not None:
+            env.close()
             env = None
 
 
@@ -1266,9 +1464,7 @@ def rendering_test_cartpole(
             data_types=["distance_to_image_plane"]
         )
         normals = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"])
-        instance_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
-            data_types=["instance_segmentation_fast"]
-        )
+        instance_segmentation = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["instance_segmentation"])
         instance_id_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
             data_types=["instance_id_segmentation_fast"]
         )
@@ -1297,7 +1493,7 @@ def rendering_test_cartpole(
         normals = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
-        instance_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
+        instance_segmentation = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
@@ -1349,12 +1545,15 @@ def rendering_test_cartpole(
             data_type,
             compare_golden=compare_golden and data_type == "rgb",
         )
+        max_different_pixels_percentage = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"]
+        if physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type in ("rgb", "rgba"):
+            max_different_pixels_percentage = _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
         validate_camera_outputs(
             "cartpole",
             physics_backend,
             renderer,
             camera_outputs,
-            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"],
+            max_different_pixels_percentage=max_different_pixels_percentage,
             comparison_scores=comparison_scores,
         )
 
@@ -1375,7 +1574,7 @@ def rendering_test_cartpole(
 
         # Instance segmentation yields one instance per env's ``class:cartpole`` robot (num_envs=4). The colorized
         # keys are non-stable, so they are validated against the rendered image; only the values are hard-coded.
-        maybe_validate_instance_segmentation_fast(
+        maybe_validate_instance_segmentation(
             data_type,
             env._tiled_camera.data,
             expected_prim_paths={f"/World/envs/env_{i}/Robot" for i in range(4)},
@@ -1397,8 +1596,6 @@ def rendering_test_dexsuite_kuka(
     setup_homogeneous_envs: bool,
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "ovphysx":
-        pytest.skip("ovphysx is not supported yet.")
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
@@ -1434,15 +1631,9 @@ def rendering_test_dexsuite_kuka(
         normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
         normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
         normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
-        instance_segmentation_fast64 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_segmentation_fast"], width=64, height=64
-        )
-        instance_segmentation_fast128 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_segmentation_fast"], width=128, height=128
-        )
-        instance_segmentation_fast256 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_segmentation_fast"], width=256, height=256
-        )
+        instance_segmentation64 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=64, height=64)
+        instance_segmentation128 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=128, height=128)
+        instance_segmentation256 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=256, height=256)
         instance_id_segmentation_fast64 = BASE_CAMERA_CFG.replace(
             data_types=["instance_id_segmentation_fast"], width=64, height=64
         )
@@ -1600,8 +1791,8 @@ def rendering_test_franka_cloth(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
-        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
+    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
+        pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
 
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -1622,8 +1813,6 @@ def rendering_test_franka_cloth(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-
-        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
@@ -1728,11 +1917,8 @@ def rendering_test_franka_soft(
     if physics_backend == "physx" or renderer == "isaacsim_rtx_renderer":
         pytest.skip("Random teardown hangs in the kit-based combinations (OMPE-101977).")
 
-    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation_fast":
-        pytest.skip("instance_segmentation_fast crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
-
-    if renderer == "isaacsim_rtx_renderer" and data_type == "motion_vectors":
-        pytest.skip("The test cases will be enabled after NVBUG#6418121 is fixed.")
+    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
+        pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
 
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
@@ -1767,9 +1953,6 @@ def rendering_test_franka_soft(
             actions[:, 3:7] = ee_quat_curr
 
             env.step(actions)
-
-        # This workaround invalidates the physx data views and would lead to issues if it was done before stepping.
-        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 

@@ -3,12 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
+import isaaclab.utils.math as math_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -16,13 +18,18 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import ShadowHandRobotCfg
+from isaaclab_tasks.core.handover.handover_common import (
+    ACTUATED_JOINT_NAMES,
+    FINGERTIP_BODY_NAMES,
+    GOAL_MARKER_CFG,
+    OBJECT_RADIUS,
+)
 from isaaclab_tasks.utils import PresetCfg, preset
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG, SHADOW_HAND_NEWTON_CFG
 
 
 @configclass
@@ -124,61 +131,62 @@ class EventCfg:
     )
 
 
-# Reuse the single-agent Shadow Hand Newton port (USD path, ``rot`` reapplication
-# workaround, effort limits, joint regex). The multi-agent variant only diverges
-# in actuator gains (stiffness/damping bumped for the catch task) and adds a
-# ``distal_passive`` override for the J0 USD-baked values.
-_SHADOW_HAND_NEWTON_CFG = ShadowHandRobotCfg().newton_mjwarp
-
-
 def _shadow_hand_cfg(
     prim_path: str,
     init_pos: tuple[float, float, float],
     init_rot: tuple[float, float, float, float],
 ) -> PresetCfg:
-    """Per-hand Shadow Hand preset (PhysX and Newton MJWarp variants).
+    """Per-hand Shadow Hand preset (PhysX, Newton MJWarp, and OVPhysX variants).
 
-    Both variants are placed at *prim_path* with the same init pose; per-hand
+    All variants are placed at *prim_path* with the same init pose; per-hand
     differences (right vs left) come from the caller's *prim_path* / *init_pos* /
     *init_rot* — the gain tuning is identical on both hands.
 
-    The Newton variant layers two :class:`~isaaclab.actuators.ImplicitActuatorCfg`
-    overrides on top of the single-agent Newton port:
-
-    * ``fingers`` actuator: ``stiffness=20.0`` / ``damping=2.0`` (vs PhysX's
-      ``5.0`` / ``0.5`` on wrists and ``1.0`` / ``0.1`` on fingers). PhysX layers
-      ``fixed_tendons_props(limit_stiffness=30, damping=0.1)`` and runs
-      ``solver_position_iteration_count=8`` per substep — both amplify the
-      effective torque per unit nominal gain. Newton's MJWarp implicit-PD path
-      has neither, so a larger nominal gain is needed for comparable joint
-      authority. ``20.0`` / ``2.0`` is the smallest tested setting at which
-      MAPPO learns the catch (mean reward at iter 200 / 2048 envs goes from
-      ~27 at PhysX-mirrored gains to ~777).
-    * ``distal_passive`` on the four ``robot0_(FF|MF|RF|LF)J0`` joints with
-      ``stiffness=10.0`` / ``damping=0.1``. The Newton USD bakes
-      ``stiffness=286 / damping=57`` on these joints from the MJCF→USD
-      translation, which fights the ``MjcTendon`` coupling and bounces the
-      ball. ``stiffness=10`` (~1/3 of PhysX's ``limit_stiffness=30``) keeps
-      the joints near-passive while the tendon constraint dominates.
+    The Newton variant reuses the shared actuator defined on ``SHADOW_HAND_NEWTON_CFG``,
+    raising its gains to ``20.0`` / ``2.0`` -- the catch needs more joint authority than
+    reorientation. The scalar replaces the per-joint gain mapping, so it applies to the whole
+    actuator group.
     """
     physx_cfg = SHADOW_HAND_CFG.replace(prim_path=prim_path).replace(
         init_state=ArticulationCfg.InitialStateCfg(pos=init_pos, rot=init_rot, joint_pos={".*": 0.0})
     )
-    newton_cfg = _SHADOW_HAND_NEWTON_CFG.replace(
+    # Newton's importer bakes the asset's root orientation into the root joint (see the note on
+    # SHADOW_HAND_NEWTON_CFG.init_state), so the task rotation must compose with it rather than
+    # replace it — replacing leaves both palms rotated 90 degrees.
+    newton_rot = tuple(
+        math_utils.quat_mul(
+            torch.tensor(init_rot, dtype=torch.float64),
+            torch.tensor(SHADOW_HAND_NEWTON_CFG.init_state.rot, dtype=torch.float64),
+        ).tolist()
+    )
+    newton_mjwarp_cfg = SHADOW_HAND_NEWTON_CFG.replace(
         prim_path=prim_path,
-        init_state=_SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=init_rot),
+        init_state=SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=newton_rot),
         actuators={
-            "fingers": _SHADOW_HAND_NEWTON_CFG.actuators["fingers"].replace(stiffness=20.0, damping=2.0),
-            "distal_passive": ImplicitActuatorCfg(
-                joint_names_expr=["robot0_(FF|MF|RF|LF)J0"],
-                stiffness=10.0,
-                damping=0.1,
-                friction=1e-2,
-                armature=2e-3,
-            ),
+            **SHADOW_HAND_NEWTON_CFG.actuators,
+            "fingers": SHADOW_HAND_NEWTON_CFG.actuators["fingers"].replace(stiffness=20.0, damping=2.0),
         },
     )
-    return preset(default=physx_cfg, physx=physx_cfg, newton_mjwarp=newton_cfg)
+    ovphysx_cfg = SHADOW_HAND_CFG.replace(
+        prim_path=prim_path,
+        # OVPhysX does not expose the fixed-tendon runtime API, so spawn without tendon overrides.
+        spawn=SHADOW_HAND_CFG.spawn.replace(fixed_tendons_props=None),
+        init_state=SHADOW_HAND_CFG.init_state.replace(pos=init_pos, rot=init_rot),
+    )
+    return preset(default=newton_mjwarp_cfg, physx=physx_cfg, newton_mjwarp=newton_mjwarp_cfg, ovphysx=ovphysx_cfg)
+
+
+# Per-hand presets shared by the Direct environment and the manager scene.
+RIGHT_HAND_CFG = _shadow_hand_cfg(
+    prim_path="/World/envs/env_.*/RightRobot",
+    init_pos=(0.0, 0.0, 0.5),
+    init_rot=(0.0, 0.0, 0.0, 1.0),
+)
+LEFT_HAND_CFG = _shadow_hand_cfg(
+    prim_path="/World/envs/env_.*/LeftRobot",
+    init_pos=(0.0, -1.0, 0.5),
+    init_rot=(0.0, 0.0, 1.0, 0.0),
+)
 
 
 @configclass
@@ -196,7 +204,7 @@ class ObjectCfg(PresetCfg):
     physx = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.SphereCfg(
-            radius=0.0335,
+            radius=OBJECT_RADIUS,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
             physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -217,7 +225,7 @@ class ObjectCfg(PresetCfg):
     newton_mjwarp = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.SphereCfg(
-            radius=0.0335,
+            radius=OBJECT_RADIUS,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 kinematic_enabled=False,
@@ -229,7 +237,8 @@ class ObjectCfg(PresetCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
     )
-    default = physx
+    ovphysx = physx
+    default = newton_mjwarp
 
 
 @configclass
@@ -255,13 +264,16 @@ class PhysicsCfg(PresetCfg):
             nconmax=70,
             impratio=10.0,
             cone="elliptic",
-            update_data_interval=2,
+            update_data_interval=4,
             ccd_iterations=50,  # bumped from default 35 for multi-finger contact geometry
         ),
-        num_substeps=2,
+        # 4 substeps (vs reorient's 2): sustained ball-palm contact drives a small fraction of
+        # envs to NaN at 2.
+        num_substeps=4,
         debug_mode=False,
     )
-    default = physx
+    ovphysx = OvPhysxCfg()
+    default = newton_mjwarp
 
 
 @configclass
@@ -274,69 +286,24 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     observation_spaces = {"right_hand": 157, "left_hand": 157}
     state_space = 290
 
-    # simulation
+    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
     )
+
     # robot
-    right_robot_cfg: PresetCfg = _shadow_hand_cfg(
-        prim_path="/World/envs/env_.*/RightRobot",
-        init_pos=(0.0, 0.0, 0.5),
-        init_rot=(0.0, 0.0, 0.0, 1.0),
-    )
-    left_robot_cfg: PresetCfg = _shadow_hand_cfg(
-        prim_path="/World/envs/env_.*/LeftRobot",
-        init_pos=(0.0, -1.0, 0.5),
-        init_rot=(0.0, 0.0, 1.0, 0.0),
-    )
-    actuated_joint_names = [
-        "robot0_WRJ1",
-        "robot0_WRJ0",
-        "robot0_FFJ3",
-        "robot0_FFJ2",
-        "robot0_FFJ1",
-        "robot0_MFJ3",
-        "robot0_MFJ2",
-        "robot0_MFJ1",
-        "robot0_RFJ3",
-        "robot0_RFJ2",
-        "robot0_RFJ1",
-        "robot0_LFJ4",
-        "robot0_LFJ3",
-        "robot0_LFJ2",
-        "robot0_LFJ1",
-        "robot0_THJ4",
-        "robot0_THJ3",
-        "robot0_THJ2",
-        "robot0_THJ1",
-        "robot0_THJ0",
-    ]
-    fingertip_body_names = [
-        "robot0_ffdistal",
-        "robot0_mfdistal",
-        "robot0_rfdistal",
-        "robot0_lfdistal",
-        "robot0_thdistal",
-    ]
+    right_robot_cfg: PresetCfg = RIGHT_HAND_CFG
+    left_robot_cfg: PresetCfg = LEFT_HAND_CFG
+    actuated_joint_names = ACTUATED_JOINT_NAMES
+    fingertip_body_names = FINGERTIP_BODY_NAMES
 
     # in-hand object
     object_cfg: ObjectCfg = ObjectCfg()
     # goal object
-    goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
-        prim_path="/Visuals/goal_marker",
-        markers={
-            "goal": sim_utils.SphereCfg(
-                radius=0.0335,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.3, 1.0)),
-            ),
-        },
-    )
+    goal_object_cfg: VisualizationMarkersCfg = GOAL_MARKER_CFG
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=2048, env_spacing=1.5, replicate_physics=True)
 
