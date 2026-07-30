@@ -5,9 +5,10 @@
 
 """Production DisplayPort insertion policy inference in simulation.
 
-Run a trained RSL-RL checkpoint with deterministic initial conditions, optional
-perception-error injection on the socket observation, and per-step logging of
-observations, actions, end-effector pose, and plug/socket state.
+Run a trained RSL-RL checkpoint **or** a LEAPP-exported ONNX policy with
+deterministic initial conditions, optional perception-error injection on the
+socket observation, and per-step logging of observations, actions, end-effector
+pose, and plug/socket state.
 
 Per-step telemetry is written to ``policy_io.csv`` (plus ``run_config.json``) under
 ``--log_dir`` or ``<checkpoint_dir>/inference_logs/<timestamp>/``. The CSV column
@@ -17,7 +18,7 @@ tools can overlay sim and real rollouts.
 This is intentionally separate from ``play.py`` so DisplayPort-specific pose and
 logging knobs stay out of the generic play path.
 
-Example (recommended shipping task):
+Example (recommended shipping task, RSL-RL checkpoint):
 
 .. code-block:: bash
 
@@ -27,6 +28,19 @@ Example (recommended shipping task):
         --num_envs 1 \\
         --socket_pos 0.476 0.127 0.07 \\
         --observed_socket_pos 0.486 0.127 0.07 \\
+        --max_steps 200 \\
+        --log_dir logs/dp_inference_runs \\
+        --visualizer kit
+
+LEAPP-exported policy (ONNX + deploy YAML). Pass a YAML path or the export directory:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play_displayport_insertion.py \\
+        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \\
+        --leapp_model logs/rsl_rl/dp_exps/displayport_default_model900 \\
+        --num_envs 1 \\
+        --socket_pos 0.476 0.127 0.07 \\
         --max_steps 200 \\
         --log_dir logs/dp_inference_runs \\
         --visualizer kit
@@ -57,6 +71,10 @@ Pose conventions
   same ``policy_io.csv`` logging path is used. Checkpoint is optional in this
   mode. When init overrides are omitted, row 0 of the CSV seeds
   ``--robot_joint_pos`` and ``--observed_socket_*``.
+* ``--leapp_model`` runs a LEAPP-exported ONNX policy (``InferenceManager``)
+  instead of an RSL-RL ``.pt`` checkpoint. Accepts the deploy ``.yaml`` or the
+  export directory containing it. Pose overrides and ``policy_io.csv`` logging
+  still apply. Mutually exclusive with ``--checkpoint`` / ``--replay_csv``.
 """
 
 from __future__ import annotations
@@ -77,6 +95,7 @@ from typing import TYPE_CHECKING, Any
 import gymnasium as gym
 import numpy as np
 import torch
+import yaml
 from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
@@ -189,6 +208,17 @@ parser.add_argument(
         "Checkpoint is optional. Ends after the CSV is exhausted unless --max_steps is smaller."
     ),
 )
+parser.add_argument(
+    "--leapp_model",
+    type=str,
+    default=None,
+    metavar="PATH",
+    help=(
+        "Path to a LEAPP-exported deploy YAML, or a directory containing one "
+        "(e.g. logs/rsl_rl/dp_exps/displayport_default_model900). Runs the exported "
+        "ONNX policy via InferenceManager instead of an RSL-RL .pt checkpoint."
+    ),
+)
 
 # Run control / logging
 parser.add_argument("--max_steps", type=int, default=None, help="Stop after this many policy steps.")
@@ -202,7 +232,9 @@ parser.add_argument(
     "--log_dir",
     type=str,
     default=None,
-    help="Directory for run logs. Default: <checkpoint_dir>/inference_logs/<timestamp>.",
+    help=(
+        "Directory for run logs. Default: <checkpoint_or_leapp_dir>/inference_logs/<timestamp>."
+    ),
 )
 parser.add_argument("--no_print", action="store_true", help="Disable per-step terminal printing.")
 parser.add_argument(
@@ -629,6 +661,215 @@ def _absolute_targets_to_relative_actions(
     actions = torch.zeros((base.num_envs, env.num_actions), device=base.device, dtype=torch.float32)
     actions[:, :num_arm] = torch.as_tensor(rel, device=base.device, dtype=torch.float32)
     return actions
+
+
+def resolve_leapp_model_yaml(path: str | Path) -> Path:
+    """Resolve ``--leapp_model`` to a LEAPP deploy YAML file.
+
+    Accepts either a ``.yaml``/``.yml`` file or a directory that contains one
+    (prefers ``*deploy*.yaml``, then any single YAML in the directory).
+    """
+    model_path = Path(path).expanduser().resolve()
+    if model_path.is_file():
+        if model_path.suffix.lower() not in {".yaml", ".yml"}:
+            raise ValueError(f"--leapp_model must be a YAML file or directory, got: {model_path}")
+        return model_path
+    if not model_path.is_dir():
+        raise FileNotFoundError(f"--leapp_model not found: {model_path}")
+
+    yaml_files = sorted(model_path.glob("*.yaml")) + sorted(model_path.glob("*.yml"))
+    if not yaml_files:
+        raise FileNotFoundError(f"No YAML found under --leapp_model directory: {model_path}")
+    deploy_candidates = [p for p in yaml_files if "deploy" in p.name.lower()]
+    if len(deploy_candidates) == 1:
+        return deploy_candidates[0]
+    if len(yaml_files) == 1:
+        return yaml_files[0]
+    if deploy_candidates:
+        names = ", ".join(p.name for p in deploy_candidates)
+        raise ValueError(
+            f"Multiple deploy YAML files under {model_path}: {names}. Pass the YAML path explicitly."
+        )
+    names = ", ".join(p.name for p in yaml_files)
+    raise ValueError(f"Multiple YAML files under {model_path}: {names}. Pass the YAML path explicitly.")
+
+
+class LeappDisplayportPolicy:
+    """Run a LEAPP-exported DisplayPort policy against a ManagerBased gym env.
+
+    LEAPP packages observation preprocessing, LSTM state, and action decoding into
+    an ONNX graph that emits **absolute** arm joint targets. This adapter:
+
+    1. Reads ``robot_joint_pos`` / ``socket_pos`` / ``socket_quat`` from the live
+       scene and observation terms (so ``--observed_socket_*`` overrides apply).
+    2. Runs ``InferenceManager.run_policy``.
+    3. Converts absolute targets back to relative action-manager inputs so the
+       existing ``env.step`` / logging path stays unchanged.
+    """
+
+    def __init__(self, env, leapp_yaml: Path, clip_actions: float | None = None):
+        try:
+            from leapp import InferenceManager
+        except ImportError as exc:
+            raise ImportError(
+                "LEAPP is required for --leapp_model. Install with: ./isaaclab.sh -p -m pip install leapp"
+            ) from exc
+
+        self.env = env
+        self.base = env.unwrapped
+        self.clip_actions = clip_actions
+        self.yaml_path = Path(leapp_yaml)
+        self.inference = InferenceManager(str(self.yaml_path))
+
+        with open(self.yaml_path, encoding="utf-8") as f:
+            desc = yaml.safe_load(f)
+        pipeline = desc["pipeline"]
+        models = desc["models"]
+        # Prefer the single pipeline input node; fall back to the only model key.
+        input_nodes = list(pipeline.get("inputs", {}).keys())
+        if not input_nodes:
+            raise ValueError(f"LEAPP YAML has no pipeline inputs: {self.yaml_path}")
+        self.node_name = input_nodes[0]
+        if self.node_name not in models:
+            # Some exports use a shortened model key; keep going with pipeline name.
+            pass
+
+        self.input_names = list(pipeline["inputs"][self.node_name])
+        self._joint_ids = self._resolve_arm_joint_ids()
+        self.last_outputs: dict[str, torch.Tensor] = {}
+        self.last_absolute_targets: np.ndarray | None = None
+
+        print(f"[INFO] LEAPP policy loaded from: {self.yaml_path}")
+        print(f"[INFO] LEAPP node='{self.node_name}', inputs={self.input_names}")
+
+    def _resolve_arm_joint_ids(self) -> list[int] | None:
+        robot = self.base.scene["robot"]
+        try:
+            names = list(self.base.cfg.observations.policy.joint_pos.params["asset_cfg"].joint_names)
+        except Exception:
+            names = [f"joint{i + 1}" for i in range(int(getattr(self.base.cfg, "num_arm_joints", 7) or 7))]
+        if not names:
+            return None
+        # Exact names if provided; otherwise treat as regex patterns via find_joints.
+        if all(n in list(robot.joint_names) for n in names):
+            return [list(robot.joint_names).index(n) for n in names]
+        joint_ids, _ = robot.find_joints(names, preserve_order=True)
+        return list(joint_ids)
+
+    def _read_observation_term(self, term_name: str) -> torch.Tensor:
+        """Evaluate a policy observation term (honors live overrides / noise flags)."""
+        obs_mgr = self.base.observation_manager
+        names = list(obs_mgr._group_obs_term_names["policy"])
+        cfgs = list(obs_mgr._group_obs_term_cfgs["policy"])
+        if term_name not in names:
+            raise KeyError(f"Policy observation term '{term_name}' not found (have {names})")
+        cfg = cfgs[names.index(term_name)]
+        out = cfg.func(self.base, **cfg.params)
+        if not torch.is_tensor(out):
+            out = torch.as_tensor(out, device=self.base.device, dtype=torch.float32)
+        return out
+
+    def _gather_inputs(self) -> dict[str, torch.Tensor]:
+        robot = self.base.scene["robot"]
+        joint_pos = _to_torch(robot.data.joint_pos)
+        if self._joint_ids is not None:
+            joint_pos = joint_pos[:, self._joint_ids]
+
+        values: dict[str, torch.Tensor] = {}
+        for name in self.input_names:
+            if name in ("robot_joint_pos", "arm_dof_pos", "joint_pos"):
+                values[name] = joint_pos
+            elif name in ("socket_pos",):
+                values[name] = self._read_observation_term("socket_pos")
+            elif name in ("socket_quat",):
+                values[name] = self._read_observation_term("socket_quat")
+            elif name.startswith("actor_state_"):
+                # Feedback tensors are owned by InferenceManager; omit from external inputs.
+                continue
+            else:
+                raise KeyError(
+                    f"Unsupported LEAPP input '{name}' for DisplayPort play. "
+                    "Expected robot_joint_pos / socket_pos / socket_quat (plus LSTM feedback)."
+                )
+
+        return {f"{self.node_name}/{name}": tensor for name, tensor in values.items()}
+
+    def __call__(self, obs=None) -> torch.Tensor:
+        """Run one LEAPP inference step; ``obs`` is ignored (inputs are re-read)."""
+        del obs  # LEAPP graph takes structured I/O, not the flat RSL-RL vector.
+        inputs = self._gather_inputs()
+        with torch.inference_mode():
+            self.last_outputs = self.inference.run_policy(inputs)
+
+        abs_key = f"{self.node_name}/arm_action"
+        if abs_key not in self.last_outputs:
+            # Fall back to the first tensor that looks like an arm command.
+            candidates = [k for k in self.last_outputs if k.endswith("/arm_action") or "action" in k.split("/")[-1]]
+            if not candidates:
+                raise KeyError(
+                    f"LEAPP outputs missing arm_action. Keys: {list(self.last_outputs.keys())}"
+                )
+            abs_key = candidates[0]
+
+        absolute = self.last_outputs[abs_key]
+        abs_np = _as_numpy_1d(absolute[0] if absolute.ndim > 1 else absolute)
+        if abs_np is None:
+            raise RuntimeError("Failed to read LEAPP arm_action tensor.")
+        self.last_absolute_targets = abs_np.copy()
+        return _absolute_targets_to_relative_actions(self.env, abs_np, self.clip_actions)
+
+    def reset(self, dones=None):
+        """Reset LEAPP recurrent state when any env episode ends."""
+        if dones is None:
+            self.inference.reset()
+            return
+        dones_b = torch.as_tensor(dones).bool().view(-1)
+        if bool(dones_b.any()):
+            self.inference.reset()
+
+    def extract_lstm_state(self) -> tuple[np.ndarray | None, np.ndarray | None]:
+        """Return ``(h, c)`` with shape ``(num_layers, hidden)`` from LEAPP outputs."""
+        layer_states: list[torch.Tensor] = []
+        for i in range(8):
+            key = f"{self.node_name}/actor_state_{i}_out"
+            if key not in self.last_outputs:
+                # Some InferenceManager builds keep feedback only internally.
+                alt = [k for k in self.last_outputs if k.endswith(f"/actor_state_{i}_out")]
+                if not alt:
+                    break
+                key = alt[0]
+            layer_states.append(self.last_outputs[key])
+        if not layer_states:
+            return None, None
+
+        # Each layer is typically [2, num_envs, hidden] for LSTM (h/c), or [1, ...] for GRU.
+        h_layers = []
+        c_layers = []
+        has_cell = True
+        for state in layer_states:
+            t = state
+            if t.ndim == 3:
+                # [2, B, H] or [1, B, H]
+                if t.shape[0] >= 2:
+                    h_layers.append(_as_numpy_1d(t[0, 0]))
+                    c_layers.append(_as_numpy_1d(t[1, 0]))
+                else:
+                    h_layers.append(_as_numpy_1d(t[0, 0]))
+                    has_cell = False
+            elif t.ndim == 2:
+                h_layers.append(_as_numpy_1d(t[0]))
+                has_cell = False
+            else:
+                h_layers.append(_as_numpy_1d(t))
+                has_cell = False
+
+        if not h_layers or any(h is None for h in h_layers):
+            return None, None
+        h = np.stack(h_layers, axis=0)
+        if not has_cell or any(c is None for c in c_layers):
+            return h, None
+        c = np.stack(c_layers, axis=0)
+        return h, c
 
 
 def place_plug_at_grasp_pose(
@@ -1219,10 +1460,17 @@ def _resolve_log_dir(resume_path: str | None) -> Path | None:
     return Path("logs") / "dp_replay" / stamp
 
 
-def _write_run_metadata(log_dir: Path, resume_path: str | None, pose_meta: dict[str, Any], replay: ReplayTrajectory | None = None):
+def _write_run_metadata(
+    log_dir: Path,
+    resume_path: str | None,
+    pose_meta: dict[str, Any],
+    replay: ReplayTrajectory | None = None,
+    leapp_model: str | None = None,
+):
     payload = {
         "task": args_cli.task,
         "checkpoint": resume_path,
+        "leapp_model": leapp_model,
         "replay_csv": str(replay.path) if replay is not None else None,
         "replay_source": replay.source if replay is not None else None,
         "replay_num_steps": replay.num_steps if replay is not None else None,
@@ -1252,6 +1500,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         task_name = args_cli.task.split(":")[-1]
         train_task_name = task_name.replace("-Play", "").replace("-ROS-Inference", "")
         replay_mode = args_cli.replay_csv is not None
+        leapp_mode = args_cli.leapp_model is not None
+
+        if leapp_mode and replay_mode:
+            raise ValueError("Use only one of --leapp_model and --replay_csv.")
+        if leapp_mode and (args_cli.checkpoint or args_cli.use_pretrained_checkpoint):
+            print("[WARNING] --leapp_model set; ignoring --checkpoint / --use_pretrained_checkpoint.")
+        if replay_mode and (args_cli.checkpoint or args_cli.use_pretrained_checkpoint):
+            print("[WARNING] --replay_csv set; checkpoint will not be used for actions.")
 
         agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
         env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
@@ -1273,7 +1529,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
         log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
         resume_path: str | None = None
-        if args_cli.use_pretrained_checkpoint:
+        leapp_yaml: Path | None = None
+        if leapp_mode:
+            leapp_yaml = resolve_leapp_model_yaml(args_cli.leapp_model)
+            resume_path = str(leapp_yaml)
+            print(f"[INFO] Using LEAPP model: {leapp_yaml}")
+        elif args_cli.use_pretrained_checkpoint:
             print(f"[INFO] Loading experiment from directory: {log_root_path}")
             resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)
             if not resume_path:
@@ -1302,13 +1563,24 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         pose_meta.update(observed_meta)
         if log_dir is not None:
             log_dir.mkdir(parents=True, exist_ok=True)
-            _write_run_metadata(log_dir, resume_path, pose_meta, replay=replay_traj)
+            _write_run_metadata(
+                log_dir,
+                resume_path if not leapp_mode else None,
+                pose_meta,
+                replay=replay_traj,
+                leapp_model=str(leapp_yaml) if leapp_yaml is not None else None,
+            )
 
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
         policy = None
         policy_nn = None
-        if not replay_mode:
+        leapp_policy: LeappDisplayportPolicy | None = None
+        if leapp_mode:
+            assert leapp_yaml is not None
+            leapp_policy = LeappDisplayportPolicy(env, leapp_yaml, clip_actions=agent_cfg.clip_actions)
+            policy = leapp_policy
+        elif not replay_mode:
             print(f"[INFO]: Loading model checkpoint from: {resume_path}")
             if agent_cfg.class_name == "OnPolicyRunner":
                 runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
@@ -1361,24 +1633,26 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                         actions = policy(obs)
 
                     # Post-forward LSTM state (None in replay mode / non-recurrent policies).
-                    # Prefer the inference module; fall back to the underlying policy_nn (older rsl-rl).
                     if replay_mode:
                         lstm_h, lstm_c = None, None
+                    elif leapp_policy is not None:
+                        lstm_h, lstm_c = leapp_policy.extract_lstm_state()
                     else:
                         lstm_h, lstm_c = _extract_lstm_hidden_state(policy)
                         if lstm_h is None and policy_nn is not None:
                             lstm_h, lstm_c = _extract_lstm_hidden_state(policy_nn)
-                        if not lstm_logged_once:
-                            if lstm_h is not None:
-                                rnn = _pack_rnn_state(lstm_h, lstm_c)
-                                dim = int(rnn.size) if rnn is not None else int(np.asarray(lstm_h).size)
-                                print(f"[INFO] Logging recurrent state as rnn_* (dim={dim}).")
-                            else:
-                                print(
-                                    "[WARNING] Policy has no accessible LSTM hidden state; "
-                                    "rnn_* will not be written."
-                                )
-                            lstm_logged_once = True
+
+                    if not replay_mode and not lstm_logged_once:
+                        if lstm_h is not None:
+                            rnn = _pack_rnn_state(lstm_h, lstm_c)
+                            dim = int(rnn.size) if rnn is not None else int(np.asarray(lstm_h).size)
+                            print(f"[INFO] Logging recurrent state as rnn_* (dim={dim}).")
+                        else:
+                            print(
+                                "[WARNING] Policy has no accessible LSTM hidden state; "
+                                "rnn_* will not be written."
+                            )
+                        lstm_logged_once = True
 
                     # Snapshot the state the policy/replay actually saw, before the action lands.
                     pending_row = logger.begin_step(
@@ -1396,7 +1670,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                     logger.print_success(step_count, success_info)
                     step_count += 1
 
-                    if not replay_mode:
+                    if leapp_policy is not None:
+                        leapp_policy.reset(dones)
+                    elif not replay_mode:
                         if version.parse(installed_version) >= version.parse("4.0.0"):
                             policy.reset(dones)
                         else:
