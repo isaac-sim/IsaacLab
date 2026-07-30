@@ -123,11 +123,6 @@ class SceneDataProvider:
         """
         return _walk_camera_prims(self.usd_stage)
 
-    @property
-    def point_count(self) -> int:
-        """Number of geometry points available from the sim backend."""
-        return self.backend.point_count
-
     def get_transforms(
         self,
         output: SceneDataFormat.Vec3_Quat
@@ -338,6 +333,11 @@ class SceneDataProvider:
                     )
             src_offset += count
         return True
+
+    @property
+    def point_count(self) -> int:
+        """Number of geometry points available from the sim backend."""
+        return self.backend.point_count
 
 
 class ConversionKernels:

@@ -236,6 +236,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         return self._rigid_body_view
 
     def _discover_deformable_geometry(self) -> None:
+        """Discover stage deformables and create PhysX volume/surface views once."""
         if self._geometry_discovered:
             return
         self._geometry_discovered = True
@@ -291,6 +292,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
             self._merged_points = wp.empty(total_points, dtype=wp.vec3f, device=device)
 
     def _refresh_merged_points(self) -> None:
+        """Merge volume and surface deformable nodal positions into :attr:`points`."""
         self._discover_deformable_geometry()
         if self._merged_points is None:
             self._points_data.points = None
@@ -323,16 +325,19 @@ class PhysxSceneDataBackend(SceneDataBackend):
 
     @property
     def point_count(self) -> int:
+        """Return the total unpadded PhysX deformable nodal count."""
         self._discover_deformable_geometry()
         return sum(self._geometry_counts)
 
     @property
     def geometry_paths(self) -> list[str]:
+        """Return one USD prim path per PhysX deformable body instance."""
         self._discover_deformable_geometry()
         return self._geometry_paths
 
     @property
     def geometry_counts(self) -> list[int]:
+        """Return the unpadded nodal count for each PhysX deformable body."""
         self._discover_deformable_geometry()
         return self._geometry_counts
 

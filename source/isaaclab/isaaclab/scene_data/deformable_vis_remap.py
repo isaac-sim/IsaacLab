@@ -20,7 +20,14 @@ _BARY_EPS = 1e-5
 
 @dataclass
 class VolumeVisRemap:
-    """Device-resident barycentric remap from sim tet nodes to visual mesh vertices."""
+    """Device-resident barycentric remap from sim tet nodes to visual mesh vertices.
+
+    Attributes:
+        tet_vertex_indices: Per visual vertex, four sim-slice corner indices,
+            shape ``[vis_count, 4]``, int32.
+        bary_weights: Per visual vertex, four barycentric weights,
+            shape ``[vis_count, 4]``, float32.
+    """
 
     tet_vertex_indices: wp.array
     bary_weights: wp.array
