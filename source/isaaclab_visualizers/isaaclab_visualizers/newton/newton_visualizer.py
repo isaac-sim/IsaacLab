@@ -663,7 +663,9 @@ class NewtonVisualizer(BaseVisualizer):
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         newton_backend_active = self.physics_backend == "newton"
         physics_manager = SimulationContext.instance().physics_manager
-        mjwarp_backend_active = newton_backend_active and physics_manager.__name__ == "NewtonMJWarpManager"
+        picking_supported = newton_backend_active and bool(
+            getattr(physics_manager, "_supports_rigid_body_force_input", False)
+        )
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
@@ -715,7 +717,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer._paused = False
 
             self._apply_model_visualization_options()
-            self._picking_enabled = self.cfg.enable_picking and mjwarp_backend_active and not runtime_headless
+            self._picking_enabled = self.cfg.enable_picking and picking_supported and not runtime_headless
             self._viewer.picking_enabled = self._picking_enabled
 
             self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
@@ -753,9 +755,10 @@ class NewtonVisualizer(BaseVisualizer):
         if self._viewer is not None and self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
             NewtonManager.register_state_force_callback(self._viewer_picking_binding.apply)
-        if self._viewer is not None and self.cfg.enable_picking and not mjwarp_backend_active:
+        if self._viewer is not None and self.cfg.enable_picking and not picking_supported:
             logger.info(
-                "[NewtonVisualizer] Object dragging is disabled because the active physics solver is not Newton MJWarp."
+                "[NewtonVisualizer] Object dragging is disabled because the active physics solver does not support"
+                " rigid-body force input."
             )
         self._is_initialized = True
 

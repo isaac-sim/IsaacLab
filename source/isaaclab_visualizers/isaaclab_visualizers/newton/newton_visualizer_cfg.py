@@ -62,9 +62,9 @@ class NewtonVisualizerCfg(VisualizerCfg):
     """
 
     enable_picking: bool = True
-    """Enable right-click dragging with the Newton MJWarp solver.
+    """Enable right-click dragging with Newton rigid-body solvers.
 
-    Disabled automatically for headless viewers and other physics solvers.
+    Disabled automatically for headless viewers, MPM, and non-Newton physics.
     """
 
     enable_shadows: bool = True

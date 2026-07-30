@@ -196,7 +196,7 @@ def test_update_visualizers_handles_training_pause_loop():
     assert viz.step_calls == [0.0, 0.2]
 
 
-def test_newton_mjwarp_visualizer_is_initialized_and_rebound_before_capture():
+def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     created = []
     reset_calls = []
 
@@ -214,11 +214,11 @@ def test_newton_mjwarp_visualizer_is_initialized_and_rebound_before_capture():
             return viz
 
     ctx = _make_context_with_settings({}, visualizer_cfgs=[_Cfg("newton", True), _Cfg("rerun")])
-    ctx._prepare_newton_mjwarp_visualizer_for_capture()
+    ctx._prepare_newton_visualizer_for_capture()
     assert created == ["newton"]
 
     ctx.initialize_visualizers()
-    ctx._prepare_newton_mjwarp_visualizer_for_capture()
+    ctx._prepare_newton_visualizer_for_capture()
 
     assert created == ["newton", "rerun"]
     assert len(ctx._visualizers) == 2

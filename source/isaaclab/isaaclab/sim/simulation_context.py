@@ -241,13 +241,13 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
-        is_newton_mjwarp = self.physics_manager.__name__ == "NewtonMJWarpManager"
-        if is_newton_mjwarp and any(self._is_interactive_newton_cfg(cfg) for cfg in self._get_visualizer_cfgs()):
+        supports_newton_picking = bool(getattr(self.physics_manager, "_supports_rigid_body_force_input", False))
+        if supports_newton_picking and any(self._is_interactive_newton_cfg(cfg) for cfg in self._get_visualizer_cfgs()):
             self.physics_manager.register_callback(
-                self._prepare_newton_mjwarp_visualizer_for_capture,
+                self._prepare_newton_visualizer_for_capture,
                 PhysicsEvent.PHYSICS_READY,
                 order=30,
-                name="newton_mjwarp_visualizer_pre_capture",
+                name="newton_visualizer_pre_capture",
             )
 
         self._services = ServiceLocator()
@@ -680,8 +680,8 @@ class SimulationContext:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()
 
-    def _prepare_newton_mjwarp_visualizer_for_capture(self, _payload=None) -> None:
-        """Initialize or rebind the Newton viewer before MJWarp graph capture."""
+    def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
+        """Initialize or rebind the Newton viewer before solver graph capture."""
         if self._visualizers_fully_initialized and not self._visualizers:
             self._visualizer_cfg_cache = None
             self._initialized_visualizer_cfg_indices.clear()

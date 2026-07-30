@@ -17,7 +17,7 @@ import argparse
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
-parser = argparse.ArgumentParser(description="Newton viewer dragging with three dynamic MJWarp cubes.")
+parser = argparse.ArgumentParser(description="Three-cube Newton viewer dragging demo (MJWarp).")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton"])
@@ -47,7 +47,7 @@ def cube_cfg(name: str, position: tuple[float, float, float]) -> RigidObjectCfg:
 
 @configclass
 class ViewerDraggingSceneCfg(InteractiveSceneCfg):
-    """Ground plane and three dynamic MJWarp cubes."""
+    """Ground plane and three dynamic cubes."""
 
     ground = AssetBaseCfg(
         prim_path="/World/Ground",

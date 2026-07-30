@@ -54,6 +54,8 @@ class NewtonKaminoManager(NewtonManager):
     Kamino's internal collision detector handles contact generation.
     """
 
+    _supports_rigid_body_force_input = True
+
     # Annotate the concrete solver type.
     _solver: SolverKamino
 

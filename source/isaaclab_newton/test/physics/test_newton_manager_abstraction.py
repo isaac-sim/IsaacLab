@@ -659,6 +659,21 @@ def test_subclass_of_newton_manager(manager):
     assert manager._create_solver is not NewtonManager._create_solver
 
 
+@pytest.mark.parametrize(
+    ("manager", "expected"),
+    [
+        (NewtonMJWarpManager, True),
+        (NewtonXPBDManager, True),
+        (NewtonFeatherstoneManager, True),
+        (NewtonKaminoManager, True),
+        (NewtonMPMManager, False),
+    ],
+)
+def test_manager_reports_rigid_body_force_input_support(manager, expected):
+    """Only rigid-body solvers opt into viewer force input."""
+    assert manager._supports_rigid_body_force_input is expected
+
+
 def test_abstract_build_solver_raises():
     """Calling :meth:`_build_solver` on the abstract base raises."""
     with pytest.raises(NotImplementedError):
@@ -880,33 +895,56 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
         assert calls["n"] == 1 + expected_mid_loop_collides
 
 
-def test_state_force_callback_runs_before_every_mjwarp_substep(monkeypatch):
-    """Viewer forces are applied before every in-place MJWarp solver substep."""
+@pytest.mark.parametrize("use_single_state", [True, False], ids=["single_state", "double_state"])
+def test_state_force_callback_runs_before_every_solver_substep(monkeypatch, use_single_state):
+    """Viewer forces are applied to each current input state before solver stepping."""
     events = []
 
     class _State:
+        def __init__(self, name):
+            self.name = name
+
         def clear_forces(self):
             pass
 
-    state = _State()
+    state_0 = _State("state_0")
+    state_1 = _State("state_1")
 
-    monkeypatch.setattr(NewtonManager, "_state_0", state)
+    monkeypatch.setattr(NewtonManager, "_state_0", state_0)
+    monkeypatch.setattr(NewtonManager, "_state_1", state_1)
     monkeypatch.setattr(NewtonManager, "_control", object())
     monkeypatch.setattr(NewtonManager, "_solver_dt", 0.001)
     monkeypatch.setattr(NewtonManager, "_num_substeps", 2)
     monkeypatch.setattr(NewtonManager, "_collision_decimation", 0)
     monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False)
-    monkeypatch.setattr(NewtonManager, "_use_single_state", True)
-    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [lambda _state: events.append("force")])
+    monkeypatch.setattr(NewtonManager, "_use_single_state", use_single_state)
+    monkeypatch.setattr(
+        NewtonManager,
+        "_state_force_callbacks",
+        [lambda state: events.append(("force", state.name))],
+    )
     monkeypatch.setattr(
         NewtonManager,
         "_step_solver",
-        staticmethod(lambda *_args: events.append("step")),
+        staticmethod(lambda state_in, state_out, *_args: events.append(("step", state_in.name, state_out.name))),
     )
 
     NewtonManager._run_solver_substeps(contacts=None)
 
-    assert events == ["force", "step", "force", "step"]
+    if use_single_state:
+        assert events == [
+            ("force", "state_0"),
+            ("step", "state_0", "state_0"),
+            ("force", "state_0"),
+            ("step", "state_0", "state_0"),
+        ]
+    else:
+        assert events == [
+            ("force", "state_0"),
+            ("step", "state_0", "state_1"),
+            ("force", "state_1"),
+            ("step", "state_1", "state_0"),
+        ]
 
 
 # ---------------------------------------------------------------------------
