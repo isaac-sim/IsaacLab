@@ -20,7 +20,8 @@ from isaaclab.devices import (
     Se3KeyboardCfg,
 )
 
-pytestmark = pytest.mark.requires_extra("teleop")
+# isaaclab_teleop.devices pulls in carb at import time, so this also needs the Kit runtime.
+pytestmark = [pytest.mark.requires_extra("teleop"), pytest.mark.requires_kit]
 
 
 @pytest.fixture

@@ -19,7 +19,7 @@ from rendering_test_utils import (
     rendering_test_cartpole,
 )
 
-pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci, pytest.mark.requires_extra("ov")]
 
 _OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
 _OVSTAGE_OVPHYSX_MOTION_XFAIL_REASON = (

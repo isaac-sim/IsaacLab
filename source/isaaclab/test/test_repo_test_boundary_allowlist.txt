@@ -22,6 +22,12 @@ import_time_side_effect source/isaaclab_teleop/test/test_retargeters.py
 # isaaclab.devices.gamepad.se2_gamepad stops importing carb at module scope.
 transitive_kit source/isaaclab/test/devices/test_device_constructors.py
 
+# Runs a script in a subprocess that launches Kit, which no static check can see.
+transitive_kit source/isaaclab_rl/test/export/test_rsl_rl_direct_export_flow.py
+transitive_kit source/isaaclab_mimic/test/test_generate_dataset_skillgen.py
+transitive_kit source/isaaclab_teleop/test/test_teleop_scripts_smoke.py
+transitive_kit source/isaaclab_teleop/test/test_openxr_device_constructors.py
+
 # Tests without a docstring naming the contract they protect. These entries grandfather existing
 # files so the rule applies to new ones; clear an entry when a test's contract is genuinely
 # unclear from its name. Do not bulk-add docstrings that only restate the test name.

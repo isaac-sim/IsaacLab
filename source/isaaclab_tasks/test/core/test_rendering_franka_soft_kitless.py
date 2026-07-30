@@ -17,7 +17,7 @@ from rendering_test_utils import (
     rendering_test_franka_soft,
 )
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.requires_extra("ov")]
 
 _RENDERING_PARAMS = make_kitless_rendering_params_franka()
 _COMPARISON_SCORES: list[dict] = []

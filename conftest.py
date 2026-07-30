@@ -117,6 +117,10 @@ _EXTRA_SENTINELS = {
     "ovphysx": "ovphysx",
     "ovrtx": "ovrtx",
     "rerun": "rerun",
+    "rl-games": "rl_games",
+    "rsl-rl": "rsl_rl",
+    "sb3": "stable_baselines3",
+    "skrl": "skrl",
     "teleop": "isaaclab_teleop",
     "viser": "viser",
 }

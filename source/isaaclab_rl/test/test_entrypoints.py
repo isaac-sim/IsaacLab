@@ -16,6 +16,8 @@ import pytest
 
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
 
+pytestmark = [pytest.mark.requires_extra("rsl-rl"), pytest.mark.requires_extra("skrl")]
+
 
 def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:
     """Training requests use typed parameters rather than parser namespaces."""

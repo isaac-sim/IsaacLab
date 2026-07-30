@@ -14,6 +14,9 @@ from mimic_test_utils import run_script
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
+# Runs generate_dataset.py in a subprocess, which launches Kit.
+pytestmark = pytest.mark.requires_kit
+
 DATASETS_DOWNLOAD_DIR = tempfile.mkdtemp(suffix="_IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen")
 NUCLEUS_SKILLGEN_ANNOTATED_DATASET_PATH = os.path.join(
     ISAACLAB_NUCLEUS_DIR, "Mimic", "franka_stack_datasets", "annotated_dataset_skillgen.hdf5"

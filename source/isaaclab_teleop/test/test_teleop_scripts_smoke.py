@@ -32,7 +32,8 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+# Runs the teleop scripts in subprocesses, which launch Kit.
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.requires_kit]
 
 # Repository root: this file lives at source/isaaclab_teleop/test/<file>.py
 ROOT = Path(__file__).resolve().parents[3]

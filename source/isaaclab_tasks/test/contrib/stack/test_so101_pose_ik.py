@@ -19,6 +19,8 @@ import math
 import pytest
 import torch
 
+pytestmark = pytest.mark.requires_extra("teleop")
+
 from isaaclab_tasks.contrib.stack.config.so101.pose_ik_controller import (
     SO101PoseIKController,
     SO101PoseIKControllerCfg,
