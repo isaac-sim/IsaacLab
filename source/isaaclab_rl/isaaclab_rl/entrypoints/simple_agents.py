@@ -108,9 +108,7 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     parser.add_argument(
         "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
     )
-    parser.add_argument(
-        "--num_envs", type=int, default=_DEFAULT_NUM_ENVS, help="Number of environments to simulate."
-    )
+    parser.add_argument("--num_envs", type=int, default=_DEFAULT_NUM_ENVS, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
     # append AppLauncher cli args
     add_launcher_args(parser)
