@@ -33,6 +33,12 @@ workflow:
         OMNI_KIT_ACCEPT_EULA: "yes"
         ACCEPT_EULA: "Y"
         OMNI_KIT_ALLOW_ROOT: "1"
+        # The CUDA base image defaults to compute,utility, which omits the GL
+        # driver libraries. Newton's headless video recorder loads libGL through
+        # pyglet, so without graphics the play step dies on `Library "GL" not
+        # found` -- reported as "requires pyglet to be installed", though pyglet
+        # itself is present.
+        NVIDIA_DRIVER_CAPABILITIES: "compute,utility,graphics"
         ODIN_DISPATCH_ID: "20260728-120000"
         ODIN_ROW_KEY: "rsl_rl_physx_Isaac-Ant_seed42"
       command: ["bash"]

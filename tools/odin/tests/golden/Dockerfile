@@ -5,8 +5,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_CACHE_DIR=/opt/uv-cache
 ENV PATH=/root/.local/bin:$PATH
 
+# libgl1/libegl1 provide the GL loader Newton's headless video recorder reaches
+# through pyglet. The CUDA runtime image ships no libGL at all, so without them
+# play fails with `Library "GL" not found`, surfaced as "requires pyglet to be
+# installed" even though pyglet is present. The NVIDIA driver's own GL is
+# injected at run time and needs the graphics capability, set in dispatch.yaml.j2.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl git \
+        libgl1 libegl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # uv manages its own Python (pyproject sets python-preference = "only-managed"),
