@@ -19,7 +19,6 @@ from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
-from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
 # Map of task IDs to the reason for marking the corresponding parametrized
@@ -103,6 +102,26 @@ def _has_physics_preset(raw_cfg, preset_name: str) -> bool:
     return physics is not None and hasattr(physics, preset_name)
 
 
+def _task_needs_kit(task_id: str, physics_preset_name: str | None = None) -> bool:
+    """Check whether a task's resolved config requires the Isaac Sim Kit runtime.
+
+    Derived from the same scan :func:`~isaaclab.app.launch_simulation` performs, so the
+    kit-less split follows the launcher instead of a hand-maintained task list.
+
+    Args:
+        task_id: Registered task ID.
+        physics_preset_name: Physics preset applied before scanning, since the backend
+            selection decides whether Kit is needed.
+
+    Returns:
+        True if the task needs the Kit runtime.
+    """
+    from isaaclab.app import sim_launcher
+
+    env_cfg = parse_env_cfg(task_id, presets=(physics_preset_name,) if physics_preset_name else ())
+    return bool(sim_launcher.scan(env_cfg, {}).needs_kit)
+
+
 def setup_environment(
     include_play: bool = False,
     factory_envs: bool | None = None,
@@ -112,6 +131,8 @@ def setup_environment(
     pickplace_stack_envs: bool | None = None,
     newton_mjwarp_envs: bool | None = None,
     tier: str | None = None,
+    needs_kit: bool | None = None,
+    physics_preset_name: str | None = None,
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
@@ -146,6 +167,12 @@ def setup_environment(
             - "core": include only core environments (registered under ``isaaclab_tasks.core``).
             - "contrib": include only contributed environments (registered under ``isaaclab_tasks.contrib``).
             - None: include all environments regardless of tier.
+        needs_kit:
+            - True: include only environments whose resolved config needs the Kit runtime.
+            - False: include only environments that run kit-less.
+            - None: include all environments regardless of Kit requirement.
+        physics_preset_name: Physics preset applied before deciding the Kit requirement, since the
+            backend selection determines whether Kit is needed. Only used with ``needs_kit``.
 
     Returns:
         A sorted list of task IDs matching the selected filters.
@@ -222,6 +249,11 @@ def setup_environment(
                 continue
         # if None: no filter
 
+        # apply Kit-runtime filter
+        if needs_kit is not None and _task_needs_kit(task_spec.id, physics_preset_name) != needs_kit:
+            continue
+        # if None: no filter
+
         registered_tasks.append(task_spec.id)
 
     # sort environments alphabetically
@@ -290,8 +322,10 @@ def _run_environments(
             If None, uses the environment's default physics.
     """
 
-    # skip test if stage in memory is not supported
-    if get_isaac_sim_version().major < 5 and create_stage_in_memory:
+    # skip test if stage in memory is not supported. Only query the Isaac Sim version when the
+    # answer can matter: get_isaac_sim_version() imports isaacsim, which a kit-less caller does
+    # not have.
+    if create_stage_in_memory and get_isaac_sim_version().major < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # skip suction gripper environments as they require CPU simulation and cannot be run with GPU simulation
@@ -370,20 +404,13 @@ def _check_random_actions(
     get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
     env = None
     try:
-        # parse config
-        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-        # apply physics preset override before creating the environment
-        if physics_preset_name is not None:
-            # parse_env_cfg already resolved PresetCfg wrappers to their default,
-            # so we load the raw config to retrieve preset alternatives.
-            raw_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-            presets = {"env": collect_presets(raw_cfg), "agent": {}}
-            hydra_cfg = {"env": env_cfg.to_dict(), "agent": None}
-            apply_overrides(env_cfg, None, hydra_cfg, [physics_preset_name], [], [], presets)
-            # Re-apply num_envs since apply_overrides may have replaced
-            # the scene config with the preset's default num_envs.
-            if num_envs is not None:
-                env_cfg.scene.num_envs = num_envs
+        # parse config, selecting the requested physics preset as it is resolved
+        env_cfg = parse_env_cfg(
+            task_name,
+            device=device,
+            num_envs=num_envs,
+            presets=(physics_preset_name,) if physics_preset_name else (),
+        )
         # set config args
         env_cfg.sim.create_stage_in_memory = create_stage_in_memory
         if disable_clone_in_fabric:

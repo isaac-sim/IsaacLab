@@ -13,6 +13,7 @@ import inspect
 import os
 import re
 import warnings
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
@@ -144,7 +145,11 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
 
 
 def parse_env_cfg(
-    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
+    task_name: str,
+    device: str = "cuda:0",
+    num_envs: int | None = None,
+    use_fabric: bool | None = None,
+    presets: Sequence[str] = (),
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
@@ -155,6 +160,10 @@ def parse_env_cfg(
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
             Defaults to None, in which case it is left unchanged.
+        presets: Preset names to select while resolving :class:`PresetCfg` wrappers, mirroring the
+            Hydra ``presets=`` CLI tokens. Defaults to an empty selection, which resolves to each
+            wrapper's default. A selection must be passed here rather than applied afterwards,
+            because the returned config no longer carries the wrappers to choose from.
 
     Returns:
         The parsed configuration object.
@@ -171,12 +180,12 @@ def parse_env_cfg(
     if isinstance(cfg, dict):
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
-    # Resolve any PresetCfg wrappers to their default preset so the config
-    # is usable without a Hydra CLI override (e.g. in tests).
+    # Resolve any PresetCfg wrappers, honoring the requested presets and otherwise falling back to
+    # each wrapper's default so the config is usable without a Hydra CLI override (e.g. in tests).
     # Must happen BEFORE attribute overrides, otherwise overrides on PresetCfg wrapper
     # fields (e.g. cfg.scene when scene is a PresetCfg) get discarded when the wrapper
     # is replaced by its .default.
-    cfg = resolve_presets(cfg)
+    cfg = resolve_presets(cfg, presets)
 
     # simulation device
     cfg.sim.device = device
