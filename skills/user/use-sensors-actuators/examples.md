@@ -55,7 +55,7 @@ Use actuator configs in robot assets or task overrides, then validate joint name
 
 Examples to inspect:
 
-- `source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_env_cfg.py`
 
 Validation checklist:

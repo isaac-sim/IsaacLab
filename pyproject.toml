@@ -116,6 +116,18 @@ test = [
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
     "coverage>=7.6.1",
+    "sphinx>=7.0,<9",
+    "sphinx-book-theme>=1.1",
+    "myst-parser",
+    "sphinxcontrib-bibtex==2.5.0",
+    "autodocsumm",
+    "sphinx-copybutton",
+    "sphinx-icon",
+    "sphinx_design",
+    "sphinx-paramlinks",
+    "sphinxemoji",
+    "sphinx-tabs",
+    "sphinx-multiversion==0.2.4",
 ]
 # RL frameworks (rsl-rl is the default, in core deps); install the one you train with.
 sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]

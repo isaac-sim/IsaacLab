@@ -737,12 +737,16 @@ jobs:
         omni-github-test-type: rendering-correctness
 
   test-rendering-correctness-kitless:
-    name: "rendering-correctness-kitless"
+    name: "rendering-correctness-kitless (${{ matrix.variant }})"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: needs.build.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [legacy, ovstage]
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -769,10 +773,11 @@ jobs:
           test_rendering_franka_cloth_kitless.py,
           test_rendering_franka_soft_kitless.py,
           test_rendering_shadow_hand_kitless.py
+        test-k-expr: ${{ matrix.variant }}
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless' || '' }}
-        container-name: isaac-lab-rendering-correctness-kitless-test
-        omni-github-test-type: rendering-correctness-kitless
+        test-node-ids-key: ${{ github.event_name == 'push' && format('rendering-correctness-kitless-{0}', matrix.variant) || '' }}
+        container-name: "isaac-lab-rendering-correctness-kitless-${{ matrix.variant }}-test"
+        omni-github-test-type: "rendering-correctness-kitless-${{ matrix.variant }}"
   #endregion
 
 #region disabled quarantined tests

@@ -17,6 +17,19 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
+
+# pyglet.options["headless"] must be set before the first import of pyglet.window.
+# newton.viewer.ViewerGL triggers that import at class-definition time, so we must
+# set the option here — before the ViewerGL import below — not in initialize().
+# Without this, importing NewtonViewerGL in a headless environment (e.g. a pytest
+# session on a CI runner with no DISPLAY) causes ViewerGL to open an X11 connection
+# that blocks indefinitely.
+if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY"):
+    import pyglet as _pyglet_headless_init
+
+    _pyglet_headless_init.options["headless"] = True
+    del _pyglet_headless_init
+
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
