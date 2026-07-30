@@ -17,6 +17,7 @@ from isaaclab.assets.articulation.base_articulation_data import BaseArticulation
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets.kernels import (
@@ -119,7 +120,7 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp: float = 0.0
         self._fk_timestamp: float = 0.0
         self._is_primed: bool = False
-        self._cached_read_launches: dict[object, wp.Launch] = {}
+        self._read_launch_cache = _WarpLaunchCache(device)
         # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
 
@@ -144,24 +145,6 @@ class ArticulationData(BaseArticulationData):
         self.FORWARD_VEC_B = ProxyArray(wp.from_numpy(forward_tiled, dtype=wp.vec3f, device=device))
 
         self._create_buffers()
-
-    def _launch_cached_read(self, key: object, kernel: wp.Kernel, *, dim, inputs, outputs) -> None:
-        """Launch a read kernel through a cached Warp command when running on CUDA."""
-        device = wp.get_device(self.device)
-        if not device.is_cuda or device.is_capturing:
-            wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device)
-            return
-        command = self._cached_read_launches.get(key)
-        if command is None:
-            command = wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device, record_cmd=True)
-            if command is None:
-                return
-            self._cached_read_launches[key] = command
-        command.launch()
-
-    def _reset_cached_read_launches(self) -> None:
-        """Discard recorded read launches whose arguments may no longer be valid."""
-        self._cached_read_launches.clear()
 
     @property
     def is_primed(self) -> bool:
@@ -874,7 +857,7 @@ class ArticulationData(BaseArticulationData):
             backend_buffer = self._body_com_vel_w
             self._read_spatial_vector_binding(TT.LINK_VELOCITY, backend_buffer)
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_link_vel_w",
                 _copy_first_body,
                 dim=self.num_instances,
@@ -897,7 +880,7 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_com_pose_w",
                 _compose_root_com_pose,
                 dim=self.num_instances,
@@ -984,7 +967,7 @@ class ArticulationData(BaseArticulationData):
             return
         self._read_binding_into_buf(tensor_type, backend_buffer)
         if component_count is None:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 (id(buf), "body_2d"),
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self._num_instances, self._num_bodies),
@@ -992,7 +975,7 @@ class ArticulationData(BaseArticulationData):
                 outputs=[buf.data],
             )
         else:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 (id(buf), "body_3d"),
                 ordering_kernels.reorder_3d_backend_to_user,
                 dim=(self._num_instances, self._num_bodies, component_count),
@@ -1078,7 +1061,7 @@ class ArticulationData(BaseArticulationData):
         _ = self.body_com_vel_w
         _ = self.body_link_pose_w
         _ = self.body_com_pose_b
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "body_link_vel_w",
             get_body_link_vel_from_body_com_vel,
             dim=(self.num_instances, self.num_bodies),
@@ -1107,7 +1090,7 @@ class ArticulationData(BaseArticulationData):
             return self._body_com_pose_w_ta
         _ = self.body_link_pose_w
         _ = self.body_com_pose_b
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "body_com_pose_w",
             get_body_com_pose_from_body_link_pose,
             dim=(self.num_instances, self.num_bodies),
@@ -1160,7 +1143,7 @@ class ArticulationData(BaseArticulationData):
             has_joint_ordering = self.has_joint_ordering
             if has_body_ordering or has_joint_ordering:
                 self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w_backend)
-                self._launch_cached_read(
+                self._read_launch_cache.launch(
                     "body_com_jacobian_w",
                     ordering_kernels.reorder_jacobian_backend_to_user,
                     dim=self._body_com_jacobian_w.data.shape,
@@ -1182,7 +1165,7 @@ class ArticulationData(BaseArticulationData):
     @property
     def body_link_jacobian_w(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.body_link_jacobian_w`."""
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "body_link_jacobian_w",
             articulation_kernels.shift_jacobian_com_to_origin,
             dim=self._body_link_jacobian_w.shape[:2] + (self._body_link_jacobian_w.shape[3],),
@@ -1204,7 +1187,7 @@ class ArticulationData(BaseArticulationData):
             return
         if self.has_joint_ordering:
             self._binding_read(tensor_type, backend_buffer)
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 (id(buffer), "generalized_dynamics"),
                 reorder_kernel,
                 dim=buffer.data.shape,
@@ -1265,7 +1248,7 @@ class ArticulationData(BaseArticulationData):
 
         self._read_binding_into_buf(tensor_type, backend_buffer)
         if user_buffer.timestamp < backend_buffer.timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 (id(user_buffer), "joint_state"),
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self.num_instances, self.num_joints),
@@ -1379,7 +1362,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "projected_gravity_b",
                 _projected_gravity,
                 dim=self.num_instances,
@@ -1402,7 +1385,7 @@ class ArticulationData(BaseArticulationData):
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
         if self._heading_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "heading_w",
                 _compute_heading,
                 dim=self.num_instances,
@@ -1423,7 +1406,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the linear velocity of the articulation root's actor frame with respect to its actor frame.
         """
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
                 _world_vel_to_body_lin,
                 dim=self.num_instances,
@@ -1444,7 +1427,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the angular velocity of the articulation root's actor frame with respect to its actor frame.
         """
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
                 _world_vel_to_body_ang,
                 dim=self.num_instances,
@@ -1466,7 +1449,7 @@ class ArticulationData(BaseArticulationData):
         with respect to its actor frame.
         """
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
                 _world_vel_to_body_lin,
                 dim=self.num_instances,
@@ -1488,7 +1471,7 @@ class ArticulationData(BaseArticulationData):
         with respect to its actor frame.
         """
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
                 _world_vel_to_body_ang,
                 dim=self.num_instances,
@@ -2238,7 +2221,7 @@ class ArticulationData(BaseArticulationData):
 
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Configure public-order buffers after articulation ordering maps are installed."""
-        self._reset_cached_read_launches()
+        self._read_launch_cache.clear()
         self._configure_ordering_buffers()
         self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
         if self.has_joint_ordering:
@@ -2403,7 +2386,7 @@ class ArticulationData(BaseArticulationData):
         Args:
             event: Simulation event (unused).
         """
-        self._reset_cached_read_launches()
+        self._read_launch_cache.clear()
         self._is_primed = False
         self._sim_timestamp = 0.0
         # Reset every TimestampedBuffer timestamp so the next property access
@@ -2482,7 +2465,7 @@ class ArticulationData(BaseArticulationData):
             return
         self._read_scalar_binding(tensor_type, backend_buffer)
         if component_count is None:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 (id(user_buffer), "joint_property_2d"),
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self.num_instances, self.num_joints),
@@ -2490,7 +2473,7 @@ class ArticulationData(BaseArticulationData):
                 outputs=[user_buffer.data],
             )
         else:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 (id(user_buffer), "joint_property_3d"),
                 ordering_kernels.reorder_3d_backend_to_user,
                 dim=(self.num_instances, self.num_joints, component_count),
@@ -2591,7 +2574,7 @@ class ArticulationData(BaseArticulationData):
             DeprecationWarning,
             stacklevel=2,
         )
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "default_root_state",
             concat_root_pose_and_vel_to_state,
             dim=self.num_instances,
@@ -2615,7 +2598,7 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_state_w_buf.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_state_w",
                 concat_root_pose_and_vel_to_state,
                 dim=self.num_instances,
@@ -2640,7 +2623,7 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_link_state_w_buf.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_link_state_w",
                 concat_root_pose_and_vel_to_state,
                 dim=self.num_instances,
@@ -2665,7 +2648,7 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_com_state_w_buf.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_com_state_w",
                 concat_root_pose_and_vel_to_state,
                 dim=self.num_instances,
@@ -2696,7 +2679,7 @@ class ArticulationData(BaseArticulationData):
             return self._body_state_w_ta
         _ = self.body_link_pose_w
         _ = self.body_com_vel_w
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "body_state_w",
             concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
@@ -2727,7 +2710,7 @@ class ArticulationData(BaseArticulationData):
             return self._body_link_state_w_ta
         _ = self.body_link_pose_w
         _ = self.body_link_vel_w
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "body_link_state_w",
             concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
@@ -2758,7 +2741,7 @@ class ArticulationData(BaseArticulationData):
             return self._body_com_state_w_ta
         _ = self.body_com_pose_w
         _ = self.body_com_vel_w
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "body_com_state_w",
             concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),

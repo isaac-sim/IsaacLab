@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 import torch
@@ -89,6 +90,7 @@ from isaaclab.managers import SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 from isaaclab.utils.version import get_isaac_sim_version, has_kit  # noqa: E402
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 
 ##
 # Pre-defined configs
@@ -110,83 +112,6 @@ _SPATIAL_TENDON_OVSTAGE_GAP_REASON = (
 )
 
 
-def test_cached_read_launch_reuses_command_and_resets(monkeypatch):
-    """OVPhysX should record a stable read once, replay it, and discard it on reset."""
-
-    class FakeCommand:
-        launch_count = 0
-
-        def launch(self):
-            self.launch_count += 1
-
-    class FakeDevice:
-        is_cuda = True
-        is_capturing = False
-
-    device = FakeDevice()
-    command = FakeCommand()
-    launch_calls = []
-
-    def fake_launch(*args, **kwargs):
-        launch_calls.append((args, kwargs))
-        return command
-
-    module = sys.modules[ArticulationData.__module__]
-    monkeypatch.setattr(module.wp, "get_device", lambda device_name: device)
-    monkeypatch.setattr(module.wp, "launch", fake_launch)
-    data = ArticulationData.__new__(ArticulationData)
-    data.device = "cuda:0"
-    data._cached_read_launches = {}
-
-    for _ in range(2):
-        data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
-
-    assert len(launch_calls) == 1
-    assert launch_calls[0][1]["record_cmd"] is True
-    assert command.launch_count == 2
-
-    data._reset_cached_read_launches()
-    device.is_capturing = True
-    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
-    assert "record_cmd" not in launch_calls[-1][1]
-    assert data._cached_read_launches == {}
-
-    device.is_capturing = False
-    device.is_cuda = False
-    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
-    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
-    assert len(launch_calls) == 4
-    assert all("record_cmd" not in kwargs for _, kwargs in launch_calls[-2:])
-    assert data._cached_read_launches == {}
-
-
-def test_cached_read_launch_ignores_empty_recording(monkeypatch):
-    """OVPhysX should treat an empty recorded launch as a completed no-op."""
-
-    class FakeDevice:
-        is_cuda = True
-        is_capturing = False
-
-    launch_calls = []
-
-    def fake_launch(*args, **kwargs):
-        launch_calls.append((args, kwargs))
-        return
-
-    module = sys.modules[ArticulationData.__module__]
-    monkeypatch.setattr(module.wp, "get_device", lambda device_name: FakeDevice())
-    monkeypatch.setattr(module.wp, "launch", fake_launch)
-    data = ArticulationData.__new__(ArticulationData)
-    data.device = "cuda:0"
-    data._cached_read_launches = {}
-
-    data._launch_cached_read("joint_pos", object(), dim=0, inputs=[], outputs=[])
-
-    assert len(launch_calls) == 1
-    assert launch_calls[0][1]["record_cmd"] is True
-    assert data._cached_read_launches == {}
-
-
 def test_cached_read_launches_reset_on_ordering_and_invalidation():
     """Ordering installation and simulation invalidation should discard recorded reads."""
 
@@ -198,7 +123,8 @@ def test_cached_read_launches_reset_on_ordering_and_invalidation():
         timestamp = 1.0
 
     data = MinimalData.__new__(MinimalData)
-    data._cached_read_launches = {"read": object()}
+    read_launch_cache = Mock()
+    data._read_launch_cache = read_launch_cache
     data._configure_ordering_buffers = lambda: None
     data._make_jacobian_body_user_to_backend = lambda: object()
     data.joint_ordering = None
@@ -208,17 +134,16 @@ def test_cached_read_launches_reset_on_ordering_and_invalidation():
 
     data._apply_ordering_maps_after_resolve()
 
-    assert data._cached_read_launches == {}
+    read_launch_cache.clear.assert_called_once_with()
     assert data._body_com_jacobian_w.timestamp == -1.0
     assert data._mass_matrix.timestamp == -1.0
     assert data._gravity_compensation_forces.timestamp == -1.0
 
-    data._cached_read_launches = {"read": object()}
     data._is_primed = True
     data._sim_timestamp = 1.0
     data._invalidate_initialize_callback(None)
 
-    assert data._cached_read_launches == {}
+    assert read_launch_cache.clear.call_count == 2
     assert data._is_primed is False
     assert data._sim_timestamp == 0.0
 
@@ -234,7 +159,7 @@ def test_generalized_dynamics_reorder_uses_public_joint_order():
     data = ArticulationData.__new__(ArticulationData)
     data.device = "cpu"
     data._sim_timestamp = 1.0
-    data._cached_read_launches = {}
+    data._read_launch_cache = _WarpLaunchCache("cpu")
     data.joint_ordering = object()
     data._jacobian_joint_user_to_backend = wp.array([1, 0], dtype=wp.int32, device="cpu")
     data._num_base_dofs = 0
