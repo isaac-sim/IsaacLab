@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Volume deformable sim-to-visual remapping for shadow rendering."""
+"""Barycentric sim-to-visual remapping for volume deformable shadow rendering."""
 
 from __future__ import annotations
 
@@ -18,15 +18,12 @@ logger = logging.getLogger(__name__)
 _BARY_EPS = 1e-5
 
 
-@dataclass(frozen=True)
+@dataclass
 class VolumeVisRemap:
-    """Barycentric embed of visual mesh vertices into a tet sim mesh."""
+    """Device-resident barycentric remap from sim tet nodes to visual mesh vertices."""
 
-    tet_vertex_indices: np.ndarray
-    """Visual-vertex tet corner indices into the sim body slice, shape ``[vis_count, 4]``, int32."""
-
-    bary_weights: np.ndarray
-    """Barycentric weights per visual vertex, shape ``[vis_count, 4]``, float32."""
+    tet_vertex_indices: wp.array
+    bary_weights: wp.array
 
 
 @wp.kernel
@@ -58,13 +55,17 @@ def launch_volume_vis_remap(
     sim_offset: int,
     render_offset: int,
     remap: VolumeVisRemap,
-    *,
-    device: str,
 ) -> None:
-    """Write one body's remapped visual positions into ``render_particle_q``."""
-    vis_count = int(remap.tet_vertex_indices.shape[0])
-    tet_indices_wp = wp.array(remap.tet_vertex_indices, dtype=wp.int32, device=device)
-    bary_wp = wp.array(remap.bary_weights, dtype=wp.float32, device=device)
+    """Barycentrically interpolate sim tet nodes into visual render slots.
+
+    Args:
+        sim_particle_q: Live sim particle positions [m], shape ``[sim_count, 3]``, float.
+        render_particle_q: Shadow render buffer [m], shape ``[render_count, 3]``, float.
+        sim_offset: Starting index of this body's sim particles in ``sim_particle_q``.
+        render_offset: Starting index of this body's visual particles in ``render_particle_q``.
+        remap: Pre-built device-resident barycentric tables for this body.
+    """
+    vis_count = remap.tet_vertex_indices.shape[0]
     wp.launch(
         _remap_volume_vis_positions_kernel,
         dim=vis_count,
@@ -73,91 +74,95 @@ def launch_volume_vis_remap(
             render_particle_q,
             sim_offset,
             render_offset,
-            tet_indices_wp,
-            bary_wp,
+            remap.tet_vertex_indices,
+            remap.bary_weights,
         ],
-        device=device,
+        device=sim_particle_q.device,
     )
-
-
-def _barycentric_coords_tet(
-    v0: np.ndarray,
-    v1: np.ndarray,
-    v2: np.ndarray,
-    v3: np.ndarray,
-    point: np.ndarray,
-) -> tuple[np.ndarray, bool]:
-    """Return barycentric weights ``(w0,w1,w2,w3)`` for ``point`` in tet ``(v0..v3)``."""
-    mat = np.stack((v1 - v0, v2 - v0, v3 - v0), axis=1).astype(np.float64)
-    rhs = (point - v0).astype(np.float64)
-    try:
-        w123 = np.linalg.solve(mat, rhs)
-    except np.linalg.LinAlgError:
-        return np.zeros(4, dtype=np.float32), False
-    w0 = 1.0 - float(np.sum(w123))
-    weights = np.array([w0, w123[0], w123[1], w123[2]], dtype=np.float32)
-    inside = bool(np.all(weights >= -_BARY_EPS))
-    return weights, inside
 
 
 def build_volume_vis_barycentric_remap(
     sim_vertices: np.ndarray,
     tet_indices: np.ndarray,
     vis_vertices: np.ndarray,
+    *,
+    device: str = "cpu",
 ) -> VolumeVisRemap | None:
-    """Build a barycentric sim→vis remap for one volume deformable body.
+    """Embed each visual vertex in the closest sim tet and upload remap tables to *device*.
+
+    Visual vertices slightly outside the tet hull are projected onto the nearest tet
+    (barycentric extrapolation) instead of failing the whole remap.
 
     Args:
-        sim_vertices: Sim tet mesh vertex positions in the deformable parent frame [m],
-            shape ``[sim_count, 3]``.
-        tet_indices: Tetrahedron indices flattened as ``4 * num_tets`` int32.
-        vis_vertices: Visual mesh vertex positions in the same frame [m], shape ``[vis_count, 3]``.
+        sim_vertices: Sim tet node positions [m], shape ``[sim_count, 3]``, float32.
+        tet_indices: Flattened tet vertex indices, shape ``[4 * tet_count]``, int32.
+        vis_vertices: Visual mesh vertex positions [m], shape ``[vis_count, 3]``, float32.
+        device: Warp device for the returned remap arrays.
 
     Returns:
-        A :class:`VolumeVisRemap` when every visual vertex embeds in a tet, otherwise ``None``.
+        Device-resident remap tables, or ``None`` when no tet can be assigned.
     """
-    sim_vertices = np.asarray(sim_vertices, dtype=np.float32).reshape(-1, 3)
-    vis_vertices = np.asarray(vis_vertices, dtype=np.float32).reshape(-1, 3)
-    tet_indices = np.asarray(tet_indices, dtype=np.int32).reshape(-1, 4)
-    if sim_vertices.shape[0] == 0 or vis_vertices.shape[0] == 0 or tet_indices.shape[0] == 0:
+    if vis_vertices.size == 0 or sim_vertices.size == 0 or tet_indices.size == 0:
         return None
 
-    tet_vertex_indices = np.zeros((vis_vertices.shape[0], 4), dtype=np.int32)
-    bary_weights = np.zeros((vis_vertices.shape[0], 4), dtype=np.float32)
+    tet_count = tet_indices.shape[0] // 4
+    vis_count = vis_vertices.shape[0]
+    tet_vertex_indices = np.empty((vis_count, 4), dtype=np.int32)
+    bary_weights = np.empty((vis_count, 4), dtype=np.float32)
+    clamped_count = 0
+    unassigned_count = 0
 
-    for vis_idx, point in enumerate(vis_vertices):
-        best_weights: np.ndarray | None = None
-        best_tet: np.ndarray | None = None
+    for vis_idx in range(vis_count):
+        point = vis_vertices[vis_idx]
         best_neg = -np.inf
-        found_inside = False
+        best_tet = -1
+        best_weights = np.zeros(4, dtype=np.float32)
 
-        for tet in tet_indices:
-            v0, v1, v2, v3 = sim_vertices[tet[0]], sim_vertices[tet[1]], sim_vertices[tet[2]], sim_vertices[tet[3]]
-            weights, inside = _barycentric_coords_tet(v0, v1, v2, v3, point)
-            if inside:
+        for tet_idx in range(tet_count):
+            v0, v1, v2, v3 = (int(tet_indices[tet_idx * 4 + j]) for j in range(4))
+            a = sim_vertices[v0]
+            b = sim_vertices[v1]
+            c = sim_vertices[v2]
+            d = sim_vertices[v3]
+
+            mat = np.stack((b - a, c - a, d - a), axis=1)
+            rhs = point - a
+            try:
+                sol = np.linalg.solve(mat, rhs)
+            except np.linalg.LinAlgError:
+                continue
+
+            w1, w2, w3 = sol
+            w0 = 1.0 - w1 - w2 - w3
+            weights = np.array([w0, w1, w2, w3], dtype=np.float32)
+            neg = float(min(weights))
+            if neg > best_neg:
+                best_neg = neg
+                best_tet = tet_idx
                 best_weights = weights
-                best_tet = tet
-                found_inside = True
-                break
-            min_weight = float(np.min(weights))
-            if min_weight > best_neg:
-                best_neg = min_weight
-                best_weights = weights
-                best_tet = tet
 
-        if best_tet is None or best_weights is None:
-            logger.warning("Failed to embed visual vertex %d into any simulation tet.", vis_idx)
-            return None
+        if best_tet < 0:
+            unassigned_count += 1
+            continue
 
-        if not found_inside and best_neg < -_BARY_EPS:
-            logger.warning(
-                "Visual vertex %d lies outside the simulation tet hull (min bary weight %.4f).",
-                vis_idx,
-                best_neg,
-            )
-            return None
+        if best_neg < -_BARY_EPS:
+            clamped_count += 1
 
-        tet_vertex_indices[vis_idx] = best_tet
+        base = best_tet * 4
+        tet_vertex_indices[vis_idx] = tet_indices[base : base + 4]
         bary_weights[vis_idx] = best_weights
 
-    return VolumeVisRemap(tet_vertex_indices=tet_vertex_indices, bary_weights=bary_weights)
+    if unassigned_count > 0:
+        return None
+
+    if clamped_count > 0:
+        logger.warning(
+            "Volume vis remap clamped %d/%d visual vertices to the nearest sim tet (outside hull).",
+            clamped_count,
+            vis_count,
+        )
+
+    return VolumeVisRemap(
+        tet_vertex_indices=wp.array(tet_vertex_indices, dtype=wp.int32, device=device),
+        bary_weights=wp.array(bary_weights, dtype=wp.float32, device=device),
+    )

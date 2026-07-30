@@ -11,6 +11,7 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+import numpy as np
 import warp as wp
 from newton import ModelBuilder
 
@@ -23,7 +24,7 @@ from isaaclab.scene_data.deformable_discovery import (
     path_to_env_wildcard,
     sort_deformable_entries_for_geometry_sync,
 )
-from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap
+from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap, build_volume_vis_barycentric_remap
 from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 logger = logging.getLogger(__name__)
@@ -71,14 +72,39 @@ class ShadowDeformableRegistryGroup:
     entities: list[ShadowDeformableEntity] = field(default_factory=list)
 
 
-def _uses_volume_vis_remap(entry: DeformableStageEntry) -> bool:
-    return entry.deformable_type == "volume" and entry.volume_vis_remap is not None
+def _needs_volume_vis_remap(entry: DeformableStageEntry) -> bool:
+    return (
+        entry.deformable_type == "volume"
+        and entry.vis_vertex_count != entry.vertex_count
+        and bool(entry.vis_vertices)
+        and bool(entry.vis_indices)
+    )
+
+
+def _build_volume_vis_remap(entry: DeformableStageEntry, device: str) -> VolumeVisRemap | None:
+    sim_np = np.array([[float(v[0]), float(v[1]), float(v[2])] for v in entry.vertices], dtype=np.float32)
+    vis_np = np.array([[float(v[0]), float(v[1]), float(v[2])] for v in entry.vis_vertices], dtype=np.float32)
+    remap = build_volume_vis_barycentric_remap(
+        sim_np,
+        np.asarray(entry.indices, dtype=np.int32),
+        vis_np,
+        device=device,
+    )
+    if remap is None:
+        logger.warning(
+            "Volume deformable '%s' could not build a sim-to-visual barycentric remap; "
+            "renderers may fall back to rest-pose visual geometry.",
+            entry.root_path,
+        )
+    return remap
 
 
 def add_shadow_deformables_to_builder(
     builder: ModelBuilder,
     stage: Usd.Stage,
     env_paths: Sequence[tuple[int, str]],
+    *,
+    device: str = "cpu",
 ) -> tuple[list[ShadowDeformableEntity], list[ShadowDeformableRegistryGroup]]:
     """Add PhysX/OVPhysX deformable meshes to a shadow Newton builder.
 
@@ -90,6 +116,7 @@ def add_shadow_deformables_to_builder(
         builder: Shadow :class:`~newton.ModelBuilder` under construction.
         stage: Current USD stage.
         env_paths: Sorted ``(env_id, env_prim_path)`` pairs.
+        device: Warp device for barycentric remap tables uploaded during shadow build.
 
     Returns:
         Flat entity list for geometry mapping and grouped registry metadata for
@@ -116,7 +143,7 @@ def add_shadow_deformables_to_builder(
         wildcard_root = path_to_env_regex(template.root_path)
         wildcard_sim = path_to_env_regex(template.sim_mesh_path)
         wildcard_vis = path_to_env_regex(template.vis_mesh_path)
-        uses_remap = _uses_volume_vis_remap(template)
+        uses_remap = _needs_volume_vis_remap(template)
         render_count = template.vis_vertex_count if uses_remap else template.vertex_count
         group = ShadowDeformableRegistryGroup(
             prim_path=wildcard_root,
@@ -177,7 +204,7 @@ def add_shadow_deformables_to_builder(
                     edge_kd=1e-2,
                     particle_radius=0.008,
                 )
-            elif _uses_volume_vis_remap(entry):
+            elif _needs_volume_vis_remap(entry):
                 builder.add_cloth_mesh(
                     pos=body_pos,
                     rot=body_rot,
@@ -210,13 +237,14 @@ def add_shadow_deformables_to_builder(
             added_render = int(getattr(builder, "particle_count", 0)) - before_render
             render_count = added_render if added_render > 0 else render_count
             sim_count = entry.vertex_count
+            volume_vis_remap = _build_volume_vis_remap(entry, device) if _needs_volume_vis_remap(entry) else None
             entity = ShadowDeformableEntity(
                 root_path=entry.root_path,
                 sim_particle_offset=sim_particle_cursor,
                 sim_particle_count=sim_count,
                 vis_particle_offset=render_particle_cursor,
                 vis_particle_count=render_count,
-                volume_vis_remap=entry.volume_vis_remap,
+                volume_vis_remap=volume_vis_remap,
             )
             sim_particle_cursor += sim_count
             render_particle_cursor += render_count
