@@ -657,7 +657,7 @@ Environments based on legged locomotion tasks.
 .. |velocity-flat-unitree-go2-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-UnitreeGo2 <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py>`
 .. |velocity-rough-unitree-go2-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-UnitreeGo2 <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py>`
 
-.. |velocity-flat-spot-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-Spot <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/spot/flat_env_cfg.py>`
+.. |velocity-flat-spot-link| replace:: :isaaclab-source:`IsaacContrib-Velocity-Flat-Spot <source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/spot/flat_env_cfg.py>`
 
 .. |velocity-flat-h1-link| replace:: :isaaclab-source:`Isaac-Velocity-Flat-H1 <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/h1/flat_env_cfg.py>`
 .. |velocity-rough-h1-link| replace:: :isaaclab-source:`Isaac-Velocity-Rough-H1 <source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/h1/rough_env_cfg.py>`
@@ -1129,10 +1129,6 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-Spot
-      - Manager Based
-      - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - Isaac-Velocity-Flat-UnitreeGo2
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
@@ -1465,6 +1461,10 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``physx``
+    * - IsaacContrib-Velocity-Flat-Spot
+      - Manager Based
+      - **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Velocity-Flat-UnitreeA1
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
