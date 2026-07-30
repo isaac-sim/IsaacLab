@@ -54,7 +54,7 @@ dependencies = [
     # aarch64 wheels; it imports pyvista at import time but only declares it in its
     # [all] extra, so depend on that extra there.
     "pytetwild==0.2.3 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
-    "pytetwild[all]>=0.3.0,<0.4 ; platform_machine == 'aarch64' or platform_machine == 'arm64'",
+    "pytetwild[all]>=0.3.0,<0.4 ; platform_machine == 'aarch64'",
     "transformers==4.57.6",
     "einops",
     "warp-lang==1.16.0.dev20260723",
@@ -69,16 +69,16 @@ dependencies = [
     "lazy_loader>=0.4",
     # Pink IK stack; the install CLI derives its force-install list from these entries.
     # pin-pink: Isaac Sim 6.x needs >=3.3, 3.4+ breaks pink_ik; daqp >0.8.5 changes behavior.
-    "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "pin-pink==3.3.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+    "pin ; platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')",
+    "pin-pink==3.3.0 ; platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')",
+    "daqp==0.8.5 ; platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')",
     # OpenUSD (kit-less mode). Both packages vendor a complete ``pxr`` runtime, so
     # they must never co-install: usd-core supplies pxr where it has wheels (x86_64),
     # usd-exchange supplies it on aarch64 (where usd-core has no wheel).
-    "usd-core>=25.11,<26.0 ; platform_machine in 'x86_64 AMD64'",
-    "usd-exchange>=2.2 ; platform_machine in 'aarch64 arm64'",
+    "usd-core>=25.11,<26.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
+    "usd-exchange>=2.2 ; platform_machine == 'aarch64'",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
-    "hf-xet>=1.4.1,<2.0.0 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+    "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
     # ----- tasks -----
     "tensorboard",
     "numba>=0.63.1",
@@ -108,7 +108,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Developer/test tooling.
 test = [
     "pytest",
     "pytest-mock",
@@ -129,40 +128,46 @@ test = [
     "sphinx-tabs",
     "sphinx-multiversion==0.2.4",
 ]
-# RL frameworks (rsl-rl is the default, in core deps); install the one you train with.
+
 sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
+
 skrl = ["skrl>=2.1.0"]
+
 rl-games = [
     "aiohttp>=3.12.14",
     "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
     "gym",
     "standard-distutils",
 ]
+
 rsl-rl = ["rsl-rl-lib==5.4.1", "onnxscript>=0.5"]
-# No ``newton`` extra: the viewer GUI ships in the base install; ``-i newton`` is a no-op.
-# Visualizer backends.
+
 viser = ["viser>=1.0.16"]
+
 rerun = [
     "rerun-sdk>=0.29.0",
     "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
-# Isaac Sim (PhysX backend); co-resolves with the base install via the [tool.uv] conflicts table.
-isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
-# Omniverse renderer / physics backends (``ov[ovphysx|ovrtx|all]`` selectors).
+
+isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
+
+ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage>=0.1.0,<0.2.0"]
 ovphysx = ["ovphysx==0.5.9", "ovstage>=0.1.0,<0.2.0"]
 ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage>=0.1.0,<0.2.0"]
+
 mimic = [
     "isaaclab-mimic",
     "ipywidgets>=8.1.5",
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
+
 teleop = [
     "isaaclab-teleop",
     # IsaacTeleop is Linux x86_64 only
-    "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
-    "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
+    "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
-# RLinf VLA post-training (externally contributed).
+
 rlinf = [
     "ray[default]>=2.47.0",
     "av>=12.3.0",
@@ -175,8 +180,7 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-# Aggregate of the compatible extras. Omits teleop/ovphysx/viser, whose pins clash
-# with isaacsim (lxml, packaging<24, websockets); install those via their own extra.
+
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf,mimic]",
 ]
@@ -186,15 +190,14 @@ all = [
 # the extras above, and [tool.uv].override-dependencies mirror these values;
 # ``test_version_single_source`` fails CI if they drift.
 [tool.isaaclab.versions]
-isaacsim = "6.0.0.1"
+isaacsim = "6.0.1.0"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
 ovphysx = "0.5.9"
 ovrtx = ">=0.4.0,<0.5.0"
 ovstage = ">=0.1.0,<0.2.0"
-# Newton git commit + matching warp-lang prerelease (upgraded together).
-newton = "d7581b732d83843577411d36f6a58cccee909bce"
+newton = "831076f52f14612aecace894c81270c1e0ed9479"
 warp = "1.16.0.dev20260723"
 
 [tool.ruff]
@@ -359,6 +362,15 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
+# Platforms Isaac Lab supports (docs/source/setup/installation/index.rst and the
+# install CI matrix): Ubuntu 22.04 x86_64, Linux aarch64 (DGX Spark / Jetson), and
+# Windows 11 x86_64. Restricting the resolution universe keeps macOS and other
+# unsupported wheels out of uv.lock.
+environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'linux' and platform_machine == 'aarch64'",
+    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
 # Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
 # for every requester, unlike constraints, which only intersect. The ``isaacsim`` extra
 # pins older Newton, MuJoCo, and torch versions, so these overrides prevent downgrades.
@@ -367,7 +379,7 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.10.0",
     "mujoco-warp~=3.10.0,>=3.10.0.2",
-    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@d7581b732d83843577411d36f6a58cccee909bce",
+    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@831076f52f14612aecace894c81270c1e0ed9479",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.0",
     "torch==2.11.0",
@@ -384,6 +396,7 @@ conflicts = [
     [{ extra = "teleop" }, { extra = "mimic" }],
     [{ extra = "teleop" }, { extra = "all" }],
     [{ extra = "isaacsim" }, { extra = "teleop" }],
+    [{ extra = "isaacsim" }, { extra = "ov" }],
     [{ extra = "isaacsim" }, { extra = "ovphysx" }],
     [{ extra = "isaacsim" }, { extra = "viser" }],
     [{ extra = "isaacsim" }, { extra = "mimic" }],
@@ -414,24 +427,18 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
 torch = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'AMD64'" },
     { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
     { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
-    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'arm64'" },
 ]
 torchaudio = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'AMD64'" },
     { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
     { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
-    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'arm64'" },
 ]
 torchvision = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'AMD64'" },
     { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
     { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
-    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'arm64'" },
 ]
 
 [tool.uv.pip]

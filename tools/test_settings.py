@@ -69,6 +69,10 @@ PER_TEST_TIMEOUTS = {
     "test_surface_gripper.py": 3000,
     # The first test in the kitless rendering test job will take longer to run due to RTX shader compilation.
     "test_rendering_cartpole_kitless.py": 2000,
+    # Every kitless rendering file runs each AOV twice (the ``ovstage_variant`` fixture covers the
+    # legacy and ovstage OVRTX code paths). At 76 cases the Kuka Allegro scene overruns the default
+    # budget; the remaining kitless files still fit but have little headroom.
+    "test_rendering_dexsuite_kuka_homo_kitless.py": 2000,
     # Budgets ~45s per AOV: one full RTX env is built and torn down per parametrized data type.
     # Bump this when renderer cases are added to _DEFAULT_SENSOR_DATA_TYPES in rendering_test_utils.py.
     "test_rendering_shadow_hand.py": 1500,
