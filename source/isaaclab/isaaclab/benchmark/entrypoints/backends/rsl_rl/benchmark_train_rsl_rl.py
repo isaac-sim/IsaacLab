@@ -118,6 +118,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     import contextlib
     import importlib.metadata as metadata
     import os
+    import re
     from datetime import datetime
 
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
@@ -281,19 +282,20 @@ def run(argv: list[str]) -> BenchmarkResult:
                 total_fps=total_fps_series,
                 steps_per_iteration=env.unwrapped.num_envs * agent_cfg.num_steps_per_env,
                 frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_warmup_steps=args_cli.warmup_steps,
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
             )
 
+            tracker = get_success_tracker(args_cli, early.tracker, log_data)
             learning = builders.build_learning(
                 reward_series=log_data.get(desc.reward_tag, []),
                 ep_length_series=log_data.get(desc.ep_length_tag, []),
+                success_rate_series=tracker.history if tracker is not None else None,
                 ema_alpha=args_cli.ema_alpha,
                 keep_series=not args_cli.no_series,
             )
-
-            tracker = get_success_tracker(args_cli, early.tracker, log_data)
             success_rate = round(tracker.tail_mean, 4) if (tracker and tracker.history) else None
 
             versions = capture.capture_versions(benchmark)
@@ -316,7 +318,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 max_iterations=agent_cfg.max_iterations,
             )
 
-            checkpoint_path = None
+            checkpoint_path = get_checkpoint_path(log_root_path, re.escape(os.path.basename(log_dir)), r"model_.*\.pt")
             video_path = os.path.join(log_dir, "videos") if getattr(args_cli, "video", False) else None
 
             bundle = builders.build_training_bundle(
