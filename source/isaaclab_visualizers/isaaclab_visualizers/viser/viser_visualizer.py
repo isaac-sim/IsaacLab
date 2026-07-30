@@ -318,6 +318,8 @@ class ViserVisualizer(BaseVisualizer):
         self._resolved_visible_env_ids: list[int] | None = None
         self._warned_marker_render_failure = False
         self._live_plots_checkboxes: dict[str, Any] = {}  # unused; kept for subclass compatibility
+        self._paused_rendering = False
+        self._paused_simulation = False
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -390,6 +392,9 @@ class ViserVisualizer(BaseVisualizer):
             self._render_live_plots()  # still throttled internally; no-ops when no clients
             return
 
+        if self._paused_rendering:
+            return
+
         self._viewer.begin_frame(self._sim_time)
         try:
             self._viewer.log_state(self._state)
@@ -438,11 +443,12 @@ class ViserVisualizer(BaseVisualizer):
         return self._viewer.is_running()
 
     def is_training_paused(self) -> bool:
-        """Return whether training is paused.
+        """Return whether simulation is paused from viewer controls."""
+        return self._paused_simulation
 
-        Viser backend does not currently expose a training pause control.
-        """
-        return False
+    def is_rendering_paused(self) -> bool:
+        """Return whether rendering is paused from viewer controls."""
+        return self._paused_rendering
 
     def supports_markers(self) -> bool:
         """Viser backend supports Isaac Lab markers through Newton viewer primitives."""
@@ -556,6 +562,28 @@ class ViserVisualizer(BaseVisualizer):
         viewer = self._viewer
         with contextlib.suppress(Exception):
             server.gui.set_panel_label("Isaac Lab")
+
+            pause_rendering_btn = server.gui.add_button("Pause Rendering", color=None)
+
+            @pause_rendering_btn.on_click
+            def _(_):
+                self._paused_rendering = not self._paused_rendering
+                pause_rendering_btn.label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
+                pause_rendering_btn.color = "orange" if self._paused_rendering else None
+
+            pause_simulation_btn = server.gui.add_button("Pause Simulation", color=None)
+
+            @pause_simulation_btn.on_click
+            def _(_):
+                self._paused_simulation = not self._paused_simulation
+                pause_simulation_btn.label = "Resume Simulation" if self._paused_simulation else "Pause Simulation"
+                pause_simulation_btn.color = "orange" if self._paused_simulation else None
+
+            reset_button = server.gui.add_button("Reset Episode")
+
+            @reset_button.on_click
+            def _(_):
+                self._reset_requested = True
 
             live_plots_folder = server.gui.add_folder("Live Plots", expand_by_default=False)
             viewer._live_plots_folder = live_plots_folder

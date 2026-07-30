@@ -195,6 +195,7 @@ class SimulationContext:
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
+        self._reset_requested: bool = False
         self._scene_data_requirements = SceneDataRequirement()
         # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
         # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
@@ -794,6 +795,29 @@ class SimulationContext:
             viz.stop()
         self._is_playing = False
         self._is_stopped = True
+
+    def request_reset(self) -> None:
+        """Request an episode reset from a UI control (e.g. the Kit window button).
+
+        The request is consumed on the next call to :meth:`consume_reset_request`.
+        """
+        self._reset_requested = True
+
+    def consume_reset_request(self) -> bool:
+        """Return ``True`` if any visualizer or UI control requested an episode reset and clear the flag.
+
+        Checks both the simulation-context-level flag (set by :meth:`request_reset`) and
+        each visualizer's own flag. All flags are cleared atomically so a single reset
+        is triggered even when multiple sources fire in the same step.
+
+        Returns:
+            ``True`` once when a reset was requested, then ``False`` until the next request.
+        """
+        requested = self._reset_requested
+        self._reset_requested = False
+        for viz in self._visualizers:
+            requested |= viz.consume_reset_request()
+        return requested
 
     def is_playing(self) -> bool:
         """Returns True if simulation is playing (not paused or stopped)."""
