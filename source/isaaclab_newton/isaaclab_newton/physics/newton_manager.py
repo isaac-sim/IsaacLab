@@ -240,6 +240,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     @property
     def point_count(self) -> int:
+        """Return the number of live Newton particles, or ``0`` when unavailable."""
         state = self.state
         if state is None or state.particle_q is None:
             return 0
@@ -247,6 +248,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     @property
     def geometry_paths(self) -> list[str]:
+        """Return shadow deformable root paths used for SceneData geometry mapping."""
         entities = NewtonManager._shadow_deformable_entities
         if entities is None:
             return []
@@ -254,6 +256,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     @property
     def geometry_counts(self) -> list[int]:
+        """Return render-slot particle counts for each shadow deformable entity."""
         entities = NewtonManager._shadow_deformable_entities
         if entities is None:
             return []

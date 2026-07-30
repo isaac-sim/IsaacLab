@@ -28,6 +28,7 @@ def _get_applied_schema_names(prim) -> set[str]:
 
 
 def _prim_has_schema(prim, schema_substring: str) -> bool:
+    """Return ``True`` if any applied API schema name contains ``schema_substring``."""
     return any(schema_substring in name for name in _get_applied_schema_names(prim))
 
 
@@ -50,6 +51,7 @@ class DeformableStageEntry:
 
 
 def _is_sim_mesh(prim) -> bool:
+    """Return ``True`` if ``prim`` carries a ``*DeformableSimAPI`` schema."""
     return _prim_has_schema(prim, "DeformableSimAPI")
 
 
@@ -103,6 +105,7 @@ def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: i
     sim_parent_path = sim_parent.GetPath() if sim_parent is not None and sim_parent.IsValid() else None
 
     def _score(prim) -> tuple:
+        """Rank visual-mesh candidates; higher tuples are preferred by ``max``."""
         name = prim.GetName().lower()
         name_bonus = int(any(token in name for token in ("visual", "render", "display", "proxy")))
         sibling_bonus = int(
@@ -217,6 +220,9 @@ def _classify_deformable_meshes(
 def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry]:
     """Discover PhysX/OVPhysX deformable bodies under ``stage``.
 
+    Args:
+        stage: USD stage to traverse.
+
     Returns:
         One :class:`DeformableStageEntry` per prim with ``OmniPhysicsDeformableBodyAPI``.
     """
@@ -324,6 +330,7 @@ def build_deformable_vertex_count_lookup(entries: list[DeformableStageEntry]) ->
 
 
 def _env_relative_suffix(path: str) -> str | None:
+    """Return the path suffix after ``/World/envs/env_<id>/``, or ``None`` if absent."""
     match = re.search(r"/World/envs/env_\d+/(.*)", path)
     return match.group(1) if match else None
 
@@ -334,6 +341,14 @@ def resolve_deformable_vertex_count(path: str, path_to_count: dict[str, int], *,
     Tries the exact path, ancestor/descendant relationships, and env-relative
     suffixes (views may report a different child under the same env asset).
     Falls back only when no discovered count matches.
+
+    Args:
+        path: Deformable root or mesh prim path reported by a physics view.
+        path_to_count: Lookup from :func:`build_deformable_vertex_count_lookup`.
+        fallback: Value returned when no discovered count matches ``path``.
+
+    Returns:
+        Unpadded vertex count for ``path``, or ``fallback``.
     """
     if path in path_to_count:
         return int(path_to_count[path])
