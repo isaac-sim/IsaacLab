@@ -424,6 +424,7 @@ class NewtonManager(PhysicsManager):
     _scene_data_geometry_mapping: wp.array | None = None
     _shadow_deformable_entities: list | None = None
     _sim_particle_q: wp.array | None = None
+    _shadow_deformable_sync_skip_warned: set[str] = set()
 
     # Views list for assets to register their views
     _views: list = []
@@ -985,6 +986,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._scene_data_geometry_mapping = None
         NewtonManager._shadow_deformable_entities = None
         NewtonManager._sim_particle_q = None
+        NewtonManager._shadow_deformable_sync_skip_warned = set()
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
@@ -2520,7 +2522,7 @@ class NewtonManager(PhysicsManager):
                     entity.vis_particle_offset,
                     entity.volume_vis_remap,
                 )
-            elif entity.vis_particle_count > 0:
+            elif entity.vis_particle_count > 0 and entity.vis_particle_count == entity.sim_particle_count:
                 wp.copy(
                     cls._state_0.particle_q,
                     cls._sim_particle_q,
@@ -2528,6 +2530,19 @@ class NewtonManager(PhysicsManager):
                     src_offset=entity.sim_particle_offset,
                     count=entity.vis_particle_count,
                 )
+            elif entity.vis_particle_count != entity.sim_particle_count:
+                # Mismatched volume slots without a remap table: copying vis_count from
+                # the sim slice would read past that body's sim particles. Leave rest pose.
+                warned = cls._shadow_deformable_sync_skip_warned
+                if entity.root_path not in warned:
+                    warned.add(entity.root_path)
+                    logger.warning(
+                        "Skipping particle sync for deformable '%s': vis_count=%d != sim_count=%d "
+                        "and no volume remapping table is available; render slots stay at rest pose.",
+                        entity.root_path,
+                        entity.vis_particle_count,
+                        entity.sim_particle_count,
+                    )
 
     @staticmethod
     def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:

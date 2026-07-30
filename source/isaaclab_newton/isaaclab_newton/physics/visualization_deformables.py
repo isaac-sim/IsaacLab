@@ -168,13 +168,6 @@ def add_shadow_deformables_to_builder(
             register_usd_vis_point_bindings=uses_remap or template.vertex_count == template.vis_vertex_count,
         )
 
-        if not group.register_usd_vis_point_bindings:
-            logger.warning(
-                "Skipping USD visual-mesh point bindings for %s deformable '%s'",
-                template.deformable_type,
-                wildcard_root,
-            )
-
         for entry in sorted(group_entries, key=lambda item: item.root_path):
             root_prim = stage.GetPrimAtPath(entry.root_path)
             if root_prim.IsValid():
@@ -201,6 +194,7 @@ def add_shadow_deformables_to_builder(
             body_rot = wp.quat(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]))
 
             before_render = int(getattr(builder, "particle_count", 0))
+            volume_vis_remap = None
 
             if entry.deformable_type == "surface":
                 builder.add_cloth_mesh(
@@ -218,40 +212,44 @@ def add_shadow_deformables_to_builder(
                     edge_kd=1e-2,
                     particle_radius=0.008,
                 )
-            elif _needs_volume_vis_remap(entry):
-                builder.add_cloth_mesh(
-                    pos=body_pos,
-                    rot=body_rot,
-                    scale=1.0,
-                    vel=wp.vec3(0.0, 0.0, 0.0),
-                    vertices=entry.vis_vertices,
-                    indices=entry.vis_indices,
-                    density=1.0,
-                    tri_ke=1e4,
-                    tri_ka=1e4,
-                    tri_kd=1.5e-6,
-                    edge_ke=5.0,
-                    edge_kd=1e-2,
-                    particle_radius=0.008,
-                )
             else:
-                builder.add_soft_mesh(
-                    pos=body_pos,
-                    rot=body_rot,
-                    scale=1.0,
-                    vel=wp.vec3(0.0, 0.0, 0.0),
-                    vertices=entry.vertices,
-                    indices=entry.indices,
-                    density=1000.0,
-                    k_mu=1e5,
-                    k_lambda=1e5,
-                    k_damp=0.0,
-                )
+                # Build remap before allocating render slots so a failed embed can fall
+                # back to sim tet topology instead of leaving mismatched vis slots.
+                volume_vis_remap = _build_volume_vis_remap(entry, device) if _needs_volume_vis_remap(entry) else None
+
+                if volume_vis_remap is not None:
+                    builder.add_cloth_mesh(
+                        pos=body_pos,
+                        rot=body_rot,
+                        scale=1.0,
+                        vel=wp.vec3(0.0, 0.0, 0.0),
+                        vertices=entry.vis_vertices,
+                        indices=entry.vis_indices,
+                        density=1.0,
+                        tri_ke=1e4,
+                        tri_ka=1e4,
+                        tri_kd=1.5e-6,
+                        edge_ke=5.0,
+                        edge_kd=1e-2,
+                        particle_radius=0.008,
+                    )
+                else:
+                    builder.add_soft_mesh(
+                        pos=body_pos,
+                        rot=body_rot,
+                        scale=1.0,
+                        vel=wp.vec3(0.0, 0.0, 0.0),
+                        vertices=entry.vertices,
+                        indices=entry.indices,
+                        density=1000.0,
+                        k_mu=1e5,
+                        k_lambda=1e5,
+                        k_damp=0.0,
+                    )
 
             added_render = int(getattr(builder, "particle_count", 0)) - before_render
             render_count = added_render if added_render > 0 else render_count
             sim_count = entry.vertex_count
-            volume_vis_remap = _build_volume_vis_remap(entry, device) if _needs_volume_vis_remap(entry) else None
             # Use the builder particle cursor so pre-existing particles (e.g. from
             # USD import) keep shadow sync / OVRTX offsets aligned with particle_q.
             entity = ShadowDeformableEntity(
@@ -269,6 +267,17 @@ def add_shadow_deformables_to_builder(
 
         if group.entities:
             group.particles_per_body = group.entities[0].vis_particle_count
+            if uses_remap:
+                # Only bind USD visual points when every body successfully remapped.
+                group.register_usd_vis_point_bindings = all(
+                    entity.volume_vis_remap is not None for entity in group.entities
+                )
+            if not group.register_usd_vis_point_bindings:
+                logger.warning(
+                    "Skipping USD visual-mesh point bindings for %s deformable '%s'",
+                    template.deformable_type,
+                    wildcard_root,
+                )
             registry_groups.append(group)
 
     ordered_roots = [entry.root_path for entry in sort_deformable_entries_for_geometry_sync(entries)]
