@@ -13,6 +13,7 @@ No Kit/GPU required — safe for CI and beginners.
 import sys
 from argparse import Namespace
 
+import gymnasium as gym
 import pytest
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
@@ -20,9 +21,13 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.app import scan
+from isaaclab.physics import PhysxAutoCfg, resolve_physx_auto_cfg
+from isaaclab.sim import SimulationCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
+from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
@@ -78,14 +83,78 @@ def test_isaacsim_physx_is_physics_selector():
     assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
 
 
-def test_cartpole_physx_preset_is_plain_physx_cfg():
-    """Task configs expose ``physx`` as concrete PhysX, not a public auto wrapper."""
+def test_physics_api_exposes_auto_placeholder():
+    """The public physics API exposes the explicit automatic PhysX placeholder."""
+    import isaaclab.physics as physics
+
+    assert hasattr(physics, "PhysxAutoCfg")
+
+
+def test_cartpole_physx_preset_is_explicit_auto_cfg():
+    """Task configs expose automatic PhysX through an explicit placeholder."""
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpolePhysicsCfg
 
     physics_cfg = CartpolePhysicsCfg()
 
-    assert isinstance(physics_cfg.physx, PhysxCfg)
-    assert isinstance(physics_cfg.default, PhysxCfg)
+    assert isinstance(physics_cfg.physx, PhysxAutoCfg)
+    assert isinstance(physics_cfg.physx.isaacsim_physx, PhysxCfg)
+    assert isinstance(physics_cfg.physx.ovphysx, OvPhysxCfg)
+    assert physics_cfg.default == physics_cfg.physx
+
+
+def test_registered_task_physx_presets_use_explicit_auto_cfg():
+    """Every registered task with Isaac Sim PhysX exposes the same explicit auto shape."""
+    invalid_presets = []
+
+    for task_id, task_spec in gym.registry.items():
+        if not task_id.startswith(("Isaac-", "IsaacContrib-")) or "env_cfg_entry_point" not in task_spec.kwargs:
+            continue
+        env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
+        presets = collect_presets(env_cfg)
+        has_auto_physx = any(isinstance(fields.get("physx"), PhysxAutoCfg) for fields in presets.values())
+        for path, fields in presets.items():
+            if not any(isinstance(value, PhysxCfg) for value in fields.values()):
+                if has_auto_physx and "physx" in fields and fields.get("isaacsim_physx") != fields["physx"]:
+                    invalid_presets.append(f"{task_id}:{path}")
+            else:
+                auto_cfg = fields.get("physx")
+                isaacsim_cfg = fields.get("isaacsim_physx")
+                ovphysx_cfg = fields.get("ovphysx")
+                if (
+                    not isinstance(auto_cfg, PhysxAutoCfg)
+                    or not isinstance(isaacsim_cfg, PhysxCfg)
+                    or auto_cfg.isaacsim_physx != isaacsim_cfg
+                    or auto_cfg.ovphysx != ovphysx_cfg
+                ):
+                    invalid_presets.append(f"{task_id}:{path}")
+
+    assert invalid_presets == [], "\n".join(sorted(set(invalid_presets)))
+
+
+def test_auto_physx_without_ovphysx_falls_back_to_isaac_sim():
+    """Automatic PhysX keeps Isaac Sim when a task does not support OvPhysX."""
+    cfg = SimulationCfg(physics=PhysxAutoCfg(isaacsim_physx=PhysxCfg()))
+
+    config_scan = scan(cfg)
+
+    assert isinstance(cfg.physics, PhysxCfg)
+    assert config_scan.needs_kit is True
+
+
+def test_auto_physx_rejects_wrong_isaac_sim_alternative_type():
+    """Selecting a malformed Isaac Sim alternative reports its expected type."""
+    cfg = PhysxAutoCfg(isaacsim_physx=OvPhysxCfg())  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match=r"PhysxAutoCfg\.isaacsim_physx.*PhysxCfg.*OvPhysxCfg"):
+        resolve_physx_auto_cfg(cfg, use_isaac_sim=True)
+
+
+def test_auto_physx_rejects_wrong_ovphysx_alternative_type():
+    """Selecting a malformed OvPhysX alternative reports its expected type."""
+    cfg = PhysxAutoCfg(ovphysx=PhysxCfg())  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match=r"PhysxAutoCfg\.ovphysx.*OvPhysxCfg.*PhysxCfg"):
+        resolve_physx_auto_cfg(cfg, use_isaac_sim=False)
 
 
 def test_physx_and_isaacsim_physx_presets_conflict():
@@ -125,7 +194,7 @@ def test_renderer_selector_physx_rtx_resolves_to_ovphysx_without_kit():
     """Automatic PhysX and RTX selectors use kitless backends when no Kit runtime is requested."""
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.sim.physics, PhysxAutoCfg)
 
     config_scan = _resolve_runtime_renderer(env_cfg)
 
@@ -138,7 +207,7 @@ def test_renderer_selector_physx_rtx_resolves_to_physx_with_kit_visualizer():
     """Automatic PhysX and RTX selectors use Isaac Sim backends when the Kit visualizer is requested."""
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.sim.physics, PhysxAutoCfg)
 
     config_scan = _resolve_runtime_renderer(env_cfg, Namespace(visualizer="kit"))
 

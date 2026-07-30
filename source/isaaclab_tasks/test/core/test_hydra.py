@@ -1450,7 +1450,11 @@ def test_resolve_presets_errors_on_cyclic_preset_at_root():
 # Tests: typed-selector validation (physics=/renderer= must hit their type)
 # =============================================================================
 
+from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_physx.physics import PhysxCfg as IsaacSimPhysxCfg  # noqa: E402
+
 from isaaclab.physics import PhysicsCfg as _RealPhysicsCfg  # noqa: E402
+from isaaclab.physics import PhysxAutoCfg  # noqa: E402
 
 from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 
@@ -1465,6 +1469,28 @@ class _NewtonPhysicsCfg(_RealPhysicsCfg):
 @configclass
 class _PhysxPhysicsCfg(_RealPhysicsCfg):
     dt: float = 0.005
+
+
+def test_pick_physx_auto_alternative_does_not_attach_hidden_metadata():
+    """Selecting ``physx`` returns the explicit placeholder without out-of-band state."""
+
+    @configclass
+    class PhysicsPresetCfg(PresetCfg):
+        isaacsim_physx: IsaacSimPhysxCfg = IsaacSimPhysxCfg()
+        ovphysx: OvPhysxCfg = OvPhysxCfg()
+        physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+        default: PhysxAutoCfg = physx
+
+    presets = PhysicsPresetCfg()
+    selected = hydra_mod._pick_alternative(presets, [], explicit_name="physx")
+    metadata_reader = getattr(
+        __import__("isaaclab.physics.physics_manager_cfg", fromlist=["_get_physics_preset_selection"]),
+        "_get_physics_preset_selection",
+        lambda _cfg: None,
+    )
+
+    assert selected is presets.physx
+    assert metadata_reader(selected) is None
 
 
 def test_validate_typed_presets_passes_when_selector_hits_its_type():

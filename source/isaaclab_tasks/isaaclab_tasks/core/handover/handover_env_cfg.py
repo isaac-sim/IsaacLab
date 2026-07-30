@@ -16,6 +16,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
@@ -173,7 +174,13 @@ def _shadow_hand_cfg(
         spawn=SHADOW_HAND_CFG.spawn.replace(fixed_tendons_props=None),
         init_state=SHADOW_HAND_CFG.init_state.replace(pos=init_pos, rot=init_rot),
     )
-    return preset(default=newton_mjwarp_cfg, physx=physx_cfg, newton_mjwarp=newton_mjwarp_cfg, ovphysx=ovphysx_cfg)
+    return preset(
+        default=newton_mjwarp_cfg,
+        physx=physx_cfg,
+        isaacsim_physx=physx_cfg,
+        newton_mjwarp=newton_mjwarp_cfg,
+        ovphysx=ovphysx_cfg,
+    )
 
 
 # Per-hand presets shared by the Direct environment and the manager scene.
@@ -238,6 +245,7 @@ class ObjectCfg(PresetCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
     )
     ovphysx = physx
+    isaacsim_physx = physx
     default = newton_mjwarp
 
 
@@ -251,7 +259,7 @@ class PhysicsCfg(PresetCfg):
     tasks; tuning may be needed for handover-specific contact dynamics.
     """
 
-    physx = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
         gpu_max_rigid_contact_count=2**23,
         gpu_max_rigid_patch_count=2**23,
@@ -273,6 +281,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     ovphysx = OvPhysxCfg()
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 
 
