@@ -311,9 +311,16 @@ Limitations
   articulation per simulation world": exactly one ``BasisCurves`` prim carrying
   ``PhysicsCurvesDeformableSimAPI`` under ``prim_path``, holding a single open
   curve that is not welded to another cable. Multi-curve ``BasisCurves`` prims,
-  periodic (closed) curves, and curve-to-curve ``PhysicsAttachment`` welds all
-  fail during initialization. Attachments to a rigid body, a static xform, or a
-  robot link are supported, so rigid plugs and end fittings work.
+  periodic (closed) curves, and hard coincident curve-to-curve
+  ``PhysicsAttachment`` welds all fail during initialization.
+* **Cable ends can be pinned, not clamped.** A ``PhysicsAttachment`` to an xform
+  target lowers to a ball joint, so it constrains position only and the cable
+  pivots freely at the anchor. Rigid plugs and end fittings that must transfer
+  orientation are not representable. The joint is also created only when the
+  attachment stiffness is unauthored or infinite; a finite stiffness is kept as
+  metadata and no joint is created. Both cases are import warnings rather than
+  errors, so the cable initializes normally with the attachment missing. Check
+  the importer output when an attachment appears to have no effect.
 * **No damping knobs.** The four stiffness moduli are exposed; their damping
   counterparts are not.
 * **Uniform point spacing assumed.** One stiffness pair is derived from the mean segment
