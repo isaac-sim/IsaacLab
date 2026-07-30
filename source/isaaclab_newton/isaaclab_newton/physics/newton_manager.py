@@ -2385,7 +2385,7 @@ class NewtonManager(PhysicsManager):
             return
         NewtonManager._num_envs = len(env_paths) if clone_plan is not None else 1
         builder, (shadow_entities, registry_groups) = build_visualization_builder_from_stage_envs(
-            stage, env_paths, clone_plan, up_axis=up_axis
+            stage, env_paths, clone_plan, up_axis=up_axis, device=str(PhysicsManager._device or "cpu")
         )
         NewtonManager._shadow_deformable_entities = shadow_entities
         sim_particle_total = sum(entity.sim_particle_count for entity in shadow_entities)
@@ -2524,7 +2524,6 @@ class NewtonManager(PhysicsManager):
         if not cls._shadow_deformable_entities:
             return
 
-        device = cls._state_0.particle_q.device
         for entity in cls._shadow_deformable_entities:
             if entity.volume_vis_remap is not None:
                 launch_volume_vis_remap(
@@ -2533,7 +2532,6 @@ class NewtonManager(PhysicsManager):
                     entity.sim_particle_offset,
                     entity.vis_particle_offset,
                     entity.volume_vis_remap,
-                    device=device,
                 )
             elif entity.vis_particle_count > 0:
                 wp.copy(
