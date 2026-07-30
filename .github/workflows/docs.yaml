@@ -64,10 +64,9 @@ jobs:
       with:
         python-version: "3.12"
 
-    - name: Install dev requirements
+    - name: Install docs dependencies
       run: |
-        uv venv
-        uv pip install -r docs/requirements.txt
+        uv sync --extra test
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Build current version docs
@@ -96,10 +95,9 @@ jobs:
       with:
         python-version: "3.12"
 
-    - name: Install dev requirements
+    - name: Install docs dependencies
       run: |
-        uv venv
-        uv pip install -r docs/requirements.txt
+        uv sync --extra test
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Generate multi-version docs

@@ -155,6 +155,22 @@ class WalkRewardsCfg:
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.001)
     action_2nd_derivative = RewTerm(func=mdp.ActionRate2L2, weight=-5.0e-5)
 
+    # -- success metric (velocity tracking + gait-contact match)
+    success_rate = RewTerm(
+        func=mdp.walk_success_rate,
+        weight=1.0,
+        params={
+            "command_name": "base_velocity",
+            "asset_cfg": SceneEntityCfg("robot"),
+            "sensor_cfg": _FOOT_SENSOR_CFG,
+            "gait_period": _GAIT_PERIOD,
+            "contact_threshold": 1.0,
+            "vel_xy_threshold": 0.15,
+            "vel_yaw_threshold": 0.4,
+            "contact_match_threshold": 0.7,
+        },
+    )
+
 
 @configclass
 class DrLegsWalkEnvCfg(DrLegsHoldPoseEnvCfg):

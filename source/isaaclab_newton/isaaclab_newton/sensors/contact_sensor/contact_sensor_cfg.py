@@ -32,9 +32,10 @@ class ContactSensorCfg(BaseContactSensorCfg):
         return self.prim_path
 
     def __post_init__(self):
-        if self.track_contact_points:
+        if self.track_contact_points and not (self.filter_prim_paths_expr or self.filter_shape_prim_expr):
             warnings.warn(
-                "ContactSensorCfg: 'track_contact_points' is not supported by the Newton backend. Ignoring.",
+                "ContactSensorCfg: 'track_contact_points' requires filter objects on the Newton backend. Please set"
+                " 'filter_prim_paths_expr' or 'filter_shape_prim_expr'. Ignoring.",
                 stacklevel=2,
             )
             self.track_contact_points = False
