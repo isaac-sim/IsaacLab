@@ -462,7 +462,7 @@ hand tracking from the headset is occluded or when higher-precision finger data 
          .. code-block:: bash
 
             # Copy a shipped profile and enable push devices
-            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            cp $(uv run python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
             uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
@@ -475,7 +475,7 @@ hand tracking from the headset is occluded or when higher-precision finger data 
          .. code-block:: bash
 
             # Copy a shipped profile and enable push devices
-            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            cp $(./isaaclab.sh -p -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
             ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
@@ -505,7 +505,18 @@ For plugin configuration details, see the `Manus plugin documentation
 
 The recommended workflow:
 
-#. Start Isaac Lab and click **Start XR**.
+#. Start Isaac Lab and click **Start XR**. This auto-launches the CloudXR runtime and
+   writes its environment file.
+#. In a separate terminal, source that environment file and launch the Manus plugin
+   (built per the `Manus plugin documentation
+   <https://nvidia.github.io/IsaacTeleop/main/device/manus.html>`_):
+
+   .. code-block:: bash
+
+      source ~/.cloudxr/run/cloudxr.env
+      ./install/plugins/manus/manus_hand_plugin
+
+   Keep this process running for the duration of the session.
 #. Put on the Manus gloves and headset.
 #. Use voice commands to launch the Isaac XR Teleop Sample Client and connect to Isaac Lab.
 
