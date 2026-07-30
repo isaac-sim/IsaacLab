@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+3.1.3 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cached stable articulation read launches to reduce repeated Warp launch setup on PhysX.
+  No user migration is required.
+
+
+3.1.2 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed full-articulation resets forwarding an unsupported slice to stateful
+  Isaac Lab actuators.
+
+
 3.1.1 (2026-07-28)
 ~~~~~~~~~~~~~~~~~~
 

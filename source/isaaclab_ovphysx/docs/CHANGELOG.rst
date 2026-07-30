@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+8.1.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OvPhysX articulation Jacobians, mass matrices, and gravity compensation
+  through the backend-agnostic articulation data API.
+
+Changed
+^^^^^^^
+
+* Cached stable OvPhysX articulation read launches outside CUDA graph capture.
+  No user migration is required.
+
+
+8.1.0 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added volume and surface deformable-object support for the OVPhysX backend,
+  including nodal state, volume kinematic targets, mesh connectivity, and
+  runtime deformable material properties.
+
+
 8.0.0 (2026-07-28)
 ~~~~~~~~~~~~~~~~~~
 

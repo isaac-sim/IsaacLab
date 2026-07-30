@@ -1,24 +1,22 @@
 Added
 ^^^^^
 
-* Added :mod:`isaaclab.benchmark` as the public benchmark framework and added
-  typed Python requests for runtime, startup, training, and play workflows.
-* Added an optional serialized synchronized breakdown of time inside and outside
-  simulation calls; the outside-simulation remainder is not classified as
-  overhead.
+* Added per-iteration success-rate curves to schema v1.3 training benchmark
+  bundles while preserving the existing summary success rate.
+* Added shared declarative asset micro-benchmark suites, lazy backend adapters,
+  and the ``isaaclab microbenchmark`` component command.
 
 Changed
 ^^^^^^^
 
-* **Breaking:** Replaced the internal :mod:`isaaclab.test.benchmark` API and
-  removed backend-specific compatibility scripts. Import :mod:`isaaclab.benchmark`
-  and use the supported ``scripts/benchmarks/{runtime,startup,training,play}.py``
-  launchers, ``isaaclab benchmark``, or
-  :func:`~isaaclab.benchmark.run_benchmark` instead.
-* **Breaking:** Standardized benchmark warm-up arguments. Runtime and play use
-  ``--warmup_frames``, and :class:`~isaaclab.benchmark.BenchmarkPlayRequest` uses
-  ``warmup_frames``. Training continues to use ``--warmup_steps``. Pass the
-  corresponding option with a value of ``0`` to include every step in timing.
-* Changed runtime benchmarks to report effective throughput over the complete
-  measured interval and added environment-step host-return rates across runtime,
-  play, and training benchmarks.
+* **Breaking:** Renamed ``--num_frames`` and ``--warmup_frames`` to
+  ``--num_steps`` and ``--warmup_steps`` for runtime and play benchmarks, and
+  renamed the corresponding ``num_frames`` and ``warmup_frames`` typed request
+  fields to ``num_steps`` and ``warmup_steps``. Use the step-based names. Pass
+  ``0`` warm-up steps to include every step in timing.
+
+Fixed
+^^^^^
+
+* Fixed RSL-RL training benchmarks to report their saved checkpoint and startup
+  benchmarks to report their effective environment count.

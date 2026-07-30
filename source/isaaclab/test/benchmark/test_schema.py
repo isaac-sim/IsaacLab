@@ -125,6 +125,7 @@ def _minimal_training_bundle() -> TrainingBundle:
             ema_alpha=0.05,
             reward=LearningCurve(final_raw=1823.4, final_ema=1796.1, series_per_iter=[12.3, 34.5, 58.1]),
             ep_length=LearningCurve(final_raw=987.0, final_ema=962.3, series_per_iter=[4.1, 5.0, 7.2]),
+            success_rate=LearningCurve(final_raw=0.95, final_ema=0.91, series_per_iter=[0.1, 0.5, 0.95]),
         ),
         success_rate=0.91,
         checkpoint_path="logs/rsl_rl/ant/2026-04-22_13-15-00/model_499.pt",
@@ -149,6 +150,7 @@ def test_training_bundle_round_trip(tmp_path):
     assert data["runtime"]["collection_fps"]["mean"] == pytest.approx(1_142_000.0)
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(1_071_780.0)
     timing = data["runtime"]["environment_step_timing"]
+    assert timing["warmup_steps"] == 0
     assert timing["outside_simulation_step_fraction"] == pytest.approx(0.375)
     assert timing["measurement_mode"] == "serialized_synchronized"
     assert "overhead_step_time_s" not in timing
@@ -156,6 +158,8 @@ def test_training_bundle_round_trip(tmp_path):
     # merged MeanStd: util has no peak, memory does
     assert data["resources"]["gpu_util_pct"]["peak"] is None
     assert data["resources"]["ram_gb"]["peak"] == pytest.approx(24.8)
+    assert data["learning"]["success_rate"]["final_raw"] == pytest.approx(0.95)
+    assert data["learning"]["success_rate"]["series_per_iter"] == pytest.approx([0.1, 0.5, 0.95])
     assert data["success_rate"] == pytest.approx(0.91)
     assert data["checkpoint_path"].endswith("model_499.pt")
     assert data["video_path"] is None
@@ -229,6 +233,7 @@ def test_training_bundle_without_series(tmp_path):
             ema_alpha=0.05,
             reward=LearningCurve(final_raw=1.0, final_ema=1.0, series_per_iter=None),
             ep_length=LearningCurve(final_raw=1.0, final_ema=1.0, series_per_iter=None),
+            success_rate=LearningCurve(final_raw=0.8, final_ema=0.7, series_per_iter=None),
         ),
     )
     path = os.path.join(tmp_path, "training.json")
@@ -237,6 +242,8 @@ def test_training_bundle_without_series(tmp_path):
         data = json.load(f)
     assert data["learning"]["reward"]["series_per_iter"] is None
     assert data["learning"]["ep_length"]["series_per_iter"] is None
+    assert data["learning"]["success_rate"]["series_per_iter"] is None
+    assert data["learning"]["success_rate"]["final_raw"] == pytest.approx(0.8)
 
 
 def test_startup_bundle_reuses_run_identity(tmp_path):
