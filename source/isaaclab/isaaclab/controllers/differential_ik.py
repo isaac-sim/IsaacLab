@@ -14,6 +14,9 @@ from isaaclab.utils.math import apply_delta_pose, compute_pose_error
 if TYPE_CHECKING:
     from .differential_ik_cfg import DifferentialIKControllerCfg
 
+_MIN_QUAT_NORM = 1e-6
+"""Smallest norm [dimensionless] a commanded quaternion may have before it is treated as degenerate."""
+
 
 class DifferentialIKController:
     r"""Differential inverse kinematics (IK) controller.
@@ -83,6 +86,8 @@ class DifferentialIKController:
         # -- optional joint position limits for null-space joint-limit avoidance (set externally)
         self._joint_pos_lower = None
         self._joint_pos_upper = None
+        # -- identity quaternion (x, y, z, w), the last-resort fallback for a degenerate command
+        self._identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self._device).repeat(self.num_envs, 1)
 
     """
     Properties.
@@ -158,9 +163,17 @@ class DifferentialIKController:
                 self.ee_pos_des, self.ee_quat_des = apply_delta_pose(ee_pos, ee_quat, self._command)
             else:
                 self.ee_pos_des = self._command[:, 0:3]
-                # renormalize the commanded quaternion (callers may pass a slightly non-unit quat)
+                # renormalize the commanded quaternion (callers may pass a slightly non-unit quat).
+                # A zero-norm quaternion would divide by zero and yield NaN, which propagates
+                # silently into the joint position targets and only surfaces a step later as an
+                # unrelated solver failure. Hold the current end-effector orientation instead
+                # (identity when no current orientation was supplied) for those environments.
                 quat = self._command[:, 3:7]
-                self.ee_quat_des = quat / torch.linalg.norm(quat, dim=-1, keepdim=True)
+                quat_norm = torch.linalg.norm(quat, dim=-1, keepdim=True)
+                fallback_quat = self._identity_quat if ee_quat is None else ee_quat
+                self.ee_quat_des = torch.where(
+                    quat_norm > _MIN_QUAT_NORM, quat / quat_norm.clamp(min=_MIN_QUAT_NORM), fallback_quat
+                )
 
     def set_joint_pos_limits(self, lower: torch.Tensor, upper: torch.Tensor) -> None:
         """Provide the controlled joints' position limits for null-space joint-limit avoidance.
@@ -274,15 +287,30 @@ class DifferentialIKController:
             # quadratically up to lambda_max^2 as the smallest task-Jacobian singular value -> 0
             # (Maciejewski-Klein). Keying off the full task Jacobian damps both position and
             # orientation rank-loss configurations.
-            sigma_min = torch.linalg.svdvals(jacobian)[:, -1]  # (N,)
-            ratio = (sigma_min / sigma_thresh).clamp(max=1.0)
-            lambda_sq = lambda_min**2 + (1.0 - ratio**2) * (lambda_max**2 - lambda_min**2)  # (N,)
-            jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
-            lambda_matrix = lambda_sq.view(-1, 1, 1) * torch.eye(n=jacobian.shape[1], device=self._device)
-            delta_joint_pos = torch.bmm(
-                jacobian_T,
-                torch.linalg.solve(torch.bmm(jacobian, jacobian_T) + lambda_matrix, delta_pose.unsqueeze(-1)),
-            ).squeeze(-1)
+            # Both decompositions below are well-posed for any finite Jacobian (the damped normal
+            # matrix is symmetric positive-definite), so a failure here means the Jacobian itself is
+            # non-finite -- i.e. the articulation state has already diverged upstream. Re-raise with
+            # that cause instead of the misleading "matrix is singular"/"failed to converge" that
+            # LAPACK reports. The check runs only on the failure path, so the happy path is unchanged.
+            try:
+                sigma_min = torch.linalg.svdvals(jacobian)[:, -1]  # (N,)
+                ratio = (sigma_min / sigma_thresh).clamp(max=1.0)
+                lambda_sq = lambda_min**2 + (1.0 - ratio**2) * (lambda_max**2 - lambda_min**2)  # (N,)
+                jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
+                lambda_matrix = lambda_sq.view(-1, 1, 1) * torch.eye(n=jacobian.shape[1], device=self._device)
+                damped_solution = torch.linalg.solve(
+                    torch.bmm(jacobian, jacobian_T) + lambda_matrix, delta_pose.unsqueeze(-1)
+                )
+            except torch.linalg.LinAlgError as err:
+                if not torch.isfinite(jacobian).all():
+                    raise RuntimeError(
+                        "Differential IK received a non-finite Jacobian, so the articulation state has already"
+                        " diverged (NaN/Inf) before this solve. This is usually caused by a NaN or degenerate"
+                        " (zero-norm quaternion) task-space command applied on an earlier step -- check the"
+                        " commands feeding the IK action term."
+                    ) from err
+                raise
+            delta_joint_pos = torch.bmm(jacobian_T, damped_solution).squeeze(-1)
         else:
             raise ValueError(f"Unsupported inverse-kinematics method: {self.cfg.ik_method}")
 

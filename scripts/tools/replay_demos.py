@@ -215,6 +215,11 @@ def replay_episodes_loop(  # noqa: C901
                     else:
                         has_next_action = True
                     actions[env_id] = env_next_action
+                if not has_next_action:
+                    # Every environment has exhausted its episodes. Stop before stepping so the
+                    # replay does not apply the idle action past the end of the recorded data --
+                    # for task-space (IK) tasks the zero idle action carries a zero-norm quaternion.
+                    break
                 if first_loop:
                     first_loop = False
                 else:
