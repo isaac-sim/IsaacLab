@@ -12,8 +12,8 @@ Added
 Changed
 ^^^^^^^
 
-* Cached stable OVPhysX articulation read launches outside CUDA graph capture.
-  No user migration is required.
+* Cached stable OVPhysX articulation and rigid asset read launches outside CUDA
+  graph capture. No user migration is required.
 
 Fixed
 ^^^^^
