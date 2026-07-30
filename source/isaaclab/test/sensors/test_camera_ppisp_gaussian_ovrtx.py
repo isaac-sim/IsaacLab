@@ -65,9 +65,8 @@ from isaaclab.sim import SimulationCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
-# OVRTX renderer + Newton physics are required (kit-less + non-PhysX). Use a
-# collection-time skip marker instead of module-level ``importorskip`` so CI's
-# per-file runner does not see pytest's "no tests collected" exit code.
+# Use collection-time skip markers so unavailable optional modules remain
+# visible per test in reports.
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "isaaclab_newton")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 _SKIP_MISSING_OVRTX = pytest.mark.skipif(
