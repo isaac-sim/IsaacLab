@@ -520,7 +520,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
             "distance_to_image_plane",
             "normals",
             "semantic_segmentation",
-            "instance_segmentation_fast",
+            "instance_segmentation",
         }
         for cam_attr in ("base_camera", "wrist_camera"):
             cam = getattr(self.scene, cam_attr, None)

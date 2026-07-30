@@ -1,2 +1,0 @@
-Test-only: set PXR_WORK_THREAD_LIMIT=1 for all kitless rendering correctness tests to avoid
-USD work-thread race condition

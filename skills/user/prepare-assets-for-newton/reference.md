@@ -14,7 +14,7 @@ This reference follows the sections in the [asset migration guide](../../../docs
 | Property | Configuration |
 | --- | --- |
 | Common USD Physics | `RigidBodyBaseCfg`, `JointDriveBaseCfg`, and other base cfgs |
-| MJWarp-specific | `MujocoRigidBodyPropertiesCfg`, `MujocoJointDrivePropertiesCfg` |
+| MJWarp-specific | `MujocoRigidBodyPropertiesCfg`, `MujocoJointDrivePropertiesCfg`, `MujocoCollisionCfg` |
 | Newton-native | matching `Newton*PropertiesCfg` |
 | PhysX-only | matching `Physx*PropertiesCfg` |
 
@@ -39,7 +39,7 @@ MJWarp can slip more than PhysX under nominally similar material settings. Tune 
 3. Tune material friction against measured tangential slip; do not map PhysX static/dynamic settings numerically.
 4. Compare `cone="elliptic"` with `"pyramidal"` and use `impratio=10` as a grasping starting point only after the contact model is valid.
 
-For copy-ready code, use the guide's task-local `MujocoCondimCfg(CollisionFragment)` and set `spawn.collision_props=[UsdPhysicsCollisionCfg(...), MujocoCondimCfg(condim=4)]`. This authors per-shape `mjc:condim`; the file-spawner override is recursive. Set the global options with `NewtonCfg(solver_cfg=MJWarpSolverCfg(cone="elliptic", impratio=10.0))`.
+For copy-ready code, set `spawn.collision_props=[UsdPhysicsCollisionCfg(...), MujocoCollisionCfg(condim=4)]`. The file-spawner override is recursive. `MujocoCollisionCfg` also exposes per-collider `priority`, `solmix`, `solref`, `solimp`, and MuJoCo `group`; reserve these for measured contact-model tuning. Use `NewtonCollisionCfg` for margin and gap and `NewtonMeshCollisionCfg` for convex-hull vertex limits. Set the global options with `NewtonCfg(solver_cfg=MJWarpSolverCfg(cone="elliptic", impratio=10.0))`.
 
 Track fixed-grasp displacement, contact count, effort, penetration, success, convergence, and runtime. Do not hide missing contacts, bad collision geometry, or insufficient effort with friction, `condim`, or `impratio`.
 

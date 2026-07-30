@@ -181,28 +181,28 @@ def sync_torque_telemetry(
     When the sim-bound buffers are backend-order, the live joint state
     (``joint_pos_backend`` / ``joint_vel_backend``) and both effort buffers are
     gathered through ``user_to_backend`` so every read resolves to public joint
-    ``j``; the user-facing targets, gains, limits, and telemetry outputs are
-    already user-order and are indexed at ``[i, j]`` directly.
+    ``user_j``; the user-facing targets, gains, limits, and telemetry outputs are
+    already user-order and are indexed at ``[i, user_j]`` directly.
 
     Note: ``effort_limit`` clamps only the PD shadow used for implicit-DOF
     telemetry; the FF written into ``joint_f`` is not bounded by it.
     """
-    i, j = wp.tid()
-    backend_j = j
+    i, user_j = wp.tid()
+    backend_j = user_j
     if sim_buffers_are_backend_order:
-        backend_j = user_to_backend[j]
-    if joint_modes[j] == 1:
-        err_p = joint_pos_target[i, j] - joint_pos_backend[i, backend_j]
-        err_v = joint_vel_target[i, j] - joint_vel_backend[i, backend_j]
-        pd = joint_stiffness[i, j] * err_p + joint_damping[i, j] * err_v
-        limit = effort_limit[i, j]
+        backend_j = user_to_backend[user_j]
+    if joint_modes[user_j] == 1:
+        err_p = joint_pos_target[i, user_j] - joint_pos_backend[i, backend_j]
+        err_v = joint_vel_target[i, user_j] - joint_vel_backend[i, backend_j]
+        pd = joint_stiffness[i, user_j] * err_p + joint_damping[i, user_j] * err_v
+        limit = effort_limit[i, user_j]
         pd_clipped = wp.clamp(pd, -limit, limit)
         total = pd_clipped + sim_bind_joint_effort[i, backend_j]
-        computed[i, j] = total
-        applied[i, j] = total
+        computed[i, user_j] = total
+        applied[i, user_j] = total
     else:
-        computed[i, j] = actuator_computed_effort[i, backend_j]
-        applied[i, j] = sim_bind_joint_effort[i, backend_j]
+        computed[i, user_j] = actuator_computed_effort[i, backend_j]
+        applied[i, user_j] = sim_bind_joint_effort[i, backend_j]
 
 
 def build_implicit_dof_mask(

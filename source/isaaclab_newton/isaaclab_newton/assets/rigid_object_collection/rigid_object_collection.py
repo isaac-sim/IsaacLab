@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import os
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -12,8 +13,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
+from newton import ModelFlags
 from newton.selection import ArticulationView
-from newton.solvers import SolverNotifyFlags
 
 from pxr import UsdPhysics
 
@@ -872,7 +873,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -916,7 +917,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
@@ -966,7 +967,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.data._body_com_pose_b.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -1017,7 +1018,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.data._body_com_pose_b.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
@@ -1060,7 +1061,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -1104,7 +1105,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     """
     Internal helper.
@@ -1168,6 +1169,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             combined_pattern,
             verbose=False,
         )
+        if self._root_view.count_per_world != self.num_bodies:
+            raise RuntimeError(
+                f"Rigid object collection pattern {combined_pattern!r} matched "
+                f"{self._root_view.count_per_world} objects per world, but the collection config contains "
+                f"{self.num_bodies}. Ensure collection prim paths share a prefix or suffix that distinguishes them "
+                "from other rigid objects."
+            )
 
         # container for data access
         self._data = RigidObjectCollectionData(self._root_view, self.num_bodies, self.device)
@@ -1297,12 +1305,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def _build_combined_pattern(prim_path_exprs: list[str]) -> str:
         """Build a single fnmatch pattern that matches all body types.
 
-        Compares path segments across all expressions and wildcards the segments that differ.
+        Compares path segments across all expressions and wildcards only the differing portion of each segment.
         For example, given::
 
-            ["/World/Env_*/DexCube/Cube", "/World/Env_*/DexSphere/Sphere"]
+            ["/World/Env_*/Object_A", "/World/Env_*/Object_B"]
 
-        produces ``"/World/Env_*/*/*"``.
+        produces ``"/World/Env_*/Object_*"``. Retaining common prefixes and suffixes avoids selecting
+        unrelated sibling articulations from the same world.
 
         Args:
             prim_path_exprs: List of prim path expressions, one per body type.
@@ -1329,7 +1338,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             if len(unique) == 1:
                 combined_segments.append(segments[0])
             else:
-                combined_segments.append("*")
+                common_prefix = os.path.commonprefix(segments)
+                remaining_segments = [segment[len(common_prefix) :] for segment in segments]
+                common_suffix = os.path.commonprefix([segment[::-1] for segment in remaining_segments])[::-1]
+                combined_segments.append(f"{common_prefix}*{common_suffix}")
         return "/".join(combined_segments)
 
     """

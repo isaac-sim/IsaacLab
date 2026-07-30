@@ -362,7 +362,7 @@ class TeleopSessionLifecycle:
             return _NO_OP_EVENTS
         return _execution_events_to_control(ctx.execution_events)
 
-    def request_reset(self) -> None:
+    def request_reset(self, pause: bool = False) -> None:
         """Schedule a reset for the next pipeline step.
 
         When a control pipeline is configured, the reset flows through
@@ -373,11 +373,15 @@ class TeleopSessionLifecycle:
 
         If the control channel already processed a reset this frame,
         this method is a no-op to avoid a redundant second reset pulse.
+
+        Args:
+            pause: When ``True``, also pause a running session (operator reset);
+                defaults to ``False`` for a host reset that keeps teleop running.
         """
         if self.last_control_events.should_reset:
             return
         if self._message_processor is not None:
-            self._message_processor.inject_reset()
+            self._message_processor.inject_reset(pause=pause)
         else:
             self._pending_reset = True
 

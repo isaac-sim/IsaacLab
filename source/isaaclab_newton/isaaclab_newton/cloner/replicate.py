@@ -19,6 +19,7 @@ from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.cloner.newton_clone_utils import (
+    _restore_visible_colliders_without_visual_shapes,
     build_source_builders,
     rename_builder_labels,
     replicate_builder_mapping,
@@ -60,11 +61,15 @@ def _build_newton_builder_from_mapping(
     manager_cls = PhysicsManager._sim.physics_manager
 
     builder = manager_cls.create_builder(up_axis=up_axis)
+    # Swap height-field-tagged terrain colliders for Newton heightfields before the
+    # mesh import, and skip those prims in add_usd so the terrain is not imported twice.
+    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder)
     stage_info = builder.add_usd(
         stage,
-        ignore_paths=["/World/envs", *sources],
+        ignore_paths=["/World/envs", *sources, *hf_ignore_paths],
         schema_resolvers=schema_resolvers,
     )
+    _restore_visible_colliders_without_visual_shapes(builder, stage, stage_info["path_shape_map"])
     replace_newton_builder_shape_colors(builder, stage)
 
     # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
