@@ -87,6 +87,7 @@ jobs:
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
           dockerfile-path: docker/Dockerfile.base
           cache-tag: cache-base
+          ensure-local-image: false
 
   test-multi-gpu-pytest:
     name: Multi-GPU unit tests

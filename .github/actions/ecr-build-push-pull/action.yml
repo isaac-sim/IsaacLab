@@ -37,6 +37,10 @@ inputs:
     description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
+  ensure-local-image:
+    description: 'Pull and tag cache hits locally'
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -154,7 +158,7 @@ runs:
     # available locally (test jobs need it for `docker run`).  Build jobs
     # that only push to ECR will already have the image or don't need it.
     - name: Pull exact image from ECR
-      if: steps.pull-exact.outputs.hit == 'true'
+      if: inputs.ensure-local-image == 'true' && steps.pull-exact.outputs.hit == 'true'
       shell: bash
       run: |
         if docker image inspect "${{ inputs.image-tag }}" >/dev/null 2>&1; then
@@ -198,11 +202,15 @@ runs:
         # not the actual layers, so this completes in seconds.
         if docker manifest inspect "${DEPS_ECR_IMAGE}" >/dev/null 2>&1; then
           echo "🟢 Deps cache HIT!!! Image exists in ECR: ${DEPS_ECR_IMAGE}"
-          # Create a commit-tagged alias pointing to the same manifest (registry-side,
-          # no layer download). Test jobs will pull this tag normally.
+          # Create a commit-tagged alias without downloading layers.
           echo "🔵 Tagging as commit image ${ECR_IMAGE}..."
           docker buildx imagetools create -t "${ECR_IMAGE}" "${DEPS_ECR_IMAGE}"
           echo "🟢 Tagged ${ECR_IMAGE} >> ${DEPS_ECR_IMAGE}"
+          if [ "${{ inputs.ensure-local-image }}" = "true" ] && \
+             ! docker image inspect "${{ inputs.image-tag }}" >/dev/null 2>&1; then
+            docker pull "${DEPS_ECR_IMAGE}"
+            docker tag "${DEPS_ECR_IMAGE}" "${{ inputs.image-tag }}"
+          fi
           echo "deps-cache-hit=true" >> "$GITHUB_OUTPUT"
         else
           echo "🟠 Deps cache MISS 😿😿😿 (${DEPS_HASH}). Will build now. 🐢🐢🐢"
