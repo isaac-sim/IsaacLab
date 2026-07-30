@@ -306,13 +306,28 @@ Limitations
 
 * **Newton + VBD only.** Other backends and other Newton solvers are not
   supported.
-* **One curve per object.** :class:`~isaaclab.assets.CableObject` expects exactly
-  one qualifying ``BasisCurves`` under its ``prim_path``.
+* **One standalone, unwelded cable per object.**
+  :class:`~isaaclab.assets.CableObject` requires "one standalone, unwelded cable
+  articulation per simulation world": exactly one ``BasisCurves`` prim carrying
+  ``PhysicsCurvesDeformableSimAPI`` under ``prim_path``, holding a single open
+  curve that is not welded to another cable. Multi-curve ``BasisCurves`` prims,
+  periodic (closed) curves, and curve-to-curve ``PhysicsAttachment`` welds all
+  fail during initialization. Attachments to a rigid body, a static xform, or a
+  robot link are supported, so rigid plugs and end fittings work.
 * **No damping knobs.** The four stiffness moduli are exposed; their damping
   counterparts are not.
 * **Uniform point spacing assumed.** One stiffness pair is derived from the mean segment
   length, so uneven spacing mistunes the outlier segments.
 * **CPU-only render sync** (NVBug 6502662); periodic curves are not synced.
+
+.. note::
+    Topologies the runtime object rejects still simulate: the Newton model is
+    built from the whole USD stage, so every curve carrying
+    ``PhysicsCurvesDeformableSimAPI`` is imported whether or not a
+    :class:`~isaaclab.assets.CableObject` wraps it. Drive them through
+    :class:`~isaaclab_newton.physics.NewtonManager` ``get_model()`` /
+    ``get_state_0()`` and your own ``newton.selection.ArticulationView``. There
+    is no Isaac Lab asset wrapper for those cases.
 
 For the public API, see :class:`~isaaclab.assets.CableObject`,
 :class:`~isaaclab.sim.spawners.shapes.CableCfg`, and
