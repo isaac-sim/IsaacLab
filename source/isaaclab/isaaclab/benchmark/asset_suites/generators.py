@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 import torch
 import warp as wp
 
-from ..method_benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunnerConfig, TimedInputTransform
+from ..method_benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunnerConfig
 from .types import InputGenerator
 
 _DIMENSIONS = {
@@ -74,7 +74,7 @@ def make_item_selector_generators(
             item_selector: object = item_values
         elif mode == "torch_tensor_int32":
             item_selector = torch.tensor(item_values, dtype=torch.int32, device=config.device)
-        elif mode in {"torch_tensor_int64", "torch_precast_int32"}:
+        elif mode == "torch_tensor_int64":
             item_selector = torch.tensor(item_values, dtype=torch.int64, device=config.device)
         elif mode == "warp_int32":
             item_selector = wp.array(item_values, dtype=wp.int32, device=config.device)
@@ -89,23 +89,10 @@ def make_item_selector_generators(
         "torch_list",
         "torch_tensor_int32",
         "torch_tensor_int64",
-        "torch_precast_int32",
         "warp_int32",
         "warp_int64",
     )
     return {mode: lambda config, mode=mode: generate(config, mode) for mode in modes}
-
-
-def make_precast_item_selector_transform(item_key: str) -> TimedInputTransform:
-    """Create a timed transform that casts one Torch item selector to ``int32``."""
-
-    def transform(inputs: dict[str, object]) -> dict[str, object]:
-        selector = inputs[item_key]
-        if not isinstance(selector, torch.Tensor):
-            raise TypeError(f"Precast field {item_key!r} must be generated as a torch.Tensor")
-        return {**inputs, item_key: selector.to(torch.int32)}
-
-    return transform
 
 
 def make_mask_generator(

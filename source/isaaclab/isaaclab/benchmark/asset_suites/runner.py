@@ -43,7 +43,6 @@ def resolve_method_benchmarks(
                 method_name=method_name_overrides.get(spec.method_name, spec.method_name),
                 input_generators=generators,
                 category=spec.category,
-                timed_input_transforms=spec.timed_input_transforms,
                 prepare_target=spec.prepare_target,
             )
         )

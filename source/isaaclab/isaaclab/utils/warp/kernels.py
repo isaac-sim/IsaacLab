@@ -711,14 +711,6 @@ def reset_wrench_composer_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.K
     return _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER.select(env_ids)
 
 
-_SET_FORCES_TO_DUAL_BUFFERS_INDEX_GENERIC = set_forces_to_dual_buffers_index
-_ADD_FORCES_TO_DUAL_BUFFERS_INDEX_GENERIC = add_forces_to_dual_buffers_index
-_RESET_WRENCH_COMPOSER_INDEX_GENERIC = reset_wrench_composer_index
-set_forces_to_dual_buffers_index = _SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select_dtypes(wp.int32, wp.int32)
-add_forces_to_dual_buffers_index = _ADD_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select_dtypes(wp.int32, wp.int32)
-reset_wrench_composer_index = _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER.select_dtypes(wp.int32)
-
-
 ##
 # Image normalization
 ##

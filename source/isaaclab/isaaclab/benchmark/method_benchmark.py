@@ -52,8 +52,8 @@ import inspect
 import logging
 import statistics
 import time
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from functools import partial
 
 from .benchmark_core import BaseIsaacLabBenchmark
@@ -61,7 +61,6 @@ from .measurements import StatisticalMeasurement
 
 logger = logging.getLogger(__name__)
 
-TimedInputTransform = Callable[[dict[str, object]], dict[str, object]]
 PrepareTarget = Callable[[object], None]
 
 
@@ -107,8 +106,6 @@ class MethodBenchmarkDefinition:
         method_name: Name of the method to benchmark on the target object.
         input_generators: Dict mapping mode names to input generator functions.
         category: Category for grouping results into phases.
-        timed_input_transforms: Optional mapping from mode names to input
-            transforms included in the measured operation.
         prepare_target: Optional hook that prepares the target outside the
             measured operation.
     """
@@ -117,7 +114,6 @@ class MethodBenchmarkDefinition:
     method_name: str
     input_generators: dict[str, Callable]
     category: str = "default"
-    timed_input_transforms: Mapping[str, TimedInputTransform] = field(default_factory=dict)
     prepare_target: PrepareTarget | None = None
 
 
@@ -229,7 +225,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
                     method=method,
                     method_name=bench_name,
                     generator=generator,
-                    timed_input_transform=benchmark.timed_input_transforms.get(mode),
                     prepare_target=(
                         partial(benchmark.prepare_target, target_object)
                         if benchmark.prepare_target is not None
@@ -261,7 +256,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         method: Callable | None,
         method_name: str,
         generator: Callable,
-        timed_input_transform: TimedInputTransform | None = None,
         prepare_target: Callable[[], None] | None = None,
     ) -> dict | None:
         """Benchmark a single method.
@@ -270,8 +264,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             method: The method to benchmark (or None if not found).
             method_name: Name of the method for reporting.
             generator: Function that generates input arguments.
-            timed_input_transform: Optional input conversion included in the
-                measured operation.
             prepare_target: Optional target preparation performed outside the
                 measured operation.
 
@@ -290,8 +282,7 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             inputs = generator(self._config)
 
         def operation() -> object:
-            operation_inputs = timed_input_transform(inputs) if timed_input_transform is not None else inputs
-            return method(**operation_inputs)
+            return method(**inputs)
 
         try:
             prepare()

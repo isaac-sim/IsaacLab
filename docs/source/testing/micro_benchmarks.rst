@@ -244,7 +244,7 @@ Methods indexed only by ``env_ids`` retain two modes:
 ``torch_tensor``
    Pass pre-allocated Torch ``int32`` environment IDs.
 
-Writers with ``joint_ids`` or ``body_ids`` use a six-mode grid. Every mode
+Writers with ``joint_ids`` or ``body_ids`` use a five-mode grid. Every mode
 passes the same pre-allocated Torch ``int32`` ``env_ids`` so the measured
 difference comes from the item selector:
 
@@ -258,10 +258,6 @@ difference comes from the item selector:
    Pass pre-allocated Torch ``int64`` item IDs and let the production kernel
    select its matching specialization.
 
-``torch_precast_int32``
-   Start from pre-allocated Torch ``int64`` item IDs, then include
-   ``selector.to(torch.int32)`` and its allocation inside the timed operation.
-
 ``warp_int32`` and ``warp_int64``
    Pass pre-allocated Warp arrays using the corresponding signed index width.
 
@@ -272,8 +268,8 @@ difference comes from the item selector:
 Not every backend or method supports every mode. Compare a mode only when it has
 the same meaning on both sides.
 
-Articulation Finder and Raw-Kernel Phases
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Articulation Finder Phases
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Articulation method artifacts also contain actual ``find_bodies`` and
 ``find_joints`` workloads:
@@ -284,13 +280,6 @@ Articulation method artifacts also contain actual ``find_bodies`` and
   proxy selector.
 * ``proxy_cached`` warms the cache during preflight and measures repeated lookup
   of the same proxy selector.
-
-On CUDA, the same articulation artifact records
-``index_kernel_5pct``, ``index_kernel_95pct``, and
-``index_kernel_100pct`` phases. These launch the production indexed joint-state
-writer directly with Warp ``int32`` and ``int64`` selectors, validate identical
-outputs, and report both latencies and their deltas. CPU requests skip this
-CUDA-event-only phase.
 
 Run timing comparisons only while the selected GPU is idle. Another process
 using the device can dominate microsecond-scale differences; correctness-only

@@ -20,45 +20,45 @@ pytestmark = pytest.mark.benchmark
 @pytest.mark.parametrize(
     ("component", "physics", "capabilities", "definition_count", "workload_count"),
     (
-        ("articulation", "physx", frozenset({"tensor_fill"}), 30, 118),
+        ("articulation", "physx", frozenset({"tensor_fill"}), 30, 102),
         (
             "articulation",
             "newton",
             frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
             50,
-            138,
+            122,
         ),
-        ("articulation", "ovphysx", frozenset({"warp_mask"}), 50, 138),
+        ("articulation", "ovphysx", frozenset({"warp_mask"}), 50, 122),
         (
             "rigid_object",
             "physx",
             frozenset({"physx_legacy_state", "tensor_fill"}),
             13,
-            38,
-        ),
-        (
-            "rigid_object",
-            "newton",
-            frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
-            15,
             35,
         ),
-        ("rigid_object", "ovphysx", frozenset({"warp_mask"}), 15, 35),
+        (
+            "rigid_object",
+            "newton",
+            frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
+            15,
+            32,
+        ),
+        ("rigid_object", "ovphysx", frozenset({"warp_mask"}), 15, 32),
         (
             "rigid_object_collection",
             "physx",
             frozenset({"physx_legacy_state", "tensor_fill"}),
             13,
-            74,
+            62,
         ),
         (
             "rigid_object_collection",
             "newton",
             frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
             15,
-            51,
+            44,
         ),
-        ("rigid_object_collection", "ovphysx", frozenset({"warp_mask"}), 15, 51),
+        ("rigid_object_collection", "ovphysx", frozenset({"warp_mask"}), 15, 44),
     ),
 )
 def test_method_manifests_preserve_backend_workloads(
@@ -104,7 +104,6 @@ def test_shared_generator_preserves_item_selector_modes_and_shapes() -> None:
         "torch_list",
         "torch_tensor_int32",
         "torch_tensor_int64",
-        "torch_precast_int32",
         "warp_int32",
         "warp_int64",
     )
@@ -118,10 +117,8 @@ def test_shared_generator_preserves_item_selector_modes_and_shapes() -> None:
     assert inputs_by_mode["torch_list"]["joint_ids"] == [0, 1, 2, 3]
     assert inputs_by_mode["torch_tensor_int32"]["joint_ids"].dtype is torch.int32
     assert inputs_by_mode["torch_tensor_int64"]["joint_ids"].dtype is torch.int64
-    assert inputs_by_mode["torch_precast_int32"]["joint_ids"].dtype is torch.int64
     assert inputs_by_mode["warp_int32"]["joint_ids"].dtype is wp.int32
     assert inputs_by_mode["warp_int64"]["joint_ids"].dtype is wp.int64
-    assert tuple(definition.timed_input_transforms) == ("torch_precast_int32",)
 
 
 def test_env_only_generator_preserves_legacy_index_modes() -> None:

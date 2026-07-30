@@ -128,47 +128,6 @@ def test_method_benchmark_collects_exact_requested_samples() -> None:
     assert call_count == 6
 
 
-def test_method_benchmark_applies_input_transform_inside_timed_operation() -> None:
-    """Mode-specific conversions should be included in the measured operation instead of untimed preparation."""
-    runner = _runner(num_iterations=1)
-    events: list[object] = []
-
-    def generator(_config) -> dict[str, object]:
-        events.append("prepare")
-        return {"selector": "int64"}
-
-    def transform(inputs: dict[str, object]) -> dict[str, object]:
-        events.append("transform")
-        return {**inputs, "selector": "int32"}
-
-    def operation(selector: str) -> None:
-        events.append(("operation", selector))
-
-    def clock() -> int:
-        events.append("clock")
-        return events.count("clock") * 1_000
-
-    with patch("isaaclab.benchmark.method_benchmark.time.perf_counter_ns", side_effect=clock):
-        result = runner._benchmark_method(
-            operation,
-            "example",
-            generator,
-            timed_input_transform=transform,
-        )
-
-    assert result is not None
-    assert events == [
-        "prepare",
-        "transform",
-        ("operation", "int32"),
-        "prepare",
-        "clock",
-        "transform",
-        ("operation", "int32"),
-        "clock",
-    ]
-
-
 def test_method_benchmark_prepares_target_outside_timed_operation() -> None:
     """Target cache preparation should run for every call without contributing to measured latency."""
     runner = _runner(num_iterations=1, warmup_steps=1)

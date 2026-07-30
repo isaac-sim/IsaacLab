@@ -11,7 +11,6 @@ from .generators import (
     make_indexed_generators,
     make_item_selector_generators,
     make_mask_generator,
-    make_precast_item_selector_transform,
     make_scaled_tensor_generator,
     make_signed_joint_limits_generator,
 )
@@ -29,17 +28,14 @@ def _indexed(
     item_keys = tuple(name for name in index_dimensions if name in {"body_ids", "joint_ids"})
     if item_keys:
         input_generators = make_item_selector_generators(tensor_shapes, index_dimensions)
-        timed_input_transforms = {"torch_precast_int32": make_precast_item_selector_transform(item_keys[0])}
     else:
         input_generators = make_indexed_generators(tensor_shapes, index_dimensions)
-        timed_input_transforms = {}
     return AssetMethodSpec(
         name=method_name,
         method_name=method_name,
         input_generators=input_generators,
         category=category,
         requires=requires,
-        timed_input_transforms=timed_input_transforms,
     )
 
 
@@ -63,7 +59,6 @@ def _scaled_tensor_field(spec: AssetMethodSpec, field_name: str, scale: float) -
         },
         category=spec.category,
         requires=spec.requires,
-        timed_input_transforms=spec.timed_input_transforms,
         prepare_target=spec.prepare_target,
     )
 
@@ -85,7 +80,6 @@ def _signed_joint_limits(spec: AssetMethodSpec) -> AssetMethodSpec:
         },
         category=spec.category,
         requires=spec.requires,
-        timed_input_transforms=spec.timed_input_transforms,
         prepare_target=spec.prepare_target,
     )
 
