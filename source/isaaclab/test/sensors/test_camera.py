@@ -842,7 +842,10 @@ def setup_camera_device(device):
     teardown(sim)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# Rendering happens on the GPU regardless of the simulation device, and this test makes no
+# device-placement assertion, so the second device only doubled the render cost.
+# test_camera_all_annotators still runs on both devices as the transfer canary.
+@pytest.mark.parametrize("device", ["cuda:0"])
 def test_camera_multi_regex_init(setup_camera_device, device):
     """Test multi-camera initialization with regex prim paths and content validation."""
     sim, camera_cfg, dt = setup_camera_device
@@ -960,7 +963,10 @@ def test_camera_all_annotators(setup_camera_device, device):
     del camera
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# Rendering happens on the GPU regardless of the simulation device, and this test makes no
+# device-placement assertion, so the second device only doubled the render cost.
+# test_camera_all_annotators still runs on both devices as the transfer canary.
+@pytest.mark.parametrize("device", ["cuda:0"])
 def test_camera_segmentation_non_colorize(setup_camera_device, device):
     """Test segmentation outputs with colorization disabled produce correct dtypes and info."""
     sim, camera_cfg, dt = setup_camera_device
@@ -990,7 +996,10 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
     del camera
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# Rendering happens on the GPU regardless of the simulation device, and this test makes no
+# device-placement assertion, so the second device only doubled the render cost.
+# test_camera_all_annotators still runs on both devices as the transfer canary.
+@pytest.mark.parametrize("device", ["cuda:0"])
 def test_camera_normals_unit_length(setup_camera_device, device):
     """Test that normals output vectors have approximately unit length."""
     sim, camera_cfg, dt = setup_camera_device
@@ -1019,7 +1028,10 @@ def test_camera_normals_unit_length(setup_camera_device, device):
     del camera
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# Rendering happens on the GPU regardless of the simulation device, and this test makes no
+# device-placement assertion, so the second device only doubled the render cost.
+# test_camera_all_annotators still runs on both devices as the transfer canary.
+@pytest.mark.parametrize("device", ["cuda:0"])
 def test_camera_data_types_ordering(setup_camera_device, device):
     """Test that requesting specific data types produces the expected output keys."""
     sim, camera_cfg, dt = setup_camera_device
@@ -1187,7 +1199,10 @@ def test_camera_raises_on_instance_segmentation_fast(setup_sim_camera):
         Camera(camera_cfg)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# Rendering happens on the GPU regardless of the simulation device, and this test makes no
+# device-placement assertion, so the second device only doubled the render cost.
+# test_camera_all_annotators still runs on both devices as the transfer canary.
+@pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
 def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
     """Camera pose changes via FrameView should be visible in rendered depth.

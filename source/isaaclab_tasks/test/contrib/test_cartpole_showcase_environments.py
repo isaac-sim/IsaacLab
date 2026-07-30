@@ -24,7 +24,11 @@ import isaaclab_tasks  # noqa: F401
 from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
-@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
+# Every registered environment is built once, batched. Repeating the whole matrix at
+# num_envs=1 doubled the suite to re-check a buffer-shape concern that is generic and
+# already covered by the articulation and rigid-object initialization tests, which keep
+# scalar and batched cases deliberately.
+@pytest.mark.parametrize("num_envs, device", [(2, "cuda")])
 @pytest.mark.parametrize(
     "task_name",
     setup_environment(
