@@ -127,48 +127,48 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             if prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
 
-        if not patterns:
-            return
+        # Rigid discovery may be empty for deformable-only scenes; still set up
+        # deformable nodal bindings so SceneData geometry export stays available.
+        if patterns:
+            # One pose binding per distinct pattern.
+            total_count = 0
+            for pattern in sorted(patterns):
+                try:
+                    view = OvPhysxView(physx, pattern=pattern, device=device)
+                    pose_binding = view.binding_for(TT.RIGID_BODY_POSE)
+                except Exception as exc:
+                    logger.warning("Failed to create RIGID_BODY_POSE binding for %s: %s", pattern, exc)
+                    continue
+                row_count = int(pose_binding.shape[0])
+                if row_count == 0:
+                    logger.debug("Pattern %s matched 0 rigid bodies; skipping.", pattern)
+                    continue
+                pose_buf = wp.zeros(pose_binding.shape, dtype=wp.float32, device=device)
+                # Zero-copy reinterpret of the (N, 7) float32 staging buffer as (N,) wp.transformf.
+                # Same pointer + layout; transformf is 7 float32s (pos.xyz + quat.xyzw). Cached
+                # so per-step ``transforms`` reads don't reallocate the view object.
+                pose_buf_transformf = wp.array(
+                    ptr=pose_buf.ptr,
+                    shape=(row_count,),
+                    dtype=wp.transformf,
+                    device=str(pose_buf.device),
+                    copy=False,
+                )
+                self._rigid_bindings.append(
+                    {
+                        "pattern": pattern,
+                        "view": view,
+                        "pose": pose_binding,
+                        "pose_buf": pose_buf,
+                        "pose_buf_transformf": pose_buf_transformf,
+                        "row_offset": total_count,
+                        "row_count": row_count,
+                    }
+                )
+                total_count += row_count
 
-        # One pose binding per distinct pattern.
-        total_count = 0
-        for pattern in sorted(patterns):
-            try:
-                view = OvPhysxView(physx, pattern=pattern, device=device)
-                pose_binding = view.binding_for(TT.RIGID_BODY_POSE)
-            except Exception as exc:
-                logger.warning("Failed to create RIGID_BODY_POSE binding for %s: %s", pattern, exc)
-                continue
-            row_count = int(pose_binding.shape[0])
-            if row_count == 0:
-                logger.debug("Pattern %s matched 0 rigid bodies; skipping.", pattern)
-                continue
-            pose_buf = wp.zeros(pose_binding.shape, dtype=wp.float32, device=device)
-            # Zero-copy reinterpret of the (N, 7) float32 staging buffer as (N,) wp.transformf.
-            # Same pointer + layout; transformf is 7 float32s (pos.xyz + quat.xyzw). Cached
-            # so per-step ``transforms`` reads don't reallocate the view object.
-            pose_buf_transformf = wp.array(
-                ptr=pose_buf.ptr,
-                shape=(row_count,),
-                dtype=wp.transformf,
-                device=str(pose_buf.device),
-                copy=False,
-            )
-            self._rigid_bindings.append(
-                {
-                    "pattern": pattern,
-                    "view": view,
-                    "pose": pose_binding,
-                    "pose_buf": pose_buf,
-                    "pose_buf_transformf": pose_buf_transformf,
-                    "row_offset": total_count,
-                    "row_count": row_count,
-                }
-            )
-            total_count += row_count
-
-        if total_count > 0:
-            self._merged_transforms = wp.zeros((total_count,), dtype=wp.transformf, device=device)
+            if total_count > 0:
+                self._merged_transforms = wp.zeros((total_count,), dtype=wp.transformf, device=device)
 
         self._setup_deformable_bindings(physx, stage, device)
 
