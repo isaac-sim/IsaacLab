@@ -362,13 +362,24 @@ def _submit_and_poll(
 
     # Preflight: OSMO uploads results itself via each task's outputs block, so a
     # read-only bucket would not surface until every task had already run.
-    if not args.skip_preflight and not client.data_check(cfg.results_uri):
-        print(
-            f"[odin] {cfg.results_uri} is not writable; results would be lost. "
-            "Fix the bucket mode or pass --skip_preflight to override.",
-            file=sys.stderr,
-        )
-        return 1
+    if not args.skip_preflight:
+        if not client.data_check(cfg.results_uri):
+            print(
+                f"[odin] {cfg.results_uri} is not writable; results would be lost. "
+                "Fix the bucket mode or pass --skip_preflight to override.",
+                file=sys.stderr,
+            )
+            return 1
+        # data_check reports permission only, so it passes on an over-quota
+        # account whose uploads all fail. Write a few bytes to find out.
+        reason = client.data_probe_write(cfg.results_uri)
+        if reason is not None:
+            print(
+                f"[odin] {cfg.results_uri} accepted no data ({reason}); results would be lost. "
+                "Free space or raise the quota, or pass --skip_preflight to override.",
+                file=sys.stderr,
+            )
+            return 1
 
     # Validate every chunk before submitting any of them, so a schema error
     # cannot leave a dispatch half-submitted.

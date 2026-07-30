@@ -19,6 +19,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -216,6 +217,39 @@ class OsmoClient:
         if cp.returncode != 0:
             raise _classify(cp.stderr)(f"`osmo data check` failed: {cp.stderr.strip()}")
         return '"pass"' in cp.stdout or "'pass'" in cp.stdout
+
+    def data_probe_write(self, remote_uri: str) -> str | None:
+        """Upload a few bytes to *remote_uri* and return the failure reason, if any.
+
+        :meth:`data_check` reports only permission, so it passes on a bucket
+        whose account is over quota, where every upload then fails with
+        ``EntityTooLarge ... Upload exceeds quota``. OSMO also exits 0 and
+        prints ``Data has been uploaded`` in that case, so the outcome has to
+        be read out of the output.
+
+        Args:
+            remote_uri: Backend URI to probe under.
+
+        Returns:
+            ``None`` when the probe uploaded, else the reported reason.
+
+        Raises:
+            OsmoAuthError, OsmoTransientError, OsmoCliError: per :func:`_classify`.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "odin-preflight-probe"
+            probe.write_text("odin preflight\n")
+            cp = self._run([self._exe, "data", "upload", f"{remote_uri.rstrip('/')}/_preflight/", str(probe)])
+        if cp.returncode != 0:
+            raise _classify(cp.stderr)(f"`osmo data upload` failed: {cp.stderr.strip()}")
+        combined = f"{cp.stdout}\n{cp.stderr}"
+        if "Upload Failed on files" not in combined:
+            return None
+        for line in combined.splitlines():
+            if "An error occurred" in line:
+                # Trailing "Retrying N more times. Request ID: None" is noise.
+                return line.split("An error occurred", 1)[1].split(". Retrying", 1)[0].strip()
+        return "upload reported a failure"
 
     def data_download(self, remote_uri: str, dest_dir: Path) -> None:
         """Download a bucket URI into a local directory.

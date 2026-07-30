@@ -154,3 +154,27 @@ def test_data_check_reports_pass(monkeypatch) -> None:
 def test_data_check_reports_failure(monkeypatch) -> None:
     fake = _FakeRun(_cp(stdout='{"status": "fail"}'))
     assert _client(monkeypatch, fake).data_check("swift://h/x") is False
+
+
+# Observed output of an over-quota upload: exit 0, a success line, and the real
+# verdict further down. Permission-only checks pass against this.
+_QUOTA_FAILURE = (
+    "Data has been uploaded\n"
+    "Upload Failed on files:\n"
+    "/osmo/data/output/probe.txt: OSMODataStorageClientError: S3UploadFailedError: "
+    "An error occurred (EntityTooLarge) when calling the PutObject operation: Upload exceeds quota."
+    ". Retrying 3 more times. Request ID: None\n"
+)
+
+
+def test_write_probe_passes_when_the_upload_lands(monkeypatch) -> None:
+    fake = _FakeRun(_cp(stdout="Data has been uploaded\n"))
+    assert _client(monkeypatch, fake).data_probe_write("swift://h/x") is None
+
+
+def test_write_probe_reports_an_over_quota_bucket(monkeypatch) -> None:
+    fake = _FakeRun(_cp(returncode=0, stdout=_QUOTA_FAILURE))
+    reason = _client(monkeypatch, fake).data_probe_write("swift://h/x")
+    assert reason is not None
+    assert "quota" in reason.lower()
+    assert "Retrying" not in reason
