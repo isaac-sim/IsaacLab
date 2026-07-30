@@ -15,7 +15,7 @@ import isaaclab.utils as utils_module
 from isaaclab.app import AppLauncher
 from isaaclab.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _uses_isaac_sim_runtime
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.mark.usefixtures("mocker")

@@ -32,7 +32,7 @@ from isaaclab.managers import (
 from isaaclab.utils import modifiers
 from isaaclab.utils.configclass import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv

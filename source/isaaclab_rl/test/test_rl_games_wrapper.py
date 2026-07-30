@@ -5,7 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch the simulator
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -17,7 +21,6 @@ simulation_app = app_launcher.app
 import os
 
 import gymnasium as gym
-import pytest
 import torch
 
 import isaaclab.sim as sim_utils

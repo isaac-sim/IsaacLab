@@ -8,9 +8,13 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
 
 HEADLESS = True
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -21,7 +25,6 @@ import contextlib
 import types
 import warnings
 
-import pytest
 import torch
 
 import isaaclab.sim as sim_utils

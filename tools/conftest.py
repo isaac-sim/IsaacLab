@@ -634,9 +634,7 @@ def _run_one_pass(
     """
     pass_file_label = f"{ctx.file_name}{suffix}"
     # Slug the full test path (not just the basename) into the report filename so
-    # two concurrent shards running same-basename files (e.g.
-    # ``isaaclab_newton/.../test_articulation.py`` vs
-    # ``isaaclab_physx/.../test_articulation.py``) don't write to the same path
+    # two concurrent shards running same-basename files don't write to the same path
     # inside the shared ``/workspace/isaaclab`` mount and trigger false
     # shutdown_hang detections in sibling shards via the report-file existence check.
     report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")

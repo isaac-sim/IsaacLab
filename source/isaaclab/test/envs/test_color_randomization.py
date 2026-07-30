@@ -33,7 +33,7 @@ from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.version import get_isaac_sim_version
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @configclass

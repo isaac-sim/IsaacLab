@@ -7,7 +7,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -17,7 +21,6 @@ import tempfile
 
 import cv2
 import numpy as np
-import pytest
 import torch
 
 from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_render import GelsightRender

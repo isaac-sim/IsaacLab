@@ -3,13 +3,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
-import pytest
 import torch
 
 import isaaclab.utils.math as PoseUtils

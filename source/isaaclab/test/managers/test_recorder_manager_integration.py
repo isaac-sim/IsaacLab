@@ -24,7 +24,7 @@ from isaaclab.managers import DatasetExportMode, RecorderManagerBaseCfg, Recorde
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.utils.configclass import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 class DummyStepRecorderTerm(RecorderTerm):

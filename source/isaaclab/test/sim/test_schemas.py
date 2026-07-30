@@ -39,7 +39,7 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg, spawn_rigi
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.fixture

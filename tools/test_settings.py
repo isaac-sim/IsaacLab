@@ -18,6 +18,8 @@ DEFAULT_TIMEOUT = 1000
 
 PER_TEST_TIMEOUTS = {
     "test_articulation.py": 3000,
+    "test_articulation_newton.py": 3000,
+    "test_articulation_physx.py": 3000,
     "test_stage_in_memory.py": 1000,
     "test_imu.py": 1000,
     "test_environments.py": 10000,  # This test runs through all the environments for 100 steps each
@@ -61,6 +63,8 @@ PER_TEST_TIMEOUTS = {
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
     "test_rigid_object_collection.py": 1500,
+    "test_rigid_object_collection_newton.py": 1500,
+    "test_rigid_object_collection_physx.py": 1500,
     "test_outdated_sensor.py": 1000,
     "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,

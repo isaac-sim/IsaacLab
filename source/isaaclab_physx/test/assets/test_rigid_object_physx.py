@@ -9,8 +9,12 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import resolve_test_sim_device, test_devices
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
@@ -20,7 +24,6 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 import sys
 from typing import Literal
 
-import pytest
 import torch
 import warp as wp
 from flaky import flaky

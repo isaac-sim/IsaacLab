@@ -19,7 +19,7 @@ from pxr import PhysxSchema, Sdf, Usd, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 def _new_sim():

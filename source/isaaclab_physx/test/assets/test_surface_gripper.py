@@ -11,14 +11,17 @@
 
 import os
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg

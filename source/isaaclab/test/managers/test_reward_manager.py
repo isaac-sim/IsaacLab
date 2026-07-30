@@ -21,7 +21,7 @@ from isaaclab.managers import RewardManager, RewardTermCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.configclass import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 def grilled_chicken(env):

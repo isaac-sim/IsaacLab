@@ -28,7 +28,7 @@ from isaaclab_tasks.utils import parse_env_cfg
 from env_test_utils import setup_environment  # isort: skip
 
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.requires_kit]
 
 
 @pytest.fixture(scope="function")

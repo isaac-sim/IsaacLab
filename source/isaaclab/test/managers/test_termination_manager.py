@@ -18,7 +18,7 @@ import torch
 from isaaclab.managers import TerminationManager, TerminationTermCfg
 from isaaclab.sim import SimulationContext
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 class DummyEnv:

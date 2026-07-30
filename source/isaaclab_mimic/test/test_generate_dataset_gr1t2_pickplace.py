@@ -5,7 +5,11 @@
 
 """Test dataset generation for Isaac-PickPlace-GR1T2-Abs-Mimic-v0."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -14,7 +18,6 @@ import os
 import sys
 import tempfile
 
-import pytest
 from mimic_test_utils import run_script
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path

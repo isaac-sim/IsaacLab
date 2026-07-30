@@ -32,7 +32,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.math import random_orientation
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.fixture

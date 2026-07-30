@@ -45,7 +45,7 @@ from isaaclab.sensors.ray_caster import (
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 _GROUND_PATH = "/World/Ground"
 _DT = 0.01

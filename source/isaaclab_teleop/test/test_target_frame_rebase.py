@@ -17,6 +17,8 @@ import pytest
 import torch
 from isaaclab_teleop.session_lifecycle import _to_numpy_4x4
 
+pytestmark = pytest.mark.requires_extra("teleop")
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

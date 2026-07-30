@@ -26,6 +26,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.requires_extra("teleop")
+
 # ---------------------------------------------------------------------------
 # Stub out isaacteleop and Kit modules before any isaaclab_teleop imports.
 # ---------------------------------------------------------------------------

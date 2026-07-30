@@ -24,7 +24,7 @@ import isaacsim.core.simulation_manager as simulation_manager_module
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.fixture(autouse=True)

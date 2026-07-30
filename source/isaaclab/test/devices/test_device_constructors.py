@@ -9,6 +9,10 @@ import json
 import pytest
 import torch
 
+# ``isaaclab.devices.gamepad.se2_gamepad`` imports ``carb`` at module scope, so importing
+# any device class needs the Kit runtime.
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
+
 # Import device classes to test
 from isaaclab.devices import (
     HaplyDevice,
@@ -26,8 +30,6 @@ from isaaclab.devices import (
     Se3SpaceMouse,
     Se3SpaceMouseCfg,
 )
-
-pytestmark = pytest.mark.integration
 
 
 @pytest.fixture

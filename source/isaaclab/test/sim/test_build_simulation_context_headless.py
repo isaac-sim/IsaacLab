@@ -27,7 +27,7 @@ import pytest
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.simulation_context import build_simulation_context
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.mark.parametrize("gravity_enabled", [True, False])

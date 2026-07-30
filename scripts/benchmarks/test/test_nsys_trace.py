@@ -14,7 +14,11 @@ source by dotted paths. These tests catch two kinds of drift:
   signals that new coverage may need to be added)
 """
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 simulation_app = AppLauncher(headless=True).app
 
@@ -26,8 +30,6 @@ import json
 import warnings
 from collections import defaultdict
 from pathlib import Path
-
-import pytest
 
 TRACE_JSON_PATH = Path(__file__).resolve().parents[1] / "nsys_trace.json"
 

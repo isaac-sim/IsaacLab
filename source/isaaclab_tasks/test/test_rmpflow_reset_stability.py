@@ -15,7 +15,11 @@ behavior: the arm settles quickly and stays close to its reset pose.
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch the simulator
 app_launcher = AppLauncher(headless=True)
@@ -25,7 +29,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
-import pytest
 import torch
 
 import isaaclab.sim as sim_utils

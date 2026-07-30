@@ -21,7 +21,11 @@ Two test suites are provided:
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
@@ -29,7 +33,6 @@ simulation_app = app_launcher.app
 
 import types  # noqa: E402
 
-import pytest  # noqa: E402
 from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
 from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
 from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402

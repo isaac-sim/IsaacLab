@@ -11,7 +11,7 @@ import pytest
 import isaaclab.app.app_launcher as app_launcher_module
 from isaaclab.app import AppLauncher
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.mark.usefixtures("mocker")

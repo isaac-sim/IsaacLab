@@ -5,7 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -14,7 +18,6 @@ simulation_app = AppLauncher(headless=True).app
 
 import types
 
-import pytest
 import torch
 
 from isaaclab_contrib.controllers import (

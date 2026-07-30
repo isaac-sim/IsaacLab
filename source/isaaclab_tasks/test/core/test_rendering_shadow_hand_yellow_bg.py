@@ -13,7 +13,7 @@ simulation_app = app_launcher.app
 import pytest  # noqa: E402
 from rendering_test_utils import rendering_test_shadow_hand_yellow_bg  # noqa: E402
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.requires_kit]
 
 
 @pytest.mark.parametrize(

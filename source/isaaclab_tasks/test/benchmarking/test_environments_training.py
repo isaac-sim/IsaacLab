@@ -5,7 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # Launch omniverse app
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -18,7 +22,6 @@ import time
 
 import env_benchmark_test_utils as utils
 import gymnasium as gym
-import pytest
 
 from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOW_EXPERIMENT_NAME_VARIABLE, WORKFLOW_TRAINER
 

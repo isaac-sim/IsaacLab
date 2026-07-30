@@ -7,10 +7,14 @@
 Unit tests for retargeters.
 """
 
+import pytest
+
 from isaaclab.app import AppLauncher
 
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True
+
+pytestmark = pytest.mark.requires_kit
 
 # Launch omniverse app.
 app_launcher = AppLauncher(headless=HEADLESS)

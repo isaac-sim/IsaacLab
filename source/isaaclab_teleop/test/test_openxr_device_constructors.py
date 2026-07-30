@@ -20,6 +20,8 @@ from isaaclab.devices import (
     Se3KeyboardCfg,
 )
 
+pytestmark = pytest.mark.requires_extra("teleop")
+
 
 @pytest.fixture
 def mock_environment(mocker):

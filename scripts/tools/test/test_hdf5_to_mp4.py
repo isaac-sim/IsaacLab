@@ -12,6 +12,8 @@ import h5py
 import numpy as np
 import pytest
 
+pytestmark = pytest.mark.requires_extra("opencv")
+
 from scripts.tools.hdf5_to_mp4 import get_num_demos, main, write_demo_to_mp4
 
 

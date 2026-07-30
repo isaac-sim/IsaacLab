@@ -20,6 +20,8 @@ random.seed(SEED)
 from isaaclab.app import AppLauncher
 
 headless = True
+pytestmark = pytest.mark.requires_kit
+
 app_launcher = AppLauncher(headless=headless)
 simulation_app: Any = app_launcher.app
 

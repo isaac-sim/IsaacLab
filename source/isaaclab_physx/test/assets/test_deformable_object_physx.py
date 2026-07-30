@@ -38,7 +38,10 @@ from isaaclab.sim import build_simulation_context
 
 # Temporarily disabled: this suite intermittently aborts with SIGABRT on CI.
 # Re-enable once the underlying crash is fixed.
-pytestmark = pytest.mark.skip(reason="Temporarily disabled due to intermittent crash on CI.")
+pytestmark = [
+    pytest.mark.skip(reason="Temporarily disabled due to intermittent crash on CI."),
+    pytest.mark.requires_kit,
+]
 
 
 def generate_cubes_scene(

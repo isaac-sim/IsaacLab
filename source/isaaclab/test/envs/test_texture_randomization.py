@@ -33,7 +33,7 @@ from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @configclass

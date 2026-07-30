@@ -14,7 +14,11 @@ Using ANYmal-C — a 12-DOF quadruped on a floating base — exercises the
 full Lab-to-Newton config translation pipeline on a real-world robot.
 """
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 simulation_app = AppLauncher(headless=True).app
 

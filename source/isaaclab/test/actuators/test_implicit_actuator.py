@@ -18,7 +18,7 @@ import torch
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.sim import build_simulation_context
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.fixture

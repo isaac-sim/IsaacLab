@@ -27,7 +27,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.utils.configclass import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 def dummy_observation(env: ManagerBasedEnv) -> torch.Tensor:

@@ -5,7 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -15,7 +19,6 @@ simulation_app = app_launcher.app
 
 import pathlib
 
-import pytest
 import torch
 import warp as wp
 from isaaclab_physx.physics import PhysxCfg

@@ -14,6 +14,8 @@ must actually carry the preset. No gym.make, USD, or GPU.
 """
 
 # Both tasks expose the same class name from different modules; alias for clarity.
+import pytest
+
 from isaaclab_tasks.contrib.stack.config.so101.stack_ik_abs_env_cfg import (
     SO101CubeStackEnvCfg as SO101CubeStackIKAbsEnvCfg,
 )
@@ -21,6 +23,8 @@ from isaaclab_tasks.contrib.stack.config.so101.stack_joint_pos_env_cfg import (
     SO101CubeStackEnvCfg,
     SO101StackPhysicsCfg,
 )
+
+pytestmark = pytest.mark.requires_extra("teleop")
 
 
 def test_preset_enables_contact_last_and_keeps_stack_tuning():

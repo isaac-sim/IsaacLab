@@ -28,6 +28,7 @@ from isaaclab.utils.warp import ProxyArray
 pytestmark = [
     pytest.mark.isaacsim_ci,
     pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available"),
+    pytest.mark.requires_kit,
 ]
 
 

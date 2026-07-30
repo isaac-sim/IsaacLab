@@ -20,6 +20,8 @@ import time
 
 import pytest
 
+pytestmark = pytest.mark.requires_kit
+
 _TRIGGER_WAIT_FOR_SIGTERM = "--wait-for-sigterm"
 _TRIGGER_UNHANDLED_EXCEPTION = "--trigger-unhandled-exception"
 _READY_MARKER = "SIGTERM_TEST_READY"

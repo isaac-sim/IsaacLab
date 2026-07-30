@@ -22,6 +22,7 @@ from isaaclab.sensors.ray_caster import BaseRayCaster
 pytestmark = [
     pytest.mark.isaacsim_ci,
     pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available"),
+    pytest.mark.requires_kit,
 ]
 
 

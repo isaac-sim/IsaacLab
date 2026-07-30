@@ -25,7 +25,7 @@ from isaaclab.utils.timer import Timer
 
 from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 NUM_ENVS = 4096
 SPACING = 2.0

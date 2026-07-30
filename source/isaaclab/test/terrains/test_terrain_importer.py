@@ -30,7 +30,7 @@ from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

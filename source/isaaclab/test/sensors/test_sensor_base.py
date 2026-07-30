@@ -27,7 +27,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
 from isaaclab.utils.configclass import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @dataclass

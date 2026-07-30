@@ -24,6 +24,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+pytestmark = pytest.mark.requires_extra("teleop")
+
 # ---------------------------------------------------------------------------
 # Stub out isaacteleop modules before any isaaclab_teleop imports so the
 # tests can run in a plain Python environment without Omniverse.

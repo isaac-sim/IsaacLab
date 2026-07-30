@@ -23,7 +23,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectMARLEnv
 from isaaclab.test.env_cfgs import make_empty_direct_marl_env_cfg
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

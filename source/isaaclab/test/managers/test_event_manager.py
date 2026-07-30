@@ -28,7 +28,7 @@ from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, Manag
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.configclass import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""

@@ -8,7 +8,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch the simulator
 app_launcher = AppLauncher(headless=True)
@@ -18,7 +22,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 # Define a fixture to replace setUpClass
-import pytest
 
 from isaaclab.assets import AssetBase, AssetBaseCfg
 from isaaclab.sim import build_simulation_context

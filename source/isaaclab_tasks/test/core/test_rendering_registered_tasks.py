@@ -26,7 +26,7 @@ from rendering_test_utils import (  # noqa: E402
     validate_camera_outputs,
 )
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.requires_kit]
 
 _COMPARISON_SCORES: list[dict] = []
 

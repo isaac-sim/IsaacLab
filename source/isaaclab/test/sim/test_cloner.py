@@ -37,7 +37,7 @@ from isaaclab.cloner import (
 )
 from isaaclab.sim import build_simulation_context
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci, pytest.mark.requires_kit]
 
 
 @pytest.fixture(params=["cpu", "cuda"])

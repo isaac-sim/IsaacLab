@@ -28,6 +28,8 @@ import numpy as np
 import pytest
 import torch
 
+pytestmark = pytest.mark.requires_extra("teleop")
+
 # ---------------------------------------------------------------------------
 # Stub out isaacteleop and Kit modules before any isaaclab_teleop imports.
 # ---------------------------------------------------------------------------

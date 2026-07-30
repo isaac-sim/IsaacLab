@@ -8,10 +8,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 from isaaclab.app import AppLauncher
 
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True
+
+pytestmark = pytest.mark.requires_kit
 
 # Launch omniverse app.
 app_launcher = AppLauncher(headless=HEADLESS)
@@ -20,7 +24,6 @@ simulation_app = app_launcher.app
 import importlib
 
 import numpy as np
-import pytest
 import torch
 from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
 

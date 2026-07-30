@@ -21,7 +21,7 @@ from pxr import UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 def _make_revolute_joint(stage, path="/World/Articulation/joint_0"):

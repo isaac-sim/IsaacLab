@@ -15,7 +15,7 @@ import pytest
 
 from isaaclab.app import AppLauncher
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 _LOCAL_STARTUP_TIME_LIMIT = 15.0
 _CI_STARTUP_TIME_LIMIT = 20.0

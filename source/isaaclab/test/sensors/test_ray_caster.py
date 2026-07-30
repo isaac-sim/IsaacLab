@@ -23,7 +23,7 @@ from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_or
 from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel as _raycast_mesh_masked_kernel
 from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.fixture(scope="module")

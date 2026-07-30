@@ -34,7 +34,7 @@ import importlib.util
 
 import pytest
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.requires_kit]
 
 _REQUIRED_MODULES = ("isaaclab_newton", "newton")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]

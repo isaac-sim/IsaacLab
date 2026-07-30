@@ -5,32 +5,24 @@
 
 """Launch Isaac Sim Simulator first."""
 
-import argparse
-import sys
+import os
+
+import pytest
 
 from isaaclab.app import AppLauncher
 
-# add argparse arguments
-parser = argparse.ArgumentParser(
-    description=("Test Isaac-Cartpole-Camera-Direct environment with different resolutions and number of environments.")
-)
-parser.add_argument("--save_images", action="store_true", default=False, help="Save out renders to file.")
-parser.add_argument("unittest_args", nargs="*")
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci, pytest.mark.requires_kit]
 
-# parse the arguments
-args_cli = parser.parse_args()
-# set the sys.argv to the unittest_args
-sys.argv[1:] = args_cli.unittest_args
+# Opt in to writing the rendered frames to disk. Parsing pytest's own argv here would
+# abort the whole collection, so this is an environment switch rather than a CLI flag.
+SAVE_IMAGES = os.environ.get("ISAACLAB_TEST_SAVE_IMAGES") == "1"
 
 # launch the simulator
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import sys
-
 import gymnasium as gym
-import pytest
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ManagerBasedRLEnv, ManagerBasedRLEnvCfg
@@ -38,8 +30,6 @@ from isaaclab.sensors import save_images_to_file
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
-
-pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
 
 @pytest.mark.skip(reason="Currently takes too long to run")
@@ -132,7 +122,7 @@ def _run_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg):
     # reset environment
     obs, _ = env.reset()
     # save image
-    if args_cli.save_images:
+    if SAVE_IMAGES:
         save_images_to_file(
             obs["policy"] + 0.93,
             f"output_{env.num_envs}_{env_cfg.tiled_camera.width}x{env_cfg.tiled_camera.height}.png",

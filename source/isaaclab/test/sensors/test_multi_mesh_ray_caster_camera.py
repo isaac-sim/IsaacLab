@@ -37,7 +37,7 @@ from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 from isaaclab_assets.robots.spot import SPOT_CFG
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.requires_kit]
 
 # sample camera poses (quaternions in xyzw format)
 POSITION = [2.5, 2.5, 2.5]

@@ -20,7 +20,11 @@ excluded here to avoid duplication:
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch the simulator
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -28,8 +32,6 @@ simulation_app = app_launcher.app
 
 
 """Rest everything follows."""
-
-import pytest
 
 import isaaclab_tasks  # noqa: F401
 

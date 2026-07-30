@@ -8,6 +8,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
 from isaaclab.test.utils.articulation_ordering import (
@@ -22,6 +24,8 @@ from isaaclab.test.utils.articulation_ordering import (
 
 HEADLESS = True
 
+pytestmark = pytest.mark.requires_kit
+
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
 
@@ -30,7 +34,6 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 import sys
 from pathlib import Path
 
-import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
@@ -276,7 +279,7 @@ def generate_articulation(
 
 # ---------------------------------------------------------------------------
 # Franka task-space tracking helpers (shared between IK and OSC tests).
-# Mirrors the helpers in ``isaaclab_newton/test/assets/test_articulation.py``.
+# Mirrors the helpers in ``isaaclab_newton/test/assets/test_articulation_newton.py``.
 # ---------------------------------------------------------------------------
 
 
@@ -2745,7 +2748,7 @@ def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulatio
     """The joint-space mass matrix ``M(q)`` must be square, symmetric, and positive-definite.
 
     Mirrors the Newton-side test in
-    ``source/isaaclab_newton/test/assets/test_articulation.py``. Pins
+    ``source/isaaclab_newton/test/assets/test_articulation_newton.py``. Pins
     three structural properties of :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix`
     that every backend must satisfy. Both backends include the 6 floating-base
     rows/cols on floating-base assets (matching the cross-library industry
@@ -2873,7 +2876,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     bugs averaged out by PD damping.
 
     Newton-side variant of the same name lives in
-    ``isaaclab_newton/test/assets/test_articulation.py`` (backend parity).
+    ``isaaclab_newton/test/assets/test_articulation_newton.py`` (backend parity).
     """
     base_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     # Replace default Franka actuators with a passthrough implicit actuator

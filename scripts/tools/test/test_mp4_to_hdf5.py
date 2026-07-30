@@ -8,10 +8,13 @@
 import os
 import tempfile
 
-import cv2
 import h5py
 import numpy as np
 import pytest
+
+pytestmark = pytest.mark.requires_extra("opencv")
+
+import cv2
 
 from scripts.tools.mp4_to_hdf5 import get_frames_from_mp4, main, process_video_and_demo
 

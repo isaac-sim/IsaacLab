@@ -26,7 +26,7 @@ from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManager
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.test.integration_scene_cfgs import ArticulationRigidObjectSceneCfg
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.fixture(scope="session", autouse=True)

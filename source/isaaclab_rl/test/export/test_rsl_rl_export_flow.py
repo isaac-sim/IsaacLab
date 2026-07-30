@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.requires_kit
+
 torch = pytest.importorskip("torch")
 
 # Root of the repository (three levels up from this file).

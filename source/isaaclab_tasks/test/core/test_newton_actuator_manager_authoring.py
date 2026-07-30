@@ -11,7 +11,11 @@ authoring path we override the scene's robot actuators with explicit
 ``DCMotorCfg`` groups covering the same joint patterns.
 """
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 simulation_app = AppLauncher(headless=True).app
 

@@ -26,7 +26,11 @@ state afterwards.
 Launch Isaac Sim Simulator first.
 """
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app — cameras are required to read back per-env RGB tiles.
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -35,7 +39,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import os
 
-import pytest
 import torch
 import warp as wp
 from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer, IsaacRtxRendererCfg

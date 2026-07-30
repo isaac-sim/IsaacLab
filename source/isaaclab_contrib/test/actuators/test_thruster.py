@@ -3,9 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import pytest
+
 from isaaclab.app import AppLauncher
 
 HEADLESS = True
+
+pytestmark = pytest.mark.requires_kit
 
 # if not AppLauncher.instance():
 simulation_app = AppLauncher(headless=HEADLESS).app
@@ -14,7 +18,6 @@ simulation_app = AppLauncher(headless=HEADLESS).app
 
 from types import SimpleNamespace
 
-import pytest
 import torch
 
 

@@ -31,7 +31,7 @@ from pxr import Gf, UsdGeom  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.requires_kit]
 PARENT_POS = (0.0, 0.0, 1.0)
 
 

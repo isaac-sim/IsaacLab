@@ -51,7 +51,7 @@ def _make_flat_clone_plan(num_variants: int, num_clones: int, destination: str, 
 
 wp.init()
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.requires_kit]
 
 
 @pytest.fixture(params=["cpu", "cuda"])

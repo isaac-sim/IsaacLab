@@ -25,7 +25,7 @@ from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs.ui import ManagerBasedRLEnvWindow
 from isaaclab.test.env_cfgs import make_empty_manager_based_rl_env_cfg
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 # The minimal app does not include ``isaacsim.core.experimental``, so enable the
 # GUI dependency directly through Kit after AppLauncher has started.

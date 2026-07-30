@@ -16,7 +16,7 @@ import pytest
 import torch
 from flaky import flaky
 
-pytestmark = pytest.mark.arm_ci
+pytestmark = [pytest.mark.arm_ci, pytest.mark.integration, pytest.mark.requires_kit]
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -50,8 +50,6 @@ from isaaclab.utils.math import (
 )
 
 from isaaclab_assets import FRANKA_PANDA_CFG, G1_29DOF_CFG  # isort:skip
-
-pytestmark = pytest.mark.integration
 
 
 @pytest.fixture

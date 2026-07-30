@@ -22,6 +22,8 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg  # noqa: E402
 
 from ..deformable_utils import pre_tetrahedralized_deformable_spawn_cfg  # noqa: E402
 
+pytestmark = pytest.mark.requires_extra("ovphysx")
+
 wp.init()
 
 

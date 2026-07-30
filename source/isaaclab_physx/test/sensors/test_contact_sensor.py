@@ -7,7 +7,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.requires_kit
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -18,7 +22,6 @@ from dataclasses import MISSING
 from enum import Enum
 from types import SimpleNamespace
 
-import pytest
 import torch
 import warp as wp
 from flaky import flaky

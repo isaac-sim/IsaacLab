@@ -17,7 +17,7 @@ import pytest
 
 import isaaclab.sim as sim_utils
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
 
 
 @pytest.fixture(autouse=True)
