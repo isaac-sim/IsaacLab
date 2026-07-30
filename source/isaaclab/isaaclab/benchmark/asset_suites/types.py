@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
 
-from ..method_benchmark import MethodBenchmarkRunnerConfig
+from ..method_benchmark import MethodBenchmarkRunnerConfig, TimedInputTransform
 
 AssetComponent = Literal["articulation", "rigid_object", "rigid_object_collection"]
 AssetPhysicsFamily = Literal["physx", "newton", "ovphysx"]
@@ -31,6 +31,7 @@ class AssetMethodSpec:
     input_generators: Mapping[str, InputGenerator]
     category: str
     requires: str | None = None
+    timed_input_transforms: Mapping[str, TimedInputTransform] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,7 @@ class AssetBenchmarkAdapter(Protocol):
     default_num_joints: int
     method_name_overrides: Mapping[str, str]
     generator_overrides: Mapping[WorkloadKey, InputGenerator]
+    generator_replacements: Mapping[str, Mapping[str, InputGenerator]]
     supported_properties: frozenset[str]
     property_dependency_overrides: Mapping[str, tuple[str, ...]]
 

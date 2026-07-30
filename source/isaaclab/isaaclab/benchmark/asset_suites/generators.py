@@ -12,7 +12,9 @@ from collections.abc import Mapping, Sequence
 import torch
 import warp as wp
 
-from ..method_benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunnerConfig
+from isaaclab.utils.warp import ProxyArray
+
+from ..method_benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunnerConfig, TimedInputTransform
 from .types import InputGenerator
 
 _DIMENSIONS = {
@@ -49,6 +51,66 @@ def make_indexed_generators(
         "torch_list": lambda config: generate(config, tensor_indices=False),
         "torch_tensor": lambda config: generate(config, tensor_indices=True),
     }
+
+
+def make_item_selector_generators(
+    tensor_shapes: Mapping[str, Sequence[str | int]],
+    index_dimensions: Mapping[str, str],
+) -> dict[str, InputGenerator]:
+    """Create equivalent inputs spanning the supported item selector representations."""
+    item_keys = tuple(name for name in index_dimensions if name in {"body_ids", "joint_ids"})
+    if len(item_keys) != 1:
+        raise ValueError("Item selector benchmarks require exactly one body_ids or joint_ids field")
+    item_key = item_keys[0]
+    item_count_dimension = index_dimensions[item_key]
+
+    def generate(config: MethodBenchmarkRunnerConfig, mode: str) -> dict[str, object]:
+        inputs: dict[str, object] = {
+            name: torch.rand(*_resolve_shape(config, shape), device=config.device, dtype=torch.float32)
+            for name, shape in tensor_shapes.items()
+        }
+        inputs["env_ids"] = torch.arange(config.num_instances, dtype=torch.int32, device=config.device)
+        item_count = getattr(config, _DIMENSIONS[item_count_dimension])
+        item_values = list(range(item_count))
+        if mode == "torch_list":
+            item_selector: object = item_values
+        elif mode == "torch_tensor_int32":
+            item_selector = torch.tensor(item_values, dtype=torch.int32, device=config.device)
+        elif mode in {"torch_tensor_int64", "torch_precast_int32"}:
+            item_selector = torch.tensor(item_values, dtype=torch.int64, device=config.device)
+        elif mode == "warp_int32":
+            item_selector = wp.array(item_values, dtype=wp.int32, device=config.device)
+        elif mode == "warp_int64":
+            item_selector = wp.array(item_values, dtype=wp.int64, device=config.device)
+        elif mode == "proxy_int32":
+            item_selector = ProxyArray(wp.array(item_values, dtype=wp.int32, device=config.device))
+        else:
+            raise ValueError(f"Unsupported item selector mode: {mode!r}")
+        inputs[item_key] = item_selector
+        return inputs
+
+    modes = (
+        "torch_list",
+        "torch_tensor_int32",
+        "torch_tensor_int64",
+        "torch_precast_int32",
+        "warp_int32",
+        "warp_int64",
+        "proxy_int32",
+    )
+    return {mode: lambda config, mode=mode: generate(config, mode) for mode in modes}
+
+
+def make_precast_item_selector_transform(item_key: str) -> TimedInputTransform:
+    """Create a timed transform that casts one Torch item selector to ``int32``."""
+
+    def transform(inputs: dict[str, object]) -> dict[str, object]:
+        selector = inputs[item_key]
+        if not isinstance(selector, torch.Tensor):
+            raise TypeError(f"Precast field {item_key!r} must be generated as a torch.Tensor")
+        return {**inputs, item_key: selector.to(torch.int32)}
+
+    return transform
 
 
 def make_mask_generator(
@@ -141,8 +203,9 @@ def build_fill_benchmarks(
     fill_benchmarks: list[MethodBenchmarkDefinition] = []
     for benchmark in benchmarks:
         generators: dict[str, InputGenerator] = {}
-        if "tensor_fill" in capabilities and "torch_tensor" in benchmark.input_generators:
-            base_generator = benchmark.input_generators["torch_tensor"]
+        tensor_mode = "torch_tensor_int32" if "torch_tensor_int32" in benchmark.input_generators else "torch_tensor"
+        if "tensor_fill" in capabilities and tensor_mode in benchmark.input_generators:
+            base_generator = benchmark.input_generators[tensor_mode]
             for suffix, ratio in FILL_RATIOS:
                 generators[f"tensor_{suffix}"] = _make_tensor_fill_generator(base_generator, ratio)
         if "mask_fill" in capabilities and "warp_mask" in benchmark.input_generators:

@@ -9,9 +9,11 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.benchmark.asset_suites import get_asset_benchmark_suite, resolve_method_benchmarks
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.benchmark
 
@@ -19,45 +21,45 @@ pytestmark = pytest.mark.benchmark
 @pytest.mark.parametrize(
     ("component", "physics", "capabilities", "definition_count", "workload_count"),
     (
-        ("articulation", "physx", frozenset({"tensor_fill"}), 24, 48),
+        ("articulation", "physx", frozenset({"tensor_fill"}), 24, 128),
         (
             "articulation",
             "newton",
             frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
             44,
-            68,
+            148,
         ),
-        ("articulation", "ovphysx", frozenset({"warp_mask"}), 44, 68),
+        ("articulation", "ovphysx", frozenset({"warp_mask"}), 44, 148),
         (
             "rigid_object",
             "physx",
             frozenset({"physx_legacy_state", "tensor_fill"}),
             13,
-            26,
+            41,
         ),
         (
             "rigid_object",
             "newton",
             frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
             15,
-            23,
+            38,
         ),
-        ("rigid_object", "ovphysx", frozenset({"warp_mask"}), 15, 23),
+        ("rigid_object", "ovphysx", frozenset({"warp_mask"}), 15, 38),
         (
             "rigid_object_collection",
             "physx",
             frozenset({"physx_legacy_state", "tensor_fill"}),
             13,
-            26,
+            86,
         ),
         (
             "rigid_object_collection",
             "newton",
             frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
             15,
-            23,
+            58,
         ),
-        ("rigid_object_collection", "ovphysx", frozenset({"warp_mask"}), 15, 23),
+        ("rigid_object_collection", "ovphysx", frozenset({"warp_mask"}), 15, 58),
     ),
 )
 def test_method_manifests_preserve_backend_workloads(
@@ -81,8 +83,8 @@ def test_method_manifests_preserve_backend_workloads(
     assert sum(len(definition.input_generators) for definition in definitions) == workload_count
 
 
-def test_shared_generator_preserves_index_modes_and_shapes() -> None:
-    """One shared generator pair should preserve list and tensor index contracts."""
+def test_shared_generator_preserves_item_selector_modes_and_shapes() -> None:
+    """Joint-indexed writers should compare all selector representations with fixed tensor environment IDs."""
     suite = get_asset_benchmark_suite("articulation")
     adapter = SimpleNamespace(physics="physx", capabilities=frozenset(), generator_overrides={})
     definition = next(
@@ -99,15 +101,44 @@ def test_shared_generator_preserves_index_modes_and_shapes() -> None:
         device="cpu",
     )
 
-    list_inputs = definition.input_generators["torch_list"](config)
-    tensor_inputs = definition.input_generators["torch_tensor"](config)
+    assert tuple(definition.input_generators) == (
+        "torch_list",
+        "torch_tensor_int32",
+        "torch_tensor_int64",
+        "torch_precast_int32",
+        "warp_int32",
+        "warp_int64",
+        "proxy_int32",
+    )
 
-    assert list_inputs["position"].shape == (2, 4)
-    assert list_inputs["velocity"].shape == (2, 4)
-    assert list_inputs["env_ids"] == [0, 1]
-    assert list_inputs["joint_ids"] == [0, 1, 2, 3]
-    assert tensor_inputs["env_ids"].dtype is torch.int32
-    assert tensor_inputs["joint_ids"].dtype is torch.int32
+    inputs_by_mode = {mode: generator(config) for mode, generator in definition.input_generators.items()}
+    for inputs in inputs_by_mode.values():
+        assert inputs["position"].shape == (2, 4)
+        assert inputs["velocity"].shape == (2, 4)
+        assert torch.equal(inputs["env_ids"], torch.tensor([0, 1], dtype=torch.int32))
+
+    assert inputs_by_mode["torch_list"]["joint_ids"] == [0, 1, 2, 3]
+    assert inputs_by_mode["torch_tensor_int32"]["joint_ids"].dtype is torch.int32
+    assert inputs_by_mode["torch_tensor_int64"]["joint_ids"].dtype is torch.int64
+    assert inputs_by_mode["torch_precast_int32"]["joint_ids"].dtype is torch.int64
+    assert inputs_by_mode["warp_int32"]["joint_ids"].dtype is wp.int32
+    assert inputs_by_mode["warp_int64"]["joint_ids"].dtype is wp.int64
+    assert isinstance(inputs_by_mode["proxy_int32"]["joint_ids"], ProxyArray)
+    assert inputs_by_mode["proxy_int32"]["joint_ids"].dtype is wp.int32
+    assert tuple(definition.timed_input_transforms) == ("torch_precast_int32",)
+
+
+def test_env_only_generator_preserves_legacy_index_modes() -> None:
+    """Environment-only writers should retain the consolidated framework's two-mode contract."""
+    suite = get_asset_benchmark_suite("articulation")
+    adapter = SimpleNamespace(physics="physx", capabilities=frozenset(), generator_overrides={})
+    definition = next(
+        definition
+        for definition in resolve_method_benchmarks(suite, adapter)
+        if definition.method_name == "write_root_state_to_sim"
+    )
+
+    assert tuple(definition.input_generators) == ("torch_list", "torch_tensor")
 
 
 def test_generator_override_changes_only_selected_workload() -> None:
@@ -120,7 +151,7 @@ def test_generator_override_changes_only_selected_workload() -> None:
     adapter = SimpleNamespace(
         physics="newton",
         capabilities=frozenset(),
-        generator_overrides={("set_coms", "torch_tensor"): newton_coms},
+        generator_overrides={("set_coms", "torch_tensor_int32"): newton_coms},
     )
     definition = next(
         definition for definition in resolve_method_benchmarks(suite, adapter) if definition.method_name == "set_coms"
@@ -134,5 +165,5 @@ def test_generator_override_changes_only_selected_workload() -> None:
         device="cpu",
     )
 
-    assert definition.input_generators["torch_tensor"](config)["coms"].shape == (2, 5, 3)
+    assert definition.input_generators["torch_tensor_int32"](config)["coms"].shape == (2, 5, 3)
     assert "env_ids" in definition.input_generators["torch_list"](config)

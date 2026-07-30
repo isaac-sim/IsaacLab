@@ -62,7 +62,7 @@ def test_physx_rigid_object_omits_body_ids_in_both_index_modes() -> None:
 
     for method_name in ("set_masses", "set_coms", "set_inertias"):
         definition = next(definition for definition in definitions if definition.method_name == method_name)
-        for mode in ("torch_list", "torch_tensor"):
+        for mode in definition.input_generators:
             assert "body_ids" not in definition.input_generators[mode](_CONFIG)
 
 
@@ -72,7 +72,7 @@ def test_physx_collection_inertia_uses_flattened_shape_in_both_index_modes() -> 
     definitions = resolve_method_benchmarks(get_asset_benchmark_suite("rigid_object_collection"), adapter)
     definition = next(definition for definition in definitions if definition.method_name == "set_inertias")
 
-    for mode in ("torch_list", "torch_tensor"):
+    for mode in definition.input_generators:
         assert definition.input_generators[mode](_CONFIG)["inertias"].shape == (2, 3, 9)
 
 
