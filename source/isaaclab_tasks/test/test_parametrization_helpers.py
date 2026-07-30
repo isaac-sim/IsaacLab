@@ -11,13 +11,13 @@ from unittest.mock import Mock
 import pytest
 import rendering_test_utils
 from rendering_test_utils import (
-    attach_comparison_properties,
     generate_html_report,
     make_kitless_rendering_params,
     make_kitless_rendering_params_dexsuite,
     make_kitless_rendering_params_franka,
     make_skip_rendering_params,
     make_xfail_rendering_params,
+    record_comparison_outcomes,
 )
 
 
@@ -124,8 +124,8 @@ def test_franka_factory_adds_cloth_only_motion_policy() -> None:
         assert "NVBUG#6489754" in cloth_params[motion_id].marks[0].kwargs["reason"]
 
 
-def test_html_report_labels_expected_failure_as_unreliable(monkeypatch, tmp_path: Path) -> None:
-    """Expected image-comparison failures should include their ticketed reason in HTML."""
+def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path) -> None:
+    """Expected failures and stale expected-failure marks should be distinct in HTML."""
     reason = "Known rendering regression (NVBUG#1234567)."
     comparison_scores = [
         {
@@ -140,17 +140,31 @@ def test_html_report_labels_expected_failure_as_unreliable(monkeypatch, tmp_path
             "ssim_threshold": 0.985,
             "ssim_checked": True,
             "passed": False,
-        }
+        },
+        {
+            "test": "cartpole",
+            "backend": "newton",
+            "renderer": "ovrtx_renderer",
+            "ovstage_variant": "Yes",
+            "aov": "rgb",
+            "diff_pct": 0.0,
+            "threshold": 1.5,
+            "ssim": 1.0,
+            "ssim_threshold": 0.985,
+            "ssim_checked": True,
+            "passed": True,
+        },
     ]
     node = Mock()
     node.user_properties = []
     node.get_closest_marker.return_value = pytest.mark.xfail(reason=reason, strict=False).mark
     request = Mock(node=node)
 
-    attach_comparison_properties(request, comparison_scores, initial_count=0)
+    record_comparison_outcomes(request, comparison_scores, initial_count=0)
     monkeypatch.setattr(rendering_test_utils, "_COMPARISON_IMAGES_DIR", str(tmp_path))
     generate_html_report(comparison_scores, "report.html")
 
     report = (tmp_path / "report.html").read_text(encoding="utf-8")
     assert '<td class="status-unreliable">UNRELIABLE (XFAIL)</td>' in report
-    assert reason in report
+    assert '<td class="status-xpass">XPASS (REVIEW XFAIL)</td>' in report
+    assert report.count(reason) == 2

@@ -726,13 +726,18 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
 
     rows = []
     for entry in sorted_scores:
-        if entry.get("xfail_reason") and not entry["passed"]:
-            status_class = "unreliable"
-            status_text = "UNRELIABLE (XFAIL)"
+        xfail_reason = entry.get("xfail_reason") or ""
+        if xfail_reason:
+            if entry["passed"]:
+                status_class = "xpass"
+                status_text = "XPASS (REVIEW XFAIL)"
+            else:
+                status_class = "unreliable"
+                status_text = "UNRELIABLE (XFAIL)"
         else:
             status_class = "pass" if entry["passed"] else "fail"
             status_text = status_class.upper()
-        reason = escape(entry.get("xfail_reason", ""))
+        reason = escape(xfail_reason)
 
         actual_img_html = ""
         golden_img_html = ""
@@ -791,10 +796,12 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "  th { background: #f0f0f0; white-space: nowrap; }\n"
         "  tr.fail { background: #fff0f0; }\n"
         "  tr.unreliable { background: #fff8e1; }\n"
-        "  tr.pass:hover, tr.fail:hover, tr.unreliable:hover { filter: brightness(0.96); }\n"
+        "  tr.xpass { background: #eef5ff; }\n"
+        "  tr.pass:hover, tr.fail:hover, tr.unreliable:hover, tr.xpass:hover { filter: brightness(0.96); }\n"
         "  .status-pass { color: #2a7a2a; font-weight: bold; }\n"
         "  .status-fail { color: #cc0000; font-weight: bold; }\n"
         "  .status-unreliable { color: #a15c00; font-weight: bold; }\n"
+        "  .status-xpass { color: #0969da; font-weight: bold; }\n"
         "  .ssim-disabled { color: #999; font-style: italic; }\n"
         "  img { display: block; max-width: 120px; height: auto; }\n"
         "  .compare-cell { max-width: 420px; }\n"
@@ -855,14 +862,14 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         file.write(report_html)
 
 
-def attach_comparison_properties(
+def record_comparison_outcomes(
     request: pytest.FixtureRequest, comparison_scores: list[dict], initial_count: int
 ) -> None:
-    """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
+    """Record expected outcomes for HTML and attach comparison properties to JUnit XML."""
     xfail_marker = request.node.get_closest_marker("xfail")
     xfail_reason = xfail_marker.kwargs.get("reason") if xfail_marker is not None else None
     for entry in comparison_scores[initial_count:]:
-        if xfail_reason and not entry["passed"]:
+        if xfail_reason:
             entry["xfail_reason"] = xfail_reason
         label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
         request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
@@ -911,7 +918,7 @@ def make_generate_html_report_fixture(comparison_scores: list[dict], report_file
 
 
 def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
-    """Create an autouse fixture that attaches JUnit properties for one module.
+    """Create a fixture that records HTML outcomes and JUnit properties for one module.
 
     Args:
         comparison_scores: Module-local comparison score storage.
@@ -919,10 +926,11 @@ def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
 
     @pytest.fixture(autouse=True)
     def _attach_comparison_properties(request):
-        """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
+        """Record expected outcomes and attach image-comparison properties."""
         initial_count = len(comparison_scores)
         yield
-        attach_comparison_properties(request, comparison_scores, initial_count)
+        # Function-scoped teardown runs before the session-scoped HTML report is generated.
+        record_comparison_outcomes(request, comparison_scores, initial_count)
 
     return _attach_comparison_properties
 
