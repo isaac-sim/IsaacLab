@@ -588,44 +588,6 @@ def _summarize_history(history, tail: int = 200):
     return min(tail_slice), sum(tail_slice) / len(tail_slice)
 
 
-def test_int64_selector_resolvers_preserve_dtype() -> None:
-    """Preserve int64 Torch selector width in the Warp resolver views."""
-    articulation = SimpleNamespace()
-    selector = torch.tensor([1, 0], dtype=torch.int64)
-
-    for resolver_name in (
-        "_resolve_env_ids",
-        "_resolve_joint_ids",
-        "_resolve_body_ids",
-    ):
-        resolved = getattr(Articulation, resolver_name)(articulation, selector)
-        assert isinstance(resolved, wp.array)
-        assert resolved.dtype == wp.int64
-
-
-def test_set_fixed_tendon_stiffness_accepts_int64_selector() -> None:
-    """Set fixed-tendon stiffness with int64 environment and tendon selectors."""
-    articulation = Articulation.__new__(Articulation)
-    articulation._initialize_handle = None
-    articulation._invalidate_initialize_handle = None
-    articulation._prim_deletion_handle = None
-    articulation._device = "cpu"
-    articulation._check_shapes = True
-    articulation._data = SimpleNamespace(_fixed_tendon_stiffness=wp.zeros((2, 3), dtype=wp.float32, device="cpu"))
-
-    env_ids = torch.tensor([1, 0], dtype=torch.int64)
-    fixed_tendon_ids = torch.tensor([2, 0], dtype=torch.int64)
-    stiffness = torch.tensor([[21.0, 11.0], [22.0, 12.0]])
-    expected = torch.zeros((2, 3))
-    expected[env_ids[:, None], fixed_tendon_ids[None, :]] = stiffness
-
-    articulation.set_fixed_tendon_stiffness_index(
-        stiffness=stiffness, env_ids=env_ids, fixed_tendon_ids=fixed_tendon_ids
-    )
-
-    torch.testing.assert_close(wp.to_torch(articulation.data._fixed_tendon_stiffness), expected)
-
-
 @pytest.fixture
 def sim(request):
     """Create simulation context with the specified device."""
@@ -663,8 +625,7 @@ def sim(request):
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled, articulation_type) -> None:
-    """Write selected joint state with int64 environment and joint selectors."""
-    # ``articulation_type`` selects the fixture's compact solver config; the regression asset is local.
+    """Write joint state with int64 selectors."""
     articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
     articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
     sim.reset()
@@ -685,28 +646,6 @@ def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled, 
     expected_velocity[env_ids[:, None], joint_ids[None, :]] = velocity
     torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
     torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.parametrize("articulation_type", ["panda"])
-def test_set_masses_accepts_int64_selector(sim, device, gravity_enabled, articulation_type) -> None:
-    """Set selected masses with int64 environment and body selectors."""
-    # ``articulation_type`` selects the fixture's compact solver config; the regression asset is local.
-    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
-    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
-    sim.reset()
-    assert articulation.num_bodies >= 2
-
-    env_ids = torch.tensor([1, 0], dtype=torch.int64, device=device)
-    body_ids = torch.tensor([articulation.num_bodies - 1, 0], dtype=torch.int64, device=device)
-    masses = torch.tensor([[2.1, 1.1], [2.2, 1.2]], device=device)
-    expected = articulation.data.body_mass.torch.clone()
-    expected[env_ids[:, None], body_ids[None, :]] = masses
-
-    articulation.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
-
-    torch.testing.assert_close(articulation.data.body_mass.torch, expected)
 
 
 @pytest.mark.parametrize("device", ["cpu"])

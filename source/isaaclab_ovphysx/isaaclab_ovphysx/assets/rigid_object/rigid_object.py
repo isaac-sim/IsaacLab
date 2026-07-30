@@ -210,25 +210,13 @@ class RigidObject(BaseRigidObject):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
-                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
-                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
-                allocation. Callers must treat the proxy and both views as immutable because cache hits share
-                this storage.
-
-        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
-        ``body_ids, _ = asset.find_bodies(".*")`` to
-        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids.warp`` to asset writers or
-        other Warp code, or use ``body_ids.torch`` for Torch indexing.
+            as_proxy: Whether to return cached proxy indices. Defaults to False.
 
         Returns:
-            A tuple containing the body indices and a fresh list of matched names. The indices are a
-            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
+            Matched body indices and names.
         """
         body_ids, body_names = resolve_matching_names(name_keys, self._body_names, preserve_order)
-        resolved_ids = self._resolve_finder_indices(
-            body_ids, domain="body", finder_name="find_bodies", as_proxy=as_proxy, legacy_type="list"
-        )
+        resolved_ids = self._resolve_finder_indices(body_ids, domain="body", as_proxy=as_proxy, legacy_type="list")
         return resolved_ids, body_names
 
     """

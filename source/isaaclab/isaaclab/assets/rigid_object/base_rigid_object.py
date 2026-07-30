@@ -178,20 +178,11 @@ class BaseRigidObject(AssetBase):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
-                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
-                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
-                allocation. Callers must treat the proxy and both views as immutable because cache hits share
-                this storage.
-
-        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
-        ``body_ids, _ = asset.find_bodies(".*")`` to
-        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids.warp`` to asset writers or
-        other Warp code, or use ``body_ids.torch`` for Torch indexing.
+            as_proxy: Whether to return cached, immutable :class:`ProxyArray` indices. Use its explicit
+                ``.warp`` or ``.torch`` view and reacquire it after asset invalidation. Defaults to False.
 
         Returns:
-            A tuple containing the body indices and a fresh list of matched names. The indices are a
-            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
+            Matched body indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 

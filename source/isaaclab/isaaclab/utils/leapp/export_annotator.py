@@ -81,11 +81,10 @@ def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tenso
     kp = stiffness.torch.clone() if stiffness is not None else None
     kd = damping.torch.clone() if damping is not None else None
     for actuator in getattr(real_asset, "actuators", {}).values():
-        joint_indices = actuator.joint_indices
         if kp is not None:
-            kp[:, joint_indices] = actuator.stiffness
+            kp[:, actuator.joint_indices] = actuator.stiffness
         if kd is not None:
-            kd[:, joint_indices] = actuator.damping
+            kd[:, actuator.joint_indices] = actuator.damping
     return kp, kd
 
 

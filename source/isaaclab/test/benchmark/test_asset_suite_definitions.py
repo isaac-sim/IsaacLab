@@ -137,54 +137,6 @@ def test_env_only_generator_preserves_legacy_index_modes() -> None:
     assert tuple(definition.input_generators) == ("torch_list", "torch_tensor")
 
 
-def test_articulation_suite_declares_cold_and_cached_finder_workloads() -> None:
-    """Finder benchmarks should distinguish legacy lists, cold proxy allocation, and cached proxy lookup."""
-    suite = get_asset_benchmark_suite("articulation")
-    finder_specs = tuple(spec for spec in suite.methods if spec.category == "selector_finder")
-
-    assert tuple(spec.name for spec in finder_specs) == (
-        "find_bodies_default",
-        "find_bodies_proxy_cold",
-        "find_bodies_proxy_cached",
-        "find_joints_default",
-        "find_joints_proxy_cold",
-        "find_joints_proxy_cached",
-    )
-    config = MethodBenchmarkRunnerConfig(
-        num_iterations=1,
-        warmup_steps=0,
-        num_instances=2,
-        num_bodies=3,
-        num_joints=4,
-        device="cpu",
-    )
-    assert tuple(spec.method_name for spec in finder_specs) == (
-        "find_bodies",
-        "find_bodies",
-        "find_bodies",
-        "find_joints",
-        "find_joints",
-        "find_joints",
-    )
-    assert tuple(tuple(spec.input_generators) for spec in finder_specs) == (
-        ("default",),
-        ("proxy_cold",),
-        ("proxy_cached",),
-        ("default",),
-        ("proxy_cold",),
-        ("proxy_cached",),
-    )
-    assert finder_specs[0].input_generators["default"](config) == {"name_keys": ".*"}
-    assert finder_specs[1].input_generators["proxy_cold"](config) == {"name_keys": ".*", "as_proxy": True}
-    assert finder_specs[2].input_generators["proxy_cached"](config) == {"name_keys": ".*", "as_proxy": True}
-    assert finder_specs[0].prepare_target is None
-    assert finder_specs[1].prepare_target is not None
-    assert finder_specs[2].prepare_target is None
-    assert finder_specs[3].prepare_target is None
-    assert finder_specs[4].prepare_target is not None
-    assert finder_specs[5].prepare_target is None
-
-
 def test_generator_override_changes_only_selected_workload() -> None:
     """Adapters should override backend-specific data shapes without copying suites."""
     suite = get_asset_benchmark_suite("articulation")

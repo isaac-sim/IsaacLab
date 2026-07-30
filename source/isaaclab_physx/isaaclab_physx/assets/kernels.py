@@ -819,15 +819,7 @@ _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
 def write_2d_data_to_buffer_with_indices_kernel(
     env_ids: wp.array | torch.Tensor, item_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select the 2-D buffer writer matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        item_ids: Item index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the 2-D buffer writer for the selector dtypes."""
     return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, item_ids)
 
 

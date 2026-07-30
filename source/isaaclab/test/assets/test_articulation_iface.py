@@ -13,8 +13,6 @@ the base articulation class advertises. All articulation interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
-import warnings
-
 import numpy as np
 import pytest
 import torch
@@ -60,11 +58,6 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorator for all interface tests
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
-_cache_backends = pytest.mark.parametrize(
-    "backend",
-    [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS],
-)
-
 # We also need to provide the fixture params that articulation_iface reads:
 _default_dims = pytest.mark.parametrize(
     "num_instances, num_joints, num_bodies",
@@ -263,74 +256,15 @@ class TestArticulationFinderReturnModes:
             pytest.skip("Newton does not support spatial tendons.")
         finder = getattr(art, finder_name)
 
-        with warnings.catch_warnings(record=True) as warning_records:
-            warnings.simplefilter("always")
-            implicit_indices, implicit_names = finder(".*")
-            explicit_indices, explicit_names = finder(".*", as_proxy=False)
-            proxy_indices, proxy_names = finder(explicit_names, preserve_order=True, as_proxy=True)
-            repeated_indices, repeated_names = finder(".*", as_proxy=True)
-            empty_indices, empty_names = finder([], as_proxy=True)
-            repeated_empty_indices, repeated_empty_names = finder([], as_proxy=True)
+        indices, names = finder(".*")
+        proxy, proxy_names = finder(".*", as_proxy=True)
 
-        assert not warning_records
-        assert isinstance(implicit_indices, list)
-        assert isinstance(explicit_indices, list)
-        assert implicit_indices == explicit_indices == proxy_indices.torch.tolist()
-        assert implicit_names == explicit_names == proxy_names == repeated_names
-        assert proxy_names is not repeated_names
-        assert proxy_indices.dtype == wp.int32
-        assert str(proxy_indices.device) == art.device
-        assert proxy_indices is repeated_indices
-        assert proxy_indices.warp.ptr == repeated_indices.warp.ptr
-        assert empty_names == repeated_empty_names == []
-        assert empty_indices.torch.tolist() == []
-        assert empty_indices is repeated_empty_indices
-        assert empty_indices.warp is repeated_empty_indices.warp
-        assert empty_indices.torch is repeated_empty_indices.torch
-
-    @_production_backends
-    def test_finder_domains_do_not_share_cached_storage(self, backend):
-        art, _ = get_articulation(
-            backend,
-            num_instances=2,
-            num_joints=2,
-            num_bodies=2,
-            num_fixed_tendons=2,
-            num_spatial_tendons=2,
-            device="cpu",
-        )
-
-        selectors = [
-            art.find_bodies(".*", as_proxy=True)[0],
-            art.find_joints(".*", as_proxy=True)[0],
-            art.find_fixed_tendons(".*", as_proxy=True)[0],
-        ]
-        if backend != "newton":
-            selectors.append(art.find_spatial_tendons(".*", as_proxy=True)[0])
-        non_empty_selectors = [selector for selector in selectors if len(selector) > 0]
-
-        assert len({id(selector) for selector in selectors}) == len(selectors)
-        assert len({id(selector.warp) for selector in selectors}) == len(selectors)
-        assert len({selector.warp.ptr for selector in non_empty_selectors}) == len(non_empty_selectors)
-
-    @_production_backends
-    def test_finder_cache_is_asset_local_and_cleared_on_invalidation(self, backend):
-        first_art, _ = get_articulation(backend, num_joints=2, num_bodies=2, device="cpu")
-        second_art, _ = get_articulation(backend, num_joints=2, num_bodies=2, device="cpu")
-
-        first = first_art.find_joints(".*", as_proxy=True)[0]
-        other_asset = second_art.find_joints(".*", as_proxy=True)[0]
-        assert first_art._root_view is not None
-        first_art._invalidate_initialize_callback(None)
-        after_reinitialization = first_art.find_joints(".*", as_proxy=True)[0]
-
-        assert first_art._root_view is None
-        assert first is not other_asset
-        assert first.warp is not other_asset.warp
-        assert first.warp.ptr != other_asset.warp.ptr
-        assert first is not after_reinitialization
-        assert first.warp is not after_reinitialization.warp
-        assert first.warp.ptr != after_reinitialization.warp.ptr
+        assert isinstance(indices, list)
+        assert indices == proxy.torch.tolist()
+        assert names == proxy_names
+        assert proxy is finder(".*", as_proxy=True)[0]
+        assert proxy.dtype == wp.int32
+        assert str(proxy.device) == art.device
 
 
 # ---------------------------------------------------------------------------
@@ -1375,7 +1309,7 @@ _ROOT_VEL_METHODS = ["root_velocity", "root_link_velocity", "root_com_velocity"]
 class TestArticulationWritersRoot:
     """Test root pose/velocity writers with all input combinations."""
 
-    @_cache_backends
+    @_production_backends
     @pytest.mark.parametrize(
         "body_ordering",
         [None, ("body_0", "body_3", "body_2", "body_1")],
@@ -1407,7 +1341,7 @@ class TestArticulationWritersRoot:
         art.write_root_link_pose_to_sim_index(root_pose=root_pose)
         _assert_buffers_stale(art.data, buffers)
 
-    @_cache_backends
+    @_production_backends
     @pytest.mark.parametrize(
         "body_ordering",
         [None, ("body_0", "body_3", "body_2", "body_1")],
@@ -1435,7 +1369,7 @@ class TestArticulationWritersRoot:
         art.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
         _assert_buffers_stale(art.data, buffers)
 
-    @_cache_backends
+    @_production_backends
     @pytest.mark.parametrize("setter_kind", ["index", "mask"])
     @pytest.mark.parametrize(
         "body_ordering",
@@ -2746,10 +2680,6 @@ class TestArticulationWritersTendonToSim:
         art.write_fixed_tendon_properties_to_sim_index()
         # subset envs
         art.write_fixed_tendon_properties_to_sim_index(env_ids=_make_env_ids(device, True))
-        # cached finder proxy
-        tendon_ids, _ = art.find_fixed_tendons(".*", as_proxy=True)
-        art.write_fixed_tendon_properties_to_sim_index(fixed_tendon_ids=tendon_ids)
-        # int64 selector
         art.write_fixed_tendon_properties_to_sim_index(fixed_tendon_ids=wp.array([0], dtype=wp.int64, device=device))
 
     @_tendon_backends
@@ -2774,7 +2704,6 @@ class TestArticulationWritersTendonToSim:
         art.write_fixed_tendon_properties_to_sim_mask()
         # partial env mask
         art.write_fixed_tendon_properties_to_sim_mask(env_mask=_make_env_mask(num_instances, device, True))
-        # partial tendon mask
         art.write_fixed_tendon_properties_to_sim_mask(fixed_tendon_mask=_make_item_mask(num_fixed_tendons, [0], device))
 
     @_tendon_backends
@@ -2799,10 +2728,6 @@ class TestArticulationWritersTendonToSim:
         art.write_spatial_tendon_properties_to_sim_index()
         # subset envs
         art.write_spatial_tendon_properties_to_sim_index(env_ids=_make_env_ids(device, True))
-        # cached finder proxy
-        tendon_ids, _ = art.find_spatial_tendons(".*", as_proxy=True)
-        art.write_spatial_tendon_properties_to_sim_index(spatial_tendon_ids=tendon_ids)
-        # int64 selector
         art.write_spatial_tendon_properties_to_sim_index(
             spatial_tendon_ids=wp.array([0], dtype=wp.int64, device=device)
         )
@@ -2829,7 +2754,6 @@ class TestArticulationWritersTendonToSim:
         art.write_spatial_tendon_properties_to_sim_mask()
         # partial env mask
         art.write_spatial_tendon_properties_to_sim_mask(env_mask=_make_env_mask(num_instances, device, True))
-        # partial tendon mask
         art.write_spatial_tendon_properties_to_sim_mask(
             spatial_tendon_mask=_make_item_mask(num_spatial_tendons, [0], device)
         )

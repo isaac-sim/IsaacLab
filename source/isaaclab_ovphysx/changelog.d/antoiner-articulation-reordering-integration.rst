@@ -18,9 +18,7 @@ Changed
 Fixed
 ^^^^^
 
-* Fixed OVPhysX indexed articulation writes so joint, body, and tendon item
-  selectors accept signed 32-bit and signed 64-bit integers without allocating
-  Torch conversion tensors, while external environment indices remain signed
-  32-bit.
+* Fixed OVPhysX indexed articulation writes to accept signed 32-bit and 64-bit
+  environment and item selectors without Torch conversion tensors.
 * Fixed stale pose-, velocity-, and center-of-mass-derived rigid asset data
   immediately after simulation state and property writes.

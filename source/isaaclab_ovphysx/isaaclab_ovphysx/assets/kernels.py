@@ -603,50 +603,22 @@ _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(
 
 
 def set_root_link_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
-    """Select a root writer matching the environment selector dtype.
-
-    Args:
-        env_ids: Environment index selector.
-
-    Returns:
-        Concrete Warp kernel matching the selector dtype.
-    """
+    """Select a root writer for the environment selector dtype."""
     return _SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
 def set_root_com_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
-    """Select a root writer matching the environment selector dtype.
-
-    Args:
-        env_ids: Environment index selector.
-
-    Returns:
-        Concrete Warp kernel matching the selector dtype.
-    """
+    """Select a root writer for the environment selector dtype."""
     return _SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
 def set_root_com_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
-    """Select a root writer matching the environment selector dtype.
-
-    Args:
-        env_ids: Environment index selector.
-
-    Returns:
-        Concrete Warp kernel matching the selector dtype.
-    """
+    """Select a root writer for the environment selector dtype."""
     return _SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
 def set_root_link_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
-    """Select a root writer matching the environment selector dtype.
-
-    Args:
-        env_ids: Environment index selector.
-
-    Returns:
-        Concrete Warp kernel matching the selector dtype.
-    """
+    """Select a root writer for the environment selector dtype."""
     return _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
@@ -965,30 +937,14 @@ _WRITE_JOINT_STATE_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
 def write_2d_data_to_buffer_with_indices_kernel(
     env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select a buffer writer matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint or tendon index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select a buffer writer for the selector dtypes."""
     return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
 
 
 def write_joint_state_to_buffer_with_indices_kernel(
     env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select a buffer writer matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint or tendon index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select a buffer writer for the selector dtypes."""
     return _WRITE_JOINT_STATE_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
 
 
@@ -1517,15 +1473,7 @@ _WRITE_JOINT_POSITION_LIMIT_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
 def write_joint_position_limit_to_buffer_index_kernel(
     env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select a buffer writer matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint or tendon index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select a buffer writer for the selector dtypes."""
     return _WRITE_JOINT_POSITION_LIMIT_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 

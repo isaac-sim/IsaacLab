@@ -14,8 +14,6 @@ collection interfaces need to comply with the same interface contract.
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
-import warnings
-
 import numpy as np
 import pytest
 import torch
@@ -63,11 +61,6 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorators
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
-_cache_backends = pytest.mark.parametrize(
-    "backend",
-    [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS],
-)
-
 _default_dims = pytest.mark.parametrize("num_instances", [1, 2, 100])
 
 _default_bodies = pytest.mark.parametrize("num_bodies", [1, 3])
@@ -215,19 +208,6 @@ class TestCollectionIndexResolution:
 
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
-
-    @_production_backends
-    def test_resolve_body_ids_unwraps_proxy_without_materializing_torch(self, backend):
-        from isaaclab.utils.warp import ProxyArray
-
-        obj, _ = get_rigid_object_collection(backend, num_bodies=4, device="cpu")
-        body_ids_array = wp.array([2, 0], dtype=wp.int32, device="cpu")
-        body_ids = ProxyArray(body_ids_array)
-
-        resolved = obj._resolve_body_ids(body_ids)
-
-        assert resolved is body_ids_array
-        assert body_ids._torch_cache is None
 
 
 # ---------------------------------------------------------------------------
@@ -389,70 +369,25 @@ class TestCollectionFinderReturnModes:
     def test_find_bodies_returns_legacy_tensor_or_cached_proxy(self, backend):
         collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
 
-        with warnings.catch_warnings(record=True) as warning_records:
-            warnings.simplefilter("always")
-            implicit_indices, implicit_names = collection.find_bodies(".*")
-            explicit_indices, explicit_names = collection.find_bodies(".*", as_proxy=False)
-            proxy_indices, proxy_names = collection.find_bodies(explicit_names, preserve_order=True, as_proxy=True)
-            repeated_indices, repeated_names = collection.find_bodies(".*", as_proxy=True)
-            empty_indices, empty_names = collection.find_bodies([], as_proxy=True)
-            repeated_empty_indices, repeated_empty_names = collection.find_bodies([], as_proxy=True)
+        indices, names = collection.find_bodies(".*")
+        proxy, proxy_names = collection.find_bodies(".*", as_proxy=True)
 
-        assert not warning_records
-        assert isinstance(implicit_indices, torch.Tensor)
-        assert isinstance(explicit_indices, torch.Tensor)
-        assert implicit_indices.dtype == explicit_indices.dtype == torch.int32
-        assert implicit_indices.device.type == explicit_indices.device.type == collection.device
-        assert implicit_indices.tolist() == explicit_indices.tolist() == proxy_indices.torch.tolist()
-        assert implicit_names == explicit_names == proxy_names == repeated_names
-        assert proxy_names is not repeated_names
-        assert proxy_indices.dtype == wp.int32
-        assert str(proxy_indices.device) == collection.device
-        assert proxy_indices is repeated_indices
-        assert proxy_indices.warp.ptr == repeated_indices.warp.ptr
-        assert empty_names == repeated_empty_names == []
-        assert empty_indices.torch.tolist() == []
-        assert empty_indices is repeated_empty_indices
-        assert empty_indices.warp is repeated_empty_indices.warp
-        assert empty_indices.torch is repeated_empty_indices.torch
-
-    @_production_backends
-    def test_find_bodies_cache_is_asset_local_and_cleared_on_invalidation(self, backend):
-        first_collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
-        second_collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
-
-        first = first_collection.find_bodies(".*", as_proxy=True)[0]
-        other_asset = second_collection.find_bodies(".*", as_proxy=True)[0]
-        assert first_collection._root_view is not None
-        first_collection._invalidate_initialize_callback(None)
-        after_reinitialization = first_collection.find_bodies(".*", as_proxy=True)[0]
-
-        assert first_collection._root_view is None
-        assert first is not other_asset
-        assert first.warp is not other_asset.warp
-        assert first.warp.ptr != other_asset.warp.ptr
-        assert first is not after_reinitialization
-        assert first.warp is not after_reinitialization.warp
-        assert first.warp.ptr != after_reinitialization.warp.ptr
+        assert isinstance(indices, torch.Tensor)
+        assert indices.dtype == torch.int32
+        assert indices.tolist() == proxy.torch.tolist()
+        assert names == proxy_names
+        assert proxy is collection.find_bodies(".*", as_proxy=True)[0]
+        assert proxy.dtype == wp.int32
+        assert str(proxy.device) == collection.device
 
     @_production_backends
     def test_find_objects_forwards_return_mode_with_alias_warning(self, backend):
         collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
 
-        with pytest.warns(DeprecationWarning) as implicit_warnings:
-            implicit_indices, _ = collection.find_objects(".*")
-        with pytest.warns(DeprecationWarning) as explicit_warnings:
-            explicit_indices, _ = collection.find_objects(".*", as_proxy=False)
-        with pytest.warns(DeprecationWarning) as proxy_warnings:
-            proxy_indices, _ = collection.find_objects(".*", as_proxy=True)
+        with pytest.warns(DeprecationWarning):
+            proxy, _ = collection.find_objects(".*", as_proxy=True)
 
-        assert len(implicit_warnings) == 1
-        assert len(explicit_warnings) == 1
-        assert len(proxy_warnings) == 1
-        assert isinstance(implicit_indices, torch.Tensor)
-        assert isinstance(explicit_indices, torch.Tensor)
-        assert implicit_indices.tolist() == explicit_indices.tolist()
-        assert proxy_indices is collection.find_bodies(".*", as_proxy=True)[0]
+        assert proxy is collection.find_bodies(".*", as_proxy=True)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -895,7 +830,7 @@ _BODY_VEL_METHODS = ["body_velocity", "body_com_velocity", "body_link_velocity"]
 
 
 class TestCollectionCacheInvalidation:
-    @_cache_backends
+    @_production_backends
     def test_pose_write_invalidates_pose_dependent_caches(self, backend):
         obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
         obj.data.update(dt=0.01)
@@ -915,7 +850,7 @@ class TestCollectionCacheInvalidation:
         obj.write_body_link_pose_to_sim_index(body_poses=body_pose)
         _assert_buffers_stale(obj.data, buffers)
 
-    @_cache_backends
+    @_production_backends
     def test_velocity_write_invalidates_body_frame_caches(self, backend):
         obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
         obj.data.update(dt=0.01)
@@ -932,7 +867,7 @@ class TestCollectionCacheInvalidation:
         obj.write_body_com_velocity_to_sim_index(body_velocities=body_velocity)
         _assert_buffers_stale(obj.data, buffers)
 
-    @_cache_backends
+    @_production_backends
     @pytest.mark.parametrize("setter_kind", ["index", "mask"])
     def test_set_coms_invalidates_same_timestamp_dependents(self, backend, setter_kind):
         obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")

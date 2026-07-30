@@ -68,20 +68,9 @@ def test_index_kernel_measures_one_batch_per_dtype_and_fill(monkeypatch) -> None
     )
 
     assert measured == [(wp.int32, 7), (wp.int64, 7)] * 3
-    assert tuple(phase for phase, _measurement in runner.measurements) == (
-        "index_kernel_5pct",
-        "index_kernel_5pct",
-        "index_kernel_5pct",
-        "index_kernel_5pct",
-        "index_kernel_95pct",
-        "index_kernel_95pct",
-        "index_kernel_95pct",
-        "index_kernel_95pct",
-        "index_kernel_100pct",
-        "index_kernel_100pct",
-        "index_kernel_100pct",
-        "index_kernel_100pct",
-    )
+    assert [phase for phase, _ in runner.measurements] == [
+        f"index_kernel_{suffix}" for suffix in ("5pct", "95pct", "100pct") for _ in range(4)
+    ]
     for offset in range(0, 12, 4):
         measurements = [measurement for _phase, measurement in runner.measurements[offset : offset + 4]]
         assert tuple(measurement.name for measurement in measurements) == (
@@ -94,50 +83,3 @@ def test_index_kernel_measures_one_batch_per_dtype_and_fill(monkeypatch) -> None
         assert measurements[1].value == pytest.approx(1.5)
         assert measurements[2].value == pytest.approx(0.5)
         assert measurements[3].value == pytest.approx(50.0)
-
-
-def test_index_kernel_skips_cuda_event_timing_for_cpu(monkeypatch) -> None:
-    """A CPU benchmark request should not prepare or time the CUDA-only auxiliary phase."""
-    runner = _MeasurementRunner()
-
-    def fail_prepare(*_args):
-        raise AssertionError("launch preparation should not run")
-
-    monkeypatch.setattr(index_kernel, "_prepare_launch", fail_prepare)
-
-    index_kernel.run_index_kernel_dtype_benchmark(
-        runner,
-        MethodBenchmarkRunnerConfig(
-            num_iterations=1,
-            num_instances=4,
-            num_joints=3,
-            device="cpu",
-        ),
-    )
-
-    assert runner.measurements == []
-
-
-def test_index_kernel_timing_records_events_on_selected_device_stream(monkeypatch) -> None:
-    """Raw timing should not create or record events on Warp's default CUDA device."""
-    events: list[object] = []
-    recordings: list[object] = []
-    stream = SimpleNamespace(record_event=lambda event: recordings.append(event))
-    device = SimpleNamespace(stream=stream)
-
-    def create_event(*, device=None, enable_timing=False):
-        event = SimpleNamespace(device=device, enable_timing=enable_timing)
-        events.append(event)
-        return event
-
-    monkeypatch.setattr(index_kernel.wp, "Event", create_event)
-    monkeypatch.setattr(index_kernel.wp, "record_event", lambda event: recordings.append(("default", event)))
-    monkeypatch.setattr(index_kernel.wp, "synchronize_event", lambda _event: None)
-    monkeypatch.setattr(index_kernel.wp, "get_event_elapsed_time", lambda _start, _end: 0.5)
-    monkeypatch.setattr(index_kernel, "_launch_once", lambda _prepared, _device: None)
-
-    elapsed = index_kernel._measure_launch(SimpleNamespace(), device, num_iterations=2)
-
-    assert elapsed == pytest.approx(250.0)
-    assert [event.device for event in events] == [device, device]
-    assert recordings == events

@@ -289,9 +289,8 @@ On CUDA, the same articulation artifact records
 ``index_kernel_5pct``, ``index_kernel_95pct``, and
 ``index_kernel_100pct`` phases. These launch the production indexed joint-state
 writer directly with Warp ``int32`` and ``int64`` selectors, validate identical
-outputs, alternate measurement order across paired rounds, and report both
-latencies plus their absolute and percentage deltas. CPU requests skip this
-CUDA-event-only auxiliary phase.
+outputs, and report both latencies and their deltas. CPU requests skip this
+CUDA-event-only phase.
 
 Run timing comparisons only while the selected GPU is idle. Another process
 using the device can dominate microsecond-scale differences; correctness-only

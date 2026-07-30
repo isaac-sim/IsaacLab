@@ -1339,21 +1339,21 @@ class randomize_actuator_gains(ManagerTermBase):
 
         # Loop through actuators and randomize gains
         for actuator in self.asset.actuators.values():
-            actuator_joint_indices = actuator.joint_indices
             if isinstance(self.asset_cfg.joint_ids, slice):
                 # we take all the joints of the actuator
                 actuator_indices = slice(None)
-                if isinstance(actuator_joint_indices, slice):
+                if isinstance(actuator.joint_indices, slice):
                     global_indices = slice(None)
-                elif isinstance(actuator_joint_indices, torch.Tensor):
-                    global_indices = actuator_joint_indices.to(self.asset.device)
+                elif isinstance(actuator.joint_indices, torch.Tensor):
+                    global_indices = actuator.joint_indices.to(self.asset.device)
                 else:
                     raise TypeError("Actuator joint indices must be a slice or a torch.Tensor.")
-            elif isinstance(actuator_joint_indices, slice):
+            elif isinstance(actuator.joint_indices, slice):
                 # we take the joints defined in the asset config
                 global_indices = actuator_indices = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
             else:
                 # we take the intersection of the actuator joints and the asset config joints
+                actuator_joint_indices = actuator.joint_indices
                 asset_joint_ids = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
                 # the indices of the joints in the actuator that have to be randomized
                 actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).view(-1)

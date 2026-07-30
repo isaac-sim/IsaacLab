@@ -223,15 +223,7 @@ _CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_DISPATCHER = IndexKernelDi
 def clamp_default_joint_pos_and_update_soft_limits_index_kernel(
     env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select an articulation worker matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select an articulation worker for the selector dtypes."""
     return _CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 
@@ -322,15 +314,7 @@ _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
 def write_joint_friction_data_to_buffer_index_kernel(
     env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select an articulation worker matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select an articulation worker for the selector dtypes."""
     return _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 

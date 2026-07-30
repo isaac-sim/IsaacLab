@@ -277,60 +277,28 @@ _FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
 def write_joint_limit_data_to_buffer_kernel(
     env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select the joint-limit writer matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the joint-limit writer for the selector dtypes."""
     return _WRITE_JOINT_LIMIT_DATA_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
 
 
 def write_joint_friction_data_to_buffer_kernel(
     env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select the joint-friction writer matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the joint-friction writer for the selector dtypes."""
     return _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
 
 
 def write_joint_friction_param_to_buffer_kernel(
     env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select the joint-friction parameter writer matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the joint-friction parameter writer for the selector dtypes."""
     return _WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
 
 
 def float_data_to_buffer_with_indices_kernel(
     env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select the scalar buffer writer matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the scalar buffer writer for the selector dtypes."""
     return _FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
 
 
@@ -666,28 +634,12 @@ _WRITE_JOINT_STATE_DATA_DISPATCHER = IndexKernelDispatcher(write_joint_state_dat
 
 
 def write_joint_vel_data_kernel(env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor) -> wp.Kernel:
-    """Select the deprecated joint-velocity writer matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the deprecated joint-velocity writer for the selector dtypes."""
     return _WRITE_JOINT_VEL_DATA_DISPATCHER.select(env_ids, joint_ids)
 
 
 def write_joint_state_data_kernel(env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor) -> wp.Kernel:
-    """Select the deprecated joint-state writer matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        joint_ids: Joint index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the deprecated joint-state writer for the selector dtypes."""
     return _WRITE_JOINT_STATE_DATA_DISPATCHER.select(env_ids, joint_ids)
 
 

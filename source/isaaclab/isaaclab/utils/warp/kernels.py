@@ -695,42 +695,19 @@ _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER = IndexKernelDispatcher(reset_wrench_com
 def set_forces_to_dual_buffers_index_kernel(
     env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select the indexed Wrench set worker matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        body_ids: Body index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the indexed wrench-set worker for the selector dtypes."""
     return _SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select(env_ids, body_ids)
 
 
 def add_forces_to_dual_buffers_index_kernel(
     env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select the indexed Wrench add worker matching the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        body_ids: Body index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the indexed wrench-add worker for the selector dtypes."""
     return _ADD_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select(env_ids, body_ids)
 
 
 def reset_wrench_composer_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
-    """Select the indexed Wrench reset worker matching the selector dtype.
-
-    Args:
-        env_ids: Environment index selector.
-
-    Returns:
-        Concrete Warp kernel matching the selector dtype.
-    """
+    """Select the indexed wrench-reset worker for the selector dtype."""
     return _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER.select(env_ids)
 
 

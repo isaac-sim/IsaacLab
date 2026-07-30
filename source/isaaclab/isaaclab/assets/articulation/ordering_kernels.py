@@ -468,15 +468,7 @@ _WRITE_JOINT_VEL_USER_TO_BACKEND_WITH_INDICES_DISPATCHER = IndexKernelDispatcher
 def write_joint_vel_user_to_backend_with_indices_kernel(
     env_ids: wp.array | torch.Tensor, user_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select the concrete indexed joint-velocity writer for the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        user_ids: Public joint index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the indexed joint-velocity writer for the selector dtypes."""
     return _WRITE_JOINT_VEL_USER_TO_BACKEND_WITH_INDICES_DISPATCHER.select(env_ids, user_ids)
 
 
@@ -552,15 +544,7 @@ _WRITE_JOINT_STATE_USER_TO_BACKEND_WITH_INDICES_DISPATCHER = IndexKernelDispatch
 def write_joint_state_user_to_backend_with_indices_kernel(
     env_ids: wp.array | torch.Tensor, user_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
-    """Select the concrete indexed joint-state writer for the selector dtypes.
-
-    Args:
-        env_ids: Environment index selector.
-        user_ids: Public joint index selector.
-
-    Returns:
-        Concrete Warp kernel matching both selector dtypes.
-    """
+    """Select the indexed joint-state writer for the selector dtypes."""
     return _WRITE_JOINT_STATE_USER_TO_BACKEND_WITH_INDICES_DISPATCHER.select(env_ids, user_ids)
 
 

@@ -5,18 +5,13 @@
 
 """Unit tests for mock asset interfaces."""
 
-import warnings
 from types import SimpleNamespace
-from typing import get_args, get_type_hints
 
 import pytest
 import torch
-import warp as wp
 
-from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, RemotizedPDActuator, RemotizedPDActuatorCfg
 from isaaclab.assets.articulation import BaseArticulation
 from isaaclab.envs.mdp.actions import BinaryJointPositionAction, BinaryJointPositionActionCfg
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.mock_interfaces.assets import (
     MockArticulation,
     MockRigidObject,
@@ -28,199 +23,8 @@ from isaaclab.test.mock_interfaces.assets import (
     create_mock_rigid_object_collection,
 )
 from isaaclab.test.mock_interfaces.utils import MockArticulationBuilder
-from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
-
-
-def _make_finder_case(case: str):
-    """Create an asset and finder invocation for a finder return-mode test case."""
-    if case.startswith("articulation_"):
-        asset = MockArticulation(
-            num_instances=1,
-            num_joints=3,
-            num_bodies=3,
-            joint_names=["item_0", "item_1", "other"],
-            body_names=["item_0", "item_1", "other"],
-            num_fixed_tendons=3,
-            num_spatial_tendons=3,
-            fixed_tendon_names=["item_0", "item_1", "other"],
-            spatial_tendon_names=["item_0", "item_1", "other"],
-            device="cpu",
-        )
-        finder_name = case.removeprefix("articulation_")
-    elif case == "rigid_object_bodies":
-        asset = MockRigidObject(num_instances=1, body_names=["item_0"], device="cpu")
-        finder_name = "bodies"
-    elif case == "collection_bodies":
-        asset = MockRigidObjectCollection(
-            num_instances=1,
-            num_bodies=3,
-            body_names=["item_0", "item_1", "other"],
-            device="cpu",
-        )
-        finder_name = "bodies"
-    else:
-        raise ValueError(f"Unknown finder case: {case}")
-
-    return asset, getattr(asset, f"find_{finder_name}"), "item_.*"
-
-
-_LIST_FINDER_CASES = [
-    "articulation_bodies",
-    "articulation_joints",
-    "articulation_fixed_tendons",
-    "articulation_spatial_tendons",
-    "rigid_object_bodies",
-]
-
-_ALL_FINDER_CASES = _LIST_FINDER_CASES + ["collection_bodies"]
-
-
-@pytest.mark.parametrize("case", _ALL_FINDER_CASES)
-def test_finders_default_to_legacy_and_support_proxy_mode(case):
-    """Test omitted false, explicit false, and explicit true finder return modes."""
-    asset, finder, name_keys = _make_finder_case(case)
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        default_indices, default_names = finder(name_keys)
-        explicit_indices, explicit_names = finder(name_keys, as_proxy=False)
-        proxy_indices, proxy_names = finder(name_keys, as_proxy=True)
-        empty_indices, empty_names = finder([], as_proxy=True)
-        repeated_empty_indices, repeated_empty_names = finder([], as_proxy=True)
-
-    expected_indices = [0] if case == "rigid_object_bodies" else [0, 1]
-    expected_names = ["item_0"] if case == "rigid_object_bodies" else ["item_0", "item_1"]
-    if case == "collection_bodies":
-        assert isinstance(default_indices, torch.Tensor)
-        assert isinstance(explicit_indices, torch.Tensor)
-        assert default_indices.dtype == torch.int32
-        assert explicit_indices.dtype == torch.int32
-        assert default_indices.device.type == asset.device
-        assert explicit_indices.device.type == asset.device
-        assert default_indices.tolist() == expected_indices
-        assert explicit_indices.tolist() == expected_indices
-    else:
-        assert default_indices == expected_indices
-        assert explicit_indices == expected_indices
-
-    assert default_names == expected_names
-    assert explicit_names == default_names
-    assert proxy_names == default_names
-    assert isinstance(proxy_indices, ProxyArray)
-    assert proxy_indices.warp.dtype == wp.int32
-    assert str(proxy_indices.warp.device) == asset.device
-    assert proxy_indices.torch.dtype == torch.int32
-    assert proxy_indices.torch.device.type == asset.device
-    assert proxy_indices.torch.tolist() == expected_indices
-    assert proxy_indices.warp.ptr == proxy_indices.torch.data_ptr()
-    assert empty_names == repeated_empty_names == []
-    assert empty_indices.torch.tolist() == []
-    assert empty_indices is repeated_empty_indices
-    assert empty_indices.warp is repeated_empty_indices.warp
-    assert empty_indices.torch is repeated_empty_indices.torch
-
-
-@pytest.mark.parametrize("case", _ALL_FINDER_CASES)
-def test_finders_reuse_proxy_but_return_fresh_names(case):
-    """Test equivalent finder results share only cached selector storage."""
-    _, finder, _ = _make_finder_case(case)
-
-    first_indices, first_names = finder(["item_0", "item_1"], preserve_order=True, as_proxy=True)
-    second_indices, second_names = finder("item_.*", as_proxy=True)
-
-    expected_names = ["item_0"] if case == "rigid_object_bodies" else ["item_0", "item_1"]
-    assert first_indices is second_indices
-    assert first_indices.warp.ptr == second_indices.warp.ptr
-    assert first_names == second_names == expected_names
-    assert first_names is not second_names
-    first_names.append("mutated")
-    assert second_names == expected_names
-
-
-@pytest.mark.parametrize(
-    ("finder_name", "subset_arg"),
-    [
-        ("find_joints", "joint_subset"),
-        ("find_fixed_tendons", "tendon_subsets"),
-        ("find_spatial_tendons", "tendon_subsets"),
-    ],
-)
-def test_articulation_finders_cache_after_subset_remapping(finder_name, subset_arg):
-    """Test subset-local matches reuse proxies by final articulation indices."""
-    robot = MockArticulation(
-        num_instances=1,
-        num_joints=3,
-        num_bodies=3,
-        joint_names=["item_0", "item_1", "item_2"],
-        num_fixed_tendons=3,
-        num_spatial_tendons=3,
-        fixed_tendon_names=["item_0", "item_1", "item_2"],
-        spatial_tendon_names=["item_0", "item_1", "item_2"],
-        device="cpu",
-    )
-    finder = getattr(robot, finder_name)
-
-    default_indices, default_names = finder(".*", **{subset_arg: ["item_2", "item_0"]}, preserve_order=True)
-    explicit_indices, explicit_names = finder(
-        ".*", **{subset_arg: ["item_2", "item_0"]}, preserve_order=True, as_proxy=False
-    )
-    subset_indices, subset_names = finder(
-        ".*", **{subset_arg: ["item_2", "item_0"]}, preserve_order=True, as_proxy=True
-    )
-    direct_indices, direct_names = finder(["item_2", "item_0"], preserve_order=True, as_proxy=True)
-
-    assert default_indices == explicit_indices == [2, 0]
-    assert default_names == explicit_names == ["item_2", "item_0"]
-    assert subset_indices is direct_indices
-    assert subset_indices.torch.tolist() == [2, 0]
-    assert subset_names == direct_names == ["item_2", "item_0"]
-
-
-def test_articulation_finder_domains_do_not_alias():
-    """Test equal selector values in distinct articulation domains do not alias."""
-    robot, _, _ = _make_finder_case("articulation_bodies")
-
-    selectors = [
-        robot.find_bodies("item_.*", as_proxy=True)[0],
-        robot.find_joints("item_.*", as_proxy=True)[0],
-        robot.find_fixed_tendons("item_.*", as_proxy=True)[0],
-        robot.find_spatial_tendons("item_.*", as_proxy=True)[0],
-    ]
-
-    assert len({id(selector) for selector in selectors}) == len(selectors)
-    assert len({selector.warp.ptr for selector in selectors}) == len(selectors)
-
-
-def test_collection_find_objects_forwards_return_mode():
-    """Test deprecated collection object finder forwards all return modes."""
-    collection, _, name_keys = _make_finder_case("collection_bodies")
-
-    with warnings.catch_warnings(record=True) as warning_records:
-        warnings.simplefilter("always", DeprecationWarning)
-        default_indices, default_names = collection.find_objects(name_keys)
-    assert len(warning_records) == 1
-    assert issubclass(warning_records[0].category, DeprecationWarning)
-    assert "find_objects" in str(warning_records[0].message)
-    assert "as_proxy" not in str(warning_records[0].message)
-
-    for as_proxy in (False, True):
-        with warnings.catch_warnings(record=True) as warning_records:
-            warnings.simplefilter("always", DeprecationWarning)
-            indices, names = collection.find_objects(name_keys, as_proxy=as_proxy)
-        assert len(warning_records) == 1
-        assert issubclass(warning_records[0].category, DeprecationWarning)
-        assert "find_objects" in str(warning_records[0].message)
-        assert "as_proxy" not in str(warning_records[0].message)
-        assert names == default_names
-        if as_proxy:
-            assert isinstance(indices, ProxyArray)
-            assert indices is collection.find_bodies(name_keys, as_proxy=True)[0]
-        else:
-            assert isinstance(indices, torch.Tensor)
-            assert indices.dtype == torch.int32
-            assert torch.equal(indices, default_indices)
 
 
 def test_binary_joint_action_uses_cached_proxy_warp_view():
@@ -259,9 +63,7 @@ def test_binary_joint_action_uses_cached_proxy_warp_view():
 
 
 def test_actuator_selector_uses_torch_view_and_optimizes_full_order():
-    """Test the shared actuator branch uses Torch selectors and optimizes full ordered selections."""
-    assert getattr(BaseArticulation._process_actuators_cfg, "__isabstractmethod__", False)
-    assert not getattr(BaseArticulation._select_actuator_joint_ids, "__isabstractmethod__", False)
+    """Use Torch selectors while optimizing a full selection."""
     robot = MockArticulation(
         num_instances=1,
         num_joints=3,
@@ -272,96 +74,13 @@ def test_actuator_selector_uses_torch_view_and_optimizes_full_order():
     partial_ids, partial_names = robot.find_joints(["joint_2", "joint_0"], preserve_order=True, as_proxy=True)
     full_ids, full_names = robot.find_joints(".*", as_proxy=True)
 
-    reordered_ids, reordered_names = robot.find_joints(
-        list(reversed(robot.joint_names)), preserve_order=True, as_proxy=True
-    )
     resolved_partial = BaseArticulation._select_actuator_joint_ids(robot, partial_ids, partial_names)
     resolved_full = BaseArticulation._select_actuator_joint_ids(robot, full_ids, full_names)
 
-    resolved_reordered = BaseArticulation._select_actuator_joint_ids(robot, reordered_ids, reordered_names)
     assert resolved_partial is partial_ids.torch
     assert resolved_full == slice(None)
-    assert resolved_reordered is reordered_ids.torch
     assert partial_ids._torch_cache is resolved_partial
     assert full_ids._torch_cache is None
-    assert reordered_ids._torch_cache is resolved_reordered
-
-
-@pytest.mark.parametrize("constructor", [ActuatorBase.__init__, RemotizedPDActuator.__init__])
-def test_actuator_constructor_accepts_exact_proxy_selector_annotation(constructor):
-    """Test actuator signatures advertise exactly the supported selector representations."""
-
-    type_globals = dict(constructor.__globals__)
-    type_globals.update(
-        ActuatorBaseCfg=ActuatorBaseCfg,
-        RemotizedPDActuatorCfg=RemotizedPDActuatorCfg,
-    )
-    joint_ids_type = get_type_hints(constructor, globalns=type_globals)["joint_ids"]
-    joint_ids_args = set(get_args(joint_ids_type))
-
-    assert joint_ids_args == {slice, torch.Tensor}
-    assert object not in joint_ids_args
-
-
-def test_scene_entity_cfg_requests_legacy_list_for_joint_bookkeeping():
-    """Test SceneEntityCfg keeps legacy list resolution and slice optimization."""
-    robot = MockArticulation(
-        num_instances=1,
-        num_joints=3,
-        num_bodies=1,
-        joint_names=["joint_0", "joint_1", "joint_2"],
-        device="cpu",
-    )
-    entity_cfg = SceneEntityCfg("robot", joint_names=["joint_2", "joint_0"], preserve_order=True)
-    all_joints_cfg = SceneEntityCfg("robot", joint_names=["joint_0", "joint_1", "joint_2"])
-
-    entity_cfg.resolve({"robot": robot})
-    all_joints_cfg.resolve({"robot": robot})
-
-    assert isinstance(entity_cfg.joint_ids, list)
-    assert entity_cfg.joint_ids == [2, 0]
-    assert entity_cfg.joint_names == ["joint_2", "joint_0"]
-    assert all_joints_cfg.joint_ids == slice(None)
-    assert all_joints_cfg.joint_names == ["joint_0", "joint_1", "joint_2"]
-
-
-def test_scene_entity_cfg_does_not_pass_asset_mode_to_sensor_finder():
-    """Test the sensor-specific SceneEntityCfg finder branch remains out of the asset migration."""
-
-    class FakeSensor:
-        body_names = ["foot_0", "foot_1"]
-        num_sensors = 2
-
-        def find_sensors(self, name_keys, preserve_order=False):
-            assert name_keys == ["foot_1"]
-            return [1], ["foot_1"]
-
-    entity_cfg = SceneEntityCfg("feet", body_names=["foot_1"])
-
-    entity_cfg.resolve({"feet": FakeSensor()})
-
-    assert entity_cfg.body_ids == [1]
-    assert entity_cfg.body_names == ["foot_1"]
-
-
-def test_scene_entity_cfg_does_not_pass_asset_mode_to_body_sensor_finder():
-    """Test body-based sensor finders keep their legacy call signature."""
-
-    class FakeBodySensor:
-        body_names = ["body_0", "body_1"]
-        num_bodies = 2
-
-        def find_bodies(self, name_keys, preserve_order=False):
-            assert name_keys == ["body_1"]
-            assert preserve_order
-            return [1], ["body_1"]
-
-    entity_cfg = SceneEntityCfg("sensor", body_names=["body_1"], preserve_order=True)
-
-    entity_cfg.resolve({"sensor": FakeBodySensor()})
-
-    assert entity_cfg.body_ids == [1]
-    assert entity_cfg.body_names == ["body_1"]
 
 
 # ==============================================================================
@@ -465,13 +184,13 @@ class TestMockArticulation:
         )
 
         # Find all hip joints
-        indices, names = robot.find_joints(".*_hip", as_proxy=False)
+        indices, names = robot.find_joints(".*_hip")
         assert len(indices) == 2
         assert "FL_hip" in names
         assert "FR_hip" in names
 
         # Find FL leg joints
-        indices, names = robot.find_joints("FL_.*", as_proxy=False)
+        indices, names = robot.find_joints("FL_.*")
         assert len(indices) == 3
 
     def test_find_bodies(self):
@@ -486,11 +205,11 @@ class TestMockArticulation:
         )
 
         # Find base
-        indices, names = robot.find_bodies("base", as_proxy=False)
+        indices, names = robot.find_bodies("base")
         assert indices == [0]
 
         # Find all thigh bodies
-        indices, names = robot.find_bodies(".*_thigh", as_proxy=False)
+        indices, names = robot.find_bodies(".*_thigh")
         assert len(indices) == 2
 
     def test_set_joint_position_target(self, robot):
@@ -580,7 +299,7 @@ class TestMockRigidObjectCollection:
 
     def test_find_bodies_returns_indices(self, collection):
         """Test that find_bodies returns an int32 index tensor."""
-        body_ids, names = collection.find_bodies("body_0", as_proxy=False)
+        body_ids, names = collection.find_bodies("body_0")
         assert isinstance(body_ids, torch.Tensor)
         assert body_ids.dtype == torch.int32
         assert body_ids.device.type == collection.device

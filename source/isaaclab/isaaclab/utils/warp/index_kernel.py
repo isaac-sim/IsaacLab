@@ -27,16 +27,12 @@ def _selector_dtype(selector: torch.Tensor | wp.array) -> type[wp.int32] | type[
 
 
 class IndexKernelDispatcher:
-    """Register and select signed-integer specializations of one Warp kernel.
+    """Dispatch a Warp kernel by its index-selector dtypes.
 
     Args:
         kernel: Generic Warp kernel to specialize.
         selector_names: Names of the kernel arguments that receive index selectors.
         argument_types: Concrete types for other generic kernel arguments. Defaults to None.
-
-    Raises:
-        ValueError: If :paramref:`selector_names` is empty.
-        ValueError: If :paramref:`argument_types` overlaps with :paramref:`selector_names`.
     """
 
     def __init__(
@@ -61,18 +57,7 @@ class IndexKernelDispatcher:
             self._overloads[dtypes] = wp.overload(kernel, signature)
 
     def select_dtypes(self, *dtypes: type[wp.int32] | type[wp.int64]) -> wp.Kernel:
-        """Select a specialization from explicit index selector dtypes.
-
-        Args:
-            dtypes: Signed 32-bit or 64-bit Warp integer dtypes, one per selector argument.
-
-        Returns:
-            The concrete Warp kernel specialized for the selector dtypes.
-
-        Raises:
-            TypeError: If a dtype is not a supported signed integer dtype.
-            ValueError: If the number of dtypes does not match the number of selector argument names.
-        """
+        """Select a specialization from explicit selector dtypes."""
         if len(dtypes) != len(self._selector_names):
             raise ValueError(
                 f"Expected {len(self._selector_names)} selector dtypes for {self._selector_names}, got {len(dtypes)}."
@@ -83,18 +68,7 @@ class IndexKernelDispatcher:
         return self._overloads[dtypes]
 
     def select(self, *selectors: torch.Tensor | wp.array) -> wp.Kernel:
-        """Select the specialization matching the index selector dtypes.
-
-        Args:
-            selectors: Torch tensors or Warp arrays with signed 32-bit or 64-bit integer dtypes.
-
-        Returns:
-            The concrete Warp kernel specialized for the selector dtypes.
-
-        Raises:
-            TypeError: If a selector is not a Torch tensor or Warp array with a supported integer dtype.
-            ValueError: If the number of selectors does not match the number of selector argument names.
-        """
+        """Select a specialization from Torch or Warp selectors."""
         if len(selectors) != len(self._selector_names):
             raise ValueError(
                 f"Expected {len(self._selector_names)} selectors for {self._selector_names}, got {len(selectors)}."

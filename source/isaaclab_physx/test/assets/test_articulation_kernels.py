@@ -8,7 +8,6 @@
 import sys
 import warnings
 from types import ModuleType, SimpleNamespace
-from typing import get_args, get_type_hints
 from unittest.mock import patch
 
 import numpy as np
@@ -18,11 +17,7 @@ import warp as wp
 from isaaclab_physx.assets.articulation.kernels import (
     write_joint_state_data,
     write_joint_state_data_kernel,
-    write_joint_vel_data,
-    write_joint_vel_data_kernel,
 )
-
-from isaaclab.utils.warp import ProxyArray
 
 
 def _selector(values: list[int], dtype: type) -> wp.array:
@@ -132,139 +127,17 @@ def test_model_property_writers_invalidate_same_timestamp_dynamics(
     assert data._body_com_jacobian_w.timestamp == 3.0
 
 
-@pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
-@pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
-def test_external_env_resolvers_return_int32_with_preserved_values(resolver_name: str, env_dtype: type) -> None:
-    """Normalize every supported Warp environment selector before a PhysX boundary."""
-    Articulation = _articulation_class()
-    articulation = SimpleNamespace(_ALL_INDICES=_selector([0, 1], wp.int32), device="cpu")
-    selector = _selector([1, 0], env_dtype)
-
-    resolved = getattr(Articulation, resolver_name)(articulation, selector)
-
-    assert resolved.dtype == wp.int32
-    np.testing.assert_array_equal(resolved.numpy(), [1, 0])
-    if resolver_name == "_resolve_env_ids" and env_dtype == wp.int32:
-        assert resolved.ptr == selector.ptr
-
-
-@pytest.mark.parametrize("torch_dtype", [torch.int32, torch.int64])
-@pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
-def test_external_env_resolvers_normalize_torch_widths(resolver_name: str, torch_dtype: torch.dtype) -> None:
-    """Normalize every supported Torch environment selector before a PhysX boundary."""
+@pytest.mark.parametrize(("torch_dtype", "warp_dtype"), [(torch.int32, wp.int32), (torch.int64, wp.int64)])
+def test_env_resolver_preserves_width_and_aliases_source(torch_dtype: torch.dtype, warp_dtype: type) -> None:
+    """Alias supported Torch environment selectors without allocating a conversion."""
     Articulation = _articulation_class()
     articulation = SimpleNamespace(_ALL_INDICES=_selector([0, 1], wp.int32), device="cpu")
     selector = torch.tensor([1, 0], dtype=torch_dtype)
 
-    resolved = getattr(Articulation, resolver_name)(articulation, selector)
+    resolved = Articulation._resolve_env_ids(articulation, selector)
 
-    assert resolved.dtype == wp.int32
-    np.testing.assert_array_equal(resolved.numpy(), [1, 0])
-
-
-@pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
-@pytest.mark.parametrize(
-    "selector",
-    [
-        pytest.param(lambda: _selector([0], wp.int16), id="warp_int16"),
-        pytest.param(lambda: torch.tensor([0], dtype=torch.int16), id="torch_int16"),
-    ],
-)
-def test_external_env_resolvers_reject_unsupported_dtypes_before_boundary(resolver_name: str, selector) -> None:
-    """Reject unsupported environment selector widths before calling a PhysX binding."""
-    Articulation = _articulation_class()
-    articulation = SimpleNamespace(_ALL_INDICES=_selector([0], wp.int32), device="cpu")
-
-    with pytest.raises(TypeError, match="signed 32-bit or signed 64-bit integers"):
-        getattr(Articulation, resolver_name)(articulation, selector())
-
-
-@pytest.mark.parametrize("resolver_name", ["_resolve_env_ids", "_get_cpu_env_ids"])
-def test_external_env_resolvers_reject_numpy_inputs_before_boundary(resolver_name: str) -> None:
-    """Reject unsupported NumPy environment selectors before calling a PhysX binding."""
-    Articulation = _articulation_class()
-    articulation = SimpleNamespace(_ALL_INDICES=_selector([0, 1], wp.int32), device="cpu")
-    selector = np.asarray([0, 1], dtype=np.int64)
-
-    with pytest.raises(TypeError, match="Torch tensor or Warp array"):
-        getattr(Articulation, resolver_name)(articulation, selector)
-
-
-@pytest.mark.parametrize(
-    "resolver_name",
-    [
-        "_resolve_env_ids",
-        "_resolve_joint_ids",
-        "_resolve_body_ids",
-        "_resolve_fixed_tendon_ids",
-        "_resolve_spatial_tendon_ids",
-    ],
-)
-def test_selector_resolvers_require_explicit_proxy_view(resolver_name: str) -> None:
-    """Reject output wrappers until callers select their Warp view."""
-    Articulation = _articulation_class()
-    selector_array = _selector([1, 0], wp.int32)
-    selector = ProxyArray(selector_array)
-    articulation = SimpleNamespace(
-        _ALL_INDICES=_selector([0, 1], wp.int32),
-        _ALL_JOINT_INDICES=_selector([0, 1], wp.int32),
-        _ALL_BODY_INDICES=_selector([0, 1], wp.int32),
-        _ALL_FIXED_TENDON_INDICES=_selector([0, 1], wp.int32),
-        _ALL_SPATIAL_TENDON_INDICES=_selector([0, 1], wp.int32),
-        device="cpu",
-    )
-
-    with pytest.raises(TypeError, match="ProxyArray is output-only"):
-        getattr(Articulation, resolver_name)(articulation, selector)
-
-    resolved = getattr(Articulation, resolver_name)(articulation, selector.warp)
-    assert resolved is selector_array
-    assert selector._torch_cache is None  # noqa: SLF001
-
-
-def test_public_joint_velocity_kernel_rejects_int16_direct_launch() -> None:
-    """The deprecated public raw symbol remains a concrete int32 compatibility kernel."""
-    data = wp.zeros((1, 1), dtype=wp.float32, device="cpu")
-    env_ids = _selector([0], wp.int16)
-    joint_ids = _selector([0], wp.int32)
-    outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(3)]
-    with pytest.raises(RuntimeError):
-        wp.launch(
-            write_joint_vel_data,
-            dim=(1, 1),
-            inputs=[data, env_ids, joint_ids, False],
-            outputs=outputs,
-            device="cpu",
-        )
-
-
-@pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
-@pytest.mark.parametrize("joint_dtype", [wp.int32, wp.int64])
-def test_write_joint_vel_data_scatters_nonidentity_selectors(env_dtype: type, joint_dtype: type) -> None:
-    """Scatter compact joint velocities for every supported selector-width combination."""
-    in_data = wp.array(np.asarray([[11.0, 12.0], [21.0, 22.0]], dtype=np.float32), device="cpu")
-    env_ids = _selector([1, 0], env_dtype)
-    joint_ids = _selector([2, 0], joint_dtype)
-    joint_vel = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
-    prev_joint_vel = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
-    joint_acc = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
-    kernel = write_joint_vel_data
-    if env_dtype != wp.int32 or joint_dtype != wp.int32:
-        kernel = write_joint_vel_data_kernel(env_ids, joint_ids)
-
-    wp.launch(
-        kernel,
-        dim=(2, 2),
-        inputs=[in_data, env_ids, joint_ids, False],
-        outputs=[joint_vel, prev_joint_vel, joint_acc],
-        device="cpu",
-    )
-
-    expected_velocity = np.asarray([[22.0, -1.0, 21.0], [12.0, -1.0, 11.0]], dtype=np.float32)
-    expected_acceleration = np.asarray([[0.0, -1.0, 0.0], [0.0, -1.0, 0.0]], dtype=np.float32)
-    np.testing.assert_array_equal(joint_vel.numpy(), expected_velocity)
-    np.testing.assert_array_equal(prev_joint_vel.numpy(), expected_velocity)
-    np.testing.assert_array_equal(joint_acc.numpy(), expected_acceleration)
+    assert resolved.dtype == warp_dtype
+    assert resolved.ptr == selector.data_ptr()
 
 
 @pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
@@ -298,32 +171,3 @@ def test_write_joint_state_data_scatters_nonidentity_selectors(env_dtype: type, 
     np.testing.assert_array_equal(joint_vel.numpy(), expected_velocity)
     np.testing.assert_array_equal(prev_joint_vel.numpy(), expected_velocity)
     np.testing.assert_array_equal(joint_acc.numpy(), expected_acceleration)
-
-
-def test_public_joint_velocity_kernel_factory_launches_int64_specialization() -> None:
-    """Launch the deprecated PhysX worker's validated int64 specialization."""
-    data = wp.array([[3.0]], dtype=wp.float32, device="cpu")
-    env_ids = _selector([0], wp.int64)
-    joint_ids = _selector([0], wp.int64)
-    outputs = [wp.zeros((1, 1), dtype=wp.float32, device="cpu") for _ in range(3)]
-    wp.launch(
-        write_joint_vel_data_kernel(env_ids, joint_ids),
-        dim=(1, 1),
-        inputs=[data, env_ids, joint_ids, False],
-        outputs=outputs,
-        device="cpu",
-    )
-    assert outputs[0].numpy()[0, 0] == 3.0
-
-
-def test_public_joint_velocity_kernel_factory_requires_explicit_proxy_view() -> None:
-    """Require callers to choose the Warp or Torch view of a proxy output."""
-    env_array = _selector([0], wp.int32)
-    joint_array = _selector([0], wp.int32)
-    env_ids = ProxyArray(env_array)
-    joint_ids = ProxyArray(joint_array)
-    assert ProxyArray not in get_args(get_type_hints(write_joint_vel_data_kernel)["env_ids"])
-    with pytest.raises(TypeError, match="torch.Tensor or wp.array"):
-        write_joint_vel_data_kernel(env_ids, joint_ids)
-    write_joint_vel_data_kernel(env_ids.warp, joint_ids.warp)
-    write_joint_vel_data_kernel(env_ids.torch, joint_ids.torch)

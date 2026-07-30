@@ -58,14 +58,7 @@ def _prepare_launch(
     velocity = wp.array(velocity_values, dtype=wp.float32, device=device)
     user_to_backend_values = np.roll(np.arange(num_joints, dtype=np.int32), 1)
     user_to_backend = wp.array(user_to_backend_values, dtype=wp.int32, device=device)
-    outputs = [
-        wp.zeros((num_envs, num_joints), dtype=wp.float32, device=device),
-        wp.zeros((num_envs, num_joints), dtype=wp.float32, device=device),
-        wp.zeros((num_envs, num_joints), dtype=wp.float32, device=device),
-        wp.zeros((num_envs, num_joints), dtype=wp.float32, device=device),
-        wp.zeros((num_envs, num_joints), dtype=wp.float32, device=device),
-        wp.zeros((num_envs, num_joints), dtype=wp.float32, device=device),
-    ]
+    outputs = [wp.zeros((num_envs, num_joints), dtype=wp.float32, device=device) for _ in range(6)]
     return PreparedLaunch(
         kernel=write_joint_state_user_to_backend_with_indices_kernel(env_ids, joint_ids),
         launch_dim=compact_shape,
@@ -132,22 +125,13 @@ def _record_measurements(
 ) -> None:
     delta_us = int64_mean - int32_mean
     percentage_delta = 100.0 * delta_us / int32_mean
-    runner.add_measurement(
-        phase,
-        SingleMeasurement(name="int32", value=int32_mean, unit="us"),
-    )
-    runner.add_measurement(
-        phase,
-        SingleMeasurement(name="int64", value=int64_mean, unit="us"),
-    )
-    runner.add_measurement(
-        phase,
-        SingleMeasurement(name="absolute_delta", value=abs(delta_us), unit="us"),
-    )
-    runner.add_measurement(
-        phase,
-        SingleMeasurement(name="percentage_delta", value=percentage_delta, unit="%"),
-    )
+    for name, value, unit in (
+        ("int32", int32_mean, "us"),
+        ("int64", int64_mean, "us"),
+        ("absolute_delta", abs(delta_us), "us"),
+        ("percentage_delta", percentage_delta, "%"),
+    ):
+        runner.add_measurement(phase, SingleMeasurement(name=name, value=value, unit=unit))
 
 
 def _resolve_cuda_device(device_name: str) -> wp.context.Device | None:

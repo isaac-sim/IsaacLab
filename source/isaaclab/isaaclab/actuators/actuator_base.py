@@ -306,10 +306,7 @@ class ActuatorBase(ABC):
             self.joint_property_resolution_table[actuator_param] = []
         table = self.joint_property_resolution_table[actuator_param]
 
-        if isinstance(joint_ids, torch.Tensor):
-            ids = joint_ids
-        else:
-            ids = list(range(len(joint_names)))
+        ids = joint_ids if isinstance(joint_ids, torch.Tensor) else list(range(len(joint_names)))
         for idx, name in enumerate(joint_names):
             cfg_val_log = "Not Specified" if cfg_val is None else float(new_val[idx])
             default_usd_val = usd_val if isinstance(usd_val, (float, int)) else float(usd_val[0][idx])

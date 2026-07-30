@@ -730,7 +730,6 @@ class MockRigidObject:
                 self,
                 matched_indices,
                 domain="body",
-                finder_name="find_bodies",
                 as_proxy=as_proxy,
                 legacy_type="list",
             ),

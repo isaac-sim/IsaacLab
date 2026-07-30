@@ -524,20 +524,11 @@ class BaseArticulation(AssetBase):
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
-                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
-                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
-                allocation. Callers must treat the proxy and both views as immutable because cache hits share
-                this storage.
-
-        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, migrate
-        ``body_ids, _ = asset.find_bodies(".*")`` to
-        ``body_ids, _ = asset.find_bodies(".*", as_proxy=True)``. Pass ``body_ids.warp`` to asset writers or
-        other Warp code, or use ``body_ids.torch`` for Torch indexing.
+            as_proxy: Whether to return cached, immutable :class:`ProxyArray` indices. Use ``.warp`` or
+                ``.torch`` and reacquire after invalidation. Defaults to False.
 
         Returns:
-            A tuple containing the body indices and a fresh list of matched names. The indices are a
-            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
+            Matched body indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
@@ -560,23 +551,11 @@ class BaseArticulation(AssetBase):
             joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
-                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
-                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
-                allocation. Callers must treat the proxy and both views as immutable because cache hits share
-                this storage.
-
-        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
-        ``joint_ids, _ = asset.find_joints(".*", as_proxy=True)`` and pass ``joint_ids.warp`` to
-        :meth:`set_joint_position_target_index`; use the same view in Warp code or ``joint_ids.torch`` for
-        Torch indexing.
-
-        Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
-        subset-local indices.
+            as_proxy: Whether to return proxy indices. See :meth:`find_bodies`. Subsets use asset-global
+                proxy indices.
 
         Returns:
-            A tuple containing the joint indices and a fresh list of matched names. The indices are a
-            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
+            Matched joint indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
@@ -600,23 +579,11 @@ class BaseArticulation(AssetBase):
             tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
                 all joints in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
-                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
-                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
-                allocation. Callers must treat the proxy and both views as immutable because cache hits share
-                this storage.
-
-        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
-        ``fixed_tendon_ids, _ = asset.find_fixed_tendons(".*", as_proxy=True)`` and pass
-        ``fixed_tendon_ids.warp`` to :meth:`write_fixed_tendon_properties_to_sim_index`; use
-        ``fixed_tendon_ids.warp`` in Warp code or ``fixed_tendon_ids.torch`` for Torch indexing.
-
-        Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
-        subset-local indices.
+            as_proxy: Whether to return proxy indices. See :meth:`find_bodies`. Subsets use asset-global
+                proxy indices.
 
         Returns:
-            A tuple containing the fixed-tendon indices and a fresh list of matched names. The indices are a
-            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
+            Matched fixed-tendon indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
@@ -639,23 +606,11 @@ class BaseArticulation(AssetBase):
             tendon_subsets: A subset of tendons to search for. Defaults to None, which means all tendons
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
-            as_proxy: Keyword-only selector return mode. False returns the legacy selector representation.
-                True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32`` storage.
-                Defaults to False. Its ``.warp`` and ``.torch`` attributes are zero-copy views of the same
-                allocation. Callers must treat the proxy and both views as immutable because cache hits share
-                this storage.
-
-        Cached proxies must be resolved again after asset invalidation or reinitialization. For example, use
-        ``spatial_tendon_ids, _ = asset.find_spatial_tendons(".*", as_proxy=True)`` and pass
-        ``spatial_tendon_ids.warp`` to :meth:`write_spatial_tendon_properties_to_sim_index`; use
-        ``spatial_tendon_ids.warp`` in Warp code or ``spatial_tendon_ids.torch`` for Torch indexing.
-
-        Subset searches return asset-global writer indices in proxy mode; legacy modes retain their existing
-        subset-local indices.
+            as_proxy: Whether to return proxy indices. See :meth:`find_bodies`. Subsets use asset-global
+                proxy indices.
 
         Returns:
-            A tuple containing the spatial-tendon indices and a fresh list of matched names. The indices are a
-            ``list[int]`` for legacy modes and a cached :class:`ProxyArray` for proxy mode.
+            Matched spatial-tendon indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 

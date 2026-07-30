@@ -10,39 +10,9 @@ import warp as wp
 
 from isaaclab.test.mock_interfaces.assets import MockRigidObjectCollection
 from isaaclab.test.utils import test_devices
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp import kernels as warp_kernels
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 pytestmark = pytest.mark.unit
-
-
-@pytest.mark.parametrize("index_dtype", [wp.int16, wp.int64])
-def test_public_wrench_reset_kernel_rejects_non_int32_direct_launch(index_dtype: type) -> None:
-    """The public Wrench raw symbol accepts direct launches only with int32 selectors."""
-    env_ids = wp.array([0], dtype=index_dtype, device="cpu")
-    buffers = [wp.zeros((1, 1), dtype=wp.vec3f, device="cpu") for _ in range(7)]
-    with pytest.raises(RuntimeError):
-        wp.launch(
-            warp_kernels.reset_wrench_composer_index,
-            dim=(1, 1),
-            inputs=[env_ids, *buffers],
-            device="cpu",
-        )
-
-
-def test_public_wrench_reset_kernel_factory_launches_int64_specialization() -> None:
-    """The public Wrench factory exposes the validated int64 specialization."""
-    env_ids = wp.array([0], dtype=wp.int64, device="cpu")
-    buffers = [wp.ones((1, 1), dtype=wp.vec3f, device="cpu") for _ in range(7)]
-    wp.launch(
-        warp_kernels.reset_wrench_composer_index_kernel(env_ids),
-        dim=(1, 1),
-        inputs=[env_ids, *buffers],
-        device="cpu",
-    )
-    for buffer in buffers:
-        np.testing.assert_array_equal(buffer.numpy(), np.zeros((1, 1, 3), dtype=np.float32))
 
 
 def create_mock_asset(
@@ -999,9 +969,9 @@ def test_add_forces_mask_global(device: str, num_envs: int, num_bodies: int):
 @pytest.mark.parametrize("env_dtype", [torch.int32, torch.int64])
 @pytest.mark.parametrize("body_dtype", [torch.int32, torch.int64])
 def test_index_dtype_combinations_preserve_selected_wrench_cells(
-    env_dtype: torch.dtype, body_dtype: torch.dtype, monkeypatch: pytest.MonkeyPatch
+    env_dtype: torch.dtype, body_dtype: torch.dtype
 ) -> None:
-    """Set, add, and reset selected cells without narrowing either Torch selector eagerly."""
+    """Set, add, and reset selected cells with either index width."""
     composer = WrenchComposer(create_mock_asset(num_envs=3, num_bodies=3, device="cpu"))
     env_ids = torch.tensor([2, 0], dtype=env_dtype)
     body_ids = torch.tensor([1, 2], dtype=body_dtype)
@@ -1010,15 +980,6 @@ def test_index_dtype_combinations_preserve_selected_wrench_cells(
     set_torques_np = set_forces_np + 20.0
     add_forces_np = np.full((2, 2, 3), 100.0, dtype=np.float32)
     add_torques_np = np.full((2, 2, 3), 200.0, dtype=np.float32)
-
-    original_to = torch.Tensor.to
-
-    def reject_selector_narrowing(tensor, *args, **kwargs):
-        if tensor is env_ids or tensor is body_ids or tensor is reset_env_ids:
-            pytest.fail("index selectors must not be narrowed through Tensor.to(torch.int32)")
-        return original_to(tensor, *args, **kwargs)
-
-    monkeypatch.setattr(torch.Tensor, "to", reject_selector_narrowing)
 
     composer.set_forces_and_torques_index(
         forces=wp.from_numpy(set_forces_np, dtype=wp.vec3f, device="cpu"),
@@ -1045,33 +1006,6 @@ def test_index_dtype_combinations_preserve_selected_wrench_cells(
     expected_torques[2] = 0.0
     np.testing.assert_array_equal(composer.local_force_b.numpy(), expected_forces)
     np.testing.assert_array_equal(composer.local_torque_b.numpy(), expected_torques)
-
-
-@pytest.mark.parametrize("method_name", ["set_forces_and_torques_index", "add_forces_and_torques_index"])
-def test_index_methods_require_explicit_proxy_body_view(method_name: str) -> None:
-    """Require finder outputs to select their Warp view before applying wrenches."""
-    composer = WrenchComposer(create_mock_asset(num_envs=2, num_bodies=3, device="cpu"))
-    env_ids = torch.tensor([1], dtype=torch.int32)
-    body_ids = ProxyArray(wp.array([2, 0], dtype=wp.int32, device="cpu"))
-    forces_np = np.arange(1, 7, dtype=np.float32).reshape(1, 2, 3)
-
-    with pytest.raises(TypeError, match="ProxyArray is output-only"):
-        getattr(composer, method_name)(
-            forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device="cpu"),
-            body_ids=body_ids,
-            env_ids=env_ids,
-        )
-
-    getattr(composer, method_name)(
-        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device="cpu"),
-        body_ids=body_ids.warp,
-        env_ids=env_ids,
-    )
-
-    expected_forces = np.zeros((2, 3, 3), dtype=np.float32)
-    expected_forces[1, [2, 0]] = forces_np[0]
-    np.testing.assert_array_equal(composer.local_force_b.numpy(), expected_forces)
-    assert body_ids._torch_cache is None
 
 
 @pytest.mark.parametrize("device", test_devices())

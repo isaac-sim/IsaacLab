@@ -35,11 +35,6 @@ class _AssetSelectorCache:
     """Per-asset LRU cache for device-local finder selectors."""
 
     def __init__(self, capacity: int = _SELECTOR_CACHE_CAPACITY):
-        """Initialize the selector cache.
-
-        Args:
-            capacity: Maximum number of selectors retained by the cache.
-        """
         self._capacity = capacity
         self._entries: OrderedDict[tuple[str, tuple[int, ...]], ProxyArray] = OrderedDict()
 
@@ -262,30 +257,10 @@ class AssetBase(ABC):
         *,
         proxy_indices: Sequence[int] | None = None,
         domain: str,
-        finder_name: str,
         as_proxy: bool = False,
         legacy_type: Literal["list", "tensor"],
     ) -> list[int] | torch.Tensor | ProxyArray:
-        """Resolve finder indices to a cached proxy or a legacy container.
-
-        Args:
-            indices: Ordered indices returned by the finder.
-            proxy_indices: Optional asset-global indices used only for proxy mode. Defaults to the legacy
-                :paramref:`indices` values.
-            domain: Asset-local namespace for the selector.
-            finder_name: Finder name associated with the selector.
-            as_proxy: Whether to return a cached :class:`ProxyArray`. False returns the legacy selector
-                representation. True returns a cached, device-local :class:`ProxyArray` backed by ``wp.int32``
-                storage. Defaults to False.
-            legacy_type: Legacy container type returned when ``as_proxy`` is not
-                enabled.
-
-        Returns:
-            Cached proxy selector or a freshly allocated legacy container.
-
-        Raises:
-            TypeError: If ``as_proxy`` is not a boolean.
-        """
+        """Return cached proxy indices or the legacy container."""
         if not isinstance(as_proxy, bool):
             raise TypeError(f"as_proxy must be a bool, got {type(as_proxy).__name__}.")
 

@@ -3,34 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Resolution of symbolic articulation ordering conventions into concrete names.
-
-A public joint or body axis can request a symbolic convention
-(:class:`~isaaclab.assets.ArticulationOrderingConvention`) instead of an
-explicit name permutation. Resolution walks the following chain and stops at the
-first source that yields a complete backend-name permutation:
-
-#. Same-backend native fast path. When the active backend already exposes the
-   requested convention -- declared through
-   :attr:`~isaaclab.assets.BaseArticulation.__backend_native_orderings__` --
-   backend names are returned without any discovery.
-#. Per-articulation convention cache. A convention resolved earlier for the same
-   articulation is reused (keyed by convention and element kind).
-#. Authored robot-schema USD relationships. The ``robot_schema`` convention
-   reads the ``isaac:physics:robotJoints``/``isaac:physics:robotLinks``
-   relationships on the source asset, expanding nested robot targets.
-#. Temporary Newton USD ``ModelBuilder`` emulation. The ``physx`` and ``mjwarp``
-   conventions build a throwaway Newton view from the source USD, differing only
-   in joint traversal: breadth-first reproduces PhysX order and depth-first
-   reproduces MJWarp order. The depth-first emulation is coupled to
-   isaaclab_newton's ``NewtonManager``, which calls ``ModelBuilder.add_usd`` with
-   Newton's default ordering; if that call ever passes explicit ordering
-   arguments, the emulation constants here must be updated in lockstep or MJWarp
-   resolution silently diverges from the live backend.
-
-:mod:`isaaclab.assets.articulation.ordering` owns the public name-map type and
-its validation; this module owns discovery.
-"""
+"""Resolve symbolic articulation ordering conventions to names."""
 
 from __future__ import annotations
 
@@ -55,28 +28,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class _ArticulationElementKind:
-    """Per-kind data for one articulation element axis (joints or bodies).
-
-    Instances are module-private, frozen, and registered by label, enforcing
-    :data:`_JOINT_KIND` and :data:`_BODY_KIND` as singletons. Each kind carries
-    its own backend attribute, USD relationship, name-override spellings,
-    config field, and spelling-match policy instead of scattering those as
-    per-call ternaries and per-kind lookup tables.
-
-    Attributes:
-        label: Public element-kind alias, either ``"joint"`` or ``"body"``, used
-            for diagnostics and as the per-articulation convention cache key.
-        backend_names_attr: Name of the articulation attribute exposing active
-            backend names for this kind.
-        relationship_name: Isaac Sim robot-schema relationship authored on the
-            source asset for this kind.
-        name_override_attrs: Candidate name-override attribute spellings, tried in
-            order when reading a robot-schema target's authored name.
-        config_field: Configuration field naming this kind's public ordering.
-        matches_backend_spelling: Whether convention names for this kind are
-            rewritten to active-backend spellings; only joints carry the per-DoF
-            separator differences that need matching.
-    """
+    """Metadata for a joint or body axis."""
 
     _registry: ClassVar[dict[str, _ArticulationElementKind]] = {}
 
@@ -154,16 +106,7 @@ def _backend_matches_ordering_convention(
     articulation: BaseArticulation | None,
     convention: ArticulationOrderingConvention,
 ) -> bool:
-    """Return whether an articulation's backend natively exposes a convention's order.
-
-    A backend declares the conventions its native solver-view order already
-    satisfies through
-    :attr:`~isaaclab.assets.BaseArticulation.__backend_native_orderings__`, so
-    a fourth backend self-declares instead of being added to a hardcoded name
-    set here. A convention listed there takes the identity fast path: requesting
-    it returns backend names without cross-backend discovery. Returns ``False``
-    when no articulation is available to consult.
-    """
+    """Return whether the backend natively uses the requested order."""
     if articulation is None:
         return False
     return convention.value in getattr(articulation, "__backend_native_orderings__", ())
@@ -174,13 +117,7 @@ def _get_cached_convention_names(
     convention: ArticulationOrderingConvention,
     kind: _ArticulationElementKind,
 ) -> tuple[str, ...] | None:
-    """Return cached convention names for an articulation, if present.
-
-    The cache is written only by :func:`_cache_convention_names` with already
-    validated tuples, so entries are returned without re-validation. Keys use
-    :attr:`_ArticulationElementKind.label` so the cache stays keyed by a plain
-    ``(convention, "joint"/"body")`` tuple.
-    """
+    """Return cached convention names, if present."""
     return articulation._ordering_convention_name_cache.get((convention, kind.label))
 
 
@@ -189,11 +126,7 @@ def _cache_convention_names(
     convention: ArticulationOrderingConvention,
     names_by_kind: dict[_ArticulationElementKind, tuple[str, ...]],
 ) -> None:
-    """Cache convention names on the articulation instance.
-
-    Keyed by :attr:`_ArticulationElementKind.label` so the cache stays keyed by a
-    plain ``(convention, "joint"/"body")`` tuple.
-    """
+    """Cache convention names on the articulation."""
     cache = articulation._ordering_convention_name_cache
     for kind, names in names_by_kind.items():
         cache[(convention, kind.label)] = tuple(names)
