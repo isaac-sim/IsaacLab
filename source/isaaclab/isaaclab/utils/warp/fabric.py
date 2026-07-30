@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     IndexedFabricArrayMat44d = Any
     ArrayUInt32 = Any
     ArrayUInt32_1d = Any
+    ArrayInt32_1d = Any
     ArrayFloat32_2d = Any
 else:
     FabricArrayUInt32 = wp.fabricarray(dtype=wp.uint32)
@@ -28,6 +29,7 @@ else:
     IndexedFabricArrayMat44d = wp.indexedfabricarray(dtype=wp.mat44d)
     ArrayUInt32 = wp.array(ndim=1, dtype=wp.uint32)
     ArrayUInt32_1d = wp.array(dtype=wp.uint32)
+    ArrayInt32_1d = wp.array(dtype=wp.int32)
     ArrayFloat32_2d = wp.array(ndim=2, dtype=wp.float32)
 
 
@@ -44,6 +46,30 @@ def arange_k(a: ArrayUInt32_1d):
     """Fill array with sequential indices."""
     tid = int(wp.tid())
     a[tid] = wp.uint32(tid)
+
+
+@wp.kernel(enable_backward=False)
+def map_view_indices_to_fabric_slots(view_indices: FabricArrayUInt32, fabric_slots: ArrayInt32_1d):
+    """Invert a selection's per-prim view-index attribute into a slot lookup table.
+
+    ``view_indices`` is the fabric array of a per-view ``uint`` index attribute:
+    one entry per selected prim, holding that prim's view-side index.  After the
+    launch, ``fabric_slots[view_index]`` is the fabric-side slot of that view
+    prim in the selection, suitable as :class:`wp.indexedfabricarray` indices.
+
+    The launch dimension must equal the selection's prim count, and the stored
+    view indices must cover ``0..dim-1`` exactly for the table to be complete.
+    """
+    fabric_slot = int(wp.tid())
+    view_index = int(view_indices[fabric_slot])
+    fabric_slots[view_index] = fabric_slot
+
+
+@wp.kernel(enable_backward=False)
+def gather_fabric_slots(slots: ArrayInt32_1d, gather_map: ArrayUInt32_1d, out_slots: ArrayInt32_1d):
+    """Gather ``slots`` entries through ``gather_map``: ``out_slots[i] = slots[gather_map[i]]``."""
+    i = int(wp.tid())
+    out_slots[i] = slots[int(gather_map[i])]
 
 
 @wp.kernel(enable_backward=False)

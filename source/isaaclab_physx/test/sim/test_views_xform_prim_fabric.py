@@ -185,14 +185,15 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
 
 @pytest.mark.parametrize("device", test_devices())
 def test_fabric_rebuild_after_topology_change(device, view_factory):
-    """A simulated topology change rebuilds the indexed fabric arrays and leaves
-    the view in a state where subsequent writes/reads still produce correct data.
+    """A simulated topology change rebuilds the slot mappings and leaves the
+    view in a state where subsequent writes/reads still produce correct data.
 
     Real ``PrimSelection.PrepareForReuse`` reports topology change only when Fabric
-    reallocates internally, which is hard to provoke from a unit test.  Instead we
-    invoke :meth:`FabricFrameView._compute_fabric_indices` and rebuild the indexed
-    arrays manually, mimicking what ``_get_*_array`` would do on a real topology
-    event, then verify a roundtrip still works.
+    reallocates internally, which is hard to provoke from a unit test.  The slot
+    mappings are rebuilt from live Fabric data on every accessor call anyway, so
+    here we drive the refresh paths directly (both child selections and the
+    parent selection), mimicking what the accessors do on a real topology event,
+    then verify a roundtrip still works.
     """
     bundle = view_factory(2, device)
     view = bundle.view
@@ -203,10 +204,15 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     with view.xform_world_space_writer() as w:
         w.set_poses(positions=initial)
 
-    # Simulate topology change: rebuild both selection bundles, mirroring the
-    # lazy paths in the ``_refresh_active_bundle_if_needed`` accessor.
-    view._rebuild_ro_arrays()
-    view._rebuild_rw_arrays()
+    # Simulate topology change: refresh both child selections and the parent
+    # selection, mirroring the accessor paths.
+    view._refresh_child_selection()  # RO (steady state)
+    view._is_rw = True
+    try:
+        view._refresh_child_selection()  # RW (writer scope)
+    finally:
+        view._is_rw = False
+    view._refresh_parent_selection()
 
     # Trigger another write through the rebuilt arrays.
     new = wp.zeros((2, 3), dtype=wp.float32, device=device)
