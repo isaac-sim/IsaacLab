@@ -34,6 +34,7 @@ def set_finger_joint_pos_robotiq_2f140(
     reset_ind_joint_pos: list[int],
     finger_joints: list[int],
     finger_joint_position: float,
+    joint_name_to_idx: dict[str, int] | None = None,
 ):
     """Set finger joint positions for Robotiq 2F-140 gripper.
 
@@ -42,6 +43,7 @@ def set_finger_joint_pos_robotiq_2f140(
         reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
         finger_joints: List of finger joint indices
         finger_joint_position: Target position for finger joints
+        joint_name_to_idx: Optional joint-name map, unused by this index-based gripper.
     """
     for idx in reset_ind_joint_pos:
         # For 2F-140 gripper (8 joints expected)
@@ -69,6 +71,7 @@ def set_finger_joint_pos_robotiq_2f85(
     reset_ind_joint_pos: list[int],
     finger_joints: list[int],
     finger_joint_position: float,
+    joint_name_to_idx: dict[str, int] | None = None,
 ):
     """Set finger joint positions for Robotiq 2F-85 gripper.
 
@@ -77,6 +80,7 @@ def set_finger_joint_pos_robotiq_2f85(
         reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
         finger_joints: List of finger joint indices
         finger_joint_position: Target position for finger joints
+        joint_name_to_idx: Optional joint-name map, unused by this index-based gripper.
     """
     for idx in reset_ind_joint_pos:
         # For 2F-85 gripper (6 joints expected)

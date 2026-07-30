@@ -6,6 +6,11 @@
 import math
 
 import torch
+from isaaclab_physx.sim.schemas import (
+    PhysxArticulationRootPropertiesCfg,
+    PhysxCollisionPropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
+)
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -18,11 +23,16 @@ from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 import isaaclab_tasks.contrib.deploy.mdp.events as gear_assembly_events
-from isaaclab_tasks.contrib.deploy.gear_assembly.gear_assembly_env_cfg import GearAssemblyEnvCfg
+from isaaclab_tasks.contrib.deploy.gear_assembly.gear_assembly_env_cfg import (
+    _NEWTON_GEAR_OFFSETS,
+    _PHYSX_GEAR_OFFSETS,
+    GearAssemblyEnvCfg,
+)
 from isaaclab_tasks.contrib.deploy.mdp.noise_models import (
     ResetSampledConstantNoiseModelCfg,
     ResetSampledQuaternionNoiseModelCfg,
 )
+from isaaclab_tasks.utils import PresetCfg, preset
 
 ##
 # Pre-defined configs
@@ -35,44 +45,71 @@ from isaaclab_assets import FLEXIV_RIZON4S_GRAV_GRIPPER_CFG  # isort: skip
 ##
 
 
+_GRAV_GRIPPER_MIMIC_GEARING = {
+    "finger_joint": 1.0,
+    "left_inner_knuckle_joint": 1.0,
+    "right_inner_knuckle_joint": 1.0,
+    "right_outer_knuckle_joint": 1.0,
+    "left_outer_finger_joint": -1.0,
+    "right_outer_finger_joint": -1.0,
+}
+
+
 def set_finger_joint_pos_grav(
     joint_pos: torch.Tensor,
     reset_ind_joint_pos: list[int],
     finger_joints: list[int],
     finger_joint_position: float,
+    joint_name_to_idx: dict[str, int] | None = None,
 ):
-    """Set finger joint positions for Grav gripper.
+    """Set Grav gripper joint positions by joint name.
 
     Args:
-        joint_pos: Joint positions tensor
-        reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
-        finger_joints: List of all gripper joint indices (6 joints total)
-        finger_joint_position: Target position for main finger joint (in radians)
-
-    Note:
-        Grav gripper joint structure (indices from finger_joints list):
-        [0] finger_joint - main controllable joint
-        [1] left_inner_knuckle_joint - mimic with -1 gearing
-        [2] right_inner_knuckle_joint - mimic with -1 gearing
-        [3] right_outer_knuckle_joint - mimic with -1 gearing
-        [4] left_outer_finger_joint - mimic with +1 gearing
-        [5] right_outer_finger_joint - mimic with +1 gearing
+        joint_pos: Joint positions [rad].
+        reset_ind_joint_pos: Row indices into ``joint_pos``.
+        finger_joints: Gripper joint indices retained for setter compatibility.
+        finger_joint_position: Main finger-joint target [rad].
+        joint_name_to_idx: Mapping from joint names to simulation indices.
     """
+    if joint_name_to_idx is None:
+        raise ValueError("set_finger_joint_pos_grav requires 'joint_name_to_idx'")
+
+    missing = [name for name in _GRAV_GRIPPER_MIMIC_GEARING if name not in joint_name_to_idx]
+    if missing:
+        raise ValueError(f"Grav gripper joints not found on robot: {missing}")
+
     for idx in reset_ind_joint_pos:
-        if len(finger_joints) < 6:
-            raise ValueError(f"Grav gripper requires at least 6 finger joints, got {len(finger_joints)}")
+        for joint_name, gearing in _GRAV_GRIPPER_MIMIC_GEARING.items():
+            joint_pos[idx, joint_name_to_idx[joint_name]] = gearing * finger_joint_position
 
-        # Main controllable joint
-        joint_pos[idx, finger_joints[0]] = finger_joint_position
 
-        # Mimic joints with -1 gearing
-        joint_pos[idx, finger_joints[1]] = finger_joint_position  # left_inner_knuckle_joint
-        joint_pos[idx, finger_joints[2]] = finger_joint_position  # right_inner_knuckle_joint
-        joint_pos[idx, finger_joints[3]] = finger_joint_position  # right_outer_knuckle_joint
+_NEWTON_PIN_UNSELECTED_GEARS_EVENT = EventTerm(
+    func=gear_assembly_events.pin_unselected_gears_to_shafts,
+    mode="interval",
+    interval_range_s=(0.0, 0.0),
+    params={"gear_offsets": _NEWTON_GEAR_OFFSETS, "seated_gear_z_offset": 0.0075},
+)
 
-        # Mimic joints with +1 gearing
-        joint_pos[idx, finger_joints[4]] = -finger_joint_position  # left_outer_finger_joint
-        joint_pos[idx, finger_joints[5]] = -finger_joint_position  # right_outer_finger_joint
+
+def _gear_friction_range() -> PresetCfg:
+    return preset(
+        default=(0.75, 0.75),
+        physx=(0.75, 0.75),
+        newton_mjwarp=(3.0, 3.0),
+        newton_sdf=(3.0, 3.0),
+        newton_hydroelastic=(3.0, 3.0),
+    )
+
+
+def _backend_preset(physx_value: object, newton_value: object) -> PresetCfg:
+    """Create a PhysX-preserving preset with one value for all Newton variants."""
+    return preset(
+        default=physx_value,
+        physx=physx_value,
+        newton_mjwarp=newton_value,
+        newton_sdf=newton_value,
+        newton_hydroelastic=newton_value,
+    )
 
 
 ##
@@ -89,8 +126,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": _gear_friction_range(),
+            "dynamic_friction_range": _gear_friction_range(),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -101,8 +138,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_medium", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": _gear_friction_range(),
+            "dynamic_friction_range": _gear_friction_range(),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -113,8 +150,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_large", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": _gear_friction_range(),
+            "dynamic_friction_range": _gear_friction_range(),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -170,6 +207,20 @@ class EventCfg:
                 "z": [0.0575, 0.0775],
             },
             "velocity_range": {},
+            "gear_offsets": preset(
+                default=None,
+                physx=None,
+                newton_mjwarp=_NEWTON_GEAR_OFFSETS,
+                newton_sdf=_NEWTON_GEAR_OFFSETS,
+                newton_hydroelastic=_NEWTON_GEAR_OFFSETS,
+            ),
+            "seated_gear_z_offset": preset(
+                default=0.0,
+                physx=0.0,
+                newton_mjwarp=0.0075,
+                newton_sdf=0.0075,
+                newton_hydroelastic=0.0075,
+            ),
         },
     )
 
@@ -182,22 +233,31 @@ class EventCfg:
         },
     )
 
+    pin_unselected_gears_to_shafts = preset(
+        default=None,
+        physx=None,
+        newton_mjwarp=_NEWTON_PIN_UNSELECTED_GEARS_EVENT,
+        newton_sdf=_NEWTON_PIN_UNSELECTED_GEARS_EVENT,
+        newton_hydroelastic=_NEWTON_PIN_UNSELECTED_GEARS_EVENT,
+    )
+
 
 @configclass
 class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
-    """Configuration for Flexiv Rizon 4s with Grav Gripper Gear Assembly Environment.
-
-    The Flexiv Rizon 4s is a 7-DOF collaborative robot arm equipped with the
-    Flexiv Grav parallel gripper for gear manipulation tasks.
-    """
+    """Configure Flexiv Rizon 4s with the Grav gripper for gear assembly."""
 
     ee_grasp_weight_ramp_steps: int = 512_000
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
+        self.gear_offsets = _backend_preset(_PHYSX_GEAR_OFFSETS, _NEWTON_GEAR_OFFSETS)
 
-        # Flexiv-specific observation noise overrides
+        arm_joint_names = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]
+        self.end_effector_body_name = "link7"
+        self.num_arm_joints = len(arm_joint_names)
+        self.grasp_rot_offset = [-0.707, 0.707, 0.0, 0.0]
+        self.gripper_joint_setter_func = set_finger_joint_pos_grav
+
         self.observations.policy.gear_shaft_pos.noise = ResetSampledConstantNoiseModelCfg(
             noise_cfg=UniformNoiseCfg(n_min=-0.01, n_max=0.01, operation="add")
         )
@@ -206,83 +266,56 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             pitch_range=(-0.03491, 0.03491),
             yaw_range=(-0.03491, 0.03491),
         )
+        self.observations.policy.joint_pos.params["asset_cfg"].joint_names = arm_joint_names
+        self.observations.policy.joint_vel.params["asset_cfg"].joint_names = arm_joint_names
 
-        # Robot-specific parameters for Flexiv Rizon 4s with Grav gripper
-        self.end_effector_body_name = "link7"  # End effector body name for IK
-        self.num_arm_joints = 7  # Number of arm joints (Rizon 4s has 7 DOF)
-        # Rotation offset for grasp pose (quaternion [x, y, z, w])
-        # Computed from IK convergence for downward-facing end effector
-        self.grasp_rot_offset = [
-            -0.707,
-            0.707,
-            0.0,
-            0.0,
-        ]
-        self.gripper_joint_setter_func = set_finger_joint_pos_grav  # Grav gripper joint setter function
-
-        # Gear orientation termination thresholds (in degrees)
-        self.gear_orientation_roll_threshold_deg = 15.0  # Maximum allowed roll deviation
-        self.gear_orientation_pitch_threshold_deg = 15.0  # Maximum allowed pitch deviation
-        self.gear_orientation_yaw_threshold_deg = 180.0  # Maximum allowed yaw deviation
-
-        # Common observation configuration for Rizon 4s joints (arm only, not gripper)
-        self.observations.policy.joint_pos.params["asset_cfg"].joint_names = [
-            "joint1",
-            "joint2",
-            "joint3",
-            "joint4",
-            "joint5",
-            "joint6",
-            "joint7",
-        ]
-        self.observations.policy.joint_vel.params["asset_cfg"].joint_names = [
-            "joint1",
-            "joint2",
-            "joint3",
-            "joint4",
-            "joint5",
-            "joint6",
-            "joint7",
-        ]
-
-        # override events
         self.events = EventCfg()
+        self.terminations.gear_orientation_exceeded.params["roll_threshold_deg"] = 15.0
+        self.terminations.gear_orientation_exceeded.params["pitch_threshold_deg"] = 15.0
+        self.terminations.gear_orientation_exceeded.params["yaw_threshold_deg"] = 180.0
 
-        # Update termination thresholds from config
-        self.terminations.gear_orientation_exceeded.params["roll_threshold_deg"] = (
-            self.gear_orientation_roll_threshold_deg
-        )
-        self.terminations.gear_orientation_exceeded.params["pitch_threshold_deg"] = (
-            self.gear_orientation_pitch_threshold_deg
-        )
-        self.terminations.gear_orientation_exceeded.params["yaw_threshold_deg"] = (
-            self.gear_orientation_yaw_threshold_deg
-        )
-
-        # Action configuration for Rizon 4s arm
-        # Using smaller action scale for stability
         self.joint_action_scale = 0.025
         self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
             asset_name="robot",
-            joint_names=[
-                "joint1",
-                "joint2",
-                "joint3",
-                "joint4",
-                "joint5",
-                "joint6",
-                "joint7",
-            ],
+            joint_names=arm_joint_names,
             scale=self.joint_action_scale,
             use_zero_offset=True,
         )
 
-        # Switch robot to Flexiv Rizon 4s with Grav gripper
+        physx_robot_init = ArticulationCfg.InitialStateCfg(
+            joint_pos={
+                "joint1": 0.0,
+                "joint2": -0.698,
+                "joint3": 0.0,
+                "joint4": 1.571,
+                "joint5": 0.0,
+                "joint6": 0.698,
+                "joint7": 0.0,
+            },
+            pos=(0.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 0.0, 1.0),
+        )
+        newton_robot_init = ArticulationCfg.InitialStateCfg(
+            joint_pos={
+                "joint1": 0.050265,
+                "joint2": -0.372105,
+                "joint3": 0.111177,
+                "joint4": 2.276781,
+                "joint5": -0.083078,
+                "joint6": 1.074427,
+                "joint7": 0.230907,
+            },
+            pos=(0.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 0.0, 1.0),
+        )
         self.scene.robot = FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.spawn.replace(
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                    disable_gravity=True,
+                # Newton currently cannot exclude only the robot from gravity. Actuator gravity
+                # compensation below holds the arm while preserving gravity for the gears.
+                joint_drive_props=_backend_preset(None, sim_utils.MujocoJointDrivePropertiesCfg(actuatorgravcomp=True)),
+                rigid_props=PhysxRigidBodyPropertiesCfg(
+                    disable_gravity=_backend_preset(True, False),
                     max_depenetration_velocity=5.0,
                     linear_damping=0.0,
                     angular_damping=0.0,
@@ -293,29 +326,27 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                     solver_velocity_iteration_count=1,
                     max_contact_impulse=1e32,
                 ),
-                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                    enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=1
+                articulation_props=PhysxArticulationRootPropertiesCfg(
+                    enabled_self_collisions=False,
+                    solver_position_iteration_count=4,
+                    solver_velocity_iteration_count=1,
                 ),
-                collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
+                collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
             ),
-            # Joint positions based on IK from center of distribution for randomized gear positions
-            init_state=ArticulationCfg.InitialStateCfg(
-                joint_pos={
-                    "joint1": 0.0,
-                    "joint2": -0.698,
-                    "joint3": 0.0,
-                    "joint4": 1.571,
-                    "joint5": 0.0,
-                    "joint6": 0.698,
-                    "joint7": 0.0,
-                },
-                pos=(0.0, 0.0, 0.0),
-                rot=(0.0, 0.0, 0.0, 1.0),
-            ),
+            init_state=_backend_preset(physx_robot_init, newton_robot_init),
         )
 
-        # Grav gripper actuator configuration for gear manipulation
-        self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
+        # Use the validated bare-arm gains for Newton while preserving the existing PhysX gains.
+        for actuator_name, physx_stiffness, physx_damping, newton_stiffness, newton_damping in (
+            ("shoulder", 1320.0, 72.0, 6000.0, 108.5),
+            ("elbow", 600.0, 35.0, 4200.0, 90.7),
+            ("wrist", 216.0, 29.0, 1500.0, 54.2),
+        ):
+            actuator = self.scene.robot.actuators[actuator_name]
+            actuator.stiffness = _backend_preset(physx_stiffness, newton_stiffness)
+            actuator.damping = _backend_preset(physx_damping, newton_damping)
+
+        physx_gripper_drive = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
             effort_limit_sim=2.0,
             velocity_limit_sim=1.0,
@@ -324,9 +355,14 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             friction=0.0,
             armature=0.0,
         )
+        newton_gripper_drive = physx_gripper_drive.replace(
+            effort_limit_sim=200.0,
+            velocity_limit_sim=2.0,
+            armature=0.1,
+        )
+        self.scene.robot.actuators["gripper_drive"] = _backend_preset(physx_gripper_drive, newton_gripper_drive)
 
-        # Passive/mimic joints in the gripper - set to zero stiffness/damping
-        self.scene.robot.actuators["gripper_passive"] = ImplicitActuatorCfg(
+        physx_gripper_passive = ImplicitActuatorCfg(
             joint_names_expr=[".*_knuckle_joint"],
             effort_limit_sim=1.0,
             velocity_limit_sim=1.0,
@@ -335,91 +371,94 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             friction=0.0,
             armature=0.0,
         )
+        newton_gripper_passive = physx_gripper_passive.replace(
+            joint_names_expr=[".*_knuckle_joint", ".*_outer_finger_joint"],
+            effort_limit_sim=20.0,
+            stiffness=2e3,
+            damping=10.0,
+            armature=0.05,
+        )
+        self.scene.robot.actuators["gripper_passive"] = _backend_preset(physx_gripper_passive, newton_gripper_passive)
 
-        # Override gear initial states for Rizon (closer to robot, centered)
-        self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.481, -0.073, 0.071),
-            rot=(0.0, 0.0, 0.70711, -0.70711),
+        base_rot = (0.0, 0.0, 0.70711, -0.70711)
+        physx_asset_state = RigidObjectCfg.InitialStateCfg(pos=(0.481, -0.073, 0.071), rot=base_rot)
+        newton_base_pos = (0.481, -0.073, -0.005)
+        self.scene.factory_gear_base.init_state = _backend_preset(
+            physx_asset_state,
+            RigidObjectCfg.InitialStateCfg(pos=newton_base_pos, rot=base_rot),
         )
-        self.scene.factory_gear_small.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.481, -0.073, 0.071),
-            rot=(0.0, 0.0, 0.70711, -0.70711),
-        )
-        self.scene.factory_gear_medium.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.481, -0.073, 0.071),
-            rot=(0.0, 0.0, 0.70711, -0.70711),
-        )
-        self.scene.factory_gear_large.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.481, -0.073, 0.071),
-            rot=(0.0, 0.0, 0.70711, -0.70711),
-        )
+        for gear_name, asset in (
+            ("gear_small", self.scene.factory_gear_small),
+            ("gear_medium", self.scene.factory_gear_medium),
+            ("gear_large", self.scene.factory_gear_large),
+        ):
+            newton_gear_pos = (
+                newton_base_pos[0] - _NEWTON_GEAR_OFFSETS[gear_name][0],
+                newton_base_pos[1],
+                newton_base_pos[2],
+            )
+            asset.init_state = _backend_preset(
+                physx_asset_state,
+                RigidObjectCfg.InitialStateCfg(pos=newton_gear_pos, rot=base_rot),
+            )
 
-        # Gear offsets and grasp positions for Rizon 4s with Grav gripper
-        # These offsets are relative to the end effector frame (link7)
-        # Z offset accounts for the gripper length from link7 to finger tip
-        self.gear_offsets_grasp = {
-            "gear_small": [0.0, -self.gear_offsets["gear_small"][0], -0.35],
-            "gear_medium": [0.0, -self.gear_offsets["gear_medium"][0], -0.35],
-            "gear_large": [0.0, -self.gear_offsets["gear_large"][0], -0.35],
+        physx_grasp_offsets = {name: [0.0, -offset[0], -0.35] for name, offset in _PHYSX_GEAR_OFFSETS.items()}
+        newton_grasp_offsets = {
+            "gear_small": [0.0, 0.0, -0.026],
+            "gear_medium": [0.0, 0.0, -0.026],
+            "gear_large": [0.0, 0.0, -0.026],
         }
+        self.gear_offsets_grasp = _backend_preset(physx_grasp_offsets, newton_grasp_offsets)
+        self.grasp_center_body_names = _backend_preset(None, ("left_finger_tip", "right_finger_tip"))
+        self.hand_grasp_width = _backend_preset(
+            {"gear_small": 0.05, "gear_medium": 0.2, "gear_large": 0.28},
+            {"gear_small": 0.01, "gear_medium": 0.2, "gear_large": 0.28},
+        )
+        self.hand_close_width = _backend_preset(
+            {"gear_small": 0.0, "gear_medium": 0.139626, "gear_large": 0.139626},
+            {"gear_small": 0.01, "gear_medium": 0.139626, "gear_large": 0.139626},
+        )
+        self.ee_grasp_weight_ramp_start = _backend_preset(0.0, 0.2)
+        self.ee_grasp_weight_ramp_steps = _backend_preset(512_000, 250_000)
 
-        # Grasp widths for Grav gripper (raw radian values for finger_joint)
-        self.hand_grasp_width = {
-            "gear_small": 0.05,
-            "gear_medium": 0.2,
-            "gear_large": 0.28,
+        grasp_event_params = self.events.set_robot_to_grasp_pose.params
+        grasp_event_params["gear_offsets_grasp"] = self.gear_offsets_grasp
+        grasp_event_params["end_effector_body_name"] = self.end_effector_body_name
+        grasp_event_params["num_arm_joints"] = self.num_arm_joints
+        grasp_event_params["grasp_rot_offset"] = self.grasp_rot_offset
+        grasp_event_params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
+        grasp_event_params["grasp_center_body_names"] = self.grasp_center_body_names
+
+        grasp_reward_params = {
+            "robot_asset_cfg": SceneEntityCfg("robot"),
+            "keypoint_scale": 0.15,
+            "ee_grasp_threshold": 0.0,
+            "weight_ramp_start": self.ee_grasp_weight_ramp_start,
+            "weight_ramp_steps": self.ee_grasp_weight_ramp_steps,
+            "end_effector_body_name": self.end_effector_body_name,
+            "grasp_rot_offset": self.grasp_rot_offset,
+            "gear_offsets_grasp": self.gear_offsets_grasp,
+            "grasp_center_body_names": self.grasp_center_body_names,
         }
-
-        # Close widths for Grav gripper (raw radian values for finger_joint)
-        self.hand_close_width = {
-            "gear_small": 0.0,
-            "gear_medium": 0.139626,
-            "gear_large": 0.139626,
-        }
-
-        # Populate event term parameters
-        self.events.set_robot_to_grasp_pose.params["gear_offsets_grasp"] = self.gear_offsets_grasp
-        self.events.set_robot_to_grasp_pose.params["end_effector_body_name"] = self.end_effector_body_name
-        self.events.set_robot_to_grasp_pose.params["num_arm_joints"] = self.num_arm_joints
-        self.events.set_robot_to_grasp_pose.params["grasp_rot_offset"] = self.grasp_rot_offset
-        self.events.set_robot_to_grasp_pose.params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
-
-        # Flexiv-specific reward terms for EE-grasp keypoint tracking
         self.rewards.end_effector_grasp_keypoint_tracking = RewTerm(
             func=mdp.keypoint_ee_grasp_error,
             weight=-0.5,
-            params={
-                "robot_asset_cfg": SceneEntityCfg("robot"),
-                "keypoint_scale": 0.15,
-                "ee_grasp_threshold": 0.00,
-                "weight_ramp_start": 0.0,
-                "weight_ramp_steps": self.ee_grasp_weight_ramp_steps,
-                "end_effector_body_name": self.end_effector_body_name,
-                "grasp_rot_offset": self.grasp_rot_offset,
-                "gear_offsets_grasp": self.gear_offsets_grasp,
-            },
+            params=grasp_reward_params,
         )
         self.rewards.end_effector_grasp_keypoint_tracking_exp = RewTerm(
             func=mdp.keypoint_ee_grasp_error_exp,
             weight=0.5,
             params={
-                "robot_asset_cfg": SceneEntityCfg("robot"),
+                **grasp_reward_params,
                 "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001)],
                 "kp_use_sum_of_exps": False,
-                "keypoint_scale": 0.15,
-                "ee_grasp_threshold": 0.00,
-                "weight_ramp_start": 0.0,
-                "weight_ramp_steps": self.ee_grasp_weight_ramp_steps,
-                "end_effector_body_name": self.end_effector_body_name,
-                "grasp_rot_offset": self.grasp_rot_offset,
-                "gear_offsets_grasp": self.gear_offsets_grasp,
             },
         )
 
-        # Populate termination term parameters
-        self.terminations.gear_dropped.params["gear_offsets_grasp"] = self.gear_offsets_grasp
-        self.terminations.gear_dropped.params["end_effector_body_name"] = self.end_effector_body_name
-        self.terminations.gear_dropped.params["grasp_rot_offset"] = self.grasp_rot_offset
-
+        drop_params = self.terminations.gear_dropped.params
+        drop_params["gear_offsets_grasp"] = self.gear_offsets_grasp
+        drop_params["grasp_center_body_names"] = self.grasp_center_body_names
+        drop_params["end_effector_body_name"] = self.end_effector_body_name
+        drop_params["grasp_rot_offset"] = self.grasp_rot_offset
         self.terminations.gear_orientation_exceeded.params["end_effector_body_name"] = self.end_effector_body_name
         self.terminations.gear_orientation_exceeded.params["grasp_rot_offset"] = self.grasp_rot_offset
