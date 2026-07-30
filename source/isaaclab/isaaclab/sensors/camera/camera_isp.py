@@ -29,16 +29,16 @@ class CameraISPMode(StrEnum):
     AUTO_CAMERA = "auto_camera"
     """Discover an ISP cfg bound to the batch's first matched camera prim.
 
-    The renderer walks the stage for a ``RenderProduct`` whose ``camera``
-    relationship targets the first matched camera prim in the sensor batch. If
-    found and it has an ISP shader child, parses the shader. Resolves to
-    ``None`` (no ISP) if no match.
+    The renderer checks the first matched camera prim in the sensor batch for
+    recognized ``ppisp:*`` attributes, including optional controller weights.
+    It parses those attributes into an ISP cfg, or resolves to ``None`` when
+    the camera has no PPISP attributes.
     """
 
     AUTO_ANY = "auto_any"
-    """Same as :attr:`AUTO_CAMERA`, then fall back to the first ISP shader anywhere on the stage.
+    """Same as :attr:`AUTO_CAMERA`, then fall back to the first PPISP camera anywhere on the stage.
 
-    Used to honour a stage-wide ISP authoring even when no ``RenderProduct``
-    binds the shader explicitly to the batch's first matched camera prim.
-    Resolves to ``None`` only when the stage contains no ISP shader at all.
+    Used to honor stage-wide camera authoring when the batch's first matched
+    camera has no recognized ``ppisp:*`` attributes. Resolves to ``None`` only
+    when the stage contains no camera with PPISP attributes.
     """
