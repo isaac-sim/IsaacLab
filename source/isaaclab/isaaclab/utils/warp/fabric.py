@@ -29,10 +29,6 @@ else:
     IndexedFabricArrayMat44d = wp.indexedfabricarray(dtype=wp.mat44d)
     ArrayUInt32 = wp.array(ndim=1, dtype=wp.uint32)
     ArrayUInt32_1d = wp.array(dtype=wp.uint32)
-    # Signedness here is not a style choice: view indices are ``uint`` (matching
-    # the Fabric ``UInt`` index attributes they come from), but anything used as
-    # :class:`wp.indexedarray` / :class:`wp.indexedfabricarray` indices must be
-    # ``int32`` -- Warp's ``check_index_array`` raises on any other dtype.
     ArrayInt32_1d = wp.array(dtype=wp.int32)
     ArrayFloat32_2d = wp.array(ndim=2, dtype=wp.float32)
 
