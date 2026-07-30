@@ -234,7 +234,7 @@ Worked before/after examples live in the `isaaclab-writing-tests` skill at
 
 - **pytest function style is the default.** Do not add new `unittest.TestCase` classes. Use a class only to share an expensive fixture across a cohesive group.
 - **Names state the outcome.** `test_set_joint_position_target_clamps_to_joint_limits`, not `test_articulation` or `test_case_2`.
-- **Every test has a one-line docstring** naming the contract it protects, not restating the function name.
+- **Every test has a one-line docstring** naming the contract it protects. If the docstring would only restate the test name, the name is already doing the job — sharpen the name rather than adding filler.
 - **Module names must be globally unique.** Test directories are not packages, so two files with the same name in different packages collide at import. Disambiguate with a package suffix, as in `test_articulation_newton.py`.
 - **Share helpers through the package's `test` support library or a `conftest.py`.** Do not copy them between files and do not star-import them.
 - **Soft ceilings of roughly 600 lines per file and 60 per test.** Exceeding either is a signal to split by contract.

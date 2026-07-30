@@ -1,7 +1,8 @@
 # Modules that predate the rules in AGENTS.md ## Testing Guidelines.
 #
-# Format: <rule> <repo-relative path>. This list may only shrink. Each package
-# overhaul removes its own entries; new entries need a reviewer-accepted reason.
+# Format: <rule> <repo-relative path>. This list may only shrink, and new entries need a
+# reviewer-accepted reason. Files not listed here must satisfy every rule, so a new module
+# never lands with a known defect.
 
 # Stubs omni.physics/physx/timeline/usd for the kitless OvPhysX path and does not restore them.
 # The isaacsim stubs that used to leak from here are gone; they broke four unrelated modules.
@@ -21,7 +22,9 @@ import_time_side_effect source/isaaclab_teleop/test/test_retargeters.py
 # isaaclab.devices.gamepad.se2_gamepad stops importing carb at module scope.
 transitive_kit source/isaaclab/test/devices/test_device_constructors.py
 
-# Tests without a docstring naming the contract they protect.
+# Tests without a docstring naming the contract they protect. These entries grandfather existing
+# files so the rule applies to new ones; clear an entry when a test's contract is genuinely
+# unclear from its name. Do not bulk-add docstrings that only restate the test name.
 missing_docstring scripts/benchmarks/test/test_early_stop.py
 missing_docstring scripts/benchmarks/test/test_training_adapters.py
 missing_docstring source/isaaclab_contrib/test/assets/test_multirotor.py
