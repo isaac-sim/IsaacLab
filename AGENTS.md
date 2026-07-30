@@ -219,6 +219,8 @@ Worked before/after examples live in the `isaaclab-writing-tests` skill at
 - **Split mixed files.** Move direct logic and fake-based coverage to a sibling module: `test_<subject>_unit.py` for direct logic, `test_<subject>_cfg.py` for config contracts. A `requires_kit` module contains only tests that fundamentally require Kit.
 - **Do not use `isaacsim_ci` as a Kit dependency marker.** It selects an external short suite and has different semantics.
 - **Validate both lanes after changing a boundary.** Run complete Kit-less tests with `uv run --extra test --locked python -m pytest --run-ci-tests --without-kit <path>`. Run Kit tests with `uv run --extra isaacsim --locked --with pytest python -m pytest --run-ci-tests -m requires_kit <path>` (or the repository's fresh-process Kit orchestrator for modules that own application startup).
+- **Run the Kit lane one file per process.** Several modules starting Kit in a single pytest process segfaults with no output. Pass a single file, or use the fresh-process orchestrator; a whole-package Kit invocation is not a valid check. Set `OMNI_KIT_ACCEPT_EULA=YES` to run it non-interactively.
+- **Never run two `uv run` commands with different extras at once.** They share one `.venv`, so a concurrent invocation re-syncs packages underneath the first and corrupts its results.
 - **Do not weaken coverage to remove Kit.** Preserve the behavior and failure mode being asserted; change only the test seam. If a fake cannot represent the contract faithfully, keep the test in the Kit lane.
 
 ### Optional dependency extras

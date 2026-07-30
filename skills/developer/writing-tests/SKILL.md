@@ -93,8 +93,14 @@ Run all three lanes for the package you touched:
 ```bash
 uv run --extra test --locked python -m pytest source/<package>/test
 uv run --extra test --locked python -m pytest --run-ci-tests --without-kit source/<package>/test
-uv run --extra isaacsim --locked --with pytest python -m pytest --run-ci-tests -m requires_kit source/<package>/test
+OMNI_KIT_ACCEPT_EULA=YES uv run --extra isaacsim --locked --with pytest \
+    python -m pytest --run-ci-tests source/<package>/test/<one_file>.py
 ```
+
+Give the Kit lane a single file. Several modules starting Kit in one pytest process segfaults
+with no output at all, which reads like a hang rather than a failure. Never run two `uv run`
+commands with different extras concurrently either; they share one `.venv` and will re-sync
+packages underneath each other.
 
 A suite that declares an extra needs that extra installed, for example
 `uv run --extra test --extra ov --locked python -m pytest source/isaaclab_ovphysx/test`. Extras
