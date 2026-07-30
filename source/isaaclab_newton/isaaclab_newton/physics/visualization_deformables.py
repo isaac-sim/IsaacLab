@@ -151,7 +151,6 @@ def add_shadow_deformables_to_builder(
     flat_entities: list[ShadowDeformableEntity] = []
     registry_groups: list[ShadowDeformableRegistryGroup] = []
     sim_particle_cursor = 0
-    render_particle_cursor = 0
 
     for (_wildcard_root, _wildcard_sim_key, _wildcard_vis_key), group_entries in sorted(wildcard_groups.items()):
         template = group_entries[0]
@@ -253,16 +252,17 @@ def add_shadow_deformables_to_builder(
             render_count = added_render if added_render > 0 else render_count
             sim_count = entry.vertex_count
             volume_vis_remap = _build_volume_vis_remap(entry, device) if _needs_volume_vis_remap(entry) else None
+            # Use the builder particle cursor so pre-existing particles (e.g. from
+            # USD import) keep shadow sync / OVRTX offsets aligned with particle_q.
             entity = ShadowDeformableEntity(
                 root_path=entry.root_path,
                 sim_particle_offset=sim_particle_cursor,
                 sim_particle_count=sim_count,
-                vis_particle_offset=render_particle_cursor,
+                vis_particle_offset=before_render,
                 vis_particle_count=render_count,
                 volume_vis_remap=volume_vis_remap,
             )
             sim_particle_cursor += sim_count
-            render_particle_cursor += render_count
             flat_entities.append(entity)
             group.particle_offsets.append(entity.vis_particle_offset)
             group.entities.append(entity)

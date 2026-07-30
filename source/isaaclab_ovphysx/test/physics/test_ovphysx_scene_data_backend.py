@@ -1083,3 +1083,32 @@ def test_setup_deformable_bindings_passes_surface_tensor_types(monkeypatch):
 
     _ = b.points
     assert captured["read_tensor_type"] == TT.SURFACE_DEFORMABLE_SIM_POSITION
+
+
+def test_setup_runs_deformable_bindings_without_rigid_bodies(monkeypatch):
+    """Deformable-only scenes must still create SceneData geometry bindings."""
+    import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
+    from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxSceneDataBackend
+
+    b = OvPhysxSceneDataBackend()
+    called: dict[str, object] = {}
+
+    def _fake_setup_deformable_bindings(self, physx, stage, device):
+        called["physx"] = physx
+        called["stage"] = stage
+        called["device"] = device
+
+    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    monkeypatch.setattr(
+        OvPhysxSceneDataBackend,
+        "_setup_deformable_bindings",
+        _fake_setup_deformable_bindings,
+    )
+
+    stage = SimpleNamespace(Traverse=lambda: iter(()))
+    physx = object()
+    b.setup(physx, stage, "cpu")
+
+    assert called == {"physx": physx, "stage": stage, "device": "cpu"}
+    assert b.transform_count == 0
+    assert b._rigid_bindings == []
