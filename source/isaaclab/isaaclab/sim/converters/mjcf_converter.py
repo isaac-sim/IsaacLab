@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 
-import omni.kit.app
+from isaaclab.sim.utils import enable_extension
 
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
@@ -50,9 +50,7 @@ class MjcfConverter(AssetConverterBase):
             cfg: The configuration instance for MJCF to USD conversion.
         """
         # enable the MJCF importer extension
-        manager = omni.kit.app.get_app().get_extension_manager()
-        if not manager.is_extension_enabled("isaacsim.asset.importer.mjcf"):
-            manager.set_extension_enabled_immediate("isaacsim.asset.importer.mjcf", True)
+        enable_extension("isaacsim.asset.importer.mjcf")
 
         # The MJCF importer outputs to: {usd_path}/{robot_name}/{robot_name}.usda
         # Pre-adjust `usd_file_name` to match this output structure so that lazy conversion works correctly.

@@ -13,10 +13,6 @@ from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
 
-from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
-from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
-from isaaclab.cloner.usd import UsdReplicateContext
-
 from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
 from isaaclab_contrib.deformable.deformable_object import (
     DeformableRegistryEntry,
@@ -137,30 +133,16 @@ def test_builder_hook_resets_entry_offsets_on_first_environment():
     assert entry.particles_per_body == 3
 
 
-def test_newton_deformable_queues_usd_and_newton_replication(monkeypatch):
-    """Test that Newton deformables participate in both clone products."""
-    cfg = SimpleNamespace()
+def test_newton_physics_context_is_replicate_context():
+    """Test that Newton registers its replicate context as the backend physics context.
 
-    def fake_base_init(self, cfg):
-        self.cfg = cfg
-        self._DTYPE_TO_TORCH_TRAILING_DIMS = {}
-        self._initialize_handle = None
-        self._invalidate_initialize_handle = None
-        self._prim_deletion_handle = None
-        self._debug_vis_handle = None
-        self._physics_ready_handle = None
+    USD clones are no longer part of a backend stack: :func:`isaaclab.cloner.replicate`
+    adds ``UsdReplicateContext`` per spawned cfg only when Kit is available, which is
+    covered by the replicate-session tests in ``test_cloner.py``.
+    """
+    from isaaclab_newton.cloner import PHYSICS_CONTEXT
 
-    monkeypatch.setattr(BaseDeformableObject, "__init__", fake_base_init)
-    monkeypatch.setattr(DeformableObject, "_register_deformable", lambda self: object())
-    REPLICATION_QUEUE.clear()
-
-    try:
-        DeformableObject(cfg)
-        queued_contexts = [ctx_cls for queued_cfg, ctx_cls in REPLICATION_QUEUE if queued_cfg is cfg]
-    finally:
-        REPLICATION_QUEUE.clear()
-
-    assert queued_contexts == [UsdReplicateContext, NewtonReplicateContext]
+    assert PHYSICS_CONTEXT is NewtonReplicateContext
 
 
 def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):

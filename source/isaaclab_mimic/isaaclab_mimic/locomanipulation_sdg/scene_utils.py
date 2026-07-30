@@ -10,6 +10,7 @@ import torch
 import warp as wp
 
 import isaaclab.utils.math as math_utils
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.sim.views import FrameView
 
 from .occupancy_map_utils import OccupancyMap, intersect_occupancy_maps
@@ -100,17 +101,25 @@ class SceneAsset(HasPose):
     def __init__(self, scene, entity_name: str):
         self.scene = scene
         self.entity_name = entity_name
+        self._xform_view: FrameView | None = None
 
     def _get_xform_view(self) -> FrameView:
-        """Return the FrameView for this asset, refreshing it if prims were not yet cloned."""
-        xform_prim = self.scene[self.entity_name]
-        if xform_prim.count == 0:
-            # The view was created before environment cloning; rebuild it now that prims exist.
-            # FabricFrameView composes UsdFrameView; the template prim_path lives on the inner USD view.
-            inner = getattr(xform_prim, "_usd_view", xform_prim)
-            xform_prim = FrameView(inner._prim_path, device=xform_prim.device)
-            self.scene.extras[self.entity_name] = xform_prim
-        return xform_prim
+        """Return the FrameView for this asset, building it on demand.
+
+        Static scene assets carry no runtime view (``scene[name]`` returns the spawned
+        configuration), so the pose view is created lazily here and cached on this
+        wrapper. A cached view created before environment cloning is rebuilt once the
+        cloned prims exist.
+        """
+        if self._xform_view is None or self._xform_view.count == 0:
+            entity = self.scene[self.entity_name]
+            prim_path = (
+                entity.prim_path
+                if isinstance(entity, AssetBaseCfg)
+                else getattr(entity, "_usd_view", entity)._prim_path
+            )
+            self._xform_view = FrameView(prim_path, device=self.scene.device)
+        return self._xform_view
 
     def get_pose(self):
         """Get the 3D pose of the entity."""

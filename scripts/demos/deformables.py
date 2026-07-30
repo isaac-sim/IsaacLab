@@ -8,10 +8,10 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/deformables.py
+    uv run python scripts/demos/deformables.py
 
     # Usage with Newton VBD backend and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/deformables.py --physics newton_vbd
+    uv run python scripts/demos/deformables.py --physics newton_vbd
 
 """
 
@@ -28,7 +28,9 @@ parser = argparse.ArgumentParser(
     description="This script demonstrates how to spawn deformable prims into the scene.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_vbd"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_vbd"], help="Physics backend."
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()

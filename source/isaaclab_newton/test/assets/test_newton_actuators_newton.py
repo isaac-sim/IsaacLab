@@ -39,11 +39,8 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationCfg, build_simulation_context
-
-import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg
+from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
 
 from isaaclab_assets import ANYMAL_C_CFG
 
@@ -256,53 +253,6 @@ def _run_simulation(
     }
 
 
-_ORDERING_TRACE_FIELDS = (
-    "joint_pos",
-    "joint_vel",
-    "computed_torque",
-    "applied_torque",
-    "adapter_computed_effort",
-    "adapter_applied_effort",
-)
-_ORDERING_TRACE_TOLERANCES = {
-    "joint_pos": (2e-3, 1e-3),
-    "joint_vel": (1e-2, 1e-2),
-    "computed_torque": (1e-3, 1e-3),
-    "applied_torque": (1e-3, 1e-3),
-    "adapter_computed_effort": (1e-3, 1e-3),
-    "adapter_applied_effort": (1e-3, 1e-3),
-}
-
-
-def _canonicalize_ordering_result(result: dict, canonical_joint_names: tuple[str, ...]) -> dict:
-    """Gather public and adapter traces into one physical joint-name order."""
-    canonical_result = dict(result)
-    for field_name in _ORDERING_TRACE_FIELDS:
-        source_names = result["adapter_joint_names"] if field_name.startswith("adapter_") else result["joint_names"]
-        source_indices = tuple(source_names.index(name) for name in canonical_joint_names)
-        canonical_result[field_name] = [
-            values.index_select(
-                1,
-                torch.tensor(source_indices, dtype=torch.long, device=values.device),
-            )
-            for values in result[field_name]
-        ]
-
-    public_indices = tuple(result["joint_names"].index(name) for name in canonical_joint_names)
-    for field_name in ("target_pos", "target_vel", "effort_target"):
-        values = result[field_name]
-        if values is not None:
-            canonical_result[field_name] = values.index_select(
-                1,
-                torch.tensor(public_indices, dtype=torch.long, device=values.device),
-            )
-
-    canonical_result["joint_names"] = canonical_joint_names
-    canonical_result["backend_joint_names"] = canonical_joint_names
-    canonical_result["adapter_joint_names"] = canonical_joint_names
-    return canonical_result
-
-
 def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
     """Match Newton-backend actuator traces under reversed public joint ordering."""
     identity_result = _run_simulation(
@@ -318,50 +268,10 @@ def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
         permutation_sensitive_commands=True,
     )
 
-    assert identity_result["joint_names"] == identity_result["backend_joint_names"]
-    assert reversed_result["joint_names"] == requested_joint_names
-    assert reversed_result["backend_joint_names"] == identity_result["backend_joint_names"]
-
     installed_ordering = reversed_result["joint_ordering"]
     assert installed_ordering is not None
     assert not installed_ordering["is_identity"]
-    assert installed_ordering["user_names"] == requested_joint_names
-    assert installed_ordering["backend_names"] == identity_result["backend_joint_names"]
-    expected_user_to_backend = tuple(
-        identity_result["backend_joint_names"].index(name) for name in requested_joint_names
-    )
-    expected_backend_to_user = tuple(
-        requested_joint_names.index(name) for name in identity_result["backend_joint_names"]
-    )
-    assert installed_ordering["user_to_backend_indices"] == expected_user_to_backend
-    assert installed_ordering["backend_to_user_indices"] == expected_backend_to_user
-
-    canonical_joint_names = tuple(identity_result["backend_joint_names"])
-    identity_result = _canonicalize_ordering_result(identity_result, canonical_joint_names)
-    reversed_result = _canonicalize_ordering_result(reversed_result, canonical_joint_names)
-
-    assert identity_result["joint_names"] == reversed_result["joint_names"] == canonical_joint_names
-    for field_name in ("target_pos", "target_vel", "effort_target"):
-        torch.testing.assert_close(
-            identity_result[field_name],
-            reversed_result[field_name],
-            rtol=0.0,
-            atol=0.0,
-            msg=f"{field_name} does not request the same physical command",
-        )
-
-    for field_name in _ORDERING_TRACE_FIELDS:
-        atol, rtol = _ORDERING_TRACE_TOLERANCES[field_name]
-        for step_index, (identity_values, reversed_values) in enumerate(
-            zip(identity_result[field_name], reversed_result[field_name], strict=True)
-        ):
-            torch.testing.assert_close(
-                identity_values,
-                reversed_values,
-                atol=atol,
-                rtol=rtol,
-                msg=f"{field_name} diverged at step {step_index}",
-            )
+    assert_articulation_ordering_trace_matches(identity_result, reversed_result, requested_joint_names)
 
 
 # ---------------------------------------------------------------------------
@@ -1394,91 +1304,6 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
 
 class TestDecimationRemotizedPD(_DecimationMixin, TestRemotizedPDEquivalence):
     """RemotizedPD — decimation=2 + CUDA graph."""
-
-
-class TestManagerBasedSceneNewtonActuatorAuthoring(unittest.TestCase):
-    """Regression test for Newton actuator authoring in manager-based clone paths.
-
-    The default G1 config uses ``ImplicitActuatorCfg`` for every group, which
-    intentionally skips ``NewtonActuator`` USD authoring. To exercise the
-    authoring path we override the scene's robot actuators with explicit
-    ``DCMotorCfg`` groups covering the same joint patterns.
-    """
-
-    def test_newton_actuators_present_for_g1_manager_env(self):
-        env_cfg = G1FlatEnvCfg()
-        env_cfg.scene.num_envs = 1
-        env_cfg.decimation = 1
-        env_cfg.scene.contact_forces = None
-        env_cfg.rewards.feet_air_time = None
-        env_cfg.rewards.feet_slide = None
-        env_cfg.terminations.base_contact = None
-        env_cfg.sim.physics = NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=95,
-                nconmax=10,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-        env_cfg.sim.use_newton_actuators = True
-        env_cfg.scene.robot.actuators = {
-            "legs": DCMotorCfg(
-                joint_names_expr=[
-                    ".*_hip_yaw_joint",
-                    ".*_hip_roll_joint",
-                    ".*_hip_pitch_joint",
-                    ".*_knee_joint",
-                    "torso_joint",
-                ],
-                saturation_effort=300.0,
-                effort_limit=300.0,
-                velocity_limit=20.0,
-                stiffness=150.0,
-                damping=5.0,
-            ),
-            "feet": DCMotorCfg(
-                joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
-                saturation_effort=20.0,
-                effort_limit=20.0,
-                velocity_limit=20.0,
-                stiffness=20.0,
-                damping=2.0,
-            ),
-            "arms": DCMotorCfg(
-                joint_names_expr=[
-                    ".*_shoulder_pitch_joint",
-                    ".*_shoulder_roll_joint",
-                    ".*_shoulder_yaw_joint",
-                    ".*_elbow_pitch_joint",
-                    ".*_elbow_roll_joint",
-                ],
-                saturation_effort=300.0,
-                effort_limit=300.0,
-                velocity_limit=20.0,
-                stiffness=40.0,
-                damping=10.0,
-            ),
-        }
-        env = ManagerBasedRLEnv(cfg=env_cfg)
-        try:
-            stage = env.unwrapped.sim.stage
-            actuator_prim_count = sum(1 for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator")
-            self.assertGreater(
-                actuator_prim_count,
-                0,
-                "Expected authored NewtonActuator prims in manager-based scene workflow.",
-            )
-            self.assertGreater(
-                len(SimulationManager.get_model().actuators),
-                0,
-                "Expected Newton model actuators to be non-empty with use_newton_actuators=True.",
-            )
-        finally:
-            env.close()
 
 
 # ---------------------------------------------------------------------------

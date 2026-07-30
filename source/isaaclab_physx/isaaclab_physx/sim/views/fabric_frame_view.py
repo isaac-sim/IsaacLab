@@ -88,7 +88,7 @@ class FabricFrameView(BaseFrameView):
       transactional all-or-nothing semantics, snapshot the matrices
       yourself before entering the scope.
     * **Fabric Hierarchy listeners are paused while a writer scope is
-      active.**  On enter, the writer calls
+      active when the hierarchy bindings are available.**  On enter, the writer calls
       :meth:`IFabricHierarchy.track_local_xform_changes(False)` /
       :meth:`track_world_xform_changes(False)` (saving the prior state).
       Fabric itself is just a flat attribute store; the plugin that
@@ -120,6 +120,11 @@ class FabricFrameView(BaseFrameView):
       Fabric Scene Delegate (FSD) reads ``omni:fabric:worldMatrix``
       directly from Fabric storage on the render path; it observes our
       final writes unchanged.
+
+      Headless experiences without FSD do not expose the hierarchy Python
+      bindings and do not run hierarchy update ticks.  In that case the
+      writer skips listener pause/restore while retaining the same direct
+      Fabric matrix writes.
 
       Note: the scope is synchronous Python code, so no simulation step
       and no render tick can run while it is open -- callers must not
@@ -551,7 +556,14 @@ class FabricFrameView(BaseFrameView):
     def _initialize_fabric(self) -> None:
         """One-time Fabric setup: hierarchy handle, attribute population, selections, indexed arrays."""
         import usdrt  # noqa: PLC0415
+
+        # The hierarchy bindings are a separate submodule and are not loaded by ``import usdrt``.
         from usdrt import Rt  # noqa: PLC0415
+
+        try:
+            from usdrt import hierarchy  # noqa: PLC0415
+        except ImportError:
+            hierarchy = None
 
         from isaaclab.sim.utils import get_current_stage_id  # noqa: PLC0415
 
@@ -560,9 +572,10 @@ class FabricFrameView(BaseFrameView):
         self._stage = usdrt.Usd.Stage.Attach(stage_id)
         fabric_id = self._stage.GetFabricId()
         self._fabric_id = fabric_id.id
-        self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-            fabric_id, self._stage.GetStageIdAsStageId()
-        )
+        if hierarchy is not None:
+            self._fabric_hierarchy = hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                fabric_id, self._stage.GetStageIdAsStageId()
+            )
 
         # Ensure each child prim AND its parent have BOTH Fabric world and local matrix
         # attributes.  ``Create*Attr`` calls are idempotent.
@@ -777,12 +790,13 @@ class _FabricWriterMixin:
             view._initialize_fabric()
         self._wrote_anything = False
         h = view._fabric_hierarchy
-        self._was_tracking_local = h.tracking_local_xform_changes
-        self._was_tracking_world = h.tracking_world_xform_changes
-        if self._was_tracking_local:
-            h.track_local_xform_changes(False)
-        if self._was_tracking_world:
-            h.track_world_xform_changes(False)
+        self._was_tracking_local = h is not None and h.tracking_local_xform_changes
+        self._was_tracking_world = h is not None and h.tracking_world_xform_changes
+        if h is not None:
+            if self._was_tracking_local:
+                h.track_local_xform_changes(False)
+            if self._was_tracking_world:
+                h.track_world_xform_changes(False)
         view._is_rw = True
 
     def _exit_impl(self, exc_type, exc_val, exc_tb) -> None:
@@ -811,10 +825,11 @@ class _FabricWriterMixin:
             # subsequent updateWorldXforms tick sees a fully-RO selection.
             view._is_rw = False
             h = view._fabric_hierarchy
-            if self._was_tracking_world:
-                h.track_world_xform_changes(True)
-            if self._was_tracking_local:
-                h.track_local_xform_changes(True)
+            if h is not None:
+                if self._was_tracking_world:
+                    h.track_world_xform_changes(True)
+                if self._was_tracking_local:
+                    h.track_local_xform_changes(True)
 
     def _derive_opposite(self) -> None:
         raise NotImplementedError

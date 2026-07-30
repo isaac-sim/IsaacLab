@@ -254,6 +254,30 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
 
 
 @pytest.mark.parametrize("env_type", ["manager_based_env", "manager_based_rl_env", "direct_rl_env"])
+def test_env_reset_invalidates_renderer_scene_state_cadence(env_type):
+    """A same-step reset must force the next camera read to republish scene state."""
+    env = None
+    try:
+        sim_utils.create_new_stage()
+        if env_type == "manager_based_env":
+            env = create_manager_based_env(render_interval=1)
+        elif env_type == "manager_based_rl_env":
+            env = create_manager_based_rl_env(render_interval=1)
+        else:
+            env = create_direct_rl_env(render_interval=1)
+
+        env.sim.render_context._last_scene_state_step = 7
+        env.reset()
+
+        assert env.sim.render_context._last_scene_state_step is None
+    finally:
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
+
+
+@pytest.mark.parametrize("env_type", ["manager_based_env", "manager_based_rl_env", "direct_rl_env"])
 def test_env_render_false_skips_rendering(env_type, physics_callback, render_callback):
     """Test that setting render_enabled=False skips all rendering while physics continues."""
     physics_cb, get_physics_stats = physics_callback

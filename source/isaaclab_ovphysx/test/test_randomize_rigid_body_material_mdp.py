@@ -94,7 +94,7 @@ def test_randomize_material_writes_friction_within_range(num_cubes, device):
                 "num_buckets": 16,
             }
         )
-        asset_cfg = SimpleNamespace(body_ids=slice(None))
+        asset_cfg = SimpleNamespace(body_ids=[0])
         env = SimpleNamespace()  # unused by the OVPhysX implementation
 
         impl = _RandomizeRigidBodyMaterialOvPhysx(cfg, env, cube_object, asset_cfg)
@@ -116,6 +116,6 @@ def test_randomize_material_body_subset_unsupported(device):
         sim.reset()
 
         cfg = SimpleNamespace(params={"static_friction_range": (0.4, 0.8), "num_buckets": 4})
-        asset_cfg = SimpleNamespace(body_ids=[0])  # subset selection
+        asset_cfg = SimpleNamespace(body_ids=[])  # proper subset of the rigid object's single body
         with pytest.raises(NotImplementedError, match="per-body"):
             _RandomizeRigidBodyMaterialOvPhysx(cfg, SimpleNamespace(), cube_object, asset_cfg)

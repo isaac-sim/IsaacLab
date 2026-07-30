@@ -82,6 +82,16 @@ class RayCasterCfg(SensorBaseCfg):
     max_distance: float = 1e6
     """Maximum distance (in meters) from the sensor to ray cast to. Defaults to 1e6."""
 
+    global_world_only: bool = False
+    """Cast rays against the global world only. Defaults to False.
+
+    **Newton backend only** (ignored by the PhysX and OvPhysX backends, which ray cast against the
+    meshes in :attr:`mesh_prim_paths`). The global world holds shapes shared by all environments
+    (e.g. terrain). When False, rays additionally hit the shapes of the sensor's own environment —
+    including the sensor's carrier body when it lies in the ray path; use :attr:`offset` to start the
+    rays outside the carrier's geometry in that case.
+    """
+
     drift_range: tuple[float, float] = (0.0, 0.0)
     """The range of drift (in meters) to add to the ray starting positions (xyz) in world frame. Defaults to (0.0, 0.0).
 

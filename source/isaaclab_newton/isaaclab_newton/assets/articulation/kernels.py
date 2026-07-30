@@ -44,15 +44,31 @@ def update_wrench_array_with_force_and_torque_ordered(
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
     user_to_backend: wp.array(dtype=wp.int32),
-    has_ordering: bool,
     wrench: wp.array2d(dtype=wp.spatial_vectorf),
     env_mask: wp.array(dtype=wp.bool),
     body_mask: wp.array(dtype=wp.bool),
 ) -> None:
-    """Write public-order force and torque into a backend-order wrench array."""
+    """Write public-order force and torque into a backend-order wrench array.
+
+    Launched only under non-identity body ordering; the caller uses the
+    reorder-free :func:`~isaaclab_newton.assets.kernels.update_wrench_array_with_force_and_torque`
+    when no body ordering is active, so this kernel always applies the body map.
+
+    Args:
+        forces: Body-frame forces [N], shaped [num_envs, num_bodies], in public
+            body order.
+        torques: Body-frame torques [N*m], shaped [num_envs, num_bodies], in
+            public body order.
+        user_to_backend: Read-only map shaped [num_bodies] from each public body
+            index to its backend body index.
+        wrench: Backend-order wrench destination [N, N*m], shaped
+            [num_envs, num_bodies].
+        env_mask: Environment-selection mask shaped [num_envs].
+        body_mask: Public-body selection mask shaped [num_bodies].
+    """
     env_id, user_body_id = wp.tid()
     if env_mask[env_id] and body_mask[user_body_id]:
-        backend_body_id = resolve_backend_index(user_body_id, user_to_backend, has_ordering)
+        backend_body_id = user_to_backend[user_body_id]
         wrench[env_id, backend_body_id] = wp.spatial_vector(
             forces[env_id, user_body_id], torques[env_id, user_body_id], wp.float32
         )
@@ -734,6 +750,58 @@ def gather_mass_matrix_rows(
             backend_col = num_base_dofs + joint_user_to_backend[user_col - num_base_dofs]
 
     dst[i, user_row, user_col] = src[art_ids[i], backend_row, backend_col]
+
+
+@wp.kernel
+def gather_dof_force_rows(
+    src: wp.array(dtype=wp.float32),
+    art_ids: wp.array(dtype=wp.int32),
+    articulation_start: wp.array(dtype=wp.int32),
+    joint_qd_start: wp.array(dtype=wp.int32),
+    joint_user_to_backend: wp.array(dtype=wp.int32),
+    num_base_dofs: wp.int32,
+    has_joint_ordering: bool,
+    dst: wp.array2d(dtype=wp.float32),
+):
+    """Copy per-view articulation DoF forces from a flat model-sized buffer into a view-sized buffer.
+
+    Flat-layout analogue of :func:`gather_mass_matrix_rows` for per-DoF outputs
+    written in :attr:`newton.Model.joint_qd` layout (e.g. the gravity
+    compensation force from ``newton.eval_inverse_dynamics_passive``). The DoF axis is
+    preserved in full (including the leading 6 free-root entries for
+    floating-base articulations), matching the cross-library industry
+    convention used by PhysX, Pinocchio, Drake, MuJoCo, RBDL, OCS2, and
+    iDynTree.
+
+    The gather is in-place on a pre-allocated ``dst`` buffer, so the kernel
+    launch is safe under CUDA graph capture.
+
+    Args:
+        src: Input flat DoF buffer. Shape is (model.joint_dof_count,).
+        art_ids: Model-level articulation indices owned by this view. Shape is
+            (num_instances,).
+        articulation_start: First joint index of each model articulation
+            (:attr:`newton.Model.articulation_start`). Shape is
+            (model.articulation_count + 1,).
+        joint_qd_start: First velocity coordinate of each model joint
+            (:attr:`newton.Model.joint_qd_start`). Shape is
+            (model.joint_count + 1,). Composed per thread as
+            ``joint_qd_start[articulation_start[art_ids[i]]]`` to locate the
+            articulation's segment in ``src``.
+        joint_user_to_backend: Map from public actuated-joint index to backend
+            actuated-joint index.
+        num_base_dofs: Number of leading floating-base DoF entries.
+        has_joint_ordering: Whether ``joint_user_to_backend`` is non-identity.
+        dst: Output DoF-force buffer for this view. Shape is
+            (num_instances, num_joints + num_base_dofs).
+    """
+    i, user_dof = wp.tid()
+    backend_dof = user_dof
+    if has_joint_ordering and user_dof >= num_base_dofs:
+        backend_dof = num_base_dofs + joint_user_to_backend[user_dof - num_base_dofs]
+
+    dof_start = joint_qd_start[articulation_start[art_ids[i]]]
+    dst[i, user_dof] = src[dof_start + backend_dof]
 
 
 @wp.kernel

@@ -54,6 +54,24 @@ def scatter_floats_2d(
 
 
 @wp.kernel
+def scatter_floats_2d_global_rows(
+    src: wp.array2d(dtype=wp.float32),
+    indices: wp.array(dtype=wp.int32),
+    dst: wp.array2d(dtype=wp.float32),
+):
+    """Scatter global source rows to matching destination rows at specified indices.
+
+    Args:
+        src: Source array, shape (N, J).
+        indices: Rows to copy from src to dst, shape (M,).
+        dst: Destination array, shape (N, J) where N >= max(indices).
+    """
+    i, j = wp.tid()
+    row = indices[i]
+    dst[row, j] = src[row, j]
+
+
+@wp.kernel
 def init_identity_inertias_1d(out: wp.array2d(dtype=wp.float32)):
     """Initialize 1D array of inertia tensors to identity (9 values per body).
 

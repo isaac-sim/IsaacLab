@@ -57,22 +57,29 @@ def benchmark(args: list[str] | None = None) -> None:
     """Run a runtime, startup, training, or play benchmark.
 
     Args:
-        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+        args: Command-line arguments. Uses sys.argv when omitted.
     """
-    parser = argparse.ArgumentParser(description="Run an Isaac Lab benchmark.")
-    parser.add_argument("command", choices=("runtime", "startup", "training", "play"), help="Benchmark workflow to run.")
-    if args is None:
-        args = sys.argv[1:]
-    if not args or args[0] in ("-h", "--help"):
-        parser.parse_args(args)
-    parsed_args = parser.parse_args(args[:1])
-    run_python_command(
-        ISAACLAB_ROOT / "scripts" / "benchmarks" / f"{parsed_args.command}.py", args[1:], check=True
-    )
+    from isaaclab.benchmark import run_benchmark_cli
+
+    status = run_benchmark_cli(args)
+    if status != 0:
+        raise SystemExit(status)
+
+
+def microbenchmark(args: list[str] | None = None) -> None:
+    """Run a component micro-benchmark with an exact physics variant."""
+    from isaaclab.benchmark import run_microbenchmark_cli
+
+    status = run_microbenchmark_cli(args)
+    if status != 0:
+        raise SystemExit(status)
 
 
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
+    if len(sys.argv) > 1 and sys.argv[1] == "microbenchmark":
+        microbenchmark(sys.argv[2:])
+        return
     if len(sys.argv) > 1 and sys.argv[1] == "benchmark":
         benchmark(sys.argv[2:])
         return
@@ -95,6 +102,7 @@ def cli() -> None:
         epilog=(
             "commands:\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
+            "  microbenchmark  Run a component micro-benchmark\n"
             "  train           Run scripts/reinforcement_learning/train.py\n"
             "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"
             "  play            Run scripts/reinforcement_learning/play.py"

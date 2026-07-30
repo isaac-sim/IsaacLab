@@ -157,6 +157,37 @@ envs 0/1, sphere into envs 2/3):
                     [1, 1, 0, 0],
                     [0, 0, 1, 1]]
 
+Querying a plan
+~~~~~~~~~~~~~~~
+
+Anything that has to follow an asset between the two sides of that table — a sensor
+resolving its ``prim_path`` back to the prototype it should read, a ray caster
+loading one mesh per variant — asks :mod:`isaaclab.cloner.query` rather than
+manipulating path strings itself:
+
+.. code-block:: python
+
+    from isaaclab import cloner
+
+    # where does this prototype land in env 2?
+    cloner.query.path_to_clone(plan, "/World/envs/env_0/Obstacle_1", env_id=2)
+    # -> "/World/envs/env_2/Obstacle"
+
+    # which envs does this prototype reach at all?
+    cloner.query.path_env_ids(plan, "/World/envs/env_0/Obstacle_1")
+    # -> (2, 3)
+
+    # which prototype is env 2's obstacle cloned from?
+    cloner.query.path_to_source(plan, "/World/envs/env_2/Obstacle")
+    # -> ("/World/envs/env_0/Obstacle_1", "/World/envs/env_*/Obstacle", "")
+
+Two obstacle variants share one destination template, so the template alone does not
+identify a prototype — the environment does. A concrete path carries it in the clone
+slot; a ``env_.*`` wildcard does not, and resolves to one representative variant
+unless you pass ``env_id``. Use :func:`~isaaclab.cloner.query.iter_sources` when you
+need every variant behind a template. Note that environment ids are not mask columns:
+column ``j`` stands for ``env_ids[j]``, and the queries speak ids throughout.
+
 A plan is the *what*. Putting one together and handing it to the backends is
 the *how*, and Isaac Lab exposes three idiomatic ways to do that. All three end
 in the same ``cloner.replicate(plan, stage=...)`` call, so the choice between
@@ -225,11 +256,11 @@ intervene before replication actually happens:
         cfg.class_type(cfg)
     cloner.replicate(plan, stage=stage)
 
-``ClonePlan.from_env_0`` + ``replicate``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``clone_plan_from_env_0`` + ``replicate``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Shortcut for the case where every env is just a copy of env_0.
-:meth:`~isaaclab.cloner.ClonePlan.from_env_0` builds the single-source plan in
+:func:`~isaaclab.cloner.clone_plan_from_env_0` builds the single-source plan in
 one line by pointing at the prototype, and :func:`~isaaclab.cloner.replicate`
 finishes the setup. This is the pattern most :class:`~isaaclab.envs.DirectRLEnv`
 subclasses use — they author the env-0 prototype prim by prim in
@@ -244,7 +275,7 @@ subclasses use — they author the env-0 prototype prim by prim in
 
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
 
 Every env receives the same prototype. When envs need to differ, use one of the
@@ -283,26 +314,37 @@ Every backend supplies its own :class:`~isaaclab.cloner.UsdReplicateContext` /
 ``PhysxReplicateContext`` / ``NewtonReplicateContext``, a class that hides the
 timing and granularity differences above behind a single uniform interface. A
 shared :data:`~isaaclab.cloner.REPLICATION_QUEUE` then remembers which asset
-belongs to which backend's context until it is time to run. The three
+cfgs participate until it is time to run. The three
 subsections below explain the queue, the contexts, and the function that joins
 them against a plan.
 
 The registration queue
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Asset constructors do not replicate inline. They register their intent with
-:data:`~isaaclab.cloner.REPLICATION_QUEUE` and the framework defers the actual
-work to the drain. The queue ends up holding one entry per ``(asset, backend)``
-pair:
+Assets do not replicate inline. Construction only registers the asset's cfg
+through :func:`~isaaclab.cloner.queue_replication`; the queue records *which*
+cfgs participate:
 
 .. code-block:: text
 
     REPLICATION_QUEUE
-        (cartpole_cfg, PhysxReplicateContext)
-        (cartpole_cfg, UsdReplicateContext)
-        (cube_cfg,     UsdReplicateContext)
-        (light_cfg,    UsdReplicateContext)
+        cartpole_cfg
+        cube_cfg
+        camera_cfg
         ...
+
+*How* each cfg is cloned is resolved by :func:`~isaaclab.cloner.replicate` at
+dispatch. The physics side comes from the cfg's
+:attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when set, otherwise the
+active backend's default physics context, which each backend cloner exports as
+``PHYSICS_CONTEXT`` (PhysX and Newton replicate natively; OvPhysX replays its
+own clones). :class:`~isaaclab.cloner.UsdReplicateContext` is never authored by
+assets — :func:`~isaaclab.cloner.replicate` adds it automatically whenever a cfg
+has a spawner and Kit is available, so USD clones accompany physics replication
+under Kit and are skipped in headless runs. With
+:attr:`~isaaclab.cloner.CloneCfg.replicate_physics` disabled, cloning is
+USD-only: every physics context is dropped and the physics engine parses the
+per-env USD prims directly.
 
 Deferring the work like this buys three things at once:
 
@@ -312,6 +354,11 @@ Deferring the work like this buys three things at once:
   call per asset.
 * Asset code stays free of any branching on which backend is active — it just
   registers and lets the framework take it from there.
+
+:attr:`~isaaclab.scene.InteractiveSceneCfg.replicate_physics` is piped into
+:attr:`~isaaclab.cloner.CloneCfg.replicate_physics` and applied at dispatch;
+an asset whose only cloning mechanism is physics replication is then simply
+not cloned.
 
 Backend contexts
 ~~~~~~~~~~~~~~~~
@@ -326,12 +373,12 @@ runtime:
     PhysxReplicateContext    # replicates PhysX rigid bodies and articulations
     NewtonReplicateContext   # replicates Newton bodies in its parallel pipeline
 
-A single asset can register more than one context — a PhysX articulation
-registers a PhysX context and a USD context so physics and visuals both follow,
-a Newton articulation registers a Newton context plus a USD context only if it
-owns visual prims. This is where backend differences are absorbed: swapping a
-scene from PhysX to Newton swaps which context an asset registers with, while
-the cfgs and the rest of the user code stay unchanged.
+A single asset usually resolves to more than one context — PhysX pairs its
+context with USD so physics and visuals both follow; Newton's default stack
+includes USD only under Kit, so kitless runs skip the authoring cost. This is
+where backend differences are absorbed: swapping a scene from PhysX to Newton
+swaps which default stack resolves at dispatch, while the cfgs and the rest of
+the user code stay unchanged.
 
 Running replication
 ~~~~~~~~~~~~~~~~~~~

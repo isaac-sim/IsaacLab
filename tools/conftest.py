@@ -6,7 +6,6 @@
 import contextlib
 import logging
 import os
-import re
 import select
 import signal
 import subprocess
@@ -542,6 +541,8 @@ _RESULT_PRIORITY = {
     "TIMEOUT": 3,
     "FAILED": 2,
     "passed (shutdown hanged)": 1,
+    "passed (module skipped)": 0,
+    "passed (no tests selected)": 0,
     "passed": 0,
 }
 
@@ -566,6 +567,46 @@ def _merge_pass_status(prev: dict | None, new: dict) -> dict:
         if _RESULT_PRIORITY.get(prev["result"], 0) >= _RESULT_PRIORITY.get(new["result"], 0)
         else new["result"],
     }
+
+
+def _make_failed_pass_result(
+    prefix: str,
+    pass_file_label: str,
+    message: str,
+    report_file: str,
+    stdout_data: bytes,
+    stderr_data: bytes,
+    time_elapsed: float,
+    wall_time: float,
+    report: JUnitXml | None = None,
+    tests: int = 0,
+    skipped: int = 0,
+) -> tuple[JUnitXml, dict, bool]:
+    """Append and persist a synthetic failure without discarding existing results."""
+    details = message + "\n\n"
+    if stdout_data:
+        details += "=== STDOUT (last 5000 chars) ===\n"
+        details += stdout_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+    if stderr_data:
+        details += "=== STDERR (last 5000 chars) ===\n"
+        details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+    if report is None:
+        report = JUnitXml()
+    report += _create_error_report(prefix, pass_file_label, message, details)
+    report.write(report_file)
+    return (
+        report,
+        {
+            "errors": 1,
+            "failures": 0,
+            "skipped": skipped,
+            "tests": tests + 1,
+            "result": "FAILED",
+            "time_elapsed": time_elapsed,
+            "wall_time": wall_time,
+        },
+        True,
+    )
 
 
 def _run_one_pass(
@@ -605,6 +646,7 @@ def _run_one_pass(
         sys.executable,
         "-m",
         "pytest",
+        # Keep pytest capture enabled so Kit startup logs are only shown for failed tests.
         "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
         "--no-header",
         "--show-capture=all",
@@ -795,6 +837,24 @@ def _run_one_pass(
             True,
         )
 
+    exact_node_selection = any("::" in target for target in ctx.pytest_targets)
+    if exact_node_selection and tests == 0:
+        msg = f"Configured test node IDs selected zero tests: {', '.join(ctx.pytest_targets)}"
+        logger.error(msg)
+        return _make_failed_pass_result(
+            "selection",
+            pass_file_label,
+            msg,
+            report_file,
+            stdout_data,
+            stderr_data,
+            time_elapsed,
+            wall_time,
+            report=report,
+            tests=tests,
+            skipped=skipped,
+        )
+
     (
         report,
         errors,
@@ -832,6 +892,42 @@ def _run_one_pass(
     )
 
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
+    no_tests_collected = returncode == pytest.ExitCode.NO_TESTS_COLLECTED
+    expected_empty_selection = k_expr is not None or ctx.ci_marker or skipped > 0
+    if no_tests_collected and expected_empty_selection:
+        result = "passed (module skipped)" if skipped else "passed (no tests selected)"
+        logger.warning(f"⚠️  {ctx.test_file}{suffix}: no tests collected — {result}")
+        return (
+            report,
+            {
+                "errors": errors,
+                "failures": failures,
+                "skipped": skipped,
+                "tests": tests,
+                "result": result,
+                "time_elapsed": time_elapsed,
+                "wall_time": wall_time,
+            },
+            False,
+        )
+
+    if returncode != 0 and not shutdown_hanged and not has_test_failures:
+        msg = f"pytest exited with code {returncode} without reporting a test failure"
+        logger.error(f"{ctx.test_file}{suffix}: {msg}")
+        return _make_failed_pass_result(
+            "pytest_exit",
+            pass_file_label,
+            msg,
+            report_file,
+            stdout_data,
+            stderr_data,
+            time_elapsed,
+            wall_time,
+            report=report,
+            tests=tests,
+            skipped=skipped,
+        )
+
     was_failure = has_test_failures or (returncode != 0 and not shutdown_hanged)
 
     if shutdown_hanged:
@@ -1298,15 +1394,16 @@ def pytest_sessionstart(session):
     # device mask is unset.
     run_device = resolve_test_sim_device()
 
-    summary_str += "\n\n=======================\n"
-    summary_str += "Per File Result Summary\n"
-    summary_str += "=======================\n"
+    summary_str += "\n\n=====================\n"
+    summary_str += "Slowest 30 Test Files\n"
+    summary_str += "=====================\n"
 
     per_file_result_table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
     per_file_result_table.align["Test Path"] = "l"
     per_file_result_table.align["Test (s)"] = "r"
     per_file_result_table.align["Wall (s)"] = "r"
-    for test_path in test_files:
+    slowest_test_files = sorted(test_files, key=lambda path: test_status[path]["wall_time"], reverse=True)[:30]
+    for test_path in slowest_test_files:
         num_tests_passed = (
             test_status[test_path]["tests"]
             - test_status[test_path]["failures"]
@@ -1325,33 +1422,6 @@ def pytest_sessionstart(session):
         )
 
     summary_str += per_file_result_table.get_string()
-
-    # Per-test run times, slowest first, from the merged JUnit report. The
-    # device is read from the test id params (e.g. ``...[size0-cuda:1]``),
-    # falling back to the run's boot device.
-    summary_str += "\n\n=================\n"
-    summary_str += "Per Test Run Time\n"
-    summary_str += "=================\n"
-
-    per_test_time_table = PrettyTable(field_names=["Test", "Device", "Time (s)"])
-    per_test_time_table.align["Test"] = "l"
-    per_test_time_table.align["Time (s)"] = "r"
-    test_times = []
-    for suite in full_report:
-        for case in suite:
-            full_name = f"{case.classname}::{case.name}" if case.classname else case.name
-            device = run_device
-            bracket = re.search(r"\[(.*)\]", full_name)
-            if bracket:
-                dev_match = re.search(r"cuda:\d+|\bcpu\b", bracket.group(1))
-                if dev_match:
-                    device = dev_match.group(0)
-            elapsed = float(case.time) if case.time is not None else 0.0
-            test_times.append((full_name, device, elapsed))
-    for full_name, device, elapsed in sorted(test_times, key=lambda row: row[2], reverse=True):
-        per_test_time_table.add_row([full_name, device, f"{elapsed:0.3f}"])
-
-    summary_str += per_test_time_table.get_string()
 
     # Print summary to console and log file
     logger.info(summary_str)

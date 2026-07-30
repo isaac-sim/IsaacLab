@@ -12,7 +12,7 @@ while the deformable meshes are spawned with deformable body properties.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/sim/check_meshes.py
+    uv run python source/isaaclab/test/sim/check_meshes.py
 
 """
 

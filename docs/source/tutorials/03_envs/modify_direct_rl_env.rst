@@ -109,17 +109,37 @@ The Code Execution
 
 After the minor modification has been done, and similar to the previous tutorial, we can train on the task using one of the available RL workflows for such task.
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh train --rl_library rl_games --task Isaac-H1-Direct-v0
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab train --rl_library rl_games --task Isaac-H1-Direct-v0
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh train --rl_library rl_games --task Isaac-H1-Direct-v0
 
 When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
 where you started the simulation.
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh play --rl_library rl_games --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab play --rl_library rl_games --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh play --rl_library rl_games --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
 
 .. figure:: ../../_static/tutorials/tutorial_modify_direct_rl_env.jpg
     :align: center

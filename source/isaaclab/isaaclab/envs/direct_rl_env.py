@@ -220,6 +220,10 @@ class DirectRLEnv(gym.Env):
         self.has_debug_vis_implementation = "NotImplementedError" not in source_code
         self._debug_vis_handle = None
 
+        # wire episode metrics into live plots and populate manager_visualizers for Kit
+        # before the window is created so the UI can query manager_visualizers on init.
+        self.setup_direct_visualizers()
+
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
@@ -382,7 +386,9 @@ class DirectRLEnv(gym.Env):
                     self.sim.render()
 
         # return observations
-        return self._get_observations(), self.extras
+        # store the buffer like step() does, so consumers can read the latest observations
+        self.obs_buf = self._get_observations()
+        return self.obs_buf, self.extras
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics.
@@ -560,6 +566,29 @@ class DirectRLEnv(gym.Env):
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
             )
 
+    def setup_direct_visualizers(self):
+        """Wire episode metrics into live plots for all active visualizer backends.
+
+        Registers ``episode/mean_reward`` and ``episode/episode_length`` as direct scalar
+        sources so that top-level training metrics are visible in the live-plot panels of
+        Newton, Rerun, and Viser visualizers.  Mirrors the equivalent hook in
+        :meth:`~isaaclab.envs.ManagerBasedRLEnv.setup_manager_visualizers`.
+        """
+        scalars = {
+            "episode": {
+                "mean_reward": lambda: float(getattr(self, "reward_buf", None).mean())
+                if getattr(self, "reward_buf", None) is not None
+                else 0.0,
+                "episode_length": lambda: float(self.episode_length_buf.float().mean()),
+            }
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots({}, scalars=scalars)
+        # Populate manager_visualizers for the Kit window (mirrors ManagerBasedRLEnv).
+        self.manager_visualizers = {
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
+        }
+
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
@@ -720,6 +749,8 @@ class DirectRLEnv(gym.Env):
 
         # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
+
+        self.sim.render_context.reset_scene_state_cadence()
 
     """
     Implementation-specific functions.
