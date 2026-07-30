@@ -10,7 +10,6 @@ from typing import Any
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
@@ -818,7 +817,7 @@ _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
 
 
 def write_2d_data_to_buffer_with_indices_kernel(
-    env_ids: wp.array | torch.Tensor | ProxyArray, item_ids: wp.array | torch.Tensor | ProxyArray
+    env_ids: wp.array | torch.Tensor, item_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
     """Select the 2-D buffer writer matching the selector dtypes.
 

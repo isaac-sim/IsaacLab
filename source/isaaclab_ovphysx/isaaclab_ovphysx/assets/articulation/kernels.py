@@ -10,7 +10,6 @@ from typing import Any
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 """
@@ -222,7 +221,7 @@ _CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_DISPATCHER = IndexKernelDi
 
 
 def clamp_default_joint_pos_and_update_soft_limits_index_kernel(
-    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
     """Select an articulation worker matching the selector dtypes.
 
@@ -321,7 +320,7 @@ _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
 
 
 def write_joint_friction_data_to_buffer_index_kernel(
-    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
     """Select an articulation worker matching the selector dtypes.
 

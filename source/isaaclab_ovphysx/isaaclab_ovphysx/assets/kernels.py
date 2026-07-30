@@ -10,7 +10,6 @@ from typing import Any
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
@@ -603,7 +602,7 @@ _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(
 )
 
 
-def set_root_link_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
+def set_root_link_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
     """Select a root writer matching the environment selector dtype.
 
     Args:
@@ -615,7 +614,7 @@ def set_root_link_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | Pr
     return _SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
-def set_root_com_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
+def set_root_com_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
     """Select a root writer matching the environment selector dtype.
 
     Args:
@@ -627,7 +626,7 @@ def set_root_com_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | Pro
     return _SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
-def set_root_com_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
+def set_root_com_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
     """Select a root writer matching the environment selector dtype.
 
     Args:
@@ -639,7 +638,7 @@ def set_root_com_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor |
     return _SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
-def set_root_link_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor | ProxyArray) -> wp.Kernel:
+def set_root_link_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
     """Select a root writer matching the environment selector dtype.
 
     Args:
@@ -964,7 +963,7 @@ _WRITE_JOINT_STATE_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
 
 
 def write_2d_data_to_buffer_with_indices_kernel(
-    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
     """Select a buffer writer matching the selector dtypes.
 
@@ -979,7 +978,7 @@ def write_2d_data_to_buffer_with_indices_kernel(
 
 
 def write_joint_state_to_buffer_with_indices_kernel(
-    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
     """Select a buffer writer matching the selector dtypes.
 
@@ -1516,7 +1515,7 @@ _WRITE_JOINT_POSITION_LIMIT_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
 
 
 def write_joint_position_limit_to_buffer_index_kernel(
-    env_ids: wp.array | torch.Tensor | ProxyArray, joint_ids: wp.array | torch.Tensor | ProxyArray
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
     """Select a buffer writer matching the selector dtypes.
 
