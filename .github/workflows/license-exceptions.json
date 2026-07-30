@@ -1163,19 +1163,6 @@
     "comment": "MPL-2.0 / OSRB; imported into the Isaac Lab Python process"
   },
   {
-    "package": "ffmpeg",
-    "package_type": "Bundled Binary",
-    "license": "GPL-2.0-or-later",
-    "license_aliases": [
-      "GPL-3.0-or-later",
-      "LGPL-2.1-or-later",
-      "LGPL-3.0-or-later"
-    ],
-    "usage": "runtime_tool",
-    "interaction": "standalone_process",
-    "comment": "imageio-ffmpeg launches this executable as a standalone subprocess and communicates through pipes; the job detects its exact configuration and linkage"
-  },
-  {
     "package": "ovstage",
     "package_type": "Python",
     "license": "NVIDIA Proprietary Software",

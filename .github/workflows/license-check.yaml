@@ -400,7 +400,7 @@ jobs:
         timeout: 30m
         skip-setup-trivy: true
 
-    - name: Inspect bundled FFmpeg executable
+    - name: Verify standalone FFmpeg is not distributed
       shell: bash
       run: |
         set -euo pipefail
@@ -408,75 +408,35 @@ jobs:
         image_tag="${{ steps.config.outputs.image_tag }}"
         docker run --rm --entrypoint bash "$image_tag" -lc '
           set -euo pipefail
-          python_output=""
-          if ! python_output="$(./isaaclab.sh -p -c \
-            "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())" \
-            2>&1)"; then
-            printf "%s\n" "$python_output" >&2
-            echo "Could not resolve the bundled FFmpeg executable" >&2
+
+          system_ffmpeg="$(command -v ffmpeg || true)"
+          if [[ -n "$system_ffmpeg" ]]; then
+            echo "Standalone system FFmpeg must not be distributed: $system_ffmpeg" >&2
+            "$system_ffmpeg" -version >&2 || true
             exit 1
           fi
+
+          python_output="$(./isaaclab.sh -p -c \
+            "import importlib.util; print(\"present\" if importlib.util.find_spec(\"imageio_ffmpeg\") else \"absent\")" \
+            2>&1)"
           printf "%s\n" "$python_output"
-          ffmpeg_exe="$(
+          imageio_ffmpeg_state="$(
             printf "%s\n" "$python_output" \
-              | grep "^/" | tail -n 1 || true
+              | grep -E "^(present|absent)$" | tail -n 1 || true
           )"
-          if [[ ! -x "$ffmpeg_exe" ]]; then
-            echo "Bundled FFmpeg executable is missing or not executable: $ffmpeg_exe" >&2
+          if [[ -z "$imageio_ffmpeg_state" ]]; then
+            echo "Could not determine whether imageio-ffmpeg is installed" >&2
+            exit 1
+          fi
+          if [[ "$imageio_ffmpeg_state" == "present" ]]; then
+            echo "imageio-ffmpeg and its standalone FFmpeg binary must remain opt-in" >&2
             exit 1
           fi
 
-          echo "Bundled executable: $ffmpeg_exe"
-          "$ffmpeg_exe" -version
-          "$ffmpeg_exe" -L
-
-          if ldd "$ffmpeg_exe" >/tmp/ffmpeg-ldd.txt 2>&1; then
-            echo "Detected linkage: dynamic"
-          else
-            echo "Detected linkage: static"
-          fi
-          cat /tmp/ffmpeg-ldd.txt
+          echo "No standalone system or imageio-ffmpeg executable is distributed"
         ' | tee bundled-ffmpeg-inspection.txt
 
-        version="$(
-          sed -n "s/^ffmpeg version \([^ ]*\).*/\1/p" \
-            bundled-ffmpeg-inspection.txt | head -n 1
-        )"
-        config="$(grep -m 1 '^configuration:' bundled-ffmpeg-inspection.txt || true)"
-        linkage="$(
-          sed -n "s/^Detected linkage: //p" \
-            bundled-ffmpeg-inspection.txt | head -n 1
-        )"
-        if [[ -z "$version" || -z "$config" || -z "$linkage" ]]; then
-          echo "::error::Could not determine the bundled FFmpeg version, configuration, and linkage"
-          exit 1
-        fi
-
-        if [[ "$config" == *"--enable-nonfree"* ]]; then
-          license="LicenseRef-FFmpeg-Nonfree"
-          category="forbidden"
-          severity="CRITICAL"
-        elif [[ "$config" == *"--enable-gpl"* ]]; then
-          if [[ "$config" == *"--enable-version3"* ]]; then
-            license="GPL-3.0-or-later"
-          else
-            license="GPL-2.0-or-later"
-          fi
-          category="restricted"
-          severity="HIGH"
-        else
-          if [[ "$config" == *"--enable-version3"* ]]; then
-            license="LGPL-3.0-or-later"
-          else
-            license="LGPL-2.1-or-later"
-          fi
-          category="restricted"
-          severity="HIGH"
-        fi
-
-        printf 'Bundled Binary\tffmpeg\t%s\t%s\t%s\t%s\t%s\n' \
-          "$version" "$license" "$category" "$severity" "$linkage" \
-          > bundled-components.tsv
+        : > bundled-components.tsv
 
     - name: Check licenses against policy and exceptions
       shell: bash
