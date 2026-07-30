@@ -432,6 +432,11 @@ def _check_random_actions(
                     actions = sample_space(
                         env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
                     )
+                    if task_name == "Isaac-Reach-Franka-OSC":
+                        # OSC expects a reachable absolute pose with a unit quaternion, not an arbitrary sample from
+                        # the environment's unbounded action space. Track the task command at nominal stiffness.
+                        actions[:, :7] = env.unwrapped.command_manager.get_command("ee_pose")
+                        actions[:, 7:13] = 1.0
                 # apply actions
                 transition = env.step(actions)
                 # check signals

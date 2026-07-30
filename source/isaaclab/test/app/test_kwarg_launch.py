@@ -150,6 +150,20 @@ def test_deferred_cuda_device_synchronizes_torch_and_warp(monkeypatch: pytest.Mo
     assert devices == [2]
 
 
+def test_limit_cpu_threads_forwarded_to_simulation_app(monkeypatch: pytest.MonkeyPatch):
+    """A SimulationApp thread limit must survive AppLauncher config resolution."""
+    monkeypatch.setenv("HEADLESS", "0")
+    monkeypatch.setenv("LIVESTREAM", "0")
+    monkeypatch.setenv("XR", "0")
+
+    launcher = AppLauncher.__new__(AppLauncher)
+    monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
+
+    launcher._config_resolution({"headless": True, "device": "cpu", "limit_cpu_threads": 1})
+
+    assert launcher._sim_app_config["limit_cpu_threads"] == 1
+
+
 class _DummySettings:
     def __init__(self):
         self.values = {}
