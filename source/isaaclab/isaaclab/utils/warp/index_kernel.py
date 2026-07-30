@@ -14,14 +14,6 @@ import warp as wp
 _INDEX_DTYPES = (wp.int32, wp.int64)
 
 
-def _selector_array(selector: torch.Tensor | wp.array) -> wp.array:
-    if isinstance(selector, torch.Tensor):
-        return wp.from_torch(selector)
-    if isinstance(selector, wp.array):
-        return selector
-    raise TypeError(f"Index selector must be a torch.Tensor or wp.array, got {type(selector).__name__}.")
-
-
 def _selector_dtype(selector: torch.Tensor | wp.array) -> type[wp.int32] | type[wp.int64]:
     if isinstance(selector, torch.Tensor):
         dtype = wp.dtype_from_torch(selector.dtype)

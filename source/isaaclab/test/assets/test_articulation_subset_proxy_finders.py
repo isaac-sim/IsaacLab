@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import ast
+import warnings
 from pathlib import Path
 
 import pytest
@@ -56,7 +57,8 @@ def test_production_subset_proxy_indices_are_asset_global_without_changing_legac
     asset = _Asset()
     subset_kwargs = {subset_arg: ["item_2", "item_0"]}
 
-    with pytest.warns(DeprecationWarning):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
         implicit_indices, implicit_names = finder(asset, ".*", **subset_kwargs, preserve_order=True)
     explicit_indices, explicit_names = finder(asset, ".*", **subset_kwargs, preserve_order=True, as_proxy=False)
     subset_proxy, subset_names = finder(asset, ".*", **subset_kwargs, preserve_order=True, as_proxy=True)
