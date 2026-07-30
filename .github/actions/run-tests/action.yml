@@ -81,6 +81,15 @@ inputs:
     description: 'Host path to bind-mount at /workspace/isaaclab (for deps-cache-hit mode)'
     default: ''
     required: false
+  persistent-cache-key:
+    description: >-
+      When set, Kit/OptiX/asset caches are bind-mounted from a stable per-key
+      directory that outlives the run, so the job skips Isaac Sim's ~6 min
+      first-launch warm-up. Key by Isaac Sim image tag so a base-image bump
+      starts cold. Needs volume-mount-source and a long-lived self-hosted
+      runner. Default '' — no persistence.
+    default: ''
+    required: false
   extra-pip-packages:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
@@ -152,10 +161,16 @@ runs:
           local standalone_script_scope="${22}"
           local standalone_script_visualizer="${23}"
           local standalone_script_runtime_group="${24}"
+          local persistent_cache_key="${25}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
           local docker_runtime_dir=""
+          local cache_dir=""
+          local cache_root=""
+          local sanitized_cache_key=""
+          local cache_lock_fd=""
+          local persistent_cache_dir=""
 
           # Kill the container immediately if the runner is cancelled.
           # The GitHub Actions runner can deliver HUP, INT, or TERM on cancellation
@@ -332,30 +347,62 @@ runs:
             # host-uid test runs, mirroring the compose/singularity mounts.
             docker_runtime_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/isaaclab-docker-runtime.XXXXXX")"
             mkdir -p \
-              "${docker_runtime_dir}/home/.cache" \
               "${docker_runtime_dir}/home/.local/share/ov/data" \
               "${docker_runtime_dir}/home/.local/share/ov/pkg" \
-              "${docker_runtime_dir}/home/.nv/ComputeCache" \
               "${docker_runtime_dir}/home/.nvidia-omniverse/config" \
               "${docker_runtime_dir}/home/.nvidia-omniverse/logs" \
               "${docker_runtime_dir}/home/Documents/Kit/shared" \
-              "${docker_runtime_dir}/isaac-sim/kit/cache" \
               "${docker_runtime_dir}/isaac-sim/kit/data" \
               "${docker_runtime_dir}/isaac-sim/kit/logs" \
-              "${docker_runtime_dir}/isaac-sim/cache" \
-              "${docker_runtime_dir}/isaac-sim/computecache" \
               "${docker_runtime_dir}/isaac-sim/config" \
               "${docker_runtime_dir}/isaac-sim/data" \
               "${docker_runtime_dir}/isaac-sim/logs" \
               "${docker_runtime_dir}/isaac-sim/pkg"
+
+            # Caches are derived artifacts, so with a key they live outside
+            # docker_runtime_dir and survive the cleanup below; the per-run dirs
+            # above stay per-run.
+            cache_dir="${docker_runtime_dir}/cache"
+            if [ -n "$persistent_cache_key" ]; then
+              cache_root="${ISAACLAB_CI_CACHE_ROOT:-/var/tmp/isaaclab-ci-cache}"
+              sanitized_cache_key=$(echo "$persistent_cache_key" | sed 's/[^a-zA-Z0-9._-]/-/g')
+              mkdir -p "$cache_root"
+              exec {cache_lock_fd}>"${cache_root}/${sanitized_cache_key}.lock"
+              # Non-blocking: a job that loses the lock uses a per-run cache
+              # rather than interleaving writes or waiting out its timeout.
+              if flock -n "$cache_lock_fd"; then
+                cache_dir="${cache_root}/${sanitized_cache_key}"
+                persistent_cache_dir="$cache_dir"
+                # Same 14-day TTL as the deps tags in .github/actions/docker-build.
+                find "$cache_root" -mindepth 1 -maxdepth 1 -type d -mtime +14 \
+                  -exec rm -rf {} + 2>/dev/null || true
+                echo "🔵 Persistent cache: ${cache_dir}"
+              else
+                echo "::notice::Persistent cache ${sanitized_cache_key} is locked by another job - using a per-run cache"
+              fi
+            fi
+            mkdir -p \
+              "${cache_dir}/home-cache" \
+              "${cache_dir}/home-computecache" \
+              "${cache_dir}/kit-cache" \
+              "${cache_dir}/isaac-sim-cache" \
+              "${cache_dir}/computecache"
+            # Keep the active cache clear of the TTL sweep while it is in use.
+            touch "$cache_dir"
+
+            # Nested cache mounts follow the home mount they sit inside; Docker
+            # orders binds by destination depth. ComputeCache is persisted at
+            # both paths because which one CUDA writes depends on HOME.
             docker_volume_args="\
               -v ${volume_mount_source}:/workspace/isaaclab:rw \
               -v ${docker_runtime_dir}/home:/tmp/isaaclab-ci-home:rw \
-              -v ${docker_runtime_dir}/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw \
+              -v ${cache_dir}/home-cache:/tmp/isaaclab-ci-home/.cache:rw \
+              -v ${cache_dir}/home-computecache:/tmp/isaaclab-ci-home/.nv/ComputeCache:rw \
+              -v ${cache_dir}/kit-cache:/isaac-sim/kit/cache:rw \
+              -v ${cache_dir}/isaac-sim-cache:/isaac-sim/.cache:rw \
+              -v ${cache_dir}/computecache:/isaac-sim/.nv/ComputeCache:rw \
               -v ${docker_runtime_dir}/isaac-sim/kit/data:/isaac-sim/kit/data:rw \
               -v ${docker_runtime_dir}/isaac-sim/kit/logs:/isaac-sim/kit/logs:rw \
-              -v ${docker_runtime_dir}/isaac-sim/cache:/isaac-sim/.cache:rw \
-              -v ${docker_runtime_dir}/isaac-sim/computecache:/isaac-sim/.nv/ComputeCache:rw \
               -v ${docker_runtime_dir}/isaac-sim/config:/isaac-sim/.nvidia-omniverse/config:rw \
               -v ${docker_runtime_dir}/isaac-sim/data:/isaac-sim/.local/share/ov/data:rw \
               -v ${docker_runtime_dir}/isaac-sim/logs:/isaac-sim/.nvidia-omniverse/logs:rw \
@@ -548,8 +595,13 @@ runs:
           # Clean up container
           echo "🔵 Cleaning up Docker container..."
           docker rm $container_name 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
+          # A persistent cache_dir lives outside docker_runtime_dir and is left
+          # in place for the next run.
           if [ -n "$docker_runtime_dir" ]; then
             rm -rf "$docker_runtime_dir" || echo "🟠 Docker runtime storage cleanup failed, but continuing..."
+          fi
+          if [ -n "$persistent_cache_dir" ]; then
+            echo "🔵 Retained persistent cache: $(du -sh "$persistent_cache_dir" 2>/dev/null | cut -f1) at ${persistent_cache_dir}"
           fi
           echo "::endgroup::"
 
@@ -557,7 +609,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.standalone-script-scope }}" "${{ inputs.standalone-script-visualizer }}" "${{ inputs.standalone-script-runtime-group }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.standalone-script-scope }}" "${{ inputs.standalone-script-visualizer }}" "${{ inputs.standalone-script-runtime-group }}" "${{ inputs.persistent-cache-key }}"
 
     - name: Kill container on cancellation
       if: cancelled()
