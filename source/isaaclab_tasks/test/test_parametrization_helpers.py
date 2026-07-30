@@ -5,8 +5,14 @@
 
 """Tests for rendering correctness parameter helpers."""
 
+from pathlib import Path
+from unittest.mock import Mock
+
 import pytest
+import rendering_test_utils
 from rendering_test_utils import (
+    attach_comparison_properties,
+    generate_html_report,
     make_kitless_rendering_params,
     make_kitless_rendering_params_dexsuite,
     make_kitless_rendering_params_franka,
@@ -116,3 +122,35 @@ def test_franka_factory_adds_cloth_only_motion_policy() -> None:
         assert "xfail" not in [mark.name for mark in soft_params[motion_id].marks]
         assert [mark.name for mark in cloth_params[motion_id].marks] == ["xfail"]
         assert "NVBUG#6489754" in cloth_params[motion_id].marks[0].kwargs["reason"]
+
+
+def test_html_report_labels_expected_failure_as_unreliable(monkeypatch, tmp_path: Path) -> None:
+    """Expected image-comparison failures should include their ticketed reason in HTML."""
+    reason = "Known rendering regression (NVBUG#1234567)."
+    comparison_scores = [
+        {
+            "test": "cartpole",
+            "backend": "newton",
+            "renderer": "ovrtx_renderer",
+            "ovstage_variant": "Yes",
+            "aov": "albedo",
+            "diff_pct": 12.5,
+            "threshold": 1.5,
+            "ssim": 0.9,
+            "ssim_threshold": 0.985,
+            "ssim_checked": True,
+            "passed": False,
+        }
+    ]
+    node = Mock()
+    node.user_properties = []
+    node.get_closest_marker.return_value = pytest.mark.xfail(reason=reason, strict=False).mark
+    request = Mock(node=node)
+
+    attach_comparison_properties(request, comparison_scores, initial_count=0)
+    monkeypatch.setattr(rendering_test_utils, "_COMPARISON_IMAGES_DIR", str(tmp_path))
+    generate_html_report(comparison_scores, "report.html")
+
+    report = (tmp_path / "report.html").read_text(encoding="utf-8")
+    assert '<td class="status-unreliable">UNRELIABLE (XFAIL)</td>' in report
+    assert reason in report
