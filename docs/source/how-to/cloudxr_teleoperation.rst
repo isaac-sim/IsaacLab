@@ -72,7 +72,7 @@ The check is **advisory and never blocks a session**. It reports:
    * - Requirement
      - Threshold
    * - CPU single-thread
-     - At least 70% of the reference CPU (AMD Ryzen Threadripper 7960X)
+     - At least 80% of the reference CPU (AMD Ryzen Threadripper 7960X)
    * - CPU governor
      - ``performance``
    * - CPU boost clock
@@ -99,11 +99,8 @@ many slow cores.
 .. tip::
 
    **The most common finding is the CPU frequency governor.** Ubuntu defaults to ``powersave``,
-   which measurably increases IK solve latency. Switch to ``performance``:
-
-   .. code-block:: bash
-
-      sudo cpupower frequency-set -g performance
+   which measurably increases IK solve latency. Switching to ``performance`` is a setup step --
+   see :ref:`install-isaac-teleop`.
 
 If a probe is unavailable (for example, ``cpufreq`` is not exposed inside a container), that item
 is reported as skipped rather than failed.
@@ -132,6 +129,34 @@ Install Isaac Teleop
 
    The CloudXR runtime links against Vulkan at runtime. If your system already has the
    NVIDIA driver installed, ``libvulkan1`` may already be present.
+
+#. Set the CPU frequency governor to ``performance``:
+
+   .. code-block:: bash
+
+      # cpupower ships in linux-tools; install it if the command is not found
+      sudo apt-get install -y linux-tools-common linux-tools-$(uname -r)
+
+      sudo cpupower frequency-set -g performance
+
+   Ubuntu defaults to the ``powersave`` governor, which measurably increases Pink IK solve
+   latency and lowers the achievable teleop frame rate. Because IK and CPU-side physics are
+   single-thread bound, this is one of the highest-impact settings on the workstation.
+
+   Verify the change:
+
+   .. code-block:: bash
+
+      cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+
+   Expected output: ``performance``.
+
+   .. note::
+
+      This setting does not survive a reboot. Re-run the command after restarting, or make it
+      persistent with a systemd unit or your distribution's ``cpupower`` service configuration.
+      The :ref:`teleop-workstation-capability-check` reports the governor at session start, so a
+      machine that has reverted to ``powersave`` is flagged before you notice the frame rate.
 
 #. ``isaacteleop`` is installed automatically as a dependency of ``isaaclab_teleop``.
    No separate pip install step is required. For building from source or plugin

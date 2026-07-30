@@ -33,7 +33,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-DOC_URL = "https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html"
+DOC_URL = "https://isaac-sim.github.io/IsaacLab/develop/source/how-to/cloudxr_teleoperation.html"
 """Link included in the client notice so the operator can read the full spec."""
 
 # -- CPU ---------------------------------------------------------------------
@@ -49,11 +49,11 @@ and a host scoring 0.7 is 70% as fast per thread.
 See :data:`_CPU_REFERENCE_NS_PER_ITER` for the underlying raw measurement.
 """
 
-CPU_SCORE_MIN = 0.70
+CPU_SCORE_MIN = 0.80
 """Minimum acceptable fraction of :data:`CPU_REFERENCE_SCORE`.
 
-Set well below 1.0 because the reference is a recommendation, not a floor:
-mid-range parts with strong single-thread performance teleoperate acceptably.
+Set below 1.0 because the reference is a recommendation, not a floor: parts
+somewhat slower per thread than the reference still teleoperate acceptably.
 """
 
 CPU_CLOCK_MIN_GHZ = 4.0
