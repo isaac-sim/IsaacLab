@@ -80,10 +80,20 @@ def benchmark(args: list[str] | None = None) -> None:
         raise SystemExit(status)
 
 
+def microbenchmark(args: list[str] | None = None) -> None:
+    """Run a component micro-benchmark with an exact physics variant."""
+    from isaaclab.benchmark import run_microbenchmark_cli
+
+    status = run_microbenchmark_cli(args)
+    if status != 0:
+        raise SystemExit(status)
+
+
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
     subcommands = {
         "benchmark": benchmark,
+        "microbenchmark": microbenchmark,
         "train": train,
         "train_multigpu": train_multigpu,
         "play": play,
@@ -103,6 +113,7 @@ def cli() -> None:
         epilog=(
             "commands:\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
+            "  microbenchmark  Run a component micro-benchmark\n"
             "  train           Run scripts/reinforcement_learning/train.py\n"
             "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"
             "  play            Run scripts/reinforcement_learning/play.py\n"

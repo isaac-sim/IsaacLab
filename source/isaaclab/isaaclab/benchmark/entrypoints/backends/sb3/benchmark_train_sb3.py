@@ -367,21 +367,22 @@ def run(argv: list[str]) -> BenchmarkResult:
                 total_fps=total_fps,
                 steps_per_iteration=steps_per_iteration,
                 frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_warmup_steps=args_cli.warmup_steps,
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
             )
 
-            learning = builders.build_learning(
-                reward_series=reward_series,
-                ep_length_series=ep_len_series,
-                ema_alpha=args_cli.ema_alpha,
-                keep_series=not args_cli.no_series,
-            )
-
             desc = RL_LIBRARY_DESCRIPTORS["sb3"]
             log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
             success_tracker = get_success_tracker(args_cli, success_context.tracker, log_data)
+            learning = builders.build_learning(
+                reward_series=reward_series,
+                ep_length_series=ep_len_series,
+                success_rate_series=success_tracker.history if success_tracker is not None else None,
+                ema_alpha=args_cli.ema_alpha,
+                keep_series=not args_cli.no_series,
+            )
             success_rate = (
                 round(success_tracker.tail_mean, 4) if (success_tracker and success_tracker.history) else None
             )
