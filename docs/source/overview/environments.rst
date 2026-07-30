@@ -168,10 +168,19 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-link|      | Move the cart to keep the pole upwards in the classic cartpole control  | **physics=**                 |
     |                  |                             | from raw RGB/depth observations or features extracted by pre-trained    | ``physx``,                   |
-    |                  |                             | frozen vision encoders. Select pipeline via ``presets=``.               | ``newton_mjwarp``            |
+    |                  |                             | frozen vision encoders. Select pipeline via ``presets=``.               | ``isaacsim_physx``,          |
+    |                  |                             |                                                                         | ``newton_mjwarp``,           |
+    |                  |                             |                                                                         | ``newton_kamino``,           |
+    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  |                             |                                                                         | **renderer=**                |
+    |                  |                             |                                                                         | ``isaacsim_rtx``,            |
+    |                  |                             |                                                                         | ``newton_renderer``,         |
+    |                  |                             |                                                                         | ``ovrtx``, ``rtx``           |
     |                  |                             |                                                                         | **presets=** ``rgb``,        |
-    |                  |                             |                                                                         | ``depth``, ``resnet18``,     |
-    |                  |                             |                                                                         | ``theia_tiny``               |
+    |                  |                             |                                                                         | ``depth``, ``albedo``,       |
+    |                  |                             |                                                                         | ``semantic_segmentation``,   |
+    |                  |                             |                                                                         | ``simple_shading_*``,        |
+    |                  |                             |                                                                         | ``resnet18``, ``theia_tiny`` |
     +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
 
 .. |humanoid| image:: ../_static/tasks/classic/humanoid.jpg
@@ -958,11 +967,11 @@ including disabling runtime perturbations used for training.
     * - Isaac-Cartpole
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Cartpole-Camera
       - Manager Based
       - **rl_games** (PPO, FEATURE), **rsl_rl** (PPO, FEATURE)
-      - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo``, ``depth``, ``resnet18``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``, ``theia_tiny``
     * - Isaac-Cartpole-Camera-Direct
@@ -1003,7 +1012,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-KukaAllegro
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``ovphysx``, ``isaacsim_physx``
+      - | **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **presets=** ``cube``, ``shapes``
     * - Isaac-Lift-KukaAllegro-Camera
       - Manager Based
@@ -1084,8 +1093,8 @@ including disabling runtime perturbations used for training.
           | **presets=** ``albedo128``, ``albedo256``, ``albedo64``, ``cube``, ``depth128``, ``depth256``, ``depth64``, ``duo_camera``, ``raycaster_depth128``, ``raycaster_depth256``, ``raycaster_depth64``, ``rgb128``, ``rgb256``, ``rgb64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``semantic_segmentation64``, ``shapes``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_constant_diffuse64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``, ``simple_shading_full_mdl64``, ``single_camera``
     * - Isaac-Shadow-Handover-Direct
       - Direct
-      - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
-      - **physics=** ``newton_mjwarp``, ``physx``
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO, IPPO, MAPPO)
+      - **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - Isaac-Velocity-Flat-AnymalD
       - Manager Based
       - **rsl_rl** (PPO, DISTILLATION, DISTILLATION_RECURRENT, RECURRENT), **skrl** (PPO)

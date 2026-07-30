@@ -27,6 +27,7 @@ from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
+_MANAGER_CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera"
 
 
 def _resolve_with_presets(presets: str):
@@ -36,10 +37,15 @@ def _resolve_with_presets(presets: str):
 
 def _resolve_with_args(*args: str):
     """Resolve env_cfg with the given Hydra-style args. Modifies sys.argv temporarily."""
+    return _resolve_task_with_args(_CAMERA_PRESETS_TASK, *args)
+
+
+def _resolve_task_with_args(task: str, *args: str):
+    """Resolve a task env cfg with the given Hydra-style args."""
     old_argv = sys.argv.copy()
     try:
         sys.argv = [sys.argv[0], *args]
-        env_cfg, _ = resolve_task_config(_CAMERA_PRESETS_TASK, "rl_games_cfg_entry_point")
+        env_cfg, _ = resolve_task_config(task, "rl_games_cfg_entry_point")
         return env_cfg
     finally:
         sys.argv = old_argv
@@ -73,6 +79,14 @@ def test_rtx_is_renderer_selector():
 def test_isaacsim_physx_is_physics_selector():
     """The concrete Isaac Sim PhysX selector is exposed as ``physics=isaacsim_physx``."""
     preset_map = enumerate_task_presets(_CAMERA_PRESETS_TASK)
+
+    assert preset_map is not None
+    assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
+
+
+def test_manager_camera_isaacsim_physx_is_physics_selector():
+    """The manager camera task exposes the concrete Isaac Sim PhysX selector."""
+    preset_map = enumerate_task_presets(_MANAGER_CAMERA_PRESETS_TASK)
 
     assert preset_map is not None
     assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
@@ -144,6 +158,34 @@ def test_renderer_selector_physx_rtx_resolves_to_physx_with_kit_visualizer():
 
     assert isinstance(env_cfg.sim.physics, PhysxCfg)
     assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+    assert config_scan.needs_kit is True
+
+
+def test_manager_camera_physx_rtx_resolves_to_ovphysx_without_kit():
+    """The manager camera task resolves automatic PhysX and RTX to kitless backends."""
+    env_cfg = _resolve_task_with_args(
+        _MANAGER_CAMERA_PRESETS_TASK,
+        "physics=physx",
+        "renderer=rtx",
+    )
+    config_scan = _resolve_runtime_renderer(env_cfg)
+
+    assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
+    assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert config_scan.needs_kit is False
+
+
+def test_manager_camera_isaacsim_physx_rtx_forces_kit_backends():
+    """The manager camera task can force concrete Isaac Sim physics and rendering."""
+    env_cfg = _resolve_task_with_args(
+        _MANAGER_CAMERA_PRESETS_TASK,
+        "physics=isaacsim_physx",
+        "renderer=rtx",
+    )
+    config_scan = _resolve_runtime_renderer(env_cfg)
+
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
     assert config_scan.needs_kit is True
 
 
