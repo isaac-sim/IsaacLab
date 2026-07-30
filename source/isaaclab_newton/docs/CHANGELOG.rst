@@ -1,6 +1,110 @@
 Changelog
 ---------
 
+2.3.2 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cached stable articulation read launches outside CUDA graph capture on Newton.
+  No user migration is required.
+
+Fixed
+^^^^^
+
+* Fixed stale ``_scene_data_mapping`` in :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`
+  being reused after the visualization model was rebuilt for a stage with a different body count
+  (e.g. switching from a 4-env tiled capture to a 1-env viewport capture within the same process).
+  The mapping is now invalidated when its length does not match the current model's body count,
+  preventing wrong body transforms from being written into the shadow ``state_0``.
+
+* Fixed :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_usd` caching a partial
+  ``SelectPrims`` result when only some body prims had the ``newton:index`` Fabric attribute
+  propagated to the GPU at first call (async propagation), causing subsequent writes to miss
+  prims whose attribute arrived later and leaving those bodies invisible.  The per-call
+  ``SelectPrims`` now runs unconditionally every frame; a new ``_newton_fabric_ready`` flag is
+  set once the first successful write completes, and the dirty flag is kept True until then so
+  retries succeed without requiring external intervention.
+
+
+2.3.1 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed external visualizers for standalone scenes outside ``/World/envs``.
+
+* Fixed Newton implicit MPM initialization with convex-mesh rigid colliders.
+
+* Fixed Newton rigid object collections selecting unrelated sibling assets when
+  their configured prim paths differed in one segment.
+
+* Fixed Newton visualizers hiding procedural primitive geometry in scenes that
+  also contained assets with separate visual meshes.
+
+* Fixed visualizer initialization invoking the generic solver reset instead of
+  the active Newton solver's reset behavior.
+
+* Fixed full-articulation resets forwarding an unsupported slice to stateful
+  Isaac Lab actuators.
+
+
+2.3.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_newton.physics.KaminoSolverCfg.material_friction_mix_mode` and
+  :attr:`~isaaclab_newton.physics.KaminoSolverCfg.material_restitution_mix_mode` to control
+  how the friction and restitution coefficients of two contacting shapes are mixed into
+  contact-pair values by the Kamino solver.
+* Added support for :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` in
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`. When set, converts the normalized RGB
+  color to an ARGB clear color passed to ``SensorTiledCamera.ClearData`` on each render call.
+
+
+2.2.0 (2026-07-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added automatic conversion of height-field-tagged terrain collision meshes into Newton heightfield
+  colliders when building the Newton model. A terrain mesh tagged by
+  :class:`~isaaclab.terrains.TerrainImporter` is rasterized into a :class:`newton.Heightfield` through
+  :meth:`newton.Heightfield.create_from_mesh` at the same horizontal resolution and skipped during USD
+  import, so the MuJoCo solver compiles a heightfield instead of a multi-hundred-thousand-vertex mesh.
+  This cuts solver-initialization time for terrain-based tasks (for ``Isaac-Velocity-Rough-AnymalD``
+  the terrain's MuJoCo compile drops from ``~950 ms`` to ``~5 ms`` and solver initialization from
+  ``~1.9 s`` to ``~0.85 s``).
+
+Changed
+^^^^^^^
+
+* Improved Newton scene cloning to use the batched ``replicate`` fast path for
+  homogeneous environments, including those that register sensor sites (frame
+  transformers, ray casters, IMUs) and per-world env-root sites, instead of
+  building each world in a per-environment loop. This lowers environment-creation
+  time for single-source, all-identical scenes. Scenes with multiple clone
+  sources or MPM/deformable objects are unchanged and continue to use the
+  per-world path.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sensors.NewtonRaycastSensor` missing collision-only geometry. A scene
+  containing a ray-cast sensor now rebuilds the Newton shape BVH from both visible and colliding
+  shapes, so rays hit shapes that carry collision properties but no visual representation. Scenes
+  without a ray-cast sensor keep Newton's visible-only BVH, leaving camera renders unchanged.
+* Fixed environment resets raising ``ValueError: world_mask has shape ...`` under the implicit MPM
+  solver. Newton's :class:`newton.solvers.SolverImplicitMPM` gained a ``reset`` that only accepts a
+  per-world mask when it runs one FEM environment per world, so the MPM manager no longer forwards
+  the reset and leaves particle history untouched, as it did before the solver gained ``reset``.
+
+
 2.1.0 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~
 

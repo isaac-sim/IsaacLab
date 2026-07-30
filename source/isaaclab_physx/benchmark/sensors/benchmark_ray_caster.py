@@ -5,8 +5,9 @@
 
 """Benchmark the standard PhysX RayCaster update path.
 
-Each environment contains one kinematic body carrying a downward-facing grid
-sensor. All sensors cast against one shared ground plane.
+Each environment contains matched kinematic bodies carrying downward-facing
+grid sensors. By default, one sensor casts against a plane and the other
+against deterministic rough terrain.
 
 Usage:
     uv run python source/isaaclab_physx/benchmark/sensors/benchmark_ray_caster.py --num_envs 4096
@@ -15,16 +16,27 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import traceback
+from functools import partial
 
 from isaaclab.app import AppLauncher
+from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args, rough_terrain_size
 
 parser = argparse.ArgumentParser(description="Benchmark the standard PhysX RayCaster update path.")
-parser.add_argument("--num_envs", type=int, default=4096, help="Number of environments.")
+add_sensor_benchmark_args(
+    parser,
+    physics_variants=("physx",),
+    default_physics_variant="physx",
+    add_device=False,
+)
 parser.add_argument("--grid_size", type=float, default=1.0, help="Width and length [m] of each ray grid.")
 parser.add_argument("--grid_resolution", type=float, default=0.25, help="Ray-grid resolution [m].")
-parser.add_argument("--num_steps", type=int, default=500, help="Number of timed updates.")
-parser.add_argument("--warmup_steps", type=int, default=50, help="Number of untimed warm-up updates.")
-parser.add_argument("--label", type=str, default="current", help="Label printed with the benchmark results.")
+parser.add_argument(
+    "--terrain",
+    choices=("all", "plane", "rough"),
+    default="all",
+    help="Terrain workload to run. The default runs plane and rough workloads.",
+)
 parser.add_argument(
     "--disable_graph",
     action="store_true",
@@ -32,129 +44,210 @@ parser.add_argument(
 )
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+if args_cli.grid_size <= 0:
+    parser.error("--grid_size must be greater than zero")
+if args_cli.grid_resolution <= 0:
+    parser.error("--grid_resolution must be greater than zero")
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Everything below follows application launch."""
 
-import statistics
-import time
-
 import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
+from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
+from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.seed import configure_seed
+
+_ROUGH_TERRAIN_SEED = 0
+_ENV_SPACING = 2.0
+_ROUGH_TERRAIN_SIZE = rough_terrain_size(args_cli.num_envs, _ENV_SPACING, args_cli.grid_size)
+_WORKLOADS = ("plane", "rough")
+
+
+def _sensor_body_cfg(prim_path: str, position: tuple[float, float, float] = (0.0, 0.0, 1.0)) -> RigidObjectCfg:
+    """Create one collision-free kinematic carrier for a ray-caster workload."""
+    return RigidObjectCfg(
+        prim_path=prim_path,
+        spawn=sim_utils.CuboidCfg(
+            size=(0.1, 0.1, 0.1),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=position),
+    )
+
+
+def _rough_terrain_cfg() -> TerrainGeneratorCfg:
+    """Create deterministic rough terrain large enough for the configured ray grid."""
+    return TerrainGeneratorCfg(
+        seed=_ROUGH_TERRAIN_SEED,
+        size=(_ROUGH_TERRAIN_SIZE, _ROUGH_TERRAIN_SIZE),
+        border_width=0.0,
+        num_rows=1,
+        num_cols=1,
+        use_cache=False,
+        sub_terrains={
+            "random_rough": HfRandomUniformTerrainCfg(
+                proportion=1.0,
+                noise_range=(0.0, 0.2),
+                noise_step=0.02,
+                border_width=0.25,
+            )
+        },
+    )
 
 
 @configclass
 class RayCasterBenchmarkSceneCfg(InteractiveSceneCfg):
-    """One kinematic sensor body per environment above a shared ground plane."""
+    """Matched plane and rough-terrain ray-caster workloads."""
 
-    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    sensor_body = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/SensorBody",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    terrain = TerrainImporterCfg(
+        prim_path="/World/rough_ground",
+        terrain_type="generator",
+        terrain_generator=_rough_terrain_cfg(),
     )
-    ray_caster: RayCasterCfg = None
-
-
-def _percentile(samples: list[float], percentile: float) -> float:
-    """Return a linearly interpolated percentile for sorted scalar samples."""
-    ordered = sorted(samples)
-    position = (len(ordered) - 1) * percentile
-    lower = int(position)
-    upper = min(lower + 1, len(ordered) - 1)
-    fraction = position - lower
-    return ordered[lower] + fraction * (ordered[upper] - ordered[lower])
+    plane_ground = AssetBaseCfg(prim_path="/World/plane_ground", spawn=sim_utils.GroundPlaneCfg())
+    plane_sensor_body = _sensor_body_cfg(
+        "{ENV_REGEX_NS}/PlaneSensorBody", position=(2.0 * _ROUGH_TERRAIN_SIZE, 0.0, 1.0)
+    )
+    rough_sensor_body = _sensor_body_cfg("{ENV_REGEX_NS}/RoughSensorBody")
+    plane_ray_caster: RayCasterCfg | None = None
+    rough_ray_caster: RayCasterCfg | None = None
 
 
 def main() -> None:
     """Run the benchmark and print latency statistics."""
+    configure_seed(_ROUGH_TERRAIN_SEED)
     sim_dt = 1.0 / 120.0
     sim_cfg = sim_utils.SimulationCfg(dt=sim_dt, device=args_cli.device, gravity=(0.0, 0.0, 0.0))
     sim = sim_utils.SimulationContext(sim_cfg)
 
     scene_cfg = RayCasterBenchmarkSceneCfg(
         num_envs=args_cli.num_envs,
-        env_spacing=2.0,
+        env_spacing=_ENV_SPACING,
         lazy_sensor_update=True,
     )
-    scene_cfg.ray_caster = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/SensorBody",
-        mesh_prim_paths=["/World/ground"],
-        ray_alignment="world",
-        pattern_cfg=patterns.GridPatternCfg(
-            resolution=args_cli.grid_resolution,
-            size=(args_cli.grid_size, args_cli.grid_size),
-            direction=(0.0, 0.0, -1.0),
-        ),
+    workloads = _WORKLOADS if args_cli.terrain == "all" else (args_cli.terrain,)
+    pattern_cfg = patterns.GridPatternCfg(
+        resolution=args_cli.grid_resolution,
+        size=(args_cli.grid_size, args_cli.grid_size),
+        direction=(0.0, 0.0, -1.0),
     )
+    for workload in workloads:
+        setattr(
+            scene_cfg,
+            f"{workload}_ray_caster",
+            RayCasterCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/{workload.title()}SensorBody",
+                mesh_prim_paths=[f"/World/{workload}_ground"],
+                ray_alignment="world",
+                pattern_cfg=pattern_cfg,
+                global_world_only=True,
+            ),
+        )
+
     scene = InteractiveScene(scene_cfg)
     sim.reset()
     scene.reset()
 
-    sensor = scene["ray_caster"]
+    sensors = {workload: scene[f"{workload}_ray_caster"] for workload in workloads}
+    rays_per_env = next(iter(sensors.values())).num_rays
+    if any(sensor.num_rays != rays_per_env for sensor in sensors.values()):
+        raise RuntimeError("Plane and rough workloads must cast the same number of rays.")
     if args_cli.disable_graph:
-        sensor._use_graph = False
+        for sensor in sensors.values():
+            sensor._use_graph = False
 
-    for _ in range(args_cli.warmup_steps):
-        sim.step(render=False)
-        sensor.update(sim_dt, force_recompute=True)
-    wp.synchronize_device(sim.device)
-
-    synchronized_ms: list[float] = []
-    submission_ms: list[float] = []
-    for _ in range(args_cli.num_steps):
-        sim.step(render=False)
+    synchronize_device = partial(wp.synchronize_device, sim.device)
+    samples_by_workload = {}
+    validation_by_workload = {}
+    for workload, sensor in sensors.items():
+        for _ in range(args_cli.warmup_steps):
+            sim.step(render=False)
+            sensor.update(sim_dt, force_recompute=True)
+        # Intentionally drain warm-up work before any timed boundary.
         wp.synchronize_device(sim.device)
-        start = time.perf_counter()
-        sensor.update(sim_dt, force_recompute=True)
-        submitted = time.perf_counter()
-        wp.synchronize_device(sim.device)
-        finished = time.perf_counter()
-        synchronized_ms.append((finished - start) * 1000.0)
-        submission_ms.append((submitted - start) * 1000.0)
 
-    ray_hits = sensor.data.ray_hits_w.torch
-    finite_hits = int(torch.isfinite(ray_hits).all(dim=-1).sum().item())
-    expected_hits = args_cli.num_envs * sensor.num_rays
-    if finite_hits != expected_hits:
-        raise RuntimeError(f"Expected {expected_hits} finite ray hits, received {finite_hits}.")
-    max_hit_height = float(torch.abs(ray_hits[..., 2]).max().item())
-    hit_height_tolerance = 1.0e-4
-    if max_hit_height > hit_height_tolerance:
-        raise RuntimeError(
-            f"Expected ray hits within {hit_height_tolerance} m of the z=0 plane, "
-            f"received maximum |z| {max_hit_height} m."
+        samples_by_workload[workload] = collect_sensor_latency_samples(
+            num_steps=args_cli.num_steps,
+            step=lambda: sim.step(render=False),
+            update=lambda sensor=sensor: sensor.update(sim_dt, force_recompute=True),
+            synchronize=synchronize_device,
         )
 
-    print("-" * 80)
-    print("RayCaster update benchmark (PhysX)")
-    print(f"  label                  : {args_cli.label}")
-    print(f"  device                 : {sim.device}")
-    print(f"  num_envs               : {args_cli.num_envs}")
-    print(f"  rays_per_env           : {sensor.num_rays}")
-    print(f"  num_steps              : {args_cli.num_steps}")
-    print(f"  synchronized mean      : {statistics.mean(synchronized_ms):.3f} ms")
-    print(f"  synchronized p50       : {_percentile(synchronized_ms, 0.50):.3f} ms")
-    print(f"  synchronized p95       : {_percentile(synchronized_ms, 0.95):.3f} ms")
-    print(f"  submission mean        : {statistics.mean(submission_ms):.3f} ms")
-    print(f"  submission p50         : {_percentile(submission_ms, 0.50):.3f} ms")
-    print(f"  submission p95         : {_percentile(submission_ms, 0.95):.3f} ms")
-    print("-" * 80)
-    print(f"  finite ray hits        : {finite_hits} / {expected_hits}")
-    print(f"  maximum |hit z|        : {max_hit_height:.6f} m")
+        ray_hits = sensor.data.ray_hits_w.torch
+        finite_hits = int(torch.isfinite(ray_hits).all(dim=-1).sum().item())
+        expected_hits = args_cli.num_envs * sensor.num_rays
+        if finite_hits != expected_hits:
+            raise RuntimeError(f"Expected {expected_hits} finite {workload} ray hits, received {finite_hits}.")
+        validation = [
+            SingleMeasurement(name="Finite Ray Hits", value=finite_hits, unit="count"),
+            SingleMeasurement(name="Expected Ray Hits", value=expected_hits, unit="count"),
+        ]
+        if workload == "plane":
+            max_hit_height = float(torch.abs(ray_hits[..., 2]).max().item())
+            hit_height_tolerance = 1.0e-4
+            if max_hit_height > hit_height_tolerance:
+                raise RuntimeError(
+                    f"Expected plane ray hits within {hit_height_tolerance} m of z=0, "
+                    f"received maximum |z| {max_hit_height} m."
+                )
+            validation.append(SingleMeasurement(name="Maximum Absolute Hit Height", value=max_hit_height, unit="m"))
+        else:
+            validation.extend(
+                [
+                    SingleMeasurement(name="Minimum Hit Height", value=float(ray_hits[..., 2].min().item()), unit="m"),
+                    SingleMeasurement(name="Maximum Hit Height", value=float(ray_hits[..., 2].max().item()), unit="m"),
+                ]
+            )
+        validation_by_workload[workload] = validation
+
+    benchmark = LatencyBenchmarkRunner(
+        benchmark_name="physx_ray_caster_sensor",
+        formatter_type=args_cli.benchmark_formatter,
+        output_path=args_cli.output_path,
+        metadata={
+            "physics_variant": args_cli.physics_variant,
+            "label": args_cli.label,
+            "device": str(sim.device),
+            "num_envs": args_cli.num_envs,
+            "rays_per_env": rays_per_env,
+            "grid_size": args_cli.grid_size,
+            "grid_resolution": args_cli.grid_resolution,
+            "num_steps": args_cli.num_steps,
+            "warmup_steps": args_cli.warmup_steps,
+            "terrain": args_cli.terrain,
+            "rough_terrain_seed": _ROUGH_TERRAIN_SEED,
+        },
+    )
+    for workload in workloads:
+        add_sensor_latency_measurements(
+            benchmark,
+            samples=samples_by_workload[workload],
+            validation=validation_by_workload[workload],
+            update_phase=f"{workload}_sensor_update",
+            observer_phase=f"{workload}_observer",
+            validation_phase=f"{workload}_validation",
+        )
+    benchmark.finalize()
 
 
 if __name__ == "__main__":
-    main()
-    simulation_app.close()
+    try:
+        main()
+    except BaseException:
+        if simulation_app.config.get("fast_shutdown", False):
+            traceback.print_exc()
+        simulation_app.close(exit_code=1)
+        raise
+    else:
+        simulation_app.close()

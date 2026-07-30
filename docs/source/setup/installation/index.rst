@@ -147,7 +147,7 @@ Run the workflow you need from the repository root:
       --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
    # Add OVRTX and OVPhysX only when needed
-   uv run --extra ov --extra rtx isaaclab train --rl_library rsl_rl \
+   uv run --extra ovphysx --extra ovrtx isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
    # Full Isaac Sim support

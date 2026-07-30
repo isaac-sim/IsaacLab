@@ -6,6 +6,7 @@
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -21,66 +22,43 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
 
+##
+# Physics backend presets
+##
+
 
 @configclass
 class ReachPhysicsCfg(PresetCfg):
-    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
 
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=50,
+            njmax=100,
             nconmax=20,
             cone="pyramidal",
             integrator="implicitfast",
             impratio=1,
+            update_data_interval=2,
         ),
-        num_substeps=1,
+        num_substeps=2,
         debug_mode=False,
+        use_cuda_graph=True,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
     )
-
-    default = physx
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    default: NewtonCfg = newton_mjwarp
 
 
 ##
 # Scene definition
 ##
-
-
-@configclass
-class TableCfg(PresetCfg):
-    physx = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0, 0), rot=(0, 0, 0.707, 0.707)),
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-        ),
-    )
-
-    newton_mjwarp: ArticulationCfg = ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.5, 0, -0.5), rot=(0, 0, 0.707, 0.707), joint_pos={}, joint_vel={}
-        ),
-        spawn=sim_utils.CuboidCfg(
-            size=(0.9, 1.3, 1.00),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True),
-        ),
-        actuators={},
-        articulation_root_prim_path="",
-    )
-
-    newton_kamino = newton_mjwarp
-    default = physx
 
 
 @configclass
@@ -94,7 +72,14 @@ class ReachSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
     )
 
-    table = TableCfg()
+    table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, -0.5)),
+        spawn=sim_utils.CuboidCfg(
+            size=(0.9, 1.3, 1.0),
+            collision_props=sim_utils.CollisionBaseCfg(),
+        ),
+    )
 
     # robots
     robot: ArticulationCfg = MISSING
@@ -121,6 +106,7 @@ class CommandsCfg:
         resampling_time_range=(4.0, 4.0),
         debug_vis=True,
         position_success_threshold=0.05,
+        orientation_success_threshold=0.2,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=(0.35, 0.65),
             pos_y=(-0.2, 0.2),
@@ -154,7 +140,7 @@ class ObservationsCfg:
         pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
-        def __post_init__(self):
+        def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
 
@@ -186,19 +172,16 @@ class RewardsCfg:
         weight=-0.2,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
     )
-    end_effector_position_tracking_fine_grained = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "std": 0.1, "command_name": "ee_pose"},
-    )
     end_effector_orientation_tracking = RewTerm(
         func=mdp.orientation_command_error,
         weight=-0.1,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
     )
+    success = RewTerm(func=mdp.is_terminated_term, weight=10.0, params={"term_keys": ["success"]})
 
-    # action penalty
+    # control and physical motion penalties
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.0001)
+    action_magnitude = RewTerm(func=mdp.action_l2, weight=-0.005)
     joint_vel = RewTerm(
         func=mdp.joint_vel_l2,
         weight=-0.0001,
@@ -210,6 +193,10 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
+    success = DoneTerm(
+        func=mdp.pose_command_success,
+        params={"command_name": "ee_pose"},
+    )
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
@@ -247,13 +234,13 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Post initialization."""
         # general settings
-        self.decimation = 2
+        self.decimation = 4
         self.sim.render_interval = self.decimation
         self.episode_length_s = 12.0
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
-        self.sim.dt = 1.0 / 60.0
+        self.sim.dt = 1.0 / 120.0
         self.sim.physics = ReachPhysicsCfg()

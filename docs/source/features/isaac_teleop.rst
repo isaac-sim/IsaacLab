@@ -629,7 +629,7 @@ follows.
    * - ``IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel``
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
-   * - ``IsaacContrib-Reach-Franka-IK-Rel``
+   * - ``Isaac-Reach-Franka`` with ``physics=isaacsim_physx presets=diffik``
      - Keyboard, Gamepad, SpaceMouse
      - **Arm:** relative IK end-effector control. Gripper disabled.
 

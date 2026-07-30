@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.10.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed reusable reinforcement learning entrypoints to restore caller Torch and
+  SKRL backend settings after in-process training and playback.
+
+
+0.10.0 (2026-07-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.get_observations` to read the
+  environment-owned observation buffer instead of private environment methods. The
+  returned observations now match the latest reset/step returns, including observation
+  noise.
+
+
 0.9.0 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~
 

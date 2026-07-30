@@ -61,11 +61,26 @@ validated at the time of writing. The following pieces are available on
   `PR #5589 <https://github.com/isaac-sim/IsaacLab/pull/5589>`_.
 * FrameView — merged via
   `PR #5678 <https://github.com/isaac-sim/IsaacLab/pull/5678>`_.
+* :class:`~isaaclab.assets.DeformableObject` — experimental volume- and
+  surface-deformable support on CUDA simulation devices.
 
 Additional OvPhysX work remains in flight. IMU, Frame Transformer, Joint Wrench,
 PVA, Ray Caster, and rendering support are not documented as supported here
 until their implementations land on ``develop`` and pass the backend smoke
 tests.
+
+Deformable limitations
+----------------------
+
+OvPhysX deformables currently require every body matched by one
+:class:`~isaaclab.assets.DeformableObject` to have the same number of simulation
+nodes. Initialization raises an error for mixed node counts instead of exposing
+padded state that would produce incorrect reductions.
+
+Deformable scenes also require full-stage materialization. Startup cost therefore
+grows with the number of authored environments. Use this path for small validation
+scenes; training-scale workloads with thousands of environments are not currently
+supported.
 
 Installation
 ------------
