@@ -424,6 +424,7 @@ class NewtonManager(PhysicsManager):
     _scene_data_geometry_mapping: wp.array | None = None
     _shadow_deformable_entities: list | None = None
     _sim_particle_q: wp.array | None = None
+    _mapped_sim_particle_offsets: set[int] | None = None
     _shadow_deformable_sync_skip_warned: set[str] = set()
 
     # Views list for assets to register their views
@@ -986,6 +987,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._scene_data_geometry_mapping = None
         NewtonManager._shadow_deformable_entities = None
         NewtonManager._sim_particle_q = None
+        NewtonManager._mapped_sim_particle_offsets = None
         NewtonManager._shadow_deformable_sync_skip_warned = set()
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
@@ -2494,6 +2496,7 @@ class NewtonManager(PhysicsManager):
                     mapping=cls._scene_data_geometry_mapping,
                     allow_passthrough=False,
                 )
+                cls._mapped_sim_particle_offsets = cls._geometry_mapped_sim_offsets(scene_data_provider)
                 cls._sync_render_particle_q_from_sim()
             else:
                 cls._scene_data_points.points = cls._state_0.particle_q
@@ -2506,6 +2509,27 @@ class NewtonManager(PhysicsManager):
         cls._mark_sensor_state_dirty()
 
     @classmethod
+    def _geometry_mapped_sim_offsets(cls, scene_data_provider: SceneDataProvider) -> set[int]:
+        """Return ``_sim_particle_q`` offsets filled by the latest :meth:`get_points` call.
+
+        ``create_geometry_mapping`` indexes by backend entity and stores consumer
+        destinations (or ``-1`` when a backend path has no consumer). The inverse
+        case — a shadow entity whose path the backend never reports — never appears
+        in that array, so its sim slice stays at the zero initialization.
+        """
+        mapping = cls._scene_data_geometry_mapping
+        if mapping is not None:
+            return {int(value) for value in mapping.numpy() if int(value) >= 0}
+
+        # Identity layout: backend entities land at sequential flat offsets.
+        offsets: set[int] = set()
+        flat_offset = 0
+        for count in scene_data_provider.backend.geometry_counts:
+            offsets.add(flat_offset)
+            flat_offset += int(count)
+        return offsets
+
+    @classmethod
     def _sync_render_particle_q_from_sim(cls) -> None:
         """Copy or remap sim nodal positions into shadow ``particle_q`` render slots."""
         if cls._state_0 is None or cls._state_0.particle_q is None or cls._sim_particle_q is None:
@@ -2513,7 +2537,21 @@ class NewtonManager(PhysicsManager):
         if not cls._shadow_deformable_entities:
             return
 
+        mapped_offsets = cls._mapped_sim_particle_offsets
         for entity in cls._shadow_deformable_entities:
+            if mapped_offsets is not None and entity.sim_particle_offset not in mapped_offsets:
+                # get_points did not fill this sim slice (still zeros). Copying / remapping
+                # would collapse the authored rest-pose mesh to the origin.
+                warned = cls._shadow_deformable_sync_skip_warned
+                if entity.root_path not in warned:
+                    warned.add(entity.root_path)
+                    logger.warning(
+                        "Skipping particle sync for deformable '%s': no SceneData geometry "
+                        "mapping resolved for sim_offset=%d; render slots stay at rest pose.",
+                        entity.root_path,
+                        entity.sim_particle_offset,
+                    )
+                continue
             if entity.volume_vis_remap is not None:
                 launch_volume_vis_remap(
                     cls._sim_particle_q,
