@@ -69,8 +69,19 @@ def test_record_video(task_name, setup_video_params):
     env.reset()
     # simulate environment
     with torch.inference_mode():
+        raw_env = env.unwrapped
+        device = raw_env.device
+        # MARL envs expose action_space as a callable (agent → space) and expect a
+        # dict of per-agent action tensors.  Single-agent envs expose a Space directly.
+        is_marl = callable(env.action_space) and hasattr(raw_env, "action_spaces")
         for _ in range(500):
-            actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+            if is_marl:
+                actions = {
+                    agent: 2 * torch.rand((raw_env.num_envs, *raw_env.action_spaces[agent].shape), device=device) - 1
+                    for agent in raw_env.possible_agents
+                }
+            else:
+                actions = 2 * torch.rand(env.action_space.shape, device=device) - 1
             _ = env.step(actions)
 
     # close flushes any open clip to disk
