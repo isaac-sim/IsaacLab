@@ -303,6 +303,36 @@ def test_prepare_for_reuse_detects_topology_change(device, view_factory):
         assert not result, "PrepareForReuse should return False when no topology change"
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_selections_match_only_the_view_prims(device, view_factory):
+    """Each selection resolves to the view's own prims, not to the whole stage.
+
+    The selections require the view's private index attribute.  Without it they
+    would require only the Fabric world and local matrix attributes, which
+    nearly every prim on the stage carries -- so they would resolve to the whole
+    scene (~1.1M prims at 8192 environments) and the view would have to find its
+    own prims in that list on every access.  That whole-stage lookup is what
+    stalled camera pose reads at high environment counts.
+
+    The fixture puts every child under its own parent, so the child selections
+    hold ``view.count`` prims and the parent selection holds one entry per env.
+    """
+    num_envs = 4
+    bundle = view_factory(num_envs, device)
+    view = bundle.view
+    view.get_world_poses()  # trigger Fabric init
+
+    for name in ("_sel_ro", "_sel_rw"):
+        count = getattr(view, name).GetCount()
+        assert count == view.count, (
+            f"{name} matched {count} prims but the view manages {view.count}. "
+            "The selection is not scoped by the per-view index attribute, so it is "
+            "picking up unrelated prims from the stage."
+        )
+    parent_count = view._sel_parent.GetCount()
+    assert parent_count == num_envs, f"parent selection matched {parent_count} prims, expected {num_envs}"
+
+
 def _read_fabric_world_matrix_translation(view, prim_index=0):
     """Read cached Fabric worldMatrix directly, without FrameView getter sync."""
     rt_prim = view._stage.GetPrimAtPath(view.prim_paths[prim_index])
