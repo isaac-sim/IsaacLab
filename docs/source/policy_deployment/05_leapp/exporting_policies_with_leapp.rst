@@ -4,14 +4,16 @@ Exporting Policies with LEAPP
 .. currentmodule:: isaaclab
 
 This guide covers how to export trained reinforcement learning policies from Isaac Lab using
-`LEAPP <https://github.com/nvidia-isaac/leapp>`__ (Lightweight Export Annotations for Policy Pipelines).
-The main goal of the LEAPP export path is to package the policy together with the input and
-output semantics needed for deployment, so downstream users do not need to reimplement Isaac Lab
+`LEAPP <https://nvidia-isaac.github.io/leapp/>`__ (Lightweight Export Annotations for Policy Pipelines).
+The main goal of the LEAPP export path is to package a policy together with the input and output
+semantics needed for deployment, so downstream users do not need to reimplement Isaac Lab
 observation preprocessing, action postprocessing, or recurrent-state handling by hand.
 
-In practice, this makes the exported policy a much better fit for Isaac deployment libraries.
-Isaac Lab can already consume these exports through :class:`~envs.LeappDeploymentEnv`, and Isaac
-ROS will add direct support for running LEAPP-exported policies in a future release.
+The Isaac Lab LEAPP exporter traces the data flowing between the policy and the simulation,
+capturing the operations applied along the way. It also embeds semantic metadata for the exported
+policy inputs and outputs. In practice, this makes the exported policy a better fit for Isaac
+deployment libraries. Isaac Lab can already consume these exports through
+:class:`~envs.LeappDeploymentEnv`.
 
 .. note::
 
@@ -24,17 +26,47 @@ Prerequisites
 -------------
 
 This export flow requires ``leapp``, Python >= 3.10, and PyTorch >= 2.6. Install
-LEAPP into the same Python environment used by Isaac Lab. For uv-based source environments, use
-``uv pip`` from the Isaac Lab repository root:
+LEAPP into the same Python environment used by Isaac Lab:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   uv pip install leapp
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
 
-If you are using an environment with ``pip`` installed instead of uv, install the same package with
-``python -m pip install leapp`` using Isaac Lab's Python interpreter. Ensure you have a trained
-checkpoint for the selected RL library before proceeding. The standard Isaac Lab training workflow
-stores checkpoints under ``logs/<rl_library>/``.
+      .. tab-set::
+
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               uv pip install leapp
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               ./isaaclab.sh -p -m pip install leapp
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. tab-set::
+
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: batch
+
+               uv pip install leapp
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: batch
+
+               isaaclab.bat -p -m pip install leapp
+
+Ensure you have a trained checkpoint for the selected RL library before proceeding. The standard
+Isaac Lab training workflow stores checkpoints under ``logs/<rl_library>/``.
 
 
 Why Export with LEAPP

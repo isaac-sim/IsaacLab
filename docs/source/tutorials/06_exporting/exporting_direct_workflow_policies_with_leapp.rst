@@ -26,7 +26,7 @@ This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as a concrete
 example of adding LEAPP annotations to a Direct workflow environment. Apply the same
 annotation pattern to your own Direct RL environment.
 
-This export flow requires ``leapp>=0.5.2``. Set up the LEAPP dependencies with:
+This export flow requires ``leapp``. Set up the LEAPP dependencies with:
 
 .. tab-set::
    :sync-group: os
@@ -40,7 +40,7 @@ This export flow requires ``leapp>=0.5.2``. Set up the LEAPP dependencies with:
 
             .. code-block:: bash
 
-               uv sync --extra leapp
+               uv pip install leapp
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -51,9 +51,19 @@ This export flow requires ``leapp>=0.5.2``. Set up the LEAPP dependencies with:
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code-block:: batch
+      .. tab-set::
 
-         isaaclab.bat -p -m pip install leapp
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: batch
+
+               uv pip install leapp
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: batch
+
+               isaaclab.bat -p -m pip install leapp
 
 If you want to run the exported example with the existing
 ``IsaacContrib-Velocity-Rough-AnymalC-Direct`` task registration, copy the annotated
@@ -93,7 +103,8 @@ annotations, export a trained policy with:
 
             .. code-block:: bash
 
-               uv run --extra leapp python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run python \
+                   scripts/reinforcement_learning/leapp/rsl_rl/export.py \
                    --task <TASK_NAME> \
                    --checkpoint <PATH_TO_CHECKPOINT> \
                    --export_save_path <EXPORT_PATH>
