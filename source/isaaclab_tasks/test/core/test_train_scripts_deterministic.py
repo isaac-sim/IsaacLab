@@ -106,8 +106,14 @@ def test_skrl_scripts_min_version_matches_source_package():
 
 def test_unified_scripts_delegate_to_package_entrypoints():
     """Unified executables must remain thin delegates to isaaclab_rl."""
-    for action, function_name in (("train", "run_train_cli"), ("play", "run_play_cli")):
-        source = (REPO_ROOT / "scripts" / "reinforcement_learning" / f"{action}.py").read_text(encoding="utf-8")
+    scripts = (
+        ("reinforcement_learning/train.py", "run_train_cli"),
+        ("reinforcement_learning/play.py", "run_play_cli"),
+        ("environments/zero_agent.py", "run_zero_agent_cli"),
+        ("environments/random_agent.py", "run_random_agent_cli"),
+    )
+    for relative_path, function_name in scripts:
+        source = (REPO_ROOT / "scripts" / relative_path).read_text(encoding="utf-8")
         assert f"from isaaclab_rl.entrypoints import {function_name}" in source
         assert f"return {function_name}(argv)" in source
 
