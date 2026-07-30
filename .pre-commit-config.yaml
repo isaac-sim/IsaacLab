@@ -79,3 +79,9 @@ repos:
         entry: tools/pre_commit/check_git_lfs_pointers.sh
         language: script
         pass_filenames: true
+      - id: check-test-boundary
+        name: check test rules
+        entry: uv run --extra test --locked python -m pytest -q source/isaaclab/test/test_repo_test_boundary.py
+        language: system
+        files: (^|/)test/.*/?test_.*\.py$
+        pass_filenames: false

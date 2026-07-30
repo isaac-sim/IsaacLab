@@ -1,0 +1,137 @@
+# Modules that predate the rules in AGENTS.md ## Testing Guidelines.
+#
+# Format: <rule> <repo-relative path>. This list may only shrink. Each package
+# overhaul removes its own entries; new entries need a reviewer-accepted reason.
+
+# Installs MagicMock stubs for omni/isaacsim into sys.modules at import time and never
+# restores them, breaking later modules in the same session. Removing the stubs exposes an
+# order dependence in test_articulation_ordering.py, so both are fixed together when
+# source/isaaclab/test/assets is overhauled.
+import_time_side_effect source/isaaclab/test/assets/_iface_test_boot.py
+
+# Same class of defect: modules stubbed into sys.modules at import time and never restored,
+# so every later test in the session sees the stub. Each is fixed with its package overhaul.
+import_time_side_effect source/isaaclab/test/assets/test_articulation_ordering.py
+import_time_side_effect source/isaaclab_contrib/test/rl/test_rlinf_extension.py
+import_time_side_effect source/isaaclab_physx/test/renderers/test_isaac_rtx_renderer_utils.py
+import_time_side_effect source/isaaclab_teleop/test/test_retargeters.py
+
+# Kit arrives transitively, which the guard cannot see statically. Drops out once
+# isaaclab.devices.gamepad.se2_gamepad stops importing carb at module scope.
+transitive_kit source/isaaclab/test/devices/test_device_constructors.py
+
+# Tests without a docstring naming the contract they protect.
+missing_docstring scripts/benchmarks/test/test_early_stop.py
+missing_docstring scripts/benchmarks/test/test_training_adapters.py
+missing_docstring source/isaaclab_contrib/test/assets/test_multirotor.py
+missing_docstring source/isaaclab_contrib/test/coupling/test_coupler.py
+missing_docstring source/isaaclab_contrib/test/coupling/test_coupler_runtime.py
+missing_docstring source/isaaclab_experimental/test/envs/mdp/test_actions_warp_parity.py
+missing_docstring source/isaaclab_experimental/test/envs/mdp/test_observations_warp_parity.py
+missing_docstring source/isaaclab_experimental/test/envs/mdp/test_rewards_warp_parity.py
+missing_docstring source/isaaclab_experimental/test/envs/mdp/test_terminations_warp_parity.py
+missing_docstring source/isaaclab_experimental/test/envs/test_frontend.py
+missing_docstring source/isaaclab_experimental/test/utils/test_manager_call_switch.py
+missing_docstring source/isaaclab_newton/test/assets/test_mpm_object.py
+missing_docstring source/isaaclab_newton/test/assets/test_newton_actuators_newton.py
+missing_docstring source/isaaclab_newton/test/cloner/test_rename_builder_labels.py
+missing_docstring source/isaaclab_newton/test/ik/test_newton_ik_solver.py
+missing_docstring source/isaaclab_newton/test/physics/test_newton_fabric_body_sync_unit.py
+missing_docstring source/isaaclab_newton/test/sensors/test_site_injection.py
+missing_docstring source/isaaclab_newton/test/sim/test_mpm_spawners.py
+missing_docstring source/isaaclab_ovphysx/test/assets/test_articulation_helpers.py
+missing_docstring source/isaaclab_ovphysx/test/assets/test_deformable_object_helpers.py
+missing_docstring source/isaaclab_ovphysx/test/assets/test_deformable_views.py
+missing_docstring source/isaaclab_ovphysx/test/assets/test_rigid_object_helpers.py
+missing_docstring source/isaaclab_ovphysx/test/sim/test_ovphysx_view.py
+missing_docstring source/isaaclab_ovphysx/test/test_mock_ovphysx_bindings.py
+missing_docstring source/isaaclab_ov/test/test_ovrtx_renderer_kernels.py
+missing_docstring source/isaaclab_physx/test/assets/test_newton_actuators_physx.py
+missing_docstring source/isaaclab_physx/test/renderers/test_isaac_rtx_renderer_utils.py
+missing_docstring source/isaaclab_physx/test/sensors/test_contact_sensor.py
+missing_docstring source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py
+missing_docstring source/isaaclab_ppisp/test/test_ppisp_kernels.py
+missing_docstring source/isaaclab_ppisp/test/test_ppisp_pipeline_perf.py
+missing_docstring source/isaaclab_ppisp/test/test_ppisp.py
+missing_docstring source/isaaclab_rl/test/test_checkpoint_manifest.py
+missing_docstring source/isaaclab_rl/test/test_rsl_rl_cfg_deprecation.py
+missing_docstring source/isaaclab_tasks/test/contrib/stack/test_so101_stack_physics_cfg.py
+missing_docstring source/isaaclab_tasks/test/contrib/test_automate_soft_dtw.py
+missing_docstring source/isaaclab_tasks/test/contrib/test_cartpole_showcase_environments.py
+missing_docstring source/isaaclab_tasks/test/contrib/test_cartpole_showcase_environments_with_stage_in_memory.py
+missing_docstring source/isaaclab_tasks/test/contrib/test_contrib_environments_smoke.py
+missing_docstring source/isaaclab_tasks/test/contrib/test_environments_automate.py
+missing_docstring source/isaaclab_tasks/test/contrib/test_environments_skillgen.py
+missing_docstring source/isaaclab_tasks/test/contrib/test_pickplace_stack_environments.py
+missing_docstring source/isaaclab_tasks/test/contrib/test_teleop_environments.py
+missing_docstring source/isaaclab_tasks/test/contrib/test_teleop_environments_with_stage_in_memory.py
+missing_docstring source/isaaclab_tasks/test/core/test_checkpoint_path.py
+missing_docstring source/isaaclab_tasks/test/core/test_dexterous_task_math.py
+missing_docstring source/isaaclab_tasks/test/core/test_environments_newton.py
+missing_docstring source/isaaclab_tasks/test/core/test_environments.py
+missing_docstring source/isaaclab_tasks/test/core/test_environments_with_stage_in_memory.py
+missing_docstring source/isaaclab_tasks/test/core/test_newton_actuator_manager_authoring.py
+missing_docstring source/isaaclab_tasks/test/core/test_preset_cli.py
+missing_docstring source/isaaclab_tasks/test/core/test_reach_franka_presets.py
+missing_docstring source/isaaclab_tasks/test/core/test_reach_ur10_presets.py
+missing_docstring source/isaaclab_tasks/test/core/test_shadow_hand_camera_presets.py
+missing_docstring source/isaaclab_teleop/test/test_cloudxr_lifecycle.py
+missing_docstring source/isaaclab_teleop/test/test_control_events.py
+missing_docstring source/isaaclab_teleop/test/test_hand_debug_viz.py
+missing_docstring source/isaaclab_teleop/test/test_retargeters.py
+missing_docstring source/isaaclab_teleop/test/test_session_step_failure.py
+missing_docstring source/isaaclab_teleop/test/test_target_frame_rebase.py
+missing_docstring source/isaaclab/test/actuators/test_dc_motor.py
+missing_docstring source/isaaclab/test/app/test_app_launcher_argv.py
+missing_docstring source/isaaclab/test/app/test_argparser_launch.py
+missing_docstring source/isaaclab/test/app/test_env_var_launch.py
+missing_docstring source/isaaclab/test/app/test_kwarg_launch.py
+missing_docstring source/isaaclab/test/app/test_non_headless_launch.py
+missing_docstring source/isaaclab/test/assets/test_articulation_iface.py
+missing_docstring source/isaaclab/test/assets/test_articulation_ordering_iface.py
+missing_docstring source/isaaclab/test/assets/test_iface_test_utils.py
+missing_docstring source/isaaclab/test/assets/test_rigid_object_collection_iface.py
+missing_docstring source/isaaclab/test/assets/test_rigid_object_iface.py
+missing_docstring source/isaaclab/test/benchmark/test_api.py
+missing_docstring source/isaaclab/test/benchmark/test_benchmark_core.py
+missing_docstring source/isaaclab/test/benchmark/test_builders.py
+missing_docstring source/isaaclab/test/benchmark/test_capture.py
+missing_docstring source/isaaclab/test/benchmark/test_cli.py
+missing_docstring source/isaaclab/test/benchmark/test_formatters.py
+missing_docstring source/isaaclab/test/benchmark/test_metrics.py
+missing_docstring source/isaaclab/test/benchmark/test_profiling.py
+missing_docstring source/isaaclab/test/benchmark/test_recorders.py
+missing_docstring source/isaaclab/test/benchmark/test_schema.py
+missing_docstring source/isaaclab/test/benchmark/test_stepping.py
+missing_docstring source/isaaclab/test/cli/test_install_command_parsing.py
+missing_docstring source/isaaclab/test/cli/test_install_prebundle.py
+missing_docstring source/isaaclab/test/cli/test_train_multigpu_command_building.py
+missing_docstring source/isaaclab/test/controllers/test_differential_ik_features.py
+missing_docstring source/isaaclab/test/managers/test_observation_manager.py
+missing_docstring source/isaaclab/test/managers/test_termination_manager.py
+missing_docstring source/isaaclab/test/markers/test_visualization_markers.py
+missing_docstring source/isaaclab/test/renderers/test_segmentation_colors.py
+missing_docstring source/isaaclab/test/renderers/test_simulation_render_context.py
+missing_docstring source/isaaclab/test/scene/test_interactive_scene.py
+missing_docstring source/isaaclab/test/sensors/test_ray_caster_camera.py
+missing_docstring source/isaaclab/test/sensors/test_ray_caster.py
+missing_docstring source/isaaclab/test/sim/test_articulation_fragments.py
+missing_docstring source/isaaclab/test/sim/test_collision_fragments.py
+missing_docstring source/isaaclab/test/sim/test_joint_drive_fragments.py
+missing_docstring source/isaaclab/test/sim/test_mass_fragments.py
+missing_docstring source/isaaclab/test/sim/test_material_fragments.py
+missing_docstring source/isaaclab/test/sim/test_mesh_collision_fragments.py
+missing_docstring source/isaaclab/test/sim/test_schema_fragments.py
+missing_docstring source/isaaclab/test/sim/test_service_locator.py
+missing_docstring source/isaaclab/test/sim/test_simulation_context_visualizers.py
+missing_docstring source/isaaclab/test/sim/test_tendon_fragments.py
+missing_docstring source/isaaclab/test/sim/test_utils_queries.py
+missing_docstring source/isaaclab/test/sim/test_views_xform_prim.py
+missing_docstring source/isaaclab/test/utils/test_articulation_ordering_helpers.py
+missing_docstring source/isaaclab/test/utils/test_configclass.py
+missing_docstring source/isaaclab/test/utils/test_device_selection.py
+missing_docstring source/isaaclab/test/utils/test_images.py
+missing_docstring source/isaaclab/test/utils/test_wrench_composer.py
+missing_docstring source/isaaclab/test/utils/warp/test_particle_mesh.py
+missing_docstring source/isaaclab/test/visualizers/test_visualizer.py
+missing_docstring source/isaaclab_visualizers/test/test_newton_adapter.py

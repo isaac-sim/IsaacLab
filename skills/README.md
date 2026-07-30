@@ -9,6 +9,7 @@ Developer skills:
 - `developer/pr-workflow/`: prepare changes for review using Isaac Lab's PR, commit, changelog, and validation conventions.
 - `developer/changelog-fragments/`: add and validate package changelog fragments.
 - `developer/coding-style/`: apply Isaac Lab coding style, API design, docstring, type-hint, lazy export, and contribution conventions.
+- `developer/writing-tests/`: write and prune tests against the repository test rules, markers, and Kit-less boundary.
 
 User skills:
 

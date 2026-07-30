@@ -701,6 +701,38 @@ Good tests not only cover the basic functionality of the code but also the edge 
 They should be able to catch regressions and ensure that the code is working as expected.
 Please make sure that you add tests for your changes.
 
+The complete rules live under ``## Testing Guidelines`` in ``AGENTS.md`` and are
+enforced by ``source/isaaclab/test/test_repo_test_boundary.py``.
+
+What makes a good test here
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Fewer, sharper tests are better than more tests. Before adding one, search the
+package's test directory: if an existing test already covers the code path,
+extend its assertions or add a parametrize case instead of writing a new test.
+
+A test must be able to fail for the right reason. If reverting a line of
+production code cannot break it, it is not testing anything. Avoid asserting a
+default you just wrote into a configuration object, an attribute you just passed
+to a constructor, or a type that is statically obvious. Prefer relationships and
+analytically derived values over copied literals: assert that a torque equals
+``stiffness * error``, not that it equals ``4.7213``.
+
+A test must also earn its runtime. Parametrization is a budget, not a habit,
+because each case can rebuild a scene. Behavior tests should pick a single
+device; only initialization and transfer tests need both, and then as paired
+cases rather than a cross product. When a parameter only changes a cheap
+attribute, loop over one already-built scene instead.
+
+Name tests for the outcome they assert, such as
+``test_set_joint_position_target_clamps_to_joint_limits``, and give each one a
+short docstring naming the contract it protects. Because test directories are
+not Python packages, module names must be unique across the repository;
+disambiguate with a package suffix such as ``test_articulation_newton.py``.
+
+When adding a regression test, first revert the fix and confirm the test fails,
+then reapply it and confirm the test passes.
+
 Test runtime boundaries
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -739,6 +771,26 @@ Do not use ``isaacsim_ci`` as a replacement for ``requires_kit``; it selects a
 separate external short suite. Preserve behavioral coverage when replacing Kit
 with fakes, and amortize unavoidable Kit startup with the broadest safe fixture
 scope without introducing order-dependent state leakage.
+
+Assign ``pytestmark`` only once per module. A second assignment silently
+discards the first, so combine the marks into a single list.
+
+Optional dependency extras
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Several extras cannot be installed together, so no single environment runs every
+test. A module that needs an optional dependency declares it:
+
+.. code-block:: python
+
+   pytestmark = pytest.mark.requires_extra("ov")
+
+Run that suite with the extra installed, for example
+``uv run --extra test --extra ov --locked python -m pytest source/isaaclab_ovphysx/test``.
+A missing extra is reported as a hard failure naming the install command rather
+than a silent skip, so absent coverage stays visible. Do not guard a declared
+extra with ``pytest.importorskip``. ``--ignore-missing-extras`` downgrades the
+failure and is intended only for a deliberate repository-wide sweep.
 
 .. tab-set::
    :sync-group: os

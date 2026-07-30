@@ -184,12 +184,26 @@ Follow conventional commit message practices.
 
 ## Testing Guidelines
 
-- **Always verify regression tests fail without the fix.** When writing a regression test for a bug fix, temporarily revert the fix and run the test to confirm it fails. Then reapply the fix and verify the test passes. This ensures the test actually covers the bug.
+Worked before/after examples live in the `isaaclab-writing-tests` skill at
+`skills/developer/writing-tests/SKILL.md`. The rules below are enforced by
+`tools/test/test_repo_test_boundary.py`.
 
-### Fast local test profile
+### A test must earn its existence
+
+- **Less is more. Prefer editing an existing test over adding one.** Search the package's test directory for coverage of the same symbol first. If a test already exercises the path, extend its assertions or add a parametrize case. Add a new test function only when the setup genuinely differs.
+- **One test, one contract.** A test asserts one observable behavior. If the name needs "and", split it — or, more often, you are testing something that needs no test.
+- **No tautological tests.** Do not assert that a config dataclass returns the default you just wrote into it, that a constructor set the attribute you passed it, or that a value has a statically obvious type. If reverting a production line cannot fail the test, delete the test.
+- **No hardcoded magic-number expectations.** Assert relationships and analytically derived values: `assert torque == pytest.approx(stiffness * error)`, not `assert torque == pytest.approx(4.7213)`. When a literal genuinely is the contract (a documented constant, a golden value), name it and comment why.
+- **Justify assertion-free tests.** A test that only checks "it did not raise" must say so in its docstring and must not be the only coverage of the behavior.
+- **Delete rather than skip.** Remove tests that are permanently skipped, xfailed with no linked issue, or commented out.
+
+### A test must earn its runtime
 
 - **The unqualified pytest command is the fast local profile.** `uv run --extra test --locked python -m pytest <path>` must avoid Kit startup and omit expensive simulator integration tests while retaining direct unit, configuration, Torch, Warp, and Newton coverage.
-- **Mark genuinely expensive coverage with `ci_only`.** Use `@pytest.mark.ci_only` on an individual simulator-backed test in an otherwise fast module. Use `pytestmark = pytest.mark.ci_only` at module scope when every test in the file is expensive; this lets pytest reject the file before import.
+- **Prefer the narrowest seam.** Exercise Python, Torch, Warp, Newton, or configuration logic directly. Reuse the fakes in `isaaclab.test.mock_interfaces` and `isaaclab_physx.test.mock_interfaces`. Never initialize a simulator merely to obtain an object whose logic is directly testable.
+- **Amortize unavoidable setup.** Use the broadest safe fixture scope and cover related behavior from one initialization. Prefer reuse-with-reset over rebuild, unless state leakage would make assertions order-dependent.
+- **Parametrize is a budget, not a habit.** Cross products multiply scene builds. Behavior tests pick one primary device (`PRIMARY_DEVICE = test_devices()[-1:]`); only initialization and transfer tests need both, and then as paired cases such as `[(1, test_devices()[0]), (2, test_devices()[-1])]` rather than a cross product. Use complementary pairwise cases when axes are independent, and collapse a parametrize into a loop over one built scene when the parameter only changes a cheap attribute. Any sim-backed parametrize exceeding eight cases needs a comment justifying it.
+- **Mark genuinely expensive coverage with `ci_only`.** Use `@pytest.mark.ci_only` on an individual simulator-backed test in an otherwise fast module, or `pytestmark = pytest.mark.ci_only` when every test in the file is expensive.
 - **Do not use `ci_only` as a dumping ground.** Startup cost, large environment matrices, long training, rendering, and expensive GPU integration are valid reasons. Ordinary tests, tests that can use a narrow fake, and tests that only need a shared fixture are not.
 - **Keep the local profile representative.** Split mixed modules or mark individual tests so config validation, error paths, state transforms, and standalone backend logic continue to run locally.
 - **CI must explicitly select the complete profile.** Use `--run-ci-tests` or set `ISAACLAB_RUN_CI_TESTS=1`. The environment form is intended for orchestrators that start fresh pytest subprocesses.
@@ -198,15 +212,35 @@ Follow conventional commit message practices.
 ### Kit-less test boundary
 
 - **Tests are Kit-less by default.** A normal package test must collect and run with `uv run --extra test --locked python -m pytest <path>`. It must not launch `AppLauncher`, import `isaacsim`, `omni.*`, `carb`, or `usdrt`, or depend on a running USD/Fabric/RTX application.
-- **Prefer the narrowest test seam.** Exercise Python, Torch, Warp, Newton, or configuration logic directly. Use small protocol fakes at the USD/Fabric boundary when the assertion does not need the real application. Do not initialize a simulator merely to obtain an object whose logic can be tested directly.
 - **Use `requires_kit` only for an observable Kit contract.** Valid examples include application lifecycle, extension loading, live USD-stage mutation through Kit, Fabric synchronization, RTX rendering, or a Kit-owned API with no standalone substitute. Needing a convenient fixture is not sufficient.
-- **Kit-only files must declare `pytestmark = pytest.mark.requires_kit`.** The declaration must be at module scope so `--without-kit` can reject the file before import. Do not use a function-level `requires_kit` mark in a mixed module.
-- **Split mixed files.** Move direct logic and fake-based coverage to a Kit-less test module. A module that launches Kit must contain only tests that fundamentally require Kit.
-- **Never launch Kit during collection for the default lane.** `AppLauncher(...)` may appear at module scope only in a module carrying the module-level `requires_kit` mark.
+- **Kit-only files must declare `pytestmark` at module scope.** Write `pytestmark = pytest.mark.requires_kit`, or include the mark in a module-level list, above the `AppLauncher(...)` call. The marker is read by parsing the module, so a function-level mark in a mixed module does not work.
+- **Assign `pytestmark` exactly once per module.** A second assignment silently discards the first. Combine marks into one list.
+- **Nothing may execute at import time except imports and cheap constants.** No argument parsing, no network, no filesystem writes, and no simulator construction at module scope.
+- **Split mixed files.** Move direct logic and fake-based coverage to a sibling module: `test_<subject>_unit.py` for direct logic, `test_<subject>_cfg.py` for config contracts. A `requires_kit` module contains only tests that fundamentally require Kit.
 - **Do not use `isaacsim_ci` as a Kit dependency marker.** It selects an external short suite and has different semantics.
-- **Amortize unavoidable startup.** Within a Kit-only module, use the broadest safe fixture scope and cover all related behavior from one application/stage initialization. Do not combine tests when state leakage would make assertions order-dependent.
 - **Validate both lanes after changing a boundary.** Run complete Kit-less tests with `uv run --extra test --locked python -m pytest --run-ci-tests --without-kit <path>`. Run Kit tests with `uv run --extra isaacsim --locked --with pytest python -m pytest --run-ci-tests -m requires_kit <path>` (or the repository's fresh-process Kit orchestrator for modules that own application startup).
 - **Do not weaken coverage to remove Kit.** Preserve the behavior and failure mode being asserted; change only the test seam. If a fake cannot represent the contract faithfully, keep the test in the Kit lane.
+
+### Optional dependency extras
+
+- **Declare the extras a suite needs.** A module that imports an optional dependency states it with `pytestmark = pytest.mark.requires_extra("ov")`. Several extras cannot co-resolve (see the `conflicts` table in `pyproject.toml`), so no single environment can run everything.
+- **Never silently skip on a missing dependency.** Do not guard a suite with `pytest.importorskip` for a declared extra. A missing extra is reported as a hard failure naming the install command, so absent coverage stays visible.
+- **Run the suite with its extra.** For example `uv run --extra test --extra ov --locked python -m pytest source/isaaclab_ovphysx/test`. Pass `--ignore-missing-extras` only for a deliberate repository-wide sweep.
+
+### Test structure and naming
+
+- **pytest function style is the default.** Do not add new `unittest.TestCase` classes. Use a class only to share an expensive fixture across a cohesive group.
+- **Names state the outcome.** `test_set_joint_position_target_clamps_to_joint_limits`, not `test_articulation` or `test_case_2`.
+- **Every test has a one-line docstring** naming the contract it protects, not restating the function name.
+- **Module names must be globally unique.** Test directories are not packages, so two files with the same name in different packages collide at import. Disambiguate with a package suffix, as in `test_articulation_newton.py`.
+- **Share helpers through the package's `test` support library or a `conftest.py`.** Do not copy them between files and do not star-import them.
+- **Soft ceilings of roughly 600 lines per file and 60 per test.** Exceeding either is a signal to split by contract.
+
+### Test correctness
+
+- **Always verify regression tests fail without the fix.** Temporarily revert the fix, run the test to confirm it fails, then reapply and confirm it passes. Report both directions.
+- **No cross-test order dependence.** Each test must pass when run alone. Never mutate `sys.modules`, environment variables, or global registries at import time; do it in a fixture that restores the previous state.
+- **No sleep or wall-clock synchronization.** Step the simulation or poll a condition.
 
 ### Install CI tests (`source/isaaclab/test/install_ci/`)
 
