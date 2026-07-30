@@ -6,6 +6,9 @@ Added
   representation, while ``as_proxy=True`` opts into cached
   :class:`~isaaclab.utils.warp.ProxyArray` selectors with zero-copy Torch and
   Warp index views.
+* Added a shared asset micro-benchmark grid for Torch, Warp, and proxy item
+  selectors, cold and cached finder calls, and signed 32-bit versus signed
+  64-bit articulation index-kernel timings.
 
 Fixed
 ^^^^^

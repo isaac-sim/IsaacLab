@@ -172,6 +172,7 @@ Use the top-level component command with an exact physics selector:
        --num_joints 11 \
        --warmup_steps 10 \
        --num_iterations 1000 \
+       --num_rounds 15 \
        --mode all \
        --backend json \
        --output_dir results/physx_articulation
@@ -184,6 +185,13 @@ Use the top-level component command with an exact physics selector:
 
    ./isaaclab.sh microbenchmark --component articulation physics=ovphysx \
        --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+
+To isolate one item-selector representation, select its mode explicitly:
+
+.. code-block:: bash
+
+   ./isaaclab.sh microbenchmark --component articulation physics=physx \
+       --mode torch_tensor_int64
 
 Replace ``articulation`` with ``rigid_object`` or
 ``rigid_object_collection``. Each command measures both API surfaces and emits
@@ -206,6 +214,9 @@ Asset Arguments
    * - ``--warmup_steps``
      - 10
      - Untimed calls used to compile and warm caches
+   * - ``--num_rounds``
+     - 15
+     - Alternating paired rounds for the articulation raw index-kernel phase
    * - ``--num_instances``
      - 4096
      - Asset instances represented by the mock view
@@ -228,13 +239,39 @@ Defaults differ by file; use ``--help`` before creating a comparison command.
 Asset Input Modes
 ~~~~~~~~~~~~~~~~~
 
+Methods indexed only by ``env_ids`` retain two modes:
+
 ``torch_list``
-   Pass selection IDs as Python lists. This includes list-to-tensor conversion
-   and represents common convenience-API usage.
+   Pass environment IDs as Python lists. This includes list-to-tensor
+   conversion and represents common convenience-API usage.
 
 ``torch_tensor``
-   Pass pre-allocated Torch tensors. This removes repeated list conversion and
-   represents the optimized Torch path.
+   Pass pre-allocated Torch ``int32`` environment IDs.
+
+Writers with ``joint_ids`` or ``body_ids`` use a seven-mode grid. Every mode
+passes the same pre-allocated Torch ``int32`` ``env_ids`` so the measured
+difference comes from the item selector:
+
+``torch_list``
+   Pass item IDs as a Python list.
+
+``torch_tensor_int32``
+   Pass pre-allocated Torch ``int32`` item IDs.
+
+``torch_tensor_int64``
+   Pass pre-allocated Torch ``int64`` item IDs and let the production kernel
+   select its matching specialization.
+
+``torch_precast_int32``
+   Start from pre-allocated Torch ``int64`` item IDs, then include
+   ``selector.to(torch.int32)`` and its allocation inside the timed operation.
+
+``warp_int32`` and ``warp_int64``
+   Pass pre-allocated Warp arrays using the corresponding signed index width.
+
+``proxy_int32``
+   Pass a pre-allocated :class:`~isaaclab.utils.warp.ProxyArray` backed by a
+   Warp ``int32`` array.
 
 ``warp_mask``
    Pass pre-allocated Warp boolean masks. This mode is available for supported
@@ -242,6 +279,32 @@ Asset Input Modes
 
 Not every backend or method supports every mode. Compare a mode only when it has
 the same meaning on both sides.
+
+Articulation Finder and Raw-Kernel Phases
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Articulation method artifacts also contain actual ``find_bodies`` and
+``find_joints`` workloads:
+
+* ``default`` measures the legacy list return.
+* ``proxy_cold`` clears the asset-local selector cache before each call, outside
+  the timer, so the measured finder call includes creation of the device-local
+  proxy selector.
+* ``proxy_cached`` warms the cache during preflight and measures repeated lookup
+  of the same proxy selector.
+
+On CUDA, the same articulation artifact records
+``index_kernel_5pct``, ``index_kernel_95pct``, and
+``index_kernel_100pct`` phases. These launch the production indexed joint-state
+writer directly with Warp ``int32`` and ``int64`` selectors, validate identical
+outputs, alternate measurement order across paired rounds, and report both
+latencies plus their absolute and percentage deltas. CPU requests skip this
+CUDA-event-only auxiliary phase.
+
+Run timing comparisons only while the selected GPU is idle. Another process
+using the device can dominate microsecond-scale differences; correctness-only
+CPU runs and results collected on a busy GPU must not be presented as speed
+comparisons.
 
 Running Sensor Benchmarks
 -------------------------
@@ -359,12 +422,13 @@ Asset Output
 ~~~~~~~~~~~~
 
 Asset scripts print mean and standard deviation for every method/mode pair in
-microseconds, followed by mode comparisons when applicable:
+microseconds. Articulation method artifacts additionally contain the finder and
+raw index-kernel phases described above:
 
 .. code-block:: text
 
-   [1/24] [TORCH_LIST] write_root_state_to_sim... 132.02 +/- 6.79 us
-   [1/24] [TORCH_TENSOR] write_root_state_to_sim... 65.44 +/- 3.06 us
+   [1/30] [TORCH_LIST] write_root_state_to_sim... 132.02 +/- 6.79 us
+   [1/30] [TORCH_TENSOR] write_root_state_to_sim... 65.44 +/- 3.06 us
 
 They also write a timestamped JSON file to ``--output_dir`` by default. It
 contains benchmark configuration, hardware/software metadata, phase names, and
