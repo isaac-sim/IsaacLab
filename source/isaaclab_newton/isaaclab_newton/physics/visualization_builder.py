@@ -41,18 +41,24 @@ def _deformable_ignore_paths(stage: Usd.Stage, sources: Sequence[str] | None = N
     source_prefixes: tuple[str, ...] | None = None
     if sources is not None:
         source_prefixes = tuple(f"{source.rstrip('/')}/" for source in sources)
+
+    entries = discover_deformables_on_stage(stage)
+
     ignore_paths: list[str] = []
-    for entry in discover_deformables_on_stage(stage):
+
+    for entry in entries:
         for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path):
             if source_prefixes is None:
                 ignore_paths.append(path)
                 continue
+
             under_source = any(
                 path == source.rstrip("/") or path.startswith(prefix)
                 for source, prefix in zip(sources, source_prefixes, strict=True)
             )
             if under_source:
                 ignore_paths.append(path)
+
     # Preserve order while dropping duplicates.
     return list(dict.fromkeys(ignore_paths))
 
@@ -63,6 +69,7 @@ def build_visualization_builder_from_stage_envs(
     clone_plan: Any | None,
     *,
     up_axis: str = "Z",
+    device: str = "cpu",
 ) -> tuple[ModelBuilder, tuple[list, list]]:
     """Build a Newton shadow visualization builder from a USD stage.
 
@@ -86,7 +93,7 @@ def build_visualization_builder_from_stage_envs(
             ignore_paths=deformable_ignore_paths or None,
         )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-        shadow_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths)
+        shadow_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths, device=device)
         return builder, (shadow_entities, registry_groups)
 
     if not env_paths:
@@ -115,5 +122,5 @@ def build_visualization_builder_from_stage_envs(
     )
     replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
     rename_builder_labels(builder, sources, destinations, env_ids, mapping)
-    shadow_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths)
+    shadow_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths, device=device)
     return builder, (shadow_entities, registry_groups)

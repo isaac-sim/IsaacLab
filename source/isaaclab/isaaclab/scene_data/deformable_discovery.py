@@ -11,12 +11,9 @@ import logging
 import re
 from dataclasses import dataclass, field
 
-import numpy as np
-
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap, build_volume_vis_barycentric_remap
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +45,6 @@ class DeformableStageEntry:
     indices: list = field(default_factory=list)
     vis_vertices: list = field(default_factory=list)
     vis_indices: list = field(default_factory=list)
-    volume_vis_remap: VolumeVisRemap | None = None
     init_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
     init_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
 
@@ -123,8 +119,27 @@ def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: i
 
 def _classify_deformable_meshes(
     root_prim,
-) -> tuple[str, object, object, int, int, list, list, list, list, VolumeVisRemap | None]:
-    """Return deformable type, sim/vis prims, counts, sim/vis topology, and optional volume remap."""
+) -> tuple[str, object, object, int, int, list, list, list, list]:
+    """Classify the simulation and visual meshes under a deformable root prim.
+
+    Args:
+        root_prim: Prim that carries ``OmniPhysicsDeformableBodyAPI``.
+
+    Returns:
+        A 9-tuple:
+            deformable_type: ``"volume"`` for a tet sim mesh, else ``"surface"``.
+            sim_mesh_prim: Simulation mesh prim (``TetMesh`` or ``Mesh``).
+            vis_mesh_prim: Selected visual mesh prim (may equal the sim mesh).
+            vertex_count: Number of simulation mesh vertices.
+            vis_vertex_count: Number of visual mesh vertices.
+            vertices: Sim vertices baked into the deformable parent frame [m].
+            indices: Flattened sim topology (4 ints per tet, or face-vertex indices).
+            vis_vertices: Visual vertices baked into the same parent frame [m].
+            vis_indices: Flattened visual triangle indices (empty when not a ``Mesh``).
+
+    Raises:
+        ValueError: If no simulation mesh is found under ``root_prim``.
+    """
     import warp as wp
 
     root_path = root_prim.GetPath()
@@ -186,18 +201,6 @@ def _classify_deformable_meshes(
     if vis_mesh_prim.GetTypeName() == "Mesh":
         vis_indices = list(UsdGeom.Mesh(vis_mesh_prim).GetFaceVertexIndicesAttr().Get() or [])
 
-    volume_vis_remap: VolumeVisRemap | None = None
-    if deformable_type == "volume" and vis_count != len(pts) and vis_vertices and vis_indices:
-        sim_np = np.array([[float(v[0]), float(v[1]), float(v[2])] for v in vertices], dtype=np.float32)
-        vis_np = np.array([[float(v[0]), float(v[1]), float(v[2])] for v in vis_vertices], dtype=np.float32)
-        volume_vis_remap = build_volume_vis_barycentric_remap(sim_np, np.asarray(indices, dtype=np.int32), vis_np)
-        if volume_vis_remap is None:
-            logger.warning(
-                "Volume deformable '%s' could not build a sim-to-visual barycentric remap; "
-                "renderers may fall back to rest-pose visual geometry.",
-                root_path,
-            )
-
     return (
         deformable_type,
         mesh_prim,
@@ -208,7 +211,6 @@ def _classify_deformable_meshes(
         indices,
         vis_vertices,
         vis_indices,
-        volume_vis_remap,
     )
 
 
@@ -222,6 +224,7 @@ def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry
     for prim in stage.Traverse():
         if not _prim_has_schema(prim, "OmniPhysicsDeformableBodyAPI"):
             continue
+
         try:
             (
                 deformable_type,
@@ -233,11 +236,11 @@ def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry
                 indices,
                 vis_vertices,
                 vis_indices,
-                volume_vis_remap,
             ) = _classify_deformable_meshes(prim)
         except ValueError as exc:
             logger.warning("Skipping deformable prim '%s': %s", prim.GetPath(), exc)
             continue
+
         entries.append(
             DeformableStageEntry(
                 root_path=prim.GetPath().pathString,
@@ -250,7 +253,6 @@ def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry
                 indices=indices,
                 vis_vertices=vis_vertices,
                 vis_indices=vis_indices,
-                volume_vis_remap=volume_vis_remap,
             )
         )
     return entries
