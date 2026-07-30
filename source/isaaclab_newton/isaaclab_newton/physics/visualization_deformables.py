@@ -169,9 +169,17 @@ def add_shadow_deformables_to_builder(
         )
 
         for entry in sorted(group_entries, key=lambda item: item.root_path):
+            # Discovery bakes vertices into the deformable root's *parent* frame
+            # (mesh_world * parent_world^{-1}). Placement must use that same parent
+            # world pose — ``resolve_prim_pose(root)`` would apply the root local
+            # xform twice whenever it is not identity.
             root_prim = stage.GetPrimAtPath(entry.root_path)
             if root_prim.IsValid():
-                pos, quat = resolve_prim_pose(root_prim)
+                parent_prim = root_prim.GetParent()
+                if parent_prim is not None and parent_prim.IsValid():
+                    pos, quat = resolve_prim_pose(parent_prim)
+                else:
+                    pos, quat = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)
             else:
                 env_prefix = (
                     entry.root_path.split("/World/envs/")[1].split("/", 1)[0]

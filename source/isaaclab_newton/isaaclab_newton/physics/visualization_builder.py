@@ -116,15 +116,23 @@ def build_visualization_builder_from_stage_envs(
     poses = [resolve_prim_pose(stage.GetPrimAtPath(env_path_by_id[int(env_id)])) for env_id in env_ids.tolist()]
     positions = torch.tensor([pos for pos, _ in poses], dtype=torch.float32)
     quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
-    import_result = builder.add_usd(stage, ignore_paths=["/World/envs", *sources], schema_resolvers=schema_resolvers)
+    # Ignore every deformable on the stage for the world import — not only those under
+    # clone sources. Otherwise a non-env deformable (e.g. ``/World/Assets/Cloth``) is
+    # imported here and added again by ``add_shadow_deformables_to_builder``.
+    deformable_ignore_paths = _deformable_ignore_paths(stage)
+    import_result = builder.add_usd(
+        stage,
+        ignore_paths=["/World/envs", *sources, *deformable_ignore_paths],
+        schema_resolvers=schema_resolvers,
+    )
     _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-    deformable_ignore_paths = _deformable_ignore_paths(stage, sources)
+    source_deformable_ignore_paths = _deformable_ignore_paths(stage, sources)
     source_builders = build_source_builders(
         stage,
         sources,
         lambda: ModelBuilder(up_axis=up_axis),
         schema_resolvers,
-        ignore_paths=deformable_ignore_paths or None,
+        ignore_paths=source_deformable_ignore_paths or None,
         simplify_meshes=False,
     )
     replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
