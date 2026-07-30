@@ -34,10 +34,14 @@ optional arguments:
 # Standard library imports
 import argparse
 import contextlib
+from typing import TYPE_CHECKING
 
 # Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
 from isaaclab.utils.string import list_intersection, string_to_callable
+
+if TYPE_CHECKING:
+    from isaaclab_teleop.camera_feed import _XrCameraFeedSession
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Record demonstrations for Isaac Lab environments.")
@@ -575,6 +579,7 @@ def run_simulation_loop(  # noqa: C901
     teleop_interface: object | None,
     success_term: object | None,
     rate_limiter: RateLimiter | None,
+    camera_feed_session: "_XrCameraFeedSession",
     use_isaac_teleop: bool = False,
 ) -> int:
     """Run the main simulation loop for collecting demonstrations.
@@ -588,6 +593,7 @@ def run_simulation_loop(  # noqa: C901
         teleop_interface: Optional teleop interface (will be created if None)
         success_term: The success termination object or None if not available
         rate_limiter: Optional rate limiter to control simulation speed
+        camera_feed_session: Shared XR camera-feed lifecycle
         use_isaac_teleop: Whether to use IsaacTeleop stack
 
     Returns:
@@ -694,7 +700,7 @@ def run_simulation_loop(  # noqa: C901
         if use_isaac_teleop:
             from isaaclab_teleop import poll_control_events
 
-        with contextlib.suppress(KeyboardInterrupt), torch.inference_mode():
+        with contextlib.suppress(KeyboardInterrupt), torch.inference_mode(), camera_feed_session.bind(env):
             while simulation_app.is_running():
                 # Get teleop command (may be None while waiting for session start)
                 action = teleop_interface.advance()
@@ -764,6 +770,7 @@ def run_simulation_loop(  # noqa: C901
                     success_step_count = handle_reset(
                         env, success_step_count, instruction_display, label_text, teleop_interface
                     )
+                    camera_feed_session.refresh()
                     should_reset_recording_instance = False
 
                 # Check if simulation is stopped
@@ -804,6 +811,20 @@ def main() -> None:
     global env_cfg  # Make env_cfg available to setup_teleop_device
     env_cfg, success_term, use_isaac_teleop = create_environment_config(output_dir, output_file_name)
 
+    from isaaclab_teleop.camera_feed import _XrCameraFeedSession
+
+    camera_feed_session = _XrCameraFeedSession.prepare(
+        env_cfg,
+        enabled=args_cli.xr and use_isaac_teleop,
+        camera_rendering_enabled=not args_cli.disable_external_cameras,
+    )
+    if camera_feed_session.requires_responsive_denoising:
+        apply_isaac_rtx_global_settings(
+            IsaacRtxRendererGlobalSettingsCfg(
+                carb_settings={"/rtx/dldenoiser/responsiveDenoising": True},
+            )
+        )
+
     # With --xr, rate limiting is achieved via OpenXR and the XR visualization
     # manager is installed. Without --xr (including standalone IsaacTeleop I/O),
     # fall back to the software rate limiter and skip the XR viz stack.
@@ -820,7 +841,9 @@ def main() -> None:
     env = create_environment(env_cfg)
 
     # Run simulation loop
-    current_recorded_demo_count = run_simulation_loop(env, None, success_term, rate_limiter, use_isaac_teleop)
+    current_recorded_demo_count = run_simulation_loop(
+        env, None, success_term, rate_limiter, camera_feed_session, use_isaac_teleop
+    )
 
     # Clean up
     env.close()

@@ -18,7 +18,7 @@ import numpy as np
 import warp as wp
 from packaging import version
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom, UsdRender
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
@@ -82,6 +82,10 @@ SIMPLE_SHADING_MODES = {
     "simple_shading_full_mdl": 3,
 }
 SIMPLE_SHADING_MODE_SETTING = "/rtx/minimal/mode"
+DLSS_RAY_RECONSTRUCTION_API_SCHEMA = "OmniRtxDebugSettingsAPI_1"
+DLSS_RAY_RECONSTRUCTION_ATTR = "omni:rtx:newDenoiser:enabled"
+DLSS_EXEC_MODE_API_SCHEMA = "OmniRtxSettingsRtAPI_1"
+DLSS_EXEC_MODE_ATTR = "omni:rtx:post:dlss:execMode"
 
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
@@ -133,6 +137,10 @@ class IsaacRtxRenderer(BaseRenderer):
             apply_isaac_rtx_determinism_settings(settings)
         ensure_rtx_hydra_engine_attached()
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
+
+    def resolve_camera_output_device(self, simulation_device: str) -> str:
+        """Use the optional RTX pixel-output override without moving camera state."""
+        return self.cfg.camera_output_device or simulation_device
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply RTX-specific USD overrides.
@@ -422,6 +430,10 @@ class IsaacRtxRenderer(BaseRenderer):
         for annotator in annotators.values():
             annotator.attach([rp.path])
 
+        # HydraTexture attachment synchronizes legacy global settings onto the render product.
+        # Author camera-local overrides only after every annotator has finished attaching.
+        self._apply_render_product_settings(stage, [rp.path])
+
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
             try:
@@ -437,6 +449,52 @@ class IsaacRtxRenderer(BaseRenderer):
             spec=spec,
             ppisp_pipeline=ppisp_pipeline,
         )
+
+    def _apply_render_product_settings(self, stage: Usd.Stage, render_product_paths: list[str]) -> None:
+        """Author optional renderer settings that must remain local to one camera."""
+        ray_reconstruction = self.cfg.enable_dlss_ray_reconstruction
+        dlss_exec_mode = self.cfg.dlss_exec_mode
+        if ray_reconstruction is None and dlss_exec_mode is None:
+            return
+        for render_product_path in render_product_paths:
+            render_product = stage.GetPrimAtPath(render_product_path)
+            if not render_product.IsValid():
+                raise RuntimeError(f"Render product '{render_product_path}' was not materialized on the USD stage.")
+            if not render_product.IsA(UsdRender.Product):
+                raise RuntimeError(f"Prim '{render_product_path}' is not a RenderProduct.")
+            if ray_reconstruction is not None:
+                self._set_render_product_schema_attribute(
+                    render_product,
+                    DLSS_RAY_RECONSTRUCTION_API_SCHEMA,
+                    DLSS_RAY_RECONSTRUCTION_ATTR,
+                    ray_reconstruction,
+                )
+            if dlss_exec_mode is not None:
+                self._set_render_product_schema_attribute(
+                    render_product,
+                    DLSS_EXEC_MODE_API_SCHEMA,
+                    DLSS_EXEC_MODE_ATTR,
+                    dlss_exec_mode,
+                )
+
+    @staticmethod
+    def _set_render_product_schema_attribute(
+        render_product: Usd.Prim,
+        api_schema: str,
+        attribute_name: str,
+        value: bool | str,
+    ) -> None:
+        """Apply one RTX API schema and author its validated render-product attribute."""
+        if not render_product.ApplyAPI(api_schema):
+            raise RuntimeError(f"Failed to apply RTX API schema '{api_schema}' to '{render_product.GetPath()}'.")
+        attribute = render_product.GetAttribute(attribute_name)
+        if not attribute.IsValid():
+            raise RuntimeError(
+                f"RTX API schema '{api_schema}' does not provide attribute '{attribute_name}' "
+                f"on '{render_product.GetPath()}'."
+            )
+        if not attribute.Set(value):
+            raise RuntimeError(f"Failed to set RTX attribute '{attribute_name}' on '{render_product.GetPath()}'.")
 
     def _resolve_simple_shading_mode(self, spec: CameraRenderSpec) -> int | None:
         """Resolve the requested simple shading mode from data types."""

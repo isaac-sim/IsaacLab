@@ -155,6 +155,175 @@ def test_render_product_uuid_name_format_is_sdf_safe():
         assert Sdf.Path.IsValidPathString(f"/Render/{name}")
 
 
+def test_camera_output_device_override_is_rtx_local(monkeypatch):
+    """RTX may put pixels on CUDA while the base renderer keeps simulation placement."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    from isaaclab.renderers.base_renderer import BaseRenderer
+
+    renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg(camera_output_device="cuda:0")
+
+    assert renderer.resolve_camera_output_device("cpu") == "cuda:0"
+    assert BaseRenderer.resolve_camera_output_device(renderer, "cpu") == "cpu"
+
+
+@pytest.mark.parametrize("value", ["gpu", "cuda:x", "", 0])
+def test_renderer_cfg_rejects_invalid_camera_output_device(value):
+    """Invalid output devices fail during configuration rather than Replicator startup."""
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    with pytest.raises(ValueError, match="camera_output_device"):
+        IsaacRtxRendererCfg(camera_output_device=value)
+
+
+def test_dlss_settings_are_authored_per_render_product(monkeypatch):
+    """Camera-local DLSS settings use their schema-backed RenderProduct attributes."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=False, dlss_exec_mode="quality")
+    stage = MagicMock()
+    prims = {path: MagicMock() for path in ("/Render/RP_0", "/Render/RP_1")}
+    stage.GetPrimAtPath.side_effect = prims.__getitem__
+    for prim in prims.values():
+        prim.IsValid.return_value = True
+        prim.IsA.return_value = True
+        prim.ApplyAPI.return_value = True
+        attributes = {
+            "omni:rtx:newDenoiser:enabled": MagicMock(),
+            "omni:rtx:post:dlss:execMode": MagicMock(),
+        }
+        for attribute in attributes.values():
+            attribute.IsValid.return_value = True
+            attribute.Set.return_value = True
+        prim.GetAttribute.side_effect = attributes.__getitem__
+        prim._test_attributes = attributes
+
+    renderer._apply_render_product_settings(stage, list(prims))
+
+    for prim in prims.values():
+        assert prim.ApplyAPI.call_args_list == [
+            call("OmniRtxDebugSettingsAPI_1"),
+            call("OmniRtxSettingsRtAPI_1"),
+        ]
+        assert prim.GetAttribute.call_args_list == [
+            call("omni:rtx:newDenoiser:enabled"),
+            call("omni:rtx:post:dlss:execMode"),
+        ]
+        prim._test_attributes["omni:rtx:newDenoiser:enabled"].Set.assert_called_once_with(False)
+        prim._test_attributes["omni:rtx:post:dlss:execMode"].Set.assert_called_once_with("quality")
+
+
+def test_default_renderer_cfg_does_not_author_render_product_settings(monkeypatch):
+    """The default config preserves Kit's render-product settings."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+    stage = MagicMock()
+
+    renderer._apply_render_product_settings(stage, ["/Render/RP"])
+
+    stage.GetPrimAtPath.assert_not_called()
+
+
+def test_dlss_settings_are_authored_after_all_annotators_attach(monkeypatch):
+    """HydraTexture attachment must finish before camera-local DLSS settings are authored."""
+    replicator_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    import isaaclab.sim.utils.stage as stage_utils
+
+    events = []
+    color_annotator = MagicMock()
+    depth_annotator = MagicMock()
+    color_annotator.attach.side_effect = lambda paths: events.append(("attach", "rgba", paths))
+    depth_annotator.attach.side_effect = lambda paths: events.append(("attach", "depth", paths))
+
+    replicator_module.create = SimpleNamespace(
+        render_product_tiled=MagicMock(return_value=SimpleNamespace(path="/Render/RP"))
+    )
+    replicator_module.AnnotatorRegistry = MagicMock()
+    replicator_module.AnnotatorRegistry.get_annotator.side_effect = [color_annotator, depth_annotator]
+
+    stage = MagicMock()
+    stage.GetPrimAtPath.return_value.IsA.return_value = True
+    spec = SimpleNamespace(
+        camera_prim_paths=("/World/Camera",),
+        cfg=SimpleNamespace(
+            data_types=["rgba", "distance_to_image_plane"],
+            width=64,
+            height=48,
+            isp_cfg=None,
+        ),
+        device="cpu",
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=False, dlss_exec_mode="quality")
+    renderer._apply_render_product_settings = MagicMock(
+        side_effect=lambda authored_stage, paths: events.append(("author", authored_stage, paths))
+    )
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=MagicMock()),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("5.1")),
+        patch.object(stage_utils, "get_current_stage", return_value=stage),
+    ):
+        renderer.create_render_data(spec)
+
+    assert events == [
+        ("attach", "rgba", ["/Render/RP"]),
+        ("attach", "depth", ["/Render/RP"]),
+        ("author", stage, ["/Render/RP"]),
+    ]
+
+
+@pytest.mark.parametrize("value", ["", "Quality", "ultra", 2])
+def test_renderer_cfg_rejects_invalid_dlss_exec_mode(value):
+    """Invalid schema tokens fail before Kit can silently ignore them."""
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    with pytest.raises(ValueError, match="dlss_exec_mode"):
+        IsaacRtxRendererCfg(dlss_exec_mode=value)
+
+
+@pytest.mark.parametrize("value", [0, 1, "false"])
+def test_renderer_cfg_rejects_non_bool_dlss_ray_reconstruction(value):
+    """The RenderProduct boolean must not accept truthy values of another type."""
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    with pytest.raises(TypeError, match="enable_dlss_ray_reconstruction"):
+        IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=value)
+
+
+def test_render_product_schema_failure_is_reported(monkeypatch):
+    """A missing RTX schema fails at camera setup instead of creating an inert custom attribute."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=False)
+    stage = MagicMock()
+    render_product = stage.GetPrimAtPath.return_value
+    render_product.IsValid.return_value = True
+    render_product.IsA.return_value = True
+    render_product.ApplyAPI.return_value = False
+
+    with pytest.raises(RuntimeError, match="OmniRtxDebugSettingsAPI_1"):
+        renderer._apply_render_product_settings(stage, ["/Render/RP"])
+
+
 @pytest.mark.parametrize(
     ("has_gui", "expected_disable_color_render"),
     [

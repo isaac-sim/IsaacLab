@@ -949,6 +949,10 @@ Key ``IsaacTeleopCfg`` fields:
 * ``pipeline_builder`` -- callable that returns an ``OutputCombiner`` with an ``"action"`` output.
 * ``retargeters_to_tune`` -- optional callable returning retargeters to expose in the live tuning UI.
 * ``xr_cfg`` -- :class:`~isaaclab_teleop.XrCfg` for anchor configuration (see below).
+* ``xr_camera_feeds`` -- ordered selection and per-feed panel settings for existing task cameras.
+  The list is empty by default, so tasks opt in to PiP explicitly.
+* ``xr_camera_feed_layout`` -- viewer reference, fixed world pose, and manual, horizontal, vertical,
+  or grid panel packing.
 * ``plugins`` -- list of Isaac Teleop plugin configurations (e.g. Manus).
 * ``sim_device`` -- torch device string (default ``"cuda:0"``).
 * ``retargeting_execution`` -- IsaacTeleop retargeting execution settings.
@@ -1152,8 +1156,149 @@ XR device's view.
 
 .. tip::
 
-   When using XR, call :func:`~isaaclab_teleop.remove_camera_configs` on your env config to strip
-   camera sensors. Additional cameras cause GPU contention and degrade XR performance.
+   Camera sensors add GPU cost. Strip them with ``--disable_external_cameras`` when the workflow
+   needs neither image observations nor XR camera feedback. That flag also skips configured PiP
+   feeds.
+
+
+XR Camera Feedback
+------------------
+
+An ordered list of :class:`~isaaclab_teleop.XrCameraFeedCfg` objects selects existing task scene
+cameras. The manager publishes each new RGBA frame after rendering, while
+:class:`~isaaclab_teleop.XrCameraFeedLayoutCfg` places the panels manually or in horizontal,
+vertical, and grid layouts. ``IsaacContrib-PickPlace-GR1T2-Abs`` and
+``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` are the primary reference examples.
+
+``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
+environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
+``CameraCfg`` through ``xr_camera_feeds``. In the reference examples, the selected
+``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
+the same view shown to the operator. GR1T2 demonstrates a fixed task camera; Locomanipulation uses
+the same fixed task-camera placement pattern for G1. The NutPour and ExhaustPipe GR1T2
+teleoperation tasks also present their existing recorded ``robot_pov_cam``:
+
+.. code-block:: bash
+
+   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task IsaacContrib-PickPlace-GR1T2-Abs \
+       --xr --device cpu
+
+   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+       --xr --device cpu
+
+XR camera PiP currently supports exactly one environment. When a task has enabled PiP feeds,
+startup rejects ``--num_envs`` values other than ``1``; IsaacTeleop XR behavior without PiP is
+unchanged.
+
+On Isaac Sim 6.1 and newer, camera-feed setup enables responsive DLSS Ray Reconstruction denoising
+automatically. Earlier runtimes fall back to classic DLSS for PiP cameras to avoid the temporal
+ghosting in their Ray Reconstruction implementation.
+
+Camera selection
+~~~~~~~~~~~~~~~~
+
+Tasks declare their default selection through ``IsaacTeleopCfg.xr_camera_feeds``:
+
+.. code-block:: python
+
+   from isaaclab_teleop import IsaacTeleopCfg, XrCameraFeedCfg
+
+   self.isaac_teleop = IsaacTeleopCfg(
+       pipeline_builder=_build_my_pipeline,
+       xr_camera_feeds=[
+           XrCameraFeedCfg(camera_name="left_wrist_camera"),
+           XrCameraFeedCfg(camera_name="overview_camera", enabled=False),
+       ],
+   )
+
+For a recorded training view, define the named ``CameraCfg`` in the task scene and a matching
+``mdp.image`` term in ``observations.policy``. The normal recorder then stores that observation,
+while the PiP declaration above only selects it for presentation. Enabled task-declared entries
+control camera selection, panel count, display order, and automatic-layout order without mutating
+the reusable task configuration.
+
+Placement
+~~~~~~~~~
+
+The default :attr:`~isaaclab_teleop.XrCameraFeedLayoutCfg.placement` is ``"viewer_start"``. The
+presenter waits for the first valid headset pose, captures its eye position and upright yaw, then
+places the layout 0.8 m ahead at eye height. That pose remains fixed in the world while the user
+moves. Panels hide when the XR display disconnects and capture a new starting pose after reconnect;
+resetting the environment does not recenter them.
+
+Three placement references are available:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
+
+   * - Placement
+     - Behavior
+   * - ``viewer_start``
+     - Capture the first valid eye position and upright yaw, then keep the layout world-static.
+       This is the default.
+   * - ``head_locked``
+     - Follow the current headset position and orientation with the configured offset and distance.
+   * - ``world``
+     - Use ``world_position_m`` and ``world_orientation_xyzw`` as a fixed pose in the Isaac Lab USD
+       stage world. ``distance_m`` is unused.
+
+.. code-block:: python
+
+   from isaaclab_teleop import XrCameraFeedLayoutCfg
+
+   # Default: fixed in the world at the user's starting eye pose.
+   self.isaac_teleop.xr_camera_feed_layout = XrCameraFeedLayoutCfg()
+
+   # Follow the headset and pack feeds left to right.
+   self.isaac_teleop.xr_camera_feed_layout = XrCameraFeedLayoutCfg(
+       placement="head_locked",
+       mode="horizontal",
+       distance_m=0.8,
+   )
+
+   # Place a grid in an Isaac Lab Z-up world. This example assumes an eye at
+   # (0, 0, 1.6) looking along world +Y.
+   self.isaac_teleop.xr_camera_feed_layout = XrCameraFeedLayoutCfg(
+       placement="world",
+       mode="grid",
+       world_position_m=(0.0, 0.8, 1.6),
+       world_orientation_xyzw=(0.7071067812, 0.0, 0.0, 0.7071067812),
+       max_columns=2,
+   )
+
+``manual`` mode preserves each feed's ``offset_m`` and ``distance_m``. ``horizontal``, ``vertical``,
+and ``grid`` modes pack enabled feeds around ``center_offset_m`` using ``panel_gap_m``; grid mode
+also honors ``max_columns``. Offsets are measured in the selected layout plane. With
+``viewer_start`` and ``head_locked``, ``distance_m`` places that plane in front of the viewer
+reference. In manual mode, feeds with identical offsets overlap; select an automatic mode or assign
+distinct feed offsets when showing multiple panels.
+
+With ``world``, the explicit pose is measured in the Isaac Lab USD stage world in meters, not
+OpenXR physical space. Isaac Lab stages are Z-up. ``world_orientation_xyzw`` maps panel-local
+coordinates into that world: local +X is image right, local +Y is image up, and local +Z points
+from the readable face toward the viewer. Feed and automatic-layout offsets are applied in the
+panel's local XY plane.
+
+Disable cameras and PiP
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Set :attr:`~isaaclab_teleop.XrCameraFeedCfg.enabled` to ``False`` to suppress one feed, or set
+``xr_camera_feeds=[]`` to suppress all PiP. The list is empty by default. These choices do not
+remove camera sensors independently owned by the task.
+
+``--disable_external_cameras`` is the master camera-rendering switch for ``teleop_se3_agent.py`` and
+``record_demos.py``. It strips camera sensors and suppresses every configured PiP feed.
+
+Kit Scene UI presentation
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PiP presentation uses Kit Scene UI and ``SpatialSource`` placement. Kit imports are deferred until
+an enabled feed is requested. If Scene UI is unavailable, the scripts log a warning and continue
+without PiP; task-owned cameras and recording observations remain unchanged. This keeps the camera
+selection configuration usable when a future kitless entry point no longer provides Scene UI.
 
 
 .. _isaac-teleop-haptics:
@@ -1557,8 +1702,10 @@ Optimize XR Performance
 
    The flag strips the environment's camera sensors (equivalent to calling
    :func:`~isaaclab_teleop.remove_camera_configs` on the env config) and selects a lighter Kit
-   experience. Omit it to keep cameras enabled (the default) -- required when recording camera
-   observations, or when you want ``teleop_replay_agent.py`` to mirror the production render load.
+   experience. For ``teleop_se3_agent.py`` it is also the master PiP gate: task-default and
+   task-configured feeds are ignored and no camera panel is created. Omit it to keep cameras enabled
+   (the default) -- required when recording camera observations, showing XR camera feedback, or when
+   you want ``teleop_replay_agent.py`` to mirror the production render load.
 
 .. dropdown:: Run headless (skip the local viewport)
    :open:
@@ -1683,6 +1830,8 @@ See the :ref:`isaaclab_teleop-api` for full class and function documentation:
 * :class:`~isaaclab_teleop.HapticFeedbackReceiver`
 * :class:`~isaaclab_teleop.HapticFeedbackDriver`
 * :func:`~isaaclab_teleop.create_haptic_feedback_driver`
+* :class:`~isaaclab_teleop.XrCameraFeedCfg`
+* :class:`~isaaclab_teleop.XrCameraFeedLayoutCfg`
 * :class:`~isaaclab_teleop.XrCfg`
 * :class:`~isaaclab_teleop.XrAnchorRotationMode`
 

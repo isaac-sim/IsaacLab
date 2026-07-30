@@ -220,6 +220,15 @@ class TestResetPulseBehaviour:
         result = _step(proc, _empty_tracked())
         assert result["reset"] is False
 
+    def test_repeated_reset_frames_produce_one_pulse_until_released(self):
+        proc = TeleopMessageProcessor(name="test")
+
+        assert _step(proc, _tracked(b"reset"))["reset"] is True
+        assert _step(proc, _tracked(b"reset"))["reset"] is False
+        assert _step(proc, _tracked(b"reset"))["reset"] is False
+        assert _step(proc, _empty_tracked())["reset"] is False
+        assert _step(proc, _tracked(b"reset"))["reset"] is True
+
 
 class TestKillAlwaysFalse:
     def test_kill_is_always_false(self):

@@ -18,7 +18,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
@@ -27,8 +27,20 @@ from . import mdp
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg  # isort: skip
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg  # isort: skip
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg  # isort: skip
 from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
+from isaaclab_physx.renderers import IsaacRtxRendererCfg  # isort: skip
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg  # isort: skip
+
+
+@configclass
+class _RobotPovCameraRendererCfg(MultiBackendRendererCfg):
+    default: IsaacRtxRendererCfg = IsaacRtxRendererCfg(
+        camera_output_device="cuda:0",
+        enable_dlss_ray_reconstruction=True,
+        dlss_exec_mode="quality",
+    )
+    isaacsim_rtx = default
 
 
 def _build_gr1t2_pickplace_pipeline():
@@ -363,6 +375,26 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
 
+@configclass
+class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
+    """GR1T2 pick-place scene with the camera observation shown in XR PiP."""
+
+    robot_pov_cam = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/RobotPOVCam",
+        update_period=0.0,
+        height=450,
+        width=720,
+        data_types=["rgb"],
+        renderer_cfg=_RobotPovCameraRendererCfg(),
+        spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2.0)),
+        offset=CameraCfg.OffsetCfg(
+            pos=(0.0, 0.12, 1.67675),
+            rot=(0.9801, 0.0, 0.0, -0.19848),
+            convention="ros",
+        ),
+    )
+
+
 ##
 # MDP settings
 ##
@@ -516,6 +548,25 @@ class ObservationsCfg:
 
 
 @configclass
+class PickPlaceGR1T2ObservationsCfg(ObservationsCfg):
+    """GR1T2 pick-place observations including the camera shown in XR PiP."""
+
+    @configclass
+    class PolicyCfg(ObservationsCfg.PolicyCfg):
+        robot_pov_cam = ObsTerm(
+            func=base_mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
+                "data_type": "rgb",
+                "normalize": False,
+                "clone": False,
+            },
+        )
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
@@ -553,9 +604,9 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: PickPlaceGR1T2SceneCfg = PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
+    observations: PickPlaceGR1T2ObservationsCfg = PickPlaceGR1T2ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     # MDP settings
     terminations: TerminationsCfg = TerminationsCfg()
@@ -633,7 +684,17 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+            xr_camera_feeds=[
+                XrCameraFeedCfg(
+                    camera_name="robot_pov_cam",
+                    # The 0.48 m-wide 720x450 image is 0.30 m tall; lower its
+                    # center so its top edge starts at viewer eye height.
+                    offset_m=(0.0, -0.15),
+                    max_update_hz=0.0,
+                )
+            ],
         )
+        self.image_obs_list = ["robot_pov_cam"]
 
         # Per-finger haptic glove feedback: vibrate each finger of the operator's
         # glove in proportion to how tightly it grips the object. The session

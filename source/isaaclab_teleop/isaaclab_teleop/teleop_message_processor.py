@@ -106,6 +106,7 @@ class TeleopMessageProcessor(BaseRetargeter):
         self._run_toggle_queue: list[bool] = []
         self._prev_toggle_output = False
         self._pending_commands: list[str] = []
+        self._channel_reset_latched = False
         super().__init__(name=name)
 
     def inject_reset(self, pause: bool = False) -> None:
@@ -208,9 +209,12 @@ class TeleopMessageProcessor(BaseRetargeter):
         self._inject_reset_pending = False
         self._inject_reset_pause = False
 
-        # Parse incoming messages and enqueue toggle sequences.
+        # Parse incoming messages and enqueue toggle sequences. Some clients
+        # repeat a reset command while its control is held, so treat a
+        # continuous run of reset-bearing frames as one operator action.
         messages_tracked = inputs[self.INPUT_MESSAGES][0]
         data = getattr(messages_tracked, "data", None)
+        channel_reset_seen = False
         if data:
             for message in data:
                 payload = getattr(message, "payload", None)
@@ -225,9 +229,17 @@ class TeleopMessageProcessor(BaseRetargeter):
                 if command is None:
                     continue
 
-                if self._apply_command_kind(_classify_command(command)):
+                command_kind = _classify_command(command)
+                if command_kind == "reset":
+                    channel_reset_seen = True
+                    if self._channel_reset_latched:
+                        continue
+                    self._channel_reset_latched = True
+                if self._apply_command_kind(command_kind):
                     reset = True
                     pause_on_reset = True
+        if not channel_reset_seen:
+            self._channel_reset_latched = False
 
         # Apply locally injected commands (e.g. keyboard bindings) identically to
         # channel messages, so a host can start/stop/reset without an XR client.

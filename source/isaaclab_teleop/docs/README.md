@@ -19,6 +19,8 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
   modes for controlling how the anchor orientation tracks the reference prim.
 - **Retargeting tuning UI** -- optional ImGui window for real-time adjustment of retargeter
   parameters when `retargeters_to_tune` is provided.
+- **XR camera feedback** -- selected scene cameras can be shown through Kit Scene UI using their
+  existing RGBA allocation.
 
 ## Architecture
 
@@ -37,7 +39,11 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
 Add an `isaac_teleop` attribute to your environment config:
 
 ```python
-from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+from isaaclab_teleop import (
+    IsaacTeleopCfg,
+    XrCameraFeedCfg,
+    XrCfg,
+)
 
 @configclass
 class MyEnvCfg(ManagerBasedRLEnvCfg):
@@ -52,6 +58,9 @@ class MyEnvCfg(ManagerBasedRLEnvCfg):
             ),
             pipeline_builder=lambda: pipeline,
             retargeters_to_tune=lambda: retargeters,
+            xr_camera_feeds=[
+                XrCameraFeedCfg(camera_name="robot_pov_cam"),
+            ],
         )
 ```
 
@@ -86,8 +95,20 @@ The existing teleop scripts automatically detect `isaac_teleop` in the environme
 
 ```bash
 uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
-    --task My-IsaacTeleop-Env-v0
+    --task My-IsaacTeleop-Env-v0 --xr
 ```
+
+`IsaacContrib-PickPlace-GR1T2-Abs` and
+`IsaacContrib-PickPlace-Locomanipulation-G1-Abs` are camera-feedback reference tasks. Both show
+their recorded `robot_pov_cam` observation in PiP:
+
+```bash
+./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --xr --device cpu
+```
+
+See [XR Camera Feedback](../../../docs/source/features/isaac_teleop.rst#xr-camera-feedback) for
+camera selection, layout, placement, renderer, disable, and kitless behavior.
 
 ### 4. Programmatic Usage
 
@@ -116,6 +137,8 @@ rendering without blocking.
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `xr_cfg` | `XrCfg` | `XrCfg()` | XR anchor position, rotation, and dynamic-anchoring settings |
+| `xr_camera_feeds` | `list[XrCameraFeedCfg]` | `[]` | Existing task scene cameras shown as image panels |
+| `xr_camera_feed_layout` | `XrCameraFeedLayoutCfg` | viewer-start manual layout | Placement reference and ordered multi-feed packing |
 | `pipeline_builder` | `Callable[[], OutputCombiner]` | *required* | Builds the retargeting pipeline |
 | `retargeters_to_tune` | `Callable[[], list[BaseRetargeter]] \| None` | `None` | Retargeters to expose in the tuning UI |
 | `plugins` | `list[PluginConfig]` | `[]` | IsaacTeleop plugin configurations |
@@ -143,9 +166,8 @@ contend for the GIL at the start of the step.
 
 ## Utilities
 
-- **`remove_camera_configs(env_cfg)`** -- strips camera sensors and their associated observation
-  terms from an environment config. XR does not support additional cameras as they cause rendering
-  conflicts.
+- **`remove_camera_configs(env_cfg)`** -- strips camera sensors and their associated policy
+  observation terms.
 
 ## Run with Docker
 

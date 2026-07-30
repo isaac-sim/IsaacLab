@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils.configclass import configclass
 
@@ -37,6 +37,84 @@ no client connected, working around ``XR_ERROR_FORM_FACTOR_UNAVAILABLE`` (``-35`
 if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner
     from isaacteleop.teleop_session_manager import PluginConfig, RetargetingExecutionConfig
+
+
+@configclass
+class XrCameraFeedCfg:
+    """Configuration for one camera image panel shown in XR."""
+
+    camera_name: str = MISSING
+    """Name of the :class:`~isaaclab.sensors.Camera` in the interactive scene."""
+
+    enabled: bool = True
+    """Whether to create and update this feed."""
+
+    panel_width_m: float = 0.48
+    """Physical panel width [m]."""
+
+    distance_m: float = 0.8
+    """Distance in front of the viewer anchor [m].
+
+    This value is unused when :attr:`XrCameraFeedLayoutCfg.placement` is
+    ``"world"``.
+    """
+
+    offset_m: tuple[float, float] = (0.0, 0.0)
+    """Horizontal and vertical panel offset in the selected placement frame [m]."""
+
+    max_update_hz: float = 30.0
+    """Maximum provider upload rate [Hz]. Set to zero to update after every rendered frame."""
+
+    label: str | None = None
+    """Optional short label shown above the image."""
+
+
+@configclass
+class XrCameraFeedLayoutCfg:
+    """Declarative placement and packing for enabled XR camera feeds."""
+
+    mode: Literal["manual", "horizontal", "vertical", "grid"] = "manual"
+    """Layout mode. Manual preserves each feed's offset and distance."""
+
+    placement: Literal["viewer_start", "head_locked", "world"] = "viewer_start"
+    """Reference frame used to place the panels.
+
+    ``"viewer_start"`` captures the first valid viewer eye position and yaw,
+    then leaves the panels fixed in the world. ``"head_locked"`` follows the
+    viewer with full pose. ``"world"`` uses :attr:`world_position_m` and
+    :attr:`world_orientation_xyzw` as a fixed pose in the Isaac Lab USD stage
+    world.
+    """
+
+    center_offset_m: tuple[float, float] = (0.0, 0.0)
+    """Horizontal and vertical center of an automatic layout [m]."""
+
+    distance_m: float = 0.8
+    """Distance of every automatically placed panel from the viewer anchor [m].
+
+    This value is unused when :attr:`placement` is ``"world"``.
+    """
+
+    panel_gap_m: float = 0.04
+    """Edge-to-edge gap between automatically placed panels [m]."""
+
+    max_columns: int = 2
+    """Maximum number of columns in grid mode."""
+
+    world_position_m: tuple[float, float, float] | None = None
+    """Layout-plane center in the Isaac Lab USD stage world [m].
+
+    Isaac Lab stages are Z-up. This value is required when :attr:`placement`
+    is ``"world"``.
+    """
+
+    world_orientation_xyzw: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    """Panel-local-to-world orientation as a quaternion in ``xyzw`` order.
+
+    Panel local +X is image right, +Y is image up, and +Z points from the
+    panel's readable side toward the viewer. Feed and layout offsets are
+    applied in the resulting local XY plane.
+    """
 
 
 @configclass
@@ -81,6 +159,15 @@ class IsaacTeleopCfg:
     This includes anchor position, rotation, and optional dynamic anchoring
     to follow a prim (e.g., robot base) during locomotion tasks.
     """
+
+    xr_camera_feeds: list[XrCameraFeedCfg] = field(default_factory=list)
+    """Existing task camera outputs to show as XR image panels.
+
+    The default empty list disables PiP.
+    """
+
+    xr_camera_feed_layout: XrCameraFeedLayoutCfg = field(default_factory=XrCameraFeedLayoutCfg)
+    """Placement and packing applied to the ordered enabled camera feeds."""
 
     pipeline_builder: Callable[[], OutputCombiner] = MISSING
     """Callable that builds the IsaacTeleop retargeting pipeline.

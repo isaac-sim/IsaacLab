@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import ControllerHapticFeedbackCfg, IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
+from isaaclab_teleop import (
+    ControllerHapticFeedbackCfg,
+    IsaacTeleopCfg,
+    XrAnchorRotationMode,
+    XrCameraFeedCfg,
+    XrCfg,
+)
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -14,7 +20,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -31,6 +37,18 @@ from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
 )
+from isaaclab_physx.renderers import IsaacRtxRendererCfg  # isort: skip
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg  # isort: skip
+
+
+@configclass
+class _RobotPovCameraRendererCfg(MultiBackendRendererCfg):
+    default: IsaacRtxRendererCfg = IsaacRtxRendererCfg(
+        camera_output_device="cuda:0",
+        enable_dlss_ray_reconstruction=True,
+        dlss_exec_mode="quality",
+    )
+    isaacsim_rtx = default
 
 
 def _build_g1_locomanipulation_pipeline():
@@ -290,6 +308,22 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     # Humanoid robot w/ arms higher
     robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
+    # Fixed task camera matching the GR1T2 training-camera placement.
+    robot_pov_cam = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/RobotPOVCam",
+        update_period=0.0,
+        height=450,
+        width=720,
+        data_types=["rgb"],
+        renderer_cfg=_RobotPovCameraRendererCfg(),
+        spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2.0)),
+        offset=CameraCfg.OffsetCfg(
+            pos=(0.0, 0.12, 1.67675),
+            rot=(0.9801, 0.0, 0.0, -0.19848),
+            convention="ros",
+        ),
+    )
+
     # Per-hand contact sensors over all finger links, used to drive controller
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
     # on the robot spawn, enabled in the env __post_init__.
@@ -367,6 +401,16 @@ class ObservationsCfg:
         object = ObsTerm(
             func=manip_mdp.object_obs,
             params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
+        )
+
+        robot_pov_cam = ObsTerm(
+            func=base_mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
+                "data_type": "rgb",
+                "normalize": False,
+                "clone": False,
+            },
         )
 
         def __post_init__(self):
@@ -456,7 +500,16 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=_build_g1_locomanipulation_pipeline,
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+            xr_camera_feeds=[
+                XrCameraFeedCfg(
+                    camera_name="robot_pov_cam",
+                    # Keep the 0.30 m-tall panel below the eye-level controls.
+                    offset_m=(0.0, -0.15),
+                    max_update_hz=0.0,
+                )
+            ],
         )
+        self.image_obs_list = ["robot_pov_cam"]
 
         # Enable contact reporting on the robot so the per-hand ContactSensors
         # report finger forces, and drive controller haptics from them.

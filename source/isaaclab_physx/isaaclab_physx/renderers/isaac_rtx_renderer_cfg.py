@@ -10,6 +10,8 @@ from typing import Any, Literal
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
 
+_DLSS_EXEC_MODES = {"performance", "balanced", "quality", "auto", "rtxaa", "manual"}
+
 
 @configclass
 class IsaacRtxRendererGlobalSettingsCfg:
@@ -105,6 +107,31 @@ class IsaacRtxRendererCfg(RendererCfg):
     global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
     """Global Kit/RTX quality settings applied before RTX Hydra attach."""
 
+    camera_output_device: str | None = None
+    """Optional device for Replicator annotators and persistent camera pixel outputs.
+
+    This leaves physics and camera pose state on the simulation device. For
+    example, set ``"cuda:0"`` with CPU physics to avoid an RTX GPU-to-CPU
+    readback when a GPU consumer uses the camera image. ``None`` preserves the
+    simulation-device behavior.
+    """
+
+    enable_dlss_ray_reconstruction: bool | None = None
+    """Enable DLSS Ray Reconstruction for this renderer's render products.
+
+    Set to ``False`` to use classic DLSS while leaving other render products,
+    such as XR headset views, on their process-global setting. ``None``
+    preserves Kit's render-product default.
+    """
+
+    dlss_exec_mode: Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"] | None = None
+    """Optional render-product-local DLSS execution mode.
+
+    ``None`` preserves Kit's render-product default. Unlike
+    :attr:`global_settings`, this setting affects only cameras using this
+    renderer configuration.
+    """
+
     semantic_filter: str | list[str] = "*:*"
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.
 
@@ -172,3 +199,28 @@ class IsaacRtxRendererCfg(RendererCfg):
     - ``"zero"``: Values are clipped to zero.
     - ``"none"``: No clipping is applied. Values will be returned as ``inf``.
     """
+
+    def __post_init__(self) -> None:
+        """Validate render-product settings before Kit silently ignores them."""
+        if self.camera_output_device is not None and (
+            not isinstance(self.camera_output_device, str)
+            or not (
+                self.camera_output_device == "cpu"
+                or self.camera_output_device == "cuda"
+                or (
+                    self.camera_output_device.startswith("cuda:")
+                    and self.camera_output_device.removeprefix("cuda:").isdigit()
+                )
+            )
+        ):
+            raise ValueError(
+                "camera_output_device must be 'cpu', 'cuda', 'cuda:<index>', or None, "
+                f"got {self.camera_output_device!r}."
+            )
+        ray_reconstruction = self.enable_dlss_ray_reconstruction
+        if ray_reconstruction is not None and type(ray_reconstruction) is not bool:
+            raise TypeError("enable_dlss_ray_reconstruction must be a bool or None.")
+        if self.dlss_exec_mode is not None and self.dlss_exec_mode not in _DLSS_EXEC_MODES:
+            raise ValueError(
+                f"dlss_exec_mode must be one of {sorted(_DLSS_EXEC_MODES)} or None, got {self.dlss_exec_mode!r}."
+            )

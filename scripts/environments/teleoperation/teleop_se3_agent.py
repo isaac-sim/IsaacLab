@@ -272,6 +272,14 @@ def main() -> None:  # noqa: C901
         not teleop_device_explicitly_set and hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
     )
 
+    from isaaclab_teleop.camera_feed import _XrCameraFeedSession
+
+    camera_feed_session = _XrCameraFeedSession.prepare(
+        env_cfg,
+        enabled=args_cli.xr and use_isaac_teleop,
+        camera_rendering_enabled=not args_cli.disable_external_cameras,
+    )
+
     # XR-rendering setup (camera removal + DLSS) is only needed for the Kit XR
     # path. Without --xr, IsaacTeleop runs standalone (I/O only) and renders
     # normally, so gate on --xr alone.
@@ -286,7 +294,14 @@ def main() -> None:  # noqa: C901
     if _rtx_rendering_requested(args_cli):
         _ensure_replicator_loaded()
         apply_isaac_rtx_global_settings(
-            IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
+            IsaacRtxRendererGlobalSettingsCfg(
+                antialiasing_mode="DLSS",
+                carb_settings=(
+                    {"/rtx/dldenoiser/responsiveDenoising": True}
+                    if camera_feed_session.requires_responsive_denoising
+                    else None
+                ),
+            ),
         )
 
     try:
@@ -493,6 +508,7 @@ def main() -> None:  # noqa: C901
                     if should_reset_recording_instance:
                         env.reset()
                         teleop_interface.reset()
+                        camera_feed_session.refresh()
                         should_reset_recording_instance = False
                         print("Environment reset complete")
             except Exception as e:
@@ -502,10 +518,11 @@ def main() -> None:  # noqa: C901
     # Run the teleoperation loop
     # IsaacTeleop requires a context manager, native devices don't
     if use_isaac_teleop:
-        with teleop_interface:
+        with teleop_interface, camera_feed_session.bind(env):
             run_loop()
     else:
-        run_loop()
+        with camera_feed_session.bind(env):
+            run_loop()
 
     # close the simulator
     env.close()

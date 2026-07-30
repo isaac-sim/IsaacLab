@@ -111,6 +111,21 @@ def test_get_renderer_returns_equal_cfg_singleton():
     assert r1 is r2
 
 
+def test_get_renderer_isolates_per_camera_dlss_settings():
+    """Camera-local RTX settings create a distinct backend while equal settings reuse one."""
+    ctx = RenderContext()
+
+    default_renderer = ctx.get_renderer(IsaacRtxRendererCfg())
+    tuned_cfg = IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=False, dlss_exec_mode="quality")
+    tuned_renderer = ctx.get_renderer(tuned_cfg)
+    tuned_renderer_again = ctx.get_renderer(
+        IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=False, dlss_exec_mode="quality")
+    )
+
+    assert tuned_renderer is not default_renderer
+    assert tuned_renderer_again is tuned_renderer
+
+
 def test_get_renderer_two_different_concrete_types_coexist():
     """Different renderer_cfg concrete classes register distinct backends (no error)."""
 

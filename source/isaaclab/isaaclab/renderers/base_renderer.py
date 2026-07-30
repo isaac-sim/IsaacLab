@@ -44,6 +44,21 @@ class BaseRenderer(ABC):
         """Post-physics one-time initialization hook. Called only once."""
         return
 
+    def resolve_camera_output_device(self, simulation_device: str) -> str:
+        """Resolve the device used for persistent camera pixel outputs.
+
+        The default keeps outputs on the simulation device. A renderer may
+        override this when its pixel production is independent of physics and
+        camera pose storage.
+
+        Args:
+            simulation_device: Device used by simulation and camera state.
+
+        Returns:
+            Device used by the render specification and image output buffers.
+        """
+        return simulation_device
+
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Pre-render per-camera setup the backend needs.
 
