@@ -37,40 +37,20 @@ class PhysicsCfg:
 
 @configclass
 class PhysxAutoCfg(PhysicsCfg):
-    """Automatic PhysX-family physics placeholder.
-
-    The simulation launcher resolves this placeholder to Isaac Sim PhysX when
-    Kit is required or when no OvPhysX alternative is configured. Otherwise,
-    it resolves to the configured OvPhysX alternative for a kitless run.
-    """
+    """PhysX configuration resolved to a concrete backend at launch."""
 
     class_type: Any = None
-    """Placeholder manager type; resolved before simulation construction."""
-
-    physics_type: str = "auto_physx"
-    """Physics placeholder marker consumed by :func:`isaaclab.app.scan`."""
+    """Unused because this configuration is resolved before simulation construction."""
 
     isaacsim_physx: PhysxCfg | None = None
-    """Concrete Isaac Sim PhysX configuration."""
+    """Concrete Isaac Sim PhysX configuration, or ``None`` when unavailable."""
 
     ovphysx: OvPhysxCfg | None = None
     """Concrete OvPhysX configuration, or ``None`` when OvPhysX is unsupported."""
 
 
-def resolve_physx_auto_cfg(physics_cfg: PhysicsCfg, use_isaac_sim: bool) -> PhysicsCfg:
-    """Resolve an automatic PhysX placeholder to a concrete backend.
-
-    Args:
-        physics_cfg: Physics configuration to resolve.
-        use_isaac_sim: Whether the run already requires Isaac Sim and Kit.
-
-    Returns:
-        The selected concrete physics configuration. Non-automatic
-        configurations are returned unchanged.
-
-    Raises:
-        ValueError: If the selected alternative has the wrong concrete type.
-    """
+def _resolve_physx_auto_cfg(physics_cfg: PhysicsCfg, use_isaac_sim: bool) -> PhysicsCfg:
+    """Resolve a :class:`PhysxAutoCfg` to a concrete backend."""
     if not isinstance(physics_cfg, PhysxAutoCfg):
         return physics_cfg
 
@@ -83,7 +63,7 @@ def resolve_physx_auto_cfg(physics_cfg: PhysicsCfg, use_isaac_sim: bool) -> Phys
     else:
         from isaaclab_physx.physics import PhysxCfg
 
-        selected = physics_cfg.isaacsim_physx if physics_cfg.isaacsim_physx is not None else PhysxCfg()
+        selected = physics_cfg.isaacsim_physx
         expected_type = PhysxCfg
         field_name = "isaacsim_physx"
 

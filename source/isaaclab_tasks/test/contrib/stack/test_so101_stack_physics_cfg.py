@@ -28,7 +28,6 @@ def test_preset_enables_contact_last_and_keeps_stack_tuning():
     assert preset.default == preset.physx
     for physx in (preset.isaacsim_physx, preset.physx.isaacsim_physx):
         assert physx.solve_articulation_contact_last is True
-        # stack-family tuning must be preserved (values from PhysicsCfg.default)
         assert physx.bounce_threshold_velocity == 0.01
         assert physx.friction_correlation_distance == 0.00625
 

@@ -21,7 +21,7 @@ from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.physics.physics_manager_cfg import resolve_physx_auto_cfg
+from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
     resolve_scene_data_requirements,
@@ -172,7 +172,7 @@ class SimulationContext:
         if not hasattr(self._physics, "class_type") and hasattr(self._physics, "default"):
             self._physics = self._physics.default
             self.cfg.physics = self._physics
-        self._physics = resolve_physx_auto_cfg(self._physics, use_isaac_sim=has_kit())
+        self._physics = _resolve_physx_auto_cfg(self._physics, use_isaac_sim=has_kit())
         self.cfg.physics = self._physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)

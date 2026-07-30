@@ -28,7 +28,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
-from isaaclab.physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, resolve_physx_auto_cfg
+from isaaclab.physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
 from isaaclab.utils._device import set_cuda_device
@@ -254,7 +254,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     When the ``physics`` key is present in *launcher_args*, every physics config is
     replaced by the requested backend (see :func:`make_physics_cfg`): nested configs
     in place, a root config via :attr:`Scan.effective_cfg` (it cannot be mutated in
-    place). Automatic PhysX preset selections (``physics=physx``) and RTX
+    place). Automatic PhysX configurations and RTX
     renderer placeholders (``renderer_type="auto_rtx"``) are also resolved
     at this stage using the full *launcher_args* context.
     """
@@ -324,12 +324,11 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     )
     _refresh_physics_scan_flags(config_scan, concrete_physics_cfgs, has_physics)
 
-    # Resolve automatic PhysX placeholders first. Automatic RTX resolution
-    # then sees the concrete physics backend selected for this runtime.
+    # RTX selection depends on the resolved physics backend.
     if has_auto_physx:
         use_isaac_sim = _has_kit_runtime_intent(config_scan, launcher_args)
         for node, parent, key, is_first_physics in auto_physx_locations:
-            physics_cfg = resolve_physx_auto_cfg(node, use_isaac_sim)
+            physics_cfg = _resolve_physx_auto_cfg(node, use_isaac_sim)
             concrete_physics_cfgs.append(physics_cfg)
             if parent is None:
                 effective_cfg = physics_cfg
