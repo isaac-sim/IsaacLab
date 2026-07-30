@@ -252,6 +252,7 @@ def main():
         print(f"[INFO]: Gym observation space: {env.observation_space}")
         print(f"[INFO]: Gym action space: {env.action_space}")
 
+        print("[INFO]: Setup complete.")
         env.reset()
         for _ in range(_NUM_STEPS):
             with torch.inference_mode():
