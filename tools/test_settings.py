@@ -55,6 +55,9 @@ PER_TEST_TIMEOUTS = {
     "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 1000,
     "test_manager_based_rl_env_obs_spaces_task_integration.py": 1000,
+    # Newton cloth warmup can reach ~2750 s under GPU throttling (50 frames × ~55 s each).
+    # cold-cache buffer (+700 s) is added automatically for the first camera-enabled test.
+    "test_visualizer_golden_newton.py": 6000,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
     "test_rigid_object_collection.py": 1500,
