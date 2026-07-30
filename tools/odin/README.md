@@ -55,11 +55,15 @@ comparison compared.
 
 ## Generate the task list
 
-Discovery over the Gym registry is the default row source:
+The task list is generated, not shipped. Produce one before the first
+dispatch:
 
 ```bash
 uv run python -m tools.odin.cli discover
 ```
+
+It writes `tools/odin/config/tasks.yaml`, which is gitignored: a committed copy
+goes stale against the registry, and regenerating costs seconds.
 
 Expansion is **total** — every task, every RL library it declares, and every
 *legal mode* it supports — and filters are the only way to narrow.

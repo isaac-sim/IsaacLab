@@ -171,6 +171,13 @@ def command_dispatch(args: argparse.Namespace) -> int:
         retried = sum(len(task_rows) for task_rows, _ in plan_groups)
         print(f"[odin] retrying {retried} failed row(s) from {parent_dispatch_id}")
     else:
+        if not args.tasks_yaml.exists():
+            print(
+                f"[odin] no task list at {args.tasks_yaml}. It is generated, not shipped: "
+                "run `odin discover` first, or pass --tasks_yaml with a hand-written list.",
+                file=sys.stderr,
+            )
+            return 1
         task_rows = load_task_rows(args.tasks_yaml)
         seeds = args.seeds
         if args.metadata_yaml is not None:
@@ -495,7 +502,6 @@ def command_discover(args: argparse.Namespace) -> int:
         args.output,
         rows,
         meta={
-            "generated_at": _utc_now_iso(),
             "task_count": len({row["task_id"] for row in rows}),
             "row_count": len(rows),
         },

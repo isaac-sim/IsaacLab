@@ -20,7 +20,17 @@ _ODIN_ROOT = Path(__file__).resolve().parents[1]
 @pytest.fixture
 def workspace(tmp_path: Path) -> Path:
     shutil.copy(_ODIN_ROOT / "config" / "odin.yaml", tmp_path / "odin.yaml")
-    shutil.copy(_ODIN_ROOT / "config" / "tasks.yaml", tmp_path / "tasks.yaml")
+    (tmp_path / "tasks.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "tasks": [
+                    {"task_id": "Isaac-Cartpole-Direct", "rl_library": "rsl_rl", "physics": "newton_mjwarp"},
+                    {"task_id": "Isaac-Cartpole-Direct", "rl_library": "rsl_rl", "physics": "physx"},
+                    {"task_id": "Isaac-Ant", "rl_library": "rsl_rl", "physics": "newton_mjwarp"},
+                ]
+            }
+        )
+    )
     return tmp_path
 
 
@@ -543,3 +553,26 @@ def test_resume_resets_in_flight_rows_and_polls(workspace: Path, monkeypatch, ca
     assert all(job["status"] == "failed" for job in final["jobs"])
     assert all(job["failure"]["kind"] == "malformed_bundle" for job in final["jobs"])
     assert code == 1
+
+
+def test_dispatch_without_a_task_list_says_how_to_make_one(workspace: Path, capsys) -> None:
+    # The list is generated, not shipped, so a missing file is the normal
+    # first-run state rather than an error to report as a bad path.
+    code = main(
+        [
+            "dispatch",
+            "--config",
+            str(workspace / "odin.yaml"),
+            "--tasks_yaml",
+            str(workspace / "absent.yaml"),
+            "--image",
+            "img",
+            "--seeds",
+            "42",
+            "--runs_root",
+            str(workspace / "runs"),
+            "--dry_run",
+        ]
+    )
+    assert code == 1
+    assert "odin discover" in capsys.readouterr().err

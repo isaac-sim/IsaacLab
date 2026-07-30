@@ -15,3 +15,6 @@ source/isaaclab_tasks/test/golden_images/**/*.png filter=lfs diff=lfs merge=lfs 
 
 *.bat text eol=crlf
 *.sh text eol=lf
+
+# Rendered fixtures; collapsed in diffs so review lands on the renderer.
+tools/odin/tests/golden/** linguist-generated=true

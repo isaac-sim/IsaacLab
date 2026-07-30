@@ -112,13 +112,6 @@ def test_load_task_rows_requires_a_tasks_list(tmp_path: Path) -> None:
         load_task_rows(path)
 
 
-def test_shipped_seed_list_plans_cleanly() -> None:
-    shipped = Path(__file__).resolve().parents[1] / "config" / "tasks.yaml"
-    rows = plan_rows(task_rows=load_task_rows(shipped), seeds=[42])
-    assert rows
-    assert all(r.osmo_task_name for r in rows)
-
-
 def test_metadata_overlay_fills_missing_sizing() -> None:
     metadata = [
         {

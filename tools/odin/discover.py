@@ -384,7 +384,8 @@ def write_task_list(path: Path, rows: list[dict[str, Any]], *, meta: dict[str, A
         path: Destination file; parent directories are created.
         rows: Rows to write.
         meta: Provenance recorded under a ``discovery`` header, which
-            :func:`~tools.odin.plan.load_task_rows` ignores.
+            :func:`~tools.odin.plan.load_task_rows` ignores. Keep it free of
+            values that change per run, or every regeneration is a diff.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     header = (
