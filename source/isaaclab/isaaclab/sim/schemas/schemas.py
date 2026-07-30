@@ -1966,6 +1966,8 @@ def define_deformable_body_properties(
     Raises:
         ValueError: When the prim path is not valid.
         ValueError: When the prim has no mesh or multiple meshes.
+        ModuleNotFoundError: When automatic volume tetrahedralization is requested
+            without its optional dependencies.
         RuntimeError: When setting the deformable body properties fails.
     """
     # get stage handle
@@ -2074,11 +2076,16 @@ def define_deformable_body_properties(
         if sim_mesh_prim is None:
             try:
                 from pytetwild import tetrahedralize
-            except ImportError as exc:
-                raise ImportError(
-                    "Automatic tetrahedralization of volume deformables requires the optional 'pytetwild' "
-                    "package. Install pytetwild or provide a pre-tetrahedralized UsdGeom.TetMesh under the "
-                    f"deformable prim '{prim_path}'."
+            except ModuleNotFoundError as exc:
+                if exc.name not in {"pytetwild", "pyvista", "vtk", "vtkmodules"}:
+                    raise
+                raise ModuleNotFoundError(
+                    "Automatic tetrahedralization of volume deformables requires the optional "
+                    "tetrahedralization dependencies. Install them with "
+                    "uv sync --inexact --extra tetrahedralization from a source checkout "
+                    "(or ./isaaclab.sh -i tetrahedralization with the legacy installer), or "
+                    'pip install "isaaclab[tetrahedralization]" from a wheel. Alternatively, provide '
+                    f"a pre-tetrahedralized UsdGeom.TetMesh under the deformable prim {prim_path}."
                 ) from exc
 
             tet_mesh_points, tet_mesh_indices = tetrahedralize(
