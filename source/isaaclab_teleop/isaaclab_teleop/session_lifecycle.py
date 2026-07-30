@@ -308,15 +308,24 @@ class TeleopSessionLifecycle:
             import omni.kit.app
             from carb.eventdispatcher import get_eventdispatcher
 
-            # Subscribe to Kit pre-shutdown so we tear down our session before XRCore
-            # tears down the OpenXR instance/session (XRCore uses order=0; lowest runs first).
-            # The /xr/enabled setting often does not fire on close, so this is required.
-            self._pre_shutdown_subscription = get_eventdispatcher().observe_event(
-                event_name=omni.kit.app.GLOBAL_EVENT_PRE_SHUTDOWN,
-                on_event=self._on_pre_shutdown,
-                observer_name="IsaacTeleop session lifecycle",
-                order=-100,
-            )
+            # carb can be importable while no Kit app is running -- standalone
+            # and headless use, and any process that imports the package without
+            # starting Kit. The dispatcher is None there, so check before use:
+            # the import guard below only covers a missing module, not a missing
+            # app, and calling observe_event() on None aborts construction.
+            dispatcher = get_eventdispatcher()
+            if dispatcher is None:
+                logger.info("No Kit event dispatcher; IsaacTeleop will not clean up on Kit close")
+            else:
+                # Subscribe to Kit pre-shutdown so we tear down our session before XRCore
+                # tears down the OpenXR instance/session (XRCore uses order=0; lowest runs first).
+                # The /xr/enabled setting often does not fire on close, so this is required.
+                self._pre_shutdown_subscription = dispatcher.observe_event(
+                    event_name=omni.kit.app.GLOBAL_EVENT_PRE_SHUTDOWN,
+                    on_event=self._on_pre_shutdown,
+                    observer_name="IsaacTeleop session lifecycle",
+                    order=-100,
+                )
         except (ImportError, ModuleNotFoundError):
             logger.info("omni.kit.app/carb.eventdispatcher not available; IsaacTeleop will not clean up on Kit close")
 

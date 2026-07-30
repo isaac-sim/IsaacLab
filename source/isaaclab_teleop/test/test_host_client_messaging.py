@@ -83,6 +83,59 @@ def _make_lifecycle(teleop, control_channel_uuid: bytes | None = _UNSET):
     return teleop.TeleopSessionLifecycle(cfg, cloudxr_env_file=None, use_kit_xr_bridge=False)
 
 
+class TestConstructionWithoutAKitApp:
+    """The lifecycle must construct when carb is present but no Kit app runs.
+
+    Regression coverage for a crash that only appeared in CI: locally
+    ``omni.kit.app`` is not importable at all, so the import guard swallowed the
+    whole block, while a full Isaac Sim image imports it fine and
+    ``get_eventdispatcher()`` returns ``None`` because no app is running.
+    Calling ``observe_event()`` on that ``None`` aborted construction.
+    """
+
+    def _fake_kit_modules(self, monkeypatch, dispatcher):
+        """Make ``omni.kit.app`` and ``carb.eventdispatcher`` importable."""
+        import sys
+        from types import ModuleType
+
+        carb = ModuleType("carb")
+        carb_ed = ModuleType("carb.eventdispatcher")
+        carb_ed.get_eventdispatcher = lambda: dispatcher  # type: ignore[attr-defined]
+        carb.eventdispatcher = carb_ed  # type: ignore[attr-defined]
+
+        omni = ModuleType("omni")
+        omni_kit = ModuleType("omni.kit")
+        omni_kit_app = ModuleType("omni.kit.app")
+        omni_kit_app.GLOBAL_EVENT_PRE_SHUTDOWN = "pre_shutdown"  # type: ignore[attr-defined]
+        omni.kit = omni_kit  # type: ignore[attr-defined]
+        omni_kit.app = omni_kit_app  # type: ignore[attr-defined]
+
+        for name, module in (
+            ("carb", carb),
+            ("carb.eventdispatcher", carb_ed),
+            ("omni", omni),
+            ("omni.kit", omni_kit),
+            ("omni.kit.app", omni_kit_app),
+        ):
+            monkeypatch.setitem(sys.modules, name, module)
+
+    def test_constructs_when_the_dispatcher_is_none(self, teleop, monkeypatch):
+        self._fake_kit_modules(monkeypatch, dispatcher=None)
+        lifecycle = _make_lifecycle(teleop)
+        assert lifecycle is not None
+
+    def test_subscribes_when_a_dispatcher_exists(self, teleop, monkeypatch):
+        # The happy path must keep working: a real Kit app still gets the
+        # pre-shutdown observer that tears the session down before XRCore.
+        dispatcher = MagicMock()
+        self._fake_kit_modules(monkeypatch, dispatcher=dispatcher)
+
+        _make_lifecycle(teleop)
+
+        dispatcher.observe_event.assert_called_once()
+        assert dispatcher.observe_event.call_args.kwargs["order"] == -100
+
+
 class TestControlPipelineWiring:
     """The outbound half of the control channel."""
 
