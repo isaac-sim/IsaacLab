@@ -61,8 +61,13 @@ MDP term for its warp twin). Select the Newton solver explicitly with
 - ``Isaac-Cartpole``
 - ``Isaac-Ant``
 - ``Isaac-Humanoid``
-- ``Isaac-Reach-Franka``, ``Isaac-Reach-UR10``
-- ``Isaac-Velocity-Flat-AnymalD``, ``-Cassie``, ``-G1``, ``-H1``, ``-UnitreeGo2``
+- ``Isaac-Reach-Franka``
+- ``Isaac-Reach-UR10``
+- ``Isaac-Velocity-Flat-AnymalD``
+- ``Isaac-Velocity-Flat-Cassie``
+- ``Isaac-Velocity-Flat-G1``
+- ``Isaac-Velocity-Flat-H1``
+- ``Isaac-Velocity-Flat-UnitreeGo2``
 
 A missing twin is a hard error listing the affected terms, so a partially
 covered task fails at build time rather than silently changing behavior.
@@ -117,7 +122,7 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 12 15 15 12
+   :widths: 42 10 14 14 12
 
    * - Env
      - Type
@@ -129,62 +134,62 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
      - 5,274
      - 4,331
      - -17.88%
-   * - Ant-Direct
+   * - Isaac-Ant-Direct
      - Direct
      - 6,368
      - 3,128
      - -50.88%
-   * - Humanoid-Direct
+   * - Isaac-Humanoid-Direct
      - Direct
      - 13,937
      - 10,783
      - -22.63%
-   * - Allegro-Direct
+   * - Isaac-Reorient-Cube-Allegro-Direct
      - Direct
      - 82,950
      - 74,570
      - -10.10%
-   * - Cartpole
+   * - Isaac-Cartpole
      - Manager
      - 7,971
      - 3,642
      - -54.31%
-   * - Ant
+   * - Isaac-Ant
      - Manager
      - 9,781
      - 4,672
      - -52.23%
-   * - Humanoid
+   * - Isaac-Humanoid
      - Manager
      - 17,653
      - 12,505
      - -29.16%
-   * - Reach-Franka
+   * - Isaac-Reach-Franka
      - Manager
      - 11,458
      - 7,813
      - -31.83%
-   * - AnymalD
+   * - Isaac-Velocity-Flat-AnymalD
      - Manager
      - 32,294
      - 23,977
      - -25.75%
-   * - Cassie
+   * - Isaac-Velocity-Flat-Cassie
      - Manager
      - 17,320
      - 10,706
      - -38.19%
-   * - G1
+   * - Isaac-Velocity-Flat-G1
      - Manager
      - 34,487
      - 27,300
      - -20.84%
-   * - H1
+   * - Isaac-Velocity-Flat-H1
      - Manager
      - 22,202
      - 15,864
      - -28.55%
-   * - UnitreeGo2
+   * - Isaac-Velocity-Flat-UnitreeGo2
      - Manager
      - 15,221
      - 9,966
