@@ -173,7 +173,13 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._setup_deformable_bindings(physx, stage, device)
 
     def _setup_deformable_bindings(self, physx, stage, device: str) -> None:
-        """Discover deformable prims and wire OVPhysX nodal-position bindings."""
+        """Discover deformable prims and wire OVPhysX nodal-position bindings.
+
+        Args:
+            physx: Active OVPhysX simulation handle.
+            stage: USD stage used for deformable discovery.
+            device: Warp device for nodal position read buffers.
+        """
         from isaaclab_ovphysx import tensor_types as TT
         from isaaclab_ovphysx.assets.deformable_object.views import OvPhysxDeformableBodyView
 
@@ -286,14 +292,17 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
     @property
     def point_count(self) -> int:
+        """Return the total unpadded OVPhysX deformable nodal count."""
         return sum(self._geometry_counts)
 
     @property
     def geometry_paths(self) -> list[str]:
+        """Return one USD prim path per OVPhysX deformable body instance."""
         return self._geometry_paths
 
     @property
     def geometry_counts(self) -> list[int]:
+        """Return the unpadded nodal count for each OVPhysX deformable body."""
         return self._geometry_counts
 
     @property

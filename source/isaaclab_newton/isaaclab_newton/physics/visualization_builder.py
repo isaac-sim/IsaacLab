@@ -77,6 +77,13 @@ def build_visualization_builder_from_stage_envs(
     labels. Standalone scenes without a clone plan are imported as one world, then
     deformables are added as shadow particles so OVRTX registry bindings stay populated.
 
+    Args:
+        stage: USD stage to import into the shadow builder.
+        env_paths: Sorted ``(env_id, env_prim_path)`` pairs.
+        clone_plan: Optional clone plan; ``None`` imports the stage as a standalone world.
+        up_axis: Up axis for the :class:`~newton.ModelBuilder`.
+        device: Warp device for volume sim-to-visual remap tables.
+
     Returns:
         A tuple of the populated :class:`~newton.ModelBuilder` and shadow-deformable
         metadata ``(shadow_entities, registry_groups)``.
