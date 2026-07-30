@@ -3,38 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.app import AppLauncher
-
-HEADLESS = True
-
-# if not AppLauncher.instance():
-simulation_app = AppLauncher(headless=HEADLESS).app
-
-"""Rest of imports follows"""
-
 import pytest
 import torch
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.sim import build_simulation_context
 
-pytestmark = [pytest.mark.integration, pytest.mark.requires_kit]
-
-
-@pytest.fixture
-def sim(request):
-    """Create simulation context with the specified device."""
-    device = request.getfixturevalue("device")
-    with build_simulation_context(device=device) as sim:
-        sim._app_control_on_stop_handle = None
-        yield sim
+pytestmark = pytest.mark.unit
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("usd_default", [False, True])
-def test_implicit_actuator_init_minimum(sim, num_envs, num_joints, device, usd_default):
+def test_implicit_actuator_init_minimum(num_envs, num_joints, device, usd_default):
     """Test initialization of implicit actuator with minimum configuration."""
 
     joint_names = [f"joint_{d}" for d in range(num_joints)]
@@ -106,7 +87,7 @@ def test_implicit_actuator_init_minimum(sim, num_envs, num_joints, device, usd_d
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_lim", [None, 300, 200])
 @pytest.mark.parametrize("effort_lim_sim", [None, 400, 200])
-def test_implicit_actuator_init_effort_limits(sim, num_envs, num_joints, device, effort_lim, effort_lim_sim):
+def test_implicit_actuator_init_effort_limits(num_envs, num_joints, device, effort_lim, effort_lim_sim):
     """Test initialization of implicit actuator with effort limits."""
     effort_limit_default = 5000
 
@@ -178,7 +159,7 @@ def test_implicit_actuator_init_effort_limits(sim, num_envs, num_joints, device,
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("velocity_lim", [None, 300, 200])
 @pytest.mark.parametrize("velocity_lim_sim", [None, 400, 200])
-def test_implicit_actuator_init_velocity_limits(sim, num_envs, num_joints, device, velocity_lim, velocity_lim_sim):
+def test_implicit_actuator_init_velocity_limits(num_envs, num_joints, device, velocity_lim, velocity_lim_sim):
     """Test initialization of implicit actuator with velocity limits.
 
     The joint velocity limit ``velocity_limit`` and the solver clamp ``velocity_limit_sim`` are resolved
