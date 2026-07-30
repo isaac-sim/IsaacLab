@@ -250,8 +250,11 @@ class FabricFrameView(BaseFrameView):
         # View-side indices array.
         self._view_indices: wp.array | None = None
 
-        # Kernel-built view->fabric slot mappings (int32 device buffers,
-        # refreshed on every selection access; see ``_refresh_child_selection``).
+        # Kernel-built view->fabric slot mappings, refreshed on every selection
+        # access (see ``_refresh_child_selection``).  ``_child_parent_map`` holds
+        # view-side indices (uint32, like the Fabric ``UInt`` index attributes);
+        # the ``*_slots_buf`` buffers hold Fabric slots and must be int32, the
+        # only dtype ``wp.indexedfabricarray`` accepts for indices.
         self._child_parent_map: wp.array | None = None
         self._child_slots_buf: wp.array | None = None
         self._parent_slots_buf: wp.array | None = None

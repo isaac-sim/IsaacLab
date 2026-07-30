@@ -29,6 +29,10 @@ else:
     IndexedFabricArrayMat44d = wp.indexedfabricarray(dtype=wp.mat44d)
     ArrayUInt32 = wp.array(ndim=1, dtype=wp.uint32)
     ArrayUInt32_1d = wp.array(dtype=wp.uint32)
+    # Signedness here is not a style choice: view indices are ``uint`` (matching
+    # the Fabric ``UInt`` index attributes they come from), but anything used as
+    # :class:`wp.indexedarray` / :class:`wp.indexedfabricarray` indices must be
+    # ``int32`` -- Warp's ``check_index_array`` raises on any other dtype.
     ArrayInt32_1d = wp.array(dtype=wp.int32)
     ArrayFloat32_2d = wp.array(ndim=2, dtype=wp.float32)
 
@@ -57,6 +61,11 @@ def map_view_indices_to_fabric_slots(view_indices: FabricArrayUInt32, fabric_slo
     launch, ``fabric_slots[view_index]`` is the fabric-side slot of that view
     prim in the selection, suitable as :class:`wp.indexedfabricarray` indices.
 
+    The dtypes differ on purpose: the input is ``uint32`` because the Fabric
+    index attribute is authored as ``UInt``, while the output is ``int32``
+    because Warp only accepts ``int32`` index arrays (see
+    :data:`ArrayInt32_1d`).  This kernel is where that boundary is crossed.
+
     The launch dimension must equal the selection's prim count, and the stored
     view indices must cover ``0..dim-1`` exactly for the table to be complete.
     """
@@ -67,7 +76,12 @@ def map_view_indices_to_fabric_slots(view_indices: FabricArrayUInt32, fabric_slo
 
 @wp.kernel(enable_backward=False)
 def gather_fabric_slots(slots: ArrayInt32_1d, gather_map: ArrayUInt32_1d, out_slots: ArrayInt32_1d):
-    """Gather ``slots`` entries through ``gather_map``: ``out_slots[i] = slots[gather_map[i]]``."""
+    """Gather ``slots`` entries through ``gather_map``: ``out_slots[i] = slots[gather_map[i]]``.
+
+    ``gather_map`` holds view-side indices (``uint32``), while ``slots`` and
+    ``out_slots`` hold Fabric slots for :class:`wp.indexedfabricarray`
+    (``int32``); see :data:`ArrayInt32_1d`.
+    """
     i = int(wp.tid())
     out_slots[i] = slots[int(gather_map[i])]
 
