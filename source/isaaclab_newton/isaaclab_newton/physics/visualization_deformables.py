@@ -73,6 +73,11 @@ class ShadowDeformableRegistryGroup:
 
 
 def _needs_volume_vis_remap(entry: DeformableStageEntry) -> bool:
+    """Return ``True`` if this volume body needs barycentric sim-to-visual remapping.
+
+    Required when sim and visual vertex counts differ and a visual triangle mesh is
+    available (non-empty ``vis_vertices`` / ``vis_indices``).
+    """
     return (
         entry.deformable_type == "volume"
         and entry.vis_vertex_count != entry.vertex_count
@@ -82,6 +87,16 @@ def _needs_volume_vis_remap(entry: DeformableStageEntry) -> bool:
 
 
 def _build_volume_vis_remap(entry: DeformableStageEntry, device: str) -> VolumeVisRemap | None:
+    """Build device-resident barycentric sim-to-visual remap tables for one volume body.
+
+    Args:
+        entry: Discovered deformable with sim tet topology and visual mesh verts.
+        device: Warp device for the uploaded remap arrays (typically the sim device).
+
+    Returns:
+        A :class:`~isaaclab.scene_data.deformable_vis_remap.VolumeVisRemap` on success,
+        or ``None`` when no tet can be assigned (logs a warning).
+    """
     sim_np = np.array([[float(v[0]), float(v[1]), float(v[2])] for v in entry.vertices], dtype=np.float32)
     vis_np = np.array([[float(v[0]), float(v[1]), float(v[2])] for v in entry.vis_vertices], dtype=np.float32)
     remap = build_volume_vis_barycentric_remap(
@@ -271,6 +286,10 @@ def populate_shadow_deformable_registry(
 
     Under PhysX/OVPhysX sim, OVRTX (and any similar consumer) uses this registry to
     bind authored visual-mesh ``points`` to shadow ``particle_q`` render slots.
+
+    Args:
+        manager_cls: Physics manager class that owns ``_deformable_registry``.
+        registry_groups: Groups produced by :func:`add_shadow_deformables_to_builder`.
     """
     try:
         from isaaclab_contrib.deformable.deformable_object import DeformableRegistryEntry
