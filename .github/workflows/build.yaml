@@ -786,19 +786,11 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-${{ matrix.variant }}-test"
         omni-github-test-type: "rendering-correctness-kitless-${{ matrix.variant }}"
 
-  # Publishes the shared Warp kernel cache that the test jobs above restore.
-  #
-  # This exists as its own job because GitHub scopes caches by branch: a cache
-  # written during a pull request run is readable only by that same pull
-  # request, so only a run on the default branch can produce a cache that
-  # future pull requests can consume. No solver-heavy test job runs on push, so
-  # without this job there would be no writer at all.
-  #
-  # It deliberately does not restore before saving. Restoring first would let
-  # each run append to the previous one, growing the published cache without
-  # bound - which is how the previous attempt exhausted the repository cache
-  # quota. Building from empty keeps the published cache to exactly one clean
-  # compile.
+  # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
+  # own job because a cache written from a PR is readable only by that PR, and
+  # no solver-heavy test job runs on push. Does not restore before saving:
+  # appending to the previous run grows the cache without bound, which is what
+  # exhausted the repository quota last time.
   warm-warp-cache:
     name: "warp-cache-warm"
     runs-on: [self-hosted, gpu]
@@ -810,6 +802,12 @@ jobs:
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
+    env:
+      # Caches are branch-scoped: publishing only helps from a PR base branch
+      # (the on.push.branches list). A dispatch from elsewhere runs as a dry run
+      # instead of burning quota in a scope no PR can read. Not
+      # default_branch - that is a release/* branch upstream, excluding main.
+      PUBLISHES_WARP_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -821,30 +819,18 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        # MJWarp generates kernels per model configuration - see the @cache_kernel
-        # decorator in mujoco_warp/_src/warp_util.py, which keys generated kernels
-        # on array sizes and scalar arguments, and the ~250 wp.static() uses whose
-        # values feed Warp's module hash. Cached artifacts are therefore specific
-        # to the model, not just to the source, so the warm set has to span the
-        # axes that drive specialization rather than maximize task count:
-        #
-        #   Cartpole - primitive geometry, few dof, contact-free, plus the camera
-        #              variants that pull in the renderer kernels
-        #   Drawer   - articulated manipulator, convex mesh collision, contact
-        #   AnymalD  - contact-rich legged locomotion over flat and rough terrain
-        #   Handover - high-dof dexterous hands, many simultaneous contacts
-        #   Cloth    - deformable simulation kernels
-        #   Soft     - MPM kernels, a module set nothing else here touches
-        #
-        # Both num_envs parametrizations are intentionally left in: the test jobs
-        # run both, and model sizes scale with world count, so they specialize
-        # differently. The terms are substrings of registered task IDs and select
-        # 11 tasks; widen them if a test job reports large cache growth.
+        # MJWarp specializes kernels per model config (@cache_kernel in
+        # mujoco_warp/_src/warp_util.py keys on array sizes; ~250 wp.static uses
+        # feed Warp's module hash), so these span specialization axes rather than
+        # maximize task count: Cartpole (primitives, contact-free, + camera),
+        # Drawer (mesh collision), AnymalD (contact-rich locomotion), Handover
+        # (dexterous, many contacts), Cloth (deformables), Soft (MPM). Selects 11
+        # tasks; widen if a test job reports large cache growth.
         include-files: >-
           test_environments.py,
           test_environments_newton.py
         test-k-expr: "Cartpole or Drawer or AnymalD or Handover or Cloth or Soft"
-        warp-cache: save
+        warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm
   #endregion

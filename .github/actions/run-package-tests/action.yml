@@ -192,8 +192,6 @@ runs:
       if: inputs.warp-cache != ''
       id: warp-cache-key
       uses: ./.github/actions/warp-cache-key
-      with:
-        isaacsim-version: ${{ inputs.isaacsim-version }}
 
     - name: Restore Warp kernel cache
       if: inputs.warp-cache == 'restore'

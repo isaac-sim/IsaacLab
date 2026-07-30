@@ -9,11 +9,9 @@ Run inside the test container when ``WARP_CACHE_PATH`` is set. A Warp that
 silently ignores the mount is indistinguishable from a working cache that never
 gets a hit, so this fails the job loudly instead.
 
-This lives in a file rather than inline in ``action.yml`` because a composite
-action's ``run:`` block is capped at 21000 characters and the block it would
-otherwise sit in has very little headroom. It lives under ``tools/`` rather
-than beside the action because ``.dockerignore`` excludes ``.github/``, so a
-copy there would be missing from any container that is not bind-mounted.
+Lives under ``tools/`` rather than beside the action because ``.dockerignore``
+excludes ``.github/``, so a copy there would be missing from any container that
+is not bind-mounted.
 """
 
 import os
@@ -24,6 +22,12 @@ wp.init()
 
 expected = os.path.realpath(os.environ["WARP_CACHE_PATH"])
 actual = os.path.realpath(wp.config.kernel_cache_dir)
+
+# The cache key is scoped on the warp-lang version pinned in pyproject.toml.
+# Warp namespaces its cache dir by its own version, so if the runtime version
+# differs the key points at a namespace nothing writes and every restore misses
+# silently. Printing it makes that diagnosable from the job log.
+print(f"Warp version: {wp.config.version}")
 print(f"Warp kernel cache directory: {actual}")
 
 if os.path.commonpath([actual, expected]) != expected:
