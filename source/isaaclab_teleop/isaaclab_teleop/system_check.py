@@ -72,8 +72,14 @@ machines that perform well.
 CPU_GOVERNOR_EXPECTED = "performance"
 """Expected Linux cpufreq governor.
 
-Ubuntu workstations default to ``powersave``, which measurably increases Pink
-IK solve latency.  This is the single most actionable item in the check.
+Ubuntu workstations default to ``powersave``, which costs per-frame ramp-up
+latency in the bursty workload teleop actually generates.  This is the most
+actionable item in the check when it fires.
+
+It is only reported as unmet when the single-thread score falls below
+:data:`CPU_SCORE_MIN`, or could not be measured.  The governor is a proxy for
+delivered throughput, so a machine that already clears the bar is fast enough
+whatever the governor says, and flagging it there would be noise.
 """
 
 CPU_GOVERNOR_FIX = "sudo cpupower frequency-set -g performance"
@@ -398,6 +404,13 @@ def _check_cpu() -> list[SystemCheckItem]:
             )
         )
 
+    # The governor only matters as a proxy for delivered throughput. When the
+    # benchmark already clears the bar, warning about it is noise: the machine
+    # is demonstrably fast enough whatever the governor is set to. Only gate on
+    # it when the score falls short, or when it could not be measured at all.
+    score_meets_bar = score is not None and score >= CPU_SCORE_MIN
+    governor_required = f"{CPU_GOVERNOR_EXPECTED} (or single-thread >= {CPU_SCORE_MIN:.2f})"
+
     governor = _read_cpu_governor()
     if governor is None:
         items.append(
@@ -405,7 +418,7 @@ def _check_cpu() -> list[SystemCheckItem]:
                 name="CPU governor",
                 passed=True,
                 actual="unavailable",
-                required=CPU_GOVERNOR_EXPECTED,
+                required=governor_required,
                 skipped=True,
             )
         )
@@ -413,9 +426,9 @@ def _check_cpu() -> list[SystemCheckItem]:
         items.append(
             SystemCheckItem(
                 name="CPU governor",
-                passed=governor == CPU_GOVERNOR_EXPECTED,
+                passed=score_meets_bar or governor == CPU_GOVERNOR_EXPECTED,
                 actual=governor,
-                required=CPU_GOVERNOR_EXPECTED,
+                required=governor_required,
                 detail=CPU_GOVERNOR_FIX,
             )
         )

@@ -74,7 +74,7 @@ The check is **advisory and never blocks a session**. It reports:
    * - CPU single-thread
      - At least 80% of the reference CPU (AMD Ryzen Threadripper 7960X)
    * - CPU governor
-     - ``performance``
+     - ``performance``, unless the single-thread score already meets its threshold
    * - CPU boost clock
      - 4.0 GHz
    * - CPU physical cores
@@ -98,9 +98,12 @@ many slow cores.
 
 .. tip::
 
-   **The most common finding is the CPU frequency governor.** Ubuntu defaults to ``powersave``,
-   which measurably increases IK solve latency. Switching to ``performance`` is a setup step --
-   see :ref:`install-isaac-teleop`.
+   **The CPU governor is only reported when the machine is also measurably slow.** Ubuntu
+   defaults to ``powersave``, which costs per-frame ramp-up latency in the bursty workload
+   teleoperation generates. The governor is a proxy for delivered throughput, though, so a
+   workstation whose single-thread score already meets its threshold is fast enough whatever
+   the governor says and is not flagged. Setting ``performance`` remains a setup step -- see
+   :ref:`install-isaac-teleop`.
 
 If a probe is unavailable (for example, ``cpufreq`` is not exposed inside a container), that item
 is reported as skipped rather than failed.

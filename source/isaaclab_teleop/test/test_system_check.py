@@ -115,7 +115,6 @@ class TestSystemCheckThresholds:
         "overrides,failing_item",
         [
             ({"score": 0.5}, "CPU single-thread"),
-            ({"governor": "powersave"}, "CPU governor"),
             ({"clock_mhz": 3200.0}, "CPU boost clock"),
             ({"cores": 4}, "CPU physical cores"),
             ({"gpus": {0: ("Weak GPU", 16 * 10**9, 120)}}, "GPU memory"),
@@ -147,6 +146,48 @@ class TestSystemCheckThresholds:
         # teleoperate well.
         result, _ = _at_spec(monkeypatch, cores=8)
         assert result.passed
+
+
+class TestGovernorGating:
+    """The governor is only flagged when the benchmark does not clear the bar.
+
+    It is a proxy for delivered throughput, so warning about it on a machine
+    that already measures fast enough is noise -- measurements on the reference
+    workstation showed powersave and performance within run-to-run variance.
+    """
+
+    def test_passing_score_suppresses_the_governor_warning(self, monkeypatch):
+        result, items = _at_spec(monkeypatch, score=1.0, governor="powersave")
+        assert result.passed
+        assert items["CPU governor"].passed
+        assert items["CPU governor"].actual == "powersave"
+
+    def test_score_exactly_at_the_bar_suppresses_it(self, monkeypatch):
+        result, _ = _at_spec(monkeypatch, score=system_check.CPU_SCORE_MIN, governor="powersave")
+        assert result.passed
+
+    def test_failing_score_still_flags_the_governor(self, monkeypatch):
+        # A slow machine on powersave must still be told about the fix -- this
+        # is the case the check exists for.
+        result, items = _at_spec(monkeypatch, score=0.5, governor="powersave")
+        assert not result.passed
+        assert {item.name for item in result.failures} == {"CPU single-thread", "CPU governor"}
+        assert items["CPU governor"].detail == system_check.CPU_GOVERNOR_FIX
+
+    def test_unmeasurable_score_still_flags_the_governor(self, monkeypatch):
+        # Without a score there is no evidence the machine is fast enough, so
+        # fall back to gating on the governor.
+        result, items = _at_spec(monkeypatch, score=None, governor="powersave")
+        assert not result.passed
+        assert [item.name for item in result.failures] == ["CPU governor"]
+
+    def test_performance_governor_passes_regardless_of_score(self, monkeypatch):
+        _, items = _at_spec(monkeypatch, score=0.5, governor="performance")
+        assert items["CPU governor"].passed
+
+    def test_requirement_text_names_the_alternative(self, monkeypatch):
+        _, items = _at_spec(monkeypatch, governor="performance")
+        assert "single-thread" in items["CPU governor"].required
 
 
 class TestMultiGpuDeviceSelection:
@@ -245,18 +286,22 @@ class TestSystemCheckMessage:
     """The wire envelope the XR client consumes."""
 
     def test_message_carries_only_failing_items(self, monkeypatch):
-        result, _ = _at_spec(monkeypatch, governor="powersave", cores=4)
+        result, _ = _at_spec(monkeypatch, cores=4, ram_bytes=32 * 2**30)
         payload = result.to_message()
 
         assert payload["type"] == "system_notice"
         assert payload["message"]["level"] == "warning"
-        assert {item["name"] for item in payload["message"]["items"]} == {"CPU governor", "CPU physical cores"}
+        assert {item["name"] for item in payload["message"]["items"]} == {
+            "CPU physical cores",
+            "System memory",
+        }
 
     def test_governor_failure_carries_the_fix_command(self, monkeypatch):
-        result, _ = _at_spec(monkeypatch, governor="powersave")
-        (item,) = result.to_message()["message"]["items"]
-        assert item["detail"] == system_check.CPU_GOVERNOR_FIX
-        assert item["actual"] == "powersave"
+        # A failing score is what makes the governor gate at all now.
+        result, _ = _at_spec(monkeypatch, score=0.5, governor="powersave")
+        items = {item["name"]: item for item in result.to_message()["message"]["items"]}
+        assert items["CPU governor"]["detail"] == system_check.CPU_GOVERNOR_FIX
+        assert items["CPU governor"]["actual"] == "powersave"
 
     def test_message_is_json_serializable(self, monkeypatch):
         import json
