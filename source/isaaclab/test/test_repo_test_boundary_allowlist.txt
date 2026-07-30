@@ -3,15 +3,16 @@
 # Format: <rule> <repo-relative path>. This list may only shrink. Each package
 # overhaul removes its own entries; new entries need a reviewer-accepted reason.
 
-# Installs MagicMock stubs for omni/isaacsim into sys.modules at import time and never
-# restores them, breaking later modules in the same session. Removing the stubs exposes an
-# order dependence in test_articulation_ordering.py, so both are fixed together when
-# source/isaaclab/test/assets is overhauled.
+# Stubs omni.physics/physx/timeline/usd for the kitless OvPhysX path and does not restore them.
+# The isaacsim stubs that used to leak from here are gone; they broke four unrelated modules.
 import_time_side_effect source/isaaclab/test/assets/_iface_test_boot.py
 
-# Same class of defect: modules stubbed into sys.modules at import time and never restored,
-# so every later test in the session sees the stub. Each is fixed with its package overhaul.
+# Inserts stubs with setdefault, imports, then pops exactly what it inserted. The rule matches
+# the mutation statically and cannot see the restore.
 import_time_side_effect source/isaaclab/test/assets/test_articulation_ordering.py
+
+# Modules stubbed into sys.modules at import time and never restored, so every later test in
+# the session sees the stub. Each is fixed with its package overhaul.
 import_time_side_effect source/isaaclab_contrib/test/rl/test_rlinf_extension.py
 import_time_side_effect source/isaaclab_physx/test/renderers/test_isaac_rtx_renderer_utils.py
 import_time_side_effect source/isaaclab_teleop/test/test_retargeters.py

@@ -27,5 +27,3 @@ else:
         _stub = MagicMock()
         sys.modules[f"omni.{_mod}"] = _stub
         setattr(_omni, _mod.split(".", 1)[0], _stub)
-    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
-        sys.modules.setdefault(_mod, MagicMock())

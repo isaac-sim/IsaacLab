@@ -1059,6 +1059,15 @@ class _IncompleteArticulation(BaseArticulation):
         return self._data
 
 
+# These two stand in for third-party backends and are built with ``object.__new__`` so the name
+# properties can be exercised without a simulator. Whether ``AssetBase`` resolves to the real
+# abstract class or to the stub above depends on what an earlier test already imported, and
+# ``object.__new__`` refuses an abstract class. Clearing the set keeps the tests independent of
+# that import order; they never call the abstract methods.
+_LegacyArticulation.__abstractmethods__ = frozenset()
+_IncompleteArticulation.__abstractmethods__ = frozenset()
+
+
 def _make_ordering_resolution_articulation(
     *,
     body_ordering,
