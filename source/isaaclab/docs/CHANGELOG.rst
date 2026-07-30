@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+14.0.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``./isaaclab.sh --docs`` to build with the shared documentation dependencies.
+
+
 14.0.0 (2026-07-29)
 ~~~~~~~~~~~~~~~~~~~
 

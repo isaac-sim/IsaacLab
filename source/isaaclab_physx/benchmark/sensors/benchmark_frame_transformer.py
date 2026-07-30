@@ -16,15 +16,23 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import traceback
+from functools import partial
 
 from isaaclab.app import AppLauncher
+from isaaclab.benchmark._cli import parse_positive_int
+from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
 
 parser = argparse.ArgumentParser(description="Benchmark the PhysX FrameTransformer update path.")
-parser.add_argument("--num_envs", type=int, default=4096, help="Number of environments.")
-parser.add_argument("--num_target_frames", type=int, default=4, help="Number of target frames per environment.")
-parser.add_argument("--num_steps", type=int, default=500, help="Number of timed updates.")
-parser.add_argument("--warmup_steps", type=int, default=50, help="Number of untimed warm-up updates.")
-parser.add_argument("--label", type=str, default="current", help="Label printed with the benchmark results.")
+add_sensor_benchmark_args(
+    parser,
+    physics_variants=("physx",),
+    default_physics_variant="physx",
+    add_device=False,
+)
+parser.add_argument(
+    "--num_target_frames", type=parse_positive_int, default=4, help="Number of target frames per environment."
+)
 parser.add_argument(
     "--disable_recorded_launch",
     action="store_true",
@@ -38,14 +46,13 @@ simulation_app = app_launcher.app
 
 """Everything below follows application launch."""
 
-import statistics
-import time
-
 import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
+from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.utils.configclass import configclass
@@ -72,16 +79,6 @@ class FrameTransformerBenchmarkSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.5)),
     )
     frame_transformer: FrameTransformerCfg = None
-
-
-def _percentile(samples: list[float], percentile: float) -> float:
-    """Return a linearly interpolated percentile for sorted scalar samples."""
-    ordered = sorted(samples)
-    position = (len(ordered) - 1) * percentile
-    lower = int(position)
-    upper = min(lower + 1, len(ordered) - 1)
-    fraction = position - lower
-    return ordered[lower] + fraction * (ordered[upper] - ordered[lower])
 
 
 def main() -> None:
@@ -119,40 +116,56 @@ def main() -> None:
         sensor.update(sim_dt, force_recompute=True)
     wp.synchronize_device(sim.device)
 
-    synchronized_ms: list[float] = []
-    submission_ms: list[float] = []
-    for _ in range(args_cli.num_steps):
-        sim.step(render=False)
-        wp.synchronize_device(sim.device)
-        start = time.perf_counter()
-        sensor.update(sim_dt, force_recompute=True)
-        submitted = time.perf_counter()
-        wp.synchronize_device(sim.device)
-        finished = time.perf_counter()
-        synchronized_ms.append((finished - start) * 1000.0)
-        submission_ms.append((submitted - start) * 1000.0)
+    synchronize_device = partial(wp.synchronize_device, sim.device)
+    samples = collect_sensor_latency_samples(
+        num_steps=args_cli.num_steps,
+        step=lambda: sim.step(render=False),
+        update=lambda: sensor.update(sim_dt, force_recompute=True),
+        synchronize=synchronize_device,
+    )
 
     target_positions = sensor.data.target_pos_w.torch
     finite_frames = int(torch.isfinite(target_positions).all(dim=-1).sum().item())
     expected_frames = args_cli.num_envs * args_cli.num_target_frames
 
-    print("-" * 80)
-    print("FrameTransformer update benchmark (PhysX)")
-    print(f"  label                  : {args_cli.label}")
-    print(f"  device                 : {sim.device}")
-    print(f"  num_envs               : {args_cli.num_envs}")
-    print(f"  target_frames_per_env  : {args_cli.num_target_frames}")
-    print(f"  num_steps              : {args_cli.num_steps}")
-    print(f"  synchronized mean      : {statistics.mean(synchronized_ms):.3f} ms")
-    print(f"  synchronized p50       : {_percentile(synchronized_ms, 0.50):.3f} ms")
-    print(f"  synchronized p95       : {_percentile(synchronized_ms, 0.95):.3f} ms")
-    print(f"  submission mean        : {statistics.mean(submission_ms):.3f} ms")
-    print(f"  submission p50         : {_percentile(submission_ms, 0.50):.3f} ms")
-    print(f"  submission p95         : {_percentile(submission_ms, 0.95):.3f} ms")
-    print("-" * 80)
-    print(f"  finite target frames   : {finite_frames} / {expected_frames}")
+    if finite_frames != expected_frames:
+        raise RuntimeError(f"Expected {expected_frames} finite target frames, received {finite_frames}.")
+
+    benchmark = LatencyBenchmarkRunner(
+        benchmark_name="physx_frame_transformer_sensor",
+        formatter_type=args_cli.benchmark_formatter,
+        output_path=args_cli.output_path,
+        metadata={
+            "physics_variant": args_cli.physics_variant,
+            "label": args_cli.label,
+            "device": str(sim.device),
+            "num_envs": args_cli.num_envs,
+            "target_frames_per_env": args_cli.num_target_frames,
+            "num_steps": args_cli.num_steps,
+            "warmup_steps": args_cli.warmup_steps,
+        },
+    )
+    add_sensor_latency_measurements(
+        benchmark,
+        samples=samples,
+        validation=[
+            SingleMeasurement(name="Finite Target Frames", value=finite_frames, unit="count"),
+            SingleMeasurement(name="Expected Target Frames", value=expected_frames, unit="count"),
+        ],
+        update_phase="sensor_update",
+        observer_phase="observer",
+        validation_phase="validation",
+    )
+    benchmark.finalize()
 
 
 if __name__ == "__main__":
-    main()
-    simulation_app.close()
+    try:
+        main()
+    except BaseException:
+        if simulation_app.config.get("fast_shutdown", False):
+            traceback.print_exc()
+        simulation_app.close(exit_code=1)
+        raise
+    else:
+        simulation_app.close()

@@ -124,6 +124,7 @@ def test_build_runtime_adds_environment_step_timing():
         total_fps=[4.0],
         steps_per_iteration=8,
         frames_per_environment_step=8,
+        environment_step_warmup_steps=3,
         environment_step_times_s=[1.0, 2.0],
         simulation_step_times_s=[0.5, 0.5],
         simulation_step_calls=8,
@@ -165,6 +166,7 @@ def test_build_runtime_adds_environment_step_timing_without_simulation_breakdown
         total_fps=[4.0],
         steps_per_iteration=8,
         frames_per_environment_step=8,
+        environment_step_warmup_steps=2,
         environment_step_times_s=[1.0, 2.0],
     )
 
@@ -304,12 +306,45 @@ def test_build_learning_empty_series():
     assert learning.ep_length.series_per_iter == []
 
 
+def test_build_learning_includes_success_rate_curve():
+    learning = builders.build_learning(
+        reward_series=[1.0, 2.0],
+        ep_length_series=[10.0, 20.0],
+        success_rate_series=[0.1, 0.5, 0.9],
+        ema_alpha=0.5,
+    )
+
+    assert learning.success_rate is not None
+    assert learning.success_rate.final_raw == pytest.approx(0.9)
+    assert learning.success_rate.final_ema == pytest.approx(0.6)
+    assert learning.success_rate.series_per_iter == pytest.approx([0.1, 0.5, 0.9])
+
+
+@pytest.mark.parametrize("success_rate_series", [None, []])
+def test_build_learning_omits_absent_success_rate_curve(success_rate_series):
+    learning = builders.build_learning(
+        reward_series=[1.0],
+        ep_length_series=[10.0],
+        success_rate_series=success_rate_series,
+        ema_alpha=0.1,
+    )
+
+    assert learning.success_rate is None
+
+
 def test_build_learning_keep_series_false():
     learning = builders.build_learning(
-        reward_series=[1.0, 2.0], ep_length_series=[10.0], ema_alpha=0.1, keep_series=False
+        reward_series=[1.0, 2.0],
+        ep_length_series=[10.0],
+        success_rate_series=[0.25, 0.75],
+        ema_alpha=0.1,
+        keep_series=False,
     )
     assert learning.reward.series_per_iter is None
     assert learning.ep_length.series_per_iter is None
+    assert learning.success_rate is not None
+    assert learning.success_rate.final_raw == pytest.approx(0.75)
+    assert learning.success_rate.series_per_iter is None
 
 
 def test_build_runtime_bundle_no_learning(tmp_path):

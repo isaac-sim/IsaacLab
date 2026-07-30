@@ -436,9 +436,12 @@ class KitVisualizer(BaseVisualizer):
         """Resolve or create the Camera sensor backing non-interactive image views."""
         if not self._uses_camera_sensor_view():
             return
-        if self._runtime_headless:
-            return
-        if not get_settings_manager().get("/isaaclab/cameras_enabled", False):
+        cameras_enabled = get_settings_manager().get("/isaaclab/cameras_enabled", False)
+        if not cameras_enabled:
+            if self._runtime_headless:
+                # Headless without camera rendering: cannot create a camera sensor.
+                logger.debug("[KitVisualizer] Tiled camera sensor skipped: headless mode without --enable_cameras.")
+                return
             raise RuntimeError(
                 "[KitVisualizer] tiled_cam_view=True requires camera rendering support. "
                 "Disable tiled_cam_view for this visualizer config."
@@ -487,8 +490,11 @@ class KitVisualizer(BaseVisualizer):
             self._camera_is_owned = True
             self._update_owned_camera_poses()
             logger.debug("[KitVisualizer] Generated camera poses initialized.")
-        self._setup_camera_image_window()
-        logger.debug("[KitVisualizer] Camera image window initialized.")
+        if not self._runtime_headless:
+            self._setup_camera_image_window()
+            logger.debug("[KitVisualizer] Camera image window initialized.")
+        else:
+            logger.debug("[KitVisualizer] Camera image window skipped in headless mode.")
 
     def _setup_camera_image_window(self) -> None:
         """Create a dockable Kit UI image panel for camera sensor RGB output."""
