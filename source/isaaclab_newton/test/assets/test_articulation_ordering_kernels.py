@@ -46,8 +46,8 @@ def _articulation_class():
         "_resolve_spatial_tendon_ids",
     ],
 )
-def test_selector_resolvers_unwrap_proxy_array_without_copy(resolver_name: str) -> None:
-    """Return the exact Warp allocation cached by a proxy selector."""
+def test_selector_resolvers_require_explicit_proxy_view(resolver_name: str) -> None:
+    """Reject output wrappers until callers select their Warp view."""
     Articulation = _articulation_class()
 
     selector_array = _selector([1, 0], wp.int32)
@@ -65,8 +65,10 @@ def test_selector_resolvers_unwrap_proxy_array_without_copy(resolver_name: str) 
         },
     )()
 
-    resolved = getattr(Articulation, resolver_name)(articulation, selector)
+    with pytest.raises(TypeError, match="ProxyArray is output-only"):
+        getattr(Articulation, resolver_name)(articulation, selector)
 
+    resolved = getattr(Articulation, resolver_name)(articulation, selector.warp)
     assert resolved is selector_array
     assert selector._torch_cache is None  # noqa: SLF001
 

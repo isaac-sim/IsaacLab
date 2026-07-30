@@ -564,7 +564,7 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies.
@@ -612,7 +612,7 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies.
@@ -662,7 +662,7 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies.
@@ -850,7 +850,7 @@ class BaseRigidObject(AssetBase):
     def set_masses(
         self,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | ProxyArray | slice | None = None,
+        body_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_masses_index`."""
@@ -864,7 +864,7 @@ class BaseRigidObject(AssetBase):
     def set_coms(
         self,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | ProxyArray | None = None,
+        body_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_coms_index`."""
@@ -878,7 +878,7 @@ class BaseRigidObject(AssetBase):
     def set_inertias(
         self,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | ProxyArray | None = None,
+        body_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_inertias_index`."""
@@ -895,7 +895,7 @@ class BaseRigidObject(AssetBase):
         forces: torch.Tensor | wp.array,
         torques: torch.Tensor | wp.array,
         positions: torch.Tensor | wp.array | None = None,
-        body_ids: Sequence[int] | ProxyArray | slice | None = None,
+        body_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         is_global: bool = False,
     ) -> None:

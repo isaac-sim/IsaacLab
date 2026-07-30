@@ -1048,16 +1048,23 @@ def test_index_dtype_combinations_preserve_selected_wrench_cells(
 
 
 @pytest.mark.parametrize("method_name", ["set_forces_and_torques_index", "add_forces_and_torques_index"])
-def test_index_methods_accept_proxy_body_ids_without_materializing_torch(method_name: str) -> None:
-    """Apply selected wrenches directly from a finder-style body proxy."""
+def test_index_methods_require_explicit_proxy_body_view(method_name: str) -> None:
+    """Require finder outputs to select their Warp view before applying wrenches."""
     composer = WrenchComposer(create_mock_asset(num_envs=2, num_bodies=3, device="cpu"))
     env_ids = torch.tensor([1], dtype=torch.int32)
     body_ids = ProxyArray(wp.array([2, 0], dtype=wp.int32, device="cpu"))
     forces_np = np.arange(1, 7, dtype=np.float32).reshape(1, 2, 3)
 
+    with pytest.raises(TypeError, match="ProxyArray is output-only"):
+        getattr(composer, method_name)(
+            forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device="cpu"),
+            body_ids=body_ids,
+            env_ids=env_ids,
+        )
+
     getattr(composer, method_name)(
         forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device="cpu"),
-        body_ids=body_ids,
+        body_ids=body_ids.warp,
         env_ids=env_ids,
     )
 

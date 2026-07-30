@@ -126,7 +126,7 @@ class BaseRigidObjectCollection(AssetBase):
     def reset(
         self,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        object_ids: slice | torch.Tensor | ProxyArray | None = None,
+        object_ids: slice | torch.Tensor | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
         """Resets all internal buffers of selected environments and objects.
@@ -207,7 +207,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_poses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -267,7 +267,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_poses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -327,7 +327,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_poses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -389,7 +389,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -455,7 +455,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -521,7 +521,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -591,7 +591,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies.
@@ -639,7 +639,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies.
@@ -689,7 +689,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies.
@@ -787,7 +787,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         body_states: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | ProxyArray | None = None,
+        body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and
         :meth:`write_body_com_velocity_to_sim_index`."""
@@ -798,7 +798,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         body_states: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | ProxyArray | None = None,
+        body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_com_pose_to_sim_index` and
         :meth:`write_body_com_velocity_to_sim_index`."""
@@ -809,7 +809,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         body_states: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | ProxyArray | None = None,
+        body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and
         :meth:`write_body_link_velocity_to_sim_index`."""
@@ -819,7 +819,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | ProxyArray | None = None,
+        body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_pose_to_sim_index`."""
         warnings.warn(
@@ -834,7 +834,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | ProxyArray | None = None,
+        body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_link_pose_to_sim_index`."""
         warnings.warn(
@@ -849,7 +849,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | ProxyArray | None = None,
+        body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_com_pose_to_sim_index`."""
         warnings.warn(
@@ -864,7 +864,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | ProxyArray | None = None,
+        body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_velocity_to_sim_index`."""
         warnings.warn(
@@ -879,7 +879,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | ProxyArray | None = None,
+        body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_com_velocity_to_sim_index`."""
         warnings.warn(
@@ -894,7 +894,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        body_ids: slice | torch.Tensor | ProxyArray | None = None,
+        body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_link_velocity_to_sim_index`."""
         warnings.warn(
@@ -908,7 +908,7 @@ class BaseRigidObjectCollection(AssetBase):
     def set_masses(
         self,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | ProxyArray | None = None,
+        body_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_masses_index`."""
@@ -922,7 +922,7 @@ class BaseRigidObjectCollection(AssetBase):
     def set_coms(
         self,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | ProxyArray | None = None,
+        body_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_coms_index`."""
@@ -936,7 +936,7 @@ class BaseRigidObjectCollection(AssetBase):
     def set_inertias(
         self,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | ProxyArray | None = None,
+        body_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_inertias_index`."""
@@ -953,7 +953,7 @@ class BaseRigidObjectCollection(AssetBase):
         forces: torch.Tensor | wp.array,
         torques: torch.Tensor | wp.array,
         positions: torch.Tensor | wp.array | None = None,
-        body_ids: Sequence[int] | ProxyArray | slice | None = None,
+        body_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         is_global: bool = False,
     ) -> None:
@@ -975,7 +975,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_state: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | ProxyArray | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` and
         :meth:`write_body_link_velocity_to_sim_index` instead."""
@@ -991,7 +991,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_state: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | ProxyArray | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_pose_to_sim_index` and
         :meth:`write_body_velocity_to_sim_index` instead."""
@@ -1007,7 +1007,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_state: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | ProxyArray | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` and
         :meth:`write_body_link_velocity_to_sim_index` instead."""
@@ -1023,7 +1023,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_pose: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | ProxyArray | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` instead."""
         warnings.warn(
@@ -1038,7 +1038,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_pose: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | ProxyArray | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_link_pose_to_sim_index` instead."""
         warnings.warn(
@@ -1053,7 +1053,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_pose: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | ProxyArray | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_pose_to_sim_index` instead."""
         warnings.warn(
@@ -1068,7 +1068,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_velocity: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | ProxyArray | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim_index` instead."""
         warnings.warn(
@@ -1083,7 +1083,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_velocity: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | ProxyArray | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim_index` instead."""
         warnings.warn(
@@ -1098,7 +1098,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         object_velocity: torch.Tensor,
         env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | ProxyArray | None = None,
+        object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_link_velocity_to_sim_index` instead."""
         warnings.warn(

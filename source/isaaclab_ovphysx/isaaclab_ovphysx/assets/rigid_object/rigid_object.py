@@ -697,7 +697,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies using indices.
@@ -770,7 +770,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass pose of all bodies using indices.
@@ -850,7 +850,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies using indices.
@@ -1077,7 +1077,7 @@ class RigidObject(BaseRigidObject):
             env_ids = wp.clone(env_ids, device=self._device)
         return env_ids
 
-    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None) -> wp.array:
+    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve body indices to a warp array.
 
         Args:
@@ -1087,7 +1087,7 @@ class RigidObject(BaseRigidObject):
             A warp array of body indices on ``self._device``.
         """
         if isinstance(body_ids, ProxyArray):
-            return body_ids.warp
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if body_ids is None or body_ids == slice(None):
             return self._ALL_BODY_INDICES
         if isinstance(body_ids, list):

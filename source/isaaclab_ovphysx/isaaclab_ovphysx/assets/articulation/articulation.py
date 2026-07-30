@@ -48,9 +48,7 @@ from .kernels import (
 logger = logging.getLogger(__name__)
 
 
-def _normalize_external_env_ids(
-    env_ids: torch.Tensor | wp.array | ProxyArray, target_device: str | None = None
-) -> wp.array:
+def _normalize_external_env_ids(env_ids: torch.Tensor | wp.array, target_device: str | None = None) -> wp.array:
     """Normalize environment indices to wp.int32 at an external API boundary.
 
     Every selector value must fit in the signed 32-bit range. Out-of-range int64
@@ -58,7 +56,7 @@ def _normalize_external_env_ids(
     because this boundary helper does not scan or synchronize device values.
     """
     if isinstance(env_ids, ProxyArray):
-        env_ids = env_ids.warp
+        raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
     if isinstance(env_ids, torch.Tensor):
         if env_ids.dtype not in (torch.int32, torch.int64):
             raise TypeError(
@@ -1008,7 +1006,7 @@ class Articulation(BaseArticulation):
         *,
         position: torch.Tensor | wp.array,
         velocity: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -1071,7 +1069,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         position: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -1172,7 +1170,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         velocity: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         skip_forward: bool = False,
     ) -> None:
@@ -1343,7 +1341,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         stiffness: float | torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint stiffness over selected env / joint indices into the simulation.
@@ -1438,7 +1436,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         damping: float | torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint damping over selected env / joint indices into the simulation.
@@ -1533,7 +1531,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         limits: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         warn_limit_violation: bool = True,
     ) -> None:
@@ -1723,7 +1721,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         limits: float | torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint velocity limits over selected env / joint indices into the simulation.
@@ -1818,7 +1816,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         limits: float | torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint effort limits over selected env / joint indices into the simulation.
@@ -1913,7 +1911,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         armature: float | torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint armature over selected env / joint indices into the simulation.
@@ -2012,7 +2010,7 @@ class Articulation(BaseArticulation):
         joint_friction_coeff: float | torch.Tensor | wp.array,
         joint_dynamic_friction_coeff: float | torch.Tensor | wp.array | None = None,
         joint_viscous_friction_coeff: float | torch.Tensor | wp.array | None = None,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         r"""Write joint friction coefficients over selected env / joint indices into the simulation.
@@ -2141,7 +2139,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         joint_dynamic_friction_coeff: float | torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         r"""Write joint dynamic friction coefficients over selected env / joint indices into the simulation.
@@ -2250,7 +2248,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         joint_viscous_friction_coeff: float | torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         r"""Write joint viscous friction coefficients over selected env / joint indices into the simulation.
@@ -2365,7 +2363,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body masses over selected env / body indices into the simulation.
@@ -2563,7 +2561,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body center-of-mass poses over selected env / body indices into the simulation.
@@ -2635,7 +2633,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set body inertia tensors over selected env / body indices into the simulation.
@@ -2818,7 +2816,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint position targets into internal buffers using indices.
@@ -2889,7 +2887,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint velocity targets into internal buffers using indices.
@@ -2960,7 +2958,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint effort targets into internal buffers using indices.
@@ -3035,7 +3033,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         stiffness: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed-tendon stiffness over selected env / tendon indices into the simulation.
@@ -3123,7 +3121,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         damping: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed-tendon damping over selected env / tendon indices into the simulation.
@@ -3207,7 +3205,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         limit_stiffness: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed-tendon limit stiffness over selected env / tendon indices into the simulation.
@@ -3295,7 +3293,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         limit: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed-tendon position limits over selected env / tendon indices into the simulation.
@@ -3389,7 +3387,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         rest_length: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed-tendon rest lengths over selected env / tendon indices into the simulation.
@@ -3477,7 +3475,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         offset: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed-tendon offsets over selected env / tendon indices into the simulation.
@@ -3560,7 +3558,7 @@ class Articulation(BaseArticulation):
     def write_fixed_tendon_properties_to_sim_index(
         self,
         *,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Push the cached fixed-tendon properties to the simulation in a single batch.
@@ -3638,7 +3636,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         stiffness: float | torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial-tendon stiffness over selected env / tendon indices into the simulation.
@@ -3727,7 +3725,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         damping: float | torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial-tendon damping over selected env / tendon indices into the simulation.
@@ -3813,7 +3811,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         limit_stiffness: float | torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial-tendon limit stiffness over selected env / tendon indices into the simulation.
@@ -3903,7 +3901,7 @@ class Articulation(BaseArticulation):
         self,
         *,
         offset: float | torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial-tendon offsets over selected env / tendon indices into the simulation.
@@ -3988,7 +3986,7 @@ class Articulation(BaseArticulation):
     def write_spatial_tendon_properties_to_sim_index(
         self,
         *,
-        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Push the cached spatial-tendon properties to the simulation in a single batch.
@@ -4562,7 +4560,7 @@ class Articulation(BaseArticulation):
     def _log_articulation_info(self) -> None:
         pass
 
-    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None) -> wp.array:
+    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve environment indices to a warp int32 array on ``self._device`` (mirrors PhysX).
 
         Tests sometimes hand us indices on CPU even when the sim runs on GPU; we move the
@@ -4575,10 +4573,10 @@ class Articulation(BaseArticulation):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         return _normalize_external_env_ids(env_ids, target_device=self._device)
 
-    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None) -> wp.array:
+    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve body indices to a Warp signed-integer array on ``self._device``."""
         if isinstance(body_ids, ProxyArray):
-            body_ids = body_ids.warp
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if body_ids is None or body_ids == slice(None):
             return self._ALL_BODY_INDICES
         if isinstance(body_ids, list):
@@ -4589,10 +4587,10 @@ class Articulation(BaseArticulation):
             body_ids = wp.clone(body_ids, device=self._device)
         return body_ids
 
-    def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None) -> wp.array:
+    def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve joint indices to a Warp signed-integer array on ``self._device``."""
         if isinstance(joint_ids, ProxyArray):
-            joint_ids = joint_ids.warp
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if joint_ids is None or joint_ids == slice(None):
             return self._ALL_JOINT_INDICES
         if isinstance(joint_ids, list):
@@ -4603,12 +4601,10 @@ class Articulation(BaseArticulation):
             joint_ids = wp.clone(joint_ids, device=self._device)
         return joint_ids
 
-    def _resolve_fixed_tendon_ids(
-        self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
-    ) -> wp.array:
+    def _resolve_fixed_tendon_ids(self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve fixed-tendon indices to a Warp signed-integer array on ``self._device``."""
         if isinstance(tendon_ids, ProxyArray):
-            tendon_ids = tendon_ids.warp
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if tendon_ids is None or tendon_ids == slice(None):
             return self._ALL_FIXED_TENDON_INDICES
         if isinstance(tendon_ids, list):
@@ -4619,12 +4615,10 @@ class Articulation(BaseArticulation):
             tendon_ids = wp.clone(tendon_ids, device=self._device)
         return tendon_ids
 
-    def _resolve_spatial_tendon_ids(
-        self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
-    ) -> wp.array:
+    def _resolve_spatial_tendon_ids(self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve spatial-tendon indices to a Warp signed-integer array on ``self._device``."""
         if isinstance(tendon_ids, ProxyArray):
-            tendon_ids = tendon_ids.warp
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if tendon_ids is None or tendon_ids == slice(None):
             return self._ALL_SPATIAL_TENDON_INDICES
         if isinstance(tendon_ids, list):
@@ -4847,7 +4841,7 @@ class Articulation(BaseArticulation):
         self,
         position: torch.Tensor | wp.array,
         velocity: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated combined joint-state write; use :meth:`write_joint_position_to_sim_index`
@@ -4875,7 +4869,7 @@ class Articulation(BaseArticulation):
         joint_friction_coeff: torch.Tensor | wp.array | float,
         joint_dynamic_friction_coeff: torch.Tensor | wp.array | float | None = None,
         joint_viscous_friction_coeff: torch.Tensor | wp.array | float | None = None,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_friction_coefficient_to_sim_index`."""
@@ -4896,7 +4890,7 @@ class Articulation(BaseArticulation):
     def write_joint_dynamic_friction_coefficient_to_sim(
         self,
         joint_dynamic_friction_coeff: torch.Tensor | wp.array | float,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_dynamic_friction_coefficient_to_sim_index`."""
@@ -4915,7 +4909,7 @@ class Articulation(BaseArticulation):
     def write_joint_viscous_friction_coefficient_to_sim(
         self,
         joint_viscous_friction_coeff: torch.Tensor | wp.array | float,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_viscous_friction_coefficient_to_sim_index`."""

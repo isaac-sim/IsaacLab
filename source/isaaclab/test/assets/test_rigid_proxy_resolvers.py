@@ -59,7 +59,7 @@ def _extract_resolver(path: str):
 
 
 @pytest.mark.parametrize("path", _RIGID_IMPLEMENTATIONS)
-def test_rigid_body_resolver_unwraps_proxy_before_comparison(path: str) -> None:
+def test_rigid_body_resolver_requires_explicit_proxy_view(path: str) -> None:
     resolver = _extract_resolver(path)
     body_ids_array = wp.array([2, 0], dtype=wp.int32, device="cpu")
     body_ids = ProxyArray(body_ids_array)
@@ -70,15 +70,17 @@ def test_rigid_body_resolver_unwraps_proxy_before_comparison(path: str) -> None:
         _ALL_BODY_INDICES=wp.array([0, 1, 2], dtype=wp.int32, device="cpu"),
     )
 
-    resolved = resolver(asset, body_ids)
+    with pytest.raises(TypeError, match="ProxyArray is output-only"):
+        resolver(asset, body_ids)
 
+    resolved = resolver(asset, body_ids.warp)
     assert resolved is body_ids_array
     assert body_ids._torch_cache is None
 
 
 @pytest.mark.parametrize("path", _PUBLIC_RIGID_INTERFACES)
-def test_public_rigid_apis_annotate_proxy_body_and_object_selectors(path: str) -> None:
-    missing = []
+def test_public_rigid_apis_exclude_proxy_body_and_object_inputs(path: str) -> None:
+    unexpected = []
     for node in ast.walk(_parse(path)):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -88,10 +90,10 @@ def test_public_rigid_apis_annotate_proxy_body_and_object_selectors(path: str) -
             if argument.arg not in ("body_ids", "object_ids"):
                 continue
             annotation = ast.unparse(argument.annotation) if argument.annotation is not None else "<missing>"
-            if "ProxyArray" not in annotation:
-                missing.append(f"{node.name}.{argument.arg}: {annotation}")
+            if "ProxyArray" in annotation:
+                unexpected.append(f"{node.name}.{argument.arg}: {annotation}")
 
-    assert not missing, f"{path} has public body selectors without ProxyArray: {missing}"
+    assert not unexpected, f"{path} accepts ProxyArray body selectors: {unexpected}"
 
 
 @pytest.mark.parametrize("path", _COLLECTION_INTERFACES)
@@ -112,7 +114,7 @@ def test_write_data_to_sim_signature_remains_parameterless(path: str) -> None:
         assert ast.unparse(definition.returns) == "None"
 
 
-def test_deprecated_object_writer_forwards_proxy_without_materializing_torch() -> None:
+def test_deprecated_object_writer_forwards_explicit_torch_view() -> None:
     calls = []
 
     def write_body_pose_to_sim_index(**kwargs) -> None:
@@ -124,8 +126,7 @@ def test_deprecated_object_writer_forwards_proxy_without_materializing_torch() -
     object_pose = torch.zeros((1, 2, 7))
 
     with pytest.warns(DeprecationWarning):
-        BaseRigidObjectCollection.write_object_pose_to_sim(collection, object_pose, object_ids=object_ids)
+        BaseRigidObjectCollection.write_object_pose_to_sim(collection, object_pose, object_ids=object_ids.torch)
 
     assert len(calls) == 1
-    assert calls[0]["body_ids"] is object_ids
-    assert object_ids._torch_cache is None
+    assert calls[0]["body_ids"] is object_ids.torch

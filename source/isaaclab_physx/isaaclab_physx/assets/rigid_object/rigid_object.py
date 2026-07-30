@@ -706,7 +706,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
@@ -791,7 +791,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
@@ -876,7 +876,7 @@ class RigidObject(BaseRigidObject):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
@@ -1144,9 +1144,7 @@ class RigidObject(BaseRigidObject):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
 
-    def _resolve_body_ids(
-        self, body_ids: Sequence[int] | torch.Tensor | wp.array | ProxyArray | None
-    ) -> wp.array | torch.Tensor:
+    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
 
         Args:
@@ -1156,7 +1154,7 @@ class RigidObject(BaseRigidObject):
             A warp array of body indices or a tensor of body indices.
         """
         if isinstance(body_ids, ProxyArray):
-            return body_ids.warp
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(body_ids, list):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
