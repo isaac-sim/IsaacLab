@@ -308,7 +308,8 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
             # read the CoM velocity and compute link velocity
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_vel_w",
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
                 inputs=[
@@ -319,7 +320,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_link_vel_w.data,
                 ],
-                device=self.device,
             )
             self._root_link_vel_w.timestamp = self._sim_timestamp
 
@@ -336,7 +336,8 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_pose_w",
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
                 inputs=[
@@ -346,7 +347,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_com_pose_w.data,
                 ],
-                device=self.device,
             )
             self._root_com_pose_w.timestamp = self._sim_timestamp
 
@@ -488,7 +488,8 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_com_pose_b",
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self._num_instances, 1),
                 inputs=[
@@ -497,7 +498,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._body_com_pose_b.data,
                 ],
-                device=self.device,
             )
             self._body_com_pose_b.timestamp = self._sim_timestamp
         return self._body_com_pose_b_ta
@@ -514,12 +514,12 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "projected_gravity_b",
                 shared_kernels.projected_gravity_b_kernel,
                 dim=self._num_instances,
                 inputs=[self.GRAVITY_VEC_W.warp, self.root_link_quat_w.warp],
                 outputs=[self._projected_gravity_b.data],
-                device=self.device,
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
         return self._projected_gravity_b_ta
@@ -536,12 +536,12 @@ class RigidObjectData(BaseRigidObjectData):
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
         if self._heading_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "heading_w",
                 shared_kernels.root_heading_w,
                 dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B.warp, self.root_link_quat_w.warp],
                 outputs=[self._heading_w.data],
-                device=self.device,
             )
             self._heading_w.timestamp = self._sim_timestamp
         return self._heading_w_ta
@@ -561,12 +561,12 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_lin_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_link_lin_vel_w.warp, self.root_link_quat_w.warp],
                 outputs=[self._root_link_lin_vel_b.data],
-                device=self.device,
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
         return self._root_link_lin_vel_b_ta
@@ -585,12 +585,12 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b.data)
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_ang_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_link_ang_vel_w.warp, self.root_link_quat_w.warp],
                 outputs=[self._root_link_ang_vel_b.data],
-                device=self.device,
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
         return self._root_link_ang_vel_b_ta
@@ -609,12 +609,12 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b.data)
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_lin_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_com_lin_vel_w.warp, self.root_link_quat_w.warp],
                 outputs=[self._root_com_lin_vel_b.data],
-                device=self.device,
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
         return self._root_com_lin_vel_b_ta
@@ -633,12 +633,12 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b.data)
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_ang_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_com_ang_vel_w.warp, self.root_link_quat_w.warp],
                 outputs=[self._root_com_ang_vel_b.data],
-                device=self.device,
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp
         return self._root_com_ang_vel_b_ta
@@ -900,6 +900,9 @@ class RigidObjectData(BaseRigidObjectData):
         .. caution:: This is possible if and only if the properties that we access are strided from newton and not
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
+        # A full reset replaces simulation arrays.
+        self._read_launch_cache.clear()
+
         # Short-hand for the number of instances, number of links, and number of joints.
         self._num_instances = self._root_view.count
         self._num_bodies = self._root_view.link_count
@@ -1162,20 +1165,20 @@ class RigidObjectData(BaseRigidObjectData):
         if not transform.is_contiguous:
             # Launch the right kernel based on the shape of the transform array.
             if len(transform.shape) > 1:
-                wp.launch(
+                self._read_launch_cache.launch(
+                    ("split_transform_to_pos", source.ptr),
                     shared_kernels.split_transform_to_pos_2d,
                     dim=transform.shape,
                     inputs=[transform],
                     outputs=[source],
-                    device=self.device,
                 )
             else:
-                wp.launch(
+                self._read_launch_cache.launch(
+                    ("split_transform_to_pos", source.ptr),
                     shared_kernels.split_transform_to_pos_1d,
                     dim=transform.shape,
                     inputs=[transform],
                     outputs=[source],
-                    device=self.device,
                 )
         return source
 
@@ -1209,20 +1212,20 @@ class RigidObjectData(BaseRigidObjectData):
         if not transform.is_contiguous:
             # Launch the right kernel based on the shape of the transform array.
             if len(transform.shape) > 1:
-                wp.launch(
+                self._read_launch_cache.launch(
+                    ("split_transform_to_quat", source.ptr),
                     shared_kernels.split_transform_to_quat_2d,
                     dim=transform.shape,
                     inputs=[transform],
                     outputs=[source],
-                    device=self.device,
                 )
             else:
-                wp.launch(
+                self._read_launch_cache.launch(
+                    ("split_transform_to_quat", source.ptr),
                     shared_kernels.split_transform_to_quat_1d,
                     dim=transform.shape,
                     inputs=[transform],
                     outputs=[source],
-                    device=self.device,
                 )
         # Return the source array. (no-op if the array is contiguous.)
         return source
@@ -1259,20 +1262,20 @@ class RigidObjectData(BaseRigidObjectData):
         if not spatial_vector.is_contiguous:
             # Launch the right kernel based on the shape of the spatial_vector array.
             if len(spatial_vector.shape) > 1:
-                wp.launch(
+                self._read_launch_cache.launch(
+                    ("split_spatial_vector_to_top", source.ptr),
                     shared_kernels.split_spatial_vector_to_top_2d,
                     dim=spatial_vector.shape,
                     inputs=[spatial_vector],
                     outputs=[source],
-                    device=self.device,
                 )
             else:
-                wp.launch(
+                self._read_launch_cache.launch(
+                    ("split_spatial_vector_to_top", source.ptr),
                     shared_kernels.split_spatial_vector_to_top_1d,
                     dim=spatial_vector.shape,
                     inputs=[spatial_vector],
                     outputs=[source],
-                    device=self.device,
                 )
         # Return the source array. (no-op if the array is contiguous.)
         return source
@@ -1309,20 +1312,20 @@ class RigidObjectData(BaseRigidObjectData):
         if not spatial_vector.is_contiguous:
             # Launch the right kernel based on the shape of the spatial_vector array.
             if len(spatial_vector.shape) > 1:
-                wp.launch(
+                self._read_launch_cache.launch(
+                    ("split_spatial_vector_to_bottom", source.ptr),
                     shared_kernels.split_spatial_vector_to_bottom_2d,
                     dim=spatial_vector.shape,
                     inputs=[spatial_vector],
                     outputs=[source],
-                    device=self.device,
                 )
             else:
-                wp.launch(
+                self._read_launch_cache.launch(
+                    ("split_spatial_vector_to_bottom", source.ptr),
                     shared_kernels.split_spatial_vector_to_bottom_1d,
                     dim=spatial_vector.shape,
                     inputs=[spatial_vector],
                     outputs=[source],
-                    device=self.device,
                 )
         # Return the source array. (no-op if the array is contiguous.)
         return source
@@ -1346,7 +1349,8 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1356,7 +1360,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_state_w.timestamp = self._sim_timestamp
 
@@ -1377,7 +1380,8 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1387,7 +1391,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_link_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
 
@@ -1408,7 +1411,8 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1418,7 +1422,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_com_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
 
@@ -1440,7 +1443,8 @@ class RigidObjectData(BaseRigidObjectData):
         if self._default_root_state is None:
             self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
             self._default_root_state_ta = ProxyArray(self._default_root_state)
-        wp.launch(
+        self._read_launch_cache.launch(
+            "default_root_state",
             shared_kernels.concat_root_pose_and_vel_to_state,
             dim=self._num_instances,
             inputs=[
@@ -1450,7 +1454,6 @@ class RigidObjectData(BaseRigidObjectData):
             outputs=[
                 self._default_root_state,
             ],
-            device=self.device,
         )
         return self._default_root_state_ta
 
@@ -1470,7 +1473,8 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1480,7 +1484,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_state_w.timestamp = self._sim_timestamp
         if self._body_state_w_ta is None:
@@ -1503,7 +1506,8 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1513,7 +1517,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_link_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
         if self._body_link_state_w_ta is None:
@@ -1535,7 +1538,8 @@ class RigidObjectData(BaseRigidObjectData):
             )
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1545,7 +1549,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_com_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
         if self._body_com_state_w_ta is None:

@@ -10,8 +10,8 @@ Added
 Changed
 ^^^^^^^
 
-* Cached stable articulation read launches outside CUDA graph capture on
-  Newton. No user migration is required.
+* Cached stable articulation and rigid asset read launches outside CUDA graph
+  capture on Newton. No user migration is required.
 
 Fixed
 ^^^^^

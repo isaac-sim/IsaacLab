@@ -256,8 +256,8 @@ def _refresh_rigid_object_data(mock_view, data, config) -> None:
     num_instances, num_bodies, device = config.num_instances, config.num_bodies, config.device
     root_transforms = np.random.randn(num_instances, 1, 7).astype(np.float32)
     root_transforms[..., 3:7] /= np.linalg.norm(root_transforms[..., 3:7], axis=-1, keepdims=True)
-    mock_view.set_mock_root_transforms(wp.array(root_transforms, dtype=wp.transformf, device=device))
-    mock_view.set_mock_root_velocities(
+    mock_view._root_transforms.assign(wp.array(root_transforms, dtype=wp.transformf, device=device))
+    mock_view._root_velocities.assign(
         wp.array(
             np.random.randn(num_instances, 1, 6).astype(np.float32),
             dtype=wp.spatial_vectorf,
@@ -266,29 +266,29 @@ def _refresh_rigid_object_data(mock_view, data, config) -> None:
     )
     link_transforms = np.random.randn(num_instances, 1, num_bodies, 7).astype(np.float32)
     link_transforms[..., 3:7] /= np.linalg.norm(link_transforms[..., 3:7], axis=-1, keepdims=True)
-    mock_view.set_mock_link_transforms(wp.array(link_transforms, dtype=wp.transformf, device=device))
-    mock_view.set_mock_link_velocities(
+    mock_view._link_transforms.assign(wp.array(link_transforms, dtype=wp.transformf, device=device))
+    mock_view._link_velocities.assign(
         wp.array(
             np.random.randn(num_instances, 1, num_bodies, 6).astype(np.float32),
             dtype=wp.spatial_vectorf,
             device=device,
         )
     )
-    mock_view.set_mock_coms(
+    mock_view._attributes["body_com"].assign(
         wp.array(
             np.random.randn(num_instances, 1, num_bodies, 3).astype(np.float32),
             dtype=wp.vec3f,
             device=device,
         )
     )
-    mock_view.set_mock_inertias(
+    mock_view._attributes["body_inertia"].assign(
         wp.array(
             np.random.randn(num_instances, 1, num_bodies, 9).astype(np.float32),
             dtype=wp.mat33f,
             device=device,
         )
     )
-    mock_view.set_mock_masses(
+    mock_view._attributes["body_mass"].assign(
         wp.array(
             (np.random.rand(num_instances, 1, num_bodies) * 10 + 0.1).astype(np.float32),
             dtype=wp.float32,
@@ -302,28 +302,35 @@ def _refresh_collection_data(mock_view, data, config) -> None:
     num_instances, num_bodies, device = config.num_instances, config.num_bodies, config.device
     root_transforms = np.random.randn(num_instances, num_bodies, 7).astype(np.float32)
     root_transforms[..., 3:7] /= np.linalg.norm(root_transforms[..., 3:7], axis=-1, keepdims=True)
-    mock_view._root_transforms = wp.array(root_transforms, dtype=wp.transformf, device=device)
-    mock_view._root_velocities = wp.array(
-        np.random.randn(num_instances, num_bodies, 6).astype(np.float32),
-        dtype=wp.spatial_vectorf,
-        device=device,
+    mock_view._root_transforms.assign(wp.array(root_transforms, dtype=wp.transformf, device=device))
+    mock_view._root_velocities.assign(
+        wp.array(
+            np.random.randn(num_instances, num_bodies, 6).astype(np.float32),
+            dtype=wp.spatial_vectorf,
+            device=device,
+        )
     )
-    mock_view._attributes["body_com"] = wp.array(
-        np.random.randn(num_instances, num_bodies, 1, 3).astype(np.float32),
-        dtype=wp.vec3f,
-        device=device,
+    mock_view._attributes["body_com"].assign(
+        wp.array(
+            np.random.randn(num_instances, num_bodies, 1, 3).astype(np.float32),
+            dtype=wp.vec3f,
+            device=device,
+        )
     )
-    mock_view._attributes["body_mass"] = wp.array(
-        (np.random.rand(num_instances, num_bodies, 1) * 10 + 0.1).astype(np.float32),
-        dtype=wp.float32,
-        device=device,
+    mock_view._attributes["body_mass"].assign(
+        wp.array(
+            (np.random.rand(num_instances, num_bodies, 1) * 10 + 0.1).astype(np.float32),
+            dtype=wp.float32,
+            device=device,
+        )
     )
-    mock_view._attributes["body_inertia"] = wp.array(
-        np.random.randn(num_instances, num_bodies, 1, 9).astype(np.float32),
-        dtype=wp.mat33f,
-        device=device,
+    mock_view._attributes["body_inertia"].assign(
+        wp.array(
+            np.random.randn(num_instances, num_bodies, 1, 9).astype(np.float32),
+            dtype=wp.mat33f,
+            device=device,
+        )
     )
-    data._create_simulation_bindings()
     data._sim_timestamp += 1.0
 
 
