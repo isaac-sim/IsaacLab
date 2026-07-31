@@ -5,8 +5,14 @@
 
 """Tests for rendering correctness parameter helpers."""
 
+from pathlib import Path
+from unittest.mock import Mock
+
 import pytest
+import rendering_test_utils
 from rendering_test_utils import (
+    attach_comparison_properties,
+    generate_html_report,
     make_kitless_rendering_params,
     make_kitless_rendering_params_dexsuite,
     make_kitless_rendering_params_franka,
@@ -116,3 +122,83 @@ def test_franka_factory_adds_cloth_only_motion_policy() -> None:
         assert "xfail" not in [mark.name for mark in soft_params[motion_id].marks]
         assert [mark.name for mark in cloth_params[motion_id].marks] == ["xfail"]
         assert "NVBUG#6489754" in cloth_params[motion_id].marks[0].kwargs["reason"]
+
+
+def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path) -> None:
+    """Expected failures and unexpected passes should be distinct in HTML."""
+    reason = "Known <b>rendering</b> regression (NVBUG#1234567)."
+    comparison_scores = [
+        {
+            "test": "cartpole",
+            "backend": "newton",
+            "renderer": "ovrtx_renderer",
+            "ovstage_variant": "Yes",
+            "aov": "albedo",
+            "diff_pct": 12.5,
+            "threshold": 1.5,
+            "ssim": 0.9,
+            "ssim_threshold": 0.985,
+            "ssim_checked": True,
+            "passed": False,
+        },
+        {
+            "test": "cartpole",
+            "backend": "newton",
+            "renderer": "ovrtx_renderer",
+            "ovstage_variant": "Yes",
+            "aov": "rgb",
+            "diff_pct": 0.0,
+            "threshold": 1.5,
+            "ssim": 1.0,
+            "ssim_threshold": 0.985,
+            "ssim_checked": True,
+            "passed": True,
+        },
+    ]
+    node = Mock()
+    node.user_properties = []
+    node.get_closest_marker.return_value = pytest.mark.xfail(reason=reason, strict=False).mark
+    request = Mock(node=node)
+
+    attach_comparison_properties(request, comparison_scores, initial_count=0)
+    comparison_scores.append(
+        {
+            "test": "shadow_hand",
+            "backend": "newton",
+            "renderer": "ovrtx_renderer",
+            "ovstage_variant": "Yes",
+            "aov": "albedo",
+            "diff_pct": 0.0,
+            "threshold": 5.0,
+            "ssim": 1.0,
+            "ssim_threshold": 0.985,
+            "ssim_checked": True,
+            "passed": True,
+        }
+    )
+    attach_comparison_properties(request, comparison_scores, initial_count=2)
+    comparison_scores.append(
+        {
+            "test": "ordinary",
+            "backend": "newton",
+            "renderer": "ovrtx_renderer",
+            "ovstage_variant": "Yes",
+            "aov": "depth",
+            "diff_pct": 50.0,
+            "threshold": 5.0,
+            "ssim": 0.5,
+            "ssim_threshold": 0.985,
+            "ssim_checked": False,
+            "passed": False,
+        }
+    )
+    monkeypatch.setattr(rendering_test_utils, "_COMPARISON_IMAGES_DIR", str(tmp_path))
+    generate_html_report(comparison_scores, "report.html")
+
+    report = (tmp_path / "report.html").read_text(encoding="utf-8")
+    escaped_reason = "Known &lt;b&gt;rendering&lt;/b&gt; regression (NVBUG#1234567)."
+    assert report.count('<td class="status-unreliable">UNRELIABLE (XFAIL)</td>') == 2
+    assert report.count('<td class="status-xpass">XPASS (REVIEW XFAIL)</td>') == 1
+    assert report.count(escaped_reason) == 3
+    assert reason not in report
+    assert report.index(escaped_reason) < report.index("<td>ordinary</td>")

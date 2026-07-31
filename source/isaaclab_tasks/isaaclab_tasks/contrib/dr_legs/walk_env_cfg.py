@@ -56,6 +56,7 @@ class DrLegsContactSensorCfg(PresetCfg):
         history_length=3,
         track_air_time=True,
     )
+    isaacsim_physx = physx
 
 
 @configclass

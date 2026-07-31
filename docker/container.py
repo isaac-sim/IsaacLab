@@ -9,7 +9,14 @@ import argparse
 import shutil
 from pathlib import Path
 
-from utils import ContainerInterface, x11_utils
+# __package__ is empty when this file runs as a script (./docker/container.py), where
+# docker/ is itself on sys.path, and "docker" when the tests import it as docker.container.
+# The relative form keeps docker.utils.* a single module object, so patches applied by the
+# tests affect the same modules this CLI uses.
+if __package__:
+    from .utils import ContainerInterface, x11_utils
+else:
+    from utils import ContainerInterface, x11_utils
 
 
 def parse_cli_args() -> argparse.Namespace:
@@ -26,7 +33,10 @@ def parse_cli_args() -> argparse.Namespace:
     # We have to create separate parent parsers for common options to our subparsers
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument(
-        "profile", nargs="?", default="base", help="Optional container profile specification. Example: 'base' or 'ros'."
+        "profile",
+        nargs="?",
+        default="base",
+        help="Optional container profile specification. Examples: 'base', 'ros2', or 'kitless'.",
     )
     parent_parser.add_argument(
         "--files",
@@ -43,7 +53,7 @@ def parse_cli_args() -> argparse.Namespace:
         default=None,
         help=(
             "Allows additional '.env' files to be passed to the docker compose command. These files will be merged with"
-            " '.env.base' in their provided order."
+            " the profile's default environment files in their provided order."
         ),
     )
     parent_parser.add_argument(

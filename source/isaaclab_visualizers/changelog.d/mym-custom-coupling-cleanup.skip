@@ -1,0 +1,2 @@
+Internal: repointed the Franka cloth visualizer integration test at the renamed
+``newton_mjwarp_vbd_proxy`` preset (test-only, no public API change).

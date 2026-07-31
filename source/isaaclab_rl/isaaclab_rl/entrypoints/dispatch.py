@@ -11,6 +11,10 @@ import argparse
 import importlib
 import runpy
 import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .simple_agents import PolicyName
 
 _BACKEND_MODULES = {
     "train": {
@@ -38,6 +42,44 @@ def run_train_cli(argv: list[str] | None = None) -> int:
 def run_play_cli(argv: list[str] | None = None) -> int:
     """Dispatch unified playback command-line arguments to a backend."""
     return run_cli("play", argv)
+
+
+def run_zero_agent_cli(argv: list[str] | None = None) -> int:
+    """Dispatch command-line arguments to the zero-action agent."""
+    return _run_simple_agent_cli("zero", argv)
+
+
+def run_random_agent_cli(argv: list[str] | None = None) -> int:
+    """Dispatch command-line arguments to the random-action agent."""
+    return _run_simple_agent_cli("random", argv)
+
+
+def _run_simple_agent_cli(policy: PolicyName, argv: list[str] | None) -> int:
+    """Run a checkpoint-free agent while isolating its command-line arguments.
+
+    Args:
+        policy: Action policy to apply, either ``"zero"`` or ``"random"``.
+        argv: Command-line arguments excluding the executable name.
+
+    Returns:
+        Process exit code.
+    """
+    # imported locally so that importing this module stays lightweight
+    from isaaclab.app import AppLauncher
+
+    from .simple_agents import run
+
+    if argv is None:
+        argv = sys.argv[1:]
+    # the agent parses this explicit list (not sys.argv), so the sys.argv fusing in
+    # AppLauncher.add_app_launcher_args never reaches it; normalize here instead
+    argv = AppLauncher._fuse_kit_args(argv)
+    original_argv = sys.argv
+    try:
+        run(argv, policy=policy)
+    finally:
+        sys.argv = original_argv
+    return 0
 
 
 def run_cli(action: str, argv: list[str] | None = None) -> int:

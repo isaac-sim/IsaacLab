@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+9.3.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``Metrics/success_rate`` metric to the fourbar-pole and DR-Legs (walk and hold-pose) tasks for unified success tracking in the benchmark tools.
+
+Changed
+^^^^^^^
+
+* Changed task ``physics=physx`` presets to use explicit automatic PhysX
+  configurations. Use ``physics=isaacsim_physx`` or, when exposed by the task,
+  ``physics=ovphysx`` to force a concrete implementation.
+
+
 9.2.0 (2026-07-29)
 ~~~~~~~~~~~~~~~~~~
 

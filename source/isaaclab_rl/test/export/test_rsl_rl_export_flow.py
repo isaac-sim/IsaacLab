@@ -53,7 +53,7 @@ TASKS = [
     "Isaac-Velocity-Rough-G1",
     "Isaac-Velocity-Flat-H1",
     "Isaac-Velocity-Rough-H1",
-    "Isaac-Velocity-Flat-Spot",
+    "IsaacContrib-Velocity-Flat-Spot",
     "IsaacContrib-Velocity-Flat-UnitreeA1",
     "IsaacContrib-Velocity-Rough-UnitreeA1",
     "IsaacContrib-Velocity-Flat-UnitreeGo1",

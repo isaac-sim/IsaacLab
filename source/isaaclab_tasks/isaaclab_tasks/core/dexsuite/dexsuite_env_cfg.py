@@ -18,6 +18,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -466,7 +467,7 @@ class TerminationsCfg:
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.01,
         gpu_max_rigid_patch_count=4 * 5 * 2**15,
         gpu_found_lost_pairs_capacity=2**26,
@@ -490,7 +491,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = default
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = physx
 
 
 @configclass
