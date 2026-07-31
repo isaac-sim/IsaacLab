@@ -363,9 +363,17 @@ def add_common_train_args(
         max_iterations_type: Converter and validator for ``--max_iterations``.
     """
     parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
-    parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
     parser.add_argument(
-        "--video_interval", type=int, default=2000, help="Interval between video recordings (in steps)."
+        "--video_length",
+        type=int,
+        default=None,
+        help="Length of each recorded video clip in env steps. Overrides the value in VideoRecorderCfg.",
+    )
+    parser.add_argument(
+        "--video_interval",
+        type=int,
+        default=None,
+        help="Interval between video clips in env steps. Overrides the value in VideoRecorderCfg.",
     )
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -575,18 +583,19 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
     Maps CLI flags:
 
     * ``--video``            → enables recording
-    * ``--video_length``     → :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_length`
-      (applied to every recorder)
-    * ``--video_interval``   → :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_interval`
-      (applied to every recorder)
+    * ``--video_length``     → overrides :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_length`
+      on every recorder when explicitly passed (``None`` = use the cfg default)
+    * ``--video_interval``   → overrides :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_interval`
+      on every recorder when explicitly passed (``None`` = use the cfg default)
 
     Args:
         env_cfg: Isaac Lab environment config to modify in-place.
-        log_dir: Training or play log directory; used as the fallback ``output_dir`` when no
-            recorders are pre-configured.  Clips are written to ``<log_dir>/videos/<subdir>``.
+        log_dir: Training or play log directory.  When no recorders are pre-configured,
+            a default :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` is
+            created and its ``output_dir`` is set to ``<log_dir>/videos/<subdir>``.
         args_cli: Parsed command-line arguments.
-        subdir: Sub-directory under ``<log_dir>/videos/`` for the fallback output path.
-            Use ``"train"`` for training runs and ``"play"`` for evaluation.
+        subdir: Sub-directory name appended to ``<log_dir>/videos/`` for the fallback output
+            path.  Use ``"train"`` for training runs and ``"play"`` for evaluation.
     """
     if not getattr(args_cli, "video", False):
         return
@@ -595,18 +604,19 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
 
     existing: list = getattr(env_cfg, "video_recorders", []) or []
     if not existing:
-        # No recorders configured — create a sensible default.
+        # No recorders configured — create a default that writes alongside other training artifacts.
         default_cfg = VideoRecorderCfg()
-        default_cfg.source = "visualizer"
         default_cfg.output_dir = os.path.join(log_dir, "videos", subdir)
         env_cfg.video_recorders = [default_cfg]
 
-    # Apply CLI overrides to every recorder (user-set fields like output_dir are preserved).
-    video_length = args_cli.video_length
-    video_interval = getattr(args_cli, "video_interval", 0)
+    # Apply only the CLI fields that were explicitly passed (non-None) to every recorder.
+    video_length = getattr(args_cli, "video_length", None)
+    video_interval = getattr(args_cli, "video_interval", None)
     for cfg in env_cfg.video_recorders:
-        cfg.video_length = video_length
-        cfg.video_interval = video_interval
+        if video_length is not None:
+            cfg.video_length = video_length
+        if video_interval is not None:
+            cfg.video_interval = video_interval
 
     print("[INFO] Video recording enabled.")
     for cfg in env_cfg.video_recorders:

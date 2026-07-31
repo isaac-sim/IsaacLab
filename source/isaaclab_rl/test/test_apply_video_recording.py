@@ -19,7 +19,8 @@ from isaaclab_rl.entrypoints.common import apply_video_recording, wrap_record_vi
 
 
 def _args(**kwargs) -> SimpleNamespace:
-    defaults = dict(video=True, video_length=200, video_interval=0)
+    # video_length and video_interval default to None (not passed at CLI)
+    defaults = dict(video=True, video_length=None, video_interval=None)
     return SimpleNamespace(**{**defaults, **kwargs})
 
 
@@ -40,15 +41,30 @@ def test_apply_video_recording_noop_when_video_false():
 
 
 def test_apply_video_recording_injects_correct_recorder():
-    """video=True injects one recorder with the right source, length, interval, and output_dir."""
+    """video=True with no pre-configured recorders creates a default with log_dir output_dir."""
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
     env_cfg = _env_cfg()
     apply_video_recording(env_cfg, "/my/log", _args(video_length=42, video_interval=500), subdir="play")
     assert len(env_cfg.video_recorders) == 1
+    defaults = VideoRecorderCfg()
     rec = env_cfg.video_recorders[0]
-    assert rec.source == "visualizer"
-    assert rec.video_length == 42
-    assert rec.video_interval == 500
+    assert rec.source == defaults.source  # default source preserved
+    assert rec.video_length == 42  # CLI override applied
+    assert rec.video_interval == 500  # CLI override applied
     assert rec.output_dir == os.path.join("/my/log", "videos", "play")
+
+
+def test_apply_video_recording_uses_cfg_defaults_when_cli_not_passed():
+    """video=True without --video_length/--video_interval keeps VideoRecorderCfg defaults."""
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    defaults = VideoRecorderCfg()
+    env_cfg = _env_cfg()
+    apply_video_recording(env_cfg, "/my/log", _args())  # no video_length/interval
+    rec = env_cfg.video_recorders[0]
+    assert rec.video_length == defaults.video_length  # default kept
+    assert rec.video_interval == defaults.video_interval  # default kept
 
 
 def test_apply_video_recording_patches_existing_recorders():
