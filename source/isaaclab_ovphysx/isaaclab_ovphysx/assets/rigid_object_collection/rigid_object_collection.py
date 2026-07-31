@@ -832,16 +832,23 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, body_ids),
+            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[masses, env_ids, body_ids],
-            outputs=[self.data._body_mass.data],
+            outputs=[self.data._body_mass.data, sim_env_ids],
             device=self._device,
         )
         wp.copy(self.data._cpu_body_mass, self.data._body_mass.data)
         self._binding_write(
-            TT.BODY_MASS, self.data._cpu_body_mass, env_ids=self._get_cpu_env_ids(env_ids), device="cpu"
+            TT.BODY_MASS,
+            self.data._cpu_body_mass,
+            env_ids=env_ids,
+            sim_env_ids=sim_env_ids,
+            device="cpu",
         )
 
     def set_masses_mask(
@@ -881,9 +888,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_mass, self.data._body_mass.data)
-        self._binding_write(
-            TT.BODY_MASS, self.data._cpu_body_mass, env_ids=self._get_cpu_env_ids(env_ids), device="cpu"
-        )
+        self._binding_write(TT.BODY_MASS, self.data._cpu_body_mass, env_ids=env_ids, device="cpu")
 
     def set_coms_index(
         self,
@@ -909,11 +914,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer_index_kernel(env_ids, body_ids),
+            shared_kernels.write_body_com_pose_to_buffer_index_with_sim_ids_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[coms, env_ids, body_ids],
-            outputs=[self.data._body_com_pose_b.data],
+            outputs=[self.data._body_com_pose_b.data, sim_env_ids],
             device=self._device,
         )
         self.data._reset_body_com_pose_b_dependents()
@@ -921,7 +929,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
-            env_ids=self._get_cpu_env_ids(env_ids),
+            env_ids=env_ids,
+            sim_env_ids=sim_env_ids,
             device="cpu",
             data_dim=7,
         )
@@ -967,7 +976,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
-            env_ids=self._get_cpu_env_ids(env_ids),
+            env_ids=env_ids,
             device="cpu",
             data_dim=7,
         )
@@ -998,18 +1007,22 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_index_kernel(env_ids, body_ids),
+            shared_kernels.write_body_inertia_to_buffer_index_with_sim_ids_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[inertias, env_ids, body_ids],
-            outputs=[self.data._body_inertia.data],
+            outputs=[self.data._body_inertia.data, sim_env_ids],
             device=self._device,
         )
         wp.copy(self.data._cpu_body_inertia, self.data._body_inertia.data)
         self._binding_write(
             TT.BODY_INERTIA,
             self.data._cpu_body_inertia,
-            env_ids=self._get_cpu_env_ids(env_ids),
+            env_ids=env_ids,
+            sim_env_ids=sim_env_ids,
             device="cpu",
             data_dim=9,
         )
@@ -1056,7 +1069,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._binding_write(
             TT.BODY_INERTIA,
             self.data._cpu_body_inertia,
-            env_ids=self._get_cpu_env_ids(env_ids),
+            env_ids=env_ids,
             device="cpu",
             data_dim=9,
         )
@@ -1155,10 +1168,16 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         self._ALL_ENV_INDICES = wp.array(np.arange(N), dtype=wp.int32, device=self._device)
         self._ALL_BODY_INDICES = wp.array(np.arange(B), dtype=wp.int32, device=self._device)
-
-        # CPU copy of all-env indices used when writing CPU-only attributes via set_attribute.
-        self._cpu_all_env_ids = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
-        wp.copy(self._cpu_all_env_ids, self._ALL_ENV_INDICES)
+        self._sim_env_ids = wp.empty(N, dtype=wp.int32, device=self._device)
+        self._sim_env_ids_views: dict[int, wp.array] = {}
+        num_view_ids = N * B
+        self._ALL_VIEW_INDICES = wp.array(np.arange(num_view_ids), dtype=wp.int32, device=self._device)
+        self._sim_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device=self._device)
+        self._sim_view_ids_views: dict[int, wp.array] = {}
+        self._cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+        wp.copy(self._cpu_all_view_ids, self._ALL_VIEW_INDICES)
+        self._cpu_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+        self._cpu_view_ids_views: dict[int, wp.array] = {}
 
         # All-true boolean masks used as defaults in mask-based kernel calls.
         self._ALL_TRUE_ENV_MASK = wp.array(np.ones(N, dtype=bool), dtype=wp.bool, device=self._device)
@@ -1300,6 +1319,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         tensor_type: int,
         instance_major_data: wp.array,
         env_ids: wp.array,
+        sim_env_ids: wp.array | None = None,
         device: str | None = None,
         data_dim: int | None = None,
     ) -> None:
@@ -1322,6 +1342,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 ``(N, B, data_dim)``.  May use ``wp.float32`` or a structured dtype.
             env_ids: Environment indices (1D ``wp.int32`` on ``self._device`` or
                 ``"cpu"`` for CPU-only bindings).
+            sim_env_ids: Optional int32 environment-index scratch.
             device: Destination device for the body-major clone (only used on the
                 fused-binding path).  Defaults to ``self._device``.
             data_dim: When provided, treat the buffer as 3D and use
@@ -1342,7 +1363,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             float32_data = (
                 instance_major_data if instance_major_data.dtype == wp.float32 else instance_major_data.view(wp.float32)
             )
-            self._root_view.set_attribute(tensor_type, float32_data, indices=self._get_sim_env_ids(env_ids))
+            self._root_view.set_attribute(
+                tensor_type, float32_data, indices=self._get_sim_env_ids(env_ids, sim_env_ids)
+            )
             return
         # Native fused path: body-major flat (N*B[, D]); reshape and use view_ids.
         if data_dim is None:
@@ -1401,24 +1424,31 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             A :class:`wp.array` of shape ``(len(env_ids) * len(body_ids),)`` with
             flat view indices on *device*.
         """
+        if env_ids is self._ALL_ENV_INDICES and body_ids is self._ALL_BODY_INDICES:
+            return self._cpu_all_view_ids if device == "cpu" else self._ALL_VIEW_INDICES
         if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.to(device=device)
-        elif str(env_ids.device) != device:
-            env_ids = wp.clone(env_ids, device=device)
+            env_ids = env_ids.to(device=self._device)
+        elif str(env_ids.device) != self._device:
+            env_ids = wp.clone(env_ids, device=self._device)
         if isinstance(body_ids, torch.Tensor):
-            body_ids = body_ids.to(device=device)
-        elif str(body_ids.device) != device:
-            body_ids = wp.clone(body_ids, device=device)
+            body_ids = body_ids.to(device=self._device)
+        elif str(body_ids.device) != self._device:
+            body_ids = wp.clone(body_ids, device=self._device)
         num_query_envs = env_ids.shape[0]
-        view_ids = wp.zeros(num_query_envs * body_ids.shape[0], dtype=wp.int32, device=device)
+        count = num_query_envs * body_ids.shape[0]
+        view_ids = self._sim_view_ids_view(count)
         wp.launch(
             resolve_view_ids_kernel(env_ids, body_ids),
             dim=(num_query_envs, body_ids.shape[0]),
             inputs=[env_ids, body_ids, num_query_envs, self.num_instances],
             outputs=[view_ids],
-            device=device,
+            device=self._device,
         )
-        return view_ids
+        if device != "cpu" or self._device == "cpu":
+            return view_ids
+        cpu_view_ids = self._cpu_view_ids_view(count)
+        wp.copy(cpu_view_ids, view_ids)
+        return cpu_view_ids
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
         """Resolve an environment mask to a ``wp.bool`` array on ``self._device``.
@@ -1458,32 +1488,54 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_mask = wp.clone(body_mask, device=self._device)
         return body_mask
 
-    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
-        """Return CPU int32 env indices for CPU-only binding writes.
+    def _sim_env_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the simulator-index scratch buffer."""
+        if count not in self._sim_env_ids_views:
+            self._sim_env_ids_views[count] = wp.array(
+                ptr=self._sim_env_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device=self._device,
+                copy=False,
+            )
+        return self._sim_env_ids_views[count]
 
-        Uses the pre-allocated pinned ``_cpu_all_env_ids`` fast path when
-        *env_ids* covers all instances, otherwise clones to CPU.
+    def _sim_view_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the device view-index scratch."""
+        if count not in self._sim_view_ids_views:
+            self._sim_view_ids_views[count] = wp.array(
+                ptr=self._sim_view_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device=self._device,
+                copy=False,
+            )
+        return self._sim_view_ids_views[count]
 
-        Args:
-            env_ids: A warp int32 array of environment indices on any device.
+    def _cpu_view_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the CPU view-index scratch."""
+        if count not in self._cpu_view_ids_views:
+            self._cpu_view_ids_views[count] = wp.array(
+                ptr=self._cpu_view_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device="cpu",
+                copy=False,
+            )
+        return self._cpu_view_ids_views[count]
 
-        Returns:
-            A warp int32 array guaranteed to live on ``"cpu"``.
-        """
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids.to(device="cpu", dtype=torch.int32), dtype=wp.int32)
-        elif env_ids.dtype == wp.int64:
-            return wp.array(env_ids, dtype=wp.int32, device="cpu")
-        if env_ids.ptr == self._ALL_ENV_INDICES.ptr:
-            return self._cpu_all_env_ids
-        return env_ids if str(env_ids.device) == "cpu" else wp.clone(env_ids, device="cpu")
-
-    def _get_sim_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
+    def _get_sim_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
         """Return int32 environment indices for OVPhysX."""
         if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(device=self._device, dtype=torch.int32), dtype=wp.int32)
-        if env_ids.dtype == wp.int64 or str(env_ids.device) != self._device:
-            return wp.array(env_ids, dtype=wp.int32, device=self._device)
+            if env_ids.dtype == torch.int64 and sim_env_ids is None:
+                return wp.from_torch(env_ids.to(device=self._device, dtype=torch.int32), dtype=wp.int32)
+            env_ids = wp.from_torch(env_ids)
+        if env_ids.dtype == wp.int64:
+            if sim_env_ids is None:
+                return wp.from_torch(wp.to_torch(env_ids).to(device=self._device, dtype=torch.int32), dtype=wp.int32)
+            return sim_env_ids
+        if str(env_ids.device) != self._device:
+            return wp.clone(env_ids, device=self._device)
         return env_ids
 
     """

@@ -8,7 +8,7 @@
 import importlib
 import sys
 from dataclasses import replace
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import pytest
@@ -21,6 +21,14 @@ from isaaclab_physx.benchmark.assets import runtime as physx_runtime
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
 
 pytestmark = pytest.mark.benchmark
+
+
+def _hide_app_launcher(monkeypatch) -> None:
+    import isaaclab.app
+
+    app = ModuleType("isaaclab.app")
+    app.__path__ = isaaclab.app.__path__
+    monkeypatch.setitem(sys.modules, "isaaclab.app", app)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -269,14 +277,9 @@ def test_newton_articulation_data_target_restores_model_dynamics_and_ordering(mo
 
 def test_newton_articulation_open_targets_constructs_real_method_and_data_targets(monkeypatch) -> None:
     """The combined Newton path should configure model dimensions before constructing either data target."""
-    import isaaclab.app
     from isaaclab.benchmark.asset_suites import get_asset_benchmark_adapter
 
-    class FakeAppLauncher:
-        def __init__(self, *args, **kwargs):
-            self.app = SimpleNamespace(close=lambda: None)
-
-    monkeypatch.setattr(isaaclab.app, "AppLauncher", FakeAppLauncher)
+    _hide_app_launcher(monkeypatch)
     adapter = get_asset_benchmark_adapter("newton_mjwarp", "articulation")
     request = SimpleNamespace(launcher_args=None, check_shapes=True)
 
@@ -285,14 +288,46 @@ def test_newton_articulation_open_targets_constructs_real_method_and_data_target
         assert targets.data_target._jacobian_buf.shape == (2, 3, 6, 10)
 
 
+@pytest.mark.parametrize("runtime", (physx_runtime, ovphysx_runtime))
+def test_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch, runtime) -> None:
+    runtime._load_runtime_symbols()
+    zeros = wp.zeros
+    empty = wp.empty
+    monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: zeros(*args, **(kwargs | {"pinned": False})))
+    monkeypatch.setattr(wp, "empty", lambda *args, **kwargs: empty(*args, **(kwargs | {"pinned": False})))
+    if runtime is physx_runtime:
+        runtime.PhysxManager.get_physics_sim_view.return_value.get_gravity.return_value = (0.0, 0.0, -9.81)
+    target = runtime.create_test_rigid_object(num_instances=2, num_bodies=1, device="cpu")[0]
+    env_ids = wp.array([1, 0], dtype=wp.int64, device="cpu")
+    sim_env_ids = wp.array([1, 0], dtype=wp.int32, device="cpu")
+
+    assert target._get_cpu_env_ids(env_ids, sim_env_ids).ptr == sim_env_ids.ptr
+    target.set_masses_index(masses=wp.ones((2, 1), dtype=wp.float32, device="cpu"), env_ids=env_ids)
+
+
+@pytest.mark.parametrize("runtime", (physx_runtime, ovphysx_runtime))
+def test_collection_reuses_flat_view_id_scratch(monkeypatch, runtime) -> None:
+    runtime._load_runtime_symbols()
+    if runtime is physx_runtime:
+        runtime.PhysxManager.get_physics_sim_view.return_value.get_gravity.return_value = (0.0, 0.0, -9.81)
+    zeros = wp.zeros
+    empty = wp.empty
+    monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: zeros(*args, **(kwargs | {"pinned": False})))
+    monkeypatch.setattr(wp, "empty", lambda *args, **kwargs: empty(*args, **(kwargs | {"pinned": False})))
+    target = runtime.create_test_collection(num_instances=2, num_bodies=2, device="cpu")[0]
+    env_ids = wp.array([1, 0], dtype=wp.int64, device="cpu")
+    body_ids = wp.array([0, 1], dtype=wp.int64, device="cpu")
+
+    first = target._env_body_ids_to_view_ids(env_ids, body_ids, device="cpu")
+    second = target._env_body_ids_to_view_ids(env_ids, body_ids, device="cpu")
+
+    assert first.ptr == second.ptr
+    np.testing.assert_array_equal(first.numpy(), [1, 0, 3, 2])
+
+
 @pytest.mark.parametrize("runtime", (physx_runtime, newton_runtime))
 def test_open_targets_preserves_setup_errors(monkeypatch, runtime) -> None:
-    app = SimpleNamespace(close=lambda: pytest.fail("close hid the setup error"))
-
-    def launcher(*args, **kwargs):
-        return SimpleNamespace(app=app)
-
-    monkeypatch.setitem(sys.modules, "isaaclab.app", SimpleNamespace(AppLauncher=launcher))
+    _hide_app_launcher(monkeypatch)
     monkeypatch.setattr(runtime, "_load_runtime_symbols", lambda: (_ for _ in ()).throw(RuntimeError("setup")))
     request = SimpleNamespace(launcher_args=None, check_shapes=True)
 

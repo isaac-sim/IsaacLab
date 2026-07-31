@@ -389,6 +389,7 @@ def write_joint_friction_data_to_buffer_index(
     env_ids: wp.array(dtype=Any),
     joint_ids: wp.array(dtype=Any),
     out_buffer: wp.array3d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
 ):
     """Conditionally update the static / dynamic / viscous slots of the friction buffer.
 
@@ -412,6 +413,8 @@ def write_joint_friction_data_to_buffer_index(
     i, j = wp.tid()
     env_id = wp.int32(env_ids[i])
     joint_id = wp.int32(joint_ids[j])
+    if j == 0:
+        sim_env_ids[i] = env_id
     if in_static:
         out_buffer[env_id, joint_id, 0] = in_static[i, j]
     if in_dynamic:

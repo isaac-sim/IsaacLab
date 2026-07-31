@@ -709,16 +709,19 @@ class RigidObject(BaseRigidObject):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Scatter user data into the cached _body_mass at (env_ids, body_ids).
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, body_ids),
+            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[masses, env_ids, body_ids],
-            outputs=[self.data._body_mass],
+            outputs=[self.data._body_mass, sim_env_ids],
             device=self._device,
         )
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_MASS is CPU-only).
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self._cpu_body_mass, self.data._body_mass)
         self._root_view.set_attribute(TT.RIGID_BODY_MASS, self._cpu_body_mass.flatten(), indices=cpu_env_ids)
 
@@ -783,16 +786,19 @@ class RigidObject(BaseRigidObject):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer_index_kernel(env_ids, body_ids),
+            shared_kernels.write_body_com_pose_to_buffer_index_with_sim_ids_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[coms, env_ids, body_ids],
-            outputs=[self.data._body_com_pose_b.data],
+            outputs=[self.data._body_com_pose_b.data, sim_env_ids],
             device=self._device,
         )
         self.data._reset_body_com_pose_b_dependents()
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_COM_POSE is CPU-only).
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         # Wheel binding shape is (N, 7); squeeze singleton body dim with a flat float32 view.
         self._root_view.set_attribute(
@@ -862,15 +868,18 @@ class RigidObject(BaseRigidObject):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_index_kernel(env_ids, body_ids),
+            shared_kernels.write_body_inertia_to_buffer_index_with_sim_ids_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[inertias, env_ids, body_ids],
-            outputs=[self.data._body_inertia],
+            outputs=[self.data._body_inertia, sim_env_ids],
             device=self._device,
         )
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_INERTIA is CPU-only).
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)
         # Wheel binding shape is (N, 9); flatten the singleton body dim.
         self._root_view.set_attribute(
@@ -1034,6 +1043,8 @@ class RigidObject(BaseRigidObject):
         # host memory enables DMA fast path and avoids per-call ``wp.clone`` allocation.
         self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
         wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
+        self._cpu_env_ids = wp.empty(N, dtype=wp.int32, device="cpu", pinned=True)
+        self._cpu_env_ids_views: dict[int, wp.array] = {}
         self._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True)
         self._cpu_body_coms = wp.zeros((N, B, 7), dtype=wp.float32, device="cpu", pinned=True)
         self._cpu_body_inertia = wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
@@ -1144,17 +1155,37 @@ class RigidObject(BaseRigidObject):
         wp.copy(self._cpu_env_mask, env_mask)
         return self._cpu_env_mask
 
-    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
+    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
         """Return CPU int32 indices, using the pre-allocated pinned ``_cpu_env_ids_all``
         fast path when *env_ids* matches ``_ALL_INDICES``.
         """
         if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids.to(device="cpu", dtype=torch.int32), dtype=wp.int32)
-        elif env_ids.dtype == wp.int64:
-            return wp.array(env_ids, dtype=wp.int32, device="cpu")
+            if env_ids.dtype == torch.int64 and sim_env_ids is None:
+                return wp.from_torch(env_ids.to(device="cpu", dtype=torch.int32), dtype=wp.int32)
+            env_ids = wp.from_torch(env_ids)
         if env_ids.ptr == self._ALL_INDICES.ptr:
             return self._cpu_env_ids_all
-        return wp.clone(env_ids, device="cpu")
+        if env_ids.dtype == wp.int64:
+            if sim_env_ids is None:
+                return wp.from_torch(wp.to_torch(env_ids).to(device="cpu", dtype=torch.int32), dtype=wp.int32)
+            env_ids = sim_env_ids
+        if str(env_ids.device) == "cpu":
+            return env_ids
+        cpu_env_ids = self._cpu_env_ids_view(env_ids.shape[0])
+        wp.copy(cpu_env_ids, env_ids)
+        return cpu_env_ids
+
+    def _cpu_env_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the CPU simulator-index scratch buffer."""
+        if count not in self._cpu_env_ids_views:
+            self._cpu_env_ids_views[count] = wp.array(
+                ptr=self._cpu_env_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device="cpu",
+                copy=False,
+            )
+        return self._cpu_env_ids_views[count]
 
     def _get_binding(self, tensor_type: int):
         """Return a cached TensorBinding, creating it on first access.

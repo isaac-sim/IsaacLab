@@ -1302,14 +1302,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids = self._ALL_BODY_INDICES
         return body_ids
 
-    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
-        """Get CPU environment indices."""
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids.to(device="cpu", dtype=torch.int32), dtype=wp.int32)
-        elif env_ids.dtype == wp.int64:
-            return wp.array(env_ids, dtype=wp.int32, device="cpu")
-        return wp.clone(env_ids, device="cpu")
-
     def _initialize_impl(self):
         # clear body names list to prevent double counting on re-initialization
         self._body_names_list.clear()
@@ -1356,6 +1348,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._ALL_BODY_INDICES = wp.array(
             np.arange(self.num_bodies, dtype=np.int32), device=self.device, dtype=wp.int32
         )
+        num_view_ids = self.num_instances * self.num_bodies
+        self._ALL_VIEW_INDICES = wp.array(np.arange(num_view_ids, dtype=np.int32), device=self.device)
+        self._sim_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device=self.device)
+        self._sim_view_ids_views: dict[int, wp.array] = {}
+        self._cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+        wp.copy(self._cpu_all_view_ids, self._ALL_VIEW_INDICES)
+        self._cpu_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+        self._cpu_view_ids_views: dict[int, wp.array] = {}
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1395,27 +1395,55 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             The view indices.
         """
-        # the order is body_0/env_0, body_0/env_1, body_0/env_..., body_1/env_0, body_1/env_1, ...
-        # return a flat tensor of indices
-        # ensure env_ids and body_ids are on the target device
+        if env_ids is self._ALL_ENV_INDICES and body_ids is self._ALL_BODY_INDICES:
+            return self._cpu_all_view_ids if device == "cpu" else self._ALL_VIEW_INDICES
         if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.to(device=device)
-        elif str(env_ids.device) != device:
-            env_ids = wp.clone(env_ids, device=device)
+            env_ids = env_ids.to(device=self.device)
+        elif str(env_ids.device) != self.device:
+            env_ids = wp.clone(env_ids, device=self.device)
         if isinstance(body_ids, torch.Tensor):
-            body_ids = body_ids.to(device=device)
-        elif str(body_ids.device) != device:
-            body_ids = wp.clone(body_ids, device=device)
+            body_ids = body_ids.to(device=self.device)
+        elif str(body_ids.device) != self.device:
+            body_ids = wp.clone(body_ids, device=self.device)
         num_query_envs = env_ids.shape[0]
-        view_ids = wp.zeros(num_query_envs * body_ids.shape[0], dtype=wp.int32, device=device)
+        count = num_query_envs * body_ids.shape[0]
+        view_ids = self._sim_view_ids_view(count)
         wp.launch(
             resolve_view_ids_kernel(env_ids, body_ids),
             dim=(num_query_envs, body_ids.shape[0]),
             inputs=[env_ids, body_ids, num_query_envs, self.num_instances],
             outputs=[view_ids],
-            device=device,
+            device=self.device,
         )
-        return view_ids
+        if device != "cpu" or self.device == "cpu":
+            return view_ids
+        cpu_view_ids = self._cpu_view_ids_view(count)
+        wp.copy(cpu_view_ids, view_ids)
+        return cpu_view_ids
+
+    def _sim_view_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the device view-index scratch."""
+        if count not in self._sim_view_ids_views:
+            self._sim_view_ids_views[count] = wp.array(
+                ptr=self._sim_view_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device=self.device,
+                copy=False,
+            )
+        return self._sim_view_ids_views[count]
+
+    def _cpu_view_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the CPU view-index scratch."""
+        if count not in self._cpu_view_ids_views:
+            self._cpu_view_ids_views[count] = wp.array(
+                ptr=self._cpu_view_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device="cpu",
+                copy=False,
+            )
+        return self._cpu_view_ids_views[count]
 
     """
     Internal simulation callbacks.

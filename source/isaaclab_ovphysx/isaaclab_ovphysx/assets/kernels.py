@@ -949,6 +949,21 @@ def write_2d_data_to_buffer_with_indices(
 
 
 @wp.kernel
+def _write_2d_data_to_buffer_with_indices_and_sim_ids(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    item_ids: wp.array(dtype=Any),
+    out_data: wp.array2d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
+):
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    if j == 0:
+        sim_env_ids[i] = env_id
+    out_data[env_id, wp.int32(item_ids[j])] = in_data[i, j]
+
+
+@wp.kernel
 def write_joint_state_to_buffer_with_indices(
     position: wp.array2d(dtype=wp.float32),
     velocity: wp.array2d(dtype=wp.float32),
@@ -973,6 +988,9 @@ def write_joint_state_to_buffer_with_indices(
 _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
     write_2d_data_to_buffer_with_indices, ("env_ids", "joint_ids")
 )
+_WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_AND_SIM_IDS_DISPATCHER = IndexKernelDispatcher(
+    _write_2d_data_to_buffer_with_indices_and_sim_ids, ("env_ids", "item_ids")
+)
 _WRITE_JOINT_STATE_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
     write_joint_state_to_buffer_with_indices, ("env_ids", "joint_ids")
 )
@@ -983,6 +1001,13 @@ def write_2d_data_to_buffer_with_indices_kernel(
 ) -> wp.Kernel:
     """Select a buffer writer for the selector dtypes."""
     return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
+
+
+def write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(
+    env_ids: wp.array | torch.Tensor, item_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select a 2-D buffer writer that also emits int32 environment indices."""
+    return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_AND_SIM_IDS_DISPATCHER.select(env_ids, item_ids)
 
 
 def write_joint_state_to_buffer_with_indices_kernel(
@@ -1018,6 +1043,23 @@ def write_body_inertia_to_buffer_index(
 
 
 @wp.kernel
+def _write_body_inertia_to_buffer_index_with_sim_ids(
+    in_data: wp.array3d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
+    out_data: wp.array3d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
+):
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    body_id = wp.int32(body_ids[j])
+    if j == 0:
+        sim_env_ids[i] = env_id
+    for k in range(9):
+        out_data[env_id, body_id, k] = in_data[i, j, k]
+
+
+@wp.kernel
 def write_body_com_pose_to_buffer_index(
     in_data: wp.array2d(dtype=wp.transformf),
     env_ids: wp.array(dtype=Any),
@@ -1039,11 +1081,32 @@ def write_body_com_pose_to_buffer_index(
     out_data[wp.int32(env_ids[i]), wp.int32(body_ids[j])] = in_data[i, j]
 
 
+@wp.kernel
+def _write_body_com_pose_to_buffer_index_with_sim_ids(
+    in_data: wp.array2d(dtype=wp.transformf),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
+    out_data: wp.array2d(dtype=wp.transformf),
+    sim_env_ids: wp.array(dtype=wp.int32),
+):
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    if j == 0:
+        sim_env_ids[i] = env_id
+    out_data[env_id, wp.int32(body_ids[j])] = in_data[i, j]
+
+
 _WRITE_BODY_INERTIA_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
     write_body_inertia_to_buffer_index, ("env_ids", "body_ids")
 )
+_WRITE_BODY_INERTIA_TO_BUFFER_INDEX_WITH_SIM_IDS_DISPATCHER = IndexKernelDispatcher(
+    _write_body_inertia_to_buffer_index_with_sim_ids, ("env_ids", "body_ids")
+)
 _WRITE_BODY_COM_POSE_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
     write_body_com_pose_to_buffer_index, ("env_ids", "body_ids")
+)
+_WRITE_BODY_COM_POSE_TO_BUFFER_INDEX_WITH_SIM_IDS_DISPATCHER = IndexKernelDispatcher(
+    _write_body_com_pose_to_buffer_index_with_sim_ids, ("env_ids", "body_ids")
 )
 
 
@@ -1054,11 +1117,25 @@ def write_body_inertia_to_buffer_index_kernel(
     return _WRITE_BODY_INERTIA_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, body_ids)
 
 
+def write_body_inertia_to_buffer_index_with_sim_ids_kernel(
+    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select an inertia writer that also emits int32 environment indices."""
+    return _WRITE_BODY_INERTIA_TO_BUFFER_INDEX_WITH_SIM_IDS_DISPATCHER.select(env_ids, body_ids)
+
+
 def write_body_com_pose_to_buffer_index_kernel(
     env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
 ) -> wp.Kernel:
     """Select a COM-pose writer for the selector dtypes."""
     return _WRITE_BODY_COM_POSE_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, body_ids)
+
+
+def write_body_com_pose_to_buffer_index_with_sim_ids_kernel(
+    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select a COM-pose writer that also emits int32 environment indices."""
+    return _WRITE_BODY_COM_POSE_TO_BUFFER_INDEX_WITH_SIM_IDS_DISPATCHER.select(env_ids, body_ids)
 
 
 @wp.kernel
@@ -1510,6 +1587,7 @@ def write_joint_position_limit_to_buffer_index(
     env_ids: wp.array(dtype=Any),
     joint_ids: wp.array(dtype=Any),
     out_data: wp.array(dtype=wp.vec2f, ndim=2),
+    sim_env_ids: wp.array(dtype=wp.int32),
 ):
     """Write joint position-limit data to a vec2f buffer at specified indices.
 
@@ -1530,6 +1608,8 @@ def write_joint_position_limit_to_buffer_index(
     i, j = wp.tid()
     env_id = wp.int32(env_ids[i])
     joint_id = wp.int32(joint_ids[j])
+    if j == 0:
+        sim_env_ids[i] = env_id
     out_data[env_id, joint_id] = wp.vec2f(in_data[i, j, 0], in_data[i, j, 1])
 
 

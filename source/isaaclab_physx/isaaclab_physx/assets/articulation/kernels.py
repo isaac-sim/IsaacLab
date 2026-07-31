@@ -197,6 +197,7 @@ def write_joint_limit_data_to_buffer(
     soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
     default_joint_pos: wp.array2d(dtype=wp.float32),
     clamped_defaults: wp.array(dtype=wp.int32),
+    sim_env_ids: wp.array(dtype=wp.int32),
 ):
     """Write joint limit data to the output buffers and compute soft limits.
 
@@ -226,6 +227,8 @@ def write_joint_limit_data_to_buffer(
     i, j = wp.tid()
     env_id = wp.int32(env_ids[i])
     joint_id = wp.int32(joint_ids[j])
+    if j == 0:
+        sim_env_ids[i] = env_id
     if from_mask:
         joint_pos_limits[env_id, joint_id] = in_data[env_id, joint_id]
     else:
@@ -256,6 +259,7 @@ def write_joint_friction_data_to_buffer(
     out_dynamic_friction: wp.array2d(dtype=wp.float32),
     out_viscous_friction: wp.array2d(dtype=wp.float32),
     friction_props: wp.array3d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
 ):
     """Write joint friction data to the output buffers.
 
@@ -290,6 +294,8 @@ def write_joint_friction_data_to_buffer(
     i, j = wp.tid()
     env_id = wp.int32(env_ids[i])
     joint_id = wp.int32(joint_ids[j])
+    if j == 0:
+        sim_env_ids[i] = env_id
     # First update the output buffers
     if from_mask:
         out_friction[env_id, joint_id] = in_friction[env_id, joint_id]
@@ -320,6 +326,7 @@ def write_joint_friction_param_to_buffer(
     from_mask: bool,
     out_data: wp.array2d(dtype=wp.float32),
     out_buffer: wp.array3d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
 ):
     """Write a joint friction parameter to the output buffers.
 
@@ -345,6 +352,8 @@ def write_joint_friction_param_to_buffer(
     i, j = wp.tid()
     env_id = wp.int32(env_ids[i])
     joint_id = wp.int32(joint_ids[j])
+    if j == 0:
+        sim_env_ids[i] = env_id
     if from_mask:
         out_data[env_id, joint_id] = in_data[env_id, joint_id]
         out_buffer[env_id, joint_id, buffer_index] = in_data[env_id, joint_id]
@@ -377,6 +386,21 @@ def float_data_to_buffer_with_indices(
     out_data[env_id, joint_id] = in_data
 
 
+@wp.kernel
+def _float_data_to_buffer_with_indices_and_sim_ids(
+    in_data: wp.float32,
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    out_data: wp.array2d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
+):
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    if j == 0:
+        sim_env_ids[i] = env_id
+    out_data[env_id, wp.int32(joint_ids[j])] = in_data
+
+
 _WRITE_JOINT_LIMIT_DATA_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
     write_joint_limit_data_to_buffer, ("env_ids", "joint_ids")
 )
@@ -388,6 +412,9 @@ _WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
 )
 _FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
     float_data_to_buffer_with_indices, ("env_ids", "joint_ids")
+)
+_FLOAT_DATA_TO_BUFFER_WITH_INDICES_AND_SIM_IDS_DISPATCHER = IndexKernelDispatcher(
+    _float_data_to_buffer_with_indices_and_sim_ids, ("env_ids", "joint_ids")
 )
 
 
@@ -417,6 +444,13 @@ def float_data_to_buffer_with_indices_kernel(
 ) -> wp.Kernel:
     """Select the scalar buffer writer for the selector dtypes."""
     return _FLOAT_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
+
+
+def float_data_to_buffer_with_indices_and_sim_ids_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select a scalar writer that also emits int32 environment indices."""
+    return _FLOAT_DATA_TO_BUFFER_WITH_INDICES_AND_SIM_IDS_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel

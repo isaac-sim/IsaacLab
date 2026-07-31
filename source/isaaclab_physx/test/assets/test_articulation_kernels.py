@@ -88,7 +88,8 @@ def _model_writer_articulation(Articulation) -> tuple[SimpleNamespace, SimpleNam
         _resolve_env_ids=lambda ids: env_ids,
         _resolve_joint_ids=lambda ids: joint_ids,
         _resolve_body_ids=lambda ids: body_ids,
-        _get_cpu_env_ids=lambda ids: env_ids,
+        _sim_env_ids_view=lambda count: env_ids,
+        _get_cpu_env_ids=lambda ids, sim_ids=None: env_ids,
         _get_backend_ordered_joint_buffer=lambda user, backend: user,
         _body_user_to_backend_map=lambda: body_ids,
         assert_shape_and_dtype=lambda *args, **kwargs: None,
@@ -115,8 +116,8 @@ def test_model_property_writers_invalidate_same_timestamp_dynamics(
 
     with (
         patch.object(globals_["wp"], "launch"),
-        patch.object(globals_["ordering_kernels"], "write_float_user_to_backend_with_indices"),
-        patch.object(globals_["ordering_kernels"], "write_3d_user_to_backend_with_indices"),
+        patch.object(globals_["ordering_kernels"], "write_float_user_to_backend_with_indices_and_sim_ids"),
+        patch.object(globals_["ordering_kernels"], "write_3d_user_to_backend_with_indices_and_sim_ids"),
     ):
         method(articulation, **kwargs)
 

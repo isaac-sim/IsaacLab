@@ -1370,10 +1370,13 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(stiffness, (self.num_instances, self.num_joints), wp.float32, "stiffness")
         else:
             self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "stiffness")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
+                articulation_kernels.float_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
                 inputs=[
                     stiffness,
@@ -1382,12 +1385,13 @@ class Articulation(BaseArticulation):
                 ],
                 outputs=[
                     self.data._joint_stiffness,
+                    sim_env_ids,
                 ],
                 device=self.device,
             )
         else:
             wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
+                shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
                 inputs=[
                     stiffness,
@@ -1397,11 +1401,12 @@ class Articulation(BaseArticulation):
                 ],
                 outputs=[
                     self.data._joint_stiffness,
+                    sim_env_ids,
                 ],
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         joint_stiffness_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_stiffness, self.data._joint_stiffness_backend
         )
@@ -1467,10 +1472,13 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(damping, (self.num_instances, self.num_joints), wp.float32, "damping")
         else:
             self.assert_shape_and_dtype(damping, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "damping")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(damping, float):
             wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
+                articulation_kernels.float_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
                 inputs=[
                     damping,
@@ -1479,12 +1487,13 @@ class Articulation(BaseArticulation):
                 ],
                 outputs=[
                     self.data._joint_damping,
+                    sim_env_ids,
                 ],
                 device=self.device,
             )
         else:
             wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
+                shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
                 inputs=[
                     damping,
@@ -1494,11 +1503,12 @@ class Articulation(BaseArticulation):
                 ],
                 outputs=[
                     self.data._joint_damping,
+                    sim_env_ids,
                 ],
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         joint_damping_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_damping, self.data._joint_damping_backend
         )
@@ -1664,8 +1674,11 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(limits, (self.num_instances, self.num_joints), wp.vec2f, "limits")
         else:
             self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.vec2f, "limits")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
 
         clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         if isinstance(limits, float):
@@ -1685,6 +1698,7 @@ class Articulation(BaseArticulation):
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
                 clamped_defaults,
+                sim_env_ids,
             ],
             device=self.device,
         )
@@ -1699,7 +1713,7 @@ class Articulation(BaseArticulation):
             else:
                 logger.info(violation_message)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         joint_pos_limits_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_pos_limits, self.data._joint_pos_limits_backend
         )
@@ -1775,10 +1789,13 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(limits, (self.num_instances, self.num_joints), wp.float32, "limits")
         else:
             self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "limits")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limits, float):
             wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
+                articulation_kernels.float_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
                 inputs=[
                     limits,
@@ -1787,12 +1804,13 @@ class Articulation(BaseArticulation):
                 ],
                 outputs=[
                     self.data._joint_vel_limits,
+                    sim_env_ids,
                 ],
                 device=self.device,
             )
         else:
             wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
+                shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
                 inputs=[
                     limits,
@@ -1802,11 +1820,12 @@ class Articulation(BaseArticulation):
                 ],
                 outputs=[
                     self.data._joint_vel_limits,
+                    sim_env_ids,
                 ],
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         joint_vel_limits_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_vel_limits, self.data._joint_vel_limits_backend
         )
@@ -1879,10 +1898,13 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(limits, (self.num_instances, self.num_joints), wp.float32, "limits")
         else:
             self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "limits")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limits, float):
             wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
+                articulation_kernels.float_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
                 inputs=[
                     limits,
@@ -1891,12 +1913,13 @@ class Articulation(BaseArticulation):
                 ],
                 outputs=[
                     self.data._joint_effort_limits,
+                    sim_env_ids,
                 ],
                 device=self.device,
             )
         else:
             wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
+                shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
                 inputs=[
                     limits,
@@ -1906,11 +1929,12 @@ class Articulation(BaseArticulation):
                 ],
                 outputs=[
                     self.data._joint_effort_limits,
+                    sim_env_ids,
                 ],
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         joint_effort_limits_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_effort_limits, self.data._joint_effort_limits_backend
         )
@@ -1979,10 +2003,13 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(armature, (self.num_instances, self.num_joints), wp.float32, "armature")
         else:
             self.assert_shape_and_dtype(armature, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "armature")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(armature, float):
             wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
+                articulation_kernels.float_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
                 inputs=[
                     armature,
@@ -1991,12 +2018,13 @@ class Articulation(BaseArticulation):
                 ],
                 outputs=[
                     self.data._joint_armature,
+                    sim_env_ids,
                 ],
                 device=self.device,
             )
         else:
             wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, joint_ids),
+                shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, joint_ids),
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
                 inputs=[
                     armature,
@@ -2006,11 +2034,12 @@ class Articulation(BaseArticulation):
                 ],
                 outputs=[
                     self.data._joint_armature,
+                    sim_env_ids,
                 ],
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         joint_armature_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_armature, self.data._joint_armature_backend
         )
@@ -2134,6 +2163,9 @@ class Articulation(BaseArticulation):
         friction_props = self._get_user_ordered_joint_3d_buffer(
             friction_props_backend, self.data._joint_friction_props_user, 3
         )
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(
@@ -2152,11 +2184,12 @@ class Articulation(BaseArticulation):
                 self.data._joint_dynamic_friction_coeff,
                 self.data._joint_viscous_friction_coeff,
                 friction_props,
+                sim_env_ids,
             ],
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         friction_props_backend = self._get_backend_ordered_joint_buffer(
             friction_props, self.data._joint_friction_props_backend, component_count=3
         )
@@ -2260,6 +2293,9 @@ class Articulation(BaseArticulation):
         friction_props = self._get_user_ordered_joint_3d_buffer(
             friction_props_backend, self.data._joint_friction_props_user, 3
         )
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(
@@ -2275,11 +2311,12 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data._joint_dynamic_friction_coeff,
                 friction_props,
+                sim_env_ids,
             ],
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         friction_props_backend = self._get_backend_ordered_joint_buffer(
             friction_props, self.data._joint_friction_props_backend, component_count=3
         )
@@ -2366,6 +2403,9 @@ class Articulation(BaseArticulation):
         friction_props = self._get_user_ordered_joint_3d_buffer(
             friction_props_backend, self.data._joint_friction_props_user, 3
         )
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(
@@ -2381,11 +2421,12 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data._joint_viscous_friction_coeff,
                 friction_props,
+                sim_env_ids,
             ],
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         friction_props_backend = self._get_backend_ordered_joint_buffer(
             friction_props, self.data._joint_friction_props_backend, component_count=3
         )
@@ -2458,6 +2499,9 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
         else:
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         if self.data._body_mass.timestamp < self.data._sim_timestamp and (
             env_ids.shape[0] != self.num_instances or body_ids.shape[0] != self.num_bodies
         ):
@@ -2467,7 +2511,7 @@ class Articulation(BaseArticulation):
         body_mass_backend = self.data._body_mass.data
         if has_body_ordering:
             body_mass_backend = self.data._body_mass_backend
-        ordering_kernels.write_float_user_to_backend_with_indices(
+        ordering_kernels.write_float_user_to_backend_with_indices_and_sim_ids(
             masses,
             env_ids,
             body_ids,
@@ -2476,6 +2520,7 @@ class Articulation(BaseArticulation):
             full_data,
             self.data._body_mass.data,
             body_mass_backend,
+            sim_env_ids,
             device=self.device,
         )
         # The user buffer now matches the value pushed to the simulation this step; stamp it so the
@@ -2483,7 +2528,7 @@ class Articulation(BaseArticulation):
         self.data._body_mass.timestamp = self.data._sim_timestamp
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         self.root_view.set_masses(wp.clone(body_mass_backend, device="cpu"), indices=cpu_env_ids)
         self.data._reset_dynamics(mass_matrix=True, gravity_compensation=True)
 
@@ -2548,6 +2593,9 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         has_body_ordering = self.data.has_body_ordering
         backend_staging = self.data._body_com_pose_b_backend
         body_com_backend = self.data._body_com_pose_b.data
@@ -2559,7 +2607,7 @@ class Articulation(BaseArticulation):
             self.data._body_com_pose_b.timestamp >= 0.0 and (not has_body_ordering or backend_staging.timestamp >= 0.0)
         )
 
-        ordering_kernels.write_2d_user_to_backend_with_indices(
+        ordering_kernels.write_2d_user_to_backend_with_indices_and_sim_ids(
             coms,
             env_ids,
             body_ids,
@@ -2568,6 +2616,7 @@ class Articulation(BaseArticulation):
             full_data,
             self.data._body_com_pose_b.data,
             body_com_backend,
+            sim_env_ids,
             dtype=wp.transformf,
             device=self.device,
         )
@@ -2579,7 +2628,7 @@ class Articulation(BaseArticulation):
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from wp.transformf to flat (N, M, 7) array for PhysX
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         body_com_flat = (
             wp.clone(body_com_backend, device="cpu").view(wp.float32).reshape((self.num_instances, self.num_bodies, 7))
         )
@@ -2646,6 +2695,9 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
         else:
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         if self.data._body_inertia.timestamp < self.data._sim_timestamp and (
             env_ids.shape[0] != self.num_instances or body_ids.shape[0] != self.num_bodies
         ):
@@ -2655,7 +2707,7 @@ class Articulation(BaseArticulation):
         body_inertia_backend = self.data._body_inertia.data
         if has_body_ordering:
             body_inertia_backend = self.data._body_inertia_backend
-        ordering_kernels.write_3d_user_to_backend_with_indices(
+        ordering_kernels.write_3d_user_to_backend_with_indices_and_sim_ids(
             inertias,
             env_ids,
             body_ids,
@@ -2664,6 +2716,7 @@ class Articulation(BaseArticulation):
             full_data,
             self.data._body_inertia.data,
             body_inertia_backend,
+            sim_env_ids,
             dtype=wp.float32,
             device=self.device,
         )
@@ -2671,7 +2724,7 @@ class Articulation(BaseArticulation):
         # timestamp-lazy getter returns the written value without re-reading the tensor view.
         self.data._body_inertia.timestamp = self.data._sim_timestamp
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         self.root_view.set_inertias(wp.clone(body_inertia_backend, device="cpu"), indices=cpu_env_ids)
         self.data._reset_dynamics(mass_matrix=True)
 
@@ -3575,6 +3628,8 @@ class Articulation(BaseArticulation):
         """
         # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
+        if env_ids.shape[0] == 0:
+            return
         # Write fixed tendon properties to the simulation.
         self.root_view.set_fixed_tendon_properties(
             self.data.fixed_tendon_stiffness.warp,
@@ -4043,6 +4098,8 @@ class Articulation(BaseArticulation):
         """
         # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
+        if env_ids.shape[0] == 0:
+            return
         # Write spatial tendon properties to the simulation.
         self.root_view.set_spatial_tendon_properties(
             self.data.spatial_tendon_stiffness.warp,
@@ -4147,6 +4204,10 @@ class Articulation(BaseArticulation):
         )
         self._sim_env_ids = wp.empty(self.num_instances, dtype=wp.int32, device=self.device)
         self._sim_env_ids_views: dict[int, wp.array] = {}
+        self._cpu_env_ids_all = wp.zeros(self.num_instances, dtype=wp.int32, device="cpu", pinned=True)
+        wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
+        self._cpu_env_ids = wp.empty(self.num_instances, dtype=wp.int32, device="cpu", pinned=True)
+        self._cpu_env_ids_views: dict[int, wp.array] = {}
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -4902,7 +4963,7 @@ class Articulation(BaseArticulation):
                 f"Simulation parameters for spatial tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
             )
 
-    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
+    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
         """
         Get the CPU environment indices.
 
@@ -4913,19 +4974,33 @@ class Articulation(BaseArticulation):
             A warp array of environment indices.
         """
         if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids.to(device="cpu", dtype=torch.int32), dtype=wp.int32)
-        elif env_ids.dtype == wp.int64:
-            return wp.array(env_ids, dtype=wp.int32, device="cpu")
+            if env_ids.dtype == torch.int64 and sim_env_ids is None:
+                return wp.from_torch(env_ids.to(device="cpu", dtype=torch.int32), dtype=wp.int32)
+            env_ids = wp.from_torch(env_ids)
+        if env_ids.ptr == self._ALL_INDICES.ptr:
+            return self._cpu_env_ids_all
+        if env_ids.dtype == wp.int64:
+            if sim_env_ids is None:
+                return wp.from_torch(wp.to_torch(env_ids).to(device="cpu", dtype=torch.int32), dtype=wp.int32)
+            env_ids = sim_env_ids
         if str(env_ids.device) == "cpu":
             return env_ids
-        return wp.clone(env_ids, device="cpu")
+        cpu_env_ids = self._cpu_env_ids_view(env_ids.shape[0])
+        wp.copy(cpu_env_ids, env_ids)
+        return cpu_env_ids
 
-    def _get_sim_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
+    def _get_sim_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
         """Return int32 environment indices for PhysX."""
         if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(device=self.device, dtype=torch.int32), dtype=wp.int32)
-        if env_ids.dtype == wp.int64 or str(env_ids.device) != self.device:
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
+            if env_ids.dtype == torch.int64 and sim_env_ids is None:
+                return wp.from_torch(env_ids.to(device=self.device, dtype=torch.int32), dtype=wp.int32)
+            env_ids = wp.from_torch(env_ids)
+        if env_ids.dtype == wp.int64:
+            if sim_env_ids is None:
+                return wp.from_torch(wp.to_torch(env_ids).to(device=self.device, dtype=torch.int32), dtype=wp.int32)
+            return sim_env_ids
+        if str(env_ids.device) != self.device:
+            return wp.clone(env_ids, device=self.device)
         return env_ids
 
     def _sim_env_ids_view(self, count: int) -> wp.array:
@@ -4939,6 +5014,18 @@ class Articulation(BaseArticulation):
                 copy=False,
             )
         return self._sim_env_ids_views[count]
+
+    def _cpu_env_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the CPU simulator-index scratch buffer."""
+        if count not in self._cpu_env_ids_views:
+            self._cpu_env_ids_views[count] = wp.array(
+                ptr=self._cpu_env_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device="cpu",
+                copy=False,
+            )
+        return self._cpu_env_ids_views[count]
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
         """
