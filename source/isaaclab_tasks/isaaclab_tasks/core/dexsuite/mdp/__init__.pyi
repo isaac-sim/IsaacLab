@@ -4,8 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "GraspTravelDistanceCfg",
     "MeshClearanceCfg",
     "SlabClearanceCfg",
+    "SuccessMonitor",
+    "SuccessMonitorCfg",
+    "grasp_travel_distance",
     "mesh_clearance",
     "slab_clearance",
     "conditional_reset",
@@ -24,8 +28,8 @@ __all__ = [
     "contacts",
     "contact_count",
     "object_ee_distance",
-    "orientation_command_error_tanh",
-    "position_command_error_tanh",
+    "orientation_command_progress",
+    "position_command_progress",
     "success_reward",
     "abnormal_robot_state",
     "out_of_bound",
@@ -33,9 +37,17 @@ __all__ = [
 
 from .commands import ObjectUniformPoseCommandCfg
 from .curriculums import DifficultyScheduler, initial_final_interpolate_fn
-from .events import conditional_reset, mesh_clearance, reset_joints_shared_offset, reset_to_target, slab_clearance
+from .events import (
+    SuccessMonitor,
+    conditional_reset,
+    grasp_travel_distance,
+    mesh_clearance,
+    reset_joints_shared_offset,
+    reset_to_target,
+    slab_clearance,
+)
 from .utils import get_reset_state, set_reset_state
-from .events_cfg import MeshClearanceCfg, SlabClearanceCfg
+from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg, SuccessMonitorCfg
 from .observations import (
     body_state_b,
     fingers_contact_force_b,
@@ -47,8 +59,8 @@ from .rewards import (
     contacts,
     contact_count,
     object_ee_distance,
-    orientation_command_error_tanh,
-    position_command_error_tanh,
+    orientation_command_progress,
+    position_command_progress,
     success_reward,
 )
 from .terminations import abnormal_robot_state, out_of_bound

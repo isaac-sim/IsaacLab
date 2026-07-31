@@ -293,7 +293,7 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("object"),
-            "mass_distribution_params": [0.2, 2.0],
+            "mass_distribution_params": [0.2, 2.5],
             "operation": "scale",
         },
     )
@@ -368,7 +368,7 @@ class EventCfg:
                     params={
                         "pose_range": {"x": [-0.04, 0.04], "y": [-0.04, 0.04], "z": [-0.04, 0.04]},
                         "velocity_range": {},
-                        "probability": 0.05,
+                        "probability": 0.25,
                         # robot configs must point this at their gripper body and may shift
                         # the z range along the approach axis (e.g. between the fingertips)
                         "target_cfg": MISSING,
@@ -376,7 +376,19 @@ class EventCfg:
                     },
                 ),
             },
-            "buffer_size_per_group": 1024,
+            "buffer_size_per_group": 2048,
+            # harvest more candidates than the bank holds and keep the states spread widest over
+            # hand-to-object and object-to-goal distance jointly. The descriptor's log scale is what
+            # makes this pay: it roughly doubles the share of near-grasp starts while leaving the
+            # far tail near its natural share. Two axes need more candidates to cover than one;
+            # ``1.0`` turns the pass off.
+            "oversample_factor": 5.0,
+            "diversity_feature": mdp.GraspTravelDistanceCfg(
+                asset_name="robot",
+                body_names=MISSING,  # overridden by robot configs
+                object_name="object",
+                command_name="object_pose",
+            ),
             "valid_criteria": {
                 "object_robot_clearance": mdp.MeshClearanceCfg(
                     asset_name="robot",
@@ -394,6 +406,10 @@ class EventCfg:
                     min_clearance=0.02,
                 ),
             },
+            # restart from the banked states the policy solves about half the time rather than
+            # drawing uniformly, which keeps the already-mastered and still-hopeless states from
+            # taking up most of the episodes
+            "success_monitor": mdp.SuccessMonitorCfg(target_success_rate=0.5),
         },
     )
 
@@ -411,23 +427,27 @@ class RewardsCfg:
 
     fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=0.05)
 
+    # Tracking is rewarded progressively: one fixed payout per ``min_improvement`` of ground gained on
+    # the episode-best error, so losing and regaining ground earns nothing. Roughly 30 payouts cover
+    # the full initial error, and the manager scales each payout by ``weight * step_dt`` (1/30 s),
+    # which makes ``weight`` the total on offer for driving the error to zero.
     position_tracking = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=2.0,
+        func=mdp.position_command_progress,
+        weight=5.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "std": 0.1,
+            "min_improvement": 0.0025,
             "command_name": "object_pose",
             "align_asset_cfg": SceneEntityCfg("object"),
         },
     )
 
     orientation_tracking = RewTerm(
-        func=mdp.orientation_command_error_tanh,
-        weight=4.0,
+        func=mdp.orientation_command_progress,
+        weight=10.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "std": 1.5,
+            "min_improvement": 0.015,
             "command_name": "object_pose",
             "align_asset_cfg": SceneEntityCfg("object"),
         },
@@ -559,9 +579,18 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
         super().play_mode()
 
         self.commands.object_pose.debug_vis = True
+        # the bank shapes what a policy trains on; at play it only has to supply starts for the
+        # handful of environments the parent left, so it is harvested small and taken as it comes
+        # rather than making the viewer wait through an oversampled prefill and its spread pass
+        reset_params = self.events.conditional_reset.params
+        reset_params["buffer_size_per_group"] = 32
+        reset_params["oversample_factor"] = 1.0
+        reset_params["diversity_feature"] = None
         if self.curriculum is not None:
             self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
             self.curriculum.adr.params["promotion_only"] = True
+            # the parent turned observation corruption off, which leaves the noise terms nothing to scale
+            self.curriculum.disable_observation_noise_terms()
 
 
 class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):

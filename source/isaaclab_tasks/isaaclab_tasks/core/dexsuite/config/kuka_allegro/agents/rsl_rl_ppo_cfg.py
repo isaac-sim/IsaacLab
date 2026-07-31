@@ -29,12 +29,18 @@ STATE_CRITIC_CFG = RslRlMLPModelCfg(
     activation="elu",
 )
 
+# Camera-actor stability requires bounding the encoder update magnitude
+# (learning_rate x latent size x input scale <~ 0.05, and LR <~ 1.5e-4): larger encoders or
+# hotter/adaptive learning rates collapse into velocity-limit terminations or freezing.
+# One shared configuration for single and duo cameras: 512-dim latent per camera at fixed
+# LR 5e-5 sits under the stability budget in both rigs (duo doubles the latent mass), trading
+# a few hundred iterations of onset in the single-camera case for a uniform, sub-band setup.
 CNN_POLICY_CFG = RslRlCNNModelCfg(
     obs_normalization=True,
     hidden_dims=[512, 256, 128],
     distribution_cfg=RslRlCNNModelCfg.GaussianDistributionCfg(init_std=1.0),
     cnn_cfg=RslRlCNNModelCfg.CNNCfg(
-        output_channels=[32, 64, 64],
+        output_channels=[16, 32, 32],
         kernel_size=[8, 4, 3],
         stride=[4, 2, 1],
         activation="elu",
@@ -86,7 +92,9 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         obs_groups={"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]},
         actor=CNN_POLICY_CFG,
         critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG.replace(num_mini_batches=8),
+        # fixed LR: the adaptive-KL schedule oscillates across the encoder stability threshold
+        # (its KL signal is inflated by encoder feature churn) and never trains a camera actor
+        algorithm=ALGO_CFG.replace(num_mini_batches=8, schedule="fixed", learning_rate=5.0e-5),
     )
 
     duo_camera = DexsuiteKukaAllegroPPOBaseRunnerCfg().replace(
@@ -97,5 +105,5 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         },
         actor=CNN_POLICY_CFG,
         critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG.replace(num_mini_batches=8),
+        algorithm=ALGO_CFG.replace(num_mini_batches=8, schedule="fixed", learning_rate=5.0e-5),
     )

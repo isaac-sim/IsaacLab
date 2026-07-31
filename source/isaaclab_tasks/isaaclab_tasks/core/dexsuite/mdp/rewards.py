@@ -123,8 +123,6 @@ class success_reward(ManagerTermBase):
     def reset(self, env_ids: Sequence[int] | None = None):
         if env_ids is None:
             env_ids = slice(None)
-        # Episode success = whether the success condition was met at any point this episode.
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self.succeeded[env_ids].float().mean().item()
         self.succeeded[env_ids] = False
 
     def __call__(
@@ -168,48 +166,116 @@ class success_reward(ManagerTermBase):
         return reward
 
 
-def position_command_error_tanh(
-    env: ManagerBasedRLEnv,
-    std: float,
-    command_name: str,
-    asset_cfg: SceneEntityCfg,
-    align_asset_cfg: SceneEntityCfg,
-    thumb_name: str,
-    finger_names: list[str],
-    contact_threshold: float = 0.1,
-) -> torch.Tensor:
-    """Reward tracking of commanded position using tanh kernel, gated by contact presence."""
+class _ProgressReward(ManagerTermBase):
+    """Base class for rewards that only pay out when a tracking error reaches a new episode best.
 
-    asset: RigidObject = env.scene[asset_cfg.name]
-    obj: RigidObject = env.scene[align_asset_cfg.name]
-    command = env.command_manager.get_command(command_name)
-    des_pos_b = command[:, :3]
-    des_pos_w, _ = combine_frame_transforms(
-        asset.data.root_pos_w.torch,
-        asset.data.root_quat_w.torch,
-        des_pos_b,
-    )
-    distance = torch.linalg.norm(obj.data.root_pos_w.torch - des_pos_w, dim=1)
-    return (1 - torch.tanh(distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()
+    The term holds a per-environment bar equal to the smallest error credited so far in the episode.
+    A fixed reward of ``1.0`` is paid on every step that pushes the error below that bar by at least
+    ``min_improvement``, and nothing is paid otherwise. Since the bar moves only when a reward is
+    paid, ground that was already credited cannot be farmed again by backing off and re-approaching,
+    and the episodic reward sum counts how many improvements the policy actually made.
+
+    The bar is seeded with the error measured on the first step of an episode, so holding the starting
+    pose earns nothing. Progress made while the gating condition is false does not move the bar, so it
+    stays claimable once the condition is met again.
+    """
+
+    def __init__(self, cfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        # inf marks an environment whose bar has not been seeded yet in the current episode
+        self.best_error = torch.full((env.num_envs,), float("inf"), device=env.device)
+
+    def reset(self, env_ids: Sequence[int] | None = None):
+        if env_ids is None:
+            env_ids = slice(None)
+        self.best_error[env_ids] = float("inf")
+
+    def _progress(self, error: torch.Tensor, gate: torch.Tensor, min_improvement: float) -> torch.Tensor:
+        """Return 1.0 for the environments that beat their episode best while ``gate`` holds."""
+        unseeded = torch.isinf(self.best_error)
+        self.best_error[unseeded] = error[unseeded]
+        improved = gate & (error < self.best_error - min_improvement)
+        self.best_error[improved] = error[improved]
+        return improved.float()
 
 
-def orientation_command_error_tanh(
-    env: ManagerBasedRLEnv,
-    std: float,
-    command_name: str,
-    asset_cfg: SceneEntityCfg,
-    align_asset_cfg: SceneEntityCfg,
-    thumb_name: str,
-    finger_names: list[str],
-    contact_threshold: float = 0.1,
-) -> torch.Tensor:
-    """Reward tracking of commanded orientation using tanh kernel, gated by contact presence."""
+class position_command_progress(_ProgressReward):
+    """Reward every step that brings the object closer to the commanded position than ever before.
 
-    asset: RigidObject = env.scene[asset_cfg.name]
-    obj: RigidObject = env.scene[align_asset_cfg.name]
-    command = env.command_manager.get_command(command_name)
-    des_quat_b = command[:, 3:7]
-    des_quat_w = math_utils.quat_mul(asset.data.root_link_quat_w.torch, des_quat_b)
-    quat_distance = math_utils.quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
+    See :class:`_ProgressReward` for the progress bookkeeping. The reward is gated by contact, so
+    only positional gains made while the thumb and at least one finger are touching are credited.
+    """
 
-    return (1 - torch.tanh(quat_distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        asset_cfg: SceneEntityCfg,
+        align_asset_cfg: SceneEntityCfg,
+        thumb_name: str,
+        finger_names: list[str],
+        contact_threshold: float = 0.1,
+        min_improvement: float = 0.01,
+    ) -> torch.Tensor:
+        """Compute the progress reward.
+
+        Args:
+            env: The environment instance.
+            command_name: Name of the pose command to track.
+            asset_cfg: Configuration for the asset the command is expressed relative to.
+            align_asset_cfg: Configuration for the asset that must reach the command.
+            thumb_name: Name of the thumb contact sensor.
+            finger_names: Names of the finger contact sensors.
+            contact_threshold: Contact force magnitude threshold [N].
+            min_improvement: Distance [m] the object must gain on the episode best to be paid again.
+        """
+        asset: RigidObject = env.scene[asset_cfg.name]
+        obj: RigidObject = env.scene[align_asset_cfg.name]
+        command = env.command_manager.get_command(command_name)
+        des_pos_w, _ = combine_frame_transforms(
+            asset.data.root_pos_w.torch,
+            asset.data.root_quat_w.torch,
+            command[:, :3],
+        )
+        distance = torch.linalg.norm(obj.data.root_pos_w.torch - des_pos_w, dim=1)
+        return self._progress(distance, contacts(env, contact_threshold, thumb_name, finger_names), min_improvement)
+
+
+class orientation_command_progress(_ProgressReward):
+    """Reward every step that brings the object closer to the commanded orientation than ever before.
+
+    See :class:`_ProgressReward` for the progress bookkeeping. The reward is gated by contact, so
+    only rotational gains made while the thumb and at least one finger are touching are credited.
+    """
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        asset_cfg: SceneEntityCfg,
+        align_asset_cfg: SceneEntityCfg,
+        thumb_name: str,
+        finger_names: list[str],
+        contact_threshold: float = 0.1,
+        min_improvement: float = 0.05,
+    ) -> torch.Tensor:
+        """Compute the progress reward.
+
+        Args:
+            env: The environment instance.
+            command_name: Name of the pose command to track.
+            asset_cfg: Configuration for the asset the command is expressed relative to.
+            align_asset_cfg: Configuration for the asset that must reach the command.
+            thumb_name: Name of the thumb contact sensor.
+            finger_names: Names of the finger contact sensors.
+            contact_threshold: Contact force magnitude threshold [N].
+            min_improvement: Angle [rad] the object must gain on the episode best to be paid again.
+        """
+        asset: RigidObject = env.scene[asset_cfg.name]
+        obj: RigidObject = env.scene[align_asset_cfg.name]
+        command = env.command_manager.get_command(command_name)
+        des_quat_w = math_utils.quat_mul(asset.data.root_link_quat_w.torch, command[:, 3:7])
+        quat_distance = math_utils.quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
+        return self._progress(
+            quat_distance, contacts(env, contact_threshold, thumb_name, finger_names), min_improvement
+        )

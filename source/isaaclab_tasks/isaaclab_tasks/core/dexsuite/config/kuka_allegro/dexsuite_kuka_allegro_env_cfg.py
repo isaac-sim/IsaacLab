@@ -53,7 +53,15 @@ class KukaAllegroSceneCfg(dexsuite.SceneCfg):
     camera env config populates them (see ``dexsuite_kuka_allegro_camera_env_cfg``).
     """
 
-    robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    # Pin the public joint/body axes to one convention across backends. Left unpinned, the axes
+    # follow each backend's native order: PhysX traverses breadth-first and MJWarp depth-first, which
+    # permutes the Allegro hand's four branching fingers (the serial arm is unaffected) and breaks
+    # sim-to-sim transfer of the ``.*`` action term and the joint/body-order observations.
+    robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        joint_ordering="mjwarp",
+        body_ordering="mjwarp",
+    )
     base_camera: CameraCfg | None = None
     wrist_camera: CameraCfg | None = None
 
@@ -86,7 +94,7 @@ class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
 
     contact_count = RewTerm(
         func=mdp.contact_count,
-        weight=1.0,
+        weight=0.1,
         params={"threshold": 0.01, "sensor_names": FINGER_SENSORS + [THUMB_SENSOR]},
     )
 
@@ -128,6 +136,10 @@ class KukaAllegroMixinCfg:
         self.events.conditional_reset.params["valid_criteria"][
             "robot_table_clearance"
         ].body_names = "(?!iiwa7_link_0$).*"
+        # spread the reset bank over the grasp geometry, same bodies as fingers_to_object
+        diversity_feature = self.events.conditional_reset.params.get("diversity_feature")
+        if diversity_feature is not None:
+            diversity_feature.body_names = ["palm_link", ".*_tip"]
         # finger closing-speed DR: armature sets tau/M.
         self.events.finger_closing_speed = EventTerm(
             func=mdp.randomize_joint_parameters,
