@@ -21,7 +21,7 @@ from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.physics.physics_manager_cfg import _resolve_auto_physx_cfg, _set_physics_preset_selection
+from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
     resolve_scene_data_requirements,
@@ -170,24 +170,9 @@ class SimulationContext:
         # If physics is a PresetCfg wrapper (has a 'default' field but no 'class_type'),
         # resolve to the default preset so downstream code always sees a concrete PhysicsCfg.
         if not hasattr(self._physics, "class_type") and hasattr(self._physics, "default"):
-            physics_preset = self._physics
-            self._physics = physics_preset.default
-            default_is_physx = getattr(physics_preset, "physx", None) is self._physics
-            class_default_is_physx = getattr(type(physics_preset), "default", None) is getattr(
-                type(physics_preset), "physx", None
-            )
-            if default_is_physx or class_default_is_physx:
-                _set_physics_preset_selection(
-                    self._physics,
-                    "physx",
-                    {
-                        name: getattr(physics_preset, name)
-                        for name in ("physx", "isaacsim_physx", "ovphysx")
-                        if hasattr(physics_preset, name)
-                    },
-                )
+            self._physics = self._physics.default
             self.cfg.physics = self._physics
-        self._physics = _resolve_auto_physx_cfg(self._physics, use_isaac_sim=has_kit())
+        self._physics = _resolve_physx_auto_cfg(self._physics, use_isaac_sim=has_kit())
         self.cfg.physics = self._physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
