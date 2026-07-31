@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+3.1.4 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added structured summary and JSON output to PhysX sensor micro-benchmarks.
+* Added matched plane and deterministic rough-terrain phases to the ray caster
+  sensor micro-benchmark.
+
+Changed
+^^^^^^^
+
+* Changed the physx asset micro-benchmarks from separate method and data scripts
+  to one combined script per asset concept. Run the retained
+  benchmark_<asset>.py script to produce both historical result artifacts.
+
+Fixed
+^^^^^
+
+* Fixed articulation-data micro-benchmarks to use stable PhysX state, mass-property, and dynamics buffers.
+
+
 3.1.3 (2026-07-30)
 ~~~~~~~~~~~~~~~~~~
 
