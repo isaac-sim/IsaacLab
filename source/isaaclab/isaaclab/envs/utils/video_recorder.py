@@ -237,15 +237,18 @@ class VideoRecorder:
         frame = tensor[0].cpu().numpy().astype(np.uint8)
         return frame[:, :, :3] if frame.ndim == 3 and frame.shape[2] >= 3 else frame
 
+    def _effective_output_dir(self) -> str:
+        return self.cfg.output_dir or "videos"
+
     def _clip_path(self, index: int) -> str:
-        return os.path.join(self.cfg.output_dir, f"{self.cfg.output_filename_prefix}_{index:04d}.mp4")
+        return os.path.join(self._effective_output_dir(), f"{self.cfg.output_filename_prefix}_{index:04d}.mp4")
 
     def _close_clip(self) -> None:
         if not self._frames:
             self._recording = False
             return
         try:
-            os.makedirs(self.cfg.output_dir, exist_ok=True)
+            os.makedirs(self._effective_output_dir(), exist_ok=True)
             path = self._clip_path(self._clip_index)
             clip = ImageSequenceClip(self._frames, fps=self.cfg.fps)
             clip.write_videofile(path, codec="libx264", audio=False, logger=None)

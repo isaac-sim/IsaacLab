@@ -36,8 +36,12 @@ class VideoRecorderCfg:
     source: str = "visualizer"
     """Recording source.  See class docstring for the source string format."""
 
-    output_dir: str = "videos"
-    """Directory for output mp4 files (created on demand, relative to the working directory)."""
+    output_dir: str | None = None
+    """Directory for output mp4 files (created on demand).
+
+    ``None`` (default): when recording is enabled via ``--video``, the RL entrypoint sets
+    this to ``<log_dir>/videos/<subdir>`` automatically.  Set an explicit path to override.
+    """
 
     fps: int = 30
     """Output video frame rate in frames per second."""

@@ -604,15 +604,15 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
 
     existing: list = getattr(env_cfg, "video_recorders", []) or []
     if not existing:
-        # No recorders configured — create a default that writes alongside other training artifacts.
-        default_cfg = VideoRecorderCfg()
-        default_cfg.output_dir = os.path.join(log_dir, "videos", subdir)
-        env_cfg.video_recorders = [default_cfg]
+        env_cfg.video_recorders = [VideoRecorderCfg()]
 
-    # Apply only the CLI fields that were explicitly passed (non-None) to every recorder.
+    fallback_output_dir = os.path.join(log_dir, "videos", subdir)
     video_length = getattr(args_cli, "video_length", None)
     video_interval = getattr(args_cli, "video_interval", None)
     for cfg in env_cfg.video_recorders:
+        # Fill in output_dir only when the user left it unset (None = use log_dir).
+        if cfg.output_dir is None:
+            cfg.output_dir = fallback_output_dir
         if video_length is not None:
             cfg.video_length = video_length
         if video_interval is not None:
