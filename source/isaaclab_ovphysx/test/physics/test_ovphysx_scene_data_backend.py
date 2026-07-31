@@ -794,6 +794,8 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
     import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
 
     monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    # Rigid-body setup uses a SimpleNamespace stage stub; skip deformable discovery.
+    monkeypatch.setattr(om_mod, "discover_deformables_on_stage", lambda stage: [])
 
     b.setup(FakePhysX(), stage, "cpu")
 
@@ -943,6 +945,8 @@ def test_setup_continues_when_create_tensor_binding_raises(monkeypatch, caplog):
     import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
 
     monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    # Rigid-body setup uses a SimpleNamespace stage stub; skip deformable discovery.
+    monkeypatch.setattr(om_mod, "discover_deformables_on_stage", lambda stage: [])
 
     with caplog.at_level(logging.WARNING, logger=om_mod.logger.name):
         b.setup(FlakyPhysX(), stage, "cpu")
