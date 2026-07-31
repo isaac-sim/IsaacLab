@@ -839,12 +839,14 @@ jobs:
         # feed Warp's module hash), so these span specialization axes rather than
         # maximize task count: Cartpole (primitives, contact-free, + camera),
         # Drawer (mesh collision), AnymalD (contact-rich locomotion), Handover
-        # (dexterous, many contacts), Cloth (deformables), Soft (MPM). Selects 11
-        # tasks; widen if a test job reports large cache growth.
+        # (dexterous, many contacts). Deformable/MPM kernels are not covered;
+        # widen if a test job reports large cache growth.
         include-files: >-
           test_environments.py,
           test_environments_newton.py
-        test-k-expr: "Cartpole or Drawer or AnymalD or Handover or Cloth or Soft"
+        # No Soft/Cloth: the deformable envs depend on optional extras the CI
+        # image does not install (Soft needs pytetwild), so they only ever fail.
+        test-k-expr: "Cartpole or Drawer or AnymalD or Handover"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm

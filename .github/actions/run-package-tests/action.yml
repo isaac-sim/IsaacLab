@@ -417,7 +417,11 @@ runs:
         echo "🔵 Warp cache: ${before} MB restored, +${grew} MB compiled - ${verdict}" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Measure Warp kernel cache
-      if: success() && inputs.warp-cache == 'save'
+      # Not success(): the warmer's product is compiled kernels, and those stay
+      # valid when a test assertion fails. Gating on success() let one failing
+      # env in a 20-task set silently discard the whole cache. Still skipped on
+      # cancellation, to avoid publishing a tree Warp was mid-write on.
+      if: '!cancelled() && inputs.warp-cache == ''save'''
       id: warp-cache-size
       shell: bash
       env:
@@ -445,7 +449,7 @@ runs:
         fi
 
     - name: Save Warp kernel cache
-      if: success() && inputs.warp-cache == 'save' && steps.warp-cache-size.outputs.publish == 'true'
+      if: '!cancelled() && inputs.warp-cache == ''save'' && steps.warp-cache-size.outputs.publish == ''true'''
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.warp-cache-key.outputs.host-dir }}
