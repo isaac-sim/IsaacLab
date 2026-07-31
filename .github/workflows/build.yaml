@@ -107,6 +107,7 @@ jobs:
           ^environment\.yml$ :: Conda env (Docker copy)
           ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
           ^\.github/workflows/build\.yaml$ :: This workflow file
+          ^\.github/workflows/config\.yaml$ :: Shared CI config
           ^\.github/actions/ :: CI actions
           ^\.github/test-subsets/ :: CI test subset config
 
@@ -117,7 +118,7 @@ jobs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
       isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
       isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
-      ovphysx_wheelhouse_resource: ${{ steps.load.outputs.ovphysx_wheelhouse_resource }}
+      ovphysx_wheelhouse_image: ${{ steps.load.outputs.ovphysx_wheelhouse_image }}
       ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
     steps:
     - uses: actions/checkout@v6
@@ -132,7 +133,7 @@ jobs:
         echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
-        echo "ovphysx_wheelhouse_resource=$(yq -r .ovphysx_wheelhouse_resource "$f")" >> "$GITHUB_OUTPUT"
+        echo "ovphysx_wheelhouse_image=$(yq -r '.ovphysx_wheelhouse_image // ""' "$f")" >> "$GITHUB_OUTPUT"
     # NOTE: this ci_image_tag formula is intentionally duplicated in arm-ci.yml's
     # config job — the two images are independent (x86 here vs -arm64 there), so
     # they are not shared. Keep the two formulas in sync if either changes.
@@ -575,7 +576,7 @@ jobs:
       github.event_name != 'push' &&
       needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -591,7 +592,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
         extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
-        wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
+        wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         container-name: isaac-lab-ov-test
 
@@ -768,7 +769,7 @@ jobs:
         - variant: ovstage
           event_name: pull_request
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -786,7 +787,7 @@ jobs:
         extra-pip-packages: >-
           pytetwild[all]>=0.3.0,<0.4
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
-        wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
+        wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
           test_rendering_cartpole_kitless.py,
