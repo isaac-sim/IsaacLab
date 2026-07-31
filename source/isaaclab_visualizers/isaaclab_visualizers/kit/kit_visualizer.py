@@ -228,16 +228,18 @@ class KitVisualizer(BaseVisualizer):
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
         w, h = self.cfg.window_width, self.cfg.window_height
 
+        # Create the render product and annotator before the app update so the first
+        # captured frame contains real rendered output, not empty/blank data.
+        if self._rgb_annotator is None:
+            self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
+            self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
+            self._rgb_annotator.attach([self._rgb_render_product])
+
         settings = get_settings_manager()
         play_flag = settings.get("/app/player/playSimulations")
         settings.set_bool("/app/player/playSimulations", False)
         omni.kit.app.get_app().update()
         settings.set_bool("/app/player/playSimulations", bool(play_flag))
-
-        if self._rgb_annotator is None:
-            self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
-            self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
-            self._rgb_annotator.attach([self._rgb_render_product])
 
         raw = self._rgb_annotator.get_data()
         if isinstance(raw, dict):

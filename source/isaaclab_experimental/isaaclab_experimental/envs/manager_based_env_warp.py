@@ -74,6 +74,14 @@ class ManagerBasedEnvWarp:
         cfg.validate()
         # store inputs to class
         self.cfg = cfg
+        # Video recording is not supported on Warp environments.
+        if getattr(cfg, "video_recorders", None):
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning(
+                "cfg.video_recorders is set but ManagerBasedEnvWarp does not support VideoRecorder. "
+                "No clips will be written. Use ManagerBasedEnv for video recording support."
+            )
         # initialize internal variables
         self._is_closed = False
         # temporary debug runtime config for manager source/call switching.

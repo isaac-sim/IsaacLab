@@ -22,7 +22,7 @@ from isaaclab.utils.configclass import configclass
 def _viewer_cfg_field_matches_default(value, default) -> bool:
     """Return True when *value* equals *default* (element-wise for tuples/lists)."""
     if isinstance(value, (tuple, list)):
-        return type(value) is type(default) and all(a == b for a, b in zip(value, default))
+        return type(value) is type(default) and tuple(value) == tuple(default)
     return value == default
 
 
@@ -157,12 +157,14 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     try:
         from isaaclab_visualizers.kit import KitVisualizerCfg
 
+        resolution = getattr(viewer, "resolution", None)
         sim_cfg.default_visualizer_cfg = KitVisualizerCfg(
             eye=tuple(viewer.eye),
             lookat=tuple(viewer.lookat),
             origin_type=new_origin_type,
             origin_env_index=getattr(viewer, "env_index", 0),
             origin_track_path=origin_track_path,
+            **({"window_width": resolution[0], "window_height": resolution[1]} if resolution is not None else {}),
         )
     except ImportError:
         from isaaclab.visualizers import VisualizerCfg

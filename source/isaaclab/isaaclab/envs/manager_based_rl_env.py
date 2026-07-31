@@ -54,7 +54,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     is_vector_env: ClassVar[bool] = True
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
-        "render_modes": [None, "human", "rgb_array"],
+        "render_modes": [None, "human"],
         "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
     }
     """Metadata for the environment."""
@@ -312,15 +312,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
-          x-by-y pixel image, suitable for turning into a video.
+
+        .. note::
+            ``render_mode="rgb_array"`` is no longer supported.  Use
+            :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` on
+            ``env_cfg.video_recorders`` instead.
 
         Args:
             recompute: Whether to force a render even if the simulator has already rendered the scene.
                 Defaults to False.
 
         Returns:
-            The rendered image as a numpy array if mode is "rgb_array". Otherwise, returns None.
+            None.
 
         Raises:
             RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
@@ -333,7 +336,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
-        if self.render_mode == "human" or self.render_mode is None or self.render_mode == "rgb_array":
+        if self.render_mode == "rgb_array":
+            raise NotImplementedError(
+                "render_mode='rgb_array' is not supported. Use VideoRecorderCfg on env_cfg.video_recorders instead."
+            )
+        if self.render_mode == "human" or self.render_mode is None:
             return None
         else:
             raise NotImplementedError(

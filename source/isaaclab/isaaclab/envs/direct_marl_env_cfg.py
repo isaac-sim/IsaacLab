@@ -16,7 +16,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import NoiseModelCfg
 
-from .common import AgentID, SpaceType
+from .common import AgentID, SpaceType, ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
@@ -246,6 +246,18 @@ class DirectMARLEnvCfg:
 
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
+
+    viewer: ViewerCfg = ViewerCfg()
+    """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+    or :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
+
+    .. deprecated::
+        This field is deprecated and will be removed in a future release. Configure the viewport
+        camera via :class:`~isaaclab.visualizers.VisualizerCfg` on the simulation config::
+
+            from isaaclab.visualizers import VisualizerCfg
+            env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0))
+    """
 
     video_recorders: list[VideoRecorderCfg] = []
     """Video recording streams. Each entry records from its configured source independently.

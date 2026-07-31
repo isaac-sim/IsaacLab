@@ -41,10 +41,11 @@ def _parse_source(source: str) -> tuple[str, str, str]:
         ``"sensor"``, ``type_or_name`` is the visualizer type or sensor name,
         and ``sub`` is the sub-channel (e.g. ``"tiled"``).
     """
-    parts = source.strip().lower().split(":")
-    kind = parts[0] if len(parts) > 0 else ""
+    # Only lowercase the kind (parts[0]); preserve original casing for sensor names and visualizer types.
+    parts = source.strip().split(":")
+    kind = parts[0].lower() if parts else ""
     type_or_name = parts[1] if len(parts) > 1 else ""
-    sub = parts[2] if len(parts) > 2 else ""
+    sub = parts[2].lower() if len(parts) > 2 else ""
     return kind, type_or_name, sub
 
 
@@ -121,7 +122,7 @@ class VideoRecorder:
     def _check_trigger(self, effective_step: int) -> bool:
         if self.cfg.video_interval <= 0:
             return effective_step == 1
-        return effective_step % self.cfg.video_interval == 0
+        return (effective_step - 1) % self.cfg.video_interval == 0
 
     def _get_frame(self) -> np.ndarray | None:
         if self._frame_error_logged:

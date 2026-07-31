@@ -102,28 +102,30 @@ def test_trigger_one_shot_fires_once():
         _cfg(source="visualizer:kit", video_length=2, video_interval=0), _make_env(visualizers=[viz])
     )
     closed_count = [0]
-    original_close = recorder._close_clip
 
     def counting_close():
-        original_close()
+        recorder._frames = []
+        recorder._recording = False
         closed_count[0] += 1
 
-    recorder._close_clip = counting_close
-    for _ in range(8):
-        recorder.step()
+    with patch.object(recorder, "_close_clip", side_effect=counting_close):
+        for _ in range(8):
+            recorder.step()
     assert closed_count[0] == 1
 
 
 def test_trigger_recurring_fires_periodically():
-    """video_interval=3 + video_length=1 → exactly 3 clips written over 9 steps."""
+    """video_interval=3 + video_length=1 → exactly 3 clips over 9 steps, first at step 1."""
     viz = _FakeViz("kit")
     recorder = VideoRecorder(
         _cfg(source="visualizer:kit", video_length=1, video_interval=3), _make_env(visualizers=[viz])
     )
     close_count = [0]
+    trigger_steps = []
 
     def counting_close():
         close_count[0] += 1
+        trigger_steps.append(recorder._step_count)
         recorder._frames = []
         recorder._recording = False
 
@@ -131,6 +133,8 @@ def test_trigger_recurring_fires_periodically():
         for _ in range(9):
             recorder.step()
     assert close_count[0] == 3
+    # First clip should trigger at step 1 (not step 3).
+    assert trigger_steps[0] == 1, f"Expected first clip at step 1, got step {trigger_steps[0]}"
 
 
 # ---------------------------------------------------------------------------
@@ -323,3 +327,132 @@ def test_apply_deprecated_viewer_noop_when_defaults():
     env_cfg = _make_env_cfg()
     _apply_deprecated_viewer_cfg(env_cfg)
     assert env_cfg.sim.default_visualizer_cfg is None
+
+
+# ---------------------------------------------------------------------------
+# Minor 11: asset_root / asset_body origin_type migration
+# ---------------------------------------------------------------------------
+
+
+def test_apply_deprecated_viewer_asset_root_migration():
+    """origin_type='asset_root' → origin_type='asset' + origin_track_path=asset_name."""
+    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+
+    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
+    env_cfg.viewer.origin_type = "asset_root"
+    env_cfg.viewer.asset_name = "robot"
+    _apply_deprecated_viewer_cfg(env_cfg)
+    cfg = env_cfg.sim.default_visualizer_cfg
+    assert cfg is not None
+    assert getattr(cfg, "origin_type", None) == "asset"
+    assert getattr(cfg, "origin_track_path", None) == "robot"
+
+
+def test_apply_deprecated_viewer_asset_body_migration():
+    """origin_type='asset_body' → origin_type='asset' + origin_track_path='asset/body'."""
+    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+
+    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
+    env_cfg.viewer.origin_type = "asset_body"
+    env_cfg.viewer.asset_name = "robot"
+    env_cfg.viewer.body_name = "panda_hand"
+    _apply_deprecated_viewer_cfg(env_cfg)
+    cfg = env_cfg.sim.default_visualizer_cfg
+    assert cfg is not None
+    assert getattr(cfg, "origin_type", None) == "asset"
+    assert getattr(cfg, "origin_track_path", None) == "robot/panda_hand"
+
+
+# ---------------------------------------------------------------------------
+# Minor 12: conflict branch — default_visualizer_cfg already set
+# ---------------------------------------------------------------------------
+
+
+def test_apply_deprecated_viewer_skips_when_default_visualizer_cfg_already_set():
+    """If sim.default_visualizer_cfg is already set, the shim logs and returns without overwriting."""
+    from unittest.mock import MagicMock
+
+    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+
+    existing_cfg = MagicMock()
+    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
+    env_cfg.sim.default_visualizer_cfg = existing_cfg
+    _apply_deprecated_viewer_cfg(env_cfg)
+    # Must not overwrite the existing cfg.
+    assert env_cfg.sim.default_visualizer_cfg is existing_cfg
+
+
+# ---------------------------------------------------------------------------
+# Minor 13: keep_last_n_clips pruning
+# ---------------------------------------------------------------------------
+
+
+def test_keep_last_n_clips_prunes_old_clips():
+    """keep_last_n_clips=2 removes the oldest clip once a third is written."""
+
+    recorder = VideoRecorder(
+        _cfg(output_dir="/tmp/test_prune", keep_last_n_clips=2),
+        _make_env(),
+    )
+    removed = []
+
+    def fake_remove(path):
+        removed.append(path)
+
+    mock_clip = MagicMock()
+    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", return_value=mock_clip):
+        with patch("isaaclab.envs.utils.video_recorder.os.makedirs"):
+            with patch("isaaclab.envs.utils.video_recorder.os.remove", side_effect=fake_remove):
+                for i in range(3):
+                    recorder._frames = [_FRAME.copy()]
+                    recorder._recording = True
+                    recorder._close_clip()
+
+    # After 3 clips with keep_last_n_clips=2, clip index 0 should be removed.
+    assert any("_0000.mp4" in p for p in removed), f"Expected clip 0 to be removed, got: {removed}"
+
+
+# ---------------------------------------------------------------------------
+# Minor 14: partial-clip close() flush
+# ---------------------------------------------------------------------------
+
+
+def test_close_flushes_partial_clip():
+    """close() with non-empty _frames and _recording=True flushes the clip."""
+    recorder = VideoRecorder(_cfg(output_dir="/tmp/test_partial", fps=10), _make_env())
+    recorder._frames = [_FRAME.copy()]
+    recorder._recording = True
+
+    mock_clip = MagicMock()
+    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", return_value=mock_clip):
+        with patch("isaaclab.envs.utils.video_recorder.os.makedirs"):
+            recorder.close()
+
+    mock_clip.write_videofile.assert_called_once()
+    assert not recorder._recording
+    assert recorder._frames == []
+
+
+# ---------------------------------------------------------------------------
+# Minor 15: one-shot trigger uses mock _close_clip (no disk I/O)
+# ---------------------------------------------------------------------------
+
+
+def test_trigger_one_shot_fires_once_no_disk_io():
+    """video_interval=0 → single clip starts at step 1; _close_clip called exactly once (mocked)."""
+    viz = _FakeViz("kit")
+    recorder = VideoRecorder(
+        _cfg(source="visualizer:kit", video_length=2, video_interval=0), _make_env(visualizers=[viz])
+    )
+    close_count = [0]
+
+    def counting_close():
+        recorder._frames = []
+        recorder._recording = False
+        close_count[0] += 1
+
+    with patch.object(recorder, "_close_clip", side_effect=counting_close):
+        for _ in range(8):
+            recorder.step()
+
+    assert close_count[0] == 1
