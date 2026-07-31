@@ -43,23 +43,43 @@ class ExportFlowBackend:
         return (f"{self.rl_library}_cfg_entry_point",)
 
 
-# These representative tasks all support Newton MJWarp so the export flow uses
-# one physics backend consistently without requiring optional runtime wheels.
+# Representative RSL-RL tasks chosen for export-path diversity, not coverage
+# breadth. Prefer one example of each distinct observation / command / action
+# pattern over near-duplicates of the same pattern.
+#
+# Default physics pin is Newton MJWarp. Tasks listed in ``_TASKS_WITHOUT_PRESET``
+# declare no ``newton_mjwarp`` selector and run with the task's built-in default.
 _EXPORT_BACKENDS = (
     ExportFlowBackend(
         rl_library="rsl_rl",
         export_script=_LEAPP_ROOT / "rsl_rl" / "export.py",
         tasks=(
+            # joint-effort locomotion, no commands
             "Isaac-Cartpole",
+            "Isaac-Humanoid",
+            # pose command + joint-position arm
             "Isaac-Reach-Franka",
             "Isaac-Reach-UR10",
-            "Isaac-Lift-KukaAllegro",
+            # OperationalSpaceController is not exportable: the action term and the
+            # controller build their buffers with partial-slice assignment, which
+            # either emits a raw __setitem__ node that torch.export rejects or drops
+            # tracing into a plain buffer. Expect failure until both are functional.
+            # "Isaac-Reach-Franka-OSC",
+            # binary gripper + cabinet articulation
             "Isaac-Open-Drawer-Franka",
+            # classic lift: object_position_in_robot_root_frame + quat math
+            "Isaac-Lift-Cube-Franka",
+            # history buffers + Object-cloud / contact observations
+            "Isaac-Lift-KukaAllegro",
             "Isaac-Reorient-Franka",
+            # EMAJointPositionToLimitsAction is not exportable: it blends the new
+            # target with ``_prev_applied_actions``, a plain buffer carried across
+            # steps that the tracer inlines as a constant, freezing the recurrence
+            # at its trace-time value. Expect failure until it is LEAPP state.
+            # "Isaac-Reorient-Cube-Allegro",
+            # velocity command + projected_gravity; rough adds height_scan
             "Isaac-Velocity-Flat-AnymalD",
             "Isaac-Velocity-Rough-AnymalD",
-            "Isaac-Humanoid",
-            "Isaac-Ant",
         ),
     ),
     ExportFlowBackend(
@@ -79,11 +99,12 @@ _EXPORT_BACKENDS = (
     ),
 )
 
-# Selected as the untyped ``presets=`` form rather than the typed ``physics=``
-# form: tasks vary in where they declare the preset, and only some declare it on
-# a ``PhysicsCfg`` (which is what ``physics=`` requires). Tasks that swap a whole
-# ``SimulationCfg`` instead are only reachable through ``presets=``.
+# Untyped ``presets=`` form: tasks vary in where they declare the preset, and only
+# some declare it on a ``PhysicsCfg`` (which is what ``physics=`` requires).
 _SIM_PRESET = "newton_mjwarp"
+
+# These tasks reject any preset token; export uses their authored default backend.
+_TASKS_WITHOUT_PRESET = frozenset({"Isaac-Lift-Cube-Franka"})
 
 
 def _ensure_text(output: str | bytes | None) -> str:
@@ -156,6 +177,13 @@ def _checkpoint_specs() -> list[tuple[str, str]]:
     return specs
 
 
+def _preset_for_task(task_name: str) -> str | None:
+    """Return the Hydra preset token for *task_name*, or ``None`` if none apply."""
+    if task_name in _TASKS_WITHOUT_PRESET:
+        return None
+    return _SIM_PRESET
+
+
 def _read_checkpoint_path(checkpoint_root: Path, backend_id: str, task_name: str) -> Path:
     """Load the recorded checkpoint path for one backend/task pair."""
     task_dir = task_checkpoint_dir(checkpoint_root, backend_id, task_name)
@@ -168,21 +196,21 @@ def _read_checkpoint_path(checkpoint_root: Path, backend_id: str, task_name: str
 
 def _run_export(backend: ExportFlowBackend, task_name: str, checkpoint_path: Path, export_root: Path) -> None:
     """Run the backend export.py CLI against *checkpoint_path*."""
-    _run_checked(
-        [
-            sys.executable,
-            str(backend.export_script),
-            "--task",
-            task_name,
-            "--checkpoint",
-            str(checkpoint_path),
-            "--export_save_path",
-            str(export_root),
-            "--disable_graph_visualization",
-            f"presets={_SIM_PRESET}",
-        ],
-        label=f"export.py for {backend.rl_library}/{task_name}",
-    )
+    command = [
+        sys.executable,
+        str(backend.export_script),
+        "--task",
+        task_name,
+        "--checkpoint",
+        str(checkpoint_path),
+        "--export_save_path",
+        str(export_root),
+        "--disable_graph_visualization",
+    ]
+    preset = _preset_for_task(task_name)
+    if preset is not None:
+        command.append(f"presets={preset}")
+    _run_checked(command, label=f"export.py for {backend.rl_library}/{task_name}")
 
 
 def _assert_leapp_artifacts(export_root: Path, task_name: str) -> None:
@@ -206,7 +234,12 @@ def initialized_checkpoints(tmp_path_factory: pytest.TempPathFactory) -> Path:
         _SIM_PRESET,
     ]
     for backend_id, task_name in _checkpoint_specs():
-        command.extend(("--spec", backend_id, task_name))
+        preset = _preset_for_task(task_name)
+        if preset is None:
+            # ``_`` clears the default ``--preset`` for this spec.
+            command.extend(("--spec", backend_id, task_name, "_"))
+        else:
+            command.extend(("--spec", backend_id, task_name))
     _run_checked(
         command,
         label="batched initialized checkpoint creation",

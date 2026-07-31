@@ -290,15 +290,16 @@ def task_checkpoint_dir(checkpoint_root: Path, backend_id: str, task_name: str) 
 def main(argv: Sequence[str] | None = None) -> None:
     """CLI entrypoint: create initialized checkpoints in one Kit process.
 
-    Accepts one or more ``--spec BACKEND TASK`` pairs and writes each checkpoint
-    under ``checkpoint_root/BACKEND/TASK/``. The recorded path lives in
-    :func:`resolved_path_file` for that directory.
+    Accepts one or more ``--spec BACKEND TASK [PRESET]`` entries and writes each
+    checkpoint under ``checkpoint_root/BACKEND/TASK/``. When a per-spec preset is
+    omitted, ``--preset`` is used if provided; otherwise no Hydra preset token is
+    applied.
 
     Usage:
         python leapp_initialized_checkpoints.py --checkpoint_root /tmp/ckpt \\
             --preset newton_mjwarp \\
             --spec rsl_rl Isaac-Cartpole \\
-            --spec rl_games Isaac-Cartpole
+            --spec rsl_rl Isaac-Lift-Cube-Franka _
     """
     import argparse
     import os
@@ -309,24 +310,37 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Create initialized checkpoints for LEAPP export tests.")
     parser.add_argument(
         "--spec",
-        nargs=2,
+        nargs="+",
         action="append",
-        metavar=("BACKEND", "TASK"),
+        metavar="BACKEND_TASK_PRESET",
         required=True,
-        help="Backend/task pair to initialize. Repeat for multiple checkpoints in one Kit process.",
+        help="Backend/task pair, optionally with a preset override: BACKEND TASK [PRESET]. "
+        "Use PRESET=_ to force no preset even when --preset is set. Repeat for multiple "
+        "checkpoints in one Kit process.",
     )
     parser.add_argument("--checkpoint_root", required=True, type=Path)
-    parser.add_argument("--preset", required=True, help="Hydra preset used to initialize the checkpoints.")
+    parser.add_argument(
+        "--preset",
+        default=None,
+        help="Default Hydra preset for specs that do not override it.",
+    )
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--algorithm", type=str, default="ppo", help="skrl algorithm name.")
     args = parser.parse_args(argv)
 
     backend_choices = ("rsl_rl", "rl_games", "skrl", "sb3")
-    specs: list[tuple[str, str]] = []
-    for backend_id, task_name in args.spec:
+    specs: list[tuple[str, str, str | None]] = []
+    for raw_spec in args.spec:
+        if len(raw_spec) not in (2, 3):
+            raise SystemExit(f"Each --spec must be 'BACKEND TASK' or 'BACKEND TASK PRESET', got: {raw_spec}")
+        backend_id, task_name = raw_spec[0], raw_spec[1]
         if backend_id not in backend_choices:
             raise SystemExit(f"Unsupported backend '{backend_id}'. Choose from {backend_choices}.")
-        specs.append((backend_id, task_name))
+        if len(raw_spec) == 3:
+            preset = None if raw_spec[2] in ("_", "") else raw_spec[2]
+        else:
+            preset = args.preset
+        specs.append((backend_id, task_name, preset))
 
     from isaaclab.app import AppLauncher
 
@@ -344,10 +358,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     failures: list[str] = []
     original_argv = sys.argv
     try:
-        for backend_id, task_name in specs:
+        for backend_id, task_name, preset in specs:
             task_dir = task_checkpoint_dir(args.checkpoint_root, backend_id, task_name)
             task_dir.mkdir(parents=True, exist_ok=True)
-            sys.argv = [sys.argv[0], f"presets={args.preset}"]
+            sys.argv = [sys.argv[0], f"presets={preset}"] if preset else [sys.argv[0]]
             try:
                 env_cfg, agent_cfg = resolve_task_config(task_name, _agent_cfg_entry_point(backend_id))
                 checkpoint_path = create_initialized_checkpoint(
