@@ -48,10 +48,10 @@ def __getattr__(name):
 class PhysicsMaterialCfg:
     """Configuration parameters for creating a physics material.
 
-    Physics material are PhysX schemas that can be applied to a USD material prim to define the
-    physical properties related to the material. For example, the friction coefficient, restitution
-    coefficient, etc. For more information on physics material, please refer to the
-    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxBaseMaterial.html>`__.
+    Physics materials are USD schemas applied to a material prim to define the physical properties
+    related to the material. For example, the friction coefficient, restitution coefficient, etc.
+    Subclasses author the schema of a specific backend, such as the standard ``UsdPhysics``
+    attributes, the AOUSD deformable schemas, or the PhysX extensions.
     """
 
     func: Callable = MISSING

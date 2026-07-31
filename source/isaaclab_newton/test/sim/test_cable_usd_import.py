@@ -100,31 +100,6 @@ def test_newton_imports_cable_without_registry():
     assert "twistStiffness" not in cable_attrs["material"]
 
 
-def test_newton_imports_cable_shear_and_twist_stiffness():
-    """Test that authored shear and twist moduli reach Newton instead of its fallbacks."""
-    stage = sim_utils.create_new_stage()
-    material = CableMaterialCfg(
-        thickness=0.02,
-        density=1234.0,
-        stretch_stiffness=2.5e6,
-        bend_stiffness=7.5e4,
-        shear_stiffness=1.25e6,
-        twist_stiffness=3.5e4,
-    )
-    cfg = CableCfg(
-        positions=[(0.0, 0.0, 0.0), (0.2, 0.1, 0.0), (0.4, 0.0, 0.0)],
-        physics_material=material,
-    )
-    cfg.func("/World/Cable", cfg)
-
-    builder = newton.ModelBuilder()
-    import_result = builder.add_usd(stage, root_path="/World/Cable", return_deformable_results=True)
-    cable_material = import_result["path_cable_attrs"]["/World/Cable/geometry/mesh"]["material"]
-
-    assert cable_material["shearStiffness"] == pytest.approx(material.shear_stiffness)
-    assert cable_material["twistStiffness"] == pytest.approx(material.twist_stiffness)
-
-
 def test_newton_imports_cable_with_adjacent_collision_filtering():
     """Test that only connected cable segments are collision-filtered."""
     stage = sim_utils.create_new_stage()

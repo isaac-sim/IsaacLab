@@ -224,7 +224,7 @@ def spawn_deformable_body_material(
         cfg: The configuration for the physics material.
 
     Returns:
-        The spawned deformable body material prim.
+        The spawned deformable material prim.
 
     Raises:
         ValueError: When a prim already exists at the specified prim path and is not a material.
