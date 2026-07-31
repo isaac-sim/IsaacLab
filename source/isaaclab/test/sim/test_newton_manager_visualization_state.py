@@ -35,7 +35,6 @@ def _reset_newton_manager_state():
     NewtonManager._scene_data_mapping = None
     NewtonManager._scene_data_points = None
     NewtonManager._scene_data_geometry_mapping = None
-    NewtonManager._scene_data_geometry_mapping_ready = False
     NewtonManager._shadow_deformable_entities = None
     NewtonManager._sim_particle_q = None
     NewtonManager._mapped_sim_particle_offsets = None
