@@ -9,8 +9,10 @@ from __future__ import annotations
 
 from isaaclab.scene_data.deformable_discovery import (
     DeformableStageEntry,
+    build_deformable_root_path_lookup,
     build_deformable_vertex_count_lookup,
     group_deformable_root_paths_for_views,
+    resolve_deformable_root_path,
     resolve_deformable_vertex_count,
     sort_deformable_entries_for_geometry_sync,
 )
@@ -58,6 +60,49 @@ def test_resolve_deformable_vertex_count_matches_env_relative_suffix():
             fallback=128,
         )
         == 30
+    )
+
+
+def test_build_deformable_root_path_lookup_indexes_root_and_meshes():
+    entries = [
+        DeformableStageEntry(
+            root_path="/World/envs/env_0/Deformable",
+            sim_mesh_path="/World/envs/env_0/Deformable/geometry/mesh",
+            vis_mesh_path="/World/envs/env_0/Deformable/geometry/vis_mesh",
+            deformable_type="volume",
+            vertex_count=69,
+            vis_vertex_count=72,
+        )
+    ]
+    lookup = build_deformable_root_path_lookup(entries)
+    assert lookup["/World/envs/env_0/Deformable"] == "/World/envs/env_0/Deformable"
+    assert lookup["/World/envs/env_0/Deformable/geometry/mesh"] == "/World/envs/env_0/Deformable"
+    assert lookup["/World/envs/env_0/Deformable/geometry/vis_mesh"] == "/World/envs/env_0/Deformable"
+
+
+def test_resolve_deformable_root_path_walks_ancestors():
+    lookup = {
+        "/World/envs/env_0/Deformable": "/World/envs/env_0/Deformable",
+        "/World/envs/env_0/Deformable/geometry/mesh": "/World/envs/env_0/Deformable",
+    }
+    assert (
+        resolve_deformable_root_path(
+            "/World/envs/env_0/Deformable/geometry/mesh/points",
+            lookup,
+        )
+        == "/World/envs/env_0/Deformable"
+    )
+    assert resolve_deformable_root_path("/World/other", lookup) == "/World/other"
+
+
+def test_resolve_deformable_root_path_rewrites_env_relative_suffix():
+    lookup = {"/World/envs/env_0/Deformable": "/World/envs/env_0/Deformable"}
+    assert (
+        resolve_deformable_root_path(
+            "/World/envs/env_2/Deformable/geometry/mesh",
+            lookup,
+        )
+        == "/World/envs/env_2/Deformable"
     )
 
 

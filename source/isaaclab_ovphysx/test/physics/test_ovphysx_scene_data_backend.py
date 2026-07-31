@@ -1033,7 +1033,11 @@ def test_setup_deformable_bindings_passes_surface_tensor_types(monkeypatch):
     class _FakeView:
         count = 2
         max_simulation_nodes_per_body = 4
-        prim_paths = ["/World/envs/env_0/Deformable", "/World/envs/env_1/Deformable"]
+        # Views may report a child mesh; SceneData must publish discovered roots.
+        prim_paths = [
+            "/World/envs/env_0/Deformable/sim_mesh",
+            "/World/envs/env_1/Deformable/sim_mesh",
+        ]
 
         def __init__(self, physx, **kwargs):
             captured.update(kwargs)
