@@ -39,6 +39,9 @@ def _reset_newton_manager_state():
     NewtonManager._sim_particle_q = None
     NewtonManager._mapped_sim_particle_offsets = None
     NewtonManager._shadow_deformable_sync_skip_warned = set()
+    NewtonManager._shadow_deformable_remap_batches = None
+    NewtonManager._shadow_deformable_copy_batch = None
+    NewtonManager._shadow_deformable_batch_sync_key = None
 
 
 def _make_env_stage(num_envs: int = 1):
@@ -844,6 +847,57 @@ def test_shadow_deformable_volume_remap_registers_ovrtx_with_vis_mesh(monkeypatc
     assert registry_groups[0].particles_per_body == 1
 
 
+def test_shadow_deformable_volume_remap_shared_across_env_clones():
+    """Replicated volume clones must reuse one template barycentric remap table."""
+    from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
+
+    from pxr import Gf, Sdf, Usd, UsdGeom
+
+    def _add_api_schemas(prim, schemas):
+        api_schemas = Sdf.TokenListOp()
+        api_schemas.explicitItems = schemas
+        prim.SetMetadata("apiSchemas", api_schemas)
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_1")
+
+    for env_id in (0, 1):
+        root = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Soft").GetPrim()
+        _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
+        tet = UsdGeom.TetMesh.Define(stage, f"/World/envs/env_{env_id}/Soft/simulation")
+        _add_api_schemas(tet.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
+        points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
+        tet.CreatePointsAttr(points)
+        tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
+        vis = UsdGeom.Mesh.Define(stage, f"/World/envs/env_{env_id}/Soft/visual")
+        vis.CreatePointsAttr([Gf.Vec3f(0.25, 0.25, 0.25)])
+        vis.CreateFaceVertexCountsAttr([3])
+        vis.CreateFaceVertexIndicesAttr([0, 0, 0])
+
+    class _FakeBuilder:
+        particle_count = 0
+
+        def add_cloth_mesh(self, **kwargs):
+            self.particle_count += 1
+
+        def add_soft_mesh(self, **kwargs):
+            self.particle_count += 4
+
+    builder = _FakeBuilder()
+    flat_entities, registry_groups = add_shadow_deformables_to_builder(
+        builder,
+        stage,
+        [(0, "/World/envs/env_0"), (1, "/World/envs/env_1")],
+    )
+
+    remaps = [entity.volume_vis_remap for entity in flat_entities]
+    assert all(remap is not None for remap in remaps)
+    assert remaps[0] is remaps[1]
+    assert len(registry_groups) == 1
+    assert registry_groups[0].register_usd_vis_point_bindings is True
+
+
 def test_shadow_deformable_volume_remap_failure_falls_back_to_soft_mesh(monkeypatch):
     """Failed volume remap must allocate sim tet slots, not mismatched vis cloth slots."""
     from isaaclab_newton.physics import visualization_deformables as vd
@@ -1169,3 +1223,23 @@ def test_shadow_deformable_entity_order_matches_scene_data_geometry_order():
     expected_geometry_paths = [entry.root_path for entry in sort_deformable_entries_for_geometry_sync(entries)]
     assert [entity.root_path for entity in flat_entities] == expected_geometry_paths
     assert len(flat_entities) == 3
+
+
+def test_deformable_ignore_paths_accepts_pre_discovered_entries():
+    """Ignore-path collection can reuse supplied entries without another stage walk."""
+    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
+    from isaaclab_newton.physics.visualization_builder import _deformable_ignore_paths
+
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    entry = DeformableStageEntry(
+        root_path="/World/envs/env_0/Cloth",
+        sim_mesh_path="/World/envs/env_0/Cloth",
+        vis_mesh_path="/World/envs/env_0/Cloth",
+        deformable_type="surface",
+        vertex_count=3,
+        vis_vertex_count=3,
+    )
+    paths = _deformable_ignore_paths(stage, entries=[entry])
+    assert paths == [entry.root_path]

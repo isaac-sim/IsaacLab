@@ -7,9 +7,18 @@
 
 from __future__ import annotations
 
+import pytest
 from pxr import Gf, Sdf, Usd, UsdGeom
 
-from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
+from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage, invalidate_deformable_discovery_cache
+
+
+@pytest.fixture(autouse=True)
+def _clear_deformable_discovery_cache():
+    """Prevent discovery cache bleed between in-memory USD stage tests."""
+    invalidate_deformable_discovery_cache()
+    yield
+    invalidate_deformable_discovery_cache()
 
 
 def _add_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
@@ -159,4 +168,23 @@ def test_discover_volume_marks_sim_vis_count_mismatch():
     assert entry.vertex_count == 4
     assert entry.vis_vertex_count == 1
     assert len(entry.vis_vertices) == 1
-    assert entry.vis_indices
+    assert entry.vis_indices.size > 0
+
+
+def test_discover_deformables_on_stage_uses_cache():
+    """Repeated discovery on the same stage object should reuse cached entries."""
+    from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage, invalidate_deformable_discovery_cache
+
+    invalidate_deformable_discovery_cache()
+    stage = Usd.Stage.CreateInMemory()
+    root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
+    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
+    tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/SoftBody/simulation")
+    _add_api_schemas(tet.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
+    points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
+    tet.CreatePointsAttr(points)
+    tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
+
+    first = discover_deformables_on_stage(stage)
+    second = discover_deformables_on_stage(stage)
+    assert first is second

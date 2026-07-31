@@ -302,36 +302,15 @@ class SceneDataProvider:
             wp.copy(output.points, input_points.points)
             return True
 
-        mapping_host = mapping.numpy() if mapping is not None else None
-        dest_size = int(output.points.shape[0])
-        src_size = int(input_points.points.shape[0])
-        src_offset = 0
-        for entity_id, count in enumerate(entity_counts):
-            count = int(count)
-            dest_offset = src_offset if mapping_host is None else int(mapping_host[entity_id])
-            if dest_offset >= 0 and count > 0:
-                copy_count = min(count, dest_size - dest_offset, src_size - src_offset)
-                if copy_count < count:
-                    logger.warning(
-                        "Clamping geometry point copy for entity %d from %d to %d "
-                        "(dest_offset=%d dest_size=%d src_offset=%d src_size=%d).",
-                        entity_id,
-                        count,
-                        max(copy_count, 0),
-                        dest_offset,
-                        dest_size,
-                        src_offset,
-                        src_size,
-                    )
-                if copy_count > 0:
-                    wp.copy(
-                        output.points,
-                        input_points.points,
-                        dest_offset=dest_offset,
-                        src_offset=src_offset,
-                        count=copy_count,
-                    )
-            src_offset += count
+        from isaaclab.scene_data.geometry_points import scatter_geometry_points
+
+        scatter_geometry_points(
+            input_points.points,
+            output.points,
+            entity_counts,
+            mapping,
+            device=str(output.points.device),
+        )
         return True
 
     @property
