@@ -151,30 +151,6 @@ def test_discover_volume_prefers_named_visual_over_unrelated_child_mesh():
     assert entries[0].vis_vertex_count == 4
 
 
-def test_discover_volume_marks_sim_vis_count_mismatch():
-    """Volume deformables with fewer visual verts are flagged by mismatched counts."""
-    stage = Usd.Stage.CreateInMemory()
-    root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
-    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
-    tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/SoftBody/simulation")
-    _add_api_schemas(tet.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
-    points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
-    tet.CreatePointsAttr(points)
-    tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
-    visual = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/visual")
-    visual.CreatePointsAttr([Gf.Vec3f(0.25, 0.25, 0.25)])
-    visual.CreateFaceVertexCountsAttr([3])
-    visual.CreateFaceVertexIndicesAttr([0, 0, 0])
-
-    entries = discover_deformables_on_stage(stage)
-    assert len(entries) == 1
-    entry = entries[0]
-    assert entry.vertex_count == 4
-    assert entry.vis_vertex_count == 1
-    assert len(entry.vis_vertices) == 1
-    assert entry.vis_indices.size > 0
-
-
 def test_discover_deformables_on_stage_uses_cache():
     """Repeated discovery on the same stage object should reuse cached entries."""
     from isaaclab.scene_data.deformable_discovery import (

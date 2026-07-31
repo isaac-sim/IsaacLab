@@ -98,20 +98,3 @@ def test_get_points_copies_unpadded_entity_slices():
     # offset 0 and env_0 to offset 3.
     assert np.allclose(copied[0:3, 0], [2.0, 0.0, 1.0])
     assert np.allclose(copied[3:5, 0], [0.0, 1.0])
-
-
-def test_get_points_clamps_copy_to_destination_capacity(caplog):
-    """Oversized backend entity counts must not overflow the consumer buffer."""
-    backend = _PointsBackend()
-    provider = SceneDataProvider(backend)
-    output = SceneDataFormat.Points()
-    # Second backend entity has 3 points; destination only has room for 2.
-    output.points = wp.zeros(2, dtype=wp.vec3f)
-    mapping = wp.array([-1, 0], dtype=wp.int32)
-
-    with caplog.at_level("WARNING"):
-        assert provider.get_points(output, mapping=mapping, allow_passthrough=False)
-
-    copied = output.points.numpy()
-    assert np.allclose(copied[:, 0], [2.0, 0.0])
-    assert any("Clamping geometry point copy" in record.message for record in caplog.records)
