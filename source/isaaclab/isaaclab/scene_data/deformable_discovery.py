@@ -60,12 +60,17 @@ def _matrix4d_to_numpy(matrix: Gf.Matrix4d) -> np.ndarray:
 
 
 def _transform_points(matrix: np.ndarray, points: np.ndarray) -> np.ndarray:
-    """Apply a ``(4, 4)`` transform to ``(N, 3)`` points [m], returning float32."""
+    """Apply a USD ``(4, 4)`` transform to ``(N, 3)`` points [m], returning float32.
+
+    USD ``Gf.Matrix4d.Transform`` uses row-vector convention (``p @ M``). The numpy
+    matrix from :func:`_matrix4d_to_numpy` stores ``matrix[i, j] = usd[i][j]``, so the
+    matching host multiply is ``hom @ matrix``, not ``matrix @ hom``.
+    """
     if points.size == 0:
         return np.empty((0, 3), dtype=np.float32)
     ones = np.ones((points.shape[0], 1), dtype=np.float64)
     hom = np.concatenate([points.astype(np.float64, copy=False), ones], axis=1)
-    baked = (matrix @ hom.T).T[:, :3]
+    baked = (hom @ matrix)[:, :3]
     return baked.astype(np.float32, copy=False)
 
 

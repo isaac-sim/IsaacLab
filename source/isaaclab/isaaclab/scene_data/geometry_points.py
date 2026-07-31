@@ -7,8 +7,12 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import warp as wp
+
+logger = logging.getLogger(__name__)
 
 
 @wp.kernel
@@ -77,9 +81,47 @@ def scatter_geometry_points(
     if mapping is None:
         dest_offsets = src_offsets.copy()
     else:
-        dest_offsets = mapping.numpy().astype(np.int32, copy=False)
+        dest_offsets = mapping.numpy().astype(np.int32, copy=True)
 
-    counts = np.asarray(entity_counts, dtype=np.int32)
+    # Clamp per-entity copies so oversized backend counts cannot overflow ``dst``/``src``
+    # or bleed into the next mapped destination slot (shadow sim layouts may use a smaller
+    # per-entity stride than the backend when USD discovery and PhysX nodal counts diverge).
+    dest_size = int(dst.shape[0])
+    src_size = int(src.shape[0])
+    positive_dests = sorted(int(offset) for offset in dest_offsets if int(offset) >= 0)
+    counts = np.zeros(num_entities, dtype=np.int32)
+    for entity_id, count in enumerate(entity_counts):
+        count = int(count)
+        dest_offset = int(dest_offsets[entity_id])
+        src_offset = int(src_offsets[entity_id])
+        if dest_offset < 0 or count <= 0:
+            counts[entity_id] = 0
+            continue
+        # Space until the next destination slot (or end of buffer), not merely dest_size.
+        next_dest = dest_size
+        for offset in positive_dests:
+            if offset > dest_offset:
+                next_dest = offset
+                break
+        dest_slot = max(0, next_dest - dest_offset)
+        copy_count = min(count, dest_slot, dest_size - dest_offset, src_size - src_offset)
+        if copy_count < 0:
+            copy_count = 0
+        if copy_count < count:
+            logger.warning(
+                "Clamping geometry point copy for entity %d from %d to %d "
+                "(dest_offset=%d dest_slot=%d dest_size=%d src_offset=%d src_size=%d).",
+                entity_id,
+                count,
+                copy_count,
+                dest_offset,
+                dest_slot,
+                dest_size,
+                src_offset,
+                src_size,
+            )
+        counts[entity_id] = int(copy_count)
+
     wp.launch(
         scatter_geometry_points_kernel,
         dim=num_entities,

@@ -7,11 +7,14 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab.scene_data.deformable_discovery import (
+    _matrix4d_to_numpy,
+    _transform_points,
     discover_deformables_on_stage,
     invalidate_deformable_discovery_cache,
 )
@@ -29,6 +32,28 @@ def _add_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
     api_schemas = Sdf.TokenListOp()
     api_schemas.explicitItems = schemas
     prim.SetMetadata("apiSchemas", api_schemas)
+
+
+def test_transform_points_matches_usd_matrix4d_transform():
+    """Numpy baking must use USD row-vector convention (``p @ M``)."""
+    matrix = Gf.Matrix4d(1.0)
+    matrix.SetRotate(Gf.Rotation(Gf.Vec3d(0.0, 1.0, 0.0), 30.0))
+    matrix.SetTranslateOnly(Gf.Vec3d(0.5, -0.1, 0.25))
+    points = np.array(
+        [
+            [0.15, -0.025, 0.025],
+            [-0.15, 0.025, -0.025],
+            [0.0, 0.0, 0.1],
+        ],
+        dtype=np.float32,
+    )
+
+    baked = _transform_points(_matrix4d_to_numpy(matrix), points)
+    expected = np.array(
+        [list(matrix.Transform(Gf.Vec3d(float(p[0]), float(p[1]), float(p[2])))) for p in points],
+        dtype=np.float32,
+    )
+    assert np.allclose(baked, expected, atol=1e-6)
 
 
 def test_discover_volume_tet_mesh_deformable():
