@@ -13,7 +13,7 @@ owners:
 
 Read the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst) first. This skill follows that page in the same order and targets Newton with MJWarp, not Newton solvers generally. Use the sim-to-sim skill only after the asset and task run in both backends.
 
-For authoring or importing 1D cable / rod assets (Newton + VBD only), see the cable-assets section in [Reference](reference.md); cables are authored as deformable `UsdGeom.BasisCurves`, not converted from a PhysX rigid asset.
+1D cable / rod assets are out of scope here: they are authored fresh as Newton deformables (Newton + VBD only), not converted from a PhysX rigid asset. See the [Using Cables guide](../../../docs/source/overview/core-concepts/physical-backends/newton/using-cables.rst).
 
 ## Workflow
 

@@ -114,9 +114,6 @@ convergence work only after the model, reset, controller, contact path, and capa
 
 ## Cable Assets
 
-Cables are authored fresh as Newton deformables, not converted from a PhysX rigid asset. They are Newton + VBD only.
-
-- Author with `CableCfg` + `CableMaterialCfg` (`spawn_cable`), or load an external USD via `UsdFileCfg`.
-- For Newton to import a curve as a cable, its `UsdGeom.BasisCurves` prim must be open, linear, nonperiodic, carry the `PhysicsCurvesDeformableSimAPI` applied schema, and bind a deformable-curve material (`PhysicsCurvesDeformableMaterialAPI`) with `thickness`, `density`, `stretchStiffness`, and `bendStiffness` in the `physics:` namespace. A bare exported curve without these imports as static geometry.
-- `thickness` is the full diameter; `stretch_stiffness` / `bend_stiffness` are elastic moduli in Pa. Shear and twist stiffness are not expressed by the rod. Collision is opt-in via `collision_props`, with adjacent-segment-only filtering.
-- See the [Using Cables guide](../../../docs/source/overview/core-concepts/physical-backends/newton/using-cables.rst).
+- Cables are authored fresh as Newton deformables (`CableCfg` + `CableMaterialCfg`, or an external USD via `UsdFileCfg`), not converted from a PhysX rigid asset, so nothing in this migration reference applies to them.
+- They are Newton + VBD only.
+- For the authoring contract, material fields, and collision behavior, see the [Using Cables guide](../../../docs/source/overview/core-concepts/physical-backends/newton/using-cables.rst).
