@@ -19,6 +19,8 @@ __all__ = [
     "joint_pd_command_l2",
     "joint_pos_tracking_exp",
     "root_orientation_exp",
+    "survival_success_rate",
+    "walk_success_rate",
 ]
 
 from .observations import gait_phase, joint_position_setpoints
@@ -34,5 +36,7 @@ from .rewards import (
     joint_pd_command_l2,
     joint_pos_tracking_exp,
     root_orientation_exp,
+    survival_success_rate,
+    walk_success_rate,
 )
 from isaaclab.envs.mdp import *

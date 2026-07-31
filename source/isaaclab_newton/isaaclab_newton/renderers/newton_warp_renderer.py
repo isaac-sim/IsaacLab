@@ -59,7 +59,7 @@ class RenderData:
     # separately in :meth:`set_outputs` rather than through this map, because Newton emits a single
     # ray-hit-distance buffer that must be reused as the source for the planar-depth conversion.
     #
-    # The segmentation family (``semantic_segmentation`` / ``instance_segmentation_fast``) is likewise
+    # The segmentation family (``semantic_segmentation`` / ``instance_segmentation``) is likewise
     # handled separately: Newton emits a single per-shape index buffer that is remapped into each
     # requested segmentation output by
     # :class:`~isaaclab_newton.renderers.segmentation.NewtonSegmentationMapper`.
@@ -134,6 +134,17 @@ class RenderData:
         clipping_range = getattr(spawn, "clipping_range", None)
         self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
         self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
+
+        # ABGR clear color packed as uint32 — Newton's SensorTiledCamera reads the low byte as R,
+        # next as G, next as B, high byte as A (little-endian RGBA in memory). Default is 93% gray
+        # (0xFFEEEEEE), matching the RTX renderer background and improving visibility of dark objects.
+        background_color = getattr(spec.cfg, "background_color", None)
+        if background_color is not None:
+            r, g, b = (max(0, min(255, round(c * 255))) for c in background_color)
+            self.clear_color: int = (0xFF << 24) | (b << 16) | (g << 8) | r
+        else:
+            self.clear_color = 0xFFEEEEEE
+
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -187,7 +198,7 @@ class RenderData:
             # :meth:`_convert_segmentation`.
             if output_name == RenderBufferKind.SEMANTIC_SEGMENTATION:
                 colorize = bool(self._renderer_cfg.colorize_semantic_segmentation)
-            elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION_FAST:
+            elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION:
                 colorize = bool(self._renderer_cfg.colorize_instance_segmentation)
             else:
                 colorize = None
@@ -271,7 +282,7 @@ class RenderData:
         """Remap Newton's shape-index buffer into each requested segmentation output.
 
         Newton emits a single per-pixel shape index (:attr:`CameraOutputs.shape_index_image`);
-        ``semantic_segmentation`` / ``instance_segmentation_fast`` are each derived from it by a
+        ``semantic_segmentation`` / ``instance_segmentation`` are each derived from it by a
         :class:`~isaaclab_newton.renderers.segmentation.NewtonSegmentationMapping`.
         No-op when no segmentation output was requested.
         """
@@ -450,7 +461,7 @@ class NewtonWarpRenderer(BaseRenderer):
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.SEMANTIC_SEGMENTATION: seg_spec(self.cfg.colorize_semantic_segmentation),
-            RenderBufferKind.INSTANCE_SEGMENTATION_FAST: seg_spec(self.cfg.colorize_instance_segmentation),
+            RenderBufferKind.INSTANCE_SEGMENTATION: seg_spec(self.cfg.colorize_instance_segmentation),
         }
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
@@ -464,6 +475,18 @@ class NewtonWarpRenderer(BaseRenderer):
         :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
         """
         self._stage = stage
+        # NOTE: OpenCV lens distortion (``spawn.distortion``) is not yet applied by the Newton
+        # renderer. The distortion cfg is renderer-agnostic and could be piped through Newton's warp
+        # ray-tracing utilities here in the future; for now the camera renders undistorted. This is
+        # the intended extension point.
+        spawn = getattr(spec.cfg, "spawn", None)
+        if getattr(spawn, "distortion", None) is not None:
+            logger.warning(
+                "OpenCV lens distortion is set on the camera cfg but is not yet applied by the Newton"
+                " renderer: it derives a single field of view from fy, so the distortion coefficients,"
+                " the principal point, and a non-square fx are ignored and the camera renders as a"
+                " centered, square-pixel pinhole. Use the RTX/OVRTX renderer to apply the full model."
+            )
         if spec.cfg.isp_cfg is None:
             return
         try:
@@ -487,7 +510,7 @@ class NewtonWarpRenderer(BaseRenderer):
         # requested segmentation outputs.
         if (
             RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types
-            or RenderBufferKind.INSTANCE_SEGMENTATION_FAST in spec.cfg.data_types
+            or RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
         ):
             if self._seg_mapper is None:
                 self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg)
@@ -495,9 +518,9 @@ class NewtonWarpRenderer(BaseRenderer):
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)
             )
-        if RenderBufferKind.INSTANCE_SEGMENTATION_FAST in spec.cfg.data_types:
+        if RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types:
             self._seg_mapper.build_mapping(
-                RenderBufferKind.INSTANCE_SEGMENTATION_FAST, bool(self.cfg.colorize_instance_segmentation)
+                RenderBufferKind.INSTANCE_SEGMENTATION, bool(self.cfg.colorize_instance_segmentation)
             )
 
         render_data = RenderData(self.newton_sensor, spec, seg_mapper=self._seg_mapper, renderer_cfg=self.cfg)
@@ -582,7 +605,7 @@ class NewtonWarpRenderer(BaseRenderer):
             shape_index_image=render_data.outputs.shape_index_image,
             # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
             clear_data=newton.sensors.SensorTiledCamera.ClearData(
-                clear_color=0xFFEEEEEE,
+                clear_color=render_data.clear_color,
                 **({"clear_depth": render_data.far_clip} if _use_depth_clear else {}),
             ),
             kernel_block_dim=self.cfg.kernel_block_dim,

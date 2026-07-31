@@ -200,7 +200,7 @@ backend produces every annotator — see the support matrix below.
 * ``"normals"``: Local surface normal vectors at each pixel.
 * ``"motion_vectors"``: Per-pixel motion vectors in image space.
 * ``"semantic_segmentation"``: Semantic segmentation labels.
-* ``"instance_segmentation_fast"``: Instance segmentation data.
+* ``"instance_segmentation"``: Per-instance segmentation labels for semantically-tagged prims.
 * ``"instance_id_segmentation_fast"``: Instance ID segmentation data.
 
 .. _camera-supported-annotators:
@@ -257,7 +257,7 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
      - ✅
      - ✅
      - ✅
-   * - ``instance_segmentation_fast``
+   * - ``instance_segmentation``
      - ✅
      - ✅
      - ✅
@@ -407,14 +407,14 @@ absolute-difference images.
       .. code-block:: bash
 
          uv run python scripts/demos/sensors/ppisp_camera.py \
-             --renderer newton --max_steps 60
+             --renderer newton_renderer --max_steps 60
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
          ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
-             --renderer newton --max_steps 60
+             --renderer newton_renderer --max_steps 60
 
 Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
 ``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage
@@ -517,10 +517,10 @@ Instance Segmentation
     :figwidth: 100%
     :alt: A scene with instance segmentation
 
-``instance_segmentation_fast`` outputs instance segmentation, traversing down the prim hierarchy
+``instance_segmentation`` outputs instance segmentation, traversing down the prim hierarchy
 to the lowest level with semantic labels (unlike ``instance_id_segmentation_fast``, which always
 goes to the leaf prim).
-An ``info`` dictionary is available via ``tiled_camera.data.info['instance_segmentation_fast']``.
+An ``info`` dictionary is available via ``tiled_camera.data.info['instance_segmentation']``.
 
 - If ``colorize_instance_segmentation=True``: shape ``(B, H, W, 4)``, type ``torch.uint8``.
 - If ``colorize_instance_segmentation=False``: shape ``(B, H, W, 1)``, type ``torch.int32``.
@@ -532,3 +532,48 @@ UNLABELLED instance ID (``1``) rather than a color value.
 
 The ``idToLabels`` dict maps color to USD prim path. The ``idToSemantics`` dict maps color to
 semantic label.
+
+Background Color
+~~~~~~~~~~~~~~~~
+
+By default, pixels that do not intersect any geometry use the renderer's built-in background:
+a dome-light sky on RTX backends, or a neutral gray on Newton Warp. You can override this with
+a solid color by setting :attr:`~sensors.CameraCfg.background_color` on :class:`~sensors.CameraCfg`:
+
+.. code-block:: python
+
+    from isaaclab.sensors import CameraCfg
+    import isaaclab.sim as sim_utils
+
+    tiled_camera = CameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        data_types=["rgb"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0,
+            horizontal_aperture=20.955, clipping_range=(0.1, 20.0),
+        ),
+        width=80,
+        height=80,
+        background_color=(0.0, 0.0, 0.0),  # black background
+    )
+
+The color is a 3-tuple of normalized RGB floats in ``[0, 1]``. Setting it to ``None`` (the
+default) leaves the renderer's built-in background in place.
+
+Each camera is configured independently: cameras with ``background_color=None`` and cameras
+with a color set can coexist in the same scene. On the RTX backends (Isaac RTX and OVRTX) this
+is achieved by writing ``omni:rtx:background:source:type`` / ``omni:rtx:background:source:color``
+USD attributes directly on the render product, so no process-wide carb settings are modified.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Backend
+     - Behavior when ``background_color`` is set
+   * - ``IsaacRtxRendererCfg``
+     - Per-render-product USD attributes on the Replicator render product.
+   * - ``OVRTXRendererCfg``
+     - Per-render-product USD attributes authored in the render scope.
+   * - ``NewtonWarpRendererCfg``
+     - Packed ARGB clear color used to fill the framebuffer before rasterization.

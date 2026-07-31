@@ -263,6 +263,6 @@ into deployment systems.
 .. note::
 
    Refer to the `LEAPP semantic annotation guide
-   <https://nvidia-isaac.github.io/leapp/guides/semantics.html>`_
+   <https://nvidia-isaac.github.io/leapp/semantics/usage.html>`_
    and `LEAPP API reference <https://nvidia-isaac.github.io/leapp/api/index.html>`_
    for details on authoring semantic annotations.

@@ -18,6 +18,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -466,7 +467,7 @@ class TerminationsCfg:
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.01,
         gpu_max_rigid_patch_count=4 * 5 * 2**15,
         gpu_found_lost_pairs_capacity=2**26,
@@ -490,7 +491,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = default
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = physx
 
 
 @configclass
@@ -520,7 +522,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
             "distance_to_image_plane",
             "normals",
             "semantic_segmentation",
-            "instance_segmentation_fast",
+            "instance_segmentation",
         }
         for cam_attr in ("base_camera", "wrist_camera"):
             cam = getattr(self.scene, cam_attr, None)
@@ -552,6 +554,15 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
 
+    def play_mode(self):
+        # play-mode overrides of parent
+        super().play_mode()
+
+        self.commands.object_pose.debug_vis = True
+        if self.curriculum is not None:
+            self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
+            self.curriculum.adr.params["promotion_only"] = True
+
 
 class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
     """Dexsuite lift task definition"""
@@ -563,23 +574,8 @@ class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
         if self.curriculum is not None:
             self.rewards.success.params["rot_std"] = None  # make success reward not consider orientation
 
+    def play_mode(self):
+        # play-mode overrides of parent
+        super().play_mode()
 
-class DexsuiteReorientEnvCfg_PLAY(DexsuiteReorientEnvCfg):
-    """Dexsuite reorientation task evaluation environment definition"""
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.commands.object_pose.debug_vis = True
-        self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
-        self.curriculum.adr.params["promotion_only"] = True
-
-
-class DexsuiteLiftEnvCfg_PLAY(DexsuiteLiftEnvCfg):
-    """Dexsuite lift task evaluation environment definition"""
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.commands.object_pose.debug_vis = True
         self.commands.object_pose.position_only = True
-        self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
-        self.curriculum.adr.params["promotion_only"] = True

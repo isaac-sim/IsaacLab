@@ -7,7 +7,7 @@
 
 Newton's ray tracer emits a single per-pixel *shape index* (``shape_index_image``), i.e. the global
 index of the model shape hit by each ray. Isaac Lab's camera contract instead exposes two
-segmentation outputs — ``semantic_segmentation`` and ``instance_segmentation_fast`` — each with its own
+segmentation outputs — ``semantic_segmentation`` and ``instance_segmentation`` — each with its own
 id space and an accompanying ``idToLabels`` / ``idToSemantics`` mapping
 (see :class:`~isaaclab.sensors.camera.CameraData`).
 
@@ -59,7 +59,7 @@ or instance group that may span many shapes. The ``shape_to_id`` array bridges t
 ``shape_to_id[shape_index] -> SegId``.
 """
 
-_SegKind = Literal["semantic_segmentation", "instance_segmentation_fast"]
+_SegKind = Literal["semantic_segmentation", "instance_segmentation"]
 
 SemanticType: TypeAlias = str
 """A semantic type string as authored in :class:`UsdSemantics.LabelsAPI`, e.g. ``"class"``."""
@@ -302,7 +302,7 @@ class NewtonSegmentationMapper:
 
         Walks from the prim up to the stage root, returning the labels of the *nearest* prim that
         carries a :class:`UsdSemantics.LabelsAPI` label satisfying :attr:`semantic_filter`, together
-        with its USD path. The path is used by ``instance_segmentation_fast`` as the grouping key —
+        with its USD path. The path is used by ``instance_segmentation`` as the grouping key —
         shapes under the same returned path share one instance id. Returns ``None`` when no ancestor
         matches (i.e. the prim is unlabelled for this filter).
 
@@ -386,7 +386,7 @@ class NewtonSegmentationMapper:
 
         - ``semantic_segmentation``: shapes with identical label payloads share one id (e.g. all
           ``class:cartpole`` shapes across all environments map to the same class id).
-        - ``instance_segmentation_fast``: shapes under the same nearest labelled ancestor prim share
+        - ``instance_segmentation``: shapes under the same nearest labelled ancestor prim share
           one id (e.g. pole and cart of one robot instance share that instance's id, while a second
           robot gets a distinct id).
 
@@ -402,7 +402,7 @@ class NewtonSegmentationMapper:
 
         # Maps a group key to its assigned seg_id so that shapes belonging to the same group
         # (same semantic class for semantic_segmentation, same labelled ancestor prim for
-        # instance_segmentation_fast) reuse the same id rather than receiving a new one each time.
+        # instance_segmentation) reuse the same id rather than receiving a new one each time.
         group_key_to_id: dict[object, SegId] = {}
         next_id = _FIRST_ID
 
@@ -412,7 +412,7 @@ class NewtonSegmentationMapper:
                 shape_to_id[shape_index] = UNLABELLED_ID
                 continue
             matched, ancestor_path = match
-            if kind == "instance_segmentation_fast":
+            if kind == "instance_segmentation":
                 # All shapes under the same labelled ancestor prim form one instance group.
                 group_key = ancestor_path
                 label_value = ancestor_path
@@ -510,7 +510,7 @@ class NewtonSegmentationMapper:
         id_to_labels = {key_for(seg_id): value for seg_id, value in all_labels.items()}
         info: dict[str, dict] = {"idToLabels": id_to_labels}
 
-        if kind == "instance_segmentation_fast":
+        if kind == "instance_segmentation":
             all_semantics = {**reserved_semantics, **id_semantics}
             info["idToSemantics"] = {key_for(seg_id): value for seg_id, value in all_semantics.items()}
         return info

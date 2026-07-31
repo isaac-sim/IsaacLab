@@ -32,7 +32,6 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
-from isaaclab.cloner.cloner_utils import num_spawn_variants
 from isaaclab.physics.scene_data_requirements import aggregate_requirements, resolve_scene_data_requirements
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
@@ -117,7 +116,7 @@ class InteractiveScene:
         robot = Articulation(robot_cfg)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing, device=scene.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, scene.num_envs, scene.device, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, scene.device, pos)
         cloner.replicate(plan, stage=scene.stage)
 
     .. note::
@@ -159,6 +158,7 @@ class InteractiveScene:
         # prepare cloner for environment replication
         self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
         self.cloner_cfg.device = self.device
+        self.cloner_cfg.replicate_physics = self.cfg.replicate_physics
         self._env_regex_ns = self.cloner_cfg.clone_regex
         self._env_fmt = self._env_regex_ns.replace(".*", "{}")
         self._env_ns = self._env_regex_ns.rsplit("/", 1)[0]
@@ -192,6 +192,7 @@ class InteractiveScene:
             stage=self.stage,
             clone_strategy=self.cloner_cfg.clone_strategy,
             valid_set=self._clone_valid_set,
+            replicate_physics=self.cloner_cfg.replicate_physics,
         ):
             if self._is_scene_setup_from_cfg():
                 self._add_entities_from_cfg()
@@ -227,7 +228,7 @@ class InteractiveScene:
                     child.prim_path = child.prim_path.format(ENV_REGEX_NS=self.cloner_cfg.clone_regex)
                     if hasattr(child, "spawn") and child.spawn is not None and self.env_ns in child.prim_path:
                         clone_asset_names.append(asset_name)
-                        variant_counts.append(num_spawn_variants(child.spawn))
+                        variant_counts.append(cloner.num_spawn_variants(child.spawn))
                 cfgs.append(child)
 
         if self.cloner_cfg.clone_combinations and clone_asset_names:
@@ -891,7 +892,7 @@ class InteractiveScene:
                     )
                     # static assets have no asset class to queue their own replication:
                     # queue the USD spread here so clones exist in every planned env
-                    cloner.queue_usd_replication(asset_cfg)
+                    cloner.queue_replication(asset_cfg)
                 # static assets create no view: the prims are kept exactly as cloned
                 self._extras[asset_name] = asset_cfg
             else:

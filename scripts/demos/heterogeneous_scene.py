@@ -44,13 +44,10 @@ parser.add_argument(
     default=None,
     help="Number of tasks to use from the default order. Omit to use all tasks.",
 )
-parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
+parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = parser.parse_known_args()
-# the default Kit viewport cannot exist headless; explicit visualizer choices stay
-if args_cli.headless and args_cli.visualizer == ["kit"]:
-    args_cli.visualizer = []
 # strip consumed args so hydra-based task-config resolution does not re-parse them
 sys.argv = [sys.argv[0], *hydra_args]
 
@@ -84,7 +81,7 @@ DEFAULT_TASKS = (
     "IsaacContrib-Velocity-Flat-UnitreeGo1",
     "Isaac-Velocity-Flat-UnitreeGo2",
     "Isaac-Velocity-Flat-Cassie",
-    "Isaac-Velocity-Flat-Digit",
+    "IsaacContrib-Velocity-Flat-Digit",
     "Isaac-Velocity-Flat-G1",
     "Isaac-Velocity-Flat-H1",
     "IsaacContrib-Navigation-Flat-AnymalC",

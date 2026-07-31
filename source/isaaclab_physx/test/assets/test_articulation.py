@@ -10,6 +10,15 @@
 
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
+from isaaclab.test.utils.articulation_ordering import (
+    BRANCHING_MJWARP_BODY_NAMES,
+    BRANCHING_MJWARP_JOINT_NAMES,
+    BRANCHING_PHYSX_BODY_NAMES,
+    BRANCHING_PHYSX_JOINT_NAMES,
+    PANDA_BODY_NAMES,
+    PANDA_JOINT_NAMES,
+    PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+)
 
 HEADLESS = True
 
@@ -25,6 +34,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
+from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -53,6 +63,74 @@ from isaaclab_assets import (  # isort:skip
     FRANKA_PANDA_HIGH_PD_CFG,
     SHADOW_HAND_CFG,
 )
+
+
+def test_cached_read_launch_reuses_command_and_resets(monkeypatch):
+    """The PhysX read path should record once, replay, and discard the command on reset."""
+
+    class FakeCommand:
+        launch_count = 0
+
+        def launch(self):
+            self.launch_count += 1
+
+    class FakeDevice:
+        is_cuda = True
+        is_capturing = False
+
+    device = FakeDevice()
+    command = FakeCommand()
+    launch_calls = []
+
+    def fake_launch(*args, **kwargs):
+        launch_calls.append((args, kwargs))
+        return command
+
+    module = sys.modules[ArticulationData.__module__]
+    monkeypatch.setattr(module.wp, "get_device", lambda device_name: device)
+    monkeypatch.setattr(module.wp, "launch", fake_launch)
+    data = ArticulationData.__new__(ArticulationData)
+    data.device = "cuda:0"
+    data._cached_read_launches = {}
+
+    for _ in range(2):
+        data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
+
+    assert len(launch_calls) == 1
+    assert launch_calls[0][1]["record_cmd"] is True
+    assert command.launch_count == 2
+    data._reset_cached_read_launches()
+    device.is_capturing = True
+    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
+    assert "record_cmd" not in launch_calls[-1][1]
+    assert data._cached_read_launches == {}
+
+
+def test_cached_read_launch_ignores_empty_recording(monkeypatch):
+    """PhysX should treat an empty recorded launch as a completed no-op."""
+
+    class FakeDevice:
+        is_cuda = True
+        is_capturing = False
+
+    launch_calls = []
+
+    def fake_launch(*args, **kwargs):
+        launch_calls.append((args, kwargs))
+        return
+
+    module = sys.modules[ArticulationData.__module__]
+    monkeypatch.setattr(module.wp, "get_device", lambda device_name: FakeDevice())
+    monkeypatch.setattr(module.wp, "launch", fake_launch)
+    data = ArticulationData.__new__(ArticulationData)
+    data.device = "cuda:0"
+    data._cached_read_launches = {}
+
+    data._launch_cached_read("joint_pos", object(), dim=0, inputs=[], outputs=[])
+
+    assert len(launch_calls) == 1
+    assert launch_calls[0][1]["record_cmd"] is True
+    assert data._cached_read_launches == {}
 
 
 def generate_articulation_cfg(
@@ -297,34 +375,6 @@ def _summarize_history(history, tail: int = 200):
     return min(tail_slice), sum(tail_slice) / len(tail_slice)
 
 
-_PANDA_JOINT_NAMES = (
-    "panda_joint1",
-    "panda_joint2",
-    "panda_joint3",
-    "panda_joint4",
-    "panda_joint5",
-    "panda_joint6",
-    "panda_joint7",
-    "panda_finger_joint1",
-    "panda_finger_joint2",
-)
-
-_PANDA_BODY_NAMES = (
-    "panda_link0",
-    "panda_link1",
-    "panda_link2",
-    "panda_link3",
-    "panda_link4",
-    "panda_link5",
-    "panda_link6",
-    "panda_link7",
-    "panda_hand",
-    "panda_leftfinger",
-    "panda_rightfinger",
-)
-_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES = (_PANDA_BODY_NAMES[0], *reversed(_PANDA_BODY_NAMES[1:]))
-
-
 def _to_device_tensor(array: wp.array, device: str) -> torch.Tensor:
     """Convert a Warp array to a torch tensor on :paramref:`device`."""
     return wp.to_torch(array).to(device=device)
@@ -369,15 +419,15 @@ def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(
     """Smoke-test non-identity joint/body ordering through a live PhysX articulation."""
     articulation_cfg = FRANKA_PANDA_CFG.replace(
         prim_path="/World/Robot",
-        joint_ordering=tuple(reversed(_PANDA_JOINT_NAMES)),
-        body_ordering=_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+        joint_ordering=tuple(reversed(PANDA_JOINT_NAMES)),
+        body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
     )
     articulation = Articulation(articulation_cfg)
 
     sim.reset()
     assert articulation.is_initialized
-    assert articulation.backend_joint_names == list(_PANDA_JOINT_NAMES)
-    assert articulation.backend_body_names == list(_PANDA_BODY_NAMES)
+    assert articulation.backend_joint_names == list(PANDA_JOINT_NAMES)
+    assert articulation.backend_body_names == list(PANDA_BODY_NAMES)
     assert articulation.joint_ordering is not None
     assert articulation.body_ordering is not None
 
@@ -429,6 +479,8 @@ def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(
         _to_device_tensor(articulation.root_view.get_link_transforms(), device),
         body_user_to_backend,
     )
+    if device == "cuda:0":
+        assert articulation.data._cached_read_launches
     _assert_backend_to_user(
         articulation.data.body_com_pose_b.torch,
         _to_device_tensor(articulation.root_view.get_coms(), device),
@@ -461,7 +513,7 @@ def test_live_floating_root_writers_match_identity_after_body_reordering(sim, de
         FRANKA_PANDA_CFG.replace(
             prim_path="/World/OrderedRobot",
             spawn=floating_spawn,
-            body_ordering=tuple(reversed(_PANDA_BODY_NAMES)),
+            body_ordering=tuple(reversed(PANDA_BODY_NAMES)),
         )
     )
 
@@ -472,8 +524,8 @@ def test_live_floating_root_writers_match_identity_after_body_reordering(sim, de
     assert ordered.body_ordering is not None
     assert ordered.body_ordering.backend_to_user_indices[0] != 0
 
-    backend_coms = torch.zeros((1, len(_PANDA_BODY_NAMES), 7), device=device)
-    body_index = torch.arange(len(_PANDA_BODY_NAMES), device=device, dtype=torch.float32)
+    backend_coms = torch.zeros((1, len(PANDA_BODY_NAMES), 7), device=device)
+    body_index = torch.arange(len(PANDA_BODY_NAMES), device=device, dtype=torch.float32)
     backend_coms[0, :, 0] = 0.05 + 0.01 * body_index
     backend_coms[0, :, 1] = -0.03 - 0.02 * body_index
     backend_coms[0, :, 2] = 0.02 + 0.03 * body_index
@@ -528,7 +580,7 @@ def test_live_direct_view_mass_inertia_writes_become_visible(sim, device, gravit
     Both identity and non-identity (reversed) body ordering are covered; under ordering the public
     buffers must equal the backend-order view gathered through ``user_to_backend``.
     """
-    body_ordering_arg = None if body_ordering == "identity" else _PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES
+    body_ordering_arg = None if body_ordering == "identity" else PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES
     articulation = Articulation(FRANKA_PANDA_CFG.replace(prim_path="/World/Robot", body_ordering=body_ordering_arg))
     sim.reset()
     assert articulation.is_initialized
@@ -587,17 +639,12 @@ def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_en
     sim.reset()
     assert articulation.is_initialized
 
-    expected_physx_joint_names = ("left_shoulder", "right_shoulder", "left_elbow", "right_elbow")
-    expected_mjwarp_joint_names = ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow")
-    expected_physx_body_names = ("base", "left_upper", "right_upper", "left_tip", "right_tip")
-    expected_mjwarp_body_names = ("base", "left_upper", "left_tip", "right_upper", "right_tip")
-
-    assert tuple(articulation.backend_joint_names) == expected_physx_joint_names
-    assert tuple(articulation.backend_body_names) == expected_physx_body_names
-    assert get_articulation_name_ordering(articulation, "mjwarp", "joint") == expected_mjwarp_joint_names
-    assert get_articulation_name_ordering(articulation, "mjwarp", "body") == expected_mjwarp_body_names
-    assert tuple(articulation.joint_names) == expected_mjwarp_joint_names
-    assert tuple(articulation.body_names) == expected_mjwarp_body_names
+    assert tuple(articulation.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES
+    assert tuple(articulation.backend_body_names) == BRANCHING_PHYSX_BODY_NAMES
+    assert get_articulation_name_ordering(articulation, "mjwarp", "joint") == BRANCHING_MJWARP_JOINT_NAMES
+    assert get_articulation_name_ordering(articulation, "mjwarp", "body") == BRANCHING_MJWARP_BODY_NAMES
+    assert tuple(articulation.joint_names) == BRANCHING_MJWARP_JOINT_NAMES
+    assert tuple(articulation.body_names) == BRANCHING_MJWARP_BODY_NAMES
     assert articulation.joint_ordering is not None
     assert articulation.body_ordering is not None
 
@@ -1940,7 +1987,7 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
-def test_reset(sim, num_articulations, device):
+def test_reset(sim, num_articulations, device, monkeypatch):
     """Test that reset method works properly."""
     articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
     articulation, _ = generate_articulation(
@@ -1951,8 +1998,17 @@ def test_reset(sim, num_articulations, device):
     sim.reset()
 
     # Now we are ready!
-    # reset articulation
+    actuator = next(iter(articulation.actuators.values()))
+    actuator_reset = actuator.reset
+    reset_env_ids = []
+
+    def record_actuator_reset(env_ids=None):
+        reset_env_ids.append(env_ids)
+        actuator_reset(env_ids)
+
+    monkeypatch.setattr(actuator, "reset", record_actuator_reset)
     articulation.reset()
+    assert reset_env_ids == [None]
 
     # Reset should zero external forces and torques
     assert not articulation._instantaneous_wrench_composer.active

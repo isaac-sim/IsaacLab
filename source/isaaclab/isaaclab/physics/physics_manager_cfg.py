@@ -13,6 +13,9 @@ from typing import TYPE_CHECKING, Any
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
+    from isaaclab_ovphysx.physics import OvPhysxCfg
+    from isaaclab_physx.physics import PhysxCfg
+
     from .physics_manager import PhysicsManager
 
 
@@ -30,3 +33,42 @@ class PhysicsCfg:
 
     class_type: type[PhysicsManager] | Any = MISSING
     """The physics manager class to use. Must be set by subclasses."""
+
+
+@configclass
+class PhysxAutoCfg(PhysicsCfg):
+    """PhysX configuration resolved to a concrete backend at launch."""
+
+    class_type: Any = None
+    """Unused because this configuration is resolved before simulation construction."""
+
+    isaacsim_physx: PhysxCfg | None = None
+    """Concrete Isaac Sim PhysX configuration, or ``None`` when unavailable."""
+
+    ovphysx: OvPhysxCfg | None = None
+    """Concrete OvPhysX configuration, or ``None`` when OvPhysX is unsupported."""
+
+
+def _resolve_physx_auto_cfg(physics_cfg: PhysicsCfg, use_isaac_sim: bool) -> PhysicsCfg:
+    """Resolve a :class:`PhysxAutoCfg` to a concrete backend."""
+    if not isinstance(physics_cfg, PhysxAutoCfg):
+        return physics_cfg
+
+    if not use_isaac_sim and physics_cfg.ovphysx is not None:
+        from isaaclab_ovphysx.physics import OvPhysxCfg
+
+        selected = physics_cfg.ovphysx
+        expected_type = OvPhysxCfg
+        field_name = "ovphysx"
+    else:
+        from isaaclab_physx.physics import PhysxCfg
+
+        selected = physics_cfg.isaacsim_physx
+        expected_type = PhysxCfg
+        field_name = "isaacsim_physx"
+
+    if not isinstance(selected, expected_type):
+        raise ValueError(
+            f"Invalid PhysxAutoCfg.{field_name}: expected {expected_type.__name__}, got {type(selected).__name__}."
+        )
+    return selected

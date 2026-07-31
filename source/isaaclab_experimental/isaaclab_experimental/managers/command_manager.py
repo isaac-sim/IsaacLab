@@ -17,10 +17,11 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import CommandTermCfg
+
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import CommandTermCfg
 
 # import omni.kit.app
 

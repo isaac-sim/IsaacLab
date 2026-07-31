@@ -44,9 +44,42 @@ jobs:
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
 
   build-and-push-images:
+    name: Build and Push (${{ matrix.key }})
     needs: [config]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
+    strategy:
+      # Each published image is independent: a kit-less failure must not stop
+      # the base image from publishing, or vice versa.
+      fail-fast: false
+      matrix:
+        include:
+        - key: base
+          image_name: ${{ needs.config.outputs.isaaclab_image_name }}
+          tag_suffix: ""
+          dockerfile: docker/Dockerfile.base
+          # Empty: follow whatever the Isaac Sim base image supports.
+          platforms: ""
+          build_args: >-
+            --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ needs.config.outputs.isaacsim_image_name }}
+            --build-arg ISAACSIM_VERSION_ARG=${{ needs.config.outputs.isaacsim_image_tag }}
+            --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim
+            --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab
+            --build-arg DOCKER_USER_HOME_ARG=/root
+        - key: kitless
+          # Shares the Isaac Lab repository and distinguishes itself with a tag
+          # suffix, so publishing needs no additional registry provisioning.
+          image_name: ${{ needs.config.outputs.isaaclab_image_name }}
+          tag_suffix: "-kitless"
+          dockerfile: docker/Dockerfile.kitless
+          # ubuntu:24.04 is multiarch and ovrtx ships an aarch64 wheel, but no
+          # arm64 GPU runner exists to validate the result and the arm64 leg
+          # would build under QEMU emulation. Publish amd64 until an arm64
+          # validation path exists; the Dockerfile itself is arch-agnostic.
+          platforms: linux/amd64
+          # BASE_IMAGE_ARG is intentionally omitted: docker/.env.kitless and the
+          # Dockerfile default are the single source of truth for the base image.
+          build_args: --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab
     environment:
       name: postmerge-production
       url: https://github.com/${{ github.repository }}
@@ -92,7 +125,16 @@ jobs:
         BRANCH_NAME="${{ github.ref_name }}"
         IMAGE_BASE_VERSION="${{ needs.config.outputs.isaacsim_image_tag }}"
         SHA="${{ github.sha }}"
-        IMAGE="${{ needs.config.outputs.isaaclab_image_name }}"
+        IMAGE="${{ matrix.image_name }}"
+        DOCKERFILE="${{ matrix.dockerfile }}"
+        SUFFIX="${{ matrix.tag_suffix }}"
+
+        # Not every publishable branch carries every Dockerfile. A branch cut
+        # before an image was introduced skips it instead of failing the run.
+        if [ ! -f "$DOCKERFILE" ]; then
+          echo "🟠 $DOCKERFILE does not exist on '$BRANCH_NAME'; nothing to publish."
+          exit 0
+        fi
 
         echo "Branch: $BRANCH_NAME"
         echo "Commit: $SHA"
@@ -109,18 +151,21 @@ jobs:
         #                         $IMAGE:latest-release-X-<full-sha>             (immutable per-commit)
         #   - Push to main:       $IMAGE:latest                                  (moves to newest main build)
         #                         $IMAGE:v<VERSION>                              (from the VERSION file, e.g. v3.0.0)
+        #
+        # $SUFFIX distinguishes images sharing one repository (empty for the base
+        # image, "-kitless" for the kit-less one) and is appended to every tag.
         TAGS=()
 
         case "$BRANCH_NAME" in
           develop)
-            TAGS+=("$IMAGE:latest-develop")
-            TAGS+=("$IMAGE:latest-develop-$SHA")
+            TAGS+=("$IMAGE:latest-develop$SUFFIX")
+            TAGS+=("$IMAGE:latest-develop-$SHA$SUFFIX")
             ;;
           main)
-            TAGS+=("$IMAGE:latest")
+            TAGS+=("$IMAGE:latest$SUFFIX")
             VERSION="$(tr -d '[:space:]' < VERSION)"
             if [ -n "$VERSION" ]; then
-              TAGS+=("$IMAGE:v$VERSION")
+              TAGS+=("$IMAGE:v$VERSION$SUFFIX")
             else
               echo "🛑 ERROR: VERSION file is empty or missing. Cannot tag build with version tag."
               exit 1
@@ -129,8 +174,8 @@ jobs:
           release/*)
             # Sanitize the part after release/ for use as a Docker tag suffix.
             RELEASE_SUFFIX=$(echo "${BRANCH_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
-            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX")
-            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX-$SHA")
+            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX$SUFFIX")
+            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX-$SHA$SUFFIX")
             ;;
           *)
             echo "Branch '$BRANCH_NAME' is not configured for publishing; skipping."
@@ -141,9 +186,15 @@ jobs:
         # Determine if multiarch is supported by inspecting the base image manifest
         echo "🔵 Checking if base image supports multiarch..."
         BASE_IMAGE_FULL="${{ needs.config.outputs.isaacsim_image_name }}:${IMAGE_BASE_VERSION}"
+        EXPLICIT_PLATFORMS="${{ matrix.platforms }}"
         ARCHITECTURES=$(docker manifest inspect "$BASE_IMAGE_FULL" 2>/dev/null | grep -o '"architecture": "[^"]*"' | cut -d'"' -f4 | sort -u)
 
-        if [ -z "$ARCHITECTURES" ]; then
+        if [ -n "$EXPLICIT_PLATFORMS" ]; then
+          # An image that does not build on the Isaac Sim base pins its own
+          # platforms; the probe above does not describe it.
+          BUILD_PLATFORMS="$EXPLICIT_PLATFORMS"
+          echo "Using explicit platforms: $BUILD_PLATFORMS"
+        elif [ -z "$ARCHITECTURES" ]; then
           echo "🟠 Could not inspect base image manifest: $BASE_IMAGE_FULL - defaulting to linux/amd64 only"
           BUILD_PLATFORMS="linux/amd64"
         else
@@ -183,14 +234,10 @@ jobs:
           --platform "$BUILD_PLATFORMS" \
           --progress=plain \
           "${TAG_ARGS[@]}" \
-          --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ needs.config.outputs.isaacsim_image_name }} \
-          --build-arg ISAACSIM_VERSION_ARG="$IMAGE_BASE_VERSION" \
-          --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
-          --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
-          --build-arg DOCKER_USER_HOME_ARG=/root \
-          --cache-from type=gha \
-          --cache-to type=gha,mode=max \
-          -f docker/Dockerfile.base \
+          ${{ matrix.build_args }} \
+          --cache-from type=gha,scope=publish-${{ matrix.key }} \
+          --cache-to type=gha,mode=max,scope=publish-${{ matrix.key }} \
+          -f "$DOCKERFILE" \
           --push .; then
           echo "🔴 docker buildx build/push failed for tags:"
           printf '  - %s\n' "${TAGS[@]}"

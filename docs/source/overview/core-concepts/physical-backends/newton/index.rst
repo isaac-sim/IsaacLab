@@ -23,6 +23,10 @@ are still maturing, and the Isaac Lab integration ships a focused, validated set
 classic RL and flat-terrain locomotion environments. We have validated Newton
 simulation against PhysX by transferring learned policies in both directions and
 have successfully deployed a Newton-trained locomotion policy to a G1 robot.
+See :doc:`migrating-assets-from-physx-to-newton` to migrate an asset and physical
+model specifically from PhysX to Newton with MJWarp. Then use
+:doc:`/source/how-to/transfer_policies_between_physx_and_newton` to train and
+evaluate policy checkpoints in both directions.
 
 Newton can support `multiple solvers
 <https://newton-physics.github.io/newton/latest/api/newton_solvers.html>`_ for
@@ -54,6 +58,7 @@ new backend, see :doc:`../../multi_backend_architecture`.
 
   installation
   supported-features
+  migrating-assets-from-physx-to-newton
   mjwarp-solver
   kamino-solver
   using-vbd-solver

@@ -8,8 +8,13 @@ interfaces within a code in a minimal way.
 
 A few quick showroom scripts to run and checkout:
 
+.. rst-class:: showroom-demo-list
 
 -  Spawn different arms and apply random joint position commands:
+
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -45,6 +50,10 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different biped robots:
 
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
@@ -79,6 +88,11 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different deformable objects and let them fall from a height:
 
+   **Physics:** ``isaacsim_physx``, ``newton_vbd``
+
+   **Visualizer:** ``none``, ``kit`` for either physics backend; ``newton``,
+   ``rerun``, and ``viser`` with Newton VBD only
+
    .. tab-set::
       :sync-group: os
 
@@ -91,11 +105,13 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/deformables.py
+                  uv run --extra tetrahedralization python scripts/demos/deformables.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
                .. code:: bash
+
+                  ./isaaclab.sh -i tetrahedralization
 
                   ./isaaclab.sh -p scripts/demos/deformables.py
 
@@ -104,10 +120,9 @@ A few quick showroom scripts to run and checkout:
 
          .. code:: batch
 
-            isaaclab.bat -p scripts\demos\deformables.py
+            isaaclab.bat -i tetrahedralization
 
-   Add ``--backend newton`` to run the same demo with the experimental Newton
-   deformable backend.
+            isaaclab.bat -p scripts\demos\deformables.py
 
    .. image:: ../_static/demos/deformables.jpg
       :width: 100%
@@ -115,6 +130,12 @@ A few quick showroom scripts to run and checkout:
 
 
 -  Interactive inference of trained H1 rough terrain locomotion policy:
+
+   **Physics:** ``isaacsim_physx`` only
+
+   **Visualizer:** ``kit`` only
+
+   This demo downloads a policy and requires interactive input.
 
    .. tab-set::
       :sync-group: os
@@ -166,6 +187,10 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different hands and command them to open and close:
 
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
@@ -199,6 +224,10 @@ A few quick showroom scripts to run and checkout:
 
 
 -  Define multiple markers that are useful for visualizations:
+
+   **Physics:** ``isaacsim_physx`` only
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -234,6 +263,10 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the interactive scene and spawn varying assets in individual environments:
 
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
@@ -268,6 +301,10 @@ A few quick showroom scripts to run and checkout:
 
 -  Compose task scenes into one heterogeneous simulation using clone combinations:
 
+   **Physics:** ``isaacsim_physx`` only
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
@@ -297,6 +334,10 @@ A few quick showroom scripts to run and checkout:
 
 
 -  Use the RigidObjectCollection spawn and view manipulation to demonstrate bin-packing example:
+
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -332,6 +373,13 @@ A few quick showroom scripts to run and checkout:
 
 
 -  Use the interactive scene and spawn a simple parallel robot for pick and place:
+
+   **Physics:** ``isaacsim_physx`` only
+
+   **Visualizer:** ``kit`` only
+
+   This demo requires interactive input and uses the CPU-only PhysX surface
+   gripper. Newton physics is not supported.
 
    .. tab-set::
       :sync-group: os
@@ -376,6 +424,12 @@ A few quick showroom scripts to run and checkout:
 
 
 -  Teleoperate a Franka Panda robot using Haply haptic device with force feedback:
+
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
+   Haply hardware is required.
 
    .. tab-set::
       :sync-group: os
@@ -422,6 +476,10 @@ A few quick showroom scripts to run and checkout:
 
 -  Create and spawn procedurally generated terrains with different configurations:
 
+   **Physics:** ``isaacsim_physx`` only
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
@@ -457,6 +515,10 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn a quadcopter in the default environment:
 
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
@@ -491,6 +553,10 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different quadrupeds and make robots stand using position commands:
 
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
    .. tab-set::
       :sync-group: os
 
@@ -524,6 +590,11 @@ A few quick showroom scripts to run and checkout:
 
 
 -  Spawn a multi-mesh ray caster that uses Warp kernels for raycasting
+
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+
+   **Visualizer:** ``none``, ``newton``, ``rerun``, ``viser`` with either physics
+   backend; ``kit`` with PhysX only
 
    .. tab-set::
       :sync-group: os

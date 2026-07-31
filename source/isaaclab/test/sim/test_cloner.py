@@ -23,18 +23,16 @@ import torch
 from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.cloner import (
     REPLICATION_QUEUE,
     ClonePlan,
     UsdReplicateContext,
     grid_transforms,
-    iter_clone_plan_matches,
     make_clone_plan,
-    queue_usd_replication,
+    queue_replication,
     replicate,
-    resolve_clone_plan_source,
     sequential,
-    split_clone_template,
     usd_replicate,
 )
 from isaaclab.sim import build_simulation_context
@@ -55,14 +53,6 @@ def _drain_replication_queue():
     REPLICATION_QUEUE.clear()
     yield
     REPLICATION_QUEUE.clear()
-
-
-def test_split_clone_template():
-    """Split clone destination templates around their clone slot."""
-    assert split_clone_template("/World/envs/env_{}/Robot") == ("/World/envs/env_", "/Robot")
-    assert split_clone_template("/World/scenes/{}/") == ("/World/scenes/", "")
-    with pytest.raises(ValueError, match="must contain"):
-        split_clone_template("/World/envs/env_0/Robot")
 
 
 def test_usd_replicate_with_positions_and_mask(sim):
@@ -321,15 +311,15 @@ def test_clone_decorator_wildcard_patterns(
     )
 
 
-def test_queue_usd_replication_only_appends(sim):
-    """queue_usd_replication must only append to REPLICATION_QUEUE — no other side effects."""
+def test_queue_replication_only_appends(sim):
+    """queue_replication must only append the cfg-directed contexts — no other side effects."""
     cfg_a = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
     cfg_b = SimpleNamespace(prim_path="/World/envs/env_.*/Object")
 
-    queue_usd_replication(cfg_a)
-    queue_usd_replication(cfg_b)
+    queue_replication(cfg_a)
+    queue_replication(cfg_b)
 
-    assert [(cfg_a, UsdReplicateContext), (cfg_b, UsdReplicateContext)] == REPLICATION_QUEUE
+    assert [cfg_a, cfg_b] == REPLICATION_QUEUE
 
 
 def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
@@ -412,16 +402,16 @@ def test_make_clone_plan_skips_global_cfgs(sim):
 
 
 def test_clone_plan_from_env_0_populates_cfg_rows(sim):
-    """from_env_0 auto-maps queued env-scoped cfgs to row 0 and excludes global ones."""
+    """clone_plan_from_env_0 auto-maps queued env-scoped cfgs to row 0 and excludes global ones."""
     env_cfg_a = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
     env_cfg_b = SimpleNamespace(prim_path="/World/envs/env_.*/Object")
     global_cfg = SimpleNamespace(prim_path="/World/global/Light")
 
-    queue_usd_replication(env_cfg_a)
-    queue_usd_replication(env_cfg_b)
-    queue_usd_replication(global_cfg)
+    for cfg in (env_cfg_a, env_cfg_b, global_cfg):
+        cfg.cloning_contexts = (UsdReplicateContext,)
+        queue_replication(cfg)
 
-    plan = ClonePlan.from_env_0(
+    plan = cloner.clone_plan_from_env_0(
         source="/World/envs/env_0",
         destination="/World/envs/env_{}",
         num_clones=4,
@@ -434,6 +424,41 @@ def test_clone_plan_from_env_0_populates_cfg_rows(sim):
     assert plan.cfg_rows == {id(env_cfg_a): (0,), id(env_cfg_b): (0,)}
     assert plan.clone_mask.all() and plan.clone_mask.shape == (1, 4)
     assert torch.equal(plan.env_ids, torch.arange(4, dtype=torch.long, device=sim.cfg.device))
+
+
+def test_replicate_physics_false_keeps_usd_only(sim):
+    """replicate(replicate_physics=False) drops every context except UsdReplicateContext."""
+
+    class FakePhysicsCtx:
+        replicate_priority = 0
+        instances: list["FakePhysicsCtx"] = []
+
+        def __init__(self, stage):
+            FakePhysicsCtx.instances.append(self)
+
+        def queue_mapping(self, sources, destinations, env_ids, mask, *, positions=None):
+            pass
+
+        def replicate(self):
+            pass
+
+    stage = sim_utils.get_current_stage()
+    stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
+    cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot", cloning_contexts=(UsdReplicateContext, FakePhysicsCtx))
+    REPLICATION_QUEUE.append(cfg)
+
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=torch.ones((1, 2), dtype=torch.bool, device=sim.cfg.device),
+        env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
+        positions=grid_transforms(2, 1.0, device=sim.cfg.device)[0],
+        cfg_rows={id(cfg): (0,)},
+    )
+    replicate(plan, stage=stage, replicate_physics=False)
+
+    assert FakePhysicsCtx.instances == []
+    assert stage.GetPrimAtPath("/World/envs/env_1/Robot").IsValid()
 
 
 def test_replicate_drains_queue_dispatches_and_publishes(sim):
@@ -457,8 +482,10 @@ def test_replicate_drains_queue_dispatches_and_publishes(sim):
 
     cfg_a = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
     cfg_b = SimpleNamespace(prim_path="/World/envs/env_.*/Object")
-    REPLICATION_QUEUE.append((cfg_a, FakeCtx))
-    REPLICATION_QUEUE.append((cfg_b, FakeCtx))
+    cfg_a.cloning_contexts = (FakeCtx,)
+    cfg_b.cloning_contexts = (FakeCtx,)
+    REPLICATION_QUEUE.append(cfg_a)
+    REPLICATION_QUEUE.append(cfg_b)
 
     plan = ClonePlan(
         sources=("/World/envs/env_0/Robot", "/World/envs/env_0/Object"),
@@ -510,7 +537,8 @@ def test_replicate_dedupes_shared_rows_across_cfgs(sim):
 
     cfgs = [SimpleNamespace(prim_path=f"/World/envs/env_.*/asset_{i}") for i in range(5)]
     for cfg in cfgs:
-        REPLICATION_QUEUE.append((cfg, FakeCtx))
+        cfg.cloning_contexts = (FakeCtx,)
+        REPLICATION_QUEUE.append(cfg)
 
     plan = ClonePlan(
         sources=("/World/envs/env_0",),
@@ -562,8 +590,8 @@ def test_replicate_runs_lower_priority_backends_first(sim):
             call_order.append("high")
 
     cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
-    REPLICATION_QUEUE.append((cfg, HighPriority))
-    REPLICATION_QUEUE.append((cfg, LowPriority))
+    cfg.cloning_contexts = (HighPriority, LowPriority)
+    REPLICATION_QUEUE.append(cfg)
 
     plan = ClonePlan(
         sources=("/World/envs/env_0",),
@@ -586,7 +614,8 @@ def test_replicate_skips_cfgs_not_in_plan(sim):
     sentinel_cls = MagicMock(return_value=sentinel)
 
     excluded_cfg = SimpleNamespace(prim_path="/World/global/Skip")
-    REPLICATION_QUEUE.append((excluded_cfg, sentinel_cls))
+    excluded_cfg.cloning_contexts = (sentinel_cls,)
+    REPLICATION_QUEUE.append(excluded_cfg)
 
     plan = ClonePlan(
         sources=("/World/envs/env_0",),
@@ -617,7 +646,8 @@ def test_replicate_clears_queue_on_backend_failure(sim):
             raise RuntimeError("backend boom")
 
     cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
-    REPLICATION_QUEUE.append((cfg, ExplodingCtx))
+    cfg.cloning_contexts = (ExplodingCtx,)
+    REPLICATION_QUEUE.append(cfg)
 
     plan = ClonePlan(
         sources=("/World/envs/env_0",),
@@ -651,171 +681,9 @@ def test_replicate_session_clears_queue_when_asset_init_fails(sim):
             device=sim.cfg.device,
             stage=sim_utils.get_current_stage(),
         ):
-            REPLICATION_QUEUE.append((leaked_cfg, sentinel_cls))
+            leaked_cfg.cloning_contexts = (sentinel_cls,)
+            REPLICATION_QUEUE.append(leaked_cfg)
             raise RuntimeError("asset boom")
 
     assert REPLICATION_QUEUE == []
     sentinel_cls.assert_not_called()
-
-
-def test_iter_clone_plan_matches(sim):
-    """ClonePlan entries can be matched by destination path expression."""
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor(
-            [[True, False, True, False], [False, True, False, True]],
-            dtype=torch.bool,
-            device=sim.cfg.device,
-        ),
-    )
-
-    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
-
-    assert matches == [
-        (
-            "/World/envs/env_0/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_0/Object/Body/Camera",
-            (0, 2),
-        ),
-        (
-            "/World/envs/env_1/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_1/Object/Body/Camera",
-            (1, 3),
-        ),
-    ]
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_3/Object",),
-        destinations=("/World/envs/env_{}/Object",),
-        clone_mask=torch.tensor([[False, False, True, True]], device=sim.cfg.device),
-    )
-
-    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
-
-    assert matches == [
-        (
-            "/World/envs/env_3/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_3/Object/Body/Camera",
-            (2, 3),
-        )
-    ]
-
-    plan = ClonePlan(
-        sources=("/World/source/Object",),
-        destinations=("/World/scenes/{}/Object",),
-        clone_mask=torch.tensor([[True, True]], device=sim.cfg.device),
-    )
-
-    matches = list(iter_clone_plan_matches(plan, "/World/scenes/.*/Object/Body/Camera"))
-
-    assert matches == [
-        (
-            "/World/source/Object",
-            "/World/scenes/{}/Object",
-            "/World/source/Object/Body/Camera",
-            (0, 1),
-        )
-    ]
-
-    plan = ClonePlan(
-        sources=("/World/source",),
-        destinations=("/World/scenes/{}",),
-        clone_mask=torch.tensor([[True, True]], device=sim.cfg.device),
-    )
-
-    matches = list(iter_clone_plan_matches(plan, "/World/scenes/.*/Object/Body/Camera"))
-
-    assert matches == [
-        (
-            "/World/source",
-            "/World/scenes/{}",
-            "/World/source/Object/Body/Camera",
-            (0, 1),
-        )
-    ]
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_0", "/World/envs/env_0/Object"),
-        destinations=("/World/envs/env_{}", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
-    )
-
-    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
-
-    assert matches == [
-        (
-            "/World/envs/env_0/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_0/Object/Body/Camera",
-            (0, 1),
-        )
-    ]
-
-
-def test_resolve_clone_plan_source_nested_templates_pick_most_specific(sim):
-    """A path owned by both an ancestor and a descendant template resolves to the descendant."""
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot", "/World/envs/env_0/Robot/ee_link/palm_link/Camera"),
-        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/ee_link/palm_link/Camera"),
-        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
-    )
-
-    # The camera path matches both templates; the more specific (longer-matching) one wins.
-    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_0/Robot/ee_link/palm_link/Camera")
-
-    assert resolved == (
-        "/World/envs/env_0/Robot/ee_link/palm_link/Camera",
-        "/World/envs/env_*/Robot/ee_link/palm_link/Camera",
-        "",
-    )
-
-    # A path that only the ancestor template owns still resolves against it with its suffix.
-    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_0/Robot/base")
-
-    assert resolved == ("/World/envs/env_0/Robot", "/World/envs/env_*/Robot", "/base")
-
-
-def test_resolve_clone_plan_source_ambiguous_templates_raise(sim):
-    """Two distinct, equally specific templates owning a path remain a genuine ambiguity."""
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot", "/World/envs/env_0/Robot"),
-        destinations=("/World/envs/{}/Robot", "/World/{}/env_0/Robot"),
-        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
-    )
-
-    with pytest.raises(ValueError, match="matches multiple destination templates"):
-        resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_0/Robot")
-
-
-def test_resolve_clone_plan_source_merges_same_template_rows(sim):
-    """Heterogeneous source rows sharing one template OR-merge their masks for the coverage check."""
-    # One logical asset cloned from two source variants onto the same destination template.
-    # Neither row alone covers all envs; row 0 -> envs (0, 2), row 1 -> envs (1, 3).
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor([[True, False, True, False], [False, True, False, True]], device=sim.cfg.device),
-    )
-
-    # The union of both rows covers every env, so resolution succeeds and reports the first row's source.
-    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
-
-    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
-
-
-def test_resolve_clone_plan_source_partial_coverage_returns(sim):
-    """Partial-env coverage is allowed: env 3 uncovered by either row does not raise."""
-    # Row 0 -> envs (0, 2), row 1 -> env (1); env 3 is covered by neither row.
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor([[True, False, True, False], [False, True, False, False]], device=sim.cfg.device),
-    )
-
-    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
-
-    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
