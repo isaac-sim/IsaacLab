@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Drag rigid boxes coupled to Newton implicit-MPM sand.
+"""Drag three rigid boxes coupled to Newton implicit-MPM sand.
 
 This Isaac Lab port of Newton's ``mpm_twoway_coupling`` example uses a proxy
 coupler to expose dynamic rigid boxes as MPM colliders and feed the resulting
@@ -25,7 +25,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Newton rigid-box and MPM-sand two-way coupling demo.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many frames; negative runs forever.")
-parser.add_argument("--voxel_size", type=float, default=0.05, help="MPM grid voxel size [m].")
+parser.add_argument("--voxel_size", type=float, default=0.075, help="MPM grid voxel size [m].")
 parser.add_argument("--rigid_substeps", type=int, default=4, help="Rigid-solver substeps per coupled step.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton"])
@@ -42,20 +42,14 @@ BOX_HALF_EXTENTS = (
     (0.25, 0.35, 0.25),
     (0.25, 0.25, 0.25),
     (0.30, 0.20, 0.20),
-    (0.25, 0.35, 0.25),
-    (0.25, 0.25, 0.25),
-    (0.30, 0.20, 0.20),
 )
 # Match Newton's reference scene: 75 kg body mass plus the shape's
 # default-density contribution.
-BOX_MASSES = (250.0, 200.0, 171.0, 250.0, 200.0, 171.0)
+BOX_MASSES = (250.0, 200.0, 171.0)
 BOX_OFFSETS_XY = (
     (0.00, 0.00),
     (0.10, 0.00),
     (-0.10, 0.00),
-    (0.00, 0.10),
-    (0.00, -0.10),
-    (0.10, 0.10),
 )
 
 
