@@ -6,8 +6,7 @@ Changed
   ``Isaac-Velocity-Flat-Spot`` to ``IsaacContrib-Velocity-Flat-Spot``. Update
   Python imports and ``gym.make`` / ``--task`` arguments to use the contributed
   path and ID.
-* Unified the physics preset layout across the locomotion velocity
-  configurations so each ``PhysicsCfg`` declares ``physx`` as the primary
-  backend and aliases ``default = physx``.
+* Unified the locomotion velocity physics presets to expose automatic PhysX
+  selection and the supported concrete PhysX and Newton backends.
 * Tuned the Newton and PhysX solver settings for the locomotion velocity
   environments.
