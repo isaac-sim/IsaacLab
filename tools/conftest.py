@@ -542,6 +542,28 @@ _RESULT_PRIORITY = {
 }
 
 
+def _make_status(
+    *,
+    errors: int,
+    failures: int,
+    skipped: int = 0,
+    tests: int = 0,
+    result: str | None = None,
+    time_elapsed: float = 0.0,
+    wall_time: float,
+) -> dict:
+    """Build a per-file status dict; ``result`` defaults to FAILED/passed from counters."""
+    return {
+        "errors": errors,
+        "failures": failures,
+        "skipped": skipped,
+        "tests": tests,
+        "result": result if result is not None else ("FAILED" if (errors > 0 or failures > 0) else "passed"),
+        "time_elapsed": time_elapsed,
+        "wall_time": wall_time,
+    }
+
+
 def _merge_pass_status(prev: dict | None, new: dict) -> dict:
     """Merge per-pass status dicts into a single per-file entry.
 
@@ -986,23 +1008,19 @@ def _run_batch(
             diag = _get_diagnostics(pre_kill_diag)
             if kill_reason == "startup_hang":
                 msg = f"Startup hang after {startup_deadline}s"
-                details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-                if stderr_data:
-                    details += stderr_data.decode("utf-8", errors="replace")[-5000:]
+                tail_bytes, tail_len = stderr_data, 5000
             elif kill_reason == "timeout":
                 msg = f"Batch timeout after {timeout}s"
-                details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-                if stdout_data:
-                    details += stdout_data.decode("utf-8", errors="replace")[-5000:]
+                tail_bytes, tail_len = stdout_data, 5000
             else:
                 msg = (
                     _signal_description(-returncode)
                     if returncode < 0
                     else f"Batch exited with code {returncode} but produced no report for {file_name}"
                 )
-                details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-                if stdout_data:
-                    details += stdout_data.decode("utf-8", errors="replace")[-2000:]
+                tail_bytes, tail_len = stdout_data, 2000
+            tail = tail_bytes.decode("utf-8", errors="replace")[-tail_len:] if tail_bytes else ""
+            details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n{tail}"
 
             result_key = kill_reason.upper() if kill_reason else "CRASHED"
             error_report = _create_error_report(kill_reason or "crash", file_name, msg, details)
@@ -1010,30 +1028,23 @@ def _run_batch(
             slug = test_file.replace("/", "__").replace("\\", "__")
             error_report.write(f"tests/test-reports-{slug}.xml")
             xml_reports.append(error_report)
-            file_statuses[test_file] = {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": result_key,
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            }
+            file_statuses[test_file] = _make_status(
+                errors=1, failures=0, tests=1, result=result_key, wall_time=wall_time
+            )
             failed_files.append(test_file)
             continue
 
         errors, failures = stats["errors"], stats["failures"]
         if errors > 0 or failures > 0:
             failed_files.append(test_file)
-        file_statuses[test_file] = {
-            "errors": errors,
-            "failures": failures,
-            "skipped": stats["skipped"],
-            "tests": stats["tests"],
-            "result": "FAILED" if (errors > 0 or failures > 0) else "passed",
-            "time_elapsed": stats["time"],
-            "wall_time": wall_time,
-        }
+        file_statuses[test_file] = _make_status(
+            errors=errors,
+            failures=failures,
+            skipped=stats["skipped"],
+            tests=stats["tests"],
+            time_elapsed=stats["time"],
+            wall_time=wall_time,
+        )
 
     if batch_xml is not None:
         xml_reports.append(batch_xml)
@@ -1061,18 +1072,15 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
     file_source = _queued_files(queue_path) if queue_path else test_files
 
     # Batch mode: share a single Kit session across multiple files per subprocess.
+    # device_split files and SOLO_KIT_SESSION_TESTS entries become single-element
+    # batches in _make_batches and fall through to the per-file loop below so
+    # the device_split two-pass (CPU then GPU) and retry logic are preserved.
     batch_size = int(os.environ.get("ISAACLAB_KIT_SESSION_FILES", "1"))
     singleton_files: list[str] = []
     if batch_size > 1 and not queue_path:
         batches = _make_batches(list(test_files), batch_size)
-        for batch in batches:
-            if len(batch) == 1:
-                # Single-file batches (solo tests, device_split files) are handled
-                # by the per-file loop below so their device_split and retry logic
-                # still applies.  Collect them here; do NOT break — other multi-file
-                # batches later in the list must still be processed.
-                singleton_files.append(batch[0])
-                continue
+        singleton_files = [b[0] for b in batches if len(b) == 1]
+        for batch in [b for b in batches if len(b) > 1]:
             env = os.environ.copy()
             env["PYTHONFAULTHANDLER"] = "1"
             _mask = os.environ.get("ISAACLAB_TEST_DEVICES", "")
