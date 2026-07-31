@@ -19,6 +19,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.deformable.newton_manager_cfg import (
@@ -30,8 +31,15 @@ from isaaclab_contrib.deformable.newton_manager_cfg import (
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
 
-from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
-from .franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
+from .franka_soft_env_cfg import (
+    FRANKA_CAMERA_CFG,
+    FrankaCameraObservationsCfg,
+    FrankaSoftEnvCfg,
+    _FrankaSoftSceneCfg,
+)
+from .franka_soft_env_cfg import (
+    EventCfg as FrankaSoftEventCfg,
+)
 
 ##
 # Scene definition
@@ -169,6 +177,13 @@ class FrankaClothScenePresetCfg(PresetCfg):
 
 
 @configclass
+class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
+    """Franka cloth scene with a base camera."""
+
+    base_camera: CameraCfg = FRANKA_CAMERA_CFG
+
+
+@configclass
 class ActionsCfg:
     """7-dim arm joint position + 1-dim binary gripper."""
 
@@ -243,3 +258,30 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.sim.render_interval = self.decimation
 
         self.sim.physics = PhysicsCfg()
+
+
+@configclass
+class FrankaClothCameraScenePresetCfg(PresetCfg):
+    """Preset config for the Franka cloth camera scene."""
+
+    newton_mjwarp_vbd: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(
+        num_envs=128, env_spacing=2.5, replicate_physics=True
+    )
+    ovphysx: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(
+        num_envs=128, env_spacing=2.5, replicate_physics=True
+    )
+
+    default = newton_mjwarp_vbd
+
+
+@configclass
+class FrankaClothCameraEnvCfg(FrankaClothEnvCfg):
+    """Visual Franka surface-deformable lifting environment."""
+
+    scene: FrankaClothCameraScenePresetCfg = FrankaClothCameraScenePresetCfg()
+    observations: FrankaCameraObservationsCfg = FrankaCameraObservationsCfg()
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop).
+        self.num_rerenders_on_reset = 2
