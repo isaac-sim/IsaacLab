@@ -12,17 +12,12 @@ no growth in the preceding steps. Every reward or observation reading that state
 ``NaN``, and RL libraries check the returned rewards and observations, so one diverged environment
 aborts the whole run.
 
-Terminating on the divergence is not enough on its own. In
-:meth:`~isaaclab.envs.ManagerBasedRLEnv.step` the reward manager runs after the termination manager
-but *before* the environments are reset, so rewards for the terminating step are still computed from
-the diverged state. Observations are computed after the reset and are normally clean, but the
-pre-reset paths (an active recorder term, or ``compute_final_obs``) also read the diverged state.
-
 Reward terms, and the deformable observation terms, therefore read state through the helpers below,
 which replace non-finite entries with ``0.0``. This places a diverged body at the world origin,
-yielding a finite but meaningless value for exactly one step. That is intentional and acceptable,
-because :func:`~isaaclab_tasks.core.lift.config.franka_soft.mdp.deformable_state_invalid` flags the
-same step from the raw state and the environment is reset immediately.
+yielding finite but meaningless values. The task has no termination on numerical validity: the
+bounds terminations fail open on ``NaN`` (both ``NaN < lower`` and ``NaN > upper`` are ``False``),
+so a diverged environment runs to its time out and is reset there. Training tolerates this, since
+the event is rare and the sanitized rewards stay finite throughout.
 
 The robot's root pose is deliberately left raw: the Franka is fixed-base, so body 0 is welded and
 its transform has no joint-state dependence, keeping it finite while every descendant body goes

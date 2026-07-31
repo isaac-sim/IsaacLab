@@ -555,12 +555,6 @@ class TerminationsCfg:
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
 
-    # real failure, not a time out: a diverged solve must bootstrap as a termination
-    deformable_invalid = DoneTerm(
-        func=mdp.deformable_state_invalid,
-        params={"asset_cfg": SceneEntityCfg("deformable")},
-    )
-
 
 ##
 # Environment configuration

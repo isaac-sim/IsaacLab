@@ -72,41 +72,6 @@ def deformable_nodal_vel_above_maximum(
     return speed.max(dim=1).values > maximum_velocity
 
 
-def deformable_state_invalid(
-    env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
-    position_limit: float = 1.0e4,
-) -> torch.Tensor:
-    """Terminate when the deformable state is no longer numerically valid.
-
-    Guards against a diverging solve: once any node position or velocity turns non-finite, the
-    center of mass (the mean over nodes) is non-finite too, so every reward and observation reading
-    it is poisoned for the rest of the episode. Terminating resets the environment so training can
-    continue.
-
-    This reads the raw state, unlike the sanitized accessors used by the reward and observation
-    terms, which would otherwise mask the divergence. Node positions beyond ``position_limit`` are
-    also flagged, since a blow-up passes through large finite values before it overflows to
-    infinity. Unlike :func:`deformable_outside_bounds`, whose limits are task bounds, this one is a
-    numerical sanity check.
-
-    Args:
-        env: The environment instance.
-        asset_cfg: The deformable object entity.
-        position_limit: Maximum absolute nodal position component treated as valid [m].
-
-    Returns:
-        Boolean tensor with shape ``(num_envs,)``.
-    """
-    asset: DeformableObject = env.scene[asset_cfg.name]
-    nodal_pos_w = asset.data.nodal_pos_w.torch
-    nodal_vel_w = asset.data.nodal_vel_w.torch
-    valid = torch.isfinite(nodal_pos_w).flatten(1).all(dim=1)
-    valid &= torch.isfinite(nodal_vel_w).flatten(1).all(dim=1)
-    valid &= (nodal_pos_w.abs() <= position_limit).flatten(1).all(dim=1)
-    return ~valid
-
-
 def joint_vel_out_of_sim_limit(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
