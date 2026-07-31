@@ -89,15 +89,15 @@ jobs:
         # including when manually dispatched from the release landing branch.
         ref: develop
 
-    - name: Setup python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
       with:
         python-version: "3.12"
-        architecture: x64
 
-    - name: Install dev requirements
-      working-directory: ./docs
-      run: pip install -r requirements.txt
+    - name: Install docs dependencies
+      run: |
+        uv sync --extra test
+        echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Generate multi-version docs
       working-directory: ./docs
