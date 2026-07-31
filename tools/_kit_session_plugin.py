@@ -38,7 +38,6 @@ _enable_cameras = os.environ.get("ISAACLAB_BATCH_CAMERAS") == "1"
 _launcher = _AppLauncher(headless=True, enable_cameras=_enable_cameras)
 
 # Patch so every subsequent AppLauncher() call reuses the shared session.
-_original_init = _AppLauncher.__init__
 
 
 def _shared_init(self, launcher_args=None, **kwargs):
