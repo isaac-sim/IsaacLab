@@ -329,18 +329,121 @@ Example: SO-101 leader-arm joint teleoperation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` mirrors the joint angles streamed by a physical
-SO-101 leader arm (via the ``so101_leader`` device) directly onto the simulated follower -- no XR
-headset, inverse kinematics, or anchor. Its pipeline is
+SO-101 leader arm directly onto the simulated follower -- no XR headset, inverse kinematics, or
+anchor. Its pipeline is
 ``JointStateSource -> JointStateRetargeter (mode="joint") -> TensorReorderer``.
 
-.. code-block:: bash
+For full hardware setup, calibration, and plugin configuration, see the
+`SO-101 leader plugin README <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/so101_leader>`_.
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-       --num_envs 1
+Prerequisites
+^^^^^^^^^^^^^
 
-Start the ``so101_leader`` device (or its synthetic backend) alongside the sim so it pushes joint
-state on the ``so101_leader`` collection.
+* **SO-101 hardware**: A physical SO-101 leader arm connected to the workstation over USB.
+
+* **lerobot**: The ``so101_leader`` Isaac Teleop plugin depends on ``lerobot`` for calibration and
+  joint-state streaming. ``lerobot`` is **not** bundled with Isaac Lab; install it separately
+  following the `SO-101 plugin README`_:
+
+  .. code-block:: bash
+
+     uv pip install lerobot
+
+* **Calibration**: The SO-101 arm must be calibrated before use. Run the calibration utility
+  described in the `SO-101 plugin README`_ and save the resulting calibration file. The plugin
+  reads this file at startup to map raw encoder values to joint angles. Attempting to run without
+  calibration will produce incorrect joint mappings and the follower arm will not track the leader.
+
+Run the simulation
+^^^^^^^^^^^^^^^^^^
+
+The SO-101 workflow supports two monitoring modes -- choose based on whether you have an XR
+headset available:
+
+**Without a headset (local viewport only)**
+
+Omit ``--xr``. The sim runs in standalone mode and the teleop state machine starts automatically
+on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`).
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
+             --num_envs 1
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
+             --num_envs 1
+
+**With a headset (immersive XR view)**
+
+Add ``--xr`` to stream the simulation to a Quest, Pico, or Apple Vision Pro headset while the
+SO-101 leader arm still drives the follower joints. The retargeting pipeline is unchanged; ``--xr``
+only controls whether the scene is rendered to the headset. Follow the connection steps in
+:ref:`connect-xr-device` to pair the headset after launching.
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
+             --num_envs 1 \
+             --visualizer kit --xr
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
+             --num_envs 1 \
+             --visualizer kit --xr
+
+In a separate terminal, start the ``so101_leader`` Isaac Teleop plugin so it begins pushing joint
+state on the ``so101_leader`` collection. See the `SO-101 plugin README`_ for the exact launch
+command and configuration options.
+
+Start teleoperation
+^^^^^^^^^^^^^^^^^^^
+
+**Without ``--xr``**: the script calls :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start`
+automatically on startup, so the follower begins mirroring the leader immediately with no
+additional input required.
+
+**With ``--xr``**: a **start** command can be sent from the connected headset UI (Quest / Pico:
+the CloudXR.js **Connect** button; Apple Vision Pro: the **Play** button in the Isaac XR Teleop
+Sample Client). The SO-101 then begins driving the follower as soon as the headset sends the
+start command.
+
+Regardless of mode, when the Kit viewport is open you can also control the session with keyboard
+shortcuts:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 85
+
+   * - Key
+     - Action
+   * - ``B``
+     - Start / resume teleoperation.
+   * - ``P``
+     - Pause teleoperation (follower holds position).
+   * - ``R``
+     - Reset the environment.
+
+Move the physical SO-101 leader arm and the simulated follower will mirror its joint angles in real
+time.
 
 
 .. _isaac-teleop-retargeting:
@@ -1587,3 +1690,4 @@ See the :ref:`isaaclab_teleop-api` for full class and function documentation:
 ..
    References
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
+.. _`SO-101 plugin README`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/so101_leader
