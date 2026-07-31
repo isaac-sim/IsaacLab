@@ -211,7 +211,6 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     def __init__(self):
         self._scene_data = SceneDataFormat.Transform()
-        self._scene_data_points = SceneDataFormat.Points()
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
@@ -230,41 +229,6 @@ class NewtonSceneDataBackend(SceneDataBackend):
         if self.model.body_label is not None:
             return list(self.model.body_label)
         return []
-
-    @property
-    def points(self) -> SceneDataFormat.Points:
-        """Return live Newton particle positions when simulating with Newton."""
-        self._scene_data_points = SceneDataFormat.Points()
-        state = self.state
-        if state is not None and state.particle_q is not None:
-            self._scene_data_points.points = state.particle_q
-        else:
-            self._scene_data_points.points = None
-        return self._scene_data_points
-
-    @property
-    def point_count(self) -> int:
-        """Return the number of live Newton particles, or ``0`` when unavailable."""
-        state = self.state
-        if state is None or state.particle_q is None:
-            return 0
-        return int(state.particle_q.shape[0])
-
-    @property
-    def geometry_paths(self) -> list[str]:
-        """Return shadow deformable root paths used for SceneData geometry mapping."""
-        entities = NewtonManager._shadow_deformable_entities
-        if entities is None:
-            return []
-        return [entity.root_path for entity in entities]
-
-    @property
-    def geometry_counts(self) -> list[int]:
-        """Return render-slot particle counts for each shadow deformable entity."""
-        entities = NewtonManager._shadow_deformable_entities
-        if entities is None:
-            return []
-        return [entity.particle_count for entity in entities]
 
     @property
     def model(self) -> Model:
