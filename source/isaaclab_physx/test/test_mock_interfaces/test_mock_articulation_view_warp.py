@@ -230,6 +230,13 @@ class TestMockArticulationViewWarpMassGetters:
         assert inertias.shape == (4, 13, 9)
         assert inertias.dtype == wp.float32
 
+    @pytest.mark.parametrize("getter_name", ["get_masses", "get_inertias"])
+    def test_get_mass_properties_returns_stable_view(self, view, getter_name):
+        """Test mass-property getters alias their stable PhysX-style buffers."""
+        getter = getattr(view, getter_name)
+
+        assert getter().ptr == getter().ptr
+
 
 class TestMockArticulationViewWarpSetters:
     """Tests for MockArticulationViewWarp setter methods."""

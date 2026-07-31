@@ -538,6 +538,13 @@ Rerun Visualizer
 - Recording to .rrd files for offline replay (.rrd files can be opened with ctrl+O from the web viewer)
 - Timeline scrubbing and playback controls of recordings
 - Visualization debug markers
+- **Pause Rendering** / **Reset Episode** controls via the ImGui sidebar (under **IsaacLab Controls**)
+
+.. note::
+
+   Rerun's ImGui overlay is embedded in the Newton viewer process. Custom interactive controls
+   are limited to what ImGui exposes within that context; simulation pause is not supported from
+   Rerun. Use the Viser visualizer for full interactive controls.
 
 .. important::
 
@@ -606,6 +613,8 @@ server, allowing you to view and interact with the scene from any browser.
 - Environment filtering to control which environments are rendered
 - Visualization debug markers (joints, contacts, center of mass, particles, and more — toggled
   from the **Isaac Lab → Visualization Markers** sidebar panel)
+- Interactive sidebar controls: **Pause Rendering** (freezes the 3D view without stopping physics),
+  **Pause Simulation** (pauses the training/rollout loop), and **Reset Episode**
 
 .. important::
 

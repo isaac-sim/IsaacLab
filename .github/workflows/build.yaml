@@ -226,6 +226,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "0"
         shard-count: "3"
         container-name: isaac-lab-tasks-1-test
@@ -251,6 +252,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "1"
         shard-count: "3"
         container-name: isaac-lab-tasks-2-test
@@ -276,6 +278,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "2"
         shard-count: "3"
         container-name: isaac-lab-tasks-3-test
@@ -379,6 +382,8 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: ${{ matrix.runtime-group }}
+        # deformables.py tetrahedralizes its volume meshes at startup
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         result-file: "test-standalone-demos-${{ matrix.runtime-group }}-report.xml"
         container-name: isaac-lab-standalone-demos-${{ matrix.runtime-group }}-test
         omni-github-test-type: standalone-demo
@@ -445,6 +450,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
@@ -550,6 +556,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
@@ -723,6 +730,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_dexsuite_kuka_hetero.py,
@@ -763,7 +771,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
+        extra-pip-packages: >-
+          pytetwild[all]>=0.3.0,<0.4
+          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-

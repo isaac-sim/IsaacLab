@@ -325,7 +325,7 @@ step time and look at where it's spent:
 - ``step_time`` dominated by ``manager.compute_*`` calls → expect large gains, since those
   are exactly what the warp managers replace with captured kernel launches.
 
-Use ``--num_frames`` on ``runtime.py`` for a no-policy step-time microbenchmark
+Use ``--num_steps`` on ``runtime.py`` for a no-policy step-time microbenchmark
 when you want to isolate env overhead from policy compute.
 
 
