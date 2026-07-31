@@ -5,6 +5,7 @@
 
 """Sim-free regression tests for the Franka deformable OvPhysX presets."""
 
+import pytest
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import (
@@ -12,8 +13,11 @@ from isaaclab_physx.sim.spawners.materials import (
     PhysxSurfaceDeformableBodyMaterialCfg,
 )
 
-from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg
-from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
+from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import (
+    FrankaClothCameraEnvCfg,
+    FrankaClothEnvCfg,
+)
+from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftCameraEnvCfg, FrankaSoftEnvCfg
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 
@@ -38,9 +42,26 @@ def test_cloth_task_ovphysx_preset_selects_complete_authored_scene():
     assert cfg.events.robot_physics_material.params["asset_cfg"].body_names is None
 
 
-def test_cloth_rendering_variant_updates_all_event_presets():
-    """Test that the rendering variant can override reset ranges before preset resolution."""
-    from rendering_test_utils import _make_franka_cloth_camera_env_cfg
+@pytest.mark.parametrize(
+    ("env_cfg_type", "material_type"),
+    [
+        (FrankaSoftCameraEnvCfg, PhysxDeformableBodyMaterialCfg),
+        (FrankaClothCameraEnvCfg, PhysxSurfaceDeformableBodyMaterialCfg),
+    ],
+)
+def test_camera_task_ovphysx_preset_selects_complete_authored_scene(env_cfg_type, material_type):
+    """Test that each camera-task OvPhysX preset selects a fully authored scene."""
+    cfg = resolve_presets(env_cfg_type(), ("ovphysx",))
+
+    assert isinstance(cfg.sim.physics, OvPhysxCfg)
+    assert cfg.scene.replicate_physics is True
+    assert isinstance(cfg.scene.deformable.spawn.deformable_props, PhysxDeformableBodyPropertiesCfg)
+    assert isinstance(cfg.scene.deformable.spawn.physics_material, material_type)
+
+
+def test_cloth_rendering_variant_applies_deterministic_overrides():
+    """Test that the rendering test applies overrides after preset resolution."""
+    from rendering_test_utils import _configure_franka_camera_test_env_cfg
 
     expected_range = {
         "x": (0.0, 0.0),
@@ -48,8 +69,10 @@ def test_cloth_rendering_variant_updates_all_event_presets():
         "z": (0.0, 0.0),
     }
 
-    for preset_name, replicate_physics in (("newton_mjwarp_vbd", True), ("ovphysx", True)):
-        cfg = resolve_presets(_make_franka_cloth_camera_env_cfg("rgb"), (preset_name,))
+    cfg = resolve_presets(FrankaClothCameraEnvCfg(), ("ovphysx",))
+    _configure_franka_camera_test_env_cfg(cfg, "rgb")
 
-        assert cfg.scene.replicate_physics is replicate_physics
-        assert cfg.events.reset_deformable.params["position_range"] == expected_range
+    assert cfg.scene.num_envs == 4
+    assert cfg.scene.replicate_physics is True
+    assert cfg.scene.base_camera.data_types == ["rgb"]
+    assert cfg.events.reset_deformable.params["position_range"] == expected_range
