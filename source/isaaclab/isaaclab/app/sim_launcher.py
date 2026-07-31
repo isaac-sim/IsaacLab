@@ -574,9 +574,9 @@ def launch_simulation(
 
 def _ensure_isaac_sim_available() -> None:
     """Raise ``SystemExit`` with an actionable hint when Isaac Sim / Kit is missing."""
-    import importlib.util
+    from isaaclab.app import AppLauncher  # noqa: PLC0415
 
-    if importlib.util.find_spec("omni.kit") is not None:
+    if AppLauncher.is_available():
         return
 
     isaaclab_path = os.environ.get("ISAACLAB_PATH")
