@@ -21,14 +21,22 @@ rendering-correctness = [
   "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-rgb-cartpole]",
 ]
 
-rendering-correctness-kitless = [
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[newton-newton_warp-depth]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[newton-newton_warp-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[newton-ovrtx-albedo]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[newton-ovrtx-depth]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovphysx-newton_warp-depth]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovphysx-newton_warp-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovphysx-ovrtx-albedo]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovphysx-ovrtx-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovphysx-ovrtx-semantic_segmentation]",
+rendering-correctness-kitless-legacy = [
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-newton_warp-depth]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-newton_warp-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-ovrtx-albedo]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-ovrtx-depth]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-newton_warp-depth]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-newton_warp-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-albedo]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-semantic_segmentation]",
+]
+
+rendering-correctness-kitless-ovstage = [
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-newton-ovrtx-albedo]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-newton-ovrtx-depth]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx-albedo]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx-semantic_segmentation]",
 ]

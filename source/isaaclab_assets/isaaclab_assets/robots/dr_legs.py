@@ -80,6 +80,7 @@ DR_LEGS_IMPLICIT_PD_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=_DR_LEGS_USD_PATH,
         activate_contact_sensors=True,
+        collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             max_depenetration_velocity=10.0,

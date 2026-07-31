@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.6.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :data:`~isaaclab_assets.sensors.GELSIGHT_MINI_CFG` to use the available GelSight render data.
+
+
 0.6.0 (2026-07-29)
 ~~~~~~~~~~~~~~~~~~
 

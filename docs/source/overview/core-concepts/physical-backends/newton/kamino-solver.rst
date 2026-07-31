@@ -72,8 +72,8 @@ Then add a ``newton_kamino`` entry beside the existing ``default``, ``physx``, a
 .. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py
     :language: python
     :start-at: class CartpolePhysicsCfg
-    :end-at: ovphysx: OvPhysxCfg = OvPhysxCfg()
-    :emphasize-lines: 17-38
+    :end-before: class CartpoleEnvCfg
+    :emphasize-lines: 18-39
 
 The important pieces are:
 

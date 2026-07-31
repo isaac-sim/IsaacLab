@@ -355,7 +355,7 @@ full:
       episode_length: 700
     upper_thresholds:
       duration: 3000
-  Isaac-Velocity-Flat-Spot:
+  IsaacContrib-Velocity-Flat-Spot:
     max_iterations: 1000
     lower_thresholds:
       reward: 150
