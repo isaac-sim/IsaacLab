@@ -343,10 +343,11 @@ def _resave_checkpoint_with_metadata(
 ) -> str:
     """Re-save a neural-network checkpoint with updated metadata.
 
-    Loads the original TorchScript or dict checkpoint, merges *metadata*
-    into any existing metadata (Lab config values take precedence), and
-    writes the result to a temporary ``.pt`` file that persists for the
-    lifetime of the process.
+    Resolves the configured path through the shared asset cache, loads the
+    original TorchScript or dict checkpoint, merges *metadata* into any
+    existing metadata (Lab config values take precedence), and writes the
+    result to a temporary ``.pt`` file that persists for the lifetime of the
+    process.
 
     Returns:
         Path to the temporary checkpoint file.
@@ -356,14 +357,18 @@ def _resave_checkpoint_with_metadata(
 
     import torch  # noqa: PLC0415
 
+    from isaaclab.utils.assets import retrieve_file_path  # noqa: PLC0415
+
+    local_path = retrieve_file_path(original_path)
+
     extra_files: dict[str, str] = {"metadata.json": ""}
     is_torchscript = True
     try:
-        net = torch.jit.load(original_path, map_location="cpu", _extra_files=extra_files)
+        net = torch.jit.load(local_path, map_location="cpu", _extra_files=extra_files)
         existing_meta = json.loads(extra_files["metadata.json"]) if extra_files["metadata.json"] else {}
     except Exception:
         is_torchscript = False
-        checkpoint = torch.load(original_path, map_location="cpu", weights_only=False)
+        checkpoint = torch.load(local_path, map_location="cpu", weights_only=False)
         if not isinstance(checkpoint, dict) or "model" not in checkpoint:
             raise ValueError(
                 f"Cannot load checkpoint at '{original_path}'; "
