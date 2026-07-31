@@ -19,6 +19,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.envs import mdp as env_mdp
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -29,7 +30,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import FrameTransformerCfg
+from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -48,6 +49,7 @@ from isaaclab_contrib.deformable.newton_manager_cfg import (
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 ##
 # Pre-defined configs
@@ -64,6 +66,21 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
 # Shared volume material parameters. The Newton config below uses the equivalent Lame parameters.
 YOUNGS_MODULUS = 8e4
 POISSONS_RATIO = 0.25
+
+
+FRANKA_CAMERA_CFG = CameraCfg(
+    prim_path="/World/envs/env_.*/Camera",
+    offset=CameraCfg.OffsetCfg(
+        pos=(0.85, -0.55, 0.42),
+        rot=(0.5080, 0.2114, 0.318, 0.7720),
+        convention="opengl",
+    ),
+    data_types=["rgb"],
+    spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
+    width=128,
+    height=128,
+    renderer_cfg=MultiBackendRendererCfg(),
+)
 
 
 @configclass
@@ -250,6 +267,13 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
         self.robot.actuators["panda_hand"].damping = 100.0
 
 
+@configclass
+class _FrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
+    """Franka soft scene with a base camera."""
+
+    base_camera: CameraCfg = FRANKA_CAMERA_CFG
+
+
 ##
 # MDP settings
 ##
@@ -332,6 +356,57 @@ class ObservationsCfg:
             self.concatenate_terms = True
 
     policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class FrankaCameraObservationsCfg:
+    """Observation groups for visual deformable lifting."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
+        actions = ObsTerm(func=mdp.last_action)
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = True
+            self.concatenate_terms = True
+
+    @configclass
+    class ProprioCfg(ObsGroup):
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = True
+            self.concatenate_terms = True
+
+    @configclass
+    class PerceptionCfg(ObsGroup):
+        deformable_sampled_points = ObsTerm(
+            func=mdp.DeformableSampledPointsInRobotRootFrame,
+            params={"asset_cfg": SceneEntityCfg("deformable"), "num_points": 20},
+        )
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = True
+            self.concatenate_terms = True
+
+    @configclass
+    class BaseImageCfg(ObsGroup):
+        image = ObsTerm(
+            func=env_mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("base_camera"),
+                "data_type": "rgb",
+                "normalize": True,
+                "permute": True,
+            },
+        )
+
+    policy: PolicyCfg = PolicyCfg()
+    proprio: ProprioCfg = ProprioCfg()
+    perception: PerceptionCfg = PerceptionCfg()
+    base_image: BaseImageCfg = BaseImageCfg()
 
 
 @configclass
@@ -446,6 +521,19 @@ class FrankaSoftSceneCfg(PresetCfg):
 
 
 @configclass
+class FrankaSoftCameraSceneCfg(PresetCfg):
+    """Scene presets for visual Franka soft lifting."""
+
+    newton_mjwarp_vbd: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(
+        num_envs=128, env_spacing=2.5, replicate_physics=True
+    )
+    physx: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+    isaacsim_physx = physx
+    newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
+    default = newton_mjwarp_vbd_proxy
+
+
+@configclass
 class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a volume deformable."""
 
@@ -470,3 +558,16 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.gravity = (0.0, 0.0, 0.0)
         self.sim.physics = PhysicsCfg()
+
+
+@configclass
+class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
+    """Visual Franka volume-deformable lifting environment."""
+
+    scene: FrankaSoftCameraSceneCfg = FrankaSoftCameraSceneCfg()
+    observations: FrankaCameraObservationsCfg = FrankaCameraObservationsCfg()
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop).
+        self.num_rerenders_on_reset = 2
