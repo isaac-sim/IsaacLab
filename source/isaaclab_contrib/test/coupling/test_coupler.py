@@ -61,6 +61,11 @@ def test_public_coupler_config_resolves_renamed_class():
     assert CouplerCfg().class_type.__name__ == "NewtonCouplerManager"
 
 
+def test_coupler_supports_rigid_body_force_input():
+    """The coupler exposes parent-state rigid forces to viewer integrations."""
+    assert NewtonCouplerManager._supports_rigid_body_force_input is True
+
+
 def test_public_coupling_exports_are_importable():
     """The lazy-export stub must not retain deleted public symbols."""
     import isaaclab_contrib.coupling as coupling

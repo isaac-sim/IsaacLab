@@ -159,6 +159,12 @@ OVERRIDES = {
         readiness_pattern=r"Newton granular MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
+    "scripts/demos/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
+        args=("--max_steps", "2", "--voxel_size", "0.2"),
+        readiness_pattern=r"Newton two-way MPM demo ready",
+        fixed_physics_backend="newton_coupler",
+        visualizers=("newton",),
+    ),
     "scripts/demos/mpm/particle_pour.py": ScriptOverride(
         args=("--max-steps", "200"),
         readiness_pattern=r"particle-pour MPM demo ready",

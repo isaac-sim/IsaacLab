@@ -64,7 +64,9 @@ class NewtonVisualizerCfg(VisualizerCfg):
     enable_picking: bool = True
     """Enable right-click dragging with Newton rigid-body solvers.
 
-    Disabled automatically for headless viewers, MPM, and non-Newton physics.
+    Supported coupled solvers may expose dragging through a rigid-body entry.
+    Disabled automatically for headless viewers, standalone MPM, and non-Newton
+    physics. MPM particles are not pickable.
     """
 
     enable_shadows: bool = True

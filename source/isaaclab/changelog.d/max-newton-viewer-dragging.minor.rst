@@ -1,4 +1,5 @@
 Added
 ^^^^^
 
-* Added a three-cube Newton MJWarp demo for interactive rigid-body dragging.
+* Added three-cube MJWarp and coupled rigid-box/MPM Newton demos for
+  interactive rigid-body dragging.
