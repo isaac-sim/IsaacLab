@@ -60,6 +60,7 @@ def test_uv_run_exposes_centralized_feature_extras():
         "mimic",
         "teleop",
         "rlinf",
+        "tetrahedralization",
         "all",
     }
     assert expected_extras <= set(optional_dependencies)
@@ -79,6 +80,16 @@ def test_uv_run_exposes_centralized_feature_extras():
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovphysx"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ovrtx"])
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
+
+
+def test_tetrahedralization_is_explicit_and_excluded_from_all():
+    """TetWild and its visualization stack are installed only when requested."""
+    project = _root_pyproject()["project"]
+    optional = project["optional-dependencies"]
+
+    assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
+    assert optional["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
+    assert not any("tetrahedralization" in dep or dep.startswith("pytetwild") for dep in optional["all"])
 
 
 def test_version_single_source_matches_literal_pins():

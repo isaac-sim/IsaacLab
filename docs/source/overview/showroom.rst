@@ -106,11 +106,13 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/deformables.py
+                  uv run --extra tetrahedralization python scripts/demos/deformables.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
                .. code:: bash
+
+                  ./isaaclab.sh -i tetrahedralization
 
                   ./isaaclab.sh -p scripts/demos/deformables.py
 
@@ -118,6 +120,8 @@ A few quick showroom scripts to run and checkout:
          :sync: windows
 
          .. code:: batch
+
+            isaaclab.bat -i tetrahedralization
 
             isaaclab.bat -p scripts\demos\deformables.py
 
