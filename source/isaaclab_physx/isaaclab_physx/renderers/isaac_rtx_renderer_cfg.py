@@ -121,7 +121,8 @@ class IsaacRtxRendererCfg(RendererCfg):
 
     Set to ``False`` to use classic DLSS while leaving other render products,
     such as XR headset views, on their process-global setting. ``None``
-    preserves Kit's render-product default.
+    preserves Kit's render-product default. On Isaac Sim versions before 6.1,
+    ``True`` falls back to classic DLSS because responsive denoising is unavailable.
     """
 
     dlss_exec_mode: Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"] | None = None

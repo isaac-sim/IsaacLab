@@ -13,7 +13,6 @@ import pytest
 import torch
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_teleop import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg
-from packaging.version import Version
 
 from isaaclab.sensors import CameraCfg
 
@@ -210,7 +209,6 @@ def test_existing_camera_is_selected_without_replacement(monkeypatch):
     selected = _camera_cfg(IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=True))
     env_cfg = _teleop_env_cfg([XrCameraFeedCfg(camera_name="robot_pov_cam")], camera=selected)
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", _FakePresenter)
-    monkeypatch.setattr("isaaclab.utils.version.get_isaac_sim_version", lambda: Version("6.1.0"))
 
     session = camera_feed._XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
 
@@ -234,19 +232,6 @@ def test_session_refresh_renders_reset_state_before_publishing():
     session.refresh()
 
     assert events == ["request", "render"] * 3 + ["publish"]
-
-
-def test_pre_61_runtime_falls_back_to_classic_dlss(monkeypatch):
-    selected = _camera_cfg(IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=True))
-    env_cfg = _teleop_env_cfg([XrCameraFeedCfg(camera_name="robot_pov_cam")], camera=selected)
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", _FakePresenter)
-    monkeypatch.setattr("isaaclab.utils.version.get_isaac_sim_version", lambda: Version("6.0.0"))
-
-    session = camera_feed._XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
-
-    assert session.enabled
-    assert selected.renderer_cfg.enable_dlss_ray_reconstruction is False
-    assert not session.requires_responsive_denoising
 
 
 def test_camera_rendering_switch_disables_pip_before_presenter_load(monkeypatch):

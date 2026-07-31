@@ -103,7 +103,7 @@ uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
 their recorded `robot_pov_cam` observation in PiP:
 
 ```bash
-./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
     --task IsaacContrib-PickPlace-GR1T2-Abs --xr --device cpu
 ```
 

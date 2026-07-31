@@ -86,6 +86,7 @@ DLSS_RAY_RECONSTRUCTION_API_SCHEMA = "OmniRtxDebugSettingsAPI_1"
 DLSS_RAY_RECONSTRUCTION_ATTR = "omni:rtx:newDenoiser:enabled"
 DLSS_EXEC_MODE_API_SCHEMA = "OmniRtxSettingsRtAPI_1"
 DLSS_EXEC_MODE_ATTR = "omni:rtx:post:dlss:execMode"
+_DLSS_RAY_RECONSTRUCTION_MIN_ISAAC_SIM_VERSION = (6, 1)
 
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
@@ -456,6 +457,16 @@ class IsaacRtxRenderer(BaseRenderer):
         dlss_exec_mode = self.cfg.dlss_exec_mode
         if ray_reconstruction is None and dlss_exec_mode is None:
             return
+        if ray_reconstruction is True:
+            isaac_sim_version = get_isaac_sim_version()
+            isaac_sim_major_minor = (isaac_sim_version.major, isaac_sim_version.minor)
+            if isaac_sim_major_minor < _DLSS_RAY_RECONSTRUCTION_MIN_ISAAC_SIM_VERSION:
+                ray_reconstruction = False
+                logger.warning(
+                    "DLSS Ray Reconstruction was requested, but Isaac Sim %s predates responsive denoising. "
+                    "Falling back to classic DLSS for this render product.",
+                    isaac_sim_version,
+                )
         for render_product_path in render_product_paths:
             render_product = stage.GetPrimAtPath(render_product_path)
             if not render_product.IsValid():

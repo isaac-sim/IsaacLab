@@ -7,8 +7,8 @@
 
 from isaaclab.app import AppLauncher
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+# Camera-enabled tasks under test require the rendering experience.
+simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 

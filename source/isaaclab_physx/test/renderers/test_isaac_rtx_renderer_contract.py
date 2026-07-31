@@ -219,6 +219,39 @@ def test_dlss_settings_are_authored_per_render_product(monkeypatch):
         prim._test_attributes["omni:rtx:post:dlss:execMode"].Set.assert_called_once_with("quality")
 
 
+@pytest.mark.parametrize(
+    ("isaac_sim_version", "expected_ray_reconstruction"),
+    [
+        pytest.param("6.0.0", False, id="pre-responsive-denoising"),
+        pytest.param("6.1.0", True, id="responsive-denoising"),
+    ],
+)
+def test_ray_reconstruction_uses_renderer_owned_version_fallback(
+    monkeypatch, caplog, isaac_sim_version, expected_ray_reconstruction
+):
+    """All Isaac RTX camera consumers share the pre-6.1 compatibility fallback."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=True)
+    stage = MagicMock()
+    render_product = stage.GetPrimAtPath.return_value
+    render_product.IsValid.return_value = True
+    render_product.IsA.return_value = True
+    render_product.ApplyAPI.return_value = True
+    attribute = render_product.GetAttribute.return_value
+    attribute.IsValid.return_value = True
+    attribute.Set.return_value = True
+
+    with patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse(isaac_sim_version)):
+        renderer._apply_render_product_settings(stage, ["/Render/RP"])
+
+    attribute.Set.assert_called_once_with(expected_ray_reconstruction)
+    assert ("Falling back to classic DLSS" in caplog.text) == (not expected_ray_reconstruction)
+
+
 def test_default_renderer_cfg_does_not_author_render_product_settings(monkeypatch):
     """The default config preserves Kit's render-product settings."""
     _install_omni_stubs(monkeypatch)

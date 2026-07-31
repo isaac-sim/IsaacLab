@@ -1193,8 +1193,8 @@ startup rejects ``--num_envs`` values other than ``1``; IsaacTeleop XR behavior 
 unchanged.
 
 On Isaac Sim 6.1 and newer, camera-feed setup enables responsive DLSS Ray Reconstruction denoising
-automatically. Earlier runtimes fall back to classic DLSS for PiP cameras to avoid the temporal
-ghosting in their Ray Reconstruction implementation.
+automatically. For every camera consumer, the Isaac RTX renderer falls back to classic DLSS on
+earlier runtimes to avoid the temporal ghosting in their Ray Reconstruction implementation.
 
 Camera selection
 ~~~~~~~~~~~~~~~~
@@ -1296,9 +1296,10 @@ Kit Scene UI presentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PiP presentation uses Kit Scene UI and ``SpatialSource`` placement. Kit imports are deferred until
-an enabled feed is requested. If Scene UI is unavailable, the scripts log a warning and continue
-without PiP; task-owned cameras and recording observations remain unchanged. This keeps the camera
-selection configuration usable when a future kitless entry point no longer provides Scene UI.
+an enabled feed is requested. If the Scene UI modules cannot be imported, the scripts log a warning
+and continue without PiP; task-owned cameras and recording observations remain unchanged. This keeps
+the camera selection configuration usable when a future kitless entry point no longer provides
+Scene UI. Configuration, camera-buffer, and panel-initialization errors still fail during startup.
 
 
 .. _isaac-teleop-haptics:

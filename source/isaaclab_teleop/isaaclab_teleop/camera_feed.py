@@ -26,8 +26,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_RESPONSIVE_DENOISING_MIN_ISAAC_SIM_VERSION = (6, 1)
-
 
 @lru_cache(maxsize=1)
 def _camera_type() -> type[Camera]:
@@ -51,25 +49,6 @@ def _load_kit_scene_ui_presenter() -> Any | None:
     return module._KitSceneUiCameraFeedPresenter()
 
 
-def _configure_ray_reconstruction_compatibility(camera_cfg: Any, camera_name: str) -> None:
-    """Fall back to classic DLSS on runtimes without responsive denoising."""
-    renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
-    if getattr(renderer_cfg, "enable_dlss_ray_reconstruction", None) is not True:
-        return
-
-    from isaaclab.utils.version import get_isaac_sim_version
-
-    isaac_sim_version = get_isaac_sim_version()
-    if (isaac_sim_version.major, isaac_sim_version.minor) < _RESPONSIVE_DENOISING_MIN_ISAAC_SIM_VERSION:
-        renderer_cfg.enable_dlss_ray_reconstruction = False
-        logger.warning(
-            "XR camera feed %r requested DLSS Ray Reconstruction, but Isaac Sim %s predates responsive "
-            "denoising. Falling back to classic DLSS.",
-            camera_name,
-            isaac_sim_version,
-        )
-
-
 def _prepare_camera_feed_cfgs(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> list[XrCameraFeedCfg]:
     """Validate selected scene cameras."""
     from isaaclab.sensors import CameraCfg
@@ -91,7 +70,6 @@ def _prepare_camera_feed_cfgs(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> list
             raise TypeError(f"XR camera feed {cfg.camera_name!r} does not reference a CameraCfg.")
         if not any(data_type in {"rgb", "rgba"} for data_type in camera_cfg.data_types):
             raise ValueError(f"XR camera feed {cfg.camera_name!r} camera must provide RGB or RGBA output.")
-        _configure_ray_reconstruction_compatibility(camera_cfg, cfg.camera_name)
         prepared.append(cfg)
     return prepared
 
