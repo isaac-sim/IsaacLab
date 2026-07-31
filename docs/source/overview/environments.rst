@@ -90,7 +90,7 @@ modes. The **Presets** column in each table below is divided into three labeled 
 
 * **physics=** — physics-backend name passed as ``physics=NAME``
   (e.g. ``physx``, ``isaacsim_physx``, ``newton_mjwarp``,
-  ``newton_kamino``, ``ovphysx``, ``newton_mjwarp_vbd``). On tasks that
+  ``newton_kamino``, ``ovphysx``, ``newton_mjwarp_vbd_proxy``). On tasks that
   expose automatic PhysX-family selection, ``physx`` uses Isaac Sim PhysX when
   Kit is required and OvPhysX otherwise when the task supports it. Tasks
   without an OvPhysX alternative fall back to Isaac Sim PhysX; use
@@ -228,10 +228,9 @@ for the lift-cube environment:
     | |lift-cube|             | |lift-cube-link|             | Pick a cube and bring it to a sampled target position with the Franka robot |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |lift-soft-franka|      | |lift-soft-franka-link|      | Pick a deformable soft body and bring it to a sampled target position with  | **physics=** ``physx``,      |
-    |                         |                              | the Franka robot                                                            | ``newton_mjwarp_vbd``        |
+    |                         |                              | the Franka robot                                                            | ``newton_mjwarp_vbd_proxy``  |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |lift-soft-franka|      | |lift-soft-franka-cam-link|  | Camera (vision) variant of the soft-body lift task using RGB observations   | **physics=** ``physx``,      |
-    |                         |                              |                                                                             | ``newton_mjwarp_vbd``,       |
     |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``  |
     |                         |                              |                                                                             | **renderer=**                |
     |                         |                              |                                                                             | ``isaacsim_rtx``,            |
@@ -239,10 +238,10 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``ovrtx``, ``rtx``           |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |lift-cloth-franka|     | |lift-cloth-franka-link|     | Lift a deformable cloth from a table with the Franka robot                  | **physics=**                 |
-    |                         |                              |                                                                             | ``newton_mjwarp_vbd``        |
+    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``  |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |lift-cloth-franka|     | |lift-cloth-franka-cam-link| | Camera (vision) variant of the cloth lift task using RGB observations       | **physics=**                 |
-    |                         |                              |                                                                             | ``newton_mjwarp_vbd``        |
+    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``  |
     |                         |                              |                                                                             | **renderer=**                |
     |                         |                              |                                                                             | ``isaacsim_rtx``,            |
     |                         |                              |                                                                             | ``newton_renderer``,         |
@@ -1008,11 +1007,11 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Cloth-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp_vbd``
+      - **physics=** ``newton_mjwarp_vbd_proxy``
     * - Isaac-Lift-Cloth-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp_vbd``
+      - | **physics=** ``newton_mjwarp_vbd_proxy``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
     * - Isaac-Lift-Cube-Franka
       - Manager Based
@@ -1037,11 +1036,11 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Soft-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp_vbd``, ``newton_mjwarp_vbd_proxy``, ``physx``
+      - **physics=** ``newton_mjwarp_vbd_proxy``, ``physx``
     * - Isaac-Lift-Soft-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp_vbd``, ``newton_mjwarp_vbd_proxy``, ``physx``
+      - | **physics=** ``newton_mjwarp_vbd_proxy``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
     * - Isaac-Open-Drawer-Franka
       - Manager Based

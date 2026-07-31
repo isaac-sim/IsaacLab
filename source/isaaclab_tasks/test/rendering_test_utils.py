@@ -675,7 +675,7 @@ def _physics_preset_name(physics_backend: str) -> str:
 
 def _physics_preset_name_deformable(physics_backend: str) -> str:
     """Map deformable-test physics labels to Hydra preset names."""
-    return "newton_mjwarp_vbd" if physics_backend == "newton" else physics_backend
+    return "newton_mjwarp_vbd_proxy" if physics_backend == "newton" else physics_backend
 
 
 def _skip_if_physics_preset_unsupported(env_cfg: Any, physics_preset_name: str) -> None:
