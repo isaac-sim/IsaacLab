@@ -26,44 +26,12 @@ Prerequisites
 -------------
 
 This export flow requires ``leapp``, Python >= 3.10, and PyTorch >= 2.6. Install
-LEAPP into the same Python environment used by Isaac Lab:
+the root ``leapp`` optional extra into the same Python environment used by Isaac Lab
+(``--inexact`` keeps existing packages untouched):
 
-.. tab-set::
-   :sync-group: os
+.. code-block:: bash
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. tab-set::
-
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: bash
-
-               uv pip install leapp
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               ./isaaclab.sh -p -m pip install leapp
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. tab-set::
-
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: batch
-
-               uv pip install leapp
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: batch
-
-               isaaclab.bat -p -m pip install leapp
+   uv sync --inexact --extra leapp
 
 Ensure you have a trained checkpoint for the selected RL library before proceeding. The standard
 Isaac Lab training workflow stores checkpoints under ``logs/<rl_library>/``.
@@ -104,23 +72,50 @@ Set the EULA variables in non-interactive shells so Isaac Sim can start without 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
-             scripts/reinforcement_learning/leapp/<rl_library>/export.py \
-             --task <TASK_NAME> \
-             --checkpoint <PATH_TO_CHECKPOINT>
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra leapp python \
+                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+                   --task <TASK_NAME> \
+                   --checkpoint <PATH_TO_CHECKPOINT>
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
+                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+                   --task <TASK_NAME> \
+                   --checkpoint <PATH_TO_CHECKPOINT>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code-block:: batch
+      .. tab-set::
 
-         set OMNI_KIT_ACCEPT_EULA=Y
-         set ACCEPT_EULA=Y
-         isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
-             --task <TASK_NAME> ^
-             --checkpoint <PATH_TO_CHECKPOINT>
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: batch
+
+               set OMNI_KIT_ACCEPT_EULA=Y
+               set ACCEPT_EULA=Y
+               uv run --extra leapp python scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+                   --task <TASK_NAME> ^
+                   --checkpoint <PATH_TO_CHECKPOINT>
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: batch
+
+               set OMNI_KIT_ACCEPT_EULA=Y
+               set ACCEPT_EULA=Y
+               isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+                   --task <TASK_NAME> ^
+                   --checkpoint <PATH_TO_CHECKPOINT>
 
 For example, to export a UR10 reach policy trained with RSL-RL:
 
@@ -130,23 +125,50 @@ For example, to export a UR10 reach policy trained with RSL-RL:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
-             scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-             --task Isaac-Reach-UR10 \
-             --checkpoint logs/rsl_rl/ur10_reach/<date timestamp>/model_4999.pt
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra leapp python \
+                   scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                   --task Isaac-Reach-UR10 \
+                   --checkpoint logs/rsl_rl/ur10_reach/<date timestamp>/model_4999.pt
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
+                   scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                   --task Isaac-Reach-UR10 \
+                   --checkpoint logs/rsl_rl/ur10_reach/<date timestamp>/model_4999.pt
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code-block:: batch
+      .. tab-set::
 
-         set OMNI_KIT_ACCEPT_EULA=Y
-         set ACCEPT_EULA=Y
-         isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-             --task Isaac-Reach-UR10 ^
-             --checkpoint logs\rsl_rl\ur10_reach\<date timestamp>\model_4999.pt
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: batch
+
+               set OMNI_KIT_ACCEPT_EULA=Y
+               set ACCEPT_EULA=Y
+               uv run --extra leapp python scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+                   --task Isaac-Reach-UR10 ^
+                   --checkpoint logs\rsl_rl\ur10_reach\<date timestamp>\model_4999.pt
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: batch
+
+               set OMNI_KIT_ACCEPT_EULA=Y
+               set ACCEPT_EULA=Y
+               isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+                   --task Isaac-Reach-UR10 ^
+                   --checkpoint logs\rsl_rl\ur10_reach\<date timestamp>\model_4999.pt
 
 By default, the export artifacts are saved in the same directory as the checkpoint. The
 exported graph is named after the task.
@@ -326,25 +348,54 @@ to see the policy running in a viewport, pass a visualization option such as ``-
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
-             scripts/reinforcement_learning/leapp/deploy.py \
-             --task <TASK_NAME> \
-             --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
-             --viz kit
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra leapp python \
+                   scripts/reinforcement_learning/leapp/deploy.py \
+                   --task <TASK_NAME> \
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+                   --viz kit
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
+                   scripts/reinforcement_learning/leapp/deploy.py \
+                   --task <TASK_NAME> \
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+                   --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code-block:: batch
+      .. tab-set::
 
-         set OMNI_KIT_ACCEPT_EULA=Y
-         set ACCEPT_EULA=Y
-         isaaclab.bat -p scripts\reinforcement_learning\leapp\deploy.py ^
-             --task <TASK_NAME> ^
-             --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
-             --viz kit
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: batch
+
+               set OMNI_KIT_ACCEPT_EULA=Y
+               set ACCEPT_EULA=Y
+               uv run --extra leapp python scripts\reinforcement_learning\leapp\deploy.py ^
+                   --task <TASK_NAME> ^
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
+                   --viz kit
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: batch
+
+               set OMNI_KIT_ACCEPT_EULA=Y
+               set ACCEPT_EULA=Y
+               isaaclab.bat -p scripts\reinforcement_learning\leapp\deploy.py ^
+                   --task <TASK_NAME> ^
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
+                   --viz kit
 
 For Direct workflow policies, see the
 :doc:`Direct workflow LEAPP export tutorial </source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp>`.
