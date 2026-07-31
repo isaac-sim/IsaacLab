@@ -55,15 +55,7 @@ class PresetTarget(enum.Enum):
     # Members. Tuple values are (label, base_classes, legacy_aliases); the
     # enum metaclass collects the whole namespace before constructing members,
     # so ``__new__`` below unpacks each tuple regardless of declaration order.
-    PHYSICS = (
-        "physics",
-        (PhysicsCfg,),
-        {
-            "newton": "newton_mjwarp",
-            "kamino": "newton_kamino",
-            "newton_mjwarp_vbd": "newton_mjwarp_vbd_proxy",
-        },
-    )
+    PHYSICS = ("physics", (PhysicsCfg,), {"newton": "newton_mjwarp", "kamino": "newton_kamino"})
     """Physics backends -- ``physics=NAME`` selector.
 
     Legacy aliases ``newton`` -> ``newton_mjwarp`` and ``kamino`` -> ``newton_kamino``
@@ -74,12 +66,6 @@ class PresetTarget(enum.Enum):
     :func:`~isaaclab_tasks.utils.hydra._normalize_preset_name`) consults these
     and emits a :class:`FutureWarning`; the aliases will be removed in a
     future release.
-
-    ``newton_mjwarp_vbd`` -> ``newton_mjwarp_vbd_proxy`` exists because the core
-    Franka deformable tasks moved to proxy coupling. Tasks that declare their own
-    ``newton_mjwarp_vbd`` variant, such as the opt-in
-    :mod:`isaaclab_contrib.custom_coupling` example, shadow the alias and keep
-    resolving to the manual coupler.
     """
 
     RENDERER = ("renderer", (RendererCfg,), {"ovrtx_renderer": "ovrtx", "isaacsim_rtx_renderer": "isaacsim_rtx"})

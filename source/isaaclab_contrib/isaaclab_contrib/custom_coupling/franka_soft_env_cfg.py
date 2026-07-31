@@ -11,7 +11,6 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
-from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import DeformableCfg as CoreDeformableCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftSceneCfg as CoreSceneCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
@@ -45,17 +44,10 @@ class PhysicsCfg(CorePhysicsCfg):
 
 
 @configclass
-class DeformableCfg(CoreDeformableCfg):
-    """Adds the manual coupling name for the shared Newton deformable asset."""
-
-    newton_mjwarp_vbd = CoreDeformableCfg().newton_mjwarp_vbd_proxy
-
-
-@configclass
 class SceneCfg(CoreSceneCfg):
     """Adds the manual coupling scene preset, reusing the core proxy scene."""
 
-    newton_mjwarp_vbd = CoreSceneCfg().newton_mjwarp_vbd_proxy.replace(deformable=DeformableCfg())
+    newton_mjwarp_vbd = CoreSceneCfg().newton_mjwarp_vbd_proxy
 
     default = newton_mjwarp_vbd
 

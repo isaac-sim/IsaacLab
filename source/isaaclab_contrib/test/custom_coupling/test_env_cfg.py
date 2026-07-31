@@ -5,7 +5,7 @@
 
 """Unit tests for the custom coupling environment configuration."""
 
-import warnings
+import sys
 
 import pytest
 
@@ -14,7 +14,7 @@ from isaaclab_contrib.custom_coupling.franka_soft_env_cfg import FrankaSoftCusto
 from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothCameraEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftCameraEnvCfg, FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
-from isaaclab_tasks.utils.hydra import resolve_presets
+from isaaclab_tasks.utils.hydra import register_task, resolve_presets
 
 MANUAL_MANAGER = "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
 PROXY_MANAGER = "isaaclab_contrib.coupling.coupler:NewtonCouplerManager"
@@ -45,23 +45,17 @@ def test_core_declares_only_the_proxy_preset() -> None:
     assert "newton_mjwarp_vbd" in contrib_variants
 
 
-def test_legacy_core_preset_name_warns_and_maps_to_proxy() -> None:
-    """The removed core name stays usable for one release via the legacy alias."""
-    env_cfg = FrankaSoftEnvCfg()
+def test_core_task_rejects_the_removed_preset_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Selecting the moved name on a core task must fail loudly, not fall back."""
+    monkeypatch.setattr(sys, "argv", ["prog", "presets=newton_mjwarp_vbd"])
 
-    with pytest.warns(FutureWarning, match="newton_mjwarp_vbd_proxy"):
-        resolve_presets(env_cfg, selected=("newton_mjwarp_vbd",))
-
-    assert env_cfg.sim.physics.class_type == PROXY_MANAGER
+    with pytest.raises(ValueError, match="newton_mjwarp_vbd"):
+        register_task("Isaac-Lift-Soft-Franka", "rsl_rl_cfg_entry_point")
 
 
-def test_example_shadows_the_legacy_alias() -> None:
-    """The example declares the name itself, so it must not be rewritten to proxy."""
-    env_cfg = FrankaSoftCustomCouplingEnvCfg()
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", FutureWarning)
-        resolve_presets(env_cfg, selected=("newton_mjwarp_vbd",))
+def test_example_accepts_the_manual_preset_name() -> None:
+    """The example declares the name, so the same selection resolves instead of raising."""
+    env_cfg = resolve_presets(FrankaSoftCustomCouplingEnvCfg(), selected=("newton_mjwarp_vbd",))
 
     assert env_cfg.sim.physics.class_type == MANUAL_MANAGER
 
