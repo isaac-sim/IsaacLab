@@ -75,6 +75,7 @@ Guidelines for modifications:
 * Chenyu Cao
 * Chenyu Yang
 * Connor Smith
+* Curie Park
 * CY (Chien-Ying) Chen
 * David Cao-Mueller
 * David Leon
