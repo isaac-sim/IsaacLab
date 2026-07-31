@@ -18,7 +18,8 @@ from isaaclab.scene_data.deformable_discovery import (
 )
 
 
-def test_build_deformable_vertex_count_lookup_indexes_root_and_sim_mesh():
+def test_deformable_vertex_count_lookup_and_resolve():
+    """Vertex-count lookup indexes root/sim/vis paths and resolves ancestors and env clones."""
     entries = [
         DeformableStageEntry(
             root_path="/World/envs/env_0/Deformable",
@@ -33,13 +34,6 @@ def test_build_deformable_vertex_count_lookup_indexes_root_and_sim_mesh():
     assert lookup["/World/envs/env_0/Deformable"] == 69
     assert lookup["/World/envs/env_0/Deformable/geometry/mesh"] == 69
     assert lookup["/World/envs/env_0/Deformable/geometry/vis_mesh"] == 72
-
-
-def test_resolve_deformable_vertex_count_walks_ancestors():
-    lookup = {
-        "/World/envs/env_0/Deformable": 69,
-        "/World/envs/env_0/Deformable/geometry/mesh": 69,
-    }
     assert (
         resolve_deformable_vertex_count(
             "/World/envs/env_0/Deformable/geometry/mesh/points",
@@ -48,22 +42,19 @@ def test_resolve_deformable_vertex_count_walks_ancestors():
         )
         == 69
     )
-    assert resolve_deformable_vertex_count("/World/other", lookup, fallback=128) == 128
-
-
-def test_resolve_deformable_vertex_count_matches_env_relative_suffix():
-    lookup = {"/World/envs/env_0/Deformable": 30}
     assert (
         resolve_deformable_vertex_count(
             "/World/envs/env_2/Deformable/geometry/mesh",
             lookup,
             fallback=128,
         )
-        == 30
+        == 69
     )
+    assert resolve_deformable_vertex_count("/World/other", lookup, fallback=128) == 128
 
 
-def test_build_deformable_root_path_lookup_indexes_root_and_meshes():
+def test_deformable_root_path_lookup_and_resolve():
+    """Root-path lookup rewrites env-relative matches onto the reported environment."""
     entries = [
         DeformableStageEntry(
             root_path="/World/envs/env_0/Deformable",
@@ -78,13 +69,6 @@ def test_build_deformable_root_path_lookup_indexes_root_and_meshes():
     assert lookup["/World/envs/env_0/Deformable"] == "/World/envs/env_0/Deformable"
     assert lookup["/World/envs/env_0/Deformable/geometry/mesh"] == "/World/envs/env_0/Deformable"
     assert lookup["/World/envs/env_0/Deformable/geometry/vis_mesh"] == "/World/envs/env_0/Deformable"
-
-
-def test_resolve_deformable_root_path_walks_ancestors():
-    lookup = {
-        "/World/envs/env_0/Deformable": "/World/envs/env_0/Deformable",
-        "/World/envs/env_0/Deformable/geometry/mesh": "/World/envs/env_0/Deformable",
-    }
     assert (
         resolve_deformable_root_path(
             "/World/envs/env_0/Deformable/geometry/mesh/points",
@@ -92,11 +76,6 @@ def test_resolve_deformable_root_path_walks_ancestors():
         )
         == "/World/envs/env_0/Deformable"
     )
-    assert resolve_deformable_root_path("/World/other", lookup) == "/World/other"
-
-
-def test_resolve_deformable_root_path_rewrites_env_relative_suffix():
-    lookup = {"/World/envs/env_0/Deformable": "/World/envs/env_0/Deformable"}
     assert (
         resolve_deformable_root_path(
             "/World/envs/env_2/Deformable/geometry/mesh",
@@ -104,6 +83,7 @@ def test_resolve_deformable_root_path_rewrites_env_relative_suffix():
         )
         == "/World/envs/env_2/Deformable"
     )
+    assert resolve_deformable_root_path("/World/other", lookup) == "/World/other"
 
 
 def test_group_deformable_root_paths_for_views_collapses_replicated_env_assets():

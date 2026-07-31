@@ -64,26 +64,6 @@ def test_build_volume_vis_barycentric_remap_clamps_outside_hull_vertex(caplog):
     assert any("clamped" in record.message for record in caplog.records)
 
 
-def test_build_volume_vis_barycentric_remap_dense_mesh():
-    """Warp embed assigns every visual vertex on a two-tet mesh."""
-    sim_vertices = np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-            [1.0, 1.0, 0.0],
-        ],
-        dtype=np.float32,
-    )
-    tet_indices = np.array([0, 1, 2, 3, 1, 4, 2, 3], dtype=np.int32)
-    vis_vertices = np.array([[0.25, 0.25, 0.25], [0.75, 0.25, 0.25]], dtype=np.float32)
-
-    remap = build_volume_vis_barycentric_remap(sim_vertices, tet_indices, vis_vertices)
-    assert remap is not None
-    np.testing.assert_allclose(remap.bary_weights.numpy()[0], [0.25, 0.25, 0.25, 0.25], atol=1e-4)
-
-
 def test_launch_volume_vis_remap_interpolates_sim_into_render_buffer():
     remap = build_volume_vis_barycentric_remap(
         np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32),

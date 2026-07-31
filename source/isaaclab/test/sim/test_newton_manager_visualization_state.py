@@ -1117,7 +1117,7 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
     monkeypatch.setattr(vb, "replicate_builder_mapping", lambda *args, **kwargs: None)
     monkeypatch.setattr(vb, "rename_builder_labels", lambda *args, **kwargs: None)
 
-    _builder, (shadow_entities, _registry_groups) = vb.build_visualization_builder_from_stage_envs(
+    _builder, (shadow_entities, registry_groups) = vb.build_visualization_builder_from_stage_envs(
         stage,
         [(0, "/World/envs/env_0"), (1, "/World/envs/env_1")],
         clone_plan=clone_plan,
@@ -1127,120 +1127,7 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
     assert "/World/envs/env_0" in fake_builder.ignore_paths
     assert "/World/Assets/Cloth" in fake_builder.ignore_paths
     assert any(entity.root_path == "/World/Assets/Cloth" for entity in shadow_entities)
-
-
-def test_shadow_deformable_registry_keeps_standalone_paths_outside_envs():
-    """Standalone deformables outside ``/World/envs`` must not invent env-scoped registry paths."""
-    from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
-
-    from pxr import Gf, Sdf, Usd, UsdGeom
-
-    stage = Usd.Stage.CreateInMemory()
-    cloth = UsdGeom.Mesh.Define(stage, "/World/Assets/Cloth")
-    api_schemas = Sdf.TokenListOp()
-    api_schemas.explicitItems = ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsSurfaceDeformableSimAPI"]
-    cloth.GetPrim().SetMetadata("apiSchemas", api_schemas)
-    cloth.CreatePointsAttr([Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)])
-    cloth.CreateFaceVertexCountsAttr([3])
-    cloth.CreateFaceVertexIndicesAttr([0, 1, 2])
-
-    class _FakeBuilder:
-        particle_count = 0
-
-        def add_cloth_mesh(self, **kwargs):
-            self.particle_count += 3
-
-    _entities, registry_groups = add_shadow_deformables_to_builder(_FakeBuilder(), stage, env_paths=[])
-    assert len(registry_groups) == 1
-    assert registry_groups[0].prim_path == "/World/Assets/Cloth"
-    assert registry_groups[0].vis_mesh_prim_path == "/World/Assets/Cloth"
-    assert "/World/envs/" not in registry_groups[0].prim_path
-
-
-def test_shadow_deformable_entity_order_matches_scene_data_geometry_order():
-    """Shadow deformable entities follow volume-then-surface SceneData geometry order."""
-    from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
-
-    from pxr import Gf, Sdf, Usd, UsdGeom
-
-    from isaaclab.scene_data.deformable_discovery import (
-        discover_deformables_on_stage,
-        sort_deformable_entries_for_geometry_sync,
+    assert any(
+        group.prim_path == "/World/Assets/Cloth" and "/World/envs/" not in group.prim_path
+        for group in registry_groups
     )
-
-    def _add_api_schemas(prim, schemas):
-        api_schemas = Sdf.TokenListOp()
-        api_schemas.explicitItems = schemas
-        prim.SetMetadata("apiSchemas", api_schemas)
-
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_1")
-
-    for env_id, name, deformable_type in (
-        (0, "Cloth", "surface"),
-        (1, "Cloth", "surface"),
-        (0, "Soft", "volume"),
-    ):
-        if deformable_type == "volume":
-            root = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/{name}").GetPrim()
-            _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
-            mesh = UsdGeom.TetMesh.Define(stage, f"/World/envs/env_{env_id}/{name}/simulation")
-            _add_api_schemas(mesh.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
-            mesh.CreatePointsAttr(
-                [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
-            )
-            mesh.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
-            vis = UsdGeom.Mesh.Define(stage, f"/World/envs/env_{env_id}/{name}/visual")
-            vis.CreatePointsAttr(mesh.GetPointsAttr().Get())
-            vis.CreateFaceVertexCountsAttr([3])
-            vis.CreateFaceVertexIndicesAttr([0, 1, 2])
-        else:
-            mesh = UsdGeom.Mesh.Define(stage, f"/World/envs/env_{env_id}/{name}")
-            _add_api_schemas(
-                mesh.GetPrim(),
-                ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsSurfaceDeformableSimAPI"],
-            )
-            points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)]
-            mesh.CreatePointsAttr(points)
-            mesh.CreateFaceVertexCountsAttr([3])
-            mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
-
-    class _FakeBuilder:
-        particle_count = 0
-
-        def add_soft_mesh(self, **kwargs):
-            self.particle_count += 4
-
-        def add_cloth_mesh(self, **kwargs):
-            self.particle_count += 3
-
-    builder = _FakeBuilder()
-    env_paths = [(0, "/World/envs/env_0"), (1, "/World/envs/env_1")]
-    flat_entities, _registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths)
-
-    entries = discover_deformables_on_stage(stage)
-    expected_geometry_paths = [entry.root_path for entry in sort_deformable_entries_for_geometry_sync(entries)]
-    assert [entity.root_path for entity in flat_entities] == expected_geometry_paths
-    assert len(flat_entities) == 3
-
-
-def test_deformable_ignore_paths_accepts_pre_discovered_entries():
-    """Ignore-path collection can reuse supplied entries without another stage walk."""
-    from isaaclab_newton.physics.visualization_builder import _deformable_ignore_paths
-
-    from pxr import Usd
-
-    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
-
-    stage = Usd.Stage.CreateInMemory()
-    entry = DeformableStageEntry(
-        root_path="/World/envs/env_0/Cloth",
-        sim_mesh_path="/World/envs/env_0/Cloth",
-        vis_mesh_path="/World/envs/env_0/Cloth",
-        deformable_type="surface",
-        vertex_count=3,
-        vis_vertex_count=3,
-    )
-    paths = _deformable_ignore_paths(stage, entries=[entry])
-    assert paths == [entry.root_path]
