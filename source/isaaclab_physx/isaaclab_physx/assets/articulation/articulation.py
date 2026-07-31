@@ -1060,6 +1060,8 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
         joint_pos_backend = self.data._get_joint_pos_write_buffer(joint_selection_is_partial)
         joint_vel_backend = self.data._get_joint_vel_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
@@ -1170,6 +1172,8 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(position, (self.num_instances, self.num_joints), wp.float32, "position")
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
         joint_pos_backend = self.data._get_joint_pos_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -1266,6 +1270,8 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(velocity, (self.num_instances, self.num_joints), wp.float32, "velocity")
         else:
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         joint_vel_backend = self.data._get_joint_vel_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering

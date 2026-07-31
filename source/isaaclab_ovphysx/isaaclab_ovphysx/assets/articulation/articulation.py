@@ -967,6 +967,8 @@ class Articulation(BaseArticulation):
         expected_shape = (env_ids.shape[0], joint_ids.shape[0])
         self.assert_shape_and_dtype(position, expected_shape, wp.float32, "position")
         self.assert_shape_and_dtype(velocity, expected_shape, wp.float32, "velocity")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -1029,6 +1031,8 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -1127,6 +1131,8 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
+            return
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
