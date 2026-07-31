@@ -51,13 +51,27 @@ def test_apply_video_recording_injects_correct_recorder():
     assert rec.output_dir == os.path.join("/my/log", "videos", "play")
 
 
-def test_apply_video_recording_replaces_existing_recorders():
-    """Calling apply_video_recording replaces any pre-existing video_recorders list."""
+def test_apply_video_recording_patches_existing_recorders():
+    """Existing recorders are kept; only video_length and video_interval are overwritten."""
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    existing = VideoRecorderCfg()
+    existing.source = "sensor:tiled_camera"
+    existing.output_dir = "/my/custom/path"
+    existing.fps = 60
+
     env_cfg = _env_cfg()
-    env_cfg.video_recorders = ["old_entry"]
-    apply_video_recording(env_cfg, "/tmp/logs", _args(video_length=10))
+    env_cfg.video_recorders = [existing]
+    apply_video_recording(env_cfg, "/tmp/logs", _args(video_length=10, video_interval=500))
+
+    # existing recorder is kept — not replaced
     assert len(env_cfg.video_recorders) == 1
-    assert env_cfg.video_recorders[0].video_length == 10
+    rec = env_cfg.video_recorders[0]
+    assert rec.source == "sensor:tiled_camera"  # preserved
+    assert rec.output_dir == "/my/custom/path"  # preserved
+    assert rec.fps == 60  # preserved
+    assert rec.video_length == 10  # CLI override applied
+    assert rec.video_interval == 500  # CLI override applied
 
 
 def test_wrap_record_video_is_noop_stub(caplog):

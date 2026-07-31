@@ -565,46 +565,60 @@ def wrap_sensor_capture(env: gym.Env, log_dir: str, args_cli: argparse.Namespace
 def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespace, *, subdir: str = "train") -> None:
     """Configure internal video recording on the environment config.
 
-    Injects a :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entry into
-    ``env_cfg.video_recorders`` so that recording is driven inside ``env.step()`` rather than
-    via the gymnasium ``RecordVideo`` wrapper.  Must be called **before** the environment is
-    instantiated.
+    Enables recording by ensuring ``env_cfg.video_recorders`` is non-empty, then applies
+    any CLI overrides.  If the env config already declares recorders, those are kept as-is
+    (preserving user-set fields such as ``output_dir``, ``source``, and ``fps``); only the
+    fields explicitly controlled by CLI flags are overwritten.  If no recorders are declared,
+    a default one is created with ``source="visualizer"`` and
+    ``output_dir=<log_dir>/videos/<subdir>``.
 
     Maps CLI flags:
 
-    * ``--video``            → enables recording (source ``"visualizer"`` auto-selects the active visualizer)
+    * ``--video``            → enables recording
     * ``--video_length``     → :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_length`
+      (applied to every recorder)
     * ``--video_interval``   → :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_interval`
+      (applied to every recorder)
 
     Args:
         env_cfg: Isaac Lab environment config to modify in-place.
-        log_dir: Training or play log directory; clips are written to ``<log_dir>/videos/<subdir>``.
+        log_dir: Training or play log directory; used as the fallback ``output_dir`` when no
+            recorders are pre-configured.  Clips are written to ``<log_dir>/videos/<subdir>``.
         args_cli: Parsed command-line arguments.
-        subdir: Sub-directory under ``<log_dir>/videos/`` for clips. Use ``"train"`` for training
-            and ``"play"`` for evaluation runs.
+        subdir: Sub-directory under ``<log_dir>/videos/`` for the fallback output path.
+            Use ``"train"`` for training runs and ``"play"`` for evaluation.
     """
     if not getattr(args_cli, "video", False):
         return
 
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
-    cfg = VideoRecorderCfg()
-    cfg.source = "visualizer"
-    cfg.output_dir = os.path.join(log_dir, "videos", subdir)
-    cfg.video_length = args_cli.video_length
-    cfg.video_interval = getattr(args_cli, "video_interval", 0)
-    env_cfg.video_recorders = [cfg]
+    existing: list = getattr(env_cfg, "video_recorders", []) or []
+    if not existing:
+        # No recorders configured — create a sensible default.
+        default_cfg = VideoRecorderCfg()
+        default_cfg.source = "visualizer"
+        default_cfg.output_dir = os.path.join(log_dir, "videos", subdir)
+        env_cfg.video_recorders = [default_cfg]
+
+    # Apply CLI overrides to every recorder (user-set fields like output_dir are preserved).
+    video_length = args_cli.video_length
+    video_interval = getattr(args_cli, "video_interval", 0)
+    for cfg in env_cfg.video_recorders:
+        cfg.video_length = video_length
+        cfg.video_interval = video_interval
 
     print("[INFO] Video recording enabled.")
-    print_dict(
-        {
-            "source": cfg.source,
-            "output_dir": cfg.output_dir,
-            "video_length": cfg.video_length,
-            "video_interval": cfg.video_interval,
-        },
-        nesting=4,
-    )
+    for cfg in env_cfg.video_recorders:
+        print_dict(
+            {
+                "source": cfg.source,
+                "output_dir": cfg.output_dir,
+                "video_length": cfg.video_length,
+                "video_interval": cfg.video_interval,
+            },
+            nesting=4,
+        )
 
 
 def wrap_record_video(env, log_dir: str, args_cli: argparse.Namespace):
