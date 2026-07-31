@@ -20,15 +20,10 @@ def _add_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
 
 def test_discover_volume_tet_mesh_deformable():
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody")
+    root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
+    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
     tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/SoftBody/simulation")
-    _add_api_schemas(
-        tet.GetPrim(),
-        [
-            "OmniPhysicsDeformableBodyAPI",
-            "OmniPhysicsVolumeDeformableSimAPI",
-        ],
-    )
+    _add_api_schemas(tet.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
     points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
     tet.CreatePointsAttr(points)
     tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
@@ -43,10 +38,9 @@ def test_discover_volume_tet_mesh_deformable():
     assert entry.deformable_type == "volume"
     assert entry.vertex_count == 4
     assert entry.vis_vertex_count == 4
+    assert entry.root_path.endswith("/SoftBody")
     assert entry.sim_mesh_path.endswith("/simulation")
-    # Visual Mesh is a sibling of the API-bearing TetMesh under the SoftBody parent.
     assert entry.vis_mesh_path.endswith("/visual")
-    assert entry.vis_vertex_count == 4
 
 
 def test_discover_surface_mesh_deformable():
@@ -110,23 +104,18 @@ def test_discover_surface_without_sim_api_uses_first_mesh():
     assert entries[0].vis_vertex_count == 3
 
 
-def test_discover_volume_prefers_named_visual_over_unrelated_sibling_mesh():
-    """When several sibling meshes exist, select the visual mesh—not the first Mesh."""
+def test_discover_volume_prefers_named_visual_over_unrelated_child_mesh():
+    """When several child meshes exist under the BodyAPI root, select the visual mesh."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody")
+    root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
+    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
     tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/SoftBody/simulation")
-    _add_api_schemas(
-        tet.GetPrim(),
-        [
-            "OmniPhysicsDeformableBodyAPI",
-            "OmniPhysicsVolumeDeformableSimAPI",
-        ],
-    )
+    _add_api_schemas(tet.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
     points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
     tet.CreatePointsAttr(points)
     tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
 
-    # Lexicographically first sibling mesh (must not win over the named visual).
+    # Lexicographically first child mesh (must not win over the named visual).
     deco = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/decoration")
     deco.CreatePointsAttr([Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)])
     deco.CreateFaceVertexCountsAttr([3])
@@ -137,7 +126,7 @@ def test_discover_volume_prefers_named_visual_over_unrelated_sibling_mesh():
     visual.CreateFaceVertexCountsAttr([3])
     visual.CreateFaceVertexIndicesAttr([0, 1, 2])
 
-    # Nested under an unrelated sibling branch — must not be considered.
+    # Nested under an unrelated child branch — scoring must prefer the named visual.
     nested = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/props/unrelated")
     nested.CreatePointsAttr(points)
     nested.CreateFaceVertexCountsAttr([3])
@@ -152,15 +141,10 @@ def test_discover_volume_prefers_named_visual_over_unrelated_sibling_mesh():
 def test_discover_volume_marks_sim_vis_count_mismatch():
     """Volume deformables with fewer visual verts are flagged by mismatched counts."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody")
+    root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
+    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
     tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/SoftBody/simulation")
-    _add_api_schemas(
-        tet.GetPrim(),
-        [
-            "OmniPhysicsDeformableBodyAPI",
-            "OmniPhysicsVolumeDeformableSimAPI",
-        ],
-    )
+    _add_api_schemas(tet.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
     points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
     tet.CreatePointsAttr(points)
     tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])

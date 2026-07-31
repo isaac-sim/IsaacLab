@@ -248,8 +248,8 @@ def test_ensure_visualization_model_builds_single_world_for_standalone_scene(mon
         def finalize(self, device):
             return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
 
-    def _build(stage, env_paths, clone_plan, *, up_axis):
-        build_calls.append((stage, env_paths, clone_plan, up_axis))
+    def _build(stage, env_paths, clone_plan, *, up_axis, device="cpu"):
+        build_calls.append((stage, env_paths, clone_plan, up_axis, device))
         return _FakeBuilder(), ([], [])
 
     monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", _build)
@@ -257,6 +257,7 @@ def test_ensure_visualization_model_builds_single_world_for_standalone_scene(mon
     NewtonManager._ensure_visualization_model()
 
     assert build_calls[0][1:3] == ([], None)
+    assert build_calls[0][4] == "cpu"
     assert NewtonManager.get_num_envs() == 1
     assert NewtonManager._model.num_envs == 1
 
@@ -804,12 +805,10 @@ def test_shadow_deformable_volume_remap_registers_ovrtx_with_vis_mesh(monkeypatc
         prim.SetMetadata("apiSchemas", api_schemas)
 
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Soft")
+    root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Soft").GetPrim()
+    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
     tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/Soft/simulation")
-    _add_api_schemas(
-        tet.GetPrim(),
-        ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsVolumeDeformableSimAPI"],
-    )
+    _add_api_schemas(tet.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
     points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
     tet.CreatePointsAttr(points)
     tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
@@ -857,12 +856,10 @@ def test_shadow_deformable_volume_remap_failure_falls_back_to_soft_mesh(monkeypa
         prim.SetMetadata("apiSchemas", api_schemas)
 
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Soft")
+    root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Soft").GetPrim()
+    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
     tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/Soft/simulation")
-    _add_api_schemas(
-        tet.GetPrim(),
-        ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsVolumeDeformableSimAPI"],
-    )
+    _add_api_schemas(tet.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
     points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
     tet.CreatePointsAttr(points)
     tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
@@ -1132,12 +1129,10 @@ def test_shadow_deformable_entity_order_matches_scene_data_geometry_order():
         (0, "Soft", "volume"),
     ):
         if deformable_type == "volume":
-            UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/{name}")
+            root = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/{name}").GetPrim()
+            _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
             mesh = UsdGeom.TetMesh.Define(stage, f"/World/envs/env_{env_id}/{name}/simulation")
-            _add_api_schemas(
-                mesh.GetPrim(),
-                ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsVolumeDeformableSimAPI"],
-            )
+            _add_api_schemas(mesh.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
             mesh.CreatePointsAttr(
                 [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
             )
