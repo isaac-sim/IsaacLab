@@ -2475,17 +2475,21 @@ class NewtonManager(PhysicsManager):
 
         if cls._backend_is_newton(scene_data_provider):
             return
+
         cls._ensure_visualization_model()
+
         if cls._state_0 is None or cls._model is None:
             return
 
         if cls._state_0.body_q is not None:
             if cls._scene_data is None:
                 cls._scene_data = SceneDataFormat.Transform()
+
             # Invalidate stale mapping when the model's body count changed (e.g. tiled → viewport
             # test within the same process where _model was rebuilt from a different stage).
             if cls._scene_data_mapping is not None and cls._scene_data_mapping.shape[0] != cls._model.body_count:
                 cls._scene_data_mapping = None
+
             if cls._scene_data_mapping is None:
                 body_labels = list(cls._model.body_label)
                 body_paths = cls._resolve_scene_data_body_paths(body_labels, scene_data_provider.usd_stage)
@@ -2499,17 +2503,26 @@ class NewtonManager(PhysicsManager):
         if cls._state_0.particle_q is not None and scene_data_provider.point_count > 0:
             if cls._scene_data_points is None:
                 cls._scene_data_points = SceneDataFormat.Points()
+
             if cls._scene_data_geometry_mapping is None and cls._shadow_deformable_entities:
                 geometry_paths = [entity.root_path for entity in cls._shadow_deformable_entities]
                 geometry_offsets = [entity.sim_particle_offset for entity in cls._shadow_deformable_entities]
                 cls._scene_data_geometry_mapping = scene_data_provider.create_geometry_mapping(
                     geometry_paths, geometry_offsets
                 )
+
+                # Invalidate the mapped-offset cache so that it can be rebuilt immediately after.
+                cls._mapped_sim_particle_offsets = None
+
+            if cls._mapped_sim_particle_offsets is None:
+                cls._mapped_sim_particle_offsets = cls._geometry_mapped_sim_offsets(scene_data_provider)
+
             if cls._sim_particle_q is None:
                 sim_total = sum(entity.sim_particle_count for entity in cls._shadow_deformable_entities or [])
                 if sim_total > 0:
                     device = PhysicsManager._device or "cpu"
                     cls._sim_particle_q = wp.zeros(sim_total, dtype=wp.vec3f, device=device)
+
             if cls._sim_particle_q is not None:
                 cls._scene_data_points.points = cls._sim_particle_q
                 scene_data_provider.get_points(
@@ -2517,7 +2530,6 @@ class NewtonManager(PhysicsManager):
                     mapping=cls._scene_data_geometry_mapping,
                     allow_passthrough=False,
                 )
-                cls._mapped_sim_particle_offsets = cls._geometry_mapped_sim_offsets(scene_data_provider)
                 cls._sync_render_particle_q_from_sim()
             else:
                 cls._scene_data_points.points = cls._state_0.particle_q
@@ -2531,12 +2543,13 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _geometry_mapped_sim_offsets(cls, scene_data_provider: SceneDataProvider) -> set[int]:
-        """Return ``_sim_particle_q`` offsets filled by the latest :meth:`get_points` call.
+        """Return ``_sim_particle_q`` offsets filled by :meth:`get_points` for the cached mapping.
 
-        ``create_geometry_mapping`` indexes by backend entity and stores consumer
-        destinations (or ``-1`` when a backend path has no consumer). The inverse
-        case — a shadow entity whose path the backend never reports — never appears
-        in that array, so its sim slice stays at the zero initialization.
+        Called once when the geometry mapping is created (or when that cache is
+        invalidated). ``create_geometry_mapping`` indexes by backend entity and stores
+        consumer destinations (or ``-1`` when a backend path has no consumer). The
+        inverse case — a shadow entity whose path the backend never reports — never
+        appears in that array, so its sim slice stays at the zero initialization.
         """
         mapping = cls._scene_data_geometry_mapping
         if mapping is not None:
@@ -2573,6 +2586,7 @@ class NewtonManager(PhysicsManager):
                         entity.sim_particle_offset,
                     )
                 continue
+
             if entity.volume_vis_remap is not None:
                 launch_volume_vis_remap(
                     cls._sim_particle_q,
