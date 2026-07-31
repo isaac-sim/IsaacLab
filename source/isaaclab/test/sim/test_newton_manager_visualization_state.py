@@ -445,6 +445,84 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
     assert copied[1].tolist() == [4.0, 5.0, 6.0]
 
 
+def test_update_visualization_state_syncs_particles_without_body_q(monkeypatch):
+    """Deformable-only shadow models (no ``body_q``) must still sync ``particle_q``."""
+    import warp as wp
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics.visualization_deformables import ShadowDeformableEntity
+
+    from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
+    from isaaclab.scene_data.scene_data_provider import SceneDataProvider
+
+    class _ClothPointsBackend(SceneDataBackend):
+        def __init__(self):
+            self._points = wp.array(
+                [wp.vec3(1.0, 2.0, 3.0), wp.vec3(4.0, 5.0, 6.0)],
+                dtype=wp.vec3f,
+                device="cpu",
+            )
+            self._points_data = SceneDataFormat.Points()
+            self._points_data.points = self._points
+
+        @property
+        def transforms(self) -> SceneDataFormat.Transform:
+            return SceneDataFormat.Transform()
+
+        @property
+        def transform_count(self) -> int:
+            return 0
+
+        @property
+        def transform_paths(self) -> list[str]:
+            return []
+
+        @property
+        def points(self) -> SceneDataFormat.Points:
+            return self._points_data
+
+        @property
+        def point_count(self) -> int:
+            return 2
+
+        @property
+        def geometry_paths(self) -> list[str]:
+            return ["/World/envs/env_0/Cloth"]
+
+        @property
+        def geometry_counts(self) -> list[int]:
+            return [2]
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
+
+    provider = SceneDataProvider(_ClothPointsBackend())
+
+    def _fail_transforms(*args, **kwargs):
+        raise AssertionError("deformable-only sync must not require transform refresh")
+
+    monkeypatch.setattr(provider, "get_transforms", _fail_transforms)
+
+    particle_q = wp.zeros(2, dtype=wp.vec3f, device="cpu")
+    NewtonManager._model = SimpleNamespace(body_count=0, body_label=None)
+    NewtonManager._state_0 = SimpleNamespace(body_q=None, particle_q=particle_q)
+    NewtonManager._shadow_deformable_entities = [
+        ShadowDeformableEntity(
+            root_path="/World/envs/env_0/Cloth",
+            sim_particle_offset=0,
+            sim_particle_count=2,
+            vis_particle_offset=0,
+            vis_particle_count=2,
+        )
+    ]
+    NewtonManager._sim_particle_q = wp.zeros(2, dtype=wp.vec3f, device="cpu")
+
+    NewtonManager.update_visualization_state(provider)
+
+    copied = particle_q.numpy()
+    assert copied[0].tolist() == [1.0, 2.0, 3.0]
+    assert copied[1].tolist() == [4.0, 5.0, 6.0]
+
+
 def test_update_visualization_state_remaps_volume_vis_positions(monkeypatch):
     """Volume shadow sync barycentrically remaps sim nodes into vis-sized render slots."""
     import numpy as np
