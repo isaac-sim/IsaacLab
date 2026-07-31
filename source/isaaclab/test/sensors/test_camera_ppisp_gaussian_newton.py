@@ -59,6 +59,7 @@ if not _MISSING_MODULES:
         assert_ppisp_controller_matches_static,
         assert_ppisp_invariants,
         assert_ppisp_lifts_exposure,
+        assert_tiled_views_match,
         make_aggressive_ppisp_cfg,
         make_synthetic_gaussian_usd,
         render_synthetic_gaussian_scene,
@@ -78,6 +79,7 @@ else:
     assert_ppisp_controller_matches_static = None
     assert_ppisp_invariants = None
     assert_ppisp_lifts_exposure = None
+    assert_tiled_views_match = None
     make_aggressive_ppisp_cfg = None
     make_synthetic_gaussian_usd = None
     render_synthetic_gaussian_scene = None
@@ -204,6 +206,10 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton_multitile
         f"Expected {MULTI_TILE_COUNT} tiles, got shape={tuple(rgb.shape)}. "
         f"Check that the camera regex {SYNTHETIC_GAUSSIAN_CAMERA_REGEX} resolves to one camera per env."
     )
+    # Newton rendering is deterministic and does not introduce RTX sampling or temporal accumulation noise,
+    # so keep the cross-tile consistency check stricter than the RTX-backed tests.
+    assert_tiled_views_match(rgb, max_mean_abs_diff=1.0, label="newton_warp rgb")
+    assert_tiled_views_match(rgb_hdr, max_relative_mean_abs_diff=0.01, label="newton_warp rgb_hdr")
     for i in range(MULTI_TILE_COUNT):
         assert_ppisp_lifts_exposure(rgb_hdr[i], rgb[i], label=f"newton_warp tile {i}")
         assert_ppisp_invariants(rgb[i], label=f"newton_warp tile {i}")

@@ -1,8 +1,10 @@
 Changed
 ^^^^^^^
 
-* **Breaking:** Replaced the manual MJWarp and VBD presets in
-  ``Isaac-Lift-Soft-Franka`` and ``Isaac-Lift-Cloth-Franka`` with proxy
-  coupling. Import :mod:`isaaclab_contrib.custom_coupling` for the opt-in
-  manual example. Both task configurations default to one environment until
-  proxy resets preserve per-world coupling state.
+* **Breaking:** Removed the ``newton_mjwarp_vbd`` preset from
+  ``Isaac-Lift-Soft-Franka`` and ``Isaac-Lift-Cloth-Franka``. Both tasks now
+  default to ``newton_mjwarp_vbd_proxy``, which uses proxy coupling. Select
+  ``presets=newton_mjwarp_vbd_proxy`` explicitly, or import
+  :mod:`isaaclab_contrib.custom_coupling` and use its
+  ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task, which adds back a
+  ``newton_mjwarp_vbd`` preset for the manual coupler.

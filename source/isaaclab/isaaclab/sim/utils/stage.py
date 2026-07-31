@@ -585,3 +585,30 @@ def get_current_stage_id() -> int:
         stage_id = stage_cache.Insert(stage).ToLongInt()
     # return stage ID
     return stage_id
+
+
+def show_stage_in_viewport(usd_path: str) -> None:
+    """Open a USD file in the running Kit viewport and block until the app is closed.
+
+    Opens the stage through the Kit USD context so it appears in the viewport (or the
+    livestream client), then spins the Kit update loop until the window is closed or the
+    loop is interrupted. Must only be called inside a running Kit process; use
+    :func:`~isaaclab.utils.version.has_kit` or :meth:`~isaaclab.app.AppLauncher.has_gui`
+    to gate the call.
+
+    Args:
+        usd_path: Path of the USD file to display.
+    """
+    import omni.usd  # noqa: PLC0415
+
+    # A failed open leaves the previously loaded stage in the viewport, which would look like a
+    # successful preview of the wrong asset, so surface the failure instead of blocking on it.
+    result = omni.usd.get_context().open_stage(usd_path)
+    opened = result[0] if isinstance(result, tuple) else result
+    if opened is False:
+        raise RuntimeError(f"Failed to open the USD stage in the Kit viewport: {usd_path}")
+
+    app = omni.kit.app.get_app_interface()
+    with contextlib.suppress(KeyboardInterrupt):
+        while app.is_running():
+            app.update()

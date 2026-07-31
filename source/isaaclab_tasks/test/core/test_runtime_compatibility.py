@@ -25,6 +25,7 @@ import isaaclab.app.sim_launcher as sim_launcher_module
 import isaaclab.utils as isaaclab_utils
 from isaaclab.app import scan
 from isaaclab.app.sim_launcher import _validate_runtime, launch_simulation
+from isaaclab.physics import PhysxAutoCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -130,7 +131,7 @@ def test_default_auto_physx_plus_ovrtx_resolves_to_ovphysx():
     """Default automatic PhysX uses OvPhysX when OVRTX is the only renderer signal."""
     env_cfg = _resolve_with_presets("ovrtx")
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.sim.physics, PhysxAutoCfg)
 
     config_scan = validate_runtime_compatibility(env_cfg)
 
@@ -143,7 +144,7 @@ def test_explicit_auto_physx_plus_ovrtx_resolves_to_ovphysx():
     """The ``physx`` preset remains automatic when paired with OVRTX."""
     env_cfg = _resolve_with_presets("physx,ovrtx")
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.sim.physics, PhysxAutoCfg)
 
     config_scan = validate_runtime_compatibility(env_cfg)
 
@@ -220,7 +221,7 @@ def test_renderer_selector_physx_rtx_is_valid_and_resolves_to_ovphysx_and_ovrtx(
     """The automatic PhysX and RTX selectors choose kitless backends without Kit signals."""
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.sim.physics, PhysxAutoCfg)
 
     config_scan = validate_runtime_compatibility(env_cfg)
 

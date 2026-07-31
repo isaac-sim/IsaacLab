@@ -1756,7 +1756,7 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = copy.deepcopy(FrankaClothEnvCfg())
-    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp_vbd")
+    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp_vbd_proxy")
     # Remap nucleus S3 URLs to local /tmp cache so the test works offline when the
     # omni.client hash cache is cold (shadow hand / AnymalD are warm from prior runs).
     env_cfg.scene.robot.spawn.usd_path = _resolve_nucleus_url_to_local(env_cfg.scene.robot.spawn.usd_path)

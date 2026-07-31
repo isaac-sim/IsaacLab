@@ -1,6 +1,40 @@
 Changelog
 ---------
 
+2.4.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added update micro-benchmarks for contact, frame transformer, IMU, PVA,
+  joint wrench, and ray caster sensors.
+* Added matched plane and deterministic rough-terrain phases to the ray caster
+  sensor micro-benchmark.
+* Added support for :attr:`~isaaclab.sensors.ContactSensorCfg.track_contact_points` to the Newton
+  contact sensor. When filter objects are configured, :attr:`~isaaclab_newton.sensors.contact_sensor.ContactSensorData.contact_pos_w`
+  reports the average contact position per filter object, weighted by contact-force magnitude.
+* Added a warning when a camera cfg carries an OpenCV lens-distortion model
+  (``spawn.distortion``) under the Newton renderer, which does not yet apply the model; the camera
+  renders undistorted. The distortion cfg is renderer-agnostic and remains a documented extension
+  point for a future Newton implementation.
+
+Changed
+^^^^^^^
+
+* Changed the newton asset micro-benchmarks from separate method and data scripts
+  to one combined script per asset concept. Run the retained
+  benchmark_<asset>.py script to produce both historical result artifacts.
+
+Fixed
+^^^^^
+
+* Fixed collision shapes being rendered on top of their visual geometry after the Newton bump, by
+  requesting Newton's ``hide_collision_shapes`` import behavior in the cloner so colliders are only
+  shown for bodies and static parents that have no separate visual shape.
+* Fixed articulation-data micro-benchmarks to initialize Newton dynamics buffers and exclude unsupported properties.
+
+
 2.3.2 (2026-07-30)
 ~~~~~~~~~~~~~~~~~~
 

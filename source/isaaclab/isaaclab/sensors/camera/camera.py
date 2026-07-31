@@ -13,7 +13,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
@@ -276,11 +276,21 @@ class Camera(SensorBase):
             i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption
             is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
+        .. note::
+
+            Cameras carrying an OpenCV lens-distortion model are skipped (with a warning): their
+            ``fx/fy/cx/cy`` are fixed at spawn through the
+            :attr:`~isaaclab.sim.spawners.sensors.PinholeCameraCfg.distortion` cfg and cannot be overridden
+            here. Any other selected cameras in the same call are still updated.
+
         Args:
             matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
             focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None,
                 focal_length will be calculated 1 / width.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
+
+        Raises:
+            TypeError: If ``matrices`` is not a :class:`torch.Tensor` or a Warp array.
         """
         if isinstance(matrices, torch.Tensor):
             if not matrices.is_contiguous():
@@ -300,15 +310,21 @@ class Camera(SensorBase):
         if matrices.ndim == 2:
             matrices = matrices[None, ...]
         # iterate over env_ids
+        height, width = self.image_shape
+        skipped_distortion = False
         for i, intrinsic_matrix in zip(env_ids_np, matrices):
-            height, width = self.image_shape
+            # change data for corresponding camera index
+            sensor_prim = self._sensor_prims[i]
+            # A camera with an authored OpenCV lens-distortion model owns its fx/fy/cx/cy through the
+            # ``omni:lensdistortion:*`` calibration, which this square-pixel, centered focal-length/aperture
+            # write cannot express, so skip that camera and leave its calibration untouched.
+            if sensor_prim.GetPrim().GetAttribute("omni:lensdistortion:model").Get():
+                skipped_distortion = True
+                continue
 
             params = sensor_utils.convert_camera_intrinsics_to_usd(
                 intrinsic_matrix=intrinsic_matrix.reshape(-1), height=height, width=width, focal_length=focal_length
             )
-
-            # change data for corresponding camera index
-            sensor_prim = self._sensor_prims[i]
             # set parameters for camera
             for param_name, param_value in params.items():
                 # convert to camel case (CC)
@@ -320,6 +336,11 @@ class Camera(SensorBase):
                     param_value = float(param_value)
                 # set value using pure USD API
                 param_attr().Set(param_value)
+        if skipped_distortion:
+            logger.warning(
+                "set_intrinsic_matrices() skipped one or more cameras configured with an OpenCV"
+                " lens-distortion model; their intrinsics are fixed at spawn via the 'distortion' cfg."
+            )
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids_np)
 
@@ -635,10 +656,63 @@ class Camera(SensorBase):
         self._update_poses()
         self._renderer.set_outputs(self._render_data, self._data.output)
 
+    def _read_authored_opencv_intrinsics(
+        self, prim: Usd.Prim, width: int, height: int, env_id: int
+    ) -> tuple[float, float, float, float] | None:
+        """Read the authored OpenCV lens-distortion intrinsics from a camera prim.
+
+        Returns the calibrated ``(fx, fy, cx, cy)`` that the RTX/OVRTX renderer projects through when
+        the prim carries a complete OpenCV lens-distortion model, otherwise ``None`` so the caller can
+        fall back to the focal-length/aperture projection. Unlike that projection, these intrinsics may
+        be non-square (``fx != fy``) or off-center.
+
+        Args:
+            prim: The camera prim to read the authored intrinsics from.
+            width: The render width in pixels.
+            height: The render height in pixels.
+            env_id: The environment index, used only for warning messages.
+
+        Returns:
+            The authored ``(fx, fy, cx, cy)`` in pixels, or ``None`` when no complete model is present.
+        """
+        distortion_model = prim.GetAttribute("omni:lensdistortion:model").Get()
+        if not distortion_model:
+            return None
+        prefix = f"omni:lensdistortion:{distortion_model}"
+        # a prim may carry the model token without fx/fy/cx/cy
+        intrinsics = tuple(prim.GetAttribute(f"{prefix}:{name}").Get() for name in ("fx", "fy", "cx", "cy"))
+        if None in intrinsics:
+            # a model token without intrinsics falls back to the focal-length/aperture projection
+            logger.warning(
+                "Camera prim '%s' declares lens-distortion model '%s' but is missing one or more"
+                " fx/fy/cx/cy intrinsics; falling back to the focal-length/aperture projection.",
+                prim.GetPath(),
+                distortion_model,
+            )
+            return None
+        # the intrinsics are reported in the calibrated pixel space; warn if the render resolution
+        # differs, since the matrix will not match the rendered pixels.
+        image_size = prim.GetAttribute(f"{prefix}:imageSize").Get()
+        if image_size is not None:
+            authored_size = (int(image_size[0]), int(image_size[1]))
+            if authored_size != (width, height):
+                logger.warning(
+                    "Camera prim '%s' (env %d) lens-distortion 'imageSize' %s does not match the render"
+                    " resolution (%d, %d). The reported intrinsic matrix is in the calibrated pixel space.",
+                    prim.GetPath(),
+                    env_id,
+                    authored_size,
+                    width,
+                    height,
+                )
+        return tuple(float(value) for value in intrinsics)
+
     def _update_intrinsic_matrices(self, env_ids: Sequence[int] | wp.array | None = None):
         """Compute camera's matrix of intrinsic parameters.
 
-        Also called calibration matrix. This matrix works for linear depth images. We assume square pixels.
+        Also called calibration matrix. This matrix works for linear depth images. Without an authored
+        OpenCV lens-distortion model the readback assumes square pixels and a centered principal point;
+        when such a model is present its calibrated ``fx/fy/cx/cy`` are used instead.
 
         .. note::
             The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.
@@ -649,22 +723,27 @@ class Camera(SensorBase):
             return
 
         intrinsic_matrices = np.zeros((len(env_ids_np), 3, 3), dtype=np.float32)
+        # viewport parameters are shared by every camera prim of this sensor
+        height, width = self.image_shape
         # iterate over all cameras
         for matrix_id, i in enumerate(env_ids_np):
             # Get corresponding sensor prim
             sensor_prim = self._sensor_prims[int(i)]
-            # get camera parameters
-            # currently rendering does not use aperture offsets or vertical aperture
-            focal_length = sensor_prim.GetFocalLengthAttr().Get()
-            horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
-
-            # get viewport parameters
-            height, width = self.image_shape
-            # extract intrinsic parameters
-            f_x = (width * focal_length) / horiz_aperture
-            f_y = f_x
-            c_x = width * 0.5
-            c_y = height * 0.5
+            # Prefer an authored OpenCV lens-distortion model when present: it carries the authoritative
+            # fx/fy/cx/cy that the RTX/OVRTX renderer projects through, which may be non-square or off-center.
+            authored = self._read_authored_opencv_intrinsics(sensor_prim.GetPrim(), width, height, int(i))
+            if authored is not None:
+                f_x, f_y, c_x, c_y = authored
+            else:
+                # get camera parameters
+                # currently rendering does not use aperture offsets or vertical aperture
+                focal_length = sensor_prim.GetFocalLengthAttr().Get()
+                horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
+                # extract intrinsic parameters (square pixels, centered principal point)
+                f_x = (width * focal_length) / horiz_aperture
+                f_y = f_x
+                c_x = width * 0.5
+                c_y = height * 0.5
             # create intrinsic matrix for depth linear
             intrinsic_matrices[matrix_id, 0, 0] = f_x
             intrinsic_matrices[matrix_id, 0, 2] = c_x

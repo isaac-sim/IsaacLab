@@ -27,6 +27,21 @@ rigid-body scenes can use either:
 Start from a Supported Deformable Task
 --------------------------------------
 
+.. note::
+
+   The ``Isaac-Lift-Soft-Franka`` task requires automatic tetrahedralization.
+   Install its optional dependencies before running the examples below:
+
+   .. code-block:: bash
+
+      uv sync --inexact --extra tetrahedralization
+
+   With the legacy installer:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 Before adding VBD to a new task, first run one of the experimental Franka
 deformable tasks:
 
@@ -66,13 +81,6 @@ object through
 Use these tasks as starting points for asset setup, solver coupling, and contact
 tuning.
 
-.. warning::
-
-   With the pinned Newton version, resetting any world clears proxy feedback
-   and contact caches for every replicated world. Use synchronized whole-batch
-   resets until mask-aware upstream reset support is pinned. The Franka proxy
-   task configurations therefore default to one environment.
-
 Add a VBD Physics Preset
 ------------------------
 
@@ -108,13 +116,13 @@ You can select the deformable Newton preset globally:
 
       .. code-block:: bash
 
-          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd_proxy
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd_proxy
 
 or select the physics field directly:
 
@@ -124,16 +132,16 @@ or select the physics field directly:
 
       .. code-block:: bash
 
-          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd_proxy
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd_proxy
 
 Use the direct path override when only one task field should use the VBD preset.
-Use ``physics=newton_mjwarp_vbd`` when you want every matching preset
+Use ``physics=newton_mjwarp_vbd_proxy`` when you want every matching preset
 field in the task config to resolve to that preset. Isaac Lab training commands
 accept these Hydra overrides after the regular command line flags; no separator is
 needed for the examples above.
@@ -263,8 +271,8 @@ The core Franka soft-body task demonstrates the proxy configuration:
 
 .. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
     :language: python
-    :start-at: newton_mjwarp_vbd: NewtonCfg
-    :end-before: physx: PhysxCfg = PhysxCfg()
+    :start-at: newton_mjwarp_vbd_proxy: NewtonCfg
+    :end-before: isaacsim_physx: PhysxCfg = PhysxCfg()
     :dedent: 4
 
 What the selectors do:

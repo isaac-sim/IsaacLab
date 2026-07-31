@@ -11,6 +11,7 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
+from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import DeformableCfg as CoreDeformableCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftSceneCfg as CoreSceneCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
@@ -20,9 +21,9 @@ from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
 @configclass
 class PhysicsCfg(CorePhysicsCfg):
-    """Custom MJWarp and VBD physics preset."""
+    """Adds the manual MJWarp and VBD coupling preset on top of the core proxy presets."""
 
-    newton_mjwarp_vbd = CorePhysicsCfg().newton_mjwarp_vbd.replace(
+    newton_mjwarp_vbd = CorePhysicsCfg().newton_mjwarp_vbd_proxy.replace(
         # Required: ``NewtonCfg.__post_init__`` rejects a preset class_type and re-derives it.
         class_type=None,
         solver_cfg=CoupledMJWarpVBDSolverCfg(
@@ -36,7 +37,7 @@ class PhysicsCfg(CorePhysicsCfg):
             soft_solver_cfg=VBDSolverCfg(
                 integrate_with_external_rigid_solver=True,
             ),
-            model_cfg=CorePhysicsCfg().newton_mjwarp_vbd.solver_cfg.model_cfg,
+            model_cfg=CorePhysicsCfg().newton_mjwarp_vbd_proxy.solver_cfg.model_cfg,
         ),
     )
 
@@ -44,10 +45,17 @@ class PhysicsCfg(CorePhysicsCfg):
 
 
 @configclass
-class SceneCfg(CoreSceneCfg):
-    """Multi-world scene preset; the manual coupler keeps reset state per world."""
+class DeformableCfg(CoreDeformableCfg):
+    """Adds the manual coupling name for the shared Newton deformable asset."""
 
-    newton_mjwarp_vbd = CoreSceneCfg().newton_mjwarp_vbd.replace(num_envs=128)
+    newton_mjwarp_vbd = CoreDeformableCfg().newton_mjwarp_vbd_proxy
+
+
+@configclass
+class SceneCfg(CoreSceneCfg):
+    """Adds the manual coupling scene preset, reusing the core proxy scene."""
+
+    newton_mjwarp_vbd = CoreSceneCfg().newton_mjwarp_vbd_proxy.replace(deformable=DeformableCfg())
 
     default = newton_mjwarp_vbd
 

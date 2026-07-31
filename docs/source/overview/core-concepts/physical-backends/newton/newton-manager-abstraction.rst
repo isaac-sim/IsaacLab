@@ -184,6 +184,21 @@ outer simulation loop.
    Franka manipulation using MJWarp for rigid bodies and VBD for the deformable
    object.
 
+.. note::
+
+   This volume soft-body task requires automatic tetrahedralization. Install its
+   optional dependencies before running it:
+
+   .. code-block:: bash
+
+      uv sync --inexact --extra tetrahedralization
+
+   With the legacy installer:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 The opt-in example is registered only when its module is imported:
 
 .. code-block:: python
@@ -191,8 +206,9 @@ The opt-in example is registered only when its module is imported:
    import isaaclab_contrib.custom_coupling
 
 The import registers ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, which
-uses ``coupling_mode="two_way"``. The core ``Isaac-Lift-Soft-Franka`` and
-``Isaac-Lift-Cloth-Franka`` tasks use
+selects the ``newton_mjwarp_vbd`` preset and uses ``coupling_mode="two_way"``.
+The core ``Isaac-Lift-Soft-Franka`` and ``Isaac-Lift-Cloth-Franka`` tasks default
+to the ``newton_mjwarp_vbd_proxy`` preset backed by
 :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` instead.
 
 Tuning the Franka Soft-Body Lift

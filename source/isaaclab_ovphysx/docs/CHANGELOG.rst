@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+8.2.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added asset method and data property micro-benchmarks for the articulation,
+  rigid object, and rigid object collection classes.
+* Added update and backend-read micro-benchmarks with structured results for
+  contact, frame transformer, IMU, PVA, joint wrench, and ray caster sensors.
+* Added matched plane and deterministic rough-terrain phases to the ray caster
+  sensor micro-benchmark.
+
+Changed
+^^^^^^^
+
+* Changed the ovphysx asset micro-benchmarks from separate method and data scripts
+  to one combined script per asset concept. Run the retained
+  benchmark_<asset>.py script to produce both historical result artifacts.
+
+
 8.1.1 (2026-07-30)
 ~~~~~~~~~~~~~~~~~~
 
