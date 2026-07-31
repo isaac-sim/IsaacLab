@@ -81,5 +81,6 @@
     },
     // Python extra paths
     // Note: this is filled up when "./isaaclab.sh -i" is run
-    "python.analysis.extraPaths": []
+    "python.analysis.extraPaths": [],
+    "cursorpyright.analysis.extraPaths": []
 }

@@ -101,13 +101,22 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
     # deal with the path separator being different on Windows and Unix
     path_names = path_names.replace("\\", "/")
 
-    # replace the path names in the Isaac Lab settings file with the path names parsed
-    isaaclab_settings = re.sub(
-        r"\"python.analysis.extraPaths\": \[.*?\]",
-        '"python.analysis.extraPaths": [\n\t\t'.expandtabs(4) + path_names + "\n\t]".expandtabs(4),
-        isaaclab_settings,
-        flags=re.DOTALL,
+    extra_paths_block = '"python.analysis.extraPaths": [\n\t\t'.expandtabs(4) + path_names + "\n\t]".expandtabs(4)
+    cursor_extra_paths_block = (
+        '"cursorpyright.analysis.extraPaths": [\n\t\t'.expandtabs(4) + path_names + "\n\t]".expandtabs(4)
     )
+
+    # replace the path names in the Isaac Lab settings file with the path names parsed
+    for setting_key, replacement in (
+        ("python.analysis.extraPaths", extra_paths_block),
+        ("cursorpyright.analysis.extraPaths", cursor_extra_paths_block),
+    ):
+        isaaclab_settings = re.sub(
+            rf"\"{re.escape(setting_key)}\": \[.*?\]",
+            replacement,
+            isaaclab_settings,
+            flags=re.DOTALL,
+        )
     # return the Isaac Lab settings string
     return isaaclab_settings
 
