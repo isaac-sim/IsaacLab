@@ -16,19 +16,24 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_contrib.deformable.newton_manager_cfg import (
-    CoupledMJWarpVBDSolverCfg,
-    NewtonModelCfg,
-    VBDSolverCfg,
-)
+from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
 
-from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
-from .franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
+from .franka_soft_env_cfg import (
+    FRANKA_CAMERA_CFG,
+    FrankaCameraObservationsCfg,
+    FrankaSoftEnvCfg,
+    _FrankaSoftSceneCfg,
+)
+from .franka_soft_env_cfg import (
+    EventCfg as FrankaSoftEventCfg,
+)
 
 ##
 # Scene definition
@@ -43,26 +48,41 @@ ROBOT_SHAPE_MATERIAL_BODY_NAMES = ".*"
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    # Newton physics: MJWarp rigid + VBD soft, two-way coupled
-    # (matches newton/examples/softbody/example_softbody_franka.py)
-    newton_mjwarp_vbd: NewtonCfg = NewtonCfg(
-        solver_cfg=CoupledMJWarpVBDSolverCfg(
-            rigid_solver_cfg=MJWarpSolverCfg(
-                njmax=40,
-                nconmax=20,
-                ls_iterations=20,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-                ccd_iterations=100,
-            ),
-            soft_solver_cfg=VBDSolverCfg(
-                iterations=10,
-                integrate_with_external_rigid_solver=True,
-                particle_enable_self_contact=False,
-                particle_collision_detection_interval=-1,
-            ),
-            coupling_mode="two_way",
+    # Newton physics: MJWarp rigid + VBD soft, coupled through lagged proxies
+    newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
+        solver_cfg=CouplerProxyCfg(
+            entries=[
+                CouplerEntryCfg(
+                    name="rigid",
+                    solver_cfg=MJWarpSolverCfg(
+                        njmax=40,
+                        nconmax=20,
+                        cone="elliptic",
+                        ls_iterations=20,
+                        integrator="implicitfast",
+                        ccd_iterations=100,
+                    ),
+                    bodies=[r"/World/envs/env_.*/Robot"],
+                ),
+                CouplerEntryCfg(
+                    name="soft",
+                    solver_cfg=VBDSolverCfg(iterations=10),
+                    all_particles=True,
+                    include_static_shapes=True,
+                ),
+            ],
+            proxies=[
+                CouplerProxyMappingCfg(
+                    source="rigid",
+                    destination="soft",
+                    bodies=[
+                        r"/World/envs/env_.*/Robot/panda_hand",
+                        r"/World/envs/env_.*/Robot/panda_(left|right)finger",
+                    ],
+                    collide_interval=1,
+                )
+            ],
+            iterations=1,
             model_cfg=NewtonModelCfg(
                 soft_contact_ke=1e3,
                 soft_contact_kd=1e-5,
@@ -74,14 +94,14 @@ class PhysicsCfg(PresetCfg):
         use_cuda_graph=True,
     )
 
-    default = newton_mjwarp_vbd
+    default = newton_mjwarp_vbd_proxy
 
 
 @configclass
 class DeformableCfg(PresetCfg):
     """Preset config for the deformable object, matching the Newton example."""
 
-    newton_mjwarp_vbd: DeformableObjectCfg = DeformableObjectCfg(
+    newton_mjwarp_vbd_proxy: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Deformable",
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.2)),
         spawn=sim_utils.MeshRectangleCfg(
@@ -101,7 +121,7 @@ class DeformableCfg(PresetCfg):
         ),
     )
 
-    default = newton_mjwarp_vbd
+    default = newton_mjwarp_vbd_proxy
 
 
 @configclass
@@ -120,6 +140,13 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
         ),
     )
+
+
+@configclass
+class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
+    """Franka cloth scene with a base camera."""
+
+    base_camera: CameraCfg = FRANKA_CAMERA_CFG
 
 
 @configclass
@@ -185,3 +212,16 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.scene.robot.actuators["panda_hand"].effort_limit_sim = 500.0
         self.scene.robot.actuators["panda_hand"].stiffness = 2000.0
         self.scene.robot.actuators["panda_hand"].damping = 100.0
+
+
+@configclass
+class FrankaClothCameraEnvCfg(FrankaClothEnvCfg):
+    """Visual Franka surface-deformable lifting environment."""
+
+    scene: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
+    observations: FrankaCameraObservationsCfg = FrankaCameraObservationsCfg()
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop).
+        self.num_rerenders_on_reset = 2
