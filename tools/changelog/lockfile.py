@@ -142,9 +142,68 @@ class LockFile:
         if dry_run:
             print(f"DRY RUN — would update {len(drifts)} version(s) in {self.LOCK_NAME}.")
             return []
+        self._assert_rewrite_is_sound(self._document[0], updated, drifts)
         self._write(updated)
         print(f"Updated {len(drifts)} version(s) in {self.LOCK_NAME}.")
         return [self.path]
+
+    @classmethod
+    def _assert_rewrite_is_sound(cls, before: str, after: str, drifts: list[Drift]) -> None:
+        """Verify the rewritten lock before it is allowed to reach disk.
+
+        The rewrite is careful — column-zero anchors, block-index scoping —
+        but that scoping is precisely what could be wrong, so it cannot be
+        its own witness. This re-derives the outcome from the produced text.
+
+        The lock is never bad in an *interesting* way: it is machine-written
+        and the nightly commits it unreviewed, so a malformed or mis-pinned
+        result would be discovered by whoever next runs ``uv sync`` rather
+        than here. Checking costs one parse of an 8k-line file.
+
+        Args:
+            before: Lock text as read.
+            after: Lock text the rewrite produced.
+            drifts: The moves the rewrite reported making.
+
+        Raises:
+            Error: The result is not a sound realisation of ``drifts``.
+        """
+
+        def pins(text: str) -> list[tuple[str, str]]:
+            """``(name, version)`` per ``[[package]]`` block, in file order."""
+            data = tomllib.loads(text)
+            return [(p["name"], p["version"]) for p in data.get("package", []) if "version" in p]
+
+        # V1 — still TOML. Anything else here is unsafe to reason about.
+        try:
+            after_pins = pins(after)
+        except tomllib.TOMLDecodeError as e:
+            raise cls.Error(f"the {cls.LOCK_NAME} rewrite produced invalid TOML: {e}") from e
+
+        # V2 — a version rewrite replaces lines; it never adds or drops any.
+        if (a := len(after.splitlines())) != (b := len(before.splitlines())):
+            raise cls.Error(
+                f"the {cls.LOCK_NAME} rewrite changed the line count ({b} -> {a}); expected in-place edits only."
+            )
+
+        before_pins = pins(before)
+        if len(before_pins) != len(after_pins):
+            raise cls.Error(
+                f"the {cls.LOCK_NAME} rewrite changed the package count ({len(before_pins)} -> {len(after_pins)})."
+            )
+
+        # V3/V4 — exactly the reported moves happened, and nothing else did.
+        # Compared position-wise: two blocks may share a name (an editable
+        # member and a registry release of the same project), so a name-keyed
+        # comparison would let a rewrite of the wrong one pass unnoticed.
+        moved = {i for i, (b_pin, a_pin) in enumerate(zip(before_pins, after_pins)) if b_pin != a_pin}
+        expected = {(d.package, d.old, d.new) for d in drifts}
+        actual = {(after_pins[i][0], before_pins[i][1], after_pins[i][1]) for i in moved}
+        if actual != expected:
+            raise cls.Error(
+                f"the {cls.LOCK_NAME} rewrite did not match the drift it reported "
+                f"(reported {sorted(expected)}, applied {sorted(actual)})."
+            )
 
     def assert_repairable(self) -> None:
         """Raise :class:`MembershipMismatch` when a version rewrite cannot fix this lock.

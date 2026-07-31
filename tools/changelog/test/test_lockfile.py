@@ -333,3 +333,65 @@ def test_sync_lock_writes_the_lock_and_exits_zero(tmp_path, monkeypatch):
 
     assert rc == 0
     assert 'version = "13.1.0"' in (tmp_path / "uv.lock").read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# The written lock is verified before it lands
+# ---------------------------------------------------------------------------
+
+# The nightly commits this file unreviewed, so a rewrite that produced garbage
+# would surface at whoever next runs ``uv sync`` rather than here. Each test
+# feeds ``_assert_rewrite_is_sound`` a specific way to be wrong.
+
+_SOUND_DRIFT = [LockFile.Drift("isaaclab", "13.0.0", "13.1.0")]
+
+
+def _applied(text: str) -> str:
+    """LOCK with isaaclab's editable pin moved to 13.1.0 — the sound result."""
+    return text.replace('name = "isaaclab"\nversion = "13.0.0"', 'name = "isaaclab"\nversion = "13.1.0"', 1)
+
+
+def test_sound_rewrite_is_accepted():
+    LockFile._assert_rewrite_is_sound(LOCK, _applied(LOCK), _SOUND_DRIFT)
+
+
+def test_invalid_toml_is_refused():
+    with pytest.raises(LockFile.Error, match="invalid TOML"):
+        LockFile._assert_rewrite_is_sound(LOCK, LOCK + '\nname = "unclosed\n', _SOUND_DRIFT)
+
+
+def test_line_count_change_is_refused():
+    with pytest.raises(LockFile.Error, match="line count"):
+        LockFile._assert_rewrite_is_sound(LOCK, _applied(LOCK) + "\n", _SOUND_DRIFT)
+
+
+def test_unreported_extra_move_is_refused():
+    """A second pin moving without being reported must not slip through — that
+    is a silent third-party change riding along in an unreviewed commit."""
+    sneaky = _applied(LOCK).replace(
+        'name = "warp-lang"\nversion = "13.0.0"', 'name = "warp-lang"\nversion = "99.0.0"', 1
+    )
+    with pytest.raises(LockFile.Error, match="did not match the drift"):
+        LockFile._assert_rewrite_is_sound(LOCK, sneaky, _SOUND_DRIFT)
+
+
+def test_rewrite_of_the_wrong_duplicate_block_is_refused():
+    """The motivating case: two ``[[package]]`` blocks share the name
+    ``isaaclab`` — the editable member and a registry release. Moving the
+    registry pin instead yields perfectly valid TOML with the right line count
+    and the right *name*, so only a position-wise comparison catches it."""
+    wrong = DUPLICATE_NAME_LOCK.replace(
+        'name = "isaaclab"\nversion = "12.4.0"', 'name = "isaaclab"\nversion = "13.1.0"', 1
+    )
+    with pytest.raises(LockFile.Error, match="did not match the drift"):
+        LockFile._assert_rewrite_is_sound(DUPLICATE_NAME_LOCK, wrong, _SOUND_DRIFT)
+
+
+def test_sync_refuses_to_write_an_unsound_rewrite(tmp_path, monkeypatch):
+    """End to end: a broken rewrite must leave the on-disk lock untouched."""
+    lock = _write_workspace(tmp_path, versions={"isaaclab": "13.1.0", "isaaclab_tasks": "9.1.0"})
+    monkeypatch.setattr(LockFile, "_rewrite", classmethod(lambda cls, t, tg, eb=None: (t + "\nbroken = [\n", [])))
+    monkeypatch.setattr(LockFile, "_guarded_drift", lambda self: (LOCK + "\nbroken = [\n", _SOUND_DRIFT))
+    with pytest.raises(LockFile.Error):
+        lock.sync()
+    assert (tmp_path / "uv.lock").read_text(encoding="utf-8") == LOCK
