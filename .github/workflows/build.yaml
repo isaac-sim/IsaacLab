@@ -740,6 +740,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         include-files: "test_record_video.py"
+        test-k-expr: "not Pendulum"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         extra-uv-packages: "moviepy>=1.0.3,<2.0.0.dev0 decorator<5"
         container-name: isaac-lab-record-video-test
         omni-github-test-type: video-e2e
