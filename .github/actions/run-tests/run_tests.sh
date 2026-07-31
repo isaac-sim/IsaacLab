@@ -361,8 +361,10 @@ run_tests() {
       fi
       if [ -n \"\${TEST_EXTRA_UV_PACKAGES:-}\" ]; then
         echo \"Installing extra packages with uv: \${TEST_EXTRA_UV_PACKAGES}\"
-        isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)')\"
-        uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, sysconfig; print(pathlib.Path(sysconfig.get_path(\"scripts\")) / \"uv\")')\"
+        # isaaclab.sh prints an informational line before command output, and pip
+        # installs scripts into the user base when Isaac Sim site-packages is read-only.
+        isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)' | tail -n 1)\"
+        uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, site; print(pathlib.Path(site.getuserbase()) / \"bin\" / \"uv\")' | tail -n 1)\"
         if [ ! -x \"\${uv_executable}\" ]; then
           ./isaaclab.sh -p -m pip install uv
         fi
