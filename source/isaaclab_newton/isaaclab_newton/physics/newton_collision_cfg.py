@@ -150,6 +150,17 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``0.01`` (same as Newton's default).
     """
 
+    enable_rigid_soft_full_surface_contact: bool = False
+    """Whether to generate soft contacts over the full soft-mesh surface against rigid SDFs.
+
+    When ``True``, Newton adds edge and triangle-interior soft contacts (in addition to the
+    per-vertex particle contacts) so rigid features that pass between soft vertices are caught.
+    Requires a volume SDF on every participating rigid mesh/convex shape; provision these via
+    :attr:`~isaaclab_newton.physics.NewtonShapeSDFCfg` on :attr:`NewtonCfg.sdf_shape_cfgs`.
+
+    Defaults to ``False`` (same as Newton's default).
+    """
+
     requires_grad: bool | None = None
     """Whether to enable gradient computation for collision.
 

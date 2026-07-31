@@ -118,6 +118,16 @@ class VBDSolverCfg(NewtonModelSolverCfg):
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for all rigid body contacts [N/m]."""
 
+    rigid_body_particle_contact_buffer_size: int = 256
+    """Per-body capacity of the body-particle soft-contact list.
+
+    Contacts past this count are dropped from the body's reaction list: the particles are still
+    pushed but the body does not recoil, injecting energy. Newton prints ``Per-body particle
+    contact buffer overflowed N > size`` on overflow; raise this above the observed ``N``. Only
+    used when VBD integrates the rigid bodies itself, i.e.
+    :attr:`integrate_with_external_rigid_solver` is ``False``.
+    """
+
 
 @configclass
 class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):

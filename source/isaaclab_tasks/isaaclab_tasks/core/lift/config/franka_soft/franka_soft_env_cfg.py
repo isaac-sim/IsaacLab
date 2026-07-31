@@ -3,25 +3,30 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the Franka deformable lifting environment."""
+"""Configuration for the Franka deformable (soft beam) lifting environment."""
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
+from isaaclab_newton.physics import (
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeSDFCfg,
+)
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs import mdp as env_mdp
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -33,9 +38,10 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_contrib.coupling import (
     CouplerEntryCfg,
@@ -47,9 +53,10 @@ from isaaclab_contrib.deformable.newton_manager_cfg import (
     VBDSolverCfg,
 )
 
-from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+from . import mdp
 
 ##
 # Pre-defined configs
@@ -64,8 +71,16 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
 
 
 # Shared volume material parameters. The Newton config below uses the equivalent Lame parameters.
-YOUNGS_MODULUS = 8e4
-POISSONS_RATIO = 0.25
+YOUNGS_MODULUS = 2e5
+POISSONS_RATIO = 0.3
+
+# Table collider whose top surface sits at z = 0. Spawned invisible: the command term's success
+# visualizer draws it instead, tinted by whether the goal is reached.
+TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
+    size=(1.3, 0.9, 1.05),
+    collision_props=sim_utils.CollisionPropertiesCfg(),
+    visible=False,
+)
 
 
 FRANKA_CAMERA_CFG = CameraCfg(
@@ -91,14 +106,14 @@ class DeformableCfg(PresetCfg):
         prim_path="{ENV_REGEX_NS}/Deformable",
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
         spawn=sim_utils.MeshCuboidCfg(
-            size=(0.3, 0.05, 0.05),
+            size=(0.3, 0.04, 0.04),
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
             physics_material=NewtonDeformableBodyMaterialCfg(
-                density=300.0,
+                density=1000.0,
                 k_mu=YOUNGS_MODULUS / (2.0 * (1.0 + POISSONS_RATIO)),
                 k_lambda=(YOUNGS_MODULUS * POISSONS_RATIO / ((1.0 + POISSONS_RATIO) * (1.0 - 2.0 * POISSONS_RATIO))),
-                particle_radius=0.01,
+                particle_radius=0.0025,
             ),
         ),
     )
@@ -107,15 +122,16 @@ class DeformableCfg(PresetCfg):
         prim_path="{ENV_REGEX_NS}/Deformable",
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
         spawn=sim_utils.MeshCuboidCfg(
-            size=(0.3, 0.05, 0.05),
+            size=(0.3, 0.04, 0.04),
             deformable_props=PhysxDeformableBodyPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
+            collision_props=[PhysxCollisionCfg(rest_offset=0.0005, contact_offset=0.005)],
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
             physics_material=PhysxDeformableBodyMaterialCfg(
-                density=300.0,
+                density=1000.0,
                 youngs_modulus=YOUNGS_MODULUS,
                 poissons_ratio=POISSONS_RATIO,
-                static_friction=10.0,
-                dynamic_friction=5.0,
+                static_friction=1.0,
+                dynamic_friction=1.0,
             ),
         ),
     )
@@ -142,7 +158,7 @@ class PhysicsCfg(PresetCfg):
                 ),
                 CouplerEntryCfg(
                     name="soft",
-                    solver_cfg=VBDSolverCfg(iterations=10),
+                    solver_cfg=VBDSolverCfg(iterations=10, rigid_body_particle_contact_buffer_size=256),
                     all_particles=True,
                     include_static_shapes=True,
                 ),
@@ -155,21 +171,32 @@ class PhysicsCfg(PresetCfg):
                         r"/World/envs/env_.*/Robot/panda_hand",
                         r"/World/envs/env_.*/Robot/panda_(left|right)finger",
                     ],
-                    collide_interval=5,
+                    collide_interval=1,
+                    collision_pipeline=NewtonCollisionPipelineCfg(
+                        enable_rigid_soft_full_surface_contact=True,
+                    ),
                 )
             ],
             iterations=1,
-            model_cfg=NewtonModelCfg(
-                soft_contact_ke=1e4,
-                soft_contact_kd=1e-5,
-                soft_contact_mu=5.0,
-            ),
+            model_cfg=NewtonModelCfg(soft_contact_ke=5.0e3),
         ),
-        default_shape_cfg=NewtonShapeCfg(ke=4e4, kd=1e-5, mu=5.0),
-        num_substeps=10,
+        sdf_shape_cfgs=[
+            NewtonShapeSDFCfg(
+                shape_label_patterns=[
+                    r"/World/envs/env_.*/Robot/panda_hand/collisions/collisions",
+                    r"/World/envs/env_.*/Robot/panda_(left|right)finger/collisions/collisions",
+                ],
+                # ~2.3 mm voxels on the fingers; finer isn't needed for contact resolution.
+                max_resolution=8,
+            )
+        ],
+        num_substeps=2,
     )
 
-    isaacsim_physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg(
+        friction_offset_threshold=0.001,
+        friction_correlation_distance=0.005,
+    )
     ovphysx: OvPhysxCfg = OvPhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
 
@@ -202,13 +229,13 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
 
     deformable: DeformableCfg = DeformableCfg()
 
-    # static table matching the Newton example: half-extents (0.4, 0.4, 0.1) → top at z = 0.2
-    # NOTE: SeattleLabTable USD has its origin on the top surface, so the deformable object
-    # sits directly on it when placed at z = 0.05.
+    # static table collider with its top surface at z = 0. Kept invisible: the success
+    # visualizer renders the visible table, colored by whether the goal is reached
+    # (see CommandsCfg).
     table: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, 0.0], rot=[0.0, 0.0, 0.707, 0.707]),
-        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
+        spawn=TABLE_SPAWN_CFG,
     )
 
     # ground plane
@@ -228,14 +255,29 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     )
 
     def __post_init__(self) -> None:
-        # disable gravity on the arm so the low-PD actuators do not need to fight gravity sag,
-        # which is the dominant source of steady-state IK tracking error.
-        self.robot.spawn.rigid_props.disable_gravity = True
+        # Re-tuned Franka actuators: stiff arm gains with realistic armature so the low-inertia
+        # default gains do not let the fingers tunnel through the soft body, and a slower, weaker
+        # gripper so it settles on the beam surface instead of crushing it. Velocity limits are
+        # required by the joint_vel_out_of_sim_limit termination. Scoped here rather than in
+        # FRANKA_PANDA_CFG so the other Franka tasks keep the stock asset.
+        shoulder = self.robot.actuators["panda_shoulder"]
+        shoulder.velocity_limit_sim = 2.175
+        shoulder.stiffness = 600.0
+        shoulder.damping = 50.0
+        shoulder.armature = {"panda_joint[1-2]": 0.6057, "panda_joint[3-4]": 0.4625}
 
-        # increase franka gripper stiffness
-        self.robot.actuators["panda_hand"].effort_limit_sim = 500.0
-        self.robot.actuators["panda_hand"].stiffness = 1000.0
-        self.robot.actuators["panda_hand"].damping = 100.0
+        forearm = self.robot.actuators["panda_forearm"]
+        forearm.velocity_limit_sim = 2.61
+        forearm.stiffness = {"panda_joint5": 250.0, "panda_joint6": 150.0, "panda_joint7": 50.0}
+        forearm.damping = {"panda_joint5": 30.0, "panda_joint6": 25.0, "panda_joint7": 15.0}
+        forearm.armature = 0.2055
+
+        hand = self.robot.actuators["panda_hand"]
+        hand.effort_limit_sim = 70.0
+        hand.velocity_limit_sim = 0.2
+        hand.stiffness = 750.0
+        hand.damping = 175.0
+        hand.armature = 0.1
 
 
 @configclass
@@ -254,12 +296,12 @@ class _FrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
 class CommandsCfg:
     """Commands for the deformable goal pose (xyz + identity quat in robot root frame)."""
 
-    deformable_pose = mdp.UniformPoseCommandCfg(
+    deformable_pose = mdp.DeformableUniformPoseCommandCfg(
         asset_name="robot",
-        body_name="panda_hand",
+        object_name="deformable",
         resampling_time_range=(5.0, 5.0),
         debug_vis=True,
-        ranges=mdp.UniformPoseCommandCfg.Ranges(
+        ranges=mdp.DeformableUniformPoseCommandCfg.Ranges(
             pos_x=(0.4, 0.6),
             pos_y=(-0.25, 0.25),
             pos_z=(0.25, 0.5),
@@ -267,16 +309,16 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        # Render the goal as a transparent colored sphere (a point) instead of a coordinate frame.
-        goal_pose_visualizer_cfg=VisualizationMarkersCfg(
-            prim_path="/Visuals/Command/goal_pose",
+        # the invisible table is drawn by these markers, tinted green once the goal is reached
+        success_vis_asset_name="table",
+        success_visualizer_cfg=VisualizationMarkersCfg(
+            prim_path="/Visuals/SuccessMarkers",
             markers={
-                "sphere": sim_utils.SphereCfg(
-                    radius=0.03,
-                    visual_material=sim_utils.PreviewSurfaceCfg(
-                        diffuse_color=(0.1, 0.9, 0.2),
-                        opacity=0.4,
-                    ),
+                "failure": TABLE_SPAWN_CFG.replace(
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)), visible=True
+                ),
+                "success": TABLE_SPAWN_CFG.replace(
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)), visible=True
                 ),
             },
         ),
@@ -284,10 +326,21 @@ class CommandsCfg:
 
 
 @configclass
-class ActionsCfg:
+class _JointActionsCfg:
+    """7-dim relative joint-position arm targets + 1-dim limit-rescaled gripper."""
+
+    arm_action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=["panda_joint.*"], scale=0.03)
+
+    gripper_action = mdp.JointPositionToLimitsActionCfg(
+        asset_name="robot", joint_names=["panda_finger.*"], rescale_to_limits=True
+    )
+
+
+@configclass
+class _IkActionsCfg:
     """7-dim absolute end-effector pose (xyz + quaternion) via differential IK + 1-dim binary gripper."""
 
-    arm_action = DifferentialInverseKinematicsActionCfg(
+    arm_action = mdp.DifferentialInverseKinematicsActionCfg(
         asset_name="robot",
         joint_names=["panda_joint.*"],
         body_name="panda_hand",
@@ -297,14 +350,26 @@ class ActionsCfg:
             ik_method="dls",
             ik_params={"lambda_val": 0.6},
         ),
-        body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+        body_offset=mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
     )
+
     gripper_action = mdp.BinaryJointPositionActionCfg(
         asset_name="robot",
         joint_names=["panda_finger.*"],
         open_command_expr={"panda_finger_.*": 0.05},
-        close_command_expr={"panda_finger_.*": 0.0},
+        close_command_expr={"panda_finger_.*": 0.015},
     )
+
+
+@configclass
+class ActionsCfg(PresetCfg):
+    """Action-space presets: joint-space for RL, task-space IK for scripted end-effector control."""
+
+    joint: _JointActionsCfg = _JointActionsCfg()
+
+    ik: _IkActionsCfg = _IkActionsCfg()
+
+    default = joint
 
 
 @configclass
@@ -394,7 +459,7 @@ class EventCfg:
         func=mdp.reset_nodal_state_uniform,
         mode="reset",
         params={
-            "position_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (0.0, 0.0)},
+            "position_range": {"x": (-0.15, 0.1), "y": (-0.2, 0.2), "z": (0.0, 0.0)},
             "velocity_range": {},
             "asset_cfg": SceneEntityCfg("deformable"),
         },
@@ -403,48 +468,79 @@ class EventCfg:
 
 @configclass
 class RewardsCfg:
-    """Lift-to-target reward for a deformable object."""
+    """Deformable analogue of the winning rigid-cube lift recipe.
 
+    The table top sits at z = 0 and the beam's rest COM at ~0.05 m. The dense lift reward gates at
+    0.02 m, i.e. below rest, so it stays graded across the full lift range and only vanishes when
+    the beam is pressed into the table. The goal-tracking terms gate at 0.0 m, so they are
+    effectively always active. Success = COM within 5 cm of the goal position.
+    """
+
+    # The hand targets the COM so the grasp lands mid-beam (targeting the nearest node lets the
+    # gripper grab an end, which turns the beam into an unstable pole). The fingers target the
+    # nearest surface node instead: targeting the COM with both fingers is maximized only when
+    # both fingertips reach the object's center, i.e. by closing and indenting the beam.
     reaching_deformable = RewTerm(
-        func=mdp.deformable_ee_distance,
+        func=mdp.deformable_com_ee_distance,
         params={"std": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
         weight=5.0,
     )
+
     lifting_deformable = RewTerm(
-        func=mdp.deformable_lifted,
-        params={"minimal_height": 0.04, "asset_cfg": SceneEntityCfg("deformable")},
+        func=mdp.deformable_lifting,
+        params={"std": 0.1, "minimal_height": 0.02, "asset_cfg": SceneEntityCfg("deformable")},
         weight=5.0,
     )
+
+    deformable_goal_tracking_delta = RewTerm(
+        func=mdp.deformable_com_goal_distance_delta,
+        params={
+            "minimal_height": 0.0,
+            "command_name": "deformable_pose",
+            "asset_cfg": SceneEntityCfg("deformable"),
+        },
+        weight=500.0,
+    )
+
     deformable_goal_tracking = RewTerm(
         func=mdp.deformable_com_goal_distance,
         params={
             "std": 0.3,
-            "minimal_height": 0.075,
+            "minimal_height": 0.0,
             "command_name": "deformable_pose",
+            "success_threshold": 0.05,
             "asset_cfg": SceneEntityCfg("deformable"),
         },
-        weight=16.0,
-    )
-    deformable_goal_tracking_fine_grained = RewTerm(
-        func=mdp.deformable_com_goal_distance,
-        params={
-            "std": 0.05,
-            "minimal_height": 0.075,
-            "command_name": "deformable_pose",
-            "asset_cfg": SceneEntityCfg("deformable"),
-        },
-        weight=5.0,
+        weight=2.0,
     )
 
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-2)
-    gripper_close = RewTerm(
-        func=mdp.gripper_close_action,
-        params={"action_name": "gripper_action"},
-        weight=-1.0,
+    success_bonus = RewTerm(
+        func=mdp.deformable_com_goal_reached,
+        params={
+            "minimal_height": 0.0,
+            "command_name": "deformable_pose",
+            "success_threshold": 0.05,
+            "asset_cfg": SceneEntityCfg("deformable"),
+        },
+        weight=10.0,
     )
-    joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-1e-2)
-    joint_torque = RewTerm(func=mdp.joint_torques_l2, weight=-1e-4)
-    joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-1e-4)
+
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
+
+
+@configclass
+class CurriculumCfg:
+    """Ramp the action-rate penalty once the policy has learned to lift (matches rigid recipe)."""
+
+    action_rate = CurrTerm(
+        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-2, "num_steps": 40000}
+    )
+
+    # Since we use 24 steps per env, 10000 steps correspond to 10000/24 = 416.67 learning iterations
+    gravity = CurrTerm(
+        func=mdp.modify_gravity_linear,
+        params={"start_gravity_z": -0.0001, "end_gravity_z": -9.81, "start_step": 0, "end_step": 10000},
+    )
 
 
 @configclass
@@ -472,6 +568,25 @@ class TerminationsCfg:
         params={"minimum_height": 0.0, "ee_frame_cfg": SceneEntityCfg("ee_frame")},
     )
 
+    joint_vel_out_of_limit = DoneTerm(
+        func=mdp.joint_vel_out_of_sim_limit,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
+
+    # real failure, not a time out: a diverged solve must bootstrap as a termination
+    deformable_invalid = DoneTerm(
+        func=mdp.deformable_state_invalid,
+        params={"asset_cfg": SceneEntityCfg("deformable")},
+    )
+
+    # The measured divergence poisons the beam too, so deformable_invalid resets that case. This
+    # covers a robot-only divergence: every reward term is deformable-driven and sanitized, and the
+    # other robot terminations fail open on NaN, so nothing else would ever reset the environment.
+    robot_invalid = DoneTerm(
+        func=mdp.robot_state_invalid,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
+
 
 ##
 # Environment configuration
@@ -481,11 +596,11 @@ class TerminationsCfg:
 @configclass
 class FrankaSoftSceneCfg(PresetCfg):
     newton_mjwarp_vbd_proxy: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(
-        num_envs=128, env_spacing=2.5, replicate_physics=True
+        num_envs=2048, env_spacing=2.0, replicate_physics=True
     )
 
     # PhysX does not support replicating physics for deformable objects
-    physx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+    physx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
     isaacsim_physx = physx
 
     ovphysx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
@@ -498,16 +613,16 @@ class FrankaSoftCameraSceneCfg(PresetCfg):
     """Scene presets for visual Franka soft lifting."""
 
     newton_mjwarp_vbd_proxy: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(
-        num_envs=128, env_spacing=2.5, replicate_physics=True
+        num_envs=128, env_spacing=2.0, replicate_physics=True
     )
-    physx: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+    physx: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=False)
     isaacsim_physx = physx
     default = newton_mjwarp_vbd_proxy
 
 
 @configclass
 class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
-    """Manager-based RL environment: Franka Panda lifting a volume deformable."""
+    """Manager-based RL environment: Franka Panda lifting a soft beam to a target pose."""
 
     # Scene settings
     scene: FrankaSoftSceneCfg = FrankaSoftSceneCfg()
@@ -518,18 +633,28 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+    # Parent reset events + per-env material domain randomization.
     events: EventCfg = EventCfg()
+    # Ramp the action-rate penalty once the policy has learned to lift.
+    curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self) -> None:
         # general settings
-        self.decimation = 1
+        self.decimation = 4
         self.episode_length_s = 5.0
 
         # simulation settings
-        self.sim.dt = 1 / 60.0
+        self.sim.dt = 1.0 / 120
         self.sim.render_interval = self.decimation
-        self.sim.gravity = (0.0, 0.0, 0.0)
+        self.sim.gravity = (0.0, 0.0, -9.81)
         self.sim.physics = PhysicsCfg()
+
+        self.viewer.eye = (0.75, 0.25, 0.65)
+        self.viewer.lookat = (0.0, 0.75, 0.4)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=self.viewer.eye, lookat=self.viewer.lookat)
+
+        self.video_recorder.window_width = 1920
+        self.video_recorder.window_height = 1080
 
 
 @configclass

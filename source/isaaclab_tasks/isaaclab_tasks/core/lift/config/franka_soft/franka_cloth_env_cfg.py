@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
@@ -15,19 +15,20 @@ from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
-from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
 
+from . import mdp
 from .franka_soft_env_cfg import (
     FRANKA_CAMERA_CFG,
     FrankaCameraObservationsCfg,
@@ -58,18 +59,16 @@ class PhysicsCfg(PresetCfg):
                 CouplerEntryCfg(
                     name="rigid",
                     solver_cfg=MJWarpSolverCfg(
-                        njmax=40,
-                        nconmax=20,
                         cone="elliptic",
                         ls_iterations=20,
                         integrator="implicitfast",
-                        ccd_iterations=100,
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
+                    # the cube is a rigid body, so it must be owned by the rigid entry
+                    bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Cube"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
-                    solver_cfg=VBDSolverCfg(iterations=10),
+                    solver_cfg=VBDSolverCfg(iterations=10, rigid_body_particle_contact_buffer_size=1024),
                     all_particles=True,
                     include_static_shapes=True,
                 ),
@@ -81,20 +80,15 @@ class PhysicsCfg(PresetCfg):
                     bodies=[
                         r"/World/envs/env_.*/Robot/panda_hand",
                         r"/World/envs/env_.*/Robot/panda_(left|right)finger",
+                        r"/World/envs/env_.*/Cube",
                     ],
+                    # detect contact every substep so the gripper stops at the cloth surface
                     collide_interval=1,
                 )
             ],
             iterations=1,
-            model_cfg=NewtonModelCfg(
-                soft_contact_ke=1e3,
-                soft_contact_kd=1e-5,
-                soft_contact_mu=0.5,
-            ),
         ),
-        default_shape_cfg=NewtonShapeCfg(ke=1e3, kd=1e-5, mu=1e-4),
-        num_substeps=10,
-        use_cuda_graph=True,
+        num_substeps=2,
     )
 
     ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -157,12 +151,15 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
 
     deformable: DeformableCfg = DeformableCfg()
 
-    # Static collidable cube the cloth drops onto (sits on the table top at z = 0).
-    cube: AssetBaseCfg = AssetBaseCfg(
+    # Collidable cube the cloth drapes onto (sits on the table top at z = 0). Kinematic so the
+    # reset event can move it under the randomized cloth without it being simulated.
+    cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.45, 0.0, 0.04)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.45, 0.0, 0.04)),
         spawn=sim_utils.CuboidCfg(
             size=(0.03, 0.01, 0.08),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
         ),
@@ -198,23 +195,35 @@ class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
 
 
 @configclass
-class ActionsCfg:
-    """7-dim arm joint position + 1-dim binary gripper."""
+class CurriculumCfg:
+    """Ramp the action-rate penalty once the policy has learned to lift (matches rigid recipe)."""
 
-    arm_action = mdp.JointPositionActionCfg(
-        asset_name="robot", joint_names=["panda_joint.*"], scale=0.1, use_default_offset=True
+    action_rate = CurrTerm(
+        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-2, "num_steps": 50000}
     )
-    gripper_action = mdp.BinaryJointPositionActionCfg(
-        asset_name="robot",
-        joint_names=["panda_finger.*"],
-        open_command_expr={"panda_finger_.*": 0.05},
-        close_command_expr={"panda_finger_.*": 0.0},
+
+    # Since we use 24 steps per env, 20000 steps correspond to 20000/24 = 833.33 learning iterations
+    gravity = CurrTerm(
+        func=mdp.modify_gravity_linear,
+        params={"start_gravity_z": -1.0, "end_gravity_z": -9.81, "start_step": 0, "end_step": 20000},
     )
 
 
 @configclass
-class EventCfg(FrankaSoftEventCfg):
+class FrankaClothEventCfg(FrankaSoftEventCfg):
     """Reset and startup events for the Franka cloth environment."""
+
+    # Replaces the base term so the cube follows the randomized cloth position.
+    reset_deformable = EventTerm(
+        func=mdp.reset_deformable_over_support,
+        mode="reset",
+        params={
+            "position_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
+            "support_offset_range": {"x": (-0.02, 0.02), "y": (-0.02, 0.02)},
+            "asset_cfg": SceneEntityCfg("deformable"),
+            "support_cfg": SceneEntityCfg("cube"),
+        },
+    )
 
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
@@ -229,9 +238,9 @@ class EventCfg(FrankaSoftEventCfg):
     )
 
 
-def _make_ovphysx_event_cfg() -> EventCfg:
+def _make_ovphysx_event_cfg() -> FrankaClothEventCfg:
     """Create cloth events that select all robot shapes on OvPhysX."""
-    cfg = EventCfg()
+    cfg = FrankaClothEventCfg()
     cfg.robot_physics_material.params["asset_cfg"] = SceneEntityCfg("robot")
     return cfg
 
@@ -240,8 +249,8 @@ def _make_ovphysx_event_cfg() -> EventCfg:
 class EventPresetCfg(PresetCfg):
     """Preset config for Franka cloth startup and reset events."""
 
-    newton_mjwarp_vbd_proxy: EventCfg = EventCfg()
-    ovphysx: EventCfg = _make_ovphysx_event_cfg()
+    newton_mjwarp_vbd_proxy: FrankaClothEventCfg = FrankaClothEventCfg()
+    ovphysx: FrankaClothEventCfg = _make_ovphysx_event_cfg()
 
     default = newton_mjwarp_vbd_proxy
 
@@ -255,30 +264,13 @@ class EventPresetCfg(PresetCfg):
 class FrankaClothEnvCfg(FrankaSoftEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a surface deformable."""
 
-    # Scene settings
     scene: FrankaClothScenePresetCfg = FrankaClothScenePresetCfg()
-    # Basic settings
-    actions: ActionsCfg = ActionsCfg()
-    # MDP settings
     events: EventPresetCfg = EventPresetCfg()
+    curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self) -> None:
-        # general settings
-        self.decimation = 1
-        self.episode_length_s = 5.0
-
-        # simulation settings
-        self.sim.dt = 1 / 60.0
-        self.sim.render_interval = self.decimation
-
-        # Hint for the viewport camera when running interactively with --viz kit.
-        # Using default_visualizer_cfg rather than visualizer_cfgs avoids forcing
-        # Kit viewport creation in kitless/headless contexts.
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-
-        self.sim.default_visualizer_cfg = KitVisualizerCfg(
-            origin_type="asset", origin_track_path="robot", origin_env_index=0, eye=(1.25, -1.5, 0.6)
-        )
+        super().__post_init__()
+        # override the soft-beam physics with the cloth presets
         self.sim.physics = PhysicsCfg()
 
 

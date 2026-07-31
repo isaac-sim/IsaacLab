@@ -11,19 +11,38 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
+    # Kitless run with the Newton OpenGL viewer (default).
     uv run python scripts/environments/state_machine/lift_franka_soft.py
+
+    # Headless.
+    uv run python scripts/environments/state_machine/lift_franka_soft.py --viz none
+
+    # Record a video. Requires Isaac Sim, since RecordVideo goes through the Kit RTX viewport.
+    uv run python scripts/environments/state_machine/lift_franka_soft.py --video
 
 """
 
-"""Launch Omniverse Toolkit first."""
-
 import argparse
+import os
+import sys
+from collections.abc import Sequence
 
-from isaaclab.app import AppLauncher
+import gymnasium as gym
+import torch
+import warp as wp
+
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.assets.deformable_object.deformable_object_data import DeformableObjectData
+from isaaclab.visualizers import VisualizerCfg
+
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import ActionsCfg
+from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift a deformable with a robotic arm.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
+parser.add_argument("--num_steps", type=int, default=1000, help="Number of environment steps to run.")
 parser.add_argument("--task", type=str, default="Isaac-Lift-Soft-Franka", help="The task to run.")
 parser.add_argument("--video", action="store_true", default=False, help="Record a video of the rollout.")
 parser.add_argument("--video_length", type=int, default=500, help="Length of the recorded video (in env steps).")
@@ -33,38 +52,17 @@ parser.add_argument(
     default="videos/lift_franka_soft",
     help="Directory to write recorded videos into.",
 )
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
+add_launcher_args(parser)
+# the task runs on Newton, so default to the kitless viewer
+parser.set_defaults(visualizer=["newton"])
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0]] + hydra_args
 
+# RecordVideo needs an rgb_array render mode, which is the Kit RTX viewport: enable cameras and
+# request the Kit visualizer so launch_simulation starts Isaac Sim.
 if args_cli.video:
     args_cli.enable_cameras = True
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-# disable metrics assembler due to scene graph instancing
-from isaaclab.sim.utils import disable_extension
-
-disable_extension("omni.usd.metrics.assembler.ui")
-
-"""Rest everything else."""
-
-import os
-from collections.abc import Sequence
-
-import gymnasium as gym
-import torch
-import warp as wp
-
-from isaaclab.assets.deformable_object.deformable_object_data import DeformableObjectData
-from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
-from isaaclab.visualizers import VisualizerCfg
-
-import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+    args_cli.visualizer = ["kit"]
 
 # initialize warp
 wp.init()
@@ -186,7 +184,7 @@ class PickSmWaitTime:
 
     REST = wp.constant(0.2)
     APPROACH_ABOVE_OBJECT = wp.constant(1.0)
-    APPROACH_OBJECT = wp.constant(1.0)
+    APPROACH_OBJECT = wp.constant(1.5)
     GRASP_OBJECT = wp.constant(1.0)
     LIFT_OBJECT = wp.constant(1.5)
     OPEN_GRIPPER = wp.constant(0.0)
@@ -281,88 +279,94 @@ class PickAndLiftSm:
 
 
 def main():
-    # parse configuration
-    env_cfg = parse_env_cfg(
-        args_cli.task,
-        device=args_cli.device,
-        num_envs=args_cli.num_envs,
-    )
-    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(2.1, 1.0, 1.3))
+    # create environment
+    render_mode = "rgb_array" if args_cli.video else None
+    # parse configuration via Hydra, so presets can be selected on the CLI (e.g. presets=isaacsim_physx)
+    env_cfg, _ = resolve_task_config(args_cli.task, "")
+    env_cfg.sim.device = args_cli.device
+    env_cfg.scene.num_envs = args_cli.num_envs
+    # the state machine emits absolute end-effector poses, so pick the IK action preset; the env
+    # defaults to relative joint targets, which RL trains on.
+    env_cfg.actions = ActionsCfg().ik
+    # frame the deformable at (0.5, 0.0, 0.05) rather than the world origin. ``viewer`` drives the
+    # Kit viewport and the video recorder; ``default_visualizer_cfg`` drives the Newton/Kit
+    # visualizer window, which otherwise falls back to VisualizerCfg's (4.0, -4.0, 3.0).
+    env_cfg.viewer.eye = (1.3, 0.6, 0.5)
+    env_cfg.viewer.lookat = (0.5, 0.0, 0.05)
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=env_cfg.viewer.eye, lookat=env_cfg.viewer.lookat)
 
-    # attach internal video recorder when --video is requested
-    if args_cli.video:
-        video_folder = os.path.abspath(args_cli.video_folder)
-        env_cfg.video_recorders = [
-            VideoRecorderCfg(
-                source="visualizer",
-                output_dir=video_folder,
+    with launch_simulation(env_cfg, args_cli):
+        env = gym.make(args_cli.task, cfg=env_cfg, render_mode=render_mode)
+
+        # wrap for video recording
+        if args_cli.video:
+            video_folder = os.path.abspath(args_cli.video_folder)
+            os.makedirs(video_folder, exist_ok=True)
+            env = gym.wrappers.RecordVideo(
+                env,
+                video_folder=video_folder,
+                step_trigger=lambda step: step == 0,
                 video_length=args_cli.video_length,
-                video_interval=0,
+                disable_logger=True,
             )
-        ]
-        print(f"[INFO] Recording video to {video_folder} (length={args_cli.video_length} steps)")
+            print(f"[INFO] Recording video to {video_folder} (length={args_cli.video_length} steps)")
 
-    env = gym.make(args_cli.task, cfg=env_cfg)
+        # reset environment at start
+        env.reset()
 
-    # reset environment at start
-    env.reset()
+        # create action buffers (position + quaternion)
+        actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
+        actions[:, 3] = 1.0
+        # desired rotation after grasping
+        desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
+        desired_orientation[:, 0] = 1.0
 
-    # create action buffers (position + quaternion)
-    actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
-    actions[:, 3] = 1.0
-    # desired rotation after grasping
-    desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
-    desired_orientation[:, 0] = 1.0
+        # Top-down approach: identity quaternion (wxyz, w=1) aligns panda_hand with the Franka root,
+        # giving the canonical top-down grasp pose. The bar lies along world-X, so the gripper
+        # closes across its short side without any wrist twist.
+        object_grasp_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
+        object_grasp_orientation[:, 0] = 1.0
+        # Grasp 1 cm below the deformable's centre of mass, so the fingers close around its lower half.
+        object_local_grasp_position = torch.tensor([0.0, 0.0, -0.01], device=env.unwrapped.device)
 
-    # Top-down approach: identity quaternion (wxyz, w=1) aligns panda_hand with the Franka root,
-    # giving the canonical top-down grasp pose. The bar lies along world-X, so the gripper
-    # closes across its short side without any wrist twist.
-    object_grasp_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
-    object_grasp_orientation[:, 0] = 1.0
-    # Grasp at the deformable's centre of mass.
-    object_local_grasp_position = torch.tensor([0.0, 0.0, 0.0], device=env.unwrapped.device)
+        # create state machine
+        pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
 
-    # create state machine
-    pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
+        for _ in range(args_cli.num_steps):
+            # run everything in inference mode
+            with torch.inference_mode():
+                # step environment
+                dones = env.step(actions)[-2]
 
-    while simulation_app.is_running():
-        # run everything in inference mode
-        with torch.inference_mode():
-            # step environment
-            dones = env.step(actions)[-2]
+                # observations
+                # -- end-effector frame
+                ee_frame_sensor = env.unwrapped.scene["ee_frame"]
+                tcp_rest_position = (
+                    ee_frame_sensor.data.target_pos_w.torch[..., 0, :].clone() - env.unwrapped.scene.env_origins
+                )
+                tcp_rest_orientation = ee_frame_sensor.data.target_quat_w.torch[..., 0, :].clone()
+                # -- object frame
+                object_data: DeformableObjectData = env.unwrapped.scene["deformable"].data
+                object_position = object_data.root_pos_w.torch - env.unwrapped.scene.env_origins
+                object_position += object_local_grasp_position
 
-            # observations
-            # -- end-effector frame
-            ee_frame_sensor = env.unwrapped.scene["ee_frame"]
-            tcp_rest_position = (
-                ee_frame_sensor.data.target_pos_w.torch[..., 0, :].clone() - env.unwrapped.scene.env_origins
-            )
-            tcp_rest_orientation = ee_frame_sensor.data.target_quat_w.torch[..., 0, :].clone()
-            # -- object frame
-            object_data: DeformableObjectData = env.unwrapped.scene["deformable"].data
-            object_position = object_data.root_pos_w.torch - env.unwrapped.scene.env_origins
-            object_position += object_local_grasp_position
+                # -- target object frame
+                desired_position = env.unwrapped.command_manager.get_command("deformable_pose")[..., :3]
 
-            # -- target object frame
-            desired_position = env.unwrapped.command_manager.get_command("deformable_pose")[..., :3]
+                # advance state machine
+                actions = pick_sm.compute(
+                    torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
+                    torch.cat([object_position, object_grasp_orientation], dim=-1),
+                    torch.cat([desired_position, desired_orientation], dim=-1),
+                )
 
-            # advance state machine
-            actions = pick_sm.compute(
-                torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
-                torch.cat([object_position, object_grasp_orientation], dim=-1),
-                torch.cat([desired_position, desired_orientation], dim=-1),
-            )
+                # reset state machine
+                if dones.any():
+                    pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
 
-            # reset state machine
-            if dones.any():
-                pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
-
-    # close the environment
-    env.close()
+        # close the environment
+        env.close()
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
-    simulation_app.close()
