@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [doc-build-type]
     # run on deploy branches to create multi-version docs
-    if: needs.doc-build-type.outputs.trigger-deploy == 'true' || github.event_name == 'pull_request'
+    if: needs.doc-build-type.outputs.trigger-deploy == 'true'
 
     steps:
     - name: Checkout code
