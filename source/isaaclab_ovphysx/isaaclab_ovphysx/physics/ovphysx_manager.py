@@ -26,9 +26,11 @@ from pxr import UsdPhysics
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
+    build_deformable_root_path_lookup,
     build_deformable_vertex_count_lookup,
     discover_deformables_on_stage,
     group_deformable_root_paths_for_views,
+    resolve_deformable_root_path,
     resolve_deformable_vertex_count,
 )
 
@@ -188,6 +190,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             return
 
         path_to_count = build_deformable_vertex_count_lookup(entries)
+        path_to_root = build_deformable_root_path_lookup(entries)
         path_to_type = {entry.root_path: entry.deformable_type for entry in entries}
         grouped_paths = group_deformable_root_paths_for_views(list(path_to_type.keys()), path_to_type)
 
@@ -255,7 +258,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                         count = int(max_nodes)
                     else:
                         count = min(int(resolved), int(max_nodes))
-                    self._geometry_paths.append(path)
+                    # Views may report a child mesh; publish the discovered root so
+                    # create_geometry_mapping matches shadow entity root_path exactly.
+                    self._geometry_paths.append(resolve_deformable_root_path(path, path_to_root))
                     self._geometry_counts.append(count)
                 entity_offset += view.count
 
