@@ -37,8 +37,14 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import CableObject, CableObjectCfg
 
 
-def design_scene(num_cables: int, num_segments: int) -> dict[str, CableObject]:
-    """Spawn a ground plane, light, and randomly oriented cable pile."""
+def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str, CableObject]:
+    """Spawn a ground plane, light, and randomly oriented cable pile.
+
+    Args:
+        num_cables: Number of cables to spawn.
+        num_segments: Number of segments per cable.
+        colorize: Whether to give each cable a random visual material.
+    """
     ground_cfg = sim_utils.GroundPlaneCfg()
     ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
     light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
@@ -68,7 +74,7 @@ def design_scene(num_cables: int, num_segments: int) -> dict[str, CableObject]:
         )
         orientation = (0.0, 0.0, math.sin(0.5 * angle), math.cos(0.5 * angle))
         visual_material = None
-        if args_cli.visualizer and "kit" in args_cli.visualizer:
+        if colorize:
             visual_material = sim_utils.PreviewSurfaceCfg(
                 diffuse_color=(random.random(), random.random(), random.random())
             )
@@ -132,7 +138,8 @@ def main() -> None:
     with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(2.0, 2.0, 1.0), target=(0.0, 0.0, 0.25))
-        entities = design_scene(args_cli.num_cables, args_cli.num_segments)
+        colorize = bool(args_cli.visualizer and "kit" in args_cli.visualizer)
+        entities = design_scene(args_cli.num_cables, args_cli.num_segments, colorize)
         sim.reset()
         print("[INFO]: Setup complete...")
         run_simulator(sim, entities, args_cli.max_steps)
