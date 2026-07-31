@@ -1,0 +1,80 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Validate Kit-less Image
+description: >
+  Validates the kit-less container built by kitless-docker.yml: the shared
+  Cartpole training probe, OVRTX initialization, an existing pytest subset, and
+  the non-root runtime contract.
+
+inputs:
+  image-tag:
+    description: Local Docker image tag to validate.
+    required: true
+
+runs:
+  using: composite
+  steps:
+  - name: Validate kit-less runtime image
+    shell: bash
+    env:
+      IMAGE_TAG: ${{ inputs.image-tag }}
+    run: |
+      set -euo pipefail
+
+      # A deps-cached image carries the dependency graph but not necessarily
+      # this PR's source, so mount the checkout over the baked copy read-only.
+      mount_args=(
+        -v "${GITHUB_WORKSPACE}/source:/workspace/isaaclab/source:ro"
+        -v "${GITHUB_WORKSPACE}/scripts:/workspace/isaaclab/scripts:ro"
+        -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro"
+      )
+
+      docker run --rm "$IMAGE_TAG" \
+        python -c '
+      import importlib.util
+
+      modules = ("rl_games", "rsl_rl", "stable_baselines3", "skrl")
+      missing = [name for name in modules if importlib.util.find_spec(name) is None]
+      assert not missing, f"missing core RL frameworks: {missing}"
+      print("core RL frameworks available:", ", ".join(modules))
+      '
+
+      # Renderer construction loads the native OVRTX stack and creates a Vulkan
+      # device. Full rendering correctness remains in build.yaml.
+      docker run --rm --gpus all --network host \
+        "$IMAGE_TAG" \
+        python -c '
+      from ovrtx import Renderer, RendererConfig
+
+      renderer = Renderer(RendererConfig(log_file_path="/tmp/ovrtx.log", keep_system_alive=True))
+      assert renderer, "ovrtx.Renderer construction returned a falsy value"
+      print("ovrtx renderer initialized")
+      '
+
+      # The Newton training probe is the shared one architecture CI also runs, so
+      # the command and its assertions live in one place. pytest goes only into
+      # this disposable layer; reinstalling the workspace would fail against the
+      # read-only source mount.
+      docker run --rm --gpus all --network host \
+        "${mount_args[@]}" \
+        "$IMAGE_TAG" \
+        bash -lc '
+      set -euo pipefail
+      uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
+      python -m pytest \
+        source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py::test_train_cartpole_state_completes \
+        source/isaaclab_newton/test/test_mock_interfaces \
+        -q -p no:cacheprovider
+      '
+
+      runtime_identity="$(docker run --rm --entrypoint bash "$IMAGE_TAG" \
+        -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
+      read -r runtime_uid runtime_gid runtime_user <<< "$runtime_identity"
+      echo "Kit-less runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
+      if [ "$runtime_uid" = "0" ]; then
+        echo "::error::Kit-less Docker image must not run as root by default."
+        exit 1
+      fi

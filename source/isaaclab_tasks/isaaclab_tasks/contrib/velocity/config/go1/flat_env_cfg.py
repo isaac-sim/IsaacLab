@@ -6,6 +6,7 @@
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
@@ -16,7 +17,9 @@ from .rough_env_cfg import UnitreeGo1RoughEnvCfg
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = physx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=60,
