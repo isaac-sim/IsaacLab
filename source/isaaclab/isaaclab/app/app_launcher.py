@@ -25,9 +25,12 @@ import signal
 import sys
 from typing import Any, Literal
 
-with contextlib.suppress(ModuleNotFoundError):
+try:
     import isaacsim  # noqa: F401
-    from isaacsim import SimulationApp
+except ModuleNotFoundError:
+    isaacsim = None
+
+SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
@@ -240,6 +243,7 @@ class AppLauncher:
                 the :attr:`launcher_args` will raise a ValueError.
 
         Raises:
+            ImportError: If the full Isaac Sim runtime is unavailable.
             ValueError: If there are common/duplicated arguments between ``launcher_args`` and ``kwargs``.
             ValueError: If combination of ``launcher_args`` and ``kwargs`` are missing the necessary arguments
                 that are needed by the AppLauncher to resolve the desired app configuration.
@@ -249,6 +253,12 @@ class AppLauncher:
         .. _argparse.Namespace: https://docs.python.org/3/library/argparse.html?highlight=namespace#argparse.Namespace
         .. _SimulationApp: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp
         """
+        if not self.is_available():
+            raise ImportError(
+                "AppLauncher requires the full Isaac Sim runtime. Install Isaac Sim or avoid constructing "
+                "AppLauncher in a kitless process."
+            )
+
         # We allow users to pass either a dict or an argparse.Namespace into
         # __init__, anticipating that these will be all of the argparse arguments
         # used by the calling script. Those which we appended via add_app_launcher_args
@@ -358,6 +368,26 @@ class AppLauncher:
     """
     Operations.
     """
+
+    @classmethod
+    def is_available(cls) -> bool:
+        """Return whether the full Isaac Sim runtime is importable, i.e. Kit can be launched.
+
+        This reports launchability, not running state: it is ``True`` in any process with a
+        full Isaac Sim installation, before and after Kit starts. Use
+        :func:`~isaaclab.utils.version.has_kit` to check whether Kit is currently running.
+        """
+        return SimulationApp is not None
+
+    @classmethod
+    def has_gui(cls) -> bool:
+        """Return whether the resolved app state has an interactive GUI.
+
+        ``True`` when the launch resolved to a local window, a livestream, or an XR session.
+        AppLauncher publishes this as the ``/isaaclab/has_gui`` setting during initialization,
+        so the value is ``False`` before any launcher has run in the process.
+        """
+        return bool(get_settings_manager().get("/isaaclab/has_gui"))
 
     @staticmethod
     def _fuse_kit_args(argv: list[str]) -> list[str]:

@@ -19,7 +19,7 @@ from isaaclab_tasks.core.velocity.mdp.symmetry import anymal
 @configclass
 class AnymalDRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 1500
+    max_iterations = 2000
     save_interval = 50
     experiment_name = "anymal_d_rough"
     obs_groups = {"actor": ["policy"], "critic": ["policy"]}
