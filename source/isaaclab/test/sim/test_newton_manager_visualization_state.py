@@ -1128,6 +1128,5 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
     assert "/World/Assets/Cloth" in fake_builder.ignore_paths
     assert any(entity.root_path == "/World/Assets/Cloth" for entity in shadow_entities)
     assert any(
-        group.prim_path == "/World/Assets/Cloth" and "/World/envs/" not in group.prim_path
-        for group in registry_groups
+        group.prim_path == "/World/Assets/Cloth" and "/World/envs/" not in group.prim_path for group in registry_groups
     )
