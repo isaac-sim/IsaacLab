@@ -46,7 +46,7 @@ isaaclab_contrib
 
 * Experimental Newton deformable objects
 * VBD deformable solver (see :doc:`using-vbd-solver`)
-* Coupled MJWarp + VBD and Featherstone + VBD solver managers
+* MJWarp and VBD proxy coupling
 
 The following sensors are backend-agnostic (implemented in ``isaaclab`` core)
 and work transparently with Newton:
@@ -81,7 +81,7 @@ Manager-based workflows:
 * Locomotion velocity, rough terrain: AnymalC, Cassie, Go1, Go2
 * Manipulation: reach (Franka, UR10), cabinet, dexsuite
 * Manipulation lift with deformable objects: Franka soft-body lift, Franka cloth
-  lift (via coupled MJWarp + VBD)
+  lift (via MJWarp and VBD proxy coupling)
 
 
 Solver Coverage
@@ -92,13 +92,12 @@ Solver Coverage
   ``Isaac-Ant-Direct``, ``Isaac-Cartpole``, and ``Isaac-Ant``. See
   :doc:`kamino-solver`.
 * **VBD solver**: experimental, exposed through :mod:`isaaclab_contrib.deformable`
-  for cloth, soft-body, and cable simulation. Cable objects work with standalone VBD
-  and :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` when a named VBD entry owns
-  the cable.
-
-  VBD is most often used inside the coupled MJWarp + VBD or Featherstone + VBD
-  managers so one solver advances rigid bodies and VBD advances deformable particles.
-  See :doc:`using-vbd-solver` and :doc:`newton-manager-abstraction`.
+  for cloth, soft-body, and cable simulation. Rigid and deformable scenes can use
+  proxy coupling from :mod:`isaaclab_contrib.coupling` so MJWarp advances rigid
+  bodies and VBD advances deformable particles. Cable objects work with standalone
+  VBD and with :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` when a named VBD
+  entry owns the cable. See :doc:`using-vbd-solver` and
+  :doc:`newton-manager-abstraction`.
 
 
 Known Gaps

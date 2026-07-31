@@ -1,6 +1,82 @@
 Changelog
 ---------
 
+8.2.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added asset method and data property micro-benchmarks for the articulation,
+  rigid object, and rigid object collection classes.
+* Added update and backend-read micro-benchmarks with structured results for
+  contact, frame transformer, IMU, PVA, joint wrench, and ray caster sensors.
+* Added matched plane and deterministic rough-terrain phases to the ray caster
+  sensor micro-benchmark.
+
+Changed
+^^^^^^^
+
+* Changed the ovphysx asset micro-benchmarks from separate method and data scripts
+  to one combined script per asset concept. Run the retained
+  benchmark_<asset>.py script to produce both historical result artifacts.
+
+
+8.1.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OvPhysX articulation Jacobians, mass matrices, and gravity compensation
+  through the backend-agnostic articulation data API.
+
+Changed
+^^^^^^^
+
+* Cached stable OvPhysX articulation read launches outside CUDA graph capture.
+  No user migration is required.
+
+
+8.1.0 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added volume and surface deformable-object support for the OVPhysX backend,
+  including nodal state, volume kinematic targets, mesh connectivity, and
+  runtime deformable material properties.
+
+
+8.0.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added backend joint/body ordering introspection properties to
+  :class:`~isaaclab_ovphysx.assets.Articulation`.
+
+Changed
+^^^^^^^
+
+* Added ``ovstage`` as a required dependency so it is installed automatically alongside
+  ``isaaclab_ovphysx``.
+* Changed the OVPhysX dependency to ``ovphysx==0.5.9`` and migrated initial
+  USD ingestion to OVStage.
+
+Fixed
+^^^^^
+
+* Fixed indexed joint-state writes with nonidentity joint ordering so positions
+  and velocities reach the intended backend joints.
+* Fixed root-link velocity refreshes that overwrote and falsely marked the
+  body-link velocity cache as fresh.
+* Fixed partial joint position and velocity writes that rewrote newer
+  unselected backend rows with stale cached values.
+
+
 7.0.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 

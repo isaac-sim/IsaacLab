@@ -193,14 +193,13 @@ jobs:
         ISAACSIM_ACCEPT_EULA: YES
         UV_FIND_LINKS: ${{ steps.extract-wheelhouse.outputs.wheelhouse_dir }}
       run: |
-        uv sync --extra all
+        uv sync --extra all --extra test
         # Isaac Sim conflicts with --extra all under uv, so install it imperatively
         # after the sync. Read the pinned spec from pyproject (single source of truth).
         ISAACSIM_SPEC=$(.venv/bin/python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['optional-dependencies']['isaacsim'][0])")
         uv pip install "$ISAACSIM_SPEC"
         uv pip install pip-licenses pipdeptree \
-          -r tools/template/requirements.txt \
-          -r docs/requirements.txt
+          -r tools/template/requirements.txt
         # Put the venv on PATH for later steps.
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 

@@ -3,12 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+"""Run the converter from the standalone importer wheel when installed; otherwise launch Isaac Sim."""
+
+from importlib import metadata
 
 from isaaclab.app import AppLauncher
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+# Prefer the standalone importer wheel: when it is installed the URDF converter resolves its
+# importer from it and these tests run kitlessly (no Kit app, no extension manager). Fall back to
+# the full Isaac Sim runtime only when the wheel is absent. Distribution metadata is used so that
+# no Isaac Lab simulation module is imported before the launch decision.
+try:
+    metadata.distribution("isaacsim-asset-isolated")
+    _USE_KIT = False
+except metadata.PackageNotFoundError:
+    _USE_KIT = AppLauncher.is_available()
+simulation_app = AppLauncher(headless=True).app if _USE_KIT else None
 
 """Rest everything follows."""
 
@@ -17,47 +27,65 @@ import os
 import tempfile
 import warnings
 import xml.etree.ElementTree as ET
+from types import SimpleNamespace
 
 import pytest
 
-import omni.kit.app
+if _USE_KIT:
+    import omni.kit.app
 
+import isaaclab
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 
 pytestmark = pytest.mark.integration
 
+# Portable Franka URDF for the kitless path (the Kit path uses the importer extension's bundled
+# ``panda_arm_hand.urdf``). Both expose the same 7 revolute + 2 prismatic joint structure.
+_REPO_FRANKA_URDF = os.path.join(
+    os.path.dirname(isaaclab.__file__), "controllers", "config", "data", "lula_franka_gen.urdf"
+)
+
+# Fixed-joint fixture for the merge tests: 7 links / 6 joints (3 fixed, 1 continuous, 2 prismatic).
+# Kept beside the tests so they are hermetic and run on either importer backend.
+_MERGE_JOINTS_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_merge_joints.urdf")
+
 
 # Create a fixture for setup and teardown
 @pytest.fixture
 def sim_config():
-    # Create a new stage
-    sim_utils.create_new_stage()
-    # enable the URDF importer extension
-    manager = omni.kit.app.get_app().get_extension_manager()
-    if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-        manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
-    # obtain the extension path
-    extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
-    extension_path = manager.get_extension_path(extension_id)
+    stage = sim_utils.create_new_stage()
+    if _USE_KIT:
+        # Kit path: enable the importer extension and use its bundled Franka asset.
+        manager = omni.kit.app.get_app().get_extension_manager()
+        if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
+            manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
+        extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
+        extension_path = manager.get_extension_path(extension_id)
+        asset_path = f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf"
+        # Load kit helper
+        sim = SimulationContext(SimulationCfg(dt=0.01))
+    else:
+        # Kitless path: the converter loads the importer from the standalone wheel. Spawning and
+        # inspecting prims needs a USD stage but neither physics nor Kit, so the plain stage above
+        # stands in for the simulation context.
+        asset_path = _REPO_FRANKA_URDF
+        sim = SimpleNamespace(stage=stage)
     # default configuration
     config = UrdfConverterCfg(
-        asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
+        asset_path=asset_path,
         fix_base=True,
         joint_drive=UrdfConverterCfg.JointDriveCfg(
             gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
         ),
     )
-    # Simulation time-step
-    dt = 0.01
-    # Load kit helper
-    sim = SimulationContext(SimulationCfg(dt=dt))
     yield sim, config
     # Teardown
-    sim._disable_app_control_on_stop_handle = True  # prevent timeout
-    sim.stop()
-    sim.clear_instance()
+    if _USE_KIT:
+        sim._disable_app_control_on_stop_handle = True  # prevent timeout
+        sim.stop()
+        sim.clear_instance()
 
 
 @pytest.mark.isaacsim_ci
@@ -186,19 +214,17 @@ def test_merge_fixed_joints_xml():
       - 4 links (root_link, link_1, finger_link_1, finger_link_2)
       - 3 joints (0 fixed, 1 continuous, 2 prismatic)
     """
-    manager = omni.kit.app.get_app().get_extension_manager()
-    if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-        manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
-    extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
-    extension_path = manager.get_extension_path(extension_id)
+    if _USE_KIT:
+        # this test takes no fixture, so enable the owning extension before importing from it
+        manager = omni.kit.app.get_app().get_extension_manager()
+        if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
+            manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
 
     from isaacsim.asset.importer.urdf.impl.urdf_utils import merge_fixed_joints
 
-    urdf_path = os.path.join(extension_path, "data", "urdf", "tests", "test_merge_joints.urdf")
-
     with tempfile.TemporaryDirectory(prefix="isaaclab_test_merge_") as tmpdir:
         output_path = os.path.join(tmpdir, "merged.urdf")
-        merge_fixed_joints(urdf_path, output_path)
+        merge_fixed_joints(_MERGE_JOINTS_URDF, output_path)
 
         # parse the output URDF
         tree = ET.parse(output_path)
@@ -251,11 +277,7 @@ def test_merge_fixed_joints_converter(sim_config):
     os.makedirs(output_dir, exist_ok=True)
 
     # use a URDF that has fixed joints
-    manager = omni.kit.app.get_app().get_extension_manager()
-    extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
-    extension_path = manager.get_extension_path(extension_id)
-
-    config.asset_path = os.path.join(extension_path, "data", "urdf", "tests", "test_merge_joints.urdf")
+    config.asset_path = _MERGE_JOINTS_URDF
     config.merge_fixed_joints = True
     config.force_usd_conversion = True
     config.usd_dir = output_dir

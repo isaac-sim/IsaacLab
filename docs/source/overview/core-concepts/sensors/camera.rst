@@ -532,3 +532,48 @@ UNLABELLED instance ID (``1``) rather than a color value.
 
 The ``idToLabels`` dict maps color to USD prim path. The ``idToSemantics`` dict maps color to
 semantic label.
+
+Background Color
+~~~~~~~~~~~~~~~~
+
+By default, pixels that do not intersect any geometry use the renderer's built-in background:
+a dome-light sky on RTX backends, or a neutral gray on Newton Warp. You can override this with
+a solid color by setting :attr:`~sensors.CameraCfg.background_color` on :class:`~sensors.CameraCfg`:
+
+.. code-block:: python
+
+    from isaaclab.sensors import CameraCfg
+    import isaaclab.sim as sim_utils
+
+    tiled_camera = CameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        data_types=["rgb"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0,
+            horizontal_aperture=20.955, clipping_range=(0.1, 20.0),
+        ),
+        width=80,
+        height=80,
+        background_color=(0.0, 0.0, 0.0),  # black background
+    )
+
+The color is a 3-tuple of normalized RGB floats in ``[0, 1]``. Setting it to ``None`` (the
+default) leaves the renderer's built-in background in place.
+
+Each camera is configured independently: cameras with ``background_color=None`` and cameras
+with a color set can coexist in the same scene. On the RTX backends (Isaac RTX and OVRTX) this
+is achieved by writing ``omni:rtx:background:source:type`` / ``omni:rtx:background:source:color``
+USD attributes directly on the render product, so no process-wide carb settings are modified.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Backend
+     - Behavior when ``background_color`` is set
+   * - ``IsaacRtxRendererCfg``
+     - Per-render-product USD attributes on the Replicator render product.
+   * - ``OVRTXRendererCfg``
+     - Per-render-product USD attributes authored in the render scope.
+   * - ``NewtonWarpRendererCfg``
+     - Packed ARGB clear color used to fill the framebuffer before rasterization.

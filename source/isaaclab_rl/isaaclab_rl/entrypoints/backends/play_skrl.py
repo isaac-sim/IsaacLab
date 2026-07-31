@@ -31,6 +31,7 @@ from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_frontend_args,
     create_isaaclab_env,
+    preserve_attribute,
     resolve_checkpoint_selector,
     resolve_play_task_name,
 )
@@ -122,7 +123,18 @@ else:
 
 
 def main():
-    """Play with skrl agent."""
+    """Play with SKRL while restoring the caller's global settings."""
+    state_context = (
+        preserve_attribute(skrl.config.jax, "backend")
+        if args_cli.ml_framework.startswith("jax")
+        else contextlib.nullcontext()
+    )
+    with state_context:
+        _main()
+
+
+def _main():
+    """Execute SKRL playback."""
     env_cfg, experiment_cfg = resolve_task_config(
         args_cli.task, agent_cfg_entry_point, play_mode=not args_cli.train_env_cfg
     )

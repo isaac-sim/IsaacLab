@@ -668,11 +668,12 @@ VALID_EXTRA_FEATURES: set[str] = {
     "newton",
     "ov",
     "rl",
+    "tetrahedralization",
     "visualizer",
 }
 
 # Extra features excluded from the automatic ``-i all`` / ``-i`` install.
-MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov"}
+MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov", "tetrahedralization"}
 
 
 def split_install_items(install_type: str) -> list[str]:
@@ -783,14 +784,14 @@ def _install_ov_extra_dependencies(selector: str) -> None:
         )
     if "all" in selectors:
         selectors.update({"ovrtx", "ovphysx"})
-    # The ov[ovrtx] selector maps to the root 'rtx' extra; ov[ovphysx] to 'ov'.
+    # The OV selectors map directly to the matching root extras.
     # ovstage is bundled into both extras and installed automatically.
     if "ovrtx" in selectors:
         print_info("Installing OVRTX optional dependency...")
-        _install_root_extra("rtx")
+        _install_root_extra("ovrtx")
     if "ovphysx" in selectors:
         print_info("Installing OVPhysX optional dependency...")
-        _install_root_extra("ov")
+        _install_root_extra("ovphysx")
 
 
 def _install_extra_feature(feature_name: str, selector: str = "") -> None:
@@ -821,6 +822,10 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         print_info(f"Installing RL framework extras: {extra}...")
         for framework in sorted(frameworks):
             _install_root_extra(framework)
+    elif feature_name == "tetrahedralization":
+        if selector:
+            print_warning(f"tetrahedralization does not support selectors (got {selector!r}).")
+        _install_root_extra("tetrahedralization")
     elif feature_name == "visualizer":
         extra = selector if selector else "all"
         backends = {"newton", "rerun", "viser"} if extra == "all" else {extra}
@@ -1104,12 +1109,14 @@ def command_install(install_type: str = "all") -> None:
 
               - Optional submodules: ``mimic``, ``teleop``
               - Extra features: ``contrib[rlinf]``, ``rl[<framework>]``,
-                ``visualizer[<backend>]``, ``ov[ovrtx|ovphysx|all]``
+                ``tetrahedralization``, ``visualizer[<backend>]``,
+                ``ov[ovrtx|ovphysx|all]``
               - Special: ``isaacsim``
 
               Examples::
 
                   ./isaaclab.sh -i rl[rsl-rl]
+                  ./isaaclab.sh -i tetrahedralization
                   ./isaaclab.sh -i mimic,visualizer[rerun]
                   ./isaaclab.sh -i teleop,rl[skrl],ov[ovrtx]
     """

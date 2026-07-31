@@ -18,6 +18,7 @@ backend-specific configuration, installation, and limitations.
     newton/index
     ovphysx/index
     solver-comparison
+    sim-to-sim-policy-transfer
 
 
 Choosing a Backend
@@ -91,6 +92,10 @@ per-task support, see each backend's own ``limitations`` page.
       - Yes
       - Yes
       - Yes
+    * - Deformable Object API
+      - Yes
+      - Yes (experimental VBD)
+      - Experimental (CUDA only)
     * - Cable Object API
       - No
       - VBD

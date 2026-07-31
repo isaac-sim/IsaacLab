@@ -8,8 +8,8 @@ source packages. Additional arguments can control which **optional** submodules 
 are equivalent to ``./isaaclab.sh -i all``.
 That installs optional submodules (``mimic``, ``teleop``) and automatic extra
 features (``newton``, ``rl``, ``visualizer``) on top of the core set. It does
-**not** install ``contrib`` or ``ov`` runtime wheels or the Isaac Sim pip
-package—request those explicitly when needed.
+**not** install ``tetrahedralization``, ``contrib``, or ``ov`` dependencies or
+the Isaac Sim pip package. Request those explicitly when needed.
 
 **Special values:**
 
@@ -47,6 +47,9 @@ package—request those explicitly when needed.
      - Visualizer backend extras on ``isaaclab_visualizers``. Selectors:
        ``rerun``, ``viser``, ``newton``, ``kit``. Omit the selector for all
        backends.
+   * - ``tetrahedralization``
+     - PyTetWild and its PyVista/VTK dependencies for automatic tetrahedral
+       mesh generation of volume deformables.
    * - ``contrib[<feature>]``
      - Contrib runtime extras. Selector: ``rlinf``. Bare ``contrib`` installs
        no additional dependencies (the source package is already in core).
@@ -59,8 +62,8 @@ package—request those explicitly when needed.
      - Isaac Sim pip package (via the install script; use only when Isaac Sim
        is not already installed)
 
-``contrib`` and ``ov`` are **not** part of the default ``all`` install. Request
-them explicitly when you need rlinf, OVRTX, or OVPhysX runtimes.
+``tetrahedralization``, ``contrib``, and ``ov`` are **not** part of the default
+``all`` install. Request them explicitly when needed.
 
 Pass a comma-separated list to combine tokens (commas inside ``[...]`` are
 preserved). Unknown tokens emit a warning and are skipped.
@@ -81,6 +84,9 @@ Examples:
          # Newton physics + RSL-RL without Isaac Sim
          ./isaaclab.sh -i 'newton,rl[rsl-rl]'
 
+         # Automatic tetrahedralization of volume deformables
+         ./isaaclab.sh -i tetrahedralization
+
          # Newton + OVRTX renderer + RSL-RL + Newton visualizer
          ./isaaclab.sh -i 'newton,ov[ovrtx],rl[rsl-rl],visualizer[newton]'
 
@@ -97,6 +103,9 @@ Examples:
 
          :: Newton physics + RSL-RL
          isaaclab.bat -i "newton,rl[rsl-rl]"
+
+         :: Automatic tetrahedralization of volume deformables
+         isaaclab.bat -i tetrahedralization
 
          :: Newton + OVRTX + RSL-RL + Newton visualizer
          isaaclab.bat -i "newton,ov[ovrtx],rl[rsl-rl],visualizer[newton]"
