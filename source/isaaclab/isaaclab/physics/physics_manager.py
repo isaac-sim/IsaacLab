@@ -442,19 +442,7 @@ class PhysicsManager(ABC):
         """
         sim = PhysicsManager._sim
         is_active_manager = sim is not None and sim.physics_manager is cls
-        callback_errors: list[Exception] = []
-        if is_active_manager:
-            matching = [
-                (callback, order)
-                for event, callback, order, _name, _subscription in cls._callbacks.values()
-                if event == PhysicsEvent.STOP
-            ]
-            matching.sort(key=lambda item: item[1])
-            for callback, _order in matching:
-                try:
-                    callback(None)
-                except Exception as exc:
-                    callback_errors.append(exc)
+        callback_errors = cls._dispatch_event_collect_errors(PhysicsEvent.STOP) if is_active_manager else []
 
         try:
             cls.clear_callbacks()
@@ -468,6 +456,33 @@ class PhysicsManager(ABC):
             raise RuntimeError(
                 f"{len(callback_errors)} callback(s) failed during PhysicsEvent.STOP dispatch."
             ) from callback_errors[0]
+
+    @classmethod
+    def _dispatch_event_collect_errors(cls, event: PhysicsEvent, payload: Any = None) -> list[Exception]:
+        """Dispatch an event to every listener and collect direct or backend-stored failures."""
+        matching = [
+            (callback, order)
+            for registered_event, callback, order, _name, _subscription in cls._callbacks.values()
+            if registered_event == event
+        ]
+        matching.sort(key=lambda item: item[1])
+        callback_errors: list[Exception] = []
+        raise_stored = getattr(cls, "raise_callback_exception_if_any", None)
+
+        def drain_stored_error() -> None:
+            if callable(raise_stored):
+                try:
+                    raise_stored()
+                except Exception as exc:
+                    callback_errors.append(exc)
+
+        for callback, _order in matching:
+            try:
+                callback(payload)
+            except Exception as exc:
+                callback_errors.append(exc)
+            drain_stored_error()
+        return callback_errors
 
     @classmethod
     def get_physics_dt(cls) -> float:

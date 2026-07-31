@@ -450,8 +450,14 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
 
     previous_physx = OvPhysxManager._physx
     previous_ovstage = getattr(OvPhysxManager, "_ovstage", None)
-    OvPhysxManager._physx = FakePhysX()
+    physx = FakePhysX()
+    OvPhysxManager._physx = physx
     OvPhysxManager._ovstage = None
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_close_physx_views",
+        staticmethod(lambda value: events.append(("close_views", value))),
+    )
     try:
         OvPhysxManager._attach_ovstage("#usda 1.0")
         stage = OvPhysxManager._ovstage
@@ -464,6 +470,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
         ("stage", "isaaclab"),
         ("populate", stage, "#usda 1.0", 1, "all"),
         ("attach", stage, 1),
+        ("close_views", physx),
         ("reset",),
         ("wait", 17),
         ("release",),

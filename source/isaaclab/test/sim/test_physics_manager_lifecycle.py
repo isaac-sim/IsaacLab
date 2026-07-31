@@ -73,6 +73,59 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
     assert PhysicsManager._sim_time == 0.0
 
 
+def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke(monkeypatch):
+    """STOP failures stored for an external event bus are drained during close."""
+
+    class TestManager(PhysicsManager):
+        _callback_exception = None
+
+        @classmethod
+        def store_callback_exception(cls, exception):
+            cls._callback_exception = exception
+
+        @classmethod
+        def raise_callback_exception_if_any(cls):
+            if cls._callback_exception is not None:
+                exception = cls._callback_exception
+                cls._callback_exception = None
+                raise exception
+
+    events = []
+    monkeypatch.setattr(TestManager, "_callbacks", {})
+    monkeypatch.setattr(TestManager, "_callback_id", 0)
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=TestManager))
+
+    def fail_stop(_payload):
+        events.append("failed")
+        raise ValueError("stored STOP failure")
+
+    TestManager.register_callback(
+        lambda payload: PhysicsManager.safe_callback_invoke(
+            fail_stop,
+            payload,
+            physics_manager=TestManager,
+        ),
+        PhysicsEvent.STOP,
+        order=0,
+        wrap_weak_ref=False,
+    )
+    TestManager.register_callback(
+        lambda _payload: events.append("last"),
+        PhysicsEvent.STOP,
+        order=1,
+        wrap_weak_ref=False,
+    )
+
+    with pytest.raises(RuntimeError, match=r"1 callback\(s\) failed") as exc_info:
+        TestManager.close()
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
+    assert events == ["failed", "last"]
+    assert TestManager._callback_exception is None
+    assert TestManager._callbacks == {}
+    assert PhysicsManager._sim is None
+
+
 def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatch):
     """A STOP failure is re-raised only after the remaining context teardown."""
     import isaaclab.sim.simulation_context as context_module
@@ -87,8 +140,14 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             raise RuntimeError("STOP failed")
 
     class Visualizer:
+        def __init__(self, name, error=None):
+            self.name = name
+            self.error = error
+
         def close(self):
-            events.append("visualizer")
+            events.append(self.name)
+            if self.error is not None:
+                raise self.error
 
     class Services:
         def close_all(self, caught_exceptions):
@@ -97,7 +156,10 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
 
     context = SimpleNamespace(
         physics_manager=FailingManager,
-        _visualizers=[Visualizer()],
+        _visualizers=[
+            Visualizer("visualizer_failed", ValueError("visualizer failed")),
+            Visualizer("visualizer_last"),
+        ],
         _services=Services(),
     )
     monkeypatch.setattr(SimulationContext, "_instance", context)
@@ -105,8 +167,14 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
     monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: events.append("cache"))
     monkeypatch.setattr(context_module.gc, "collect", lambda: events.append("gc"))
 
-    with pytest.raises(RuntimeError, match="STOP failed"):
+    with pytest.raises(RuntimeError, match=r"2 error\(s\) occurred during teardown") as exc_info:
         SimulationContext.clear_instance()
 
-    assert events == ["physics", "visualizer", "services", "stage", "cache", "gc"]
+    assert str(exc_info.value) == (
+        "SimulationContext.clear_instance(): 2 error(s) occurred during teardown: "
+        "RuntimeError: STOP failed; ValueError: visualizer failed"
+    )
+    assert str(exc_info.value.__cause__) == "STOP failed"
+    assert events == ["physics", "visualizer_failed", "visualizer_last", "services", "stage", "cache", "gc"]
+    assert context._visualizers == []
     assert SimulationContext.instance() is None

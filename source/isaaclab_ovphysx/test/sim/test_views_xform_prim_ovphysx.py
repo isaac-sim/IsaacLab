@@ -58,6 +58,37 @@ def test_view_raises_before_physics_ready():
             view.get_world_poses()
 
 
+def test_reinitialization_closes_previous_root_view(monkeypatch):
+    """A repeated PHYSICS_READY event closes the FrameView's previous root binding."""
+    from isaaclab_ovphysx.sim.views import OvPhysxFrameView
+
+    events = []
+    frame_view = object.__new__(OvPhysxFrameView)
+    physx = object()
+    replacement = object()
+
+    class PreviousRootView:
+        def close(self):
+            events.append("close")
+
+    frame_view._root_view = PreviousRootView()
+    frame_view._pose_binding = object()
+    monkeypatch.setattr(frame_view, "_try_get_physx", lambda: physx)
+
+    def initialize(value):
+        assert frame_view._root_view is None
+        assert frame_view._pose_binding is None
+        events.append(("initialize", value))
+        frame_view._root_view = replacement
+
+    monkeypatch.setattr(frame_view, "_initialize_impl", initialize)
+
+    frame_view._on_physics_ready(None)
+
+    assert events == ["close", ("initialize", physx)]
+    assert frame_view._root_view is replacement
+
+
 # Note: an earlier test ``test_view_errors_when_newton_model_not_required`` was
 # removed when ``OvPhysxFrameView`` was reworked to read poses from a direct
 # OVPhysX ``RIGID_BODY_POSE`` tensor binding instead of the SDP's Newton state.

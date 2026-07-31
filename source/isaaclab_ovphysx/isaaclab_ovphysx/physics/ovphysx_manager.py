@@ -207,10 +207,7 @@ class OvPhysxManager(PhysicsManager):
     _stage_usda: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
     _requires_full_stage: ClassVar[bool] = False
-    # First device selected by IsaacLab for this process. OVPhysX 0.5.9 makes
-    # CPU-only mode sticky but does not symmetrically lock GPU mode. IsaacLab
-    # nevertheless pins the first choice so all contexts follow one predictable
-    # process lifecycle and a CPU-first process is never asked to switch modes.
+    # Device mode is process-wide; later contexts must reuse the first selected device.
     _locked_device: ClassVar[str | None] = None
     # Active (source, targets, parent_positions) replication recipes for the
     # current SimulationContext. They survive the consumable pending queue so a

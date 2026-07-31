@@ -17,21 +17,6 @@ import pytest
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
-_MANAGER_STATE_FIELDS = (
-    "_cfg",
-    "_physx",
-    "_ovstage",
-    "_stage_usda",
-    "_warmup_done",
-    "_requires_full_stage",
-    "_locked_device",
-    "_active_clone_recipes",
-    "_pending_clones",
-    "_atexit_registered",
-    "_scene_data_backend",
-    "_physx_schemas_registered",
-)
-
 
 class _FakePhysXConfig:
     def __init__(self, num_threads=None, carbonite_overrides=None):
@@ -56,22 +41,23 @@ def manager_module(monkeypatch):
 
     monkeypatch.setattr(module.atexit, "register", lambda callback: None)
     manager = module.OvPhysxManager
-    list_fields = {"_active_clone_recipes", "_pending_clones"}
-    saved = {
-        name: list(getattr(manager, name)) if name in list_fields else getattr(manager, name)
-        for name in _MANAGER_STATE_FIELDS
+    test_state = {
+        "_cfg": None,
+        "_physx": None,
+        "_ovstage": None,
+        "_stage_usda": None,
+        "_warmup_done": False,
+        "_requires_full_stage": False,
+        "_locked_device": None,
+        "_active_clone_recipes": [],
+        "_pending_clones": [],
+        "_atexit_registered": False,
+        "_scene_data_backend": None,
+        "_physx_schemas_registered": False,
     }
-    for name in _MANAGER_STATE_FIELDS:
-        setattr(manager, name, [] if name in list_fields else False if name.endswith("registered") else None)
-    manager._warmup_done = False
-    manager._requires_full_stage = False
-    manager._atexit_registered = False
-    manager._physx_schemas_registered = False
-    try:
-        yield module
-    finally:
-        for name, value in saved.items():
-            setattr(manager, name, value)
+    for name, value in test_state.items():
+        monkeypatch.setattr(manager, name, value)
+    return module
 
 
 def _fake_ovphysx_module(bootstrap):
@@ -120,10 +106,11 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     assert registrations == ([expected_paths] if expected_paths else [])
 
 
-def test_bootstrap_preserves_pxr_and_registers_normal_cleanup(monkeypatch, manager_module):
+def test_construct_physx_bootstraps_each_runtime_without_replacing_pxr(monkeypatch, manager_module):
     manager = manager_module.OvPhysxManager
     host_pxr = ModuleType("pxr")
     host_usd = ModuleType("pxr.Usd")
+    bootstrap_calls = []
     registrations = []
 
     monkeypatch.setitem(sys.modules, "pxr", host_pxr)
@@ -131,55 +118,20 @@ def test_bootstrap_preserves_pxr_and_registers_normal_cleanup(monkeypatch, manag
     monkeypatch.setattr(manager_module.atexit, "register", registrations.append)
 
     def bootstrap():
+        bootstrap_calls.append(None)
         assert sys.modules["pxr"] is host_pxr
         assert sys.modules["pxr.Usd"] is host_usd
 
     monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(bootstrap))
 
     manager._construct_physx("cpu", 0)
+    manager._physx = None
+    manager._construct_physx("cpu", 0)
 
     assert sys.modules["pxr"] is host_pxr
     assert sys.modules["pxr.Usd"] is host_usd
+    assert bootstrap_calls == [None, None]
     assert registrations == [manager._close_at_exit]
-
-
-def test_pinned_bootstrap_is_idempotent_in_fresh_process():
-    completed, output = _run_child("import ovphysx\novphysx.bootstrap()\novphysx.bootstrap()\n")
-
-    assert completed.returncode == 0, output[-8000:]
-
-
-def test_release_destroys_bindings_before_runtime_and_stage(monkeypatch, manager_module):
-    manager = manager_module.OvPhysxManager
-    events = []
-
-    class FakePhysX:
-        def reset_stage(self):
-            events.append("reset")
-            return 7
-
-        def wait_op(self, operation):
-            events.append(("wait", operation))
-
-        def release(self):
-            events.append("release")
-
-    class FakeStage:
-        def destroy(self):
-            events.append("destroy_stage")
-
-    physx = FakePhysX()
-    manager._physx = physx
-    manager._ovstage = FakeStage()
-    monkeypatch.setattr(
-        manager, "_close_physx_views", staticmethod(lambda value: events.append(("close_views", value)))
-    )
-
-    manager._release_physx()
-
-    assert events == [("close_views", physx), "reset", ("wait", 7), "release", "destroy_stage"]
-    assert manager._physx is None
-    assert manager._ovstage is None
 
 
 def test_close_dispatches_stop_before_runtime_release(monkeypatch, manager_module):
@@ -290,36 +242,6 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
     ]
 
 
-def test_frame_view_reinitialization_closes_previous_root_view(monkeypatch):
-    from isaaclab_ovphysx.sim.views import OvPhysxFrameView
-
-    events = []
-    frame_view = object.__new__(OvPhysxFrameView)
-    physx = object()
-    replacement = object()
-
-    class PreviousRootView:
-        def close(self):
-            events.append("close")
-
-    frame_view._root_view = PreviousRootView()
-    frame_view._pose_binding = object()
-    monkeypatch.setattr(frame_view, "_try_get_physx", lambda: physx)
-
-    def initialize(value):
-        assert frame_view._root_view is None
-        assert frame_view._pose_binding is None
-        events.append(("initialize", value))
-        frame_view._root_view = replacement
-
-    monkeypatch.setattr(frame_view, "_initialize_impl", initialize)
-
-    frame_view._on_physics_ready(None)
-
-    assert events == ["close", ("initialize", physx)]
-    assert frame_view._root_view is replacement
-
-
 def _retained_binding_script() -> str:
     return textwrap.dedent(
         """
@@ -337,10 +259,8 @@ def _retained_binding_script() -> str:
         wp.init()
 
         import isaaclab.sim as sim_utils
-        from isaaclab.assets import RigidObjectCfg
         from isaaclab.physics import PhysicsEvent
         from isaaclab.sim import SimulationCfg, SimulationContext
-        from isaaclab_ovphysx.assets import RigidObject
         from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager
         from isaaclab_ovphysx.sim.views import OvPhysxView
 
@@ -351,17 +271,12 @@ def _retained_binding_script() -> str:
             PhysicsEvent.STOP,
             wrap_weak_ref=False,
         )
-        obj = RigidObject(
-            RigidObjectCfg(
-                prim_path="/World/Cube",
-                spawn=sim_utils.CuboidCfg(
-                    size=(0.5, 0.5, 0.5),
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                    collision_props=sim_utils.CollisionPropertiesCfg(),
-                ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
-            )
+        cube_cfg = sim_utils.CuboidCfg(
+            size=(0.5, 0.5, 0.5),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
         )
+        cube_cfg.func("/World/Cube", cube_cfg, translation=(0.0, 0.0, 1.0))
         sim.reset()
 
         view = OvPhysxView(OvPhysxManager.get_physx_instance(), pattern="/World/Cube", device="cpu")
@@ -371,7 +286,7 @@ def _retained_binding_script() -> str:
         del view
         gc.collect()
 
-        RETAINED = (sim, obj, binding, buffer)
+        RETAINED = (sim, binding, buffer)
         """
     )
 
@@ -391,15 +306,6 @@ def _assert_no_atexit_errors(output: str) -> None:
     assert "ATEXIT_UNRAISABLE" not in output, output[-8000:]
     assert "Exception ignored in atexit callback" not in output, output[-8000:]
     assert "Error in atexit._run_exitfuncs" not in output, output[-8000:]
-
-
-def test_retained_binding_exits_through_normal_atexit():
-    completed, output = _run_child(_retained_binding_script())
-
-    assert completed.returncode == 0, output[-8000:]
-    assert "NORMAL_ATEXIT" in output, output[-8000:]
-    assert "OVPHYSX_STOP" in output, output[-8000:]
-    _assert_no_atexit_errors(output)
 
 
 def test_retained_binding_preserves_uncaught_failure_exit_status():

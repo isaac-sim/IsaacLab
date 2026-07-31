@@ -8,7 +8,7 @@ from __future__ import annotations
 import gc
 import logging
 import traceback
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
@@ -833,43 +833,51 @@ class SimulationContext:
     @classmethod
     def clear_instance(cls) -> None:
         """Clean up resources and clear the singleton instance."""
-        if cls._instance is not None:
-            # Close physics manager FIRST to detach PhysX from the stage
-            # This must happen before clearing USD prims to avoid PhysX cleanup errors
-            physics_error: Exception | None = None
+        instance = cls._instance
+        if instance is not None:
+            teardown_errors: list[Exception] = []
+
+            def run_cleanup(callback: Callable[[], Any]) -> None:
+                try:
+                    callback()
+                except Exception as exc:
+                    teardown_errors.append(exc)
+
             try:
-                cls._instance.physics_manager.close()
-            except Exception as exc:
-                physics_error = exc
+                # Close physics manager FIRST to detach PhysX from the stage.
+                run_cleanup(instance.physics_manager.close)
 
-            # Close all visualizers
-            for viz in cls._instance._visualizers:
-                viz.close()
-            cls._instance._visualizers.clear()
+                # Give every visualizer a chance to release its resources.
+                for viz in list(instance._visualizers):
+                    run_cleanup(viz.close)
+                instance._visualizers.clear()
 
-            # Close and drop all registered singleton services
-            service_errors: list[Exception] = []
-            cls._instance._services.close_all(caught_exceptions=service_errors)
+                # Close and drop all registered singleton services.
+                service_errors: list[Exception] = []
+                run_cleanup(lambda: instance._services.close_all(caught_exceptions=service_errors))
+                teardown_errors.extend(service_errors)
 
-            # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
-            # close_stage() + app shutdown destroy the entire stage at once.
-            stage_utils.close_stage()
+                # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
+                # close_stage() + app shutdown destroy the entire stage at once.
+                run_cleanup(stage_utils.close_stage)
 
-            # Discard cached name-resolution data from destroyed assets
-            clear_resolve_matching_names_cache()
+                # Discard cached name-resolution data from destroyed assets.
+                run_cleanup(clear_resolve_matching_names_cache)
+                run_cleanup(gc.collect)
+            finally:
+                cls._instance = None
 
-            # Clear instance
-            cls._instance = None
-
-            gc.collect()
             logger.info("SimulationContext cleared")
 
-            if physics_error is not None:
-                raise physics_error
-            if service_errors:
-                msg = f"SimulationContext.clear_instance(): {len(service_errors)} service(s) failed to close"
-                # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
-                raise RuntimeError(msg) from service_errors[0]
+            if len(teardown_errors) == 1:
+                raise teardown_errors[0]
+            if teardown_errors:
+                details = "; ".join(f"{type(error).__name__}: {error}" for error in teardown_errors)
+                msg = (
+                    f"SimulationContext.clear_instance(): {len(teardown_errors)} error(s) occurred during teardown:"
+                    f" {details}"
+                )
+                raise RuntimeError(msg) from teardown_errors[0]
 
     @classmethod
     def clear_stage(cls) -> None:
