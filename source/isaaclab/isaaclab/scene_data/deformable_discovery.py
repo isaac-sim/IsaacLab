@@ -316,10 +316,28 @@ def build_deformable_vertex_count_lookup(entries: list[DeformableStageEntry]) ->
     return path_to_count
 
 
+def build_deformable_root_path_lookup(entries: list[DeformableStageEntry]) -> dict[str, str]:
+    """Map deformable root, simulation-mesh, and visual-mesh paths to discovered roots."""
+    path_to_root: dict[str, str] = {}
+    for entry in entries:
+        path_to_root[entry.root_path] = entry.root_path
+        path_to_root[entry.sim_mesh_path] = entry.root_path
+        path_to_root[entry.vis_mesh_path] = entry.root_path
+    return path_to_root
+
+
 def _env_relative_suffix(path: str) -> str | None:
     """Return the path suffix after ``/World/envs/env_<id>/``, or ``None`` if absent."""
     match = re.search(r"/World/envs/env_\d+/(.*)", path)
     return match.group(1) if match else None
+
+
+def _rewrite_env_prefix(template_path: str, source_path: str) -> str:
+    """Copy the ``env_<id>`` segment from ``source_path`` into ``template_path``."""
+    match = re.search(r"/World/envs/(env_\d+)", source_path)
+    if match is None:
+        return template_path
+    return re.sub(r"/World/envs/env_\d+", f"/World/envs/{match.group(1)}", template_path)
 
 
 def resolve_deformable_vertex_count(path: str, path_to_count: dict[str, int], *, fallback: int) -> int:
@@ -362,3 +380,50 @@ def resolve_deformable_vertex_count(path: str, path_to_count: dict[str, int], *,
                 return int(count)
 
     return int(fallback)
+
+
+def resolve_deformable_root_path(path: str, path_to_root: dict[str, str], *, fallback: str | None = None) -> str:
+    """Resolve a view-reported deformable path to its discovered root prim path.
+
+    Uses the same matching strategy as :func:`resolve_deformable_vertex_count`.
+    Env-relative suffix matches rewrite the matched root's ``env_<id>`` to the
+    reported path's environment so SceneData geometry mapping stays 1:1 with
+    shadow entity ``root_path`` values.
+
+    Args:
+        path: Deformable root or mesh prim path reported by a physics view.
+        path_to_root: Lookup from :func:`build_deformable_root_path_lookup`.
+        fallback: Value returned when no discovered root matches ``path``.
+            Defaults to ``path``.
+
+    Returns:
+        Discovered deformable root path, or ``fallback`` / ``path``.
+    """
+    if fallback is None:
+        fallback = path
+
+    if path in path_to_root:
+        return path_to_root[path]
+
+    normalized = path.rstrip("/")
+    parts = normalized.split("/")
+    for end in range(len(parts) - 1, 0, -1):
+        candidate = "/".join(parts[:end])
+        if candidate in path_to_root:
+            return path_to_root[candidate]
+
+    for key, root in path_to_root.items():
+        key_normalized = key.rstrip("/")
+        if key_normalized.startswith(normalized + "/") or normalized.startswith(key_normalized + "/"):
+            return root
+
+    suffix = _env_relative_suffix(normalized)
+    if suffix is not None:
+        for key, root in path_to_root.items():
+            key_suffix = _env_relative_suffix(key)
+            if key_suffix is None:
+                continue
+            if suffix == key_suffix or suffix.startswith(key_suffix + "/") or key_suffix.startswith(suffix + "/"):
+                return _rewrite_env_prefix(root, normalized)
+
+    return fallback
