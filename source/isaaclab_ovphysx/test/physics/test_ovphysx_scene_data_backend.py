@@ -8,9 +8,7 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
-import tempfile
 from types import ModuleType, SimpleNamespace
 
 import pytest
@@ -38,23 +36,16 @@ def _make_two_environment_stage():
     return stage
 
 
-def _materialize_pending_clones_to_usda(stage) -> str:
-    """Export ``stage``, materialize pending clones into the file, and return USDA text."""
+def _serialize_full_stage_with_pending_clones(stage) -> str:
+    """Serialize ``stage`` with pending clones materialized via the production path."""
     from isaaclab_ovphysx.physics import OvPhysxManager
 
-    from pxr import Sdf
-
-    fd, path = tempfile.mkstemp(suffix=".usda")
-    os.close(fd)
+    previous = OvPhysxManager._requires_full_stage
     try:
-        assert stage.Flatten().Export(path)
-        OvPhysxManager._materialize_pending_clones(stage, path)
-        layer = Sdf.Layer.FindOrOpen(path)
-        assert layer is not None
-        return layer.ExportToString()
+        OvPhysxManager._requires_full_stage = True
+        return OvPhysxManager._serialize_selected_stage(stage)
     finally:
-        if os.path.exists(path):
-            os.unlink(path)
+        OvPhysxManager._requires_full_stage = previous
 
 
 def _fake_rigid_body_prim(path: str):
@@ -124,7 +115,7 @@ def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
                 [(1.0, 2.0, 3.0), (4.0, 5.0, 6.0)],
             )
         ]
-        materialized_usda = _materialize_pending_clones_to_usda(stage)
+        materialized_usda = _serialize_full_stage_with_pending_clones(stage)
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
         assert layer.ImportFromString(materialized_usda)
         exported = Usd.Stage.Open(layer)
@@ -163,7 +154,7 @@ def test_manager_full_stage_materializes_nested_targets_parent_before_child():
                 [(1.0, 0.0, 0.0)],
             ),
         ]
-        materialized_usda = _materialize_pending_clones_to_usda(stage)
+        materialized_usda = _serialize_full_stage_with_pending_clones(stage)
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
         assert layer.ImportFromString(materialized_usda)
         exported = Usd.Stage.Open(layer)
@@ -197,7 +188,7 @@ def test_manager_full_stage_promotes_generated_nested_ancestors_to_def():
                 [(1.0, 0.0, 0.0)],
             )
         ]
-        materialized_usda = _materialize_pending_clones_to_usda(stage)
+        materialized_usda = _serialize_full_stage_with_pending_clones(stage)
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
         assert layer.ImportFromString(materialized_usda)
         exported = Usd.Stage.Open(layer)
@@ -230,7 +221,7 @@ def test_manager_full_stage_overlays_existing_ancestor_without_removing_descenda
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0)])]
-        materialized_usda = _materialize_pending_clones_to_usda(stage)
+        materialized_usda = _serialize_full_stage_with_pending_clones(stage)
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
         assert layer.ImportFromString(materialized_usda)
         exported = Usd.Stage.Open(layer)
@@ -261,7 +252,7 @@ def test_manager_retains_clone_recipes_across_full_stage_serializations():
         OvPhysxManager.register_clone("/World/envs/env_0/Object", ["/World/envs/env_1/Object"], [(1.0, 0.0, 0.0)])
         for _ in range(2):
             OvPhysxManager._rearm_pending_clones()
-            materialized_usda = _materialize_pending_clones_to_usda(stage)
+            materialized_usda = _serialize_full_stage_with_pending_clones(stage)
             layer = Sdf.Layer.CreateAnonymous("materialized.usda")
             assert layer.ImportFromString(materialized_usda)
             exported = Usd.Stage.Open(layer)
@@ -293,7 +284,7 @@ def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
             )
         ]
         with pytest.raises(RuntimeError, match="clone target parent is absent"):
-            _materialize_pending_clones_to_usda(stage)
+            _serialize_full_stage_with_pending_clones(stage)
         assert OvPhysxManager._pending_clones == []
         assert not stage.GetPrimAtPath("/World/envs/env_1/Object").IsValid()
     finally:
@@ -451,8 +442,13 @@ def test_manager_serializes_env0_only_stage_in_memory(caplog):
     for path in ("/World/Ground", "/World/envs/env_0/Cube", "/World/envs/env_1/Cube"):
         UsdGeom.Xform.Define(stage, path)
 
-    with caplog.at_level(logging.INFO, logger=OvPhysxManager.__module__):
-        usda = OvPhysxManager._serialize_env0_only_stage(stage)
+    previous = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = False
+        with caplog.at_level(logging.INFO, logger=OvPhysxManager.__module__):
+            usda = OvPhysxManager._serialize_selected_stage(stage)
+    finally:
+        OvPhysxManager._requires_full_stage = previous
     layer = Sdf.Layer.CreateAnonymous("filtered.usda")
     assert layer.ImportFromString(usda)
     filtered = Usd.Stage.Open(layer)
@@ -472,10 +468,15 @@ def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/Ground")
 
-    with caplog.at_level(logging.DEBUG, logger=OvPhysxManager.__module__):
-        OvPhysxManager._serialize_env0_only_stage(stage)
+    previous = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = False
+        with caplog.at_level(logging.DEBUG, logger=OvPhysxManager.__module__):
+            OvPhysxManager._serialize_selected_stage(stage)
+    finally:
+        OvPhysxManager._requires_full_stage = previous
 
-    assert "no /World/envs prim — serialized stage as-is" in caplog.text
+    assert "no cloned environments to strip — serialized stage as-is" in caplog.text
 
 
 def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):

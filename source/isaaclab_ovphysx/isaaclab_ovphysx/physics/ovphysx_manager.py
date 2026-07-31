@@ -673,14 +673,6 @@ class OvPhysxManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     @classmethod
-    def _export_selected_stage(cls, sim_stage: Any, target_file: str) -> None:
-        """Export either the full stage or its env-0-only representation."""
-        if cls._requires_full_stage:
-            sim_stage.Export(target_file)
-        else:
-            cls._export_env0_only_stage(sim_stage, target_file)
-
-    @classmethod
     def _materialize_pending_clones_in_layer(cls, layer: Any) -> int:
         """Materialize queued clone targets into a flattened stage layer.
 
@@ -761,19 +753,6 @@ class OvPhysxManager(PhysicsManager):
             logger.info("OvPhysxManager: materialized %d clone targets in the full-stage layer", len(operations))
         return len(operations)
 
-    @classmethod
-    def _materialize_pending_clones(cls, sim_stage: Any, target_file: str) -> None:
-        """Materialize queued clones in a file export used by focused tests and tools."""
-        from pxr import Sdf  # noqa: PLC0415
-
-        del sim_stage
-        layer = Sdf.Layer.FindOrOpen(target_file)
-        if layer is None:
-            raise RuntimeError(f"OvPhysxManager: failed to open full-stage export {target_file!r}.")
-        operation_count = cls._materialize_pending_clones_in_layer(layer)
-        if operation_count and not layer.Save():
-            raise RuntimeError(f"OvPhysxManager: failed to save materialized full-stage export {target_file!r}.")
-
     @staticmethod
     def _strip_nonzero_environments(layer: Any) -> int:
         """Strip authored ``env_<i>`` prims other than ``env_0`` from a stage layer."""
@@ -808,42 +787,6 @@ class OvPhysxManager(PhysicsManager):
             else:
                 logger.debug("OvPhysxManager: no cloned environments to strip — serialized stage as-is.")
         return layer.ExportToString()
-
-    @classmethod
-    def _serialize_env0_only_stage(cls, sim_stage: Any) -> str:
-        """Serialize the simulation stage in memory with cloned environments stripped.
-
-        The returned USDA contains every prim from the composed live stage except
-        ``/World/envs/env_<i>`` for ``i != 0``. This keeps global prims and the
-        env-0 clone source without mutating the live stage.
-
-        Args:
-            sim_stage: Live USD stage held by ``SimulationContext``.
-
-        Returns:
-            Env-0-scoped flattened USDA content.
-        """
-        layer = sim_stage.Flatten()
-        removed_count = cls._strip_nonzero_environments(layer)
-        if removed_count == 0:
-            logger.debug("OvPhysxManager: no /World/envs prim — serialized stage as-is.")
-        else:
-            logger.info(
-                "OvPhysxManager: stripped %d env_<i!=0> subtrees from in-memory USD (kept env_0 + globals)",
-                removed_count,
-            )
-        return layer.ExportToString()
-
-    @classmethod
-    def _export_env0_only_stage(cls, sim_stage: Any, target_file: str) -> None:
-        """Export the env-0-only stage representation to a USDA file."""
-        from pxr import Sdf  # noqa: PLC0415
-
-        layer = Sdf.Layer.CreateAnonymous("env0-only.usda")
-        if not layer.ImportFromString(cls._serialize_env0_only_stage(sim_stage)):
-            raise RuntimeError("OvPhysxManager: failed to import the serialized env-0-only stage.")
-        if not layer.Export(target_file):
-            raise RuntimeError(f"OvPhysxManager: failed to export the env-0-only stage to {target_file!r}.")
 
     @classmethod
     def _replay_pending_clones(cls, physx: Any, requires_full_stage: bool) -> None:
