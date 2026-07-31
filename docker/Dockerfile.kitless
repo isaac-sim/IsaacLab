@@ -41,7 +41,7 @@ WORKDIR ${ISAACLAB_PATH}
 
 # Copy the install inputs before the rest of the runtime tree so dependency
 # installation remains cached when only scripts or application code changes.
-COPY pyproject.toml uv.lock VERSION LICENSE LICENSE-mimic README.md ./
+COPY pyproject.toml VERSION LICENSE LICENSE-mimic README.md ./
 COPY source/ source/
 COPY isaaclab.sh ./
 
