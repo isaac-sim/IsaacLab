@@ -8,9 +8,13 @@
 from __future__ import annotations
 
 import pytest
+
 from pxr import Gf, Sdf, Usd, UsdGeom
 
-from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage, invalidate_deformable_discovery_cache
+from isaaclab.scene_data.deformable_discovery import (
+    discover_deformables_on_stage,
+    invalidate_deformable_discovery_cache,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -173,7 +177,10 @@ def test_discover_volume_marks_sim_vis_count_mismatch():
 
 def test_discover_deformables_on_stage_uses_cache():
     """Repeated discovery on the same stage object should reuse cached entries."""
-    from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage, invalidate_deformable_discovery_cache
+    from isaaclab.scene_data.deformable_discovery import (
+        discover_deformables_on_stage,
+        invalidate_deformable_discovery_cache,
+    )
 
     invalidate_deformable_discovery_cache()
     stage = Usd.Stage.CreateInMemory()

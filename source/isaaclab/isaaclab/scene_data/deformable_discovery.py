@@ -13,6 +13,7 @@ import weakref
 from dataclasses import dataclass, field
 
 import numpy as np
+
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -39,15 +40,6 @@ class DeformableStageEntry:
 
 
 _DISCOVERY_CACHE: weakref.WeakKeyDictionary[Usd.Stage, list[DeformableStageEntry]] = weakref.WeakKeyDictionary()
-
-
-def _cache_discovery_entries(stage: Usd.Stage, entries: list[DeformableStageEntry]) -> None:
-    """Store discovery results when ``stage`` supports weak-reference caching."""
-    try:
-        _DISCOVERY_CACHE[stage] = entries
-    except TypeError:
-        # Non-USD stage stand-ins in unit tests cannot be weak-referenced; skip caching.
-        pass
 
 
 def invalidate_deformable_discovery_cache(stage: Usd.Stage | None = None) -> None:
@@ -292,7 +284,7 @@ def discover_deformables_on_stage(stage: Usd.Stage, *, use_cache: bool = True) -
             )
         )
     if use_cache:
-        _cache_discovery_entries(stage, entries)
+        _DISCOVERY_CACHE[stage] = entries
     return entries
 
 

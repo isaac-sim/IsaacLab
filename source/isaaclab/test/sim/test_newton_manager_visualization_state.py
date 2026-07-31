@@ -1227,10 +1227,11 @@ def test_shadow_deformable_entity_order_matches_scene_data_geometry_order():
 
 def test_deformable_ignore_paths_accepts_pre_discovered_entries():
     """Ignore-path collection can reuse supplied entries without another stage walk."""
-    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
     from isaaclab_newton.physics.visualization_builder import _deformable_ignore_paths
 
-    from pxr import Usd, UsdGeom
+    from pxr import Usd
+
+    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
     stage = Usd.Stage.CreateInMemory()
     entry = DeformableStageEntry(

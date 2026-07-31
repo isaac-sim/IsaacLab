@@ -47,15 +47,11 @@ def _det3(
     m22: float,
 ) -> float:
     """Return the determinant of a 3×3 matrix."""
-    return (
-        m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20) + m02 * (m10 * m21 - m11 * m20)
-    )
+    return m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20) + m02 * (m10 * m21 - m11 * m20)
 
 
 @wp.func
-def _tet_barycentric_weights(
-    a: wp.vec3f, b: wp.vec3f, c: wp.vec3f, d: wp.vec3f, point: wp.vec3f
-) -> wp.vec4f:
+def _tet_barycentric_weights(a: wp.vec3f, b: wp.vec3f, c: wp.vec3f, d: wp.vec3f, point: wp.vec3f) -> wp.vec4f:
     """Return barycentric weights for ``point`` in tet ``(a,b,c,d)``, or ``(-1,...)`` when degenerate."""
     ba = b - a
     ca = c - a
