@@ -41,16 +41,6 @@ class ShadowDeformableEntity:
     vis_particle_count: int
     volume_vis_remap: VolumeVisRemap | None = None
 
-    @property
-    def particle_offset(self) -> int:
-        """Render-slot offset in ``particle_q`` (backward compatible alias)."""
-        return self.vis_particle_offset
-
-    @property
-    def particle_count(self) -> int:
-        """Render-slot count in ``particle_q`` (backward compatible alias)."""
-        return self.vis_particle_count
-
 
 @dataclass
 class ShadowDeformableRegistryGroup:
