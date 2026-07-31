@@ -80,7 +80,7 @@ Available Presets
 
 **Physics backends** (``physics=NAME``):
 
-- ``physx`` — automatic PhysX-family selection: Isaac Sim PhysX when a Kit renderer or Kit viewer is requested, otherwise OvPhysX
+- ``physx`` — automatic PhysX-family selection: Isaac Sim PhysX when Kit is required, otherwise OvPhysX when the task supports it; tasks without OvPhysX support fall back to Isaac Sim PhysX
 - ``isaacsim_physx`` — force PhysX via Isaac Sim / Kit
 - ``newton_mjwarp`` — Newton with the MuJoCo-Warp solver
 - ``newton_kamino`` — Newton with the Kamino solver (beta, limited tasks)
@@ -117,13 +117,14 @@ Then use ``renderer=rtx`` to select the RTX implementation required by the runti
    * - Requires Isaac Sim/Kit, such as ``physics=isaacsim_physx``, ``--visualizer kit``,
        livestreaming, or another Kit camera
      - :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
-   * - Fully kit-less, such as ``physics=physx``, ``physics=newton_mjwarp``, or
-       ``physics=ovphysx`` without a Kit visualizer or camera
+   * - Fully kit-less, such as ``physics=physx`` on a task that supports OvPhysX,
+       ``physics=newton_mjwarp``, or ``physics=ovphysx`` without a Kit visualizer or camera
      - :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`
 
 For example, ``physics=newton_mjwarp renderer=rtx`` selects OVRTX for a
 fully kit-less run, while ``physics=physx renderer=rtx`` selects OvPhysX
-+ OVRTX unless combined with ``--visualizer kit``.
++ OVRTX when the task supports OvPhysX. Otherwise, automatic PhysX falls back
+to Isaac Sim PhysX and ``rtx`` resolves to Isaac RTX.
 
 A camera configured directly with ``renderer_cfg=IsaacRtxRendererCfg()`` does
 not participate in automatic selection and is not overridden by
