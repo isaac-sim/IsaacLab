@@ -290,7 +290,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     Usage:
         python leapp_initialized_checkpoints.py --backend rsl_rl --task Isaac-Cartpole
-            --checkpoint_root /tmp/ckpt --physics newton_mjwarp
+            --checkpoint_root /tmp/ckpt --preset newton_mjwarp
     """
     import argparse
     import os
@@ -303,7 +303,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--task", required=True)
     parser.add_argument("--checkpoint_root", required=True, type=Path)
     parser.add_argument("--agent", default=None, help="Hydra agent config entry point. Defaults per backend.")
-    parser.add_argument("--physics", required=True, help="Physics preset used to initialize the checkpoint.")
+    parser.add_argument("--preset", required=True, help="Hydra preset used to initialize the checkpoint.")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--algorithm", type=str, default="ppo", help="skrl algorithm name.")
     args = parser.parse_args(argv)
@@ -322,7 +322,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     agent_entry = args.agent or _agent_cfg_entry_point(args.backend)
     original_argv = sys.argv
-    sys.argv = [sys.argv[0], f"physics={args.physics}"]
+    sys.argv = [sys.argv[0], f"presets={args.preset}"]
     try:
         env_cfg, agent_cfg = resolve_task_config(args.task, agent_entry)
         checkpoint_path = create_initialized_checkpoint(

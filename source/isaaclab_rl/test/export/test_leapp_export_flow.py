@@ -80,7 +80,11 @@ _EXPORT_BACKENDS = (
     ),
 )
 
-_PHYSICS_PRESET = "newton_mjwarp"
+# Selected as the untyped ``presets=`` form rather than the typed ``physics=``
+# form: tasks vary in where they declare the preset, and only some declare it on
+# a ``PhysicsCfg`` (which is what ``physics=`` requires). Tasks that swap a whole
+# ``SimulationCfg`` instead are only reachable through ``presets=``.
+_SIM_PRESET = "newton_mjwarp"
 
 
 def _ensure_text(output: str | bytes | None) -> str:
@@ -132,8 +136,8 @@ def _create_checkpoint(backend: ExportFlowBackend, task_name: str, checkpoint_ro
             task_name,
             "--checkpoint_root",
             str(checkpoint_root),
-            "--physics",
-            _PHYSICS_PRESET,
+            "--preset",
+            _SIM_PRESET,
         ],
         label=f"checkpoint creation for {backend.rl_library}/{task_name}",
     )
@@ -164,7 +168,7 @@ def _run_export(backend: ExportFlowBackend, task_name: str, checkpoint_path: Pat
             "--export_save_path",
             str(export_root),
             "--disable_graph_visualization",
-            f"physics={_PHYSICS_PRESET}",
+            f"presets={_SIM_PRESET}",
         ],
         label=f"export.py for {backend.rl_library}/{task_name}",
     )
