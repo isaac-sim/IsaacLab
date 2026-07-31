@@ -1494,9 +1494,9 @@ def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
         # and the sim-bound position target mirrors its user-order source.
         assert target_gather not in launched_kernels
         expected_source = (
-            articulation.actuators.joint_pos_target.warp
+            articulation.actuators.command.position.warp
             if on_newton_path
-            else articulation.actuators.joint_pos_target_sim.warp
+            else articulation.actuators.joint_command.position.warp
         )
         np.testing.assert_allclose(articulation.data._sim_bind_joint_position_target.numpy(), expected_source.numpy())
 

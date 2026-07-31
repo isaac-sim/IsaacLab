@@ -29,11 +29,226 @@ logger = logging.getLogger(__name__)
 class ActuatorCollection(Mapping[str, ActuatorBase]):
     """Read-only runtime collection of actuator groups for one articulation.
 
-    The collection owns actuator command buffers, processed command buffers,
+    The collection owns actuator command buffers, processed joint command buffers,
     actuator telemetry, and actuator-resolved gain/state buffers. Named actuator
     groups remain visible through the mapping interface, but membership is fixed
     after construction.
     """
+
+    class Command:
+        """Commands received by the actuator models.
+
+        Position and velocity commands use joint-side coordinates. All command
+        arrays are indexed by articulation joint, not by motor shaft.
+        """
+
+        def __init__(self, collection: ActuatorCollection) -> None:
+            """Initialize the command view.
+
+            Args:
+                collection: Owning actuator collection.
+            """
+            self._collection = collection
+
+        @property
+        def position(self) -> ProxyArray:
+            """Desired positions [m or rad, depending on joint type]."""
+            return self._collection._joint_pos_target_ta
+
+        @property
+        def velocity(self) -> ProxyArray:
+            """Desired velocities [m/s or rad/s, depending on joint type]."""
+            return self._collection._joint_vel_target_ta
+
+        @property
+        def effort(self) -> ProxyArray:
+            """Effort commands [N or N·m, depending on joint type]."""
+            return self._collection._joint_effort_target_ta
+
+        def set_position_index(
+            self,
+            *,
+            value: torch.Tensor | wp.array,
+            joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            full_data: bool = False,
+        ) -> None:
+            """Set desired positions using indices.
+
+            Args:
+                value: Desired positions [m or rad, depending on joint type].
+                joint_ids: Joint indices. Defaults to all joints.
+                env_ids: Environment indices. Defaults to all environments.
+                full_data: Whether :paramref:`value` is a full articulation command buffer.
+            """
+            collection = self._collection
+            env_ids_resolved = collection._control.resolve_env_ids(env_ids)
+            joint_ids_resolved = collection._control.resolve_joint_ids(joint_ids)
+            collection._write_index_target(
+                value,
+                env_ids_resolved,
+                joint_ids_resolved,
+                collection._joint_pos_target,
+                full_data=full_data,
+                command_name="position",
+            )
+
+        def set_velocity_index(
+            self,
+            *,
+            value: torch.Tensor | wp.array,
+            joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            full_data: bool = False,
+        ) -> None:
+            """Set desired velocities using indices.
+
+            Args:
+                value: Desired velocities [m/s or rad/s, depending on joint type].
+                joint_ids: Joint indices. Defaults to all joints.
+                env_ids: Environment indices. Defaults to all environments.
+                full_data: Whether :paramref:`value` is a full articulation command buffer.
+            """
+            collection = self._collection
+            env_ids_resolved = collection._control.resolve_env_ids(env_ids)
+            joint_ids_resolved = collection._control.resolve_joint_ids(joint_ids)
+            collection._write_index_target(
+                value,
+                env_ids_resolved,
+                joint_ids_resolved,
+                collection._joint_vel_target,
+                full_data=full_data,
+                command_name="velocity",
+            )
+
+        def set_effort_index(
+            self,
+            *,
+            value: torch.Tensor | wp.array,
+            joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            full_data: bool = False,
+        ) -> None:
+            """Set effort commands using indices.
+
+            Args:
+                value: Effort commands [N or N·m, depending on joint type].
+                joint_ids: Joint indices. Defaults to all joints.
+                env_ids: Environment indices. Defaults to all environments.
+                full_data: Whether :paramref:`value` is a full articulation command buffer.
+            """
+            collection = self._collection
+            env_ids_resolved = collection._control.resolve_env_ids(env_ids)
+            joint_ids_resolved = collection._control.resolve_joint_ids(joint_ids)
+            collection._write_index_target(
+                value,
+                env_ids_resolved,
+                joint_ids_resolved,
+                collection._joint_effort_target,
+                full_data=full_data,
+                command_name="effort",
+            )
+
+        def set_position_mask(
+            self,
+            *,
+            value: torch.Tensor | wp.array,
+            joint_mask: wp.array | None = None,
+            env_mask: wp.array | None = None,
+        ) -> None:
+            """Set desired positions using masks.
+
+            Args:
+                value: Full articulation position commands [m or rad, depending on joint type].
+                joint_mask: Joint selection mask. Defaults to all joints.
+                env_mask: Environment selection mask. Defaults to all environments.
+            """
+            collection = self._collection
+            env_mask_resolved = collection._control.resolve_env_mask(env_mask)
+            joint_mask_resolved = collection._control.resolve_joint_mask(joint_mask)
+            collection._write_mask_target(
+                value,
+                env_mask_resolved,
+                joint_mask_resolved,
+                collection._joint_pos_target,
+                command_name="position",
+            )
+
+        def set_velocity_mask(
+            self,
+            *,
+            value: torch.Tensor | wp.array,
+            joint_mask: wp.array | None = None,
+            env_mask: wp.array | None = None,
+        ) -> None:
+            """Set desired velocities using masks.
+
+            Args:
+                value: Full articulation velocity commands [m/s or rad/s, depending on joint type].
+                joint_mask: Joint selection mask. Defaults to all joints.
+                env_mask: Environment selection mask. Defaults to all environments.
+            """
+            collection = self._collection
+            env_mask_resolved = collection._control.resolve_env_mask(env_mask)
+            joint_mask_resolved = collection._control.resolve_joint_mask(joint_mask)
+            collection._write_mask_target(
+                value,
+                env_mask_resolved,
+                joint_mask_resolved,
+                collection._joint_vel_target,
+                command_name="velocity",
+            )
+
+        def set_effort_mask(
+            self,
+            *,
+            value: torch.Tensor | wp.array,
+            joint_mask: wp.array | None = None,
+            env_mask: wp.array | None = None,
+        ) -> None:
+            """Set effort commands using masks.
+
+            Args:
+                value: Full articulation effort commands [N or N·m, depending on joint type].
+                joint_mask: Joint selection mask. Defaults to all joints.
+                env_mask: Environment selection mask. Defaults to all environments.
+            """
+            collection = self._collection
+            env_mask_resolved = collection._control.resolve_env_mask(env_mask)
+            joint_mask_resolved = collection._control.resolve_joint_mask(joint_mask)
+            collection._write_mask_target(
+                value,
+                env_mask_resolved,
+                joint_mask_resolved,
+                collection._joint_effort_target,
+                command_name="effort",
+            )
+
+    class JointCommand:
+        """Processed commands produced for the simulated joints."""
+
+        def __init__(self, collection: ActuatorCollection) -> None:
+            """Initialize the joint command view.
+
+            Args:
+                collection: Owning actuator collection.
+            """
+            self._collection = collection
+
+        @property
+        def position(self) -> ProxyArray:
+            """Processed position commands [m or rad, depending on joint type]."""
+            return self._collection._joint_pos_target_sim_ta
+
+        @property
+        def velocity(self) -> ProxyArray:
+            """Processed velocity commands [m/s or rad/s, depending on joint type]."""
+            return self._collection._joint_vel_target_sim_ta
+
+        @property
+        def effort(self) -> ProxyArray:
+            """Processed effort commands [N or N·m, depending on joint type]."""
+            return self._collection._joint_effort_target_sim_ta
 
     def __init__(
         self,
@@ -57,6 +272,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._joint_indices_wp: dict[str, wp.array] = {}
 
         self._allocate_buffers()
+        self._command = self.Command(self)
+        self._joint_command = self.JointCommand(self)
         self._native_group_names = self._control.prepare_native_actuators(self, actuator_cfgs)
         self._build_groups(actuator_cfgs)
         self._control.finalize_native_actuators(self)
@@ -85,6 +302,16 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     """
 
     @property
+    def command(self) -> Command:
+        """Commands received by the actuator models."""
+        return self._command
+
+    @property
+    def joint_command(self) -> JointCommand:
+        """Processed commands produced for the simulated joints."""
+        return self._joint_command
+
+    @property
     def num_instances(self) -> int:
         """Number of articulation instances."""
         return self._control.num_instances
@@ -103,36 +330,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     def has_implicit_actuators(self) -> bool:
         """Whether any configured actuator group is implicit."""
         return self._has_implicit_actuators
-
-    @property
-    def joint_pos_target(self) -> ProxyArray:
-        """Joint position targets [m or rad, depending on joint type]."""
-        return self._joint_pos_target_ta
-
-    @property
-    def joint_vel_target(self) -> ProxyArray:
-        """Joint velocity targets [m/s or rad/s, depending on joint type]."""
-        return self._joint_vel_target_ta
-
-    @property
-    def joint_effort_target(self) -> ProxyArray:
-        """Joint effort targets [N or N·m, depending on joint type]."""
-        return self._joint_effort_target_ta
-
-    @property
-    def joint_pos_target_sim(self) -> ProxyArray:
-        """Processed joint position targets [m or rad, depending on joint type]."""
-        return self._joint_pos_target_sim_ta
-
-    @property
-    def joint_vel_target_sim(self) -> ProxyArray:
-        """Processed joint velocity targets [m/s or rad/s, depending on joint type]."""
-        return self._joint_vel_target_sim_ta
-
-    @property
-    def joint_effort_target_sim(self) -> ProxyArray:
-        """Processed joint effort targets [N or N·m, depending on joint type]."""
-        return self._joint_effort_target_sim_ta
 
     @property
     def computed_torque(self) -> ProxyArray:
@@ -191,9 +388,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
         for actuator in self._groups.values():
             control_action = ArticulationActions(
-                joint_positions=self.joint_pos_target.torch[:, actuator.joint_indices],
-                joint_velocities=self.joint_vel_target.torch[:, actuator.joint_indices],
-                joint_efforts=self.joint_effort_target.torch[:, actuator.joint_indices],
+                joint_positions=self.command.position.torch[:, actuator.joint_indices],
+                joint_velocities=self.command.velocity.torch[:, actuator.joint_indices],
+                joint_efforts=self.command.effort.torch[:, actuator.joint_indices],
                 joint_indices=actuator.joint_indices,
             )
             control_action = actuator.compute(
@@ -206,141 +403,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     def submit_commands(self) -> None:
         """Submit processed actuator command buffers through the backend control object."""
         self._control.submit_commands(self)
-
-    def set_joint_position_target_index(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
-    ) -> None:
-        """Set joint position targets using indices.
-
-        Args:
-            target: Joint position targets [m or rad, depending on joint type].
-            joint_ids: Joint indices. Defaults to all joints.
-            env_ids: Environment indices. Defaults to all environments.
-            full_data: Whether ``target`` is a full articulation command buffer.
-        """
-        env_ids_resolved = self._control.resolve_env_ids(env_ids)
-        joint_ids_resolved = self._control.resolve_joint_ids(joint_ids)
-        self._write_index_target(
-            target,
-            env_ids_resolved,
-            joint_ids_resolved,
-            self._joint_pos_target,
-            full_data=full_data,
-            command_name="position",
-        )
-
-    def set_joint_velocity_target_index(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
-    ) -> None:
-        """Set joint velocity targets using indices.
-
-        Args:
-            target: Joint velocity targets [m/s or rad/s, depending on joint type].
-            joint_ids: Joint indices. Defaults to all joints.
-            env_ids: Environment indices. Defaults to all environments.
-            full_data: Whether ``target`` is a full articulation command buffer.
-        """
-        env_ids_resolved = self._control.resolve_env_ids(env_ids)
-        joint_ids_resolved = self._control.resolve_joint_ids(joint_ids)
-        self._write_index_target(
-            target,
-            env_ids_resolved,
-            joint_ids_resolved,
-            self._joint_vel_target,
-            full_data=full_data,
-            command_name="velocity",
-        )
-
-    def set_joint_effort_target_index(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
-    ) -> None:
-        """Set joint effort targets using indices.
-
-        Args:
-            target: Joint effort targets [N or N·m, depending on joint type].
-            joint_ids: Joint indices. Defaults to all joints.
-            env_ids: Environment indices. Defaults to all environments.
-            full_data: Whether ``target`` is a full articulation command buffer.
-        """
-        env_ids_resolved = self._control.resolve_env_ids(env_ids)
-        joint_ids_resolved = self._control.resolve_joint_ids(joint_ids)
-        self._write_index_target(
-            target,
-            env_ids_resolved,
-            joint_ids_resolved,
-            self._joint_effort_target,
-            full_data=full_data,
-            command_name="effort",
-        )
-
-    def set_joint_position_target_mask(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set joint position targets using masks."""
-        env_mask_resolved = self._control.resolve_env_mask(env_mask)
-        joint_mask_resolved = self._control.resolve_joint_mask(joint_mask)
-        self._write_mask_target(
-            target,
-            env_mask_resolved,
-            joint_mask_resolved,
-            self._joint_pos_target,
-            command_name="position",
-        )
-
-    def set_joint_velocity_target_mask(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set joint velocity targets using masks."""
-        env_mask_resolved = self._control.resolve_env_mask(env_mask)
-        joint_mask_resolved = self._control.resolve_joint_mask(joint_mask)
-        self._write_mask_target(
-            target,
-            env_mask_resolved,
-            joint_mask_resolved,
-            self._joint_vel_target,
-            command_name="velocity",
-        )
-
-    def set_joint_effort_target_mask(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set joint effort targets using masks."""
-        env_mask_resolved = self._control.resolve_env_mask(env_mask)
-        joint_mask_resolved = self._control.resolve_joint_mask(joint_mask)
-        self._write_mask_target(
-            target,
-            env_mask_resolved,
-            joint_mask_resolved,
-            self._joint_effort_target,
-            command_name="effort",
-        )
 
     def write_actuator_stiffness_to_sim(
         self,

@@ -295,9 +295,12 @@ def test_collection_exports_proxy_arrays():
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
 
-    assert collection.joint_pos_target.shape == (2, 3)
-    assert collection.joint_vel_target.shape == (2, 3)
-    assert collection.joint_effort_target.shape == (2, 3)
+    assert collection.command.position.shape == (2, 3)
+    assert collection.command.velocity.shape == (2, 3)
+    assert collection.command.effort.shape == (2, 3)
+    assert collection.joint_command.position.shape == (2, 3)
+    assert collection.joint_command.velocity.shape == (2, 3)
+    assert collection.joint_command.effort.shape == (2, 3)
     assert collection.computed_torque.shape == (2, 3)
     assert collection.applied_torque.shape == (2, 3)
     assert collection.gear_ratio.shape == (2, 3)
@@ -313,58 +316,58 @@ def test_collection_accepts_cached_proxy_joint_indices():
     torch.testing.assert_close(collection["outer"].joint_indices, torch.tensor([0, 2], dtype=torch.int32))
 
 
-def test_write_target_index_updates_only_selected_cells():
+def test_write_command_index_updates_only_selected_cells():
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
-    target = torch.tensor([[1.0, 2.0]], dtype=torch.float32)
+    value = torch.tensor([[1.0, 2.0]], dtype=torch.float32)
 
-    collection.set_joint_position_target_index(target=target, env_ids=[1], joint_ids=[0, 2])
+    collection.command.set_position_index(value=value, env_ids=[1], joint_ids=[0, 2])
 
     expected = torch.zeros(2, 3)
     expected[1, 0] = 1.0
     expected[1, 2] = 2.0
-    torch.testing.assert_close(collection.joint_pos_target.torch.cpu(), expected)
+    torch.testing.assert_close(collection.command.position.torch.cpu(), expected)
     assert control.staged_commands == ["position"]
 
 
-def test_write_target_index_accepts_signed_int64_selectors():
+def test_write_command_index_accepts_signed_int64_selectors():
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
-    target = torch.tensor([[3.0, 4.0]], dtype=torch.float32)
+    value = torch.tensor([[3.0, 4.0]], dtype=torch.float32)
     env_ids = torch.tensor([1], dtype=torch.int64)
     joint_ids = wp.array([0, 2], dtype=wp.int64, device="cpu")
 
-    collection.set_joint_position_target_index(target=target, env_ids=env_ids, joint_ids=joint_ids)
+    collection.command.set_position_index(value=value, env_ids=env_ids, joint_ids=joint_ids)
 
     expected = torch.zeros(2, 3)
     expected[1, 0] = 3.0
     expected[1, 2] = 4.0
-    torch.testing.assert_close(collection.joint_pos_target.torch.cpu(), expected)
+    torch.testing.assert_close(collection.command.position.torch.cpu(), expected)
 
 
-def test_write_target_mask_uses_full_sized_target():
+def test_write_command_mask_uses_full_sized_value():
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
-    target = torch.arange(6, dtype=torch.float32).reshape(2, 3)
+    value = torch.arange(6, dtype=torch.float32).reshape(2, 3)
     env_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     joint_mask = wp.array([False, True, True], dtype=wp.bool, device="cpu")
 
-    collection.set_joint_velocity_target_mask(target=target, env_mask=env_mask, joint_mask=joint_mask)
+    collection.command.set_velocity_mask(value=value, env_mask=env_mask, joint_mask=joint_mask)
 
     expected = torch.zeros(2, 3)
-    expected[0, 1:] = target[0, 1:]
-    torch.testing.assert_close(collection.joint_vel_target.torch.cpu(), expected)
+    expected[0, 1:] = value[0, 1:]
+    torch.testing.assert_close(collection.command.velocity.torch.cpu(), expected)
     assert control.staged_commands == ["velocity"]
 
 
 def test_compute_submits_processed_commands():
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
-    target = torch.ones(2, 3, dtype=torch.float32)
-    collection.set_joint_position_target_index(target=target, full_data=True)
+    value = torch.ones(2, 3, dtype=torch.float32)
+    collection.command.set_position_index(value=value, full_data=True)
 
     collection.compute()
     collection.submit_commands()
 
-    torch.testing.assert_close(collection.joint_pos_target_sim.torch.cpu(), target)
+    torch.testing.assert_close(collection.joint_command.position.torch.cpu(), value)
     assert control.submitted

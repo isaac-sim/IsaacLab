@@ -111,7 +111,7 @@ class BaseArticulation(AssetBase):
 
     The collection is mapping-like for named actuator group lookup and owns actuator
     commands, actuator telemetry, and actuator-resolved gains. Prefer
-    :meth:`articulation.actuators.set_joint_position_target_index` over
+    :meth:`articulation.actuators.command.set_position_index` over
     articulation-level actuator command setters.
     """
 
@@ -3048,14 +3048,14 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :meth:`articulation.actuators.set_joint_position_target_index`."""
+        """Deprecated. Use :meth:`articulation.actuators.command.set_position_index`."""
         warnings.warn(
             "Articulation.set_joint_position_target is deprecated. Use "
-            "articulation.actuators.set_joint_position_target_index instead.",
+            "articulation.actuators.command.set_position_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.set_joint_position_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
+        self.actuators.command.set_position_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_joint_velocity_target(
         self,
@@ -3063,14 +3063,14 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :meth:`articulation.actuators.set_joint_velocity_target_index`."""
+        """Deprecated. Use :meth:`articulation.actuators.command.set_velocity_index`."""
         warnings.warn(
             "Articulation.set_joint_velocity_target is deprecated. Use "
-            "articulation.actuators.set_joint_velocity_target_index instead.",
+            "articulation.actuators.command.set_velocity_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.set_joint_velocity_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
+        self.actuators.command.set_velocity_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_joint_effort_target(
         self,
@@ -3078,14 +3078,14 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :meth:`articulation.actuators.set_joint_effort_target_index`."""
+        """Deprecated. Use :meth:`articulation.actuators.command.set_effort_index`."""
         warnings.warn(
             "Articulation.set_joint_effort_target is deprecated. Use "
-            "articulation.actuators.set_joint_effort_target_index instead.",
+            "articulation.actuators.command.set_effort_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.set_joint_effort_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
+        self.actuators.command.set_effort_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_fixed_tendon_stiffness(
         self,

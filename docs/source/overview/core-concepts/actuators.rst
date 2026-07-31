@@ -51,21 +51,22 @@ by regular expression and picks a model:
         },
     )
 
-At runtime, set targets through the collection. The setters are keyword-only and default to all
-environments and all joints:
+At runtime, send commands through :attr:`~isaaclab.actuators.ActuatorCollection.command`. Position
+and velocity commands are expressed in joint-side coordinates, and every command buffer is indexed
+by articulation joint. The setters are keyword-only and default to all environments and all joints:
 
 .. code-block:: python
 
     import torch
 
-    # position targets for every joint of every environment
-    targets = torch.full((robot.num_instances, robot.num_joints), 0.5, device=robot.device)
-    robot.actuators.set_joint_position_target_index(target=targets)
+    # desired position for every joint of every environment
+    values = torch.full((robot.num_instances, robot.num_joints), 0.5, device=robot.device)
+    robot.actuators.command.set_position_index(value=values)
 
 You never call the models yourself: the articulation computes and submits the actuator commands
 inside :meth:`~isaaclab.assets.Articulation.write_data_to_sim`, which runs once per physics step.
-The rest of this page explains what happens between the target you set and the torque the solver
-applies, then documents every gain and limit with side-by-side comparisons.
+The rest of this page explains what happens between the actuator command you set and the joint
+command submitted to physics, then documents every gain and limit with side-by-side comparisons.
 
 
 .. _actuators-pipeline:
@@ -73,27 +74,29 @@ applies, then documents every gain and limit with side-by-side comparisons.
 The actuator pipeline
 ---------------------
 
-Setting a target does not talk to the solver directly. The value flows through four stages:
+Setting an actuator command does not talk to the solver directly. The value flows through four
+stages:
 
-#. **Targets** -- ``set_joint_*_target_index`` / ``_mask`` write into the collection's command
-   buffers.
-#. **ActuatorCollection** -- groups the joints by model and holds the command, telemetry, and
-   resolved-gain buffers.
-#. **model.compute()** -- for *explicit* groups, the model turns targets into a torque and clips it;
-   for *implicit* groups this step is a no-op.
-#. **Backend submit** -- the processed commands are written to the active physics backend.
+#. **Actuator command** -- ``actuators.command.set_*_index`` / ``_mask`` write the desired
+   position, velocity, and effort into buffers expressed in joint-side coordinates.
+#. **ActuatorCollection** -- groups articulation joints by actuator model and owns command,
+   processed joint-command, telemetry, and resolved-gain buffers.
+#. **Actuator model** -- an *explicit* model turns the actuator command into a joint effort and
+   clips it; an *implicit* model passes its command to the simulator drive.
+#. **Joint command** -- ``actuators.joint_command`` exposes the processed position, velocity, and
+   effort commands submitted to the active physics backend.
 
 .. figure:: ../../_static/actuators/pipeline-light.svg
     :class: only-light
     :align: center
     :width: 90%
-    :alt: The actuator pipeline from user targets through the collection and models to the backend.
+    :alt: The pipeline from actuator commands through actuator models to simulated joint commands.
 
 .. figure:: ../../_static/actuators/pipeline-dark.svg
     :class: only-dark
     :align: center
     :width: 90%
-    :alt: The actuator pipeline from user targets through the collection and models to the backend.
+    :alt: The pipeline from actuator commands through actuator models to simulated joint commands.
 
 Where the gains land differs by path, and this is the single most common source of confusion:
 
@@ -108,7 +111,7 @@ Where the gains land differs by path, and this is the single most common source 
 .. note::
 
     Because the whole pipeline runs inside :meth:`~isaaclab.assets.Articulation.write_data_to_sim`,
-    a target you set is not visible in the simulation until the next physics step. Telemetry
+    a command you set is not visible in the simulation until the next physics step. Telemetry
     buffers (:attr:`~isaaclab.actuators.ActuatorCollection.computed_torque`,
     :attr:`~isaaclab.actuators.ActuatorCollection.applied_torque`) reflect the most recent step.
 
@@ -198,7 +201,7 @@ sweeps run on the *implicit* path. You can regenerate every clip and curve on th
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/demos/actuator_parameters.py --record --all --viz none --enable_cameras
+    ./isaaclab.sh -p tools/actuator_parameters.py --record --all --viz none --enable_cameras
 
 Run a single comparison interactively (with the visualizer) via
 ``--parameter <name>`` (e.g. ``--parameter stiffness``); ``--list_parameters`` prints the keys.
@@ -469,8 +472,10 @@ replace them:
     for name, actuator in robot.actuators.items():
         print(name, type(actuator).__name__)
 
-**Setting targets.** Use the index setters for the common case (contiguous env/joint id lists) and
-the mask setters when you already hold boolean Warp masks. All are keyword-only:
+**Setting actuator commands.** The mutable ``command`` view contains the desired position,
+velocity, and effort received by the actuator models. Use its index setters for the common case
+(contiguous environment/joint id lists) and its mask setters when you already hold boolean Warp
+masks. All are keyword-only:
 
 .. code-block:: python
 
@@ -479,21 +484,23 @@ the mask setters when you already hold boolean Warp masks. All are keyword-only:
     ids = torch.tensor([0, 1], device=robot.device)          # first two joints
     env_ids = torch.arange(robot.num_instances, device=robot.device)
     sub = torch.zeros((env_ids.numel(), ids.numel()), device=robot.device)
-    robot.actuators.set_joint_position_target_index(target=sub, joint_ids=ids, env_ids=env_ids)
+    robot.actuators.command.set_position_index(value=sub, joint_ids=ids, env_ids=env_ids)
 
-By default ``target`` is shaped ``(len(env_ids), len(joint_ids))``. Pass ``full_data=True`` when
-``target`` is already a full ``(num_instances, num_joints)`` command buffer, so you don't have to
+By default ``value`` is shaped ``(len(env_ids), len(joint_ids))``. Pass ``full_data=True`` when
+``value`` is already a full ``(num_instances, num_joints)`` command buffer, so you don't have to
 build a per-index sub-tensor: the same scatter kernel runs either way, but the source is then read
 at full-buffer coordinates.
 
-**Telemetry.** The collection exposes per-joint buffers for the last step. Read the underlying tensor
-through ``.torch`` (or ``.warp``):
+**Reading commands and telemetry.** ``command`` exposes what the actuator models received, while
+the ``joint_command`` view exposes what they produced for the simulated joints. Read the underlying
+arrays through ``.torch`` (or ``.warp``):
 
 .. code-block:: python
 
-    applied = robot.actuators.applied_torque.torch    # after clipping [N·m or N]
+    desired_position = robot.actuators.command.position.torch
+    submitted_effort = robot.actuators.joint_command.effort.torch
+    applied = robot.actuators.applied_torque.torch      # after clipping [N·m or N]
     computed = robot.actuators.computed_torque.torch   # before clipping [N·m or N]
-    pos_target = robot.actuators.joint_pos_target.torch
 
 :attr:`~isaaclab.actuators.ActuatorCollection.computed_torque` is the model output before clipping
 and :attr:`~isaaclab.actuators.ActuatorCollection.applied_torque` is the value after clipping (for
@@ -515,7 +522,7 @@ native controllers:
 **Lifecycle.** You do not call ``compute()`` or ``submit_commands()`` yourself. The articulation
 runs, in order, ``actuators.reset()`` on env resets and ``actuators.compute()`` followed by
 ``actuators.submit_commands()`` inside :meth:`~isaaclab.assets.Articulation.write_data_to_sim`, once
-per physics step. Your job is to set targets before the step.
+per physics step. Your job is to set actuator commands before the step.
 
 .. rubric:: Migrating from the deprecated setters
 
@@ -528,10 +535,10 @@ the collection and emit a :class:`DeprecationWarning`:
     robot.set_joint_position_target(target, joint_ids=ids)
 
     # After
-    robot.actuators.set_joint_position_target_index(target=target, joint_ids=ids)
+    robot.actuators.command.set_position_index(value=target, joint_ids=ids)
 
 The old data reads move too: ``articulation.data.joint_pos_target`` becomes
-``robot.actuators.joint_pos_target``, and ``data.computed_torque`` / ``data.applied_torque`` become
+``robot.actuators.command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become
 ``robot.actuators.computed_torque`` / ``robot.actuators.applied_torque``. See the
 :doc:`Isaac Lab 3.0 migration guide <../../migration/migrating_to_isaaclab_3-0>` for the full table.
 

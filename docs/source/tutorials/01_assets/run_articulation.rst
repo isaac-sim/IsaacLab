@@ -80,7 +80,8 @@ Stepping the simulation
 
 Applying commands to the articulation involves two steps:
 
-1. *Setting the joint targets*: This sets the desired joint position, velocity, or effort targets for the articulation.
+1. *Setting actuator commands*: This provides desired position, velocity, or effort values to the actuator models in
+   joint-side coordinates.
 2. *Writing the data to the simulation*: Based on the articulation's configuration, this step handles any
    :ref:`actuation conversions <overview-actuators>` and writes the converted values to the simulation buffers.
 
@@ -89,7 +90,7 @@ articulation's stiffness and damping parameters to zero. This is done a-priori i
 configuration object.
 
 At every step, we randomly sample joint efforts and set them on the articulation's actuator collection
-by calling the :meth:`ActuatorCollection.set_joint_effort_target_index` method. After setting the targets,
+by calling the :meth:`ActuatorCollection.Command.set_effort_index` method. After setting the commands,
 we call the :meth:`Articulation.write_data_to_sim` method to write the data to the simulation buffers.
 Finally, we step the simulation.
 

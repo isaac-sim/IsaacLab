@@ -301,7 +301,7 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_POSITION)
     def joint_pos_target(self) -> ProxyArray:
-        """Deprecated. Use ``articulation.actuators.joint_pos_target`` instead.
+        """Deprecated. Use ``articulation.actuators.command.position`` instead.
 
         Joint position targets commanded by the user [m or rad, depending on joint type].
         Shape is (num_instances, num_joints), dtype = wp.float32.
@@ -312,7 +312,7 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_VELOCITY)
     def joint_vel_target(self) -> ProxyArray:
-        """Deprecated. Use ``articulation.actuators.joint_vel_target`` instead.
+        """Deprecated. Use ``articulation.actuators.command.velocity`` instead.
 
         Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
         Shape is (num_instances, num_joints), dtype = wp.float32.
@@ -323,7 +323,7 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_TORQUES)
     def joint_effort_target(self) -> ProxyArray:
-        """Deprecated. Use ``articulation.actuators.joint_effort_target`` instead.
+        """Deprecated. Use ``articulation.actuators.command.effort`` instead.
 
         Joint effort targets commanded by the user [N or N·m, depending on joint type].
         Shape is (num_instances, num_joints), dtype = wp.float32.

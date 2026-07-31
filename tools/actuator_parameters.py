@@ -14,19 +14,19 @@ effect of that parameter directly visible side by side.
 
 The pendulum is authored procedurally with USD APIs (no external asset files),
 so the demo is self-contained and doubles as documentation for the actuator
-runtime API. Joint commands are always issued through the actuator collection
-(``articulation.actuators.set_joint_*_target_index``).
+runtime API. Commands are always issued through the actuator collection
+(``articulation.actuators.command.set_*_index``).
 
 .. code-block:: bash
 
     # List the available parameter comparisons.
-    ./isaaclab.sh -p scripts/demos/actuator_parameters.py --list_parameters
+    ./isaaclab.sh -p tools/actuator_parameters.py --list_parameters
 
     # Interactive comparison of the stiffness sweep with the Newton visualizer.
-    ./isaaclab.sh -p scripts/demos/actuator_parameters.py --parameter stiffness
+    ./isaaclab.sh -p tools/actuator_parameters.py --parameter stiffness
 
     # Compare the effort-limit sweep.
-    ./isaaclab.sh -p scripts/demos/actuator_parameters.py --parameter effort-limit
+    ./isaaclab.sh -p tools/actuator_parameters.py --parameter effort-limit
 
 """
 
@@ -145,7 +145,7 @@ DRIVE_DAMPING = 5.0
 # Recording constants (media generation for the documentation).
 ##
 
-MEDIA_DIR = Path(__file__).resolve().parents[2] / "docs" / "source" / "_static" / "actuators"
+MEDIA_DIR = Path(__file__).resolve().parents[1] / "docs" / "source" / "_static" / "actuators"
 """Output directory for the generated clips and curves."""
 
 CAMERA_WIDTH = 1280
@@ -577,13 +577,13 @@ def _apply_command(articulation: Articulation, command: tuple[float | None, floa
     shape = (articulation.num_instances, articulation.num_joints)
     if position is not None:
         target = torch.full(shape, position, dtype=torch.float32, device=articulation.device)
-        articulation.actuators.set_joint_position_target_index(target=target)
+        articulation.actuators.command.set_position_index(value=target)
     if velocity is not None:
         target = torch.full(shape, velocity, dtype=torch.float32, device=articulation.device)
-        articulation.actuators.set_joint_velocity_target_index(target=target)
+        articulation.actuators.command.set_velocity_index(value=target)
     if effort is not None:
         target = torch.full(shape, effort, dtype=torch.float32, device=articulation.device)
-        articulation.actuators.set_joint_effort_target_index(target=target)
+        articulation.actuators.command.set_effort_index(value=target)
 
 
 def run_row(

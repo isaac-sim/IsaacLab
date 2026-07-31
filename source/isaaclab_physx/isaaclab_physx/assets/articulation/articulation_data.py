@@ -119,16 +119,16 @@ class ArticulationData(BaseArticulationData):
     def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
         """Bind collection-owned actuator buffers for deprecated data aliases."""
         self._actuator_collection = actuators
-        self._joint_pos_target = actuators.joint_pos_target.warp
-        self._joint_vel_target = actuators.joint_vel_target.warp
-        self._joint_effort_target = actuators.joint_effort_target.warp
+        self._joint_pos_target = actuators.command.position.warp
+        self._joint_vel_target = actuators.command.velocity.warp
+        self._joint_effort_target = actuators.command.effort.warp
         self._computed_torque = actuators.computed_torque.warp
         self._applied_torque = actuators.applied_torque.warp
         self._soft_joint_vel_limits = actuators.soft_joint_vel_limits.warp
         self._gear_ratio = actuators.gear_ratio.warp
-        self._joint_pos_target_ta = actuators.joint_pos_target
-        self._joint_vel_target_ta = actuators.joint_vel_target
-        self._joint_effort_target_ta = actuators.joint_effort_target
+        self._joint_pos_target_ta = actuators.command.position
+        self._joint_vel_target_ta = actuators.command.velocity
+        self._joint_effort_target_ta = actuators.command.effort
         self._computed_torque_ta = actuators.computed_torque
         self._applied_torque_ta = actuators.applied_torque
         self._soft_joint_vel_limits_ta = actuators.soft_joint_vel_limits
@@ -137,12 +137,20 @@ class ArticulationData(BaseArticulationData):
     def _get_actuator_collection_proxy(self, name: str, buffer_name: str, proxy_name: str) -> ProxyArray:
         collection = self._actuator_collection
         if collection is not None:
+            command_field = {
+                "joint_pos_target": "position",
+                "joint_vel_target": "velocity",
+                "joint_effort_target": "effort",
+            }.get(name)
+            replacement = f"command.{command_field}" if command_field is not None else name
             warnings.warn(
-                f"ArticulationData.{name} is deprecated. Use articulation.actuators.{name} instead.",
+                f"ArticulationData.{name} is deprecated. Use articulation.actuators.{replacement} instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
-            return getattr(collection, name)
+            return (
+                getattr(collection.command, command_field) if command_field is not None else getattr(collection, name)
+            )
         proxy = getattr(self, proxy_name)
         if proxy is None:
             proxy = ProxyArray(getattr(self, buffer_name))

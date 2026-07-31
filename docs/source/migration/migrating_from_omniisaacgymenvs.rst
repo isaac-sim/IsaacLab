@@ -671,8 +671,8 @@ and setting actions into simulation.
 |         return                                                   |     self.actions = self.action_scale * actions              |
 |                                                                  |                                                             |
 |     reset_env_ids = self.reset_buf.nonzero(                      | def _apply_action(self) -> None:                            |
-|         as_tuple=False).squeeze(-1)                              |     self.cartpole.actuators.set_joint_effort_target_index(  |
-|     if len(reset_env_ids) > 0:                                   |         target=self.actions, joint_ids=self._cart_dof_idx)  |
+|         as_tuple=False).squeeze(-1)                              |     self.cartpole.actuators.command.set_effort_index(       |
+|     if len(reset_env_ids) > 0:                                   |         value=self.actions, joint_ids=self._cart_dof_idx)   |
 |         self.reset_idx(reset_env_ids)                            |                                                             |
 |                                                                  |                                                             |
 |     actions = actions.to(self._device)                           |                                                             |

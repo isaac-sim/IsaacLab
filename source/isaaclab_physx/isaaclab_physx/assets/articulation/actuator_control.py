@@ -136,11 +136,11 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             wrapper = self._physx_actuator_wrapper
             wrapper.joint_q = articulation._data.joint_pos.warp.reshape(-1)
             wrapper.joint_qd = articulation._data.joint_vel.warp.reshape(-1)
-            wrapper.joint_target_q = collection.joint_pos_target.warp.reshape(-1)
-            wrapper.joint_target_qd = collection.joint_vel_target.warp.reshape(-1)
-            wrapper.joint_target_pos = collection.joint_pos_target.warp.reshape(-1)
-            wrapper.joint_target_vel = collection.joint_vel_target.warp.reshape(-1)
-            wrapper.joint_act = collection.joint_effort_target.warp.reshape(-1)
+            wrapper.joint_target_q = collection.command.position.warp.reshape(-1)
+            wrapper.joint_target_qd = collection.command.velocity.warp.reshape(-1)
+            wrapper.joint_target_pos = collection.command.position.warp.reshape(-1)
+            wrapper.joint_target_vel = collection.command.velocity.warp.reshape(-1)
+            wrapper.joint_act = collection.command.effort.warp.reshape(-1)
             adapter.finalize(wrapper)
             articulation.newton_actuator_adapter = adapter
             articulation.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)

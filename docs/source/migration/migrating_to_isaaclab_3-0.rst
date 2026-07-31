@@ -1085,7 +1085,7 @@ Actuator API Moves to ``ActuatorCollection``
 
 In Isaac Lab 3.x, actuator ownership moves from :class:`~isaaclab.assets.Articulation` to a
 backend-neutral :class:`~isaaclab.actuators.ActuatorCollection`, available as
-:attr:`~isaaclab.assets.Articulation.actuators`. Joint-target setters, actuator gain writers, and
+:attr:`~isaaclab.assets.Articulation.actuators`. Actuator command setters, actuator gain writers, and
 per-joint actuator telemetry now live on the collection, so the same code path drives every
 physics backend. The collection setters are keyword-only.
 
@@ -1099,13 +1099,14 @@ The old methods are deprecated and will be removed in a future release:
 +---------------------------------------------------------------+-------------------------------------------------+
 | Deprecated                                                    | New                                             |
 +===============================================================+=================================================+
-| ``set_joint_position_target``                                 | ``actuators.set_joint_position_target_index``   |
+| ``set_joint_position_target``                                 | ``actuators.command.set_position_index``        |
 +---------------------------------------------------------------+-------------------------------------------------+
-| ``set_joint_velocity_target``                                 | ``actuators.set_joint_velocity_target_index``   |
+| ``set_joint_velocity_target``                                 | ``actuators.command.set_velocity_index``        |
 +---------------------------------------------------------------+-------------------------------------------------+
-| ``set_joint_effort_target``                                   | ``actuators.set_joint_effort_target_index``     |
+| ``set_joint_effort_target``                                   | ``actuators.command.set_effort_index``          |
 +---------------------------------------------------------------+-------------------------------------------------+
-| ``set_joint_{position,velocity,effort}_target_index/_mask``   | same names on ``articulation.actuators``        |
+| ``set_joint_{position,velocity,effort}_target_index/_mask``   | ``actuators.command.set_{position,velocity,``   |
+|                                                               | ``effort}_index/_mask``                         |
 +---------------------------------------------------------------+-------------------------------------------------+
 | ``write_actuator_stiffness_to_sim`` /                         | same names on ``articulation.actuators``        |
 | ``write_actuator_damping_to_sim``                             |                                                 |
@@ -1116,17 +1117,17 @@ Property Relocations (Data Class)
 ---------------------------------
 
 The following properties on :class:`~isaaclab.assets.ArticulationData` move to the actuator
-collection under the same names. The old properties are deprecated and will be removed in a
+collection under the command view. The old properties are deprecated and will be removed in a
 future release:
 
 +------------------------------------------+------------------------------------------+
 | Deprecated                               | New                                      |
 +==========================================+==========================================+
-| ``data.joint_pos_target``                | ``actuators.joint_pos_target``           |
+| ``data.joint_pos_target``                | ``actuators.command.position``           |
 +------------------------------------------+------------------------------------------+
-| ``data.joint_vel_target``                | ``actuators.joint_vel_target``           |
+| ``data.joint_vel_target``                | ``actuators.command.velocity``           |
 +------------------------------------------+------------------------------------------+
-| ``data.joint_effort_target``             | ``actuators.joint_effort_target``        |
+| ``data.joint_effort_target``             | ``actuators.command.effort``             |
 +------------------------------------------+------------------------------------------+
 | ``data.computed_torque``                 | ``actuators.computed_torque``            |
 +------------------------------------------+------------------------------------------+
@@ -1165,15 +1166,15 @@ Here's a complete example showing how to update your code:
 
 .. code-block:: python
 
-   # Setting joint targets on the actuator collection (keyword-only)
+   # Sending actuator commands expressed in joint-side coordinates (keyword-only)
    robot = scene["robot"]
-   robot.actuators.set_joint_effort_target_index(target=efforts, joint_ids=joint_ids)
+   robot.actuators.command.set_effort_index(value=efforts, joint_ids=joint_ids)
 
    # Reading actuator telemetry from the collection
    applied = robot.actuators.applied_torque.torch
-   pos_target = robot.actuators.joint_pos_target.torch
+   position_command = robot.actuators.command.position.torch
 
-For the full runtime API of the actuator collection -- target setters, telemetry buffers, and
+For the full runtime API of the actuator collection -- command setters, telemetry buffers, and
 gain writers -- see :ref:`actuators-runtime-api`.
 
 

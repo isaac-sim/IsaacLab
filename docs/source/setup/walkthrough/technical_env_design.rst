@@ -126,7 +126,7 @@ The next thing our environment needs is the definitions for how to handle action
         self.actions = actions.clone()
 
     def _apply_action(self) -> None:
-        self.robot.actuators.set_joint_velocity_target_index(target=self.actions, joint_ids=self.dof_idx)
+        self.robot.actuators.command.set_velocity_index(value=self.actions, joint_ids=self.dof_idx)
 
 Here the act of applying actions to the robot in the environment is broken into two steps: ``_pre_physics_step`` and ``_apply_action``. The physics
 simulation is decimated with respect to querying the policy for actions, meaning that multiple physics steps may occur per action taken by the policy.

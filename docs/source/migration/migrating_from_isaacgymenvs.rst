@@ -785,8 +785,8 @@ However, individual tasks can override the ``step()`` API to control the workflo
 |     actions_tensor = torch.zeros(                                |     self.actions = self.action_scale * actions              |
 |         self.num_envs * self.num_dof,                            |                                                             |
 |         device=self.device, dtype=torch.float)                   | def _apply_action(self) -> None:                            |
-|     actions_tensor[::self.num_dof] = actions.to(                 |     self.cartpole.actuators.set_joint_effort_target_index(  |
-|         self.device).squeeze() * self.max_push_effort            |         target=self.actions, joint_ids=self._cart_dof_idx)  |
+|     actions_tensor[::self.num_dof] = actions.to(                 |     self.cartpole.actuators.command.set_effort_index(       |
+|         self.device).squeeze() * self.max_push_effort            |         value=self.actions, joint_ids=self._cart_dof_idx)   |
 |     forces = gymtorch.unwrap_tensor(actions_tensor)              |                                                             |
 |     self.gym.set_dof_actuation_force_tensor(                     |                                                             |
 |         self.sim, forces)                                        |                                                             |

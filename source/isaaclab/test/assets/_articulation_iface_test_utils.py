@@ -16,6 +16,7 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.actuators import ActuatorCollection
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -357,6 +358,8 @@ class _MockActuatorCollection(dict):
             self._applied_torque_ta = ProxyArray(self._applied_torque)
             self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
             self._gear_ratio_ta = ProxyArray(self._gear_ratio)
+            self.command = ActuatorCollection.Command(self)
+            self.joint_command = ActuatorCollection.JointCommand(self)
 
     def compute(self, dt: float = 0.0) -> None:
         # Intentionally a no-op: the ordering tests stub the actuator-compute stage
@@ -378,30 +381,6 @@ class _MockActuatorCollection(dict):
         return bool(self._control and getattr(self._control._articulation, "_has_implicit_actuators", False))
 
     @property
-    def joint_pos_target(self):
-        return self._joint_pos_target_ta
-
-    @property
-    def joint_vel_target(self):
-        return self._joint_vel_target_ta
-
-    @property
-    def joint_effort_target(self):
-        return self._joint_effort_target_ta
-
-    @property
-    def joint_pos_target_sim(self):
-        return self._joint_pos_target_sim_ta
-
-    @property
-    def joint_vel_target_sim(self):
-        return self._joint_vel_target_sim_ta
-
-    @property
-    def joint_effort_target_sim(self):
-        return self._joint_effort_target_sim_ta
-
-    @property
     def computed_torque(self):
         return self._computed_torque_ta
 
@@ -416,24 +395,6 @@ class _MockActuatorCollection(dict):
     @property
     def gear_ratio(self):
         return self._gear_ratio_ta
-
-    def set_joint_position_target_index(self, *, target, joint_ids=None, env_ids=None, full_data=False) -> None:
-        self._write_index_target(target, env_ids, joint_ids, self._joint_pos_target, full_data, "position")
-
-    def set_joint_velocity_target_index(self, *, target, joint_ids=None, env_ids=None, full_data=False) -> None:
-        self._write_index_target(target, env_ids, joint_ids, self._joint_vel_target, full_data, "velocity")
-
-    def set_joint_effort_target_index(self, *, target, joint_ids=None, env_ids=None, full_data=False) -> None:
-        self._write_index_target(target, env_ids, joint_ids, self._joint_effort_target, full_data, "effort")
-
-    def set_joint_position_target_mask(self, *, target, joint_mask=None, env_mask=None) -> None:
-        self._write_mask_target(target, env_mask, joint_mask, self._joint_pos_target, "position")
-
-    def set_joint_velocity_target_mask(self, *, target, joint_mask=None, env_mask=None) -> None:
-        self._write_mask_target(target, env_mask, joint_mask, self._joint_vel_target, "velocity")
-
-    def set_joint_effort_target_mask(self, *, target, joint_mask=None, env_mask=None) -> None:
-        self._write_mask_target(target, env_mask, joint_mask, self._joint_effort_target, "effort")
 
     def write_actuator_stiffness_to_sim(self, *, stiffness, env_ids, joint_ids) -> None:
         self._write_actuator_gain("kp", stiffness, env_ids, joint_ids, self._actuator_stiffness)

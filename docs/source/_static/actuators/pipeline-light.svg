@@ -13,31 +13,31 @@
   </defs>
 
   <text x="20" y="30" font-size="20" font-weight="bold" fill="#1a1a1a">Actuator pipeline</text>
-  <text x="20" y="52" font-size="14" fill="#555555">targets &#8594; ActuatorCollection &#8594; model.compute() &#8594; backend submit</text>
+  <text x="20" y="52" font-size="14" fill="#555555">actuator command &#8594; actuator model &#8594; joint command &#8594; physics backend</text>
 
-  <!-- Stage 1: targets -->
+  <!-- Stage 1: actuator command -->
   <rect x="20" y="130" width="170" height="80" rx="10" fill="#f4f7ec" stroke="#76b900" stroke-width="2"/>
-  <text x="105" y="163" font-size="15" font-weight="bold" fill="#1a1a1a" text-anchor="middle">User targets</text>
-  <text x="105" y="184" font-size="11" fill="#555555" text-anchor="middle">set_joint_*_target</text>
+  <text x="105" y="163" font-size="15" font-weight="bold" fill="#1a1a1a" text-anchor="middle">Actuator command</text>
+  <text x="105" y="184" font-size="11" fill="#555555" text-anchor="middle">command.set_*</text>
   <text x="105" y="199" font-size="11" fill="#555555" text-anchor="middle">_index / _mask</text>
 
   <!-- Stage 2: collection -->
   <rect x="240" y="130" width="180" height="80" rx="10" fill="#f4f7ec" stroke="#76b900" stroke-width="2"/>
   <text x="330" y="163" font-size="15" font-weight="bold" fill="#1a1a1a" text-anchor="middle">ActuatorCollection</text>
-  <text x="330" y="184" font-size="11" fill="#555555" text-anchor="middle">command buffers,</text>
-  <text x="330" y="199" font-size="11" fill="#555555" text-anchor="middle">per-group actuators</text>
+  <text x="330" y="184" font-size="11" fill="#555555" text-anchor="middle">groups joints by</text>
+  <text x="330" y="199" font-size="11" fill="#555555" text-anchor="middle">actuator model</text>
 
   <!-- Stage 3: compute (explicit only) -->
   <rect x="490" y="35" width="180" height="80" rx="10" fill="#fbeee4" stroke="#d96421" stroke-width="2"/>
-  <text x="580" y="68" font-size="15" font-weight="bold" fill="#1a1a1a" text-anchor="middle">model.compute()</text>
+  <text x="580" y="68" font-size="15" font-weight="bold" fill="#1a1a1a" text-anchor="middle">Actuator model</text>
   <text x="580" y="89" font-size="11" fill="#555555" text-anchor="middle">PD / DC / net,</text>
   <text x="580" y="104" font-size="11" fill="#555555" text-anchor="middle">torque clipping</text>
 
-  <!-- Stage 4: submit -->
+  <!-- Stage 4: joint command -->
   <rect x="740" y="130" width="180" height="80" rx="10" fill="#f4f7ec" stroke="#76b900" stroke-width="2"/>
-  <text x="830" y="163" font-size="15" font-weight="bold" fill="#1a1a1a" text-anchor="middle">Backend submit</text>
-  <text x="830" y="184" font-size="11" fill="#555555" text-anchor="middle">PhysX / Newton /</text>
-  <text x="830" y="199" font-size="11" fill="#555555" text-anchor="middle">OVPhysX write</text>
+  <text x="830" y="163" font-size="15" font-weight="bold" fill="#1a1a1a" text-anchor="middle">Joint command</text>
+  <text x="830" y="184" font-size="11" fill="#555555" text-anchor="middle">submitted to the</text>
+  <text x="830" y="199" font-size="11" fill="#555555" text-anchor="middle">physics backend</text>
 
   <!-- Flow arrows -->
   <line x1="190" y1="170" x2="234" y2="170" stroke="#555555" stroke-width="2" marker-end="url(#arrow-flow-l)"/>

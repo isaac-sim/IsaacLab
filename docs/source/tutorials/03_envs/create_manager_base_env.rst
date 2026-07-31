@@ -71,7 +71,7 @@ Defining actions
 ----------------
 
 In the previous tutorial, we directly input the action to the cartpole using
-the :meth:`ActuatorCollection.set_joint_effort_target_index` method. In this tutorial, we will
+the :meth:`ActuatorCollection.Command.set_effort_index` method. In this tutorial, we will
 use the :class:`managers.ActionManager` to handle the actions.
 
 The action manager can comprise of multiple :class:`managers.ActionTerm`. Each action term
