@@ -90,7 +90,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``newton_vbd`` only
 
-   **Visualizer:** ``none``, ``kit``, ``newton``
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
