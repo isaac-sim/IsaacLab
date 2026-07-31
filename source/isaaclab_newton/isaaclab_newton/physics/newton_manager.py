@@ -591,9 +591,7 @@ class NewtonManager(PhysicsManager):
                 if cls._use_fabric_gpu_hierarchy:
                     logger.info("Fabric GPU transform hierarchy enabled via IFabricHierarchy")
                 else:
-                    logger.info(
-                        "Fabric GPU transform hierarchy unavailable; falling back to update_world_xforms()"
-                    )
+                    logger.info("Fabric GPU transform hierarchy unavailable; falling back to update_world_xforms()")
 
             use_gpu_hierarchy = bool(
                 cls._use_fabric_gpu_hierarchy and fabric_hierarchy is not None and gpu_opts_cls is not None
