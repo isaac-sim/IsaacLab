@@ -475,6 +475,7 @@ def _resolve_distributed_device(cfg, launcher_args: argparse.Namespace | dict | 
 def launch_simulation(
     cfg,
     launcher_args: argparse.Namespace | dict | None = None,
+    require_kit: bool = False,
 ) -> Generator[PhysicsCfg | None, None, None]:
     """Context manager that launches the appropriate simulation runtime for *cfg*.
 
@@ -490,6 +491,14 @@ def launch_simulation(
             sim = SimulationContext(SimulationCfg(physics=physics_cfg))
 
     Callers that do not need the value simply omit ``as``.
+
+    Args:
+        cfg: Config tree to scan for backend, renderer, and sensor requirements.
+        launcher_args: Parsed launcher arguments, typically the script's ``args_cli``.
+        require_kit: Whether the caller needs Kit for a reason the config cannot express,
+            e.g. a tool that reaches a Kit-only extension API. This is additive: it can
+            only turn a kitless launch into a Kit one, never the reverse, so a config
+            that already needs Kit still launches it when this is ``False``.
     """
     if launcher_args is None:
         launcher_args = {}
@@ -505,6 +514,8 @@ def launch_simulation(
     visualizer_types = _get_visualizer_types(launcher_args)
 
     kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
+    if require_kit:
+        kit_sources += ("the caller's explicit Kit requirement",)
     _validate_runtime(config_scan, kit_sources)
     needs_kit = bool(kit_sources)
     _set_arg(launcher_args, "visualizer_intent", config_scan.visualizer_intent)
