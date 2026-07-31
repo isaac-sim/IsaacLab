@@ -92,7 +92,7 @@ jobs:
     - id: detect
       uses: ./.github/actions/detect-changes
       with:
-        triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless"
+        triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless + warp-cache-warm"
         triggered-jobs-pr: "Docker build jobs + all test-* matrix jobs"
         # config.yaml is included because it controls the base image names and tags
         # consumed by the Docker build jobs.
@@ -179,7 +179,6 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
-        ensure-local-image: false
 
   build-curobo:
     name: Build cuRobo Docker Image
@@ -203,7 +202,6 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-        ensure-local-image: false
 
   #endregion
 
@@ -229,8 +227,10 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "0"
         shard-count: "3"
+        warp-cache: restore
         container-name: isaac-lab-tasks-1-test
 
   test-isaaclab-tasks-2:
@@ -254,8 +254,10 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "1"
         shard-count: "3"
+        warp-cache: restore
         container-name: isaac-lab-tasks-2-test
 
   test-isaaclab-tasks-3:
@@ -279,8 +281,10 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "2"
         shard-count: "3"
+        warp-cache: restore
         container-name: isaac-lab-tasks-3-test
 
   test-isaaclab-core:
@@ -304,6 +308,7 @@ jobs:
         filter-pattern: "not isaaclab_"
         shard-index: "0"
         shard-count: "3"
+        warp-cache: restore
         container-name: isaac-lab-core-1-test
 
   test-isaaclab-core-2:
@@ -327,6 +332,7 @@ jobs:
         filter-pattern: "not isaaclab_"
         shard-index: "1"
         shard-count: "3"
+        warp-cache: restore
         container-name: isaac-lab-core-2-test
 
   test-isaaclab-core-3:
@@ -350,6 +356,7 @@ jobs:
         filter-pattern: "not isaaclab_"
         shard-index: "2"
         shard-count: "3"
+        warp-cache: restore
         container-name: isaac-lab-core-3-test
 
   test-standalone-demos:
@@ -382,6 +389,8 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: ${{ matrix.runtime-group }}
+        # deformables.py tetrahedralizes its volume meshes at startup
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         result-file: "test-standalone-demos-${{ matrix.runtime-group }}-report.xml"
         container-name: isaac-lab-standalone-demos-${{ matrix.runtime-group }}-test
         omni-github-test-type: standalone-demo
@@ -448,6 +457,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
@@ -532,6 +542,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
+        warp-cache: restore
         container-name: isaac-lab-newton-test
 
   test-isaaclab-physx:
@@ -553,6 +564,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
@@ -726,6 +738,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_dexsuite_kuka_hetero.py,
@@ -750,6 +763,11 @@ jobs:
       fail-fast: false
       matrix:
         variant: [legacy, ovstage]
+        event_name:
+        - ${{ github.event_name }}
+        exclude:
+        - variant: ovstage
+          event_name: pull_request
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -766,7 +784,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
+        extra-pip-packages: >-
+          pytetwild[all]>=0.3.0,<0.4
+          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
@@ -781,6 +801,54 @@ jobs:
         test-node-ids-key: ${{ github.event_name == 'push' && format('rendering-correctness-kitless-{0}', matrix.variant) || '' }}
         container-name: "isaac-lab-rendering-correctness-kitless-${{ matrix.variant }}-test"
         omni-github-test-type: "rendering-correctness-kitless-${{ matrix.variant }}"
+
+  # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
+  # own job because a cache written from a PR is readable only by that PR, and
+  # no solver-heavy test job runs on push. Does not restore before saving:
+  # appending to the previous run grows the cache without bound, which is what
+  # exhausted the repository quota last time.
+  warm-warp-cache:
+    name: "warp-cache-warm"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    # A failed warm leaves the previous cache in place, which is a stale cache
+    # rather than a broken build. Never fail the push build over it.
+    continue-on-error: true
+    needs: [build, config]
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      needs.build.result == 'success'
+    env:
+      # Caches are branch-scoped: publishing only helps from a PR base branch
+      # (the on.push.branches list). A dispatch from elsewhere runs as a dry run
+      # instead of burning quota in a scope no PR can read. Not
+      # default_branch - that is a release/* branch upstream, excluding main.
+      PUBLISHES_WARP_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_tasks"
+        # MJWarp specializes kernels per model config (@cache_kernel in
+        # mujoco_warp/_src/warp_util.py keys on array sizes; ~250 wp.static uses
+        # feed Warp's module hash), so these span specialization axes rather than
+        # maximize task count: Cartpole (primitives, contact-free, + camera),
+        # Drawer (mesh collision), AnymalD (contact-rich locomotion), Handover
+        # (dexterous, many contacts), Cloth (deformables), Soft (MPM). Selects 11
+        # tasks; widen if a test job reports large cache growth.
+        include-files: >-
+          test_environments.py,
+          test_environments_newton.py
+        test-k-expr: "Cartpole or Drawer or AnymalD or Handover or Cloth or Soft"
+        warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
+        container-name: isaac-lab-warp-cache-warm
+        omni-github-test-type: warp-cache-warm
   #endregion
 
 #region disabled quarantined tests

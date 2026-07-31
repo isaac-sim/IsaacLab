@@ -39,6 +39,9 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     # check that input data is class instance
     if not hasattr(obj, "__class__"):
         raise ValueError(f"Expected a class instance. Received: {type(obj)}.")
+    # ResolvableString is a str subclass — serialize as plain str so OmegaConf accepts it.
+    if isinstance(obj, ResolvableString):
+        return str(obj)
     # convert object to dictionary
     if isinstance(obj, dict):
         obj_dict = obj

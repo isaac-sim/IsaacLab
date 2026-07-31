@@ -16,6 +16,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.deformable.newton_manager_cfg import (
@@ -27,8 +28,15 @@ from isaaclab_contrib.deformable.newton_manager_cfg import (
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import PresetCfg
 
-from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
-from .franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
+from .franka_soft_env_cfg import (
+    FRANKA_CAMERA_CFG,
+    FrankaCameraObservationsCfg,
+    FrankaSoftEnvCfg,
+    _FrankaSoftSceneCfg,
+)
+from .franka_soft_env_cfg import (
+    EventCfg as FrankaSoftEventCfg,
+)
 
 ##
 # Scene definition
@@ -123,6 +131,13 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
 
 
 @configclass
+class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
+    """Franka cloth scene with a base camera."""
+
+    base_camera: CameraCfg = FRANKA_CAMERA_CFG
+
+
+@configclass
 class ActionsCfg:
     """7-dim arm joint position + 1-dim binary gripper."""
 
@@ -185,3 +200,16 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.scene.robot.actuators["panda_hand"].effort_limit_sim = 500.0
         self.scene.robot.actuators["panda_hand"].stiffness = 2000.0
         self.scene.robot.actuators["panda_hand"].damping = 100.0
+
+
+@configclass
+class FrankaClothCameraEnvCfg(FrankaClothEnvCfg):
+    """Visual Franka surface-deformable lifting environment."""
+
+    scene: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
+    observations: FrankaCameraObservationsCfg = FrankaCameraObservationsCfg()
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop).
+        self.num_rerenders_on_reset = 2
