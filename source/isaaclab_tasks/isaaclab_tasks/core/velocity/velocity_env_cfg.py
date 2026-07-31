@@ -48,9 +48,8 @@ class RoughPhysicsCfg(PresetCfg):
     """Shared physics preset for all rough-terrain locomotion envs."""
 
     isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    ovphysx = OvPhysxCfg()
+    ovphysx = OvPhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = physx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=200,
@@ -68,6 +67,7 @@ class RoughPhysicsCfg(PresetCfg):
         # on triangle-mesh terrain. See isaaclab_newton 0.5.22 changelog.
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
+    default = physx
 
 
 ##

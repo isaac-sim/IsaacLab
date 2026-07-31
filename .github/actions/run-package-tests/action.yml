@@ -83,8 +83,8 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
-  wheelhouse-resource:
-    description: 'Optional NGC resource containing wheelhouse/ and manifest.json for offline pip installs'
+  wheelhouse-image:
+    description: 'Optional digest-pinned Docker image containing /wheelhouse and /manifest.json'
     default: ''
     required: false
   wheelhouse-packages:
@@ -216,129 +216,61 @@ runs:
         echo "WARP_CACHE_MB_BEFORE=$(du -sm "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
         echo "Warp cache at $HOST_DIR: $(du -sh "$HOST_DIR" | cut -f1)"
 
-    - name: Restore NGC CLI cache
-      if: inputs.wheelhouse-resource != '' && env.NGC_API_KEY != ''
-      uses: actions/cache@v4
-      with:
-        path: ${{ runner.temp }}/ngc-cli-cache/ngccli_linux.zip
-        key: ngc-cli-${{ runner.os }}-${{ runner.arch }}-4.20.0-5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b
+    - name: Setup wheelhouse registry authentication
+      if: inputs.wheelhouse-image != ''
+      uses: ./.github/actions/_lib/setup-docker-config
 
     - name: Extract ovphysx wheelhouse
       id: extract-wheelhouse
-      if: inputs.wheelhouse-resource != ''
+      if: inputs.wheelhouse-image != ''
       shell: bash
       env:
-        WHEELHOUSE_RESOURCE: ${{ inputs.wheelhouse-resource }}
+        WHEELHOUSE_IMAGE: ${{ inputs.wheelhouse-image }}
       run: |
         set -euo pipefail
 
-        if [ -z "${NGC_API_KEY:-}" ]; then
-          echo "::error::wheelhouse-resource is set but NGC_API_KEY is unavailable; cannot download configured wheelhouse resource"
+        if [[ "$WHEELHOUSE_IMAGE" != *@sha256:* ]]; then
+          echo "::error::wheelhouse-image must be pinned by digest"
           exit 1
         fi
 
-        NGC_CLI_VERSION="4.20.0"
-        NGC_CLI_SHA256="5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b"
-        NGC_CLI_URL="https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/ngccli_linux.zip"
-
         wheelhouse_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ovphysx-wheelhouse.XXXXXX")"
-        download_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ovphysx-wheelhouse-download.XXXXXX")"
-        ngc_home="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ovphysx-ngc-home.XXXXXX")"
-        ngc_unpack_dir=""
-        preserve_wheelhouse_root=false
+        container_id=""
+        image_pulled=false
+        preserve_root=false
         cleanup() {
-          if [ "$preserve_wheelhouse_root" != "true" ]; then
-            rm -rf "$wheelhouse_root"
+          if [ -n "$container_id" ]; then
+            docker rm -f "$container_id" >/dev/null 2>&1 || true
           fi
-          rm -rf "$download_root" "$ngc_home"
-          if [ -n "$ngc_unpack_dir" ]; then
-            rm -rf "$ngc_unpack_dir"
+          if [ "$image_pulled" = "true" ]; then
+            docker image rm "$WHEELHOUSE_IMAGE" >/dev/null 2>&1 || true
+          fi
+          if [ "$preserve_root" != "true" ]; then
+            rm -rf "$wheelhouse_root"
           fi
         }
         trap cleanup EXIT
 
-        if ! command -v ngc >/dev/null 2>&1; then
-          cache_dir="${RUNNER_TEMP:-/tmp}/ngc-cli-cache"
-          ngc_zip="${cache_dir}/ngccli_linux.zip"
-          mkdir -p "$cache_dir"
-          if [ ! -f "$ngc_zip" ]; then
-            echo "Downloading NGC CLI ${NGC_CLI_VERSION}"
-            curl -fsSL -o "$ngc_zip" "$NGC_CLI_URL"
-          fi
-          echo "${NGC_CLI_SHA256}  ${ngc_zip}" | sha256sum -c -
-          ngc_unpack_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ngc-cli.XXXXXX")"
-          unzip -q "$ngc_zip" -d "$ngc_unpack_dir"
-          export PATH="${ngc_unpack_dir}/ngc-cli:${PATH}"
-        fi
+        docker pull "$WHEELHOUSE_IMAGE"
+        image_pulled=true
+        container_id="$(docker create "$WHEELHOUSE_IMAGE")"
+        docker cp "${container_id}:/wheelhouse" "$wheelhouse_root/wheelhouse"
+        docker cp "${container_id}:/manifest.json" "$wheelhouse_root/manifest.json"
+        docker rm "$container_id"
+        container_id=""
+        docker image rm "$WHEELHOUSE_IMAGE" >/dev/null 2>&1 || true
+        image_pulled=false
 
-        export NGC_CLI_API_KEY="$NGC_API_KEY"
-        export NGC_CLI_ORG=nvidian
-        export NGC_CLI_TEAM=no-team
-        export NGC_CLI_HOME="$ngc_home"
-
-        ngc --version
-        echo "Downloading wheelhouse resource: $WHEELHOUSE_RESOURCE"
-        ngc registry resource download-version "$WHEELHOUSE_RESOURCE" --dest "$download_root"
-
-        mapfile -t manifests < <(find "$download_root" -type f -name manifest.json)
-        if [ "${#manifests[@]}" -ne 1 ]; then
-          echo "::error::expected exactly one manifest.json in downloaded wheelhouse resource, found ${#manifests[@]}"
-          printf '%s\n' "${manifests[@]}"
-          exit 1
-        fi
-
-        payload_dir="$(dirname "${manifests[0]}")"
-        if [ ! -d "${payload_dir}/wheelhouse" ]; then
-          echo "::error::downloaded wheelhouse resource is missing wheelhouse/ next to manifest.json"
-          exit 1
-        fi
-
-        mkdir -p "$wheelhouse_root/wheelhouse"
-        cp "${payload_dir}/manifest.json" "$wheelhouse_root/manifest.json"
-        cp "${payload_dir}/wheelhouse/"*.whl "$wheelhouse_root/wheelhouse/"
-
-        python3 - <<'PY' "$wheelhouse_root/manifest.json" "$wheelhouse_root/wheelhouse"
-        import hashlib
-        import json
-        import pathlib
-        import sys
-
-        manifest_path = pathlib.Path(sys.argv[1])
-        wheelhouse_dir = pathlib.Path(sys.argv[2])
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-
-        expected = {
-            "artifact": "ovphysx-wheelhouse",
-            "platform": "manylinux_2_35_x86_64",
-        }
-        for key, value in expected.items():
-            actual = manifest.get(key)
-            if actual != value:
-                raise SystemExit(f"manifest {key!r} mismatch: expected {value!r}, got {actual!r}")
-
-        wheels = manifest.get("wheels")
-        if not isinstance(wheels, list) or not wheels:
-            raise SystemExit("manifest has no wheels list")
-
-        for wheel in wheels:
-            filename = wheel.get("file")
-            expected_sha = wheel.get("sha256")
-            if not filename or not expected_sha:
-                raise SystemExit(f"invalid wheel manifest entry: {wheel!r}")
-            wheel_path = wheelhouse_dir / filename
-            if not wheel_path.is_file():
-                raise SystemExit(f"manifest wheel is missing from wheelhouse: {filename}")
-            actual_sha = hashlib.sha256(wheel_path.read_bytes()).hexdigest()
-            if actual_sha != expected_sha:
-                raise SystemExit(f"sha256 mismatch for {filename}: expected {expected_sha}, got {actual_sha}")
-
-        print(f"Validated {len(wheels)} wheelhouse wheels from {manifest_path}")
-        PY
-
-        echo "Wheelhouse contents:"
-        ls -l "$wheelhouse_root/wheelhouse"
-        preserve_wheelhouse_root=true
         echo "wheelhouse_host_dir=$wheelhouse_root" >> "$GITHUB_OUTPUT"
+        preserve_root=true
+
+    - name: Cleanup wheelhouse registry authentication
+      if: always() && inputs.wheelhouse-image != ''
+      shell: bash
+      run: |
+        if [ -n "${DOCKER_CONFIG:-}" ] && [ -d "$DOCKER_CONFIG" ]; then
+          rm -rf "$DOCKER_CONFIG"
+        fi
 
     - name: Run Tests
       uses: ./.github/actions/run-tests
