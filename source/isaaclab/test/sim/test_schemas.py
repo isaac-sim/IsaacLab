@@ -30,7 +30,11 @@ from isaaclab_physx.sim.schemas import (
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyPropertiesCfg,
 )
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg, RigidBodyMaterialCfg
+from isaaclab_physx.sim.spawners.materials import (
+    PhysxRigidBodyMaterialCfg,
+    PhysxSurfaceDeformableBodyMaterialCfg,
+    RigidBodyMaterialCfg,
+)
 
 from pxr import UsdPhysics
 
@@ -401,6 +405,8 @@ def test_deformable_collision_props_land_on_simulation_mesh(setup_simulation):
         size=(0.3, 0.04, 0.04),
         deformable_props=PhysxDeformableBodyPropertiesCfg(),
         collision_props=[PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0005)],
+        # selects the surface branch, which needs no tetrahedralization dependency
+        physics_material=PhysxSurfaceDeformableBodyMaterialCfg(),
     )
     cfg.func("/World/beam_dc", cfg)
 
