@@ -972,7 +972,6 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 self._joint_user_to_backend_map(),
                 self.data.has_joint_ordering,
-                False,
             ],
             outputs=[
                 self._data._joint_pos_buf.data,
