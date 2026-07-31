@@ -225,8 +225,8 @@ Custom MJWarp + VBD Parameters
 The opt-in
 :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` runs
 MJWarp and VBD over one shared model. Import
-:mod:`isaaclab_contrib.custom_coupling` explicitly before using its registered
-task.
+:mod:`isaaclab_contrib.custom_coupling.tasks` explicitly before using its
+registered task.
 
 .. list-table::
     :header-rows: 1

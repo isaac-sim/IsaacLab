@@ -199,11 +199,11 @@ outer simulation loop.
 
       ./isaaclab.sh -i tetrahedralization
 
-The opt-in example is registered only when its module is imported:
+The opt-in example is registered only when its registration module is imported:
 
 .. code-block:: python
 
-   import isaaclab_contrib.custom_coupling
+   import isaaclab_contrib.custom_coupling.tasks
 
 The import registers ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, which
 selects the ``newton_mjwarp_vbd`` preset and uses ``coupling_mode="two_way"``.

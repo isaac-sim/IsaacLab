@@ -3,10 +3,10 @@ isaaclab_contrib.custom_coupling
 
 .. automodule:: isaaclab_contrib.custom_coupling
 
-The custom MJWarp and VBD manager is an opt-in example. Import this module
-explicitly to register ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``. The
-environment requires a full Isaac Lab installation containing
-:mod:`isaaclab_tasks`.
+The custom MJWarp and VBD manager is an opt-in example. Import
+:mod:`isaaclab_contrib.custom_coupling.tasks` explicitly to register
+``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``. The environment requires a
+full Isaac Lab installation containing :mod:`isaaclab_tasks`.
 
   .. rubric:: Classes
 

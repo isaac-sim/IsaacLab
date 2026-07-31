@@ -1,8 +1,9 @@
 Added
 ^^^^^
 
-* Added the opt-in :mod:`isaaclab_contrib.custom_coupling` example. Import the
-  module explicitly to register ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``.
+* Added the opt-in :mod:`isaaclab_contrib.custom_coupling` example. Import
+  :mod:`isaaclab_contrib.custom_coupling.tasks` explicitly to register
+  ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``.
 
 Deprecated
 ^^^^^^^^^^
