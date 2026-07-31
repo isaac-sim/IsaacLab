@@ -396,6 +396,7 @@ class NewtonManager(PhysicsManager):
     _scene_data_mapping: wp.array | None = None
     _scene_data_points: SceneDataFormat.Points | None = None
     _scene_data_geometry_mapping: wp.array | None = None
+    _scene_data_geometry_mapping_ready: bool = False
     _shadow_deformable_entities: list | None = None
     _sim_particle_q: wp.array | None = None
     _mapped_sim_particle_offsets: set[int] | None = None
@@ -969,6 +970,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._scene_data_mapping = None
         NewtonManager._scene_data_points = None
         NewtonManager._scene_data_geometry_mapping = None
+        NewtonManager._scene_data_geometry_mapping_ready = False
         NewtonManager._shadow_deformable_entities = None
         NewtonManager._sim_particle_q = None
         NewtonManager._mapped_sim_particle_offsets = None
@@ -2370,6 +2372,9 @@ class NewtonManager(PhysicsManager):
             stage, env_paths, clone_plan, up_axis=up_axis, device=str(PhysicsManager._device or "cpu")
         )
         NewtonManager._shadow_deformable_entities = shadow_entities
+        NewtonManager._scene_data_geometry_mapping = None
+        NewtonManager._scene_data_geometry_mapping_ready = False
+        NewtonManager._mapped_sim_particle_offsets = None
         cls._invalidate_shadow_deformable_batch_sync()
         sim_particle_total = sum(entity.sim_particle_count for entity in shadow_entities)
         if sim_particle_total > 0:
@@ -2479,12 +2484,14 @@ class NewtonManager(PhysicsManager):
             if cls._scene_data_points is None:
                 cls._scene_data_points = SceneDataFormat.Points()
 
-            if cls._scene_data_geometry_mapping is None and cls._shadow_deformable_entities:
+            if not cls._scene_data_geometry_mapping_ready and cls._shadow_deformable_entities:
                 geometry_paths = [entity.root_path for entity in cls._shadow_deformable_entities]
                 geometry_offsets = [entity.sim_particle_offset for entity in cls._shadow_deformable_entities]
+                # ``None`` is a valid identity mapping from :meth:`create_geometry_mapping`.
                 cls._scene_data_geometry_mapping = scene_data_provider.create_geometry_mapping(
                     geometry_paths, geometry_offsets
                 )
+                cls._scene_data_geometry_mapping_ready = True
 
                 # Invalidate the mapped-offset cache so that it can be rebuilt immediately after.
                 cls._mapped_sim_particle_offsets = None
