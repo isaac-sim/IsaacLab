@@ -447,7 +447,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
+            self.assert_shape_and_dtype(
+                body_poses,
+                (self.num_instances, self.num_bodies),
+                wp.transformf,
+                "body_poses",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
+            )
         else:
             self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
         wp.launch(
@@ -549,7 +555,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
+            self.assert_shape_and_dtype(
+                body_poses,
+                (self.num_instances, self.num_bodies),
+                wp.transformf,
+                "body_poses",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
+            )
         else:
             self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
         wp.launch(
@@ -657,7 +669,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
             self.assert_shape_and_dtype(
-                body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
+                body_velocities,
+                (self.num_instances, self.num_bodies),
+                wp.spatial_vectorf,
+                "body_velocities",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
             )
         else:
             self.assert_shape_and_dtype(
@@ -774,7 +790,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
             self.assert_shape_and_dtype(
-                body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
+                body_velocities,
+                (self.num_instances, self.num_bodies),
+                wp.spatial_vectorf,
+                "body_velocities",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
             )
         else:
             self.assert_shape_and_dtype(
@@ -886,7 +906,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
+            self.assert_shape_and_dtype(
+                masses,
+                (self.num_instances, self.num_bodies),
+                wp.float32,
+                "masses",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
+            )
         else:
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
@@ -971,7 +997,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
+            self.assert_shape_and_dtype(
+                coms,
+                (self.num_instances, self.num_bodies),
+                wp.transformf,
+                "coms",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
+            )
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
@@ -1060,7 +1092,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
+            self.assert_shape_and_dtype(
+                inertias,
+                (self.num_instances, self.num_bodies, 9),
+                wp.float32,
+                "inertias",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
+            )
         else:
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
@@ -1419,6 +1457,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             return view_ids
         cpu_view_ids = self._cpu_view_ids_view(count)
         wp.copy(cpu_view_ids, view_ids)
+        wp.synchronize_stream(self.device)
         return cpu_view_ids
 
     def _sim_view_ids_view(self, count: int) -> wp.array:

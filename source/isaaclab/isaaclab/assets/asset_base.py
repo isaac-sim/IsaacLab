@@ -325,9 +325,16 @@ class AssetBase(ABC):
         wp.transformf: (7,),
         wp.spatial_vectorf: (6,),
     }
+    _SHAPE_AXIS_LIMITS = (("env_ids", "num_instances"),)
 
     def assert_shape_and_dtype(
-        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
+        self,
+        tensor: float | torch.Tensor | wp.array,
+        shape: tuple[int, ...],
+        dtype: type,
+        name: str = "",
+        *,
+        axis_sizes: tuple[int, ...] | None = None,
     ) -> None:
         """Assert the shape and dtype of a tensor or warp array.
 
@@ -339,10 +346,14 @@ class AssetBase(ABC):
             shape: The expected leading dimensions (e.g. ``(num_envs, num_joints)``).
             dtype: The expected warp dtype.
             name: Optional parameter name for error messages.
+            axis_sizes: Optional selector sizes. Defaults to the expected leading dimensions.
         """
         if self._check_shapes:
             cls = type(self).__name__
             prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            for size, (axis_name, limit_name) in zip(axis_sizes or shape, self._SHAPE_AXIS_LIMITS):
+                limit = getattr(self, limit_name)
+                assert size <= limit, f"{prefix}{axis_name} size exceeds asset dimension: {size} > {limit}"
             if isinstance(tensor, (int, float)):
                 return
             elif isinstance(tensor, wp.array):

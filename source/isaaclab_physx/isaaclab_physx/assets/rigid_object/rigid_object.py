@@ -350,7 +350,9 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(root_pose, (self.num_instances,), wp.transformf, "root_pose")
+            self.assert_shape_and_dtype(
+                root_pose, (self.num_instances,), wp.transformf, "root_pose", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -438,7 +440,9 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(root_pose, (self.num_instances,), wp.transformf, "root_pose")
+            self.assert_shape_and_dtype(
+                root_pose, (self.num_instances,), wp.transformf, "root_pose", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -532,7 +536,13 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(root_velocity, (self.num_instances,), wp.spatial_vectorf, "root_velocity")
+            self.assert_shape_and_dtype(
+                root_velocity,
+                (self.num_instances,),
+                wp.spatial_vectorf,
+                "root_velocity",
+                axis_sizes=(env_ids.shape[0],),
+            )
         else:
             self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -628,7 +638,13 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(root_velocity, (self.num_instances,), wp.spatial_vectorf, "root_velocity")
+            self.assert_shape_and_dtype(
+                root_velocity,
+                (self.num_instances,),
+                wp.spatial_vectorf,
+                "root_velocity",
+                axis_sizes=(env_ids.shape[0],),
+            )
         else:
             self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -726,7 +742,9 @@ class RigidObject(BaseRigidObject):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
+            self.assert_shape_and_dtype(
+                masses, (self.num_instances, self.num_bodies), wp.float32, "masses", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
@@ -815,7 +833,9 @@ class RigidObject(BaseRigidObject):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
+            self.assert_shape_and_dtype(
+                coms, (self.num_instances, self.num_bodies), wp.transformf, "coms", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
@@ -904,7 +924,13 @@ class RigidObject(BaseRigidObject):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
+            self.assert_shape_and_dtype(
+                inertias,
+                (self.num_instances, self.num_bodies, 9),
+                wp.float32,
+                "inertias",
+                axis_sizes=(env_ids.shape[0],),
+            )
         else:
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:

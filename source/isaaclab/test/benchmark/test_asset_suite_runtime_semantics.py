@@ -290,7 +290,12 @@ def test_newton_articulation_open_targets_constructs_real_method_and_data_target
 
 @pytest.mark.parametrize("runtime", (physx_runtime, ovphysx_runtime))
 def test_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch, runtime) -> None:
+    module_name = "isaaclab_physx.assets.articulation.articulation"
+    if runtime is physx_runtime:
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
     runtime._load_runtime_symbols()
+    if runtime is physx_runtime:
+        assert sys.modules[module_name].Articulation is runtime.Articulation
     zeros = wp.zeros
     empty = wp.empty
     monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: zeros(*args, **(kwargs | {"pinned": False})))
@@ -306,7 +311,7 @@ def test_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch, runtim
 
 
 @pytest.mark.parametrize("runtime", (physx_runtime, ovphysx_runtime))
-def test_collection_reuses_flat_view_id_scratch(monkeypatch, runtime) -> None:
+def test_collection_reuses_bounded_flat_view_id_scratch(monkeypatch, runtime) -> None:
     runtime._load_runtime_symbols()
     if runtime is physx_runtime:
         runtime.PhysxManager.get_physics_sim_view.return_value.get_gravity.return_value = (0.0, 0.0, -9.81)
@@ -323,6 +328,30 @@ def test_collection_reuses_flat_view_id_scratch(monkeypatch, runtime) -> None:
 
     assert first.ptr == second.ptr
     np.testing.assert_array_equal(first.numpy(), [1, 0, 3, 2])
+
+    with pytest.raises(AssertionError, match="env_ids"):
+        target.set_masses_index(
+            masses=wp.ones((3, 2), dtype=wp.float32, device="cpu"),
+            env_ids=wp.array([0, 0, 1], dtype=wp.int64, device="cpu"),
+            body_ids=body_ids,
+        )
+
+    target._device = "cuda:0"
+    gpu_ids = SimpleNamespace(device="cuda:0", shape=(1,))
+    sim_ids = object()
+    cpu_ids = object()
+    calls = []
+    monkeypatch.setattr(target, "_sim_view_ids_view", lambda count: sim_ids)
+    monkeypatch.setattr(target, "_cpu_view_ids_view", lambda count: cpu_ids)
+    monkeypatch.setattr(
+        importlib.import_module(target.__class__.__module__), "resolve_view_ids_kernel", lambda *_: None
+    )
+    monkeypatch.setattr(wp, "launch", lambda *args, **kwargs: None)
+    monkeypatch.setattr(wp, "copy", lambda *args: calls.append("copy"))
+    monkeypatch.setattr(wp, "synchronize_stream", lambda device: calls.append(("sync", device)))
+
+    assert target._env_body_ids_to_view_ids(gpu_ids, gpu_ids, device="cpu") is cpu_ids
+    assert calls == ["copy", ("sync", "cuda:0")]
 
 
 @pytest.mark.parametrize("runtime", (physx_runtime, newton_runtime))

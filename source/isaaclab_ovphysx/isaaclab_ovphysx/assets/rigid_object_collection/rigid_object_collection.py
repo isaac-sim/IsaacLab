@@ -1448,6 +1448,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             return view_ids
         cpu_view_ids = self._cpu_view_ids_view(count)
         wp.copy(cpu_view_ids, view_ids)
+        wp.synchronize_stream(self._device)
         return cpu_view_ids
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:

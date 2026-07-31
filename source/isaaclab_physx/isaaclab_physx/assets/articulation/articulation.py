@@ -590,7 +590,9 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(root_pose, (self.num_instances,), wp.transformf, "root_pose")
+            self.assert_shape_and_dtype(
+                root_pose, (self.num_instances,), wp.transformf, "root_pose", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -681,7 +683,9 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(root_pose, (self.num_instances,), wp.transformf, "root_pose")
+            self.assert_shape_and_dtype(
+                root_pose, (self.num_instances,), wp.transformf, "root_pose", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -849,7 +853,13 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(root_velocity, (self.num_instances,), wp.spatial_vectorf, "root_velocity")
+            self.assert_shape_and_dtype(
+                root_velocity,
+                (self.num_instances,),
+                wp.spatial_vectorf,
+                "root_velocity",
+                axis_sizes=(env_ids.shape[0],),
+            )
         else:
             self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -950,7 +960,13 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(root_velocity, (self.num_instances,), wp.spatial_vectorf, "root_velocity")
+            self.assert_shape_and_dtype(
+                root_velocity,
+                (self.num_instances,),
+                wp.spatial_vectorf,
+                "root_velocity",
+                axis_sizes=(env_ids.shape[0],),
+            )
         else:
             self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -1055,7 +1071,9 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(position, (self.num_instances, self.num_joints), wp.float32, "position")
+            self.assert_shape_and_dtype(
+                position, (self.num_instances, self.num_joints), wp.float32, "position", axis_sizes=(env_ids.shape[0],)
+            )
             self.assert_shape_and_dtype(velocity, (self.num_instances, self.num_joints), wp.float32, "velocity")
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
@@ -1169,7 +1187,9 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(position, (self.num_instances, self.num_joints), wp.float32, "position")
+            self.assert_shape_and_dtype(
+                position, (self.num_instances, self.num_joints), wp.float32, "position", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
@@ -1267,7 +1287,9 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(velocity, (self.num_instances, self.num_joints), wp.float32, "velocity")
+            self.assert_shape_and_dtype(
+                velocity, (self.num_instances, self.num_joints), wp.float32, "velocity", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
@@ -1367,7 +1389,13 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(stiffness, (self.num_instances, self.num_joints), wp.float32, "stiffness")
+            self.assert_shape_and_dtype(
+                stiffness,
+                (self.num_instances, self.num_joints),
+                wp.float32,
+                "stiffness",
+                axis_sizes=(env_ids.shape[0],),
+            )
         else:
             self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "stiffness")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
@@ -1469,7 +1497,9 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(damping, (self.num_instances, self.num_joints), wp.float32, "damping")
+            self.assert_shape_and_dtype(
+                damping, (self.num_instances, self.num_joints), wp.float32, "damping", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(damping, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "damping")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
@@ -1671,7 +1701,9 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(limits, (self.num_instances, self.num_joints), wp.vec2f, "limits")
+            self.assert_shape_and_dtype(
+                limits, (self.num_instances, self.num_joints), wp.vec2f, "limits", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.vec2f, "limits")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
@@ -1786,7 +1818,9 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(limits, (self.num_instances, self.num_joints), wp.float32, "limits")
+            self.assert_shape_and_dtype(
+                limits, (self.num_instances, self.num_joints), wp.float32, "limits", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "limits")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
@@ -1895,7 +1929,9 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(limits, (self.num_instances, self.num_joints), wp.float32, "limits")
+            self.assert_shape_and_dtype(
+                limits, (self.num_instances, self.num_joints), wp.float32, "limits", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "limits")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
@@ -2000,7 +2036,9 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(armature, (self.num_instances, self.num_joints), wp.float32, "armature")
+            self.assert_shape_and_dtype(
+                armature, (self.num_instances, self.num_joints), wp.float32, "armature", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(armature, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "armature")
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
@@ -2122,7 +2160,11 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
             self.assert_shape_and_dtype(
-                joint_friction_coeff, (self.num_instances, self.num_joints), wp.float32, "joint_friction_coeff"
+                joint_friction_coeff,
+                (self.num_instances, self.num_joints),
+                wp.float32,
+                "joint_friction_coeff",
+                axis_sizes=(env_ids.shape[0],),
             )
         else:
             self.assert_shape_and_dtype(
@@ -2280,6 +2322,7 @@ class Articulation(BaseArticulation):
                 (self.num_instances, self.num_joints),
                 wp.float32,
                 "joint_dynamic_friction_coeff",
+                axis_sizes=(env_ids.shape[0],),
             )
         else:
             self.assert_shape_and_dtype(
@@ -2390,6 +2433,7 @@ class Articulation(BaseArticulation):
                 (self.num_instances, self.num_joints),
                 wp.float32,
                 "joint_viscous_friction_coeff",
+                axis_sizes=(env_ids.shape[0],),
             )
         else:
             self.assert_shape_and_dtype(
@@ -2496,7 +2540,9 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
+            self.assert_shape_and_dtype(
+                masses, (self.num_instances, self.num_bodies), wp.float32, "masses", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
@@ -2590,7 +2636,9 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
+            self.assert_shape_and_dtype(
+                coms, (self.num_instances, self.num_bodies), wp.transformf, "coms", axis_sizes=(env_ids.shape[0],)
+            )
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
@@ -2692,7 +2740,13 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
+            self.assert_shape_and_dtype(
+                inertias,
+                (self.num_instances, self.num_bodies, 9),
+                wp.float32,
+                "inertias",
+                axis_sizes=(env_ids.shape[0],),
+            )
         else:
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:

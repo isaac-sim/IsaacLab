@@ -42,7 +42,10 @@ def _load_runtime_symbols() -> None:
         "omni.physics": omni_physics,
         "omni.physics.tensors": omni_physics.tensors,
     }
-    with patch.dict(sys.modules, modules):
+    missing = object()
+    previous_modules = {name: sys.modules.get(name, missing) for name in modules}
+    sys.modules.update(modules)
+    try:
         import numpy as np
         import torch
         import warp as wp
@@ -60,6 +63,12 @@ def _load_runtime_symbols() -> None:
         from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
         from isaaclab_physx.physics import PhysxManager
         from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp, MockRigidBodyViewWarp
+    finally:
+        for name, module in previous_modules.items():
+            if module is missing:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = module
 
 
 def create_test_articulation(

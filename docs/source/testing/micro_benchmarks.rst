@@ -235,35 +235,29 @@ Defaults differ by file; use ``--help`` before creating a comparison command.
 Asset Input Modes
 ~~~~~~~~~~~~~~~~~
 
-Methods indexed only by ``env_ids`` retain two modes:
+Methods indexed only by ``env_ids`` support five selector modes:
 
 ``torch_list``
    Pass environment IDs as Python lists. This includes list-to-tensor
    conversion and represents common convenience-API usage.
 
-``torch_tensor``
-   Pass pre-allocated Torch ``int32`` environment IDs.
-
-Writers with ``joint_ids`` or ``body_ids`` use a five-mode grid. Every mode
-passes the same pre-allocated Torch ``int32`` ``env_ids`` so the measured
-difference comes from the item selector:
-
-``torch_list``
-   Pass item IDs as a Python list.
-
-``torch_tensor_int32``
-   Pass pre-allocated Torch ``int32`` item IDs.
-
-``torch_tensor_int64``
-   Pass pre-allocated Torch ``int64`` item IDs and let the production kernel
-   select its matching specialization.
+``torch_tensor_int32`` and ``torch_tensor_int64``
+   Pass pre-allocated Torch tensors using the corresponding signed index width.
 
 ``warp_int32`` and ``warp_int64``
    Pass pre-allocated Warp arrays using the corresponding signed index width.
 
-``warp_mask``
-   Pass pre-allocated Warp boolean masks. This mode is available for supported
-   Newton and OVPhysX mask APIs.
+Writers with ``joint_ids`` or ``body_ids`` support the same-type modes above
+plus four mixed-width modes:
+
+``torch_tensor_int32_int64`` and ``torch_tensor_int64_int32``
+   Pass Torch environment and item selectors with the widths named in order.
+
+``warp_int32_int64`` and ``warp_int64_int32``
+   Pass Warp environment and item selectors with the widths named in order.
+
+Supported Newton and OVPhysX mask APIs are benchmarked separately with
+pre-allocated Warp boolean masks.
 
 Not every backend or method supports every mode. Compare a mode only when it has
 the same meaning on both sides.
@@ -408,7 +402,7 @@ raw index-kernel phases described above:
 .. code-block:: text
 
    [1/30] [TORCH_LIST] write_root_state_to_sim... 132.02 +/- 6.79 us
-   [1/30] [TORCH_TENSOR] write_root_state_to_sim... 65.44 +/- 3.06 us
+   [1/30] [TORCH_TENSOR_INT64] write_root_state_to_sim... 65.44 +/- 3.06 us
 
 They also write a timestamped JSON file to ``--output_dir`` by default. It
 contains benchmark configuration, hardware/software metadata, phase names, and
@@ -605,7 +599,7 @@ Import or Backend Errors
 
 Confirm the backend is installed in the Python environment selected by
 ``./isaaclab.sh -p``. OVPhysX requires its optional runtime wheel. PhysX
-benchmarks require Isaac Sim.
+sensor benchmarks require Isaac Sim.
 
 CUDA Out of Memory
 ~~~~~~~~~~~~~~~~~~

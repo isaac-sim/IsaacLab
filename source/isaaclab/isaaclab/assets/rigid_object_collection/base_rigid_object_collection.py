@@ -45,6 +45,8 @@ class BaseRigidObjectCollection(AssetBase):
     .. _`USD RigidBodyAPI`: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
 
+    _SHAPE_AXIS_LIMITS = (("env_ids", "num_instances"), ("body_ids", "num_bodies"))
+
     cfg: RigidObjectCollectionCfg
     """Configuration instance for the rigid object."""
 
