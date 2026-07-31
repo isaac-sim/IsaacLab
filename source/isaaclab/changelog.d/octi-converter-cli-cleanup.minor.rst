@@ -1,9 +1,10 @@
 Added
 ^^^^^
 
-* Added a ``require_kit`` argument to :func:`~isaaclab.app.launch_simulation` so a tool can declare
-  that it needs Kit for a reason its config cannot express, such as reaching a Kit-only extension
-  API. The override is additive: it can turn a kitless launch into a Kit one, never the reverse.
+* Added a ``require_kit`` launcher argument, read by :func:`~isaaclab.app.launch_simulation`
+  alongside ``physics``, so a tool can declare that it needs Kit for a reason its config cannot
+  express, such as reaching a Kit-only extension API. The override is additive: it can turn a
+  kitless launch into a Kit one, never the reverse.
 
 Changed
 ^^^^^^^

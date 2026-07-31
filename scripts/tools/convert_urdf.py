@@ -83,9 +83,9 @@ args_cli = parser.parse_args()
 # and the kitless visualizers can host the preview.
 try:
     metadata.distribution("isaacsim-asset-isolated")
-    REQUIRE_KIT = False
+    args_cli.require_kit = False
 except metadata.PackageNotFoundError:
-    REQUIRE_KIT = True
+    args_cli.require_kit = True
 
 import os  # noqa: E402
 
@@ -170,7 +170,7 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli, require_kit=REQUIRE_KIT) as physics_cfg:
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         # Create Urdf converter and import the file
         urdf_converter = UrdfConverter(urdf_converter_cfg)
         # print output
