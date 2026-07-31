@@ -1,3 +1,12 @@
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.sim.SimulationContext.require_visual_shapes` and
+  :attr:`~isaaclab.sim.SimulationContext.visual_shapes_required`, which let a sensor declare
+  before cloning that it draws visual-only geometry. :class:`~isaaclab.sensors.Camera` calls it
+  for every renderer backend, so a headless run with cameras still imports the geometry those
+  cameras render.
+
 Changed
 ^^^^^^^
 

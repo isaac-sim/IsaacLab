@@ -103,9 +103,10 @@ class TestClonerVisualShapeImport:
 
 
 class _StubSim:
-    def __init__(self, is_rendering: bool, can_render_rgb_array: bool):
+    def __init__(self, is_rendering: bool, can_render_rgb_array: bool, visual_shapes_required: bool = False):
         self.is_rendering = is_rendering
         self._can_render_rgb_array = can_render_rgb_array
+        self.visual_shapes_required = visual_shapes_required
 
     def can_render_rgb_array(self) -> bool:
         return self._can_render_rgb_array
@@ -132,6 +133,13 @@ class TestRendererWantsVisualShapes:
     def test_active_viewer_keeps_visual_shapes(self, monkeypatch):
         """A running viewer draws the shapes."""
         self._patch_sim(monkeypatch, _StubSim(is_rendering=True, can_render_rgb_array=False))
+        assert replicate_module._renderer_wants_visual_shapes() is True
+
+    def test_camera_sensor_keeps_visual_shapes(self, monkeypatch):
+        """A camera on a non-Kit renderer draws the shapes without flipping any render setting."""
+        self._patch_sim(
+            monkeypatch, _StubSim(is_rendering=False, can_render_rgb_array=False, visual_shapes_required=True)
+        )
         assert replicate_module._renderer_wants_visual_shapes() is True
 
     def test_missing_simulation_context_keeps_visual_shapes(self, monkeypatch):

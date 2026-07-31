@@ -118,16 +118,16 @@ def _build_newton_builder_from_mapping(
 def _renderer_wants_visual_shapes() -> bool:
     """Whether anything in this run will draw the Newton model's visual-only shapes.
 
-    Visual shapes are consumed by the viewers, offscreen ``rgb_array`` capture, and RTX
-    sensors. A headless training run draws none of them, so importing them only costs
-    USD parse time and memory.
+    Visual shapes are consumed by the viewers, offscreen ``rgb_array`` capture, and camera
+    sensors on any renderer backend. A headless training run without cameras draws none of
+    them, so importing them only costs USD parse time and memory.
     """
     from isaaclab.sim import SimulationContext
 
     sim = SimulationContext.instance()
     if sim is None:
         return True
-    return bool(sim.is_rendering or sim.can_render_rgb_array())
+    return bool(sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required)
 
 
 class NewtonReplicateContext:

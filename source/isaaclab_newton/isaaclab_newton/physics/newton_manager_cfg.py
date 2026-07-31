@@ -179,8 +179,8 @@ class NewtonCfg(PhysicsCfg):
     load_visual_shapes: bool | None = None
     """Whether Newton replication imports visual-only geometry from USD.
 
-    ``None`` imports it only when a viewer, an offscreen ``rgb_array`` capture, or an
-    RTX sensor is active, so headless training does not pay the USD parse time and
+    ``None`` imports it only when a viewer, an offscreen ``rgb_array`` capture, or a
+    camera sensor is active, so headless training does not pay the USD parse time and
     memory for shapes nothing draws. Set to ``True`` to always import it, which is
     needed when a ray-cast sensor must hit geometry that carries no collider.
     """
