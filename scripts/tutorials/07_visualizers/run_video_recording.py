@@ -87,7 +87,7 @@ def _output_dir(example: int) -> str:
 
 def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
     """Build a base Shadow Hand camera env cfg shared by all examples."""
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
 
     env_cfg = ShadowHandCameraEnvCfg()
     env_cfg.tiled_camera = env_cfg.tiled_camera.rgb
