@@ -565,14 +565,6 @@ class TerminationsCfg:
         params={"asset_cfg": SceneEntityCfg("deformable")},
     )
 
-    # The measured divergence poisons the beam too, so deformable_invalid resets that case. This
-    # covers a robot-only divergence: every reward term is deformable-driven and sanitized, and the
-    # other robot terminations fail open on NaN, so nothing else would ever reset the environment.
-    robot_invalid = DoneTerm(
-        func=mdp.robot_state_invalid,
-        params={"asset_cfg": SceneEntityCfg("robot")},
-    )
-
 
 ##
 # Environment configuration

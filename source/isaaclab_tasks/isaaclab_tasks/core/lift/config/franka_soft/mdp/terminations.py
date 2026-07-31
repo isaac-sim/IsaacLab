@@ -114,38 +114,6 @@ def deformable_state_invalid(
     return ~valid
 
 
-def robot_state_invalid(
-    env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    position_limit: float = 1.0e4,
-) -> torch.Tensor:
-    """Terminate when the robot state is no longer numerically valid.
-
-    Robot-side analogue of :func:`deformable_state_invalid`. The coupled rigid/soft solve can turn
-    an environment's whole state non-finite in a single step, and MuJoCo Warp warm-starts the next
-    substep from that state, so the environment stays dead until it is reset. The other robot
-    terminations fail open here, since ``abs(NaN) > limit`` and ``NaN < limit`` are both ``False``.
-
-    This reads the raw state, unlike the sanitized accessors used by the reward and observation
-    terms, which would otherwise mask the divergence.
-
-    Args:
-        env: The environment instance.
-        asset_cfg: The robot entity.
-        position_limit: Maximum absolute body position component treated as valid [m].
-
-    Returns:
-        Boolean tensor with shape ``(num_envs,)``.
-    """
-    asset: Articulation = env.scene[asset_cfg.name]
-    body_pos_w = asset.data.body_pos_w.torch
-    valid = torch.isfinite(asset.data.joint_pos.torch).all(dim=1)
-    valid &= torch.isfinite(asset.data.joint_vel.torch).all(dim=1)
-    valid &= torch.isfinite(body_pos_w).flatten(1).all(dim=1)
-    valid &= (body_pos_w.abs() <= position_limit).flatten(1).all(dim=1)
-    return ~valid
-
-
 def joint_vel_out_of_sim_limit(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:

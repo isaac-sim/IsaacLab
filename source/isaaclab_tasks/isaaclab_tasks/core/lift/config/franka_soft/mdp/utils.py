@@ -21,9 +21,8 @@ pre-reset paths (an active recorder term, or ``compute_final_obs``) also read th
 Reward terms, and the deformable observation terms, therefore read state through the helpers below,
 which replace non-finite entries with ``0.0``. This places a diverged body at the world origin,
 yielding a finite but meaningless value for exactly one step. That is intentional and acceptable,
-because :func:`~isaaclab_tasks.core.lift.config.franka_soft.mdp.deformable_state_invalid` and
-:func:`~isaaclab_tasks.core.lift.config.franka_soft.mdp.robot_state_invalid` flag the same step from
-the raw state and the environment is reset immediately.
+because :func:`~isaaclab_tasks.core.lift.config.franka_soft.mdp.deformable_state_invalid` flags the
+same step from the raw state and the environment is reset immediately.
 
 The robot's root pose is deliberately left raw: the Franka is fixed-base, so body 0 is welded and
 its transform has no joint-state dependence, keeping it finite while every descendant body goes

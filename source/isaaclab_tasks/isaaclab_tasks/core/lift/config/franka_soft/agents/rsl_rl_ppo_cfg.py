@@ -55,7 +55,7 @@ class FrankaDeformablePPORunnerCfg(RslRlOnPolicyRunnerCfg):
 @configclass
 class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 50000
+    max_iterations = 5000
     save_interval = 50
     experiment_name = "franka_deformable_camera"
     obs_groups = {
