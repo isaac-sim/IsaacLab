@@ -65,12 +65,11 @@ class ShadowDeformableRegistryGroup:
 def _needs_volume_vis_remap(entry: DeformableStageEntry) -> bool:
     """Return ``True`` if this volume body needs barycentric sim-to-visual remapping.
 
-    Required when sim and visual vertex counts differ and a visual triangle mesh is
-    available (non-empty ``vis_vertices`` / ``vis_indices``).
+    Required when a visual triangle mesh exists on a different prim from the sim mesh.
     """
     return (
         entry.deformable_type == "volume"
-        and entry.vis_vertex_count != entry.vertex_count
+        and entry.vis_mesh_path != entry.sim_mesh_path
         and entry.vis_vertices.size > 0
         and entry.vis_indices.size > 0
     )
@@ -169,7 +168,7 @@ def add_shadow_deformables_to_builder(
             vis_mesh_prim_path=wildcard_vis,
             deformable_type=template.deformable_type,
             particles_per_body=render_count,
-            register_usd_vis_point_bindings=uses_remap or template.vertex_count == template.vis_vertex_count,
+            register_usd_vis_point_bindings=uses_remap or template.sim_mesh_path == template.vis_mesh_path,
         )
 
         group_volume_vis_remap = _build_volume_vis_remap(template, device) if uses_remap else None
