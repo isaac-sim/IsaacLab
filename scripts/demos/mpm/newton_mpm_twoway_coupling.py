@@ -80,6 +80,7 @@ def create_sim_cfg():
     from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg
 
     import isaaclab.sim as sim_utils
+
     from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     solver_cfg = CouplerProxyCfg(
@@ -188,9 +189,7 @@ def run_simulator(sim, scene) -> None:
     """Run until the viewer closes or the optional step limit is reached."""
     sim_dt = sim.get_physics_dt()
     step_count = 0
-    while sim.is_headless_or_exist_active_visualizer() and (
-        args_cli.max_steps < 0 or step_count < args_cli.max_steps
-    ):
+    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         sim.step(render=False)
         scene.update(sim_dt)
         if sim.is_rendering:
