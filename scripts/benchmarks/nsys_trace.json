@@ -27,11 +27,11 @@
         "functions": ["backward"]
     },
     {
-        "_comment": "=== USD (verified working) ===",
+        "_comment": "=== USD === Do NOT trace pxr.UsdGeom schema types (Xform, Mesh, Sphere, Cube). nsys replaces each traced attribute with a wrapper function, so UsdGeom.Mesh stops being a TfType-registered class and every prim.IsA(UsdGeom.Mesh) in the process raises 'cannot convert <function Mesh> to TfType'. This breaks USD import for any asset that reaches Newton's deformable scouting (e.g. Isaac-Lift-KukaAllegro-Camera). Only trace plain functions here, never schema classes.",
         "domain": "USD",
         "color": "0x795548",
         "module": "pxr.UsdGeom",
-        "functions": ["Xform", "Mesh", "Sphere", "Cube"]
+        "functions": []
     },
     {
         "_comment": "=== ISAACLAB ENVIRONMENTS ===",
@@ -164,23 +164,75 @@
         ]
     },
     {
+        "_comment": "=== OVRTX RENDERER: path-agnostic entry points (both the legacy and ovstage paths) ===",
         "domain": "OVRTXRenderer",
         "color": "0x76B800",
         "module": "isaaclab_ov.renderers.ovrtx_renderer",
         "functions": [
             "OVRTXRenderer.prepare_stage",
             "OVRTXRenderer.create_render_data",
-            "OVRTXRenderer._clone_sources_in_ovrtx",
-            "OVRTXRenderer._update_scene_partitions_after_clone",
-            "OVRTXRenderer._setup_object_bindings",
             "OVRTXRenderer.update_transforms",
+            "OVRTXRenderer.update_geometries",
+            "OVRTXRenderer.update_camera",
             "OVRTXRenderer.render",
             "OVRTXRenderer.read_output",
             {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "create_scene_partition_attributes"},
             {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "export_stage_to_string"},
-            {"module": "ovrtx", "function": "Renderer.open_usd_from_string", "color": "0x87CEEB"},
+            {"module": "ovrtx", "function": "Renderer.open_usd_from_string", "color": "0x87CEEB"}
+        ]
+    },
+    {
+        "_comment": "=== OVRTX RENDERER: legacy (renderer-owned scene) path, active when ISAAC_LAB_OVRTX_USE_OVSTAGE is unset ===",
+        "domain": "OVRTXRenderer-legacy",
+        "color": "0x9CCC65",
+        "module": "isaaclab_ov.renderers.ovrtx_renderer",
+        "functions": [
+            "OVRTXRenderer._initialize_from_spec_legacy",
+            "OVRTXRenderer._clone_sources_in_ovrtx",
+            "OVRTXRenderer._update_scene_partitions_after_clone",
+            "OVRTXRenderer._setup_xform_bindings_legacy",
+            "OVRTXRenderer._setup_deformable_bindings_legacy",
+            "OVRTXRenderer._setup_particle_bindings_legacy",
+            "OVRTXRenderer._update_transforms_legacy",
+            "OVRTXRenderer._update_geometries_legacy",
+            "OVRTXRenderer._update_camera_legacy",
+            "OVRTXRenderer._render_legacy",
             {"module": "ovrtx", "function": "Renderer.bind_attribute", "color": "0x87CEEB"},
             {"module": "ovrtx", "function": "Renderer.write_attribute", "color": "0x87CEEB"}
+        ]
+    },
+    {
+        "_comment": "=== OVRTX RENDERER: ovstage (split-ownership) path, active when ISAAC_LAB_OVRTX_USE_OVSTAGE=1 ===",
+        "domain": "OVRTXRenderer-ovstage",
+        "color": "0x00897B",
+        "module": "isaaclab_ov.renderers.ovrtx_renderer",
+        "functions": [
+            "OVRTXRenderer._initialize_from_spec_ovstage",
+            "OVRTXRenderer._clone_sources_ovstage",
+            "OVRTXRenderer._update_scene_partitions_after_clone_ovstage",
+            "OVRTXRenderer._setup_xform_bindings_ovstage",
+            "OVRTXRenderer._setup_deformable_bindings_ovstage",
+            "OVRTXRenderer._setup_particle_bindings_ovstage",
+            "OVRTXRenderer._update_transforms_ovstage",
+            "OVRTXRenderer._update_geometries_ovstage",
+            "OVRTXRenderer._write_particle_q_slices_ovstage",
+            "OVRTXRenderer._update_camera_ovstage",
+            "OVRTXRenderer._render_ovstage"
+        ]
+    },
+    {
+        "_comment": "=== OVSTAGE: stage-side calls. Operation.wait is the blocking barrier -- time here is a stall, not work ===",
+        "domain": "ovstage",
+        "color": "0x26A69A",
+        "module": "ovstage",
+        "functions": [
+            {"function": "Stage.write_attribute", "color": "0x4DB6AC"},
+            {"function": "Stage.advance_write_floor", "color": "0xFF7043"},
+            {"function": "Stage.query", "color": "0x80CBC4"},
+            {"function": "Stage.release_query", "color": "0x80CBC4"},
+            {"function": "Stage.release_op", "color": "0x80CBC4"},
+            {"function": "Operation.wait", "color": "0xFF7043"},
+            {"function": "make_dltensor", "color": "0xB2DFDB"}
         ]
     }
 ]
