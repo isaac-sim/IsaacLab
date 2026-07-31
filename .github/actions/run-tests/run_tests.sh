@@ -370,6 +370,12 @@ run_tests() {
           ./isaaclab.sh -p -m pip install uv
         fi
         \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_user_site}\" \${TEST_EXTRA_UV_PACKAGES}
+        # Isaac Sim puts bundled packages ahead of the user site. Overlay only
+        # the explicitly requested packages so compatible direct pins win
+        # without shadowing bundled transitive dependencies such as NumPy.
+        isaac_uv_overlay=\"\$(mktemp -d)\"
+        \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_uv_overlay}\" --no-deps \${TEST_EXTRA_UV_PACKAGES}
+        export PYTHONPATH=\"\${isaac_uv_overlay}\${PYTHONPATH:+:\${PYTHONPATH}}\"
       fi
       echo 'Starting pytest with path: $test_path'
       ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
