@@ -349,7 +349,7 @@ class MockArticulationView:
         """Set world transforms of root links.
 
         Args:
-            transforms: Tensor of shape (N, 7) or (len(indices), 7).
+            transforms: Tensor of shape (N, 7).
             indices: Optional indices of articulations to update.
         """
         if self._noop_setters:
@@ -359,7 +359,7 @@ class MockArticulationView:
             self._root_transforms = torch.zeros(self._count, 7, device=self._device)
             self._root_transforms[:, 6] = 1.0
         if indices is not None:
-            self._root_transforms[indices] = transforms
+            self._root_transforms[indices] = transforms[indices]
         else:
             self._root_transforms = transforms
 
@@ -371,7 +371,7 @@ class MockArticulationView:
         """Set velocities of root links.
 
         Args:
-            velocities: Tensor of shape (N, 6) or (len(indices), 6).
+            velocities: Tensor of shape (N, 6).
             indices: Optional indices of articulations to update.
         """
         if self._noop_setters:
@@ -380,7 +380,7 @@ class MockArticulationView:
         if self._root_velocities is None:
             self._root_velocities = torch.zeros(self._count, 6, device=self._device)
         if indices is not None:
-            self._root_velocities[indices] = velocities
+            self._root_velocities[indices] = velocities[indices]
         else:
             self._root_velocities = velocities
 
@@ -394,7 +394,7 @@ class MockArticulationView:
         """Set positions of all DOFs.
 
         Args:
-            positions: Tensor of shape (N, J) or (len(indices), J).
+            positions: Tensor of shape (N, J).
             indices: Optional indices of articulations to update.
         """
         if self._noop_setters:
@@ -403,7 +403,7 @@ class MockArticulationView:
         if self._dof_positions is None:
             self._dof_positions = torch.zeros(self._count, self._num_dofs, device=self._device)
         if indices is not None:
-            self._dof_positions[indices] = positions
+            self._dof_positions[indices] = positions[indices]
         else:
             self._dof_positions = positions
 
@@ -415,7 +415,7 @@ class MockArticulationView:
         """Set velocities of all DOFs.
 
         Args:
-            velocities: Tensor of shape (N, J) or (len(indices), J).
+            velocities: Tensor of shape (N, J).
             indices: Optional indices of articulations to update.
         """
         if self._noop_setters:
@@ -424,7 +424,7 @@ class MockArticulationView:
         if self._dof_velocities is None:
             self._dof_velocities = torch.zeros(self._count, self._num_dofs, device=self._device)
         if indices is not None:
-            self._dof_velocities[indices] = velocities
+            self._dof_velocities[indices] = velocities[indices]
         else:
             self._dof_velocities = velocities
 

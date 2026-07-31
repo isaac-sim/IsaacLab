@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     from isaaclab.managers.command_manager import CommandTerm
     from isaaclab.sensors import ContactSensor
 
+    from .commands.pose_command import UniformPoseCommand
+
 """
 MDP terminations.
 """
@@ -41,6 +43,20 @@ def command_resample(env: ManagerBasedRLEnv, command_name: str, num_resamples: i
     """
     command: CommandTerm = env.command_manager.get_term(command_name)
     return torch.logical_and((command.time_left <= env.step_dt), (command.command_counter == num_resamples))
+
+
+def pose_command_success(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Terminate environments whose pose command satisfies all configured success thresholds.
+
+    Args:
+        env: The environment instance.
+        command_name: Name of the uniform pose command term.
+
+    Returns:
+        A boolean tensor indicating which environments satisfy the pose command.
+    """
+    command: UniformPoseCommand = env.command_manager.get_term(command_name)
+    return command.compute_success()
 
 
 """

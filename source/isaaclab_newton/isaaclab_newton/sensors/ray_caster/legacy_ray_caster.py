@@ -16,7 +16,7 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import resolve_clone_plan_source
+from isaaclab import cloner
 from isaaclab.sensors.ray_caster.base_multi_mesh_ray_caster import BaseMultiMeshRayCaster
 from isaaclab.sensors.ray_caster.base_multi_mesh_ray_caster_camera import BaseMultiMeshRayCasterCamera
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
@@ -48,7 +48,7 @@ class _LegacyNewtonRayCasterMixin(_NewtonRayCasterPoseMixin):
     def _resolve_target_owner_exprs(self, prim_expr: str) -> list[str]:
         """Resolve mesh target expressions to owning rigid-body expressions."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        resolved = resolve_clone_plan_source(prim_expr, plan) if plan is not None else None
+        resolved = cloner.query.path_to_source(plan, prim_expr) if plan is not None else None
         if resolved is not None:
             source_path, dest_glob, asset_suffix = resolved
             walk_root = source_path + asset_suffix

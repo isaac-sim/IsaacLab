@@ -90,10 +90,11 @@ modes. The **Presets** column in each table below is divided into three labeled 
 
 * **physics=** — physics-backend name passed as ``physics=NAME``
   (e.g. ``physx``, ``isaacsim_physx``, ``newton_mjwarp``,
-  ``newton_kamino``, ``ovphysx``, ``newton_mjwarp_vbd``). On tasks that
+  ``newton_kamino``, ``ovphysx``, ``newton_mjwarp_vbd_proxy``). On tasks that
   expose automatic PhysX-family selection, ``physx`` uses Isaac Sim PhysX when
-  a Kit renderer or Kit viewer is requested and OvPhysX otherwise; use
-  ``isaacsim_physx`` to force Isaac Sim PhysX.
+  Kit is required and OvPhysX otherwise when the task supports it. Tasks
+  without an OvPhysX alternative fall back to Isaac Sim PhysX; use
+  ``isaacsim_physx`` to force Isaac Sim PhysX directly.
 * **renderer=** — renderer-backend name passed as ``renderer=NAME``
   (e.g. ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``)
 * **presets=** — environment-specific (domain) preset name passed as
@@ -209,13 +210,16 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | World                   | Environment ID               | Description                                                                 | Presets                      |
     +=========================+==============================+=============================================================================+==============================+
-    | |reach-franka|          | |reach-franka-link|          | Move the end-effector to a sampled target pose with the Franka robot        | **physics=** ``physx``,      |
+    | |reach-franka|          | |reach-franka-link|          | Move the end-effector to a sampled target pose with the Franka robot        | **physics=**                 |
+    |                         |                              |                                                                             | ``isaacsim_physx``,          |
     |                         |                              |                                                                             | ``newton_mjwarp``,           |
-    |                         |                              |                                                                             | ``newton_kamino``            |
+    |                         |                              |                                                                             | ``newton_kamino``,           |
+    |                         |                              |                                                                             | ``ovphysx``                  |
+    |                         |                              |                                                                             | **presets=** ``joint_pos``,  |
+    |                         |                              |                                                                             | ``diffik``, ``newton_ik``    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |reach-franka|          | |reach-franka-newton-ik-link|| Move the end-effector to a sampled target pose using Newton relative IK     |                              |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |reach-ur10|            | |reach-ur10-link|            | Move the end-effector to a sampled target pose with the UR10 robot          | **physics=** ``physx``,      |
+    | |reach-ur10|            | |reach-ur10-link|            | Move the end-effector to a sampled target pose with the UR10 robot          | **physics=**                 |
+    |                         |                              |                                                                             | ``isaacsim_physx``,          |
     |                         |                              |                                                                             | ``newton_mjwarp``            |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |deploy-reach-ur10e|    | |deploy-reach-ur10e-link|    | Move the end-effector to a sampled target pose with the UR10e robot         |                              |
@@ -224,10 +228,24 @@ for the lift-cube environment:
     | |lift-cube|             | |lift-cube-link|             | Pick a cube and bring it to a sampled target position with the Franka robot |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |lift-soft-franka|      | |lift-soft-franka-link|      | Pick a deformable soft body and bring it to a sampled target position with  | **physics=** ``physx``,      |
-    |                         |                              | the Franka robot                                                            | ``newton_mjwarp_vbd``        |
+    |                         |                              | the Franka robot                                                            | ``newton_mjwarp_vbd_proxy``  |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |lift-soft-franka|      | |lift-soft-franka-cam-link|  | Camera (vision) variant of the soft-body lift task using RGB observations   | **physics=** ``physx``,      |
+    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``  |
+    |                         |                              |                                                                             | **renderer=**                |
+    |                         |                              |                                                                             | ``isaacsim_rtx``,            |
+    |                         |                              |                                                                             | ``newton_renderer``,         |
+    |                         |                              |                                                                             | ``ovrtx``, ``rtx``           |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |lift-cloth-franka|     | |lift-cloth-franka-link|     | Lift a deformable cloth from a table with the Franka robot                  | **physics=**                 |
-    |                         |                              |                                                                             | ``newton_mjwarp_vbd``        |
+    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``  |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |lift-cloth-franka|     | |lift-cloth-franka-cam-link| | Camera (vision) variant of the cloth lift task using RGB observations       | **physics=**                 |
+    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``  |
+    |                         |                              |                                                                             | **renderer=**                |
+    |                         |                              |                                                                             | ``isaacsim_rtx``,            |
+    |                         |                              |                                                                             | ``newton_renderer``,         |
+    |                         |                              |                                                                             | ``ovrtx``, ``rtx``           |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |stack-cube|            | |stack-cube-link|            | Stack three cubes (bottom to top: blue, red, green) with the Franka robot.  |                              |
     |                         |                              | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       |                              |
@@ -357,8 +375,7 @@ for the lift-cube environment:
 .. |cabi_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_open_drawer.jpg
 .. |g1_assemble_trocar| image:: ../_static/tasks/manipulation/g1_assemble_trocar.jpg
 
-.. |reach-franka-link| replace:: :isaaclab-source:`Isaac-Reach-Franka <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/joint_pos_env_cfg.py>`
-.. |reach-franka-newton-ik-link| replace:: :isaaclab-source:`Isaac-Reach-Franka-Newton-IK-Rel <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/ik_newton_env_cfg.py>`
+.. |reach-franka-link| replace:: :isaaclab-source:`Isaac-Reach-Franka <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/franka_reach_env_cfg.py>`
 .. |reach-ur10-link| replace:: :isaaclab-source:`Isaac-Reach-UR10 <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/ur_10/joint_pos_env_cfg.py>`
 .. |deploy-reach-ur10e-link| replace:: :isaaclab-source:`IsaacContrib-Deploy-Reach-UR10e <source/isaaclab_tasks/isaaclab_tasks/contrib/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`
 .. |lift-cube-link| replace:: :isaaclab-source:`Isaac-Lift-Cube-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka/joint_pos_env_cfg.py>`
@@ -366,6 +383,8 @@ for the lift-cube environment:
 .. |lift-cube-ik-rel-link| replace:: :isaaclab-source:`IsaacContrib-Lift-Cube-Franka-IK-Rel <source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_rel_env_cfg.py>`
 .. |lift-soft-franka-link| replace:: :isaaclab-source:`Isaac-Lift-Soft-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py>`
 .. |lift-cloth-franka-link| replace:: :isaaclab-source:`Isaac-Lift-Cloth-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cloth_env_cfg.py>`
+.. |lift-soft-franka-cam-link| replace:: :isaaclab-source:`Isaac-Lift-Soft-Franka-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py>`
+.. |lift-cloth-franka-cam-link| replace:: :isaaclab-source:`Isaac-Lift-Cloth-Franka-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cloth_env_cfg.py>`
 .. |cabi-franka-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/config/franka/joint_pos_env_cfg.py>`
 .. |franka-direct-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka-Direct <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`
 .. |cube-allegro-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Allegro <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_manager_env_cfg.py>`
@@ -384,10 +403,10 @@ for the lift-cube environment:
 .. |kuka-allegro-reorient-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`
 .. |ka-lift-cam-link| replace:: :isaaclab-source:`Isaac-Lift-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`
 .. |ka-reorient-cam-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`
-.. |cube-shadow-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`
-.. |cube-shadow-ff-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`
-.. |cube-shadow-lstm-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`
-.. |cube-shadow-vis-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Camera-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_camera_env.py>`
+.. |cube-shadow-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
+.. |cube-shadow-ff-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
+.. |cube-shadow-lstm-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
+.. |cube-shadow-vis-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Camera-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_camera_env.py>`
 .. |agibot_place_mug-link| replace:: :isaaclab-source:`IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`
 .. |agibot_place_toy-link| replace:: :isaaclab-source:`IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`
 .. |reach_openarm_bi-link| replace:: :isaaclab-source:`IsaacContrib-Reach-OpenArmBi <source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`
@@ -988,7 +1007,12 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Cloth-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp_vbd``
+      - **physics=** ``newton_mjwarp_vbd_proxy``
+    * - Isaac-Lift-Cloth-Franka-Camera
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - | **physics=** ``newton_mjwarp_vbd_proxy``
+          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
     * - Isaac-Lift-Cube-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
@@ -1001,18 +1025,23 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-KukaAllegro
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
+      - | **physics=** ``newton_mjwarp``, ``ovphysx``, ``isaacsim_physx``
           | **presets=** ``cube``, ``shapes``
     * - Isaac-Lift-KukaAllegro-Camera
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
+      - | **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo128``, ``albedo256``, ``albedo64``, ``cube``, ``depth128``, ``depth256``, ``depth64``, ``duo_camera``, ``raycaster_depth128``, ``raycaster_depth256``, ``raycaster_depth64``, ``rgb128``, ``rgb256``, ``rgb64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``semantic_segmentation64``, ``shapes``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_constant_diffuse64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``, ``simple_shading_full_mdl64``, ``single_camera``
     * - Isaac-Lift-Soft-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp_vbd``, ``newton_mjwarp_vbd_proxy``, ``physx``
+      - **physics=** ``newton_mjwarp_vbd_proxy``, ``physx``
+    * - Isaac-Lift-Soft-Franka-Camera
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - | **physics=** ``newton_mjwarp_vbd_proxy``, ``physx``
+          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
     * - Isaac-Open-Drawer-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1028,19 +1057,16 @@ including disabling runtime perturbations used for training.
     * - Isaac-Reach-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
-    * - Isaac-Reach-Franka-Newton-IK-Rel
-      - Manager Based
-      - **rsl_rl** (PPO)
-      -
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+          | **presets=** ``diffik``, ``joint_pos``, ``newton_ik``
     * - Isaac-Reach-Franka-OSC
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reach-UR10
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reorient-Cube-Allegro
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1075,12 +1101,12 @@ including disabling runtime perturbations used for training.
     * - Isaac-Reorient-KukaAllegro
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
+      - | **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **presets=** ``cube``, ``shapes``
     * - Isaac-Reorient-KukaAllegro-Camera
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp``, ``physx``
+      - | **physics=** ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
           | **presets=** ``albedo128``, ``albedo256``, ``albedo64``, ``cube``, ``depth128``, ``depth256``, ``depth64``, ``duo_camera``, ``raycaster_depth128``, ``raycaster_depth256``, ``raycaster_depth64``, ``rgb128``, ``rgb256``, ``rgb64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``semantic_segmentation64``, ``shapes``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_constant_diffuse64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``, ``simple_shading_full_mdl64``, ``single_camera``
     * - Isaac-Shadow-Handover-Direct
@@ -1307,11 +1333,7 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Reach-Franka-IK-Abs
       - Manager Based
       -
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
-    * - IsaacContrib-Reach-Franka-IK-Rel
-      - Manager Based
-      -
-      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Reach-OpenArm
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)

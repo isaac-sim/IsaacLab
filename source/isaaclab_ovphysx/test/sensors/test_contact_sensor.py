@@ -573,7 +573,7 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
-        clone_plan = cloner.ClonePlan.from_env_0(
+        clone_plan = cloner.clone_plan_from_env_0(
             source="/World/envs/env_0",
             destination="/World/envs/env_{}",
             num_clones=num_envs,

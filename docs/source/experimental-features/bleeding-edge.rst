@@ -64,8 +64,8 @@ The following features are currently available in ``isaaclab_contrib``:
      - API reference: :mod:`~isaaclab_contrib.controllers`
    * - **Newton VBD Deformable Objects**
      - Extended deformable object support using the Newton physics backend with Vertex Block Descent (VBD),
-       including Featherstone and MjWarp coupling managers.
-     - API reference: :mod:`~isaaclab_contrib.deformable`
+       including proxy coupling between MJWarp and VBD.
+     - API reference: :mod:`~isaaclab_contrib.deformable`, :mod:`~isaaclab_contrib.coupling`
 
 Contributing
 ------------

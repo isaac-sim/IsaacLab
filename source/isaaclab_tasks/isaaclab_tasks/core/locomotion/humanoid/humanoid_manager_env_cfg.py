@@ -15,6 +15,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -28,8 +29,9 @@ from isaaclab_assets.robots.humanoid import HUMANOID_CFG  # isort:skip
 
 @configclass
 class HumanoidPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default: PhysxAutoCfg = physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=80,
@@ -137,6 +139,7 @@ class ObservationsCfg:
 class HumanoidObservationsCfg(PresetCfg):
     default: ObservationsCfg = ObservationsCfg()
     physx: ObservationsCfg = ObservationsCfg()
+    isaacsim_physx: ObservationsCfg = physx
     newton_mjwarp: ObservationsCfg = ObservationsCfg()
 
 
