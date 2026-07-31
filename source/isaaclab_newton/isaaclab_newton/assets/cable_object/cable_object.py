@@ -18,7 +18,7 @@ from pxr import UsdGeom
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
 from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import has_deformable_curve_api, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -104,9 +104,11 @@ class CableObject(BaseCableObject):
                 ``(x, y, z, w)``. The Warp shape is (len(env_ids), num_segments), dtype ``wp.transformf``.
             env_ids: Environment indices. If None, all instances are used.
         """
-        self._write_segment_state_to_sim_index(
-            segment_pose, env_ids, wp.transformf, set_segment_pose_to_sim_index, "body_q", "segment_pose"
-        )
+        if isinstance(segment_pose, ProxyArray):
+            segment_pose = segment_pose.warp
+        env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(segment_pose, (env_ids.shape[0], self.num_segments), wp.transformf, "segment_pose")
+        self._write_segment_state_to_sim(segment_pose, env_ids, set_segment_pose_to_sim_index, "body_q", use_mask=False)
 
     def write_segment_pose_to_sim_mask(
         self,
@@ -122,9 +124,14 @@ class CableObject(BaseCableObject):
                 (x, y, z, w). The Warp shape is (num_instances, num_segments), dtype wp.transformf.
             env_mask: Environment mask. If None, all instances are used.
         """
-        self._write_segment_state_to_sim_mask(
-            segment_pose, env_mask, wp.transformf, set_segment_pose_to_sim_mask, "body_q", "segment_pose"
+        if isinstance(segment_pose, ProxyArray):
+            segment_pose = segment_pose.warp
+        if env_mask is None:
+            env_mask = self._ALL_ENV_MASK
+        self.assert_shape_and_dtype_mask(
+            segment_pose, (env_mask,), wp.transformf, "segment_pose", trailing_dims=(self.num_segments,)
         )
+        self._write_segment_state_to_sim(segment_pose, env_mask, set_segment_pose_to_sim_mask, "body_q", use_mask=True)
 
     def write_segment_velocity_to_sim_index(
         self,
@@ -141,13 +148,14 @@ class CableObject(BaseCableObject):
                 ``wp.spatial_vectorf``.
             env_ids: Environment indices. If None, all instances are used.
         """
-        self._write_segment_state_to_sim_index(
-            segment_velocity,
-            env_ids,
-            wp.spatial_vectorf,
-            set_segment_velocity_to_sim_index,
-            "body_qd",
-            "segment_velocity",
+        if isinstance(segment_velocity, ProxyArray):
+            segment_velocity = segment_velocity.warp
+        env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(
+            segment_velocity, (env_ids.shape[0], self.num_segments), wp.spatial_vectorf, "segment_velocity"
+        )
+        self._write_segment_state_to_sim(
+            segment_velocity, env_ids, set_segment_velocity_to_sim_index, "body_qd", use_mask=False
         )
 
     def write_segment_velocity_to_sim_mask(
@@ -165,19 +173,20 @@ class CableObject(BaseCableObject):
                 wp.spatial_vectorf.
             env_mask: Environment mask. If None, all instances are used.
         """
-        self._write_segment_state_to_sim_mask(
-            segment_velocity,
-            env_mask,
-            wp.spatial_vectorf,
-            set_segment_velocity_to_sim_mask,
-            "body_qd",
-            "segment_velocity",
+        if isinstance(segment_velocity, ProxyArray):
+            segment_velocity = segment_velocity.warp
+        if env_mask is None:
+            env_mask = self._ALL_ENV_MASK
+        self.assert_shape_and_dtype_mask(
+            segment_velocity, (env_mask,), wp.spatial_vectorf, "segment_velocity", trailing_dims=(self.num_segments,)
+        )
+        self._write_segment_state_to_sim(
+            segment_velocity, env_mask, set_segment_velocity_to_sim_mask, "body_qd", use_mask=True
         )
 
     def _initialize_impl(self) -> None:
         def is_cable_curve(prim) -> bool:
-            applied_schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
-            return prim.IsA(UsdGeom.BasisCurves) and "PhysicsCurvesDeformableSimAPI" in applied_schemas
+            return prim.IsA(UsdGeom.BasisCurves) and has_deformable_curve_api(prim)
 
         resolve_kwargs = {"predicate": is_cable_curve, "expected_num_matches": 1}
         curve_prim, curve_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
@@ -224,61 +233,31 @@ class CableObject(BaseCableObject):
             return wp.array(list(env_ids), dtype=wp.int32, device=self.device)
         return env_ids
 
-    def _write_segment_state_to_sim_index(
+    def _write_segment_state_to_sim(
         self,
-        value: torch.Tensor | wp.array | ProxyArray,
-        env_ids: Sequence[int] | torch.Tensor | wp.array(dtype=wp.int32) | None,
-        dtype: type,
+        value: torch.Tensor | wp.array,
+        selector: wp.array(dtype=wp.int32) | wp.array(dtype=wp.bool),
         kernel: wp.Kernel,
         state_attribute: str,
-        name: str,
+        *,
+        use_mask: bool,
     ) -> None:
-        """Write a segment state into the active Newton states for selected environments."""
-        env_ids = self._resolve_env_ids(env_ids)
-        if isinstance(value, ProxyArray):
-            value = value.warp
+        """Write a validated segment state into the active Newton states."""
         if isinstance(value, torch.Tensor):
             value = value.contiguous()
-        self.assert_shape_and_dtype(value, (env_ids.shape[0], self.num_segments), dtype, name)
 
         for state in self._iter_states():
             wp.launch(
                 kernel,
-                dim=(env_ids.shape[0], self.num_segments),
-                inputs=[value, env_ids, self.data._sim_bind_root_body_ids, self.data._sim_bind_link_body_ids],
+                dim=(selector.shape[0], self.num_segments),
+                inputs=[value, selector, self.data._sim_bind_root_body_ids, self.data._sim_bind_link_body_ids],
                 outputs=[getattr(state, state_attribute)],
                 device=self.device,
             )
-        SimulationManager.invalidate_body_state(env_ids)
-        self.update(0.0)
-
-    def _write_segment_state_to_sim_mask(
-        self,
-        value: torch.Tensor | wp.array | ProxyArray,
-        env_mask: wp.array(dtype=wp.bool) | None,
-        dtype: type,
-        kernel: wp.Kernel,
-        state_attribute: str,
-        name: str,
-    ) -> None:
-        """Write a segment state into the active Newton states for masked environments."""
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        if isinstance(value, ProxyArray):
-            value = value.warp
-        if isinstance(value, torch.Tensor):
-            value = value.contiguous()
-        self.assert_shape_and_dtype_mask(value, (env_mask,), dtype, name, trailing_dims=(self.num_segments,))
-
-        for state in self._iter_states():
-            wp.launch(
-                kernel,
-                dim=(env_mask.shape[0], self.num_segments),
-                inputs=[value, env_mask, self.data._sim_bind_root_body_ids, self.data._sim_bind_link_body_ids],
-                outputs=[getattr(state, state_attribute)],
-                device=self.device,
-            )
-        SimulationManager.invalidate_body_state(env_mask=env_mask)
+        if use_mask:
+            SimulationManager.invalidate_body_state(env_mask=selector)
+        else:
+            SimulationManager.invalidate_body_state(selector)
         self.update(0.0)
 
     def _iter_states(self):
