@@ -96,8 +96,7 @@ class PhysXDeformableBodyPropertiesCfg:
     r"""Distance below which self-collision is disabled [m].
 
     The default value of -inf indicates that the simulation selects a suitable value.
-    Constrained to range [``rest_offset`` \* 2, inf], where ``rest_offset`` is the collider's
-    :attr:`~isaaclab.sim.schemas.CollisionBaseCfg.rest_offset`.
+    Constrained to range [:attr:`~isaaclab.sim.schemas.CollisionBaseCfg.rest_offset` \* 2, inf].
     """
 
     enable_speculative_c_c_d: bool | None = None
@@ -144,14 +143,12 @@ class PhysxDeformableBodyPropertiesCfg(
     The configuration allows users to specify the properties of the deformable body,
     such as the solver iteration counts, damping, and self-collision.
 
-    An FEM-based deformable body is created by providing a collision mesh and simulation mesh. The collision mesh
-    is used for collision detection and the simulation mesh is used for simulation.
+    An FEM-based deformable body is simulated on a simulation mesh, which also acts as its collider.
 
     See :meth:`modify_deformable_body_properties` for more information.
 
     .. note::
-        Collision offsets are not set here. PhysX reads them off the collider, which for a deformable
-        is its simulation mesh, so they belong on the spawner's ``collision_props``.
+        Collision offsets belong on the mesh spawner's ``collision_props``, not here.
 
     .. note::
         If the values are :obj:`None`, they are not modified. This is useful when you want to set only a subset of

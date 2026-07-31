@@ -49,7 +49,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 65-103, 124-129, 131-140, 145-153, 155-163
+      :emphasize-lines: 65-102, 123-128, 130-139, 144-152, 154-162
       :linenos:
 
 

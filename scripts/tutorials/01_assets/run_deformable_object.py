@@ -82,7 +82,6 @@ def design_scene():
         from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
         deformable_props = PhysxDeformableBodyPropertiesCfg()
-        # PhysX reads the offsets off the collider, which for a deformable is its simulation mesh
         collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
         physics_material = PhysxDeformableBodyMaterialCfg(
             poissons_ratio=poissons_ratio, youngs_modulus=youngs_modulus, density=density

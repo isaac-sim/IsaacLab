@@ -23,10 +23,9 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     Meshes support both rigid and deformable properties. However, their schemas are applied at
     different levels in the USD hierarchy based on the type of the object. These are described below:
 
-    - Deformable body properties: Applied to the parent prim: ``{prim_path}``, which gets a simulation mesh
-      at ``{prim_path}/sim_mesh``.
+    - Deformable body properties: Applied to the parent prim: ``{prim_path}``.
     - Collision properties: Applied to the simulation mesh ``{prim_path}/sim_mesh`` for deformable bodies,
-      otherwise to the mesh prim: ``{prim_path}/geometry/mesh``.
+      and to the mesh prim ``{prim_path}/geometry/mesh`` otherwise.
     - Rigid body properties: Applied to the parent prim: ``{prim_path}``.
 
     where ``{prim_path}`` is the path to the prim in the USD stage and ``{prim_path}/geometry/mesh``
@@ -34,8 +33,8 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     .. note::
         There are mututally exclusive parameters for rigid and deformable properties. If both are set,
-        then an error will be raised. Deformable properties additionally require :attr:`collision_props`
-        to be given as collision fragments, since legacy collision cfgs cannot target the simulation mesh.
+        then an error will be raised. If :attr:`collision_props` is set alongside deformable properties,
+        it must be given as collision fragments, since legacy cfgs cannot target the simulation mesh.
 
     """
 

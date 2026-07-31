@@ -128,7 +128,6 @@ def design_scene():
         if random.random() < 0.5:
             obj_cfg.rigid_props = None
             obj_cfg.deformable_props = sim_utils.DeformableBodyPropertiesCfg()
-            # the offsets are authored on the collider, which for a deformable is its simulation mesh
             obj_cfg.collision_props = [PhysxCollisionCfg(rest_offset=0.0)]
         else:
             obj_cfg.deformable_props = None
