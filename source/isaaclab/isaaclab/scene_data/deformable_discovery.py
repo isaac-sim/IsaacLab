@@ -18,20 +18,6 @@ import isaaclab.sim as sim_utils
 logger = logging.getLogger(__name__)
 
 
-def _get_applied_schema_names(prim) -> set[str]:
-    """Return applied API schema names from composed schemas and explicit ``apiSchemas`` metadata."""
-    names = set(prim.GetAppliedSchemas())
-    api_schemas = prim.GetMetadata("apiSchemas")
-    if isinstance(api_schemas, Sdf.TokenListOp):
-        names.update(str(token) for token in api_schemas.explicitItems)
-    return names
-
-
-def _prim_has_schema(prim, schema_substring: str) -> bool:
-    """Return ``True`` if any applied API schema name contains ``schema_substring``."""
-    return any(schema_substring in name for name in _get_applied_schema_names(prim))
-
-
 @dataclass
 class DeformableStageEntry:
     """One deformable asset instance discovered on the USD stage."""
@@ -50,42 +36,25 @@ class DeformableStageEntry:
     init_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
 
 
-def _is_sim_mesh(prim) -> bool:
-    """Return ``True`` if ``prim`` carries a ``*DeformableSimAPI`` schema."""
-    return _prim_has_schema(prim, "DeformableSimAPI")
+def _get_applied_schema_names(prim) -> set[str]:
+    """Return applied API schema names from composed schemas and explicit ``apiSchemas`` metadata."""
+    names = set(prim.GetAppliedSchemas())
+    api_schemas = prim.GetMetadata("apiSchemas")
+    if isinstance(api_schemas, Sdf.TokenListOp):
+        names.update(str(token) for token in api_schemas.explicitItems)
+    return names
 
 
-def _collect_type_prims(root_prim, type_name: str) -> list:
-    """Collect prims of ``type_name`` under ``root_prim``, including sibling meshes.
-
-    When ``OmniPhysicsDeformableBodyAPI`` is applied directly on a simulation TetMesh or
-    Mesh, the visual Mesh is often a sibling under the parent Xform. Child-only search
-    would miss that sibling and fall back to binding the sim mesh for OVRTX.
-
-    Sibling search only inspects direct children of the parent so nested meshes under
-    unrelated sibling branches are not treated as visual candidates.
-    """
-    stage = root_prim.GetStage()
-    root_path = root_prim.GetPath()
-    prims = list(sim_utils.get_all_matching_child_prims(root_path, lambda p: p.GetTypeName() == type_name, stage=stage))
-    parent = root_prim.GetParent()
-    if parent is not None and parent.IsValid() and root_prim.GetTypeName() in ("TetMesh", "Mesh"):
-        known_paths = {prim.GetPath() for prim in prims}
-        for child in parent.GetChildren():
-            if child.GetTypeName() != type_name or child.GetPath() in known_paths:
-                continue
-            prims.append(child)
-    return prims
+def _prim_has_schema(prim, schema_substring: str) -> bool:
+    """Return ``True`` if any applied API schema name contains ``schema_substring``."""
+    return any(schema_substring in name for name in _get_applied_schema_names(prim))
 
 
 def _mesh_point_count(prim) -> int:
     """Return the number of points authored on a Mesh or TetMesh prim."""
-    if prim.GetTypeName() == "Mesh":
-        pts = UsdGeom.Mesh(prim).GetPointsAttr().Get()
-    elif prim.GetTypeName() == "TetMesh":
-        pts = UsdGeom.TetMesh(prim).GetPointsAttr().Get()
-    else:
+    if prim.GetTypeName() not in ("Mesh", "TetMesh"):
         return 0
+    pts = UsdGeom.PointBased(prim).GetPointsAttr().Get()
     return len(pts or [])
 
 
@@ -98,9 +67,11 @@ def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: i
     """
     if not vis_candidates:
         return sim_mesh_prim
+
     if len(vis_candidates) == 1:
         return vis_candidates[0]
 
+    # Rare case that the sim mesh has multiple visual candidates.
     sim_parent = sim_mesh_prim.GetParent()
     sim_parent_path = sim_parent.GetPath() if sim_parent is not None and sim_parent.IsValid() else None
 
@@ -145,34 +116,50 @@ def _classify_deformable_meshes(
     """
     import warp as wp
 
+    stage = root_prim.GetStage()
     root_path = root_prim.GetPath()
-    tet_prims = _collect_type_prims(root_prim, "TetMesh")
-    mesh_prims = _collect_type_prims(root_prim, "Mesh")
+    tet_prims = sim_utils.get_all_matching_child_prims(
+        prim_path=root_path, predicate=lambda p: p.GetTypeName() == "TetMesh", stage=stage
+    )
+    mesh_prims = sim_utils.get_all_matching_child_prims(
+        prim_path=root_path, predicate=lambda p: p.GetTypeName() == "Mesh", stage=stage
+    )
 
-    if len(tet_prims) == 1:
-        mesh_prim = tet_prims[0]
-        vis_candidates = [p for p in mesh_prims if not _is_sim_mesh(p)]
+    if tet_prims:
+        if len(tet_prims) > 1:
+            logger.warning(
+                "Multiple TetMesh prims found under deformable root '%s'; using '%s' and ignoring %d others.",
+                root_path,
+                tet_prims[0].GetPath(),
+                len(tet_prims) - 1,
+            )
+
         deformable_type = "volume"
-        tet_mesh = UsdGeom.TetMesh(mesh_prim)
+        sim_mesh_prim = tet_prims[0]
+        vis_candidates = [p for p in mesh_prims if not _prim_has_schema(p, "DeformableSimAPI")]
+        tet_mesh = UsdGeom.TetMesh(sim_mesh_prim)
         pts = tet_mesh.GetPointsAttr().Get() or []
         raw_tet_indices = tet_mesh.GetTetVertexIndicesAttr().Get() or []
-        indices: list[int] = []
-        for vec4i in raw_tet_indices:
-            indices.extend([int(vec4i[0]), int(vec4i[1]), int(vec4i[2]), int(vec4i[3])])
+        indices = [int(v) for vec4i in raw_tet_indices for v in vec4i]
     elif mesh_prims:
         deformable_type = "surface"
-        sim_candidates = [p for p in mesh_prims if _is_sim_mesh(p)]
-        vis_candidates = [p for p in mesh_prims if not _is_sim_mesh(p)]
-        mesh_prim = sim_candidates[0] if sim_candidates else mesh_prims[0]
+        sim_candidates: list = []
+        vis_candidates: list = []
+        for prim in mesh_prims:
+            if _prim_has_schema(prim, "DeformableSimAPI"):
+                sim_candidates.append(prim)
+            else:
+                vis_candidates.append(prim)
+        sim_mesh_prim = sim_candidates[0] if sim_candidates else mesh_prims[0]
         if not sim_candidates:
             vis_candidates = []
-        usd_mesh = UsdGeom.Mesh(mesh_prim)
+        usd_mesh = UsdGeom.Mesh(sim_mesh_prim)
         pts = usd_mesh.GetPointsAttr().Get() or []
         indices = list(usd_mesh.GetFaceVertexIndicesAttr().Get() or [])
     else:
         raise ValueError(f"No simulation mesh found under deformable root '{root_path}'.")
 
-    vis_mesh_prim = _select_visual_mesh(vis_candidates, mesh_prim, len(pts))
+    vis_mesh_prim = _select_visual_mesh(vis_candidates, sim_mesh_prim, len(pts))
     vis_pts = (
         UsdGeom.Mesh(vis_mesh_prim).GetPointsAttr().Get()
         if vis_mesh_prim.GetTypeName() == "Mesh"
@@ -182,7 +169,7 @@ def _classify_deformable_meshes(
 
     xform_cache = UsdGeom.XformCache()
     mesh_to_parent_frame = (
-        xform_cache.GetLocalToWorldTransform(mesh_prim)
+        xform_cache.GetLocalToWorldTransform(sim_mesh_prim)
         * xform_cache.GetLocalToWorldTransform(root_prim.GetParent()).GetInverse()
     )
 
@@ -206,7 +193,7 @@ def _classify_deformable_meshes(
 
     return (
         deformable_type,
-        mesh_prim,
+        sim_mesh_prim,
         vis_mesh_prim,
         len(pts),
         vis_count,
