@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import logging
 import re
+import weakref
 from dataclasses import dataclass, field
 
+import numpy as np
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -28,12 +30,58 @@ class DeformableStageEntry:
     deformable_type: str
     vertex_count: int
     vis_vertex_count: int
-    vertices: list = field(default_factory=list)
-    indices: list = field(default_factory=list)
-    vis_vertices: list = field(default_factory=list)
-    vis_indices: list = field(default_factory=list)
+    vertices: np.ndarray = field(default_factory=lambda: np.empty((0, 3), dtype=np.float32))
+    indices: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int32))
+    vis_vertices: np.ndarray = field(default_factory=lambda: np.empty((0, 3), dtype=np.float32))
+    vis_indices: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int32))
     init_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
     init_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+
+
+_DISCOVERY_CACHE: weakref.WeakKeyDictionary[Usd.Stage, list[DeformableStageEntry]] = weakref.WeakKeyDictionary()
+
+
+def _cache_discovery_entries(stage: Usd.Stage, entries: list[DeformableStageEntry]) -> None:
+    """Store discovery results when ``stage`` supports weak-reference caching."""
+    try:
+        _DISCOVERY_CACHE[stage] = entries
+    except TypeError:
+        # Non-USD stage stand-ins in unit tests cannot be weak-referenced; skip caching.
+        pass
+
+
+def invalidate_deformable_discovery_cache(stage: Usd.Stage | None = None) -> None:
+    """Clear cached deformable discovery results.
+
+    Args:
+        stage: When provided, drop only the cache entry for this stage. Otherwise clear all.
+    """
+    if stage is None:
+        _DISCOVERY_CACHE.clear()
+        return
+    _DISCOVERY_CACHE.pop(stage, None)
+
+
+def _matrix4d_to_numpy(matrix: Gf.Matrix4d) -> np.ndarray:
+    """Convert a USD matrix to a host ``(4, 4)`` float64 array."""
+    return np.array([[matrix[i][j] for j in range(4)] for i in range(4)], dtype=np.float64)
+
+
+def _transform_points(matrix: np.ndarray, points: np.ndarray) -> np.ndarray:
+    """Apply a ``(4, 4)`` transform to ``(N, 3)`` points [m], returning float32."""
+    if points.size == 0:
+        return np.empty((0, 3), dtype=np.float32)
+    ones = np.ones((points.shape[0], 1), dtype=np.float64)
+    hom = np.concatenate([points.astype(np.float64, copy=False), ones], axis=1)
+    baked = (matrix @ hom.T).T[:, :3]
+    return baked.astype(np.float32, copy=False)
+
+
+def _usd_points_to_numpy(points) -> np.ndarray:
+    """Convert USD point arrays to ``(N, 3)`` float32."""
+    if not points:
+        return np.empty((0, 3), dtype=np.float32)
+    return np.array([[float(point[0]), float(point[1]), float(point[2])] for point in points], dtype=np.float32)
 
 
 def _get_applied_schema_names(prim) -> set[str]:
@@ -93,7 +141,7 @@ def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: i
 
 def _classify_deformable_meshes(
     root_prim,
-) -> tuple[str, object, object, int, int, list, list, list, list]:
+) -> tuple[str, object, object, int, int, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Classify the simulation and visual meshes under a deformable root prim.
 
     Args:
@@ -114,8 +162,6 @@ def _classify_deformable_meshes(
     Raises:
         ValueError: If no simulation mesh is found under ``root_prim``.
     """
-    import warp as wp
-
     stage = root_prim.GetStage()
     root_path = root_prim.GetPath()
     tet_prims = sim_utils.get_all_matching_child_prims(
@@ -140,7 +186,7 @@ def _classify_deformable_meshes(
         tet_mesh = UsdGeom.TetMesh(sim_mesh_prim)
         pts = tet_mesh.GetPointsAttr().Get() or []
         raw_tet_indices = tet_mesh.GetTetVertexIndicesAttr().Get() or []
-        indices = [int(v) for vec4i in raw_tet_indices for v in vec4i]
+        indices = np.array([int(v) for vec4i in raw_tet_indices for v in vec4i], dtype=np.int32)
     elif mesh_prims:
         deformable_type = "surface"
         sim_candidates: list = []
@@ -155,7 +201,7 @@ def _classify_deformable_meshes(
             vis_candidates = []
         usd_mesh = UsdGeom.Mesh(sim_mesh_prim)
         pts = usd_mesh.GetPointsAttr().Get() or []
-        indices = list(usd_mesh.GetFaceVertexIndicesAttr().Get() or [])
+        indices = np.asarray(usd_mesh.GetFaceVertexIndicesAttr().Get() or [], dtype=np.int32)
     else:
         raise ValueError(f"No simulation mesh found under deformable root '{root_path}'.")
 
@@ -168,28 +214,21 @@ def _classify_deformable_meshes(
     vis_count = len(vis_pts or [])
 
     xform_cache = UsdGeom.XformCache()
-    mesh_to_parent_frame = (
+    mesh_to_parent_frame = _matrix4d_to_numpy(
         xform_cache.GetLocalToWorldTransform(sim_mesh_prim)
         * xform_cache.GetLocalToWorldTransform(root_prim.GetParent()).GetInverse()
     )
+    vertices = _transform_points(mesh_to_parent_frame, _usd_points_to_numpy(pts))
 
-    vertices: list = []
-    for point in pts:
-        baked = mesh_to_parent_frame.Transform(Gf.Vec3d(float(point[0]), float(point[1]), float(point[2])))
-        vertices.append(wp.vec3(float(baked[0]), float(baked[1]), float(baked[2])))
-
-    vis_mesh_to_parent_frame = (
+    vis_mesh_to_parent_frame = _matrix4d_to_numpy(
         xform_cache.GetLocalToWorldTransform(vis_mesh_prim)
         * xform_cache.GetLocalToWorldTransform(root_prim.GetParent()).GetInverse()
     )
-    vis_vertices: list = []
-    for point in vis_pts or []:
-        baked = vis_mesh_to_parent_frame.Transform(Gf.Vec3d(float(point[0]), float(point[1]), float(point[2])))
-        vis_vertices.append(wp.vec3(float(baked[0]), float(baked[1]), float(baked[2])))
+    vis_vertices = _transform_points(vis_mesh_to_parent_frame, _usd_points_to_numpy(vis_pts or []))
 
-    vis_indices: list[int] = []
+    vis_indices = np.empty(0, dtype=np.int32)
     if vis_mesh_prim.GetTypeName() == "Mesh":
-        vis_indices = list(UsdGeom.Mesh(vis_mesh_prim).GetFaceVertexIndicesAttr().Get() or [])
+        vis_indices = np.asarray(UsdGeom.Mesh(vis_mesh_prim).GetFaceVertexIndicesAttr().Get() or [], dtype=np.int32)
 
     return (
         deformable_type,
@@ -204,15 +243,19 @@ def _classify_deformable_meshes(
     )
 
 
-def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry]:
+def discover_deformables_on_stage(stage: Usd.Stage, *, use_cache: bool = True) -> list[DeformableStageEntry]:
     """Discover PhysX/OVPhysX deformable bodies under ``stage``.
 
     Args:
         stage: USD stage to traverse.
+        use_cache: When ``True``, reuse cached results for the same stage object identity.
 
     Returns:
         One :class:`DeformableStageEntry` per prim with ``OmniPhysicsDeformableBodyAPI``.
     """
+    if use_cache and stage in _DISCOVERY_CACHE:
+        return _DISCOVERY_CACHE[stage]
+
     entries: list[DeformableStageEntry] = []
     for prim in stage.Traverse():
         if not _prim_has_schema(prim, "OmniPhysicsDeformableBodyAPI"):
@@ -248,6 +291,8 @@ def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry
                 vis_indices=vis_indices,
             )
         )
+    if use_cache:
+        _cache_discovery_entries(stage, entries)
     return entries
 
 

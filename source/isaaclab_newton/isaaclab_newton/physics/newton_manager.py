@@ -81,7 +81,11 @@ from pxr import Usd, UsdGeom
 
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
-from isaaclab.scene_data.deformable_vis_remap import launch_volume_vis_remap
+from isaaclab.scene_data.deformable_vis_remap import (
+    VolumeVisRemap,
+    launch_batch_particle_slice_copy,
+    launch_batch_volume_vis_remap,
+)
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
@@ -432,6 +436,9 @@ class NewtonManager(PhysicsManager):
     _sim_particle_q: wp.array | None = None
     _mapped_sim_particle_offsets: set[int] | None = None
     _shadow_deformable_sync_skip_warned: set[str] = set()
+    _shadow_deformable_remap_batches: list | None = None
+    _shadow_deformable_copy_batch: tuple | None = None
+    _shadow_deformable_batch_sync_key: tuple | None = None
 
     # Views list for assets to register their views
     _views: list = []
@@ -1002,6 +1009,9 @@ class NewtonManager(PhysicsManager):
         NewtonManager._sim_particle_q = None
         NewtonManager._mapped_sim_particle_offsets = None
         NewtonManager._shadow_deformable_sync_skip_warned = set()
+        NewtonManager._shadow_deformable_remap_batches = None
+        NewtonManager._shadow_deformable_copy_batch = None
+        NewtonManager._shadow_deformable_batch_sync_key = None
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
@@ -2396,6 +2406,7 @@ class NewtonManager(PhysicsManager):
             stage, env_paths, clone_plan, up_axis=up_axis, device=str(PhysicsManager._device or "cpu")
         )
         NewtonManager._shadow_deformable_entities = shadow_entities
+        cls._invalidate_shadow_deformable_batch_sync()
         sim_particle_total = sum(entity.sim_particle_count for entity in shadow_entities)
         if sim_particle_total > 0:
             device = PhysicsManager._device or "cpu"
@@ -2513,6 +2524,7 @@ class NewtonManager(PhysicsManager):
 
                 # Invalidate the mapped-offset cache so that it can be rebuilt immediately after.
                 cls._mapped_sim_particle_offsets = None
+                cls._invalidate_shadow_deformable_batch_sync()
 
             if cls._mapped_sim_particle_offsets is None:
                 cls._mapped_sim_particle_offsets = cls._geometry_mapped_sim_offsets(scene_data_provider)
@@ -2564,6 +2576,113 @@ class NewtonManager(PhysicsManager):
         return offsets
 
     @classmethod
+    def _invalidate_shadow_deformable_batch_sync(cls) -> None:
+        """Drop cached batched remap/copy metadata."""
+        cls._shadow_deformable_remap_batches = None
+        cls._shadow_deformable_copy_batch = None
+        cls._shadow_deformable_batch_sync_key = None
+
+    @classmethod
+    def _ensure_shadow_deformable_batch_sync(cls) -> None:
+        """Build batched remap/copy launch metadata for mapped shadow deformables."""
+        entities = cls._shadow_deformable_entities or []
+        mapped_offsets = cls._mapped_sim_particle_offsets
+        sync_key = (
+            id(entities),
+            frozenset(mapped_offsets or ()),
+            tuple(
+                (
+                    entity.root_path,
+                    entity.sim_particle_offset,
+                    entity.vis_particle_offset,
+                    entity.sim_particle_count,
+                    entity.vis_particle_count,
+                    id(entity.volume_vis_remap),
+                )
+                for entity in entities
+            ),
+        )
+        if cls._shadow_deformable_batch_sync_key == sync_key:
+            return
+
+        cls._shadow_deformable_batch_sync_key = sync_key
+        cls._shadow_deformable_remap_batches = []
+        cls._shadow_deformable_copy_batch = None
+
+        if cls._sim_particle_q is None or not entities:
+            return
+
+        device = str(cls._sim_particle_q.device)
+        copy_entity_ids: list[int] = []
+        copy_src_offsets: list[int] = []
+        copy_dst_offsets: list[int] = []
+        copy_counts: list[int] = []
+        remap_groups: dict[int, tuple[VolumeVisRemap, list]] = {}
+
+        for entity_index, entity in enumerate(entities):
+            if mapped_offsets is not None and entity.sim_particle_offset not in mapped_offsets:
+                continue
+
+            if entity.volume_vis_remap is not None:
+                remap_key = id(entity.volume_vis_remap)
+                if remap_key not in remap_groups:
+                    remap_groups[remap_key] = (entity.volume_vis_remap, [])
+                remap_groups[remap_key][1].append(entity)
+            elif entity.vis_particle_count > 0 and entity.vis_particle_count == entity.sim_particle_count:
+                copy_src_offsets.append(entity.sim_particle_offset)
+                copy_dst_offsets.append(entity.vis_particle_offset)
+                copy_counts.append(entity.vis_particle_count)
+
+        if copy_counts:
+            count_prefix = np.zeros(len(copy_counts), dtype=np.int32)
+            running = 0
+            for index, count in enumerate(copy_counts):
+                count_prefix[index] = running
+                for _ in range(int(count)):
+                    copy_entity_ids.append(index)
+                running += int(count)
+            cls._shadow_deformable_copy_batch = (
+                wp.array(copy_entity_ids, dtype=wp.int32, device=device),
+                wp.array(copy_src_offsets, dtype=wp.int32, device=device),
+                wp.array(copy_dst_offsets, dtype=wp.int32, device=device),
+                wp.array(np.asarray(copy_counts, dtype=np.int32), dtype=wp.int32, device=device),
+                wp.array(count_prefix, dtype=wp.int32, device=device),
+            )
+
+        remap_batches: list[tuple] = []
+        for remap, group_entities in remap_groups.values():
+            entity_ids: list[int] = []
+            sim_offsets: list[int] = []
+            render_offsets: list[int] = []
+            vis_counts: list[int] = []
+            vis_prefix = np.zeros(len(group_entities), dtype=np.int32)
+            running = 0
+            for index, entity in enumerate(group_entities):
+                vis_prefix[index] = running
+                for _ in range(entity.vis_particle_count):
+                    entity_ids.append(index)
+                running += entity.vis_particle_count
+                sim_offsets.append(entity.sim_particle_offset)
+                render_offsets.append(entity.vis_particle_offset)
+                vis_counts.append(entity.vis_particle_count)
+
+            if not entity_ids:
+                continue
+
+            remap_batches.append(
+                (
+                    wp.array(entity_ids, dtype=wp.int32, device=device),
+                    wp.array(np.asarray(sim_offsets, dtype=np.int32), dtype=wp.int32, device=device),
+                    wp.array(np.asarray(render_offsets, dtype=wp.int32), dtype=wp.int32, device=device),
+                    wp.array(np.asarray(vis_counts, dtype=wp.int32), dtype=wp.int32, device=device),
+                    wp.array(vis_prefix, dtype=wp.int32, device=device),
+                    remap,
+                )
+            )
+
+        cls._shadow_deformable_remap_batches = remap_batches
+
+    @classmethod
     def _sync_render_particle_q_from_sim(cls) -> None:
         """Copy or remap sim nodal positions into shadow ``particle_q`` render slots."""
         if cls._state_0 is None or cls._state_0.particle_q is None or cls._sim_particle_q is None:
@@ -2574,8 +2693,6 @@ class NewtonManager(PhysicsManager):
         mapped_offsets = cls._mapped_sim_particle_offsets
         for entity in cls._shadow_deformable_entities:
             if mapped_offsets is not None and entity.sim_particle_offset not in mapped_offsets:
-                # get_points did not fill this sim slice (still zeros). Copying / remapping
-                # would collapse the authored rest-pose mesh to the origin.
                 warned = cls._shadow_deformable_sync_skip_warned
                 if entity.root_path not in warned:
                     warned.add(entity.root_path)
@@ -2587,25 +2704,11 @@ class NewtonManager(PhysicsManager):
                     )
                 continue
 
-            if entity.volume_vis_remap is not None:
-                launch_volume_vis_remap(
-                    cls._sim_particle_q,
-                    cls._state_0.particle_q,
-                    entity.sim_particle_offset,
-                    entity.vis_particle_offset,
-                    entity.volume_vis_remap,
-                )
-            elif entity.vis_particle_count > 0 and entity.vis_particle_count == entity.sim_particle_count:
-                wp.copy(
-                    cls._state_0.particle_q,
-                    cls._sim_particle_q,
-                    dest_offset=entity.vis_particle_offset,
-                    src_offset=entity.sim_particle_offset,
-                    count=entity.vis_particle_count,
-                )
-            elif entity.vis_particle_count != entity.sim_particle_count:
-                # Mismatched volume slots without a remap table: copying vis_count from
-                # the sim slice would read past that body's sim particles. Leave rest pose.
+            if (
+                entity.volume_vis_remap is None
+                and entity.vis_particle_count != entity.sim_particle_count
+                and entity.vis_particle_count > 0
+            ):
                 warned = cls._shadow_deformable_sync_skip_warned
                 if entity.root_path not in warned:
                     warned.add(entity.root_path)
@@ -2616,6 +2719,41 @@ class NewtonManager(PhysicsManager):
                         entity.vis_particle_count,
                         entity.sim_particle_count,
                     )
+
+        cls._ensure_shadow_deformable_batch_sync()
+
+        for (
+            entity_ids,
+            sim_offsets,
+            render_offsets,
+            vis_counts,
+            vis_prefix,
+            remap,
+        ) in cls._shadow_deformable_remap_batches or []:
+            launch_batch_volume_vis_remap(
+                cls._sim_particle_q,
+                cls._state_0.particle_q,
+                entity_ids,
+                sim_offsets,
+                render_offsets,
+                vis_counts,
+                vis_prefix,
+                remap.tet_vertex_indices,
+                remap.bary_weights,
+            )
+
+        copy_batch = cls._shadow_deformable_copy_batch
+        if copy_batch is not None:
+            entity_ids, src_offsets, dst_offsets, counts, count_prefix = copy_batch
+            launch_batch_particle_slice_copy(
+                cls._sim_particle_q,
+                cls._state_0.particle_q,
+                entity_ids,
+                src_offsets,
+                dst_offsets,
+                counts,
+                count_prefix,
+            )
 
     @staticmethod
     def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:

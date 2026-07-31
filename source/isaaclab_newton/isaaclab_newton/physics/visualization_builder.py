@@ -14,7 +14,7 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
-from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
+from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, discover_deformables_on_stage
 from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 from isaaclab_newton.cloner.newton_clone_utils import (
@@ -26,7 +26,11 @@ from isaaclab_newton.cloner.newton_clone_utils import (
 from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
 
 
-def _deformable_ignore_paths(stage: Usd.Stage, sources: Sequence[str] | None = None) -> list[str]:
+def _deformable_ignore_paths(
+    stage: Usd.Stage,
+    sources: Sequence[str] | None = None,
+    entries: Sequence[DeformableStageEntry] | None = None,
+) -> list[str]:
     """Collect deformable prim paths for ``add_usd`` ignore lists.
 
     Shadow deformables are added explicitly by :func:`add_shadow_deformables_to_builder`.
@@ -37,12 +41,14 @@ def _deformable_ignore_paths(stage: Usd.Stage, sources: Sequence[str] | None = N
         stage: USD stage to scan.
         sources: Optional clone-source roots to restrict the ignore list. When ``None``,
             every discovered deformable path is ignored (standalone imports).
+        entries: Optional pre-discovered deformable entries to avoid a second stage walk.
     """
     source_prefixes: tuple[str, ...] | None = None
     if sources is not None:
         source_prefixes = tuple(f"{source.rstrip('/')}/" for source in sources)
 
-    entries = discover_deformables_on_stage(stage)
+    if entries is None:
+        entries = discover_deformables_on_stage(stage)
 
     ignore_paths: list[str] = []
 
@@ -90,17 +96,21 @@ def build_visualization_builder_from_stage_envs(
     """
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     builder = ModelBuilder(up_axis=up_axis)
+    deformable_entries = discover_deformables_on_stage(stage)
+
     if clone_plan is None:
         # Ignore deformables during USD import; add them as shadow particles below so
         # SceneData mapping and OVRTX registry receive the same particle offsets.
-        deformable_ignore_paths = _deformable_ignore_paths(stage)
+        deformable_ignore_paths = _deformable_ignore_paths(stage, entries=deformable_entries)
         import_result = builder.add_usd(
             stage,
             schema_resolvers=schema_resolvers,
             ignore_paths=deformable_ignore_paths or None,
         )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-        shadow_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths, device=device)
+        shadow_entities, registry_groups = add_shadow_deformables_to_builder(
+            builder, stage, env_paths, device=device, entries=deformable_entries
+        )
         return builder, (shadow_entities, registry_groups)
 
     if not env_paths:
@@ -119,14 +129,14 @@ def build_visualization_builder_from_stage_envs(
     # Ignore every deformable on the stage for the world import — not only those under
     # clone sources. Otherwise a non-env deformable (e.g. ``/World/Assets/Cloth``) is
     # imported here and added again by ``add_shadow_deformables_to_builder``.
-    deformable_ignore_paths = _deformable_ignore_paths(stage)
+    deformable_ignore_paths = _deformable_ignore_paths(stage, entries=deformable_entries)
     import_result = builder.add_usd(
         stage,
         ignore_paths=["/World/envs", *sources, *deformable_ignore_paths],
         schema_resolvers=schema_resolvers,
     )
     _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-    source_deformable_ignore_paths = _deformable_ignore_paths(stage, sources)
+    source_deformable_ignore_paths = _deformable_ignore_paths(stage, sources, entries=deformable_entries)
     source_builders = build_source_builders(
         stage,
         sources,
@@ -137,5 +147,7 @@ def build_visualization_builder_from_stage_envs(
     )
     replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
     rename_builder_labels(builder, sources, destinations, env_ids, mapping)
-    shadow_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, env_paths, device=device)
+    shadow_entities, registry_groups = add_shadow_deformables_to_builder(
+        builder, stage, env_paths, device=device, entries=deformable_entries
+    )
     return builder, (shadow_entities, registry_groups)

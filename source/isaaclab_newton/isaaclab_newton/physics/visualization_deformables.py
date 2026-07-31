@@ -81,9 +81,23 @@ def _needs_volume_vis_remap(entry: DeformableStageEntry) -> bool:
     return (
         entry.deformable_type == "volume"
         and entry.vis_vertex_count != entry.vertex_count
-        and bool(entry.vis_vertices)
-        and bool(entry.vis_indices)
+        and entry.vis_vertices.size > 0
+        and entry.vis_indices.size > 0
     )
+
+
+def _vertices_to_wp_vec3(vertices: np.ndarray | list) -> list[wp.vec3]:
+    """Convert baked ``(N, 3)`` vertex arrays to ``wp.vec3`` lists for Newton builders."""
+    if isinstance(vertices, np.ndarray):
+        return [wp.vec3(float(v[0]), float(v[1]), float(v[2])) for v in vertices]
+    return vertices
+
+
+def _mesh_indices(indices: np.ndarray | list) -> list:
+    """Return mesh topology indices as a Python list for Newton builders."""
+    if isinstance(indices, np.ndarray):
+        return indices.tolist()
+    return list(indices)
 
 
 def _build_volume_vis_remap(entry: DeformableStageEntry, device: str) -> VolumeVisRemap | None:
@@ -97,12 +111,10 @@ def _build_volume_vis_remap(entry: DeformableStageEntry, device: str) -> VolumeV
         A :class:`~isaaclab.scene_data.deformable_vis_remap.VolumeVisRemap` on success,
         or ``None`` when no tet can be assigned (logs a warning).
     """
-    sim_np = np.array([[float(v[0]), float(v[1]), float(v[2])] for v in entry.vertices], dtype=np.float32)
-    vis_np = np.array([[float(v[0]), float(v[1]), float(v[2])] for v in entry.vis_vertices], dtype=np.float32)
     remap = build_volume_vis_barycentric_remap(
-        sim_np,
-        np.asarray(entry.indices, dtype=np.int32),
-        vis_np,
+        entry.vertices,
+        entry.indices,
+        entry.vis_vertices,
         device=device,
     )
     if remap is None:
@@ -120,6 +132,7 @@ def add_shadow_deformables_to_builder(
     env_paths: Sequence[tuple[int, str]],
     *,
     device: str = "cpu",
+    entries: Sequence[DeformableStageEntry] | None = None,
 ) -> tuple[list[ShadowDeformableEntity], list[ShadowDeformableRegistryGroup]]:
     """Add PhysX/OVPhysX deformable meshes to a shadow Newton builder.
 
@@ -137,7 +150,8 @@ def add_shadow_deformables_to_builder(
         Flat entity list for geometry mapping and grouped registry metadata for
         USD visual-mesh point bindings (e.g. OVRTX).
     """
-    entries = discover_deformables_on_stage(stage)
+    if entries is None:
+        entries = discover_deformables_on_stage(stage)
     if not entries:
         return [], []
 
@@ -167,6 +181,8 @@ def add_shadow_deformables_to_builder(
             particles_per_body=render_count,
             register_usd_vis_point_bindings=uses_remap or template.vertex_count == template.vis_vertex_count,
         )
+
+        group_volume_vis_remap = _build_volume_vis_remap(template, device) if uses_remap else None
 
         for entry in sorted(group_entries, key=lambda item: item.root_path):
             # Discovery bakes vertices into the deformable root's *parent* frame
@@ -210,8 +226,8 @@ def add_shadow_deformables_to_builder(
                     rot=body_rot,
                     scale=1.0,
                     vel=wp.vec3(0.0, 0.0, 0.0),
-                    vertices=entry.vertices,
-                    indices=entry.indices,
+                    vertices=_vertices_to_wp_vec3(entry.vertices),
+                    indices=_mesh_indices(entry.indices),
                     density=1.0,
                     tri_ke=1e4,
                     tri_ka=1e4,
@@ -223,7 +239,8 @@ def add_shadow_deformables_to_builder(
             else:
                 # Build remap before allocating render slots so a failed embed can fall
                 # back to sim tet topology instead of leaving mismatched vis slots.
-                volume_vis_remap = _build_volume_vis_remap(entry, device) if _needs_volume_vis_remap(entry) else None
+                # Replicated clones share one template table (rest topology is identical).
+                volume_vis_remap = group_volume_vis_remap if _needs_volume_vis_remap(entry) else None
 
                 if volume_vis_remap is not None:
                     builder.add_cloth_mesh(
@@ -231,8 +248,8 @@ def add_shadow_deformables_to_builder(
                         rot=body_rot,
                         scale=1.0,
                         vel=wp.vec3(0.0, 0.0, 0.0),
-                        vertices=entry.vis_vertices,
-                        indices=entry.vis_indices,
+                        vertices=_vertices_to_wp_vec3(entry.vis_vertices),
+                        indices=_mesh_indices(entry.vis_indices),
                         density=1.0,
                         tri_ke=1e4,
                         tri_ka=1e4,
@@ -247,8 +264,8 @@ def add_shadow_deformables_to_builder(
                         rot=body_rot,
                         scale=1.0,
                         vel=wp.vec3(0.0, 0.0, 0.0),
-                        vertices=entry.vertices,
-                        indices=entry.indices,
+                        vertices=_vertices_to_wp_vec3(entry.vertices),
+                        indices=_mesh_indices(entry.indices),
                         density=1000.0,
                         k_mu=1e5,
                         k_lambda=1e5,

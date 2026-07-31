@@ -271,27 +271,29 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     @property
     def points(self) -> SceneDataFormat.Points:
         """Return flattened OVPhysX deformable nodal positions."""
+        from isaaclab.scene_data.geometry_points import pack_body_nodal_slices
+
         if self._merged_points is None or not self._deformable_bindings:
             self._points_data.points = None
             return self._points_data
 
         write_offset = 0
         path_index = 0
+        device = str(self._merged_points.device)
         for entry in self._deformable_bindings:
             view = entry["view"]
             view.read_into(entry["sim_nodal_position_type"], entry["position_buf"])
             nodal = entry["position_buf"].view(wp.vec3f).reshape((view.count, -1))
-            for body_idx in range(view.count):
-                count = self._geometry_counts[path_index]
-                wp.copy(
-                    self._merged_points,
-                    nodal[body_idx, :count],
-                    dest_offset=write_offset,
-                    src_offset=0,
-                    count=count,
-                )
-                write_offset += count
-                path_index += 1
+            view_counts = [self._geometry_counts[path_index + body_idx] for body_idx in range(view.count)]
+            pack_body_nodal_slices(
+                nodal,
+                self._merged_points,
+                view_counts,
+                device=device,
+                dest_base_offset=write_offset,
+            )
+            write_offset += sum(int(count) for count in view_counts)
+            path_index += view.count
         self._points_data.points = self._merged_points
         return self._points_data
 

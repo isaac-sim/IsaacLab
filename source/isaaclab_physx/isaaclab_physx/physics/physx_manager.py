@@ -298,6 +298,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
 
     def _refresh_merged_points(self) -> None:
         """Merge volume and surface deformable nodal positions into :attr:`points`."""
+        from isaaclab.scene_data.geometry_points import pack_body_nodal_slices
+
         self._discover_deformable_geometry()
         if self._merged_points is None:
             self._points_data.points = None
@@ -305,21 +307,21 @@ class PhysxSceneDataBackend(SceneDataBackend):
 
         write_offset = 0
         path_index = 0
+        device = str(self._merged_points.device)
         for view in (self._volume_deformable_view, self._surface_deformable_view):
             if view is None or view._backend is None:
                 continue
             nodal = view.get_simulation_nodal_positions().view(wp.vec3f).reshape((view.count, -1))
-            for body_idx in range(view.count):
-                count = self._geometry_counts[path_index]
-                wp.copy(
-                    self._merged_points,
-                    nodal[body_idx, :count],
-                    dest_offset=write_offset,
-                    src_offset=0,
-                    count=count,
-                )
-                write_offset += count
-                path_index += 1
+            view_counts = [self._geometry_counts[path_index + body_idx] for body_idx in range(view.count)]
+            pack_body_nodal_slices(
+                nodal,
+                self._merged_points,
+                view_counts,
+                device=device,
+                dest_base_offset=write_offset,
+            )
+            write_offset += sum(int(count) for count in view_counts)
+            path_index += view.count
         self._points_data.points = self._merged_points
 
     @property
