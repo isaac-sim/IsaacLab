@@ -1,0 +1,171 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Builds and validates the kit-less training image
+# (docker/Dockerfile.kitless). This is an install/build test of the shipped
+# container artifact: broader library coverage remains in the build.yaml test
+# matrix, and documented native install paths remain in Installation Tests.
+
+name: Kit-less Docker Image
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run_kitless_tests: ${{ steps.detect.outputs.should_run }}
+    steps:
+    # The build job skips via `if:` rather than a workflow-level `paths:` filter,
+    # so a required check is always created. Checked out in full (not sparse like
+    # arm-ci) because the steps below need the working tree.
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - id: detect
+      uses: ./.github/actions/detect-changes
+      with:
+        triggered-jobs-push: kit-less image build and validation
+        triggered-jobs-pr: kit-less image build and validation
+        patterns: |
+          ^\.dockerignore$ :: Docker build context definition
+          ^docker/Dockerfile\.kitless$ :: Kit-less image definition
+          ^docker/\.env\.kitless$ :: Kit-less Compose environment
+          ^docker/container\.py$ :: Container CLI
+          ^docker/docker-compose\.yaml$ :: Kit-less Compose definition
+          ^docker/test/test_container_profiles\.py$ :: Kit-less profile tests
+          ^docker/test/test_dockerfile_nonroot\.py$ :: Dockerfile contract tests
+          ^docker/utils/container_interface\.py$ :: Container profile implementation
+          ^docker/utils/volume_mounts\.py$ :: Container volume helper
+          ^isaaclab\.sh$ :: Install CLI wrapper
+          ^pyproject\.toml$ :: Root dependency manifest
+          ^uv\.lock$ :: Locked dependency graph
+          ^source/[^/]+/pyproject\.toml$ :: Package manifests
+          ^source/isaaclab/isaaclab/cli/ :: Install CLI implementation
+          ^source/isaaclab_newton/isaaclab_newton/test/mock_interfaces/ :: Mock-interface implementation
+          ^source/isaaclab_newton/test/test_mock_interfaces/ :: Kit-less pytest subset
+          ^\.github/workflows/kitless-docker\.yml$ :: This workflow file
+          ^\.github/actions/detect-changes/ :: Change-detection action
+          ^\.github/actions/_lib/compute-deps-hash/ :: Dependency-cache identity
+          ^\.github/actions/docker-build/ :: Docker build action
+          ^\.github/actions/ecr-build-push-pull/ :: ECR build-cache action
+          ^\.github/actions/validate-kitless-image/ :: Kit-less image validation action
+
+    - name: Set up uv
+      if: steps.detect.outputs.should_run == 'true'
+      uses: astral-sh/setup-uv@v6
+
+    - name: Validate kit-less container profile
+      if: steps.detect.outputs.should_run == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        uv run --no-project --with pytest --with pyyaml \
+          python -m pytest -q \
+          docker/test/test_container_profiles.py \
+          docker/test/test_dockerfile_nonroot.py
+        (
+          cd docker
+          docker compose \
+            --file docker-compose.yaml \
+            --profile kitless \
+            --env-file .env.kitless \
+            config --quiet
+        )
+
+  build-kitless:
+    name: Build Kit-less Docker Image
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    needs: [changes]
+    if: needs.changes.outputs.run_kitless_tests == 'true'
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    # Mirrors the per-commit tag scheme of build.yaml's config job so the
+    # ECR tags stay in the same family as the other CI images.
+    - name: Compute image tag
+      id: tag
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REF_NAME: ${{ github.ref_name }}
+        SHA: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+        if [ "$EVENT_NAME" = "pull_request" ]; then
+          ref_component="pr-${PR_NUMBER}"
+        else
+          ref_component="$REF_NAME"
+        fi
+        # Sanitize the ref name for use as a Docker tag suffix.
+        sanitized_ref=$(echo "$ref_component" | sed 's/[^a-zA-Z0-9._-]/-/g')
+        echo "image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}-kitless" >> "$GITHUB_OUTPUT"
+        echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}-kitless"
+
+    # Same ECR cache as build.yaml. This image builds from ubuntu:24.04, so the
+    # isaacsim-* inputs only pin the base whose digest feeds the deps hash; the
+    # ISAACSIM_* build-args are undeclared here and ignored.
+    - name: Build and push to ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ steps.tag.outputs.image_tag }}
+        isaacsim-base-image: ubuntu
+        isaacsim-version: "24.04"
+        dockerfile-path: docker/Dockerfile.kitless
+        cache-tag: cache-kitless
+        # Validation below docker-runs the image in this same job, and the
+        # ECR login only exists while the action runs, so the action itself
+        # must pull on a deps-cache hit.
+        pull-on-deps-hit: "true"
+
+    # Every action path (full build --load, exact-tag pull, deps-hit pull)
+    # leaves the image local; fail fast with a clear message if not, instead
+    # of letting docker run attempt a docker.io pull of the CI-only tag.
+    - name: Ensure image is available locally
+      shell: bash
+      run: |
+        set -euo pipefail
+        IMAGE_TAG="${{ steps.tag.outputs.image_tag }}"
+        if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
+          echo "::error::Image ${IMAGE_TAG} is not available locally after the build action."
+          exit 1
+        fi
+
+    # A deps-cached image contains the dependency graph but not necessarily this
+    # PR's source. Read-only mounts make validation exercise the current checkout
+    # while keeping the cached runtime layer intact.
+    - name: Validate kit-less image
+      uses: ./.github/actions/validate-kitless-image
+      with:
+        image-tag: ${{ steps.tag.outputs.image_tag }}
+
+    # Keep the self-hosted runner's disk lean: drop the local tags after the
+    # run; the layers stay cached in ECR for the next build.
+    - name: Remove local image
+      if: always()
+      shell: bash
+      run: |
+        docker image rm -f "${{ steps.tag.outputs.image_tag }}" || true
+        if [ -n "${ECR_IMAGE:-}" ]; then
+          docker image rm -f "${ECR_IMAGE}" || true
+        fi

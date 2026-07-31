@@ -226,6 +226,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "0"
         shard-count: "3"
         container-name: isaac-lab-tasks-1-test
@@ -251,6 +252,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "1"
         shard-count: "3"
         container-name: isaac-lab-tasks-2-test
@@ -276,6 +278,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "2"
         shard-count: "3"
         container-name: isaac-lab-tasks-3-test
@@ -379,6 +382,8 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: ${{ matrix.runtime-group }}
+        # deformables.py tetrahedralizes its volume meshes at startup
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         result-file: "test-standalone-demos-${{ matrix.runtime-group }}-report.xml"
         container-name: isaac-lab-standalone-demos-${{ matrix.runtime-group }}-test
         omni-github-test-type: standalone-demo
@@ -445,6 +450,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
@@ -550,6 +556,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
@@ -748,6 +755,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_dexsuite_kuka_hetero.py,
@@ -762,12 +770,16 @@ jobs:
         omni-github-test-type: rendering-correctness
 
   test-rendering-correctness-kitless:
-    name: "rendering-correctness-kitless"
+    name: "rendering-correctness-kitless (${{ matrix.variant }})"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: needs.build.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [legacy, ovstage]
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -784,7 +796,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
+        extra-pip-packages: >-
+          pytetwild[all]>=0.3.0,<0.4
+          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
@@ -794,10 +808,11 @@ jobs:
           test_rendering_franka_cloth_kitless.py,
           test_rendering_franka_soft_kitless.py,
           test_rendering_shadow_hand_kitless.py
+        test-k-expr: ${{ matrix.variant }}
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless' || '' }}
-        container-name: isaac-lab-rendering-correctness-kitless-test
-        omni-github-test-type: rendering-correctness-kitless
+        test-node-ids-key: ${{ github.event_name == 'push' && format('rendering-correctness-kitless-{0}', matrix.variant) || '' }}
+        container-name: "isaac-lab-rendering-correctness-kitless-${{ matrix.variant }}-test"
+        omni-github-test-type: "rendering-correctness-kitless-${{ matrix.variant }}"
   #endregion
 
 #region disabled quarantined tests

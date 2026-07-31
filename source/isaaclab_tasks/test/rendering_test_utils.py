@@ -10,6 +10,7 @@ import os
 import re
 import tempfile
 from datetime import datetime
+from html import escape
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -157,11 +158,15 @@ _OVRTX_TEXTURE_READINESS_DATA_TYPES = (
     "simple_shading_full_mdl",
 )
 _OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
+_KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
+_DEXSUITE_RENDERER_CRASH_SKIP_REASON = "Dexsuite kitless OVRTX rendering may crash or time out (NVBUG#6524987)."
+_NEWTON_WARP_MISSING_TABLE_XFAIL_REASON = "Missing table in Newton Warp renderer (OMPE-103086)."
+_OVRTX_CLOTH_MOTION_XFAIL_REASON = "Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754)."
 
 
 def make_xfail_rendering_params(
     params: list[pytest.param],
-    expected_failures: dict[tuple[str, str, str], str],
+    expected_failures: dict[tuple[str, ...], str],
 ) -> list[pytest.param]:
     """Mark selected rendering parameter combinations as expected failures.
 
@@ -178,8 +183,8 @@ def make_xfail_rendering_params(
         if reason is None:
             marked_params.append(param)
             continue
-        # Expected failures should run once instead of consuming the RTX flaky-retry budget.
-        marks = [mark for mark in param.marks if mark.name != "flaky"]
+        # Expected failures should run once and carry one unambiguous reason.
+        marks = [mark for mark in param.marks if mark.name not in ("flaky", "xfail")]
         marked_params.append(
             pytest.param(
                 *param.values,
@@ -188,6 +193,67 @@ def make_xfail_rendering_params(
             )
         )
     return marked_params
+
+
+def make_skip_rendering_params(
+    params: list[pytest.param],
+    expected_skips: dict[tuple[str, ...], str],
+) -> list[pytest.param]:
+    """Mark selected rendering parameter combinations as skipped.
+
+    Args:
+        params: Rendering parameters to mark.
+        expected_skips: Mapping from parameter value tuples to skip reasons.
+
+    Returns:
+        Rendering parameters with ``skip`` marks applied to matching combinations.
+    """
+    marked_params = []
+    for param in params:
+        reason = expected_skips.get(tuple(param.values))
+        if reason is None:
+            marked_params.append(param)
+            continue
+        # A native crash or timeout cannot be handled by xfail. Ensure skip takes precedence
+        # and does not retain retry or expected-failure marks inherited from the shared matrix.
+        marks = [mark for mark in param.marks if mark.name not in ("flaky", "skip", "xfail")]
+        marked_params.append(
+            pytest.param(
+                *param.values,
+                id=param.id,
+                marks=[*marks, pytest.mark.skip(reason=reason)],
+            )
+        )
+    return marked_params
+
+
+def make_kitless_rendering_params(params: list[pytest.param]) -> list[pytest.param]:
+    """Expand kitless rendering parameters across applicable OVRTX stage paths.
+
+    OVRTX runs through both the legacy renderer-owned stage path and the OVStage
+    path. The Newton Warp renderer does not use OVStage, so it is emitted only in
+    the legacy lane.
+
+    Args:
+        params: Rendering parameters containing physics backend, renderer, and data type values.
+
+    Returns:
+        Rendering parameters prefixed with the applicable stage variant.
+    """
+    expanded_params = []
+    for param in params:
+        renderer = param.values[1]
+        variants = _KITLESS_STAGE_VARIANTS if renderer == "ovrtx_renderer" else (_KITLESS_STAGE_VARIANTS[0],)
+        for variant in variants:
+            expanded_params.append(
+                pytest.param(
+                    variant,
+                    *param.values,
+                    id=f"{variant}-{param.id}",
+                    marks=param.marks,
+                )
+            )
+    return expanded_params
 
 
 def _make_sensor_data_type_params(
@@ -248,6 +314,36 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
         for data_type in _OVRTX_TEXTURE_READINESS_DATA_TYPES
     },
 )
+
+
+def make_kitless_rendering_params_dexsuite() -> list[pytest.param]:
+    """Create kitless Dexsuite parameters with known native-crash cases skipped."""
+    return make_skip_rendering_params(
+        make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
+        {
+            (variant, "newton", "ovrtx_renderer", data_type): _DEXSUITE_RENDERER_CRASH_SKIP_REASON
+            for variant in _KITLESS_STAGE_VARIANTS
+            for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl")
+        },
+    )
+
+
+def make_kitless_rendering_params_franka(*, include_cloth_motion_vectors: bool = False) -> list[pytest.param]:
+    """Create kitless Franka parameters with known content regressions marked."""
+    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    expected_failures = {
+        tuple(param.values): _NEWTON_WARP_MISSING_TABLE_XFAIL_REASON
+        for param in params
+        if param.values[1] == "newton" and param.values[2] == "newton_renderer"
+    }
+    if include_cloth_motion_vectors:
+        expected_failures.update(
+            {
+                (variant, "newton", "ovrtx_renderer", "motion_vectors"): _OVRTX_CLOTH_MOTION_XFAIL_REASON
+                for variant in _KITLESS_STAGE_VARIANTS
+            }
+        )
+    return make_xfail_rendering_params(params, expected_failures)
 
 
 # Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
@@ -626,12 +722,24 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
 
     os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
     report_path = os.path.join(_COMPARISON_IMAGES_DIR, report_filename)
-    sorted_scores = sorted(comparison_scores, key=lambda e: -e["diff_pct"])
+    sorted_scores = sorted(
+        comparison_scores, key=lambda entry: (0 if entry.get("xfail_reason") else 1, -entry["diff_pct"])
+    )
 
     rows = []
     for entry in sorted_scores:
-        status_class = "pass" if entry["passed"] else "fail"
-        status_text = status_class.upper()
+        xfail_reason = entry.get("xfail_reason") or ""
+        if xfail_reason:
+            if entry.get("xfail_observed", not entry["passed"]):
+                status_class = "unreliable"
+                status_text = "UNRELIABLE (XFAIL)"
+            else:
+                status_class = "xpass"
+                status_text = "XPASS (REVIEW XFAIL)"
+        else:
+            status_class = "pass" if entry["passed"] else "fail"
+            status_text = status_class.upper()
+        reason = escape(xfail_reason)
 
         actual_img_html = ""
         golden_img_html = ""
@@ -668,6 +776,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
             f"<td{ssim_cell_class}{ssim_title}>{entry['ssim']:.4f}</td>"
             f"<td{ssim_cell_class}{ssim_title}>{ssim_threshold_cell}</td>"
             f'<td class="status-{status_class}">{status_text}</td>'
+            f"<td>{reason}</td>"
             f"<td>{actual_img_html}</td>"
             f"<td>{golden_img_html}</td>"
             f'<td class="compare-cell">{compare_html}</td>'
@@ -688,9 +797,13 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: middle; }\n"
         "  th { background: #f0f0f0; white-space: nowrap; }\n"
         "  tr.fail { background: #fff0f0; }\n"
-        "  tr.pass:hover, tr.fail:hover { filter: brightness(0.96); }\n"
+        "  tr.unreliable { background: #fff8e1; }\n"
+        "  tr.xpass { background: #eef5ff; }\n"
+        "  tr.pass:hover, tr.fail:hover, tr.unreliable:hover, tr.xpass:hover { filter: brightness(0.96); }\n"
         "  .status-pass { color: #2a7a2a; font-weight: bold; }\n"
         "  .status-fail { color: #cc0000; font-weight: bold; }\n"
+        "  .status-unreliable { color: #a15c00; font-weight: bold; }\n"
+        "  .status-xpass { color: #0969da; font-weight: bold; }\n"
         "  .ssim-disabled { color: #999; font-style: italic; }\n"
         "  img { display: block; max-width: 120px; height: auto; }\n"
         "  .compare-cell { max-width: 420px; }\n"
@@ -736,6 +849,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "<th>SSIM</th>"
         "<th>SSIM Threshold</th>"
         "<th>Status</th>"
+        "<th>Reason</th>"
         "<th>ACTUAL</th>"
         "<th>GOLDEN</th>"
         "<th>Beyond Compare Command</th>"
@@ -753,8 +867,15 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
 def attach_comparison_properties(
     request: pytest.FixtureRequest, comparison_scores: list[dict], initial_count: int
 ) -> None:
-    """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
-    for entry in comparison_scores[initial_count:]:
+    """Annotate expected HTML outcomes and attach comparison properties to JUnit XML."""
+    xfail_marker = request.node.get_closest_marker("xfail")
+    xfail_reason = xfail_marker.kwargs.get("reason") if xfail_marker is not None else None
+    entries = comparison_scores[initial_count:]
+    xfail_observed = any(not entry["passed"] for entry in entries)
+    for entry in entries:
+        if xfail_reason:
+            entry["xfail_reason"] = xfail_reason
+            entry["xfail_observed"] = xfail_observed
         label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
         request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
         ssim_value = f"{entry['ssim']:.4f}" if entry.get("ssim_checked", True) else f"{entry['ssim']:.4f} (N/A)"
@@ -802,7 +923,7 @@ def make_generate_html_report_fixture(comparison_scores: list[dict], report_file
 
 
 def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
-    """Create an autouse fixture that attaches JUnit properties for one module.
+    """Create a fixture that annotates HTML outcomes and attaches JUnit properties.
 
     Args:
         comparison_scores: Module-local comparison score storage.
@@ -810,9 +931,10 @@ def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
 
     @pytest.fixture(autouse=True)
     def _attach_comparison_properties(request):
-        """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
+        """Annotate expected HTML outcomes and attach image-comparison properties."""
         initial_count = len(comparison_scores)
         yield
+        # Function-scoped teardown runs before the session-scoped HTML report is generated.
         attach_comparison_properties(request, comparison_scores, initial_count)
 
     return _attach_comparison_properties
@@ -1699,12 +1821,6 @@ def rendering_test_franka_cloth(
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
 
-    if renderer == "newton_renderer":
-        pytest.skip("Missing table in Newton Warp renderer (OMPE-103086)")
-
-    if renderer == "ovrtx_renderer" and data_type == "motion_vectors":
-        pytest.skip("Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754).")
-
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
@@ -1830,9 +1946,6 @@ def rendering_test_franka_soft(
 
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
-
-    if renderer == "newton_renderer":
-        pytest.skip("Missing table in Newton Warp renderer (OMPE-103086)")
 
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 

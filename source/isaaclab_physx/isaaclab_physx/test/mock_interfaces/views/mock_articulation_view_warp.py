@@ -400,7 +400,7 @@ class MockArticulationViewWarp:
         """
         if self._masses is None:
             self._masses = wp.ones((self._count, self._num_links), dtype=wp.float32, device="cpu")
-        return wp.clone(self._masses)
+        return self._masses
 
     def get_coms(self) -> wp.array:
         """Get centers of mass of all links.
@@ -426,7 +426,7 @@ class MockArticulationViewWarp:
                 inputs=[self._inertias],
                 device="cpu",
             )
-        return wp.clone(self._inertias)
+        return self._inertias
 
     def get_jacobians(self) -> wp.array:
         """Get COM-referenced geometric Jacobians of all links."""

@@ -10,6 +10,21 @@ This tutorial explores how to spawn various objects (or prims) into the scene in
 It builds on the previous tutorial on running the simulator from a standalone script and
 demonstrates how to spawn a ground plane, lights, primitive shapes, and meshes from USD files.
 
+.. note::
+
+   This tutorial automatically tetrahedralizes a volume deformable. Run it with the
+   ``tetrahedralization`` extra:
+
+   .. code-block:: bash
+
+      uv run --extra tetrahedralization python scripts/tutorials/00_sim/spawn_prims.py
+
+   With the legacy installer, install the optional dependencies first:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 
 The Code
 ~~~~~~~~
