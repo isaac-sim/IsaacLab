@@ -255,11 +255,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     )
 
     def __post_init__(self) -> None:
-        # Re-tuned Franka actuators: stiff arm gains with realistic armature so the low-inertia
-        # default gains do not let the fingers tunnel through the soft body, and a slower, weaker
-        # gripper so it settles on the beam surface instead of crushing it. Velocity limits are
-        # required by the joint_vel_out_of_sim_limit termination. Scoped here rather than in
-        # FRANKA_PANDA_CFG so the other Franka tasks keep the stock asset.
+        # Re-tuned Franka actuators, most importantly with realistic velocity limits.
         shoulder = self.robot.actuators["panda_shoulder"]
         shoulder.velocity_limit_sim = 2.175
         shoulder.stiffness = 600.0
@@ -468,18 +464,8 @@ class EventCfg:
 
 @configclass
 class RewardsCfg:
-    """Deformable analogue of the winning rigid-cube lift recipe.
+    """Lift-to-target reward for a deformable object."""
 
-    The table top sits at z = 0 and the beam's rest COM at ~0.05 m. The dense lift reward gates at
-    0.02 m, i.e. below rest, so it stays graded across the full lift range and only vanishes when
-    the beam is pressed into the table. The goal-tracking terms gate at 0.0 m, so they are
-    effectively always active. Success = COM within 5 cm of the goal position.
-    """
-
-    # The hand targets the COM so the grasp lands mid-beam (targeting the nearest node lets the
-    # gripper grab an end, which turns the beam into an unstable pole). The fingers target the
-    # nearest surface node instead: targeting the COM with both fingers is maximized only when
-    # both fingertips reach the object's center, i.e. by closing and indenting the beam.
     reaching_deformable = RewTerm(
         func=mdp.deformable_com_ee_distance,
         params={"std": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
@@ -533,13 +519,13 @@ class CurriculumCfg:
     """Ramp the action-rate penalty once the policy has learned to lift (matches rigid recipe)."""
 
     action_rate = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-2, "num_steps": 40000}
+        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-2, "num_steps": 15000}
     )
 
     # Since we use 24 steps per env, 10000 steps correspond to 10000/24 = 416.67 learning iterations
     gravity = CurrTerm(
         func=mdp.modify_gravity_linear,
-        params={"start_gravity_z": -0.0001, "end_gravity_z": -9.81, "start_step": 0, "end_step": 10000},
+        params={"start_gravity_z": -0.0001, "end_gravity_z": -9.81, "start_step": 0, "end_step": 5000},
     )
 
 
@@ -633,9 +619,7 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    # Parent reset events + per-env material domain randomization.
     events: EventCfg = EventCfg()
-    # Ramp the action-rate penalty once the policy has learned to lift.
     curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self) -> None:
@@ -666,5 +650,5 @@ class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop).
+        # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop), helps with passing rendering tests.
         self.num_rerenders_on_reset = 2
