@@ -240,10 +240,10 @@ def _make_ovphysx_event_cfg() -> EventCfg:
 class EventPresetCfg(PresetCfg):
     """Preset config for Franka cloth startup and reset events."""
 
-    newton_mjwarp_vbd: EventCfg = EventCfg()
+    newton_mjwarp_vbd_proxy: EventCfg = EventCfg()
     ovphysx: EventCfg = _make_ovphysx_event_cfg()
 
-    default = newton_mjwarp_vbd
+    default = newton_mjwarp_vbd_proxy
 
 
 ##
