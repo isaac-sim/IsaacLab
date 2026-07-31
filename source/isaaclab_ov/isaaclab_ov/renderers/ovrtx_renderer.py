@@ -1542,6 +1542,24 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_paths_list = None
         self._env_root_xforms: np.ndarray | None = None
 
+    def _create_stage_ovstage(self) -> Any:
+        """Create the ovstage stage configured for incremental GPU hierarchy computation.
+
+        The hierarchy computation model drives ovstage's automatic world-transform updates. It is
+        process-scoped and can only be chosen when the first process reference is acquired, so it
+        is supplied here rather than per computation.
+        :attr:`~ovstage.HierarchyComputationModel.GPU_INCREMENTAL` is selected because only
+        a subset of transforms changes each step, so recomposing just the dirty chains is far
+        cheaper than ``GPU_GLOBAL``, which recomputes the whole stage on every call.
+
+        Returns:
+            The created :class:`ovstage.Stage`.
+        """
+        config = ovstage.StageConfig(
+            runtime_default_hierarchy_computation_model=ovstage.HierarchyComputationModel.GPU_INCREMENTAL
+        )
+        return ovstage.Stage("isaaclab.ovrtx", config=config)
+
     def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec) -> None:
         """Initialize the OVRTX renderer with internal environment cloning (ovstage path).
 
@@ -1585,7 +1603,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Loading USD into OvRTX via ovstage...")
         self._ovstage_exit_stack = contextlib.ExitStack()
-        self._stage = self._ovstage_exit_stack.enter_context(ovstage.Stage("isaaclab.ovrtx"))
+        self._stage = self._ovstage_exit_stack.enter_context(self._create_stage_ovstage())
         self._stage_paths = self._ovstage_exit_stack.enter_context(ovstage.PathDictionary(self._stage))
         # Ordinal 0 is the empty/unwritten state in ovstage; the first write must use >= 1.
         self._current_ordinal += 1
