@@ -593,8 +593,6 @@ class WrenchComposer:
                 env_ids = self._ALL_ENV_INDICES
             elif isinstance(env_ids, list):
                 env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
-            elif isinstance(env_ids, torch.Tensor):
-                env_ids = wp.from_torch(env_ids)
 
             wp.launch(
                 reset_wrench_composer_index_kernel(env_ids),
@@ -663,14 +661,14 @@ class WrenchComposer:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _resolve_env_ids(self, env_ids: wp.array | torch.Tensor | list | slice | None) -> wp.array:
-        """Resolve environment IDs to a signed-integer Warp array.
+    def _resolve_env_ids(self, env_ids: wp.array | torch.Tensor | list | slice | None) -> wp.array | torch.Tensor:
+        """Resolve environment IDs.
 
         Args:
             env_ids: Environment indices as any supported type, or None for all environments.
 
         Returns:
-            Warp array of signed 32-bit or 64-bit environment indices.
+            Environment indices.
 
         Raises:
             TypeError: If ``env_ids`` is an unsupported type.
@@ -679,7 +677,7 @@ class WrenchComposer:
             return self._ALL_ENV_INDICES
         # Check tensor types before slice comparison (tensor == slice crashes)
         if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.contiguous())
+            return env_ids
         if isinstance(env_ids, wp.array):
             return env_ids
         if env_ids == slice(None):
@@ -690,14 +688,16 @@ class WrenchComposer:
             f"env_ids must be None, slice(None), list, torch.Tensor, or wp.array, got {type(env_ids).__name__}"
         )
 
-    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None) -> wp.array:
-        """Resolve body IDs to a signed-integer Warp array.
+    def _resolve_body_ids(
+        self, body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None
+    ) -> wp.array | torch.Tensor:
+        """Resolve body IDs.
 
         Args:
             body_ids: Body indices as any supported type, or None for all bodies.
 
         Returns:
-            Warp array of signed 32-bit or 64-bit body indices.
+            Body indices.
 
         Raises:
             TypeError: If ``body_ids`` is an unsupported type.
@@ -707,7 +707,7 @@ class WrenchComposer:
         if isinstance(body_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(body_ids, torch.Tensor):
-            return wp.from_torch(body_ids.contiguous())
+            return body_ids
         if isinstance(body_ids, wp.array):
             return body_ids
         if body_ids == slice(None):

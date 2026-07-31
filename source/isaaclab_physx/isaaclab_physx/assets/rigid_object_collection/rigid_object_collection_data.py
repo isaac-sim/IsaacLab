@@ -274,16 +274,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
-            # read data from simulation and reshape
-            pose = self._reshape_view_to_data_2d(self._root_view.get_transforms().view(wp.transformf))
-            # set the buffer data and timestamp
-            self._body_link_pose_w.data = pose
+            self._reshape_view_to_data_2d(
+                self._root_view.get_transforms().view(wp.transformf), self._body_link_pose_w.data
+            )
             self._body_link_pose_w.timestamp = self._sim_timestamp
-            # Rebind ProxyArray since reshape creates a new wp.array each time
-            if self._body_link_pose_w_ta is not None:
-                self._body_link_pose_w_ta = ProxyArray(pose)
-                self._body_link_pos_w_ta = None
-                self._body_link_quat_w_ta = None
 
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
@@ -356,14 +350,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         relative to the world.
         """
         if self._body_com_vel_w.timestamp < self._sim_timestamp:
-            vel = self._reshape_view_to_data_2d(self._root_view.get_velocities().view(wp.spatial_vectorf))
-            self._body_com_vel_w.data = vel
+            self._reshape_view_to_data_2d(
+                self._root_view.get_velocities().view(wp.spatial_vectorf), self._body_com_vel_w.data
+            )
             self._body_com_vel_w.timestamp = self._sim_timestamp
-            # Rebind ProxyArray since reshape creates a new wp.array each time
-            if self._body_com_vel_w_ta is not None:
-                self._body_com_vel_w_ta = ProxyArray(vel)
-                self._body_com_lin_vel_w_ta = None
-                self._body_com_ang_vel_w_ta = None
 
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
@@ -378,14 +368,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            acc = self._reshape_view_to_data_2d(self._root_view.get_accelerations().view(wp.spatial_vectorf))
-            self._body_com_acc_w.data = acc
+            self._reshape_view_to_data_2d(
+                self._root_view.get_accelerations().view(wp.spatial_vectorf), self._body_com_acc_w.data
+            )
             self._body_com_acc_w.timestamp = self._sim_timestamp
-            # Rebind ProxyArray since reshape creates a new wp.array each time
-            if self._body_com_acc_w_ta is not None:
-                self._body_com_acc_w_ta = ProxyArray(acc)
-                self._body_com_lin_acc_w_ta = None
-                self._body_com_ang_acc_w_ta = None
         if self._body_com_acc_w_ta is None:
             self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
         return self._body_com_acc_w_ta
@@ -400,10 +386,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
-            # obtain the coms
-            poses = self._reshape_view_to_data_2d(self._root_view.get_coms().view(wp.transformf))
-            # read data from simulation
-            self._body_com_pose_b.data.assign(poses)
+            self._reshape_view_to_data_2d(self._root_view.get_coms().view(wp.transformf), self._body_com_pose_b.data)
             self._body_com_pose_b.timestamp = self._sim_timestamp
 
         if self._body_com_pose_b_ta is None:
@@ -835,20 +818,17 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     Helpers.
     """
 
-    def _reshape_view_to_data_2d(self, data: wp.array) -> wp.array:
+    def _reshape_view_to_data_2d(self, data: wp.array, out: wp.array | None = None) -> wp.array:
         """Reshapes and arranges the data from the physics view to (num_instances, num_bodies, data_size).
 
         Args:
             data: The data from the physics view. Shape is (num_instances * num_bodies, data_size).
+            out: Optional destination array.
 
         Returns:
             The reshaped data. Shape is (num_instances, num_bodies, data_size).
         """
-        # The view returns data ordered as (body0_env0, body0_env1, ..., body1_env0, body1_env1, ...)
-        # i.e. shape (num_bodies, num_instances) when reshaped.
-        # We need (num_instances, num_bodies) so we create a strided view with transposed strides.
-        # Use data.device for the strided view (PhysX returns masses/coms/inertias on CPU),
-        # then clone to self.device (handles both contiguity and device transfer).
+        # PhysX returns body-major data; transpose the strides to instance-major order.
         element_size = wp.types.type_size_in_bytes(data.dtype)
         strided_view = wp.array(
             ptr=data.ptr,
@@ -857,6 +837,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             strides=(element_size, self.num_instances * element_size),
             device=data.device,
         )
+        if out is not None:
+            out.assign(strided_view)
+            return out
         return wp.clone(strided_view, self.device)
 
     def _reshape_view_to_data_3d(self, data: wp.array, data_dim: int) -> wp.array:

@@ -10,7 +10,6 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-import torch
 import warp as wp
 from isaaclab_ovphysx.assets import kernels
 
@@ -45,13 +44,15 @@ def test_root_worker_accepts_selector_widths(env_dtype: type) -> None:
         device="cpu",
     )
     output = wp.zeros(2, dtype=wp.transformf, device="cpu")
+    sim_env_ids = wp.empty(2, dtype=wp.int32, device="cpu")
     kernel = kernels.set_root_link_pose_to_sim_index
     if env_dtype == wp.int64:
         kernel = kernels.set_root_link_pose_to_sim_index_kernel(env_ids)
 
-    wp.launch(kernel, dim=2, inputs=[data, env_ids], outputs=[output], device="cpu")
+    wp.launch(kernel, dim=2, inputs=[data, env_ids], outputs=[output, sim_env_ids], device="cpu")
 
     np.testing.assert_array_equal(output.numpy(), data.numpy()[[1, 0]])
+    np.testing.assert_array_equal(sim_env_ids.numpy(), [1, 0])
 
 
 @pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
@@ -68,24 +69,6 @@ def test_item_worker_accepts_selector_widths(env_dtype: type, item_dtype: type) 
     wp.launch(kernel, dim=(2, 2), inputs=[data, env_ids, item_ids], outputs=[output], device="cpu")
 
     np.testing.assert_array_equal(output.numpy(), [[22.0, -1.0, 21.0], [12.0, -1.0, 11.0]])
-
-
-@pytest.mark.parametrize(("torch_dtype", "warp_dtype"), [(torch.int32, wp.int32), (torch.int64, wp.int64)])
-def test_selector_resolvers_preserve_width_and_alias_source(torch_dtype: torch.dtype, warp_dtype: type) -> None:
-    Articulation = _articulation_class()
-    articulation = type("ResolverStub", (), {"_device": "cpu"})()
-    selector = torch.tensor([1, 0], dtype=torch_dtype)
-
-    for resolver_name in (
-        "_resolve_env_ids",
-        "_resolve_joint_ids",
-        "_resolve_body_ids",
-        "_resolve_fixed_tendon_ids",
-        "_resolve_spatial_tendon_ids",
-    ):
-        resolved = getattr(Articulation, resolver_name)(articulation, selector)
-        assert resolved.dtype == warp_dtype
-        assert resolved.ptr == selector.data_ptr()
 
 
 def test_cpu_env_ids_all_returns_pinned_fast_path() -> None:

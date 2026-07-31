@@ -593,9 +593,10 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(root_pose, (self.num_instances,), wp.transformf, "root_pose")
         else:
             self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.set_root_link_pose_to_sim,
+            shared_kernels.set_root_link_pose_to_sim_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
@@ -604,6 +605,7 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_link_pose_w,
+                sim_env_ids,
             ],
             device=self.device,
         )
@@ -611,7 +613,7 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose()
         # set into simulation
-        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -682,11 +684,12 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(root_pose, (self.num_instances,), wp.transformf, "root_pose")
         else:
             self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
         wp.launch(
-            shared_kernels.set_root_com_pose_to_sim,
+            shared_kernels.set_root_com_pose_to_sim_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
@@ -697,6 +700,7 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
+                sim_env_ids,
             ],
             device=self.device,
         )
@@ -704,7 +708,7 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose(from_link=False)
         # set into simulation
-        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -848,9 +852,10 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(root_velocity, (self.num_instances,), wp.spatial_vectorf, "root_velocity")
         else:
             self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.set_root_com_velocity_to_sim,
+            shared_kernels.set_root_com_velocity_to_sim_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
@@ -861,6 +866,7 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
+                sim_env_ids,
             ],
             device=self.device,
         )
@@ -868,7 +874,7 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_velocity()
         # set into simulation
-        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=sim_env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -947,10 +953,11 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(root_velocity, (self.num_instances,), wp.spatial_vectorf, "root_velocity")
         else:
             self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.
         wp.launch(
-            shared_kernels.set_root_link_velocity_to_sim,
+            shared_kernels.set_root_link_velocity_to_sim_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
@@ -964,6 +971,7 @@ class Articulation(BaseArticulation):
                 self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
+                sim_env_ids,
             ],
             device=self.device,
         )
@@ -971,7 +979,7 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_velocity(from_com=False)
         # set into simulation
-        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=sim_env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -1055,8 +1063,9 @@ class Articulation(BaseArticulation):
         joint_pos_backend = self.data._get_joint_pos_write_buffer(joint_selection_is_partial)
         joint_vel_backend = self.data._get_joint_vel_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            ordering_kernels.write_joint_state_user_to_backend_with_indices_kernel(env_ids, joint_ids),
+            articulation_kernels.write_joint_state_with_sim_ids_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,
@@ -1074,6 +1083,7 @@ class Articulation(BaseArticulation):
                 self.data._joint_acc.data,
                 joint_pos_backend,
                 joint_vel_backend,
+                sim_env_ids,
             ],
             device=self.device,
         )
@@ -1082,8 +1092,8 @@ class Articulation(BaseArticulation):
             self.data._reset_pose()
             self.data._reset_velocity()
         # set into simulation
-        self.root_view.set_dof_positions(joint_pos_backend, indices=env_ids)
-        self.root_view.set_dof_velocities(joint_vel_backend, indices=env_ids)
+        self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
+        self.root_view.set_dof_velocities(joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_state_to_sim_mask(
         self,
@@ -1162,15 +1172,19 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         joint_pos_backend = self.data._get_joint_pos_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
-        ordering_kernels.write_float_user_to_backend_with_indices(
-            position,
-            env_ids,
-            joint_ids,
-            self._joint_user_to_backend_map(),
-            has_joint_ordering,
-            full_data,
-            self.data._joint_pos.data,
-            joint_pos_backend,
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+        wp.launch(
+            articulation_kernels.write_joint_position_with_sim_ids_kernel(env_ids, joint_ids),
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                env_ids,
+                joint_ids,
+                self._joint_user_to_backend_map(),
+                has_joint_ordering,
+                full_data,
+            ],
+            outputs=[self.data._joint_pos.data, joint_pos_backend, sim_env_ids],
             device=self.device,
         )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
@@ -1178,7 +1192,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose()
             self.data._reset_velocity()
         # set into simulation
-        self.root_view.set_dof_positions(joint_pos_backend, indices=env_ids)
+        self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1255,8 +1269,9 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         joint_vel_backend = self.data._get_joint_vel_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            ordering_kernels.write_joint_vel_user_to_backend_with_indices_kernel(env_ids, joint_ids),
+            articulation_kernels.write_joint_velocity_with_sim_ids_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 velocity,
@@ -1271,13 +1286,14 @@ class Articulation(BaseArticulation):
                 self.data._previous_joint_vel,
                 self.data._joint_acc.data,
                 joint_vel_backend,
+                sim_env_ids,
             ],
             device=self.device,
         )
         if not skip_forward:
             self.data._reset_velocity()
         # set into simulation
-        self.root_view.set_dof_velocities(joint_vel_backend, indices=env_ids)
+        self.root_view.set_dof_velocities(joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -1988,8 +2004,6 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_armature_backend = self._get_backend_ordered_joint_buffer(
             self.data._joint_armature, self.data._joint_armature_backend
@@ -3563,7 +3577,7 @@ class Articulation(BaseArticulation):
             self.data.fixed_tendon_pos_limits.warp,
             self.data.fixed_tendon_rest_length.warp,
             self.data.fixed_tendon_offset.warp,
-            indices=env_ids,
+            indices=self._get_sim_env_ids(env_ids),
         )
 
     def write_fixed_tendon_properties_to_sim_mask(
@@ -4029,7 +4043,7 @@ class Articulation(BaseArticulation):
             self.data.spatial_tendon_damping.warp,
             self.data.spatial_tendon_limit_stiffness.warp,
             self.data.spatial_tendon_offset.warp,
-            indices=env_ids,
+            indices=self._get_sim_env_ids(env_ids),
         )
 
     def write_spatial_tendon_properties_to_sim_mask(
@@ -4125,6 +4139,8 @@ class Articulation(BaseArticulation):
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(
             np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
         )
+        self._sim_env_ids = wp.empty(self.num_instances, dtype=wp.int32, device=self.device)
+        self._sim_env_ids_views: dict[int, wp.array] = {}
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -4891,10 +4907,32 @@ class Articulation(BaseArticulation):
             A warp array of environment indices.
         """
         if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids)
+            env_ids = wp.from_torch(env_ids.to(device="cpu", dtype=torch.int32), dtype=wp.int32)
+        elif env_ids.dtype == wp.int64:
+            return wp.array(env_ids, dtype=wp.int32, device="cpu")
         if str(env_ids.device) == "cpu":
             return env_ids
         return wp.clone(env_ids, device="cpu")
+
+    def _get_sim_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
+        """Return int32 environment indices for PhysX."""
+        if isinstance(env_ids, torch.Tensor):
+            return wp.from_torch(env_ids.to(device=self.device, dtype=torch.int32), dtype=wp.int32)
+        if env_ids.dtype == wp.int64 or str(env_ids.device) != self.device:
+            return wp.array(env_ids, dtype=wp.int32, device=self.device)
+        return env_ids
+
+    def _sim_env_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the simulator-index scratch buffer."""
+        if count not in self._sim_env_ids_views:
+            self._sim_env_ids_views[count] = wp.array(
+                ptr=self._sim_env_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device=self.device,
+                copy=False,
+            )
+        return self._sim_env_ids_views[count]
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
         """
@@ -4910,22 +4948,19 @@ class Articulation(BaseArticulation):
         if env_mask is not None:
             if isinstance(env_mask, wp.array):
                 env_mask = wp.to_torch(env_mask)
-            env_ids = torch.nonzero(env_mask)[:, 0].to(torch.int32)
+            env_ids = torch.nonzero(env_mask)[:, 0]
         else:
             env_ids = self._ALL_INDICES
         return env_ids
 
-    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
-        """Resolve environment indices to a warp array.
-
-        .. note::
-            We need to convert torch tensors to warp arrays since the TensorAPI views only support warp arrays.
+    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+        """Resolve environment indices.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
 
         Returns:
-            A warp array of environment indices.
+            Environment indices.
         """
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
@@ -4933,8 +4968,6 @@ class Articulation(BaseArticulation):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids)
         return env_ids
 
     def _resolve_joint_mask(self, joint_mask: wp.array | None) -> torch.Tensor | wp.array:
@@ -4949,7 +4982,7 @@ class Articulation(BaseArticulation):
         if joint_mask is not None:
             if isinstance(joint_mask, wp.array):
                 joint_mask = wp.to_torch(joint_mask)
-            joint_ids = torch.nonzero(joint_mask)[:, 0].to(torch.int32)
+            joint_ids = torch.nonzero(joint_mask)[:, 0]
         else:
             joint_ids = self._ALL_JOINT_INDICES
         return joint_ids
@@ -4986,7 +5019,7 @@ class Articulation(BaseArticulation):
         if body_mask is not None:
             if isinstance(body_mask, wp.array):
                 body_mask = wp.to_torch(body_mask)
-            body_ids = torch.nonzero(body_mask)[:, 0].to(torch.int32)
+            body_ids = torch.nonzero(body_mask)[:, 0]
         else:
             body_ids = self._ALL_BODY_INDICES
         return body_ids
@@ -5020,7 +5053,7 @@ class Articulation(BaseArticulation):
         if fixed_tendon_mask is not None:
             if isinstance(fixed_tendon_mask, wp.array):
                 fixed_tendon_mask = wp.to_torch(fixed_tendon_mask)
-            fixed_tendon_ids = torch.nonzero(fixed_tendon_mask)[:, 0].to(torch.int32)
+            fixed_tendon_ids = torch.nonzero(fixed_tendon_mask)[:, 0]
         else:
             fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
         return fixed_tendon_ids
@@ -5056,7 +5089,7 @@ class Articulation(BaseArticulation):
         if spatial_tendon_mask is not None:
             if isinstance(spatial_tendon_mask, wp.array):
                 spatial_tendon_mask = wp.to_torch(spatial_tendon_mask)
-            spatial_tendon_ids = torch.nonzero(spatial_tendon_mask)[:, 0].to(torch.int32)
+            spatial_tendon_ids = torch.nonzero(spatial_tendon_mask)[:, 0]
         else:
             spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
         return spatial_tendon_ids

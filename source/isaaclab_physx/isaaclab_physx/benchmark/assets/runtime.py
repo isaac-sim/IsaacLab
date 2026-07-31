@@ -119,6 +119,8 @@ def create_test_articulation(
     object.__setattr__(articulation, "_root_link_pose_w_f32", None)
     object.__setattr__(articulation, "_root_com_vel_w_f32", None)
     object.__setattr__(articulation, "_root_link_vel_w_f32", None)
+    object.__setattr__(articulation, "_sim_env_ids", wp.empty(num_instances, dtype=wp.int32, device=device))
+    object.__setattr__(articulation, "_sim_env_ids_views", {})
 
     # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
     N, J, B = num_instances, num_joints, num_bodies
@@ -324,6 +326,7 @@ def open_asset_targets(adapter, request, method_config, data_config):
     app_launcher = (
         AppLauncher(headless=True, args=request.launcher_args) if request.launcher_args else AppLauncher(headless=True)
     )
+    completed = False
     try:
         _load_runtime_symbols()
         args.no_shape_checks = not request.check_shapes
@@ -355,5 +358,7 @@ def open_asset_targets(adapter, request, method_config, data_config):
                 data_target=data,
                 refresh_data=refresh_data,
             )
+            completed = True
     finally:
-        app_launcher.app.close()
+        if completed:
+            app_launcher.app.close()

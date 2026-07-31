@@ -10,7 +10,7 @@ from typing import Any
 import torch
 import warp as wp
 
-from .index_kernel import IndexKernelDispatcher
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 ##
 # Raycasting
@@ -693,20 +693,20 @@ _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER = IndexKernelDispatcher(reset_wrench_com
 
 
 def set_forces_to_dual_buffers_index_kernel(
-    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+    env_ids: "wp.array | torch.Tensor", body_ids: "wp.array | torch.Tensor"
 ) -> wp.Kernel:
     """Select the indexed wrench-set worker for the selector dtypes."""
     return _SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select(env_ids, body_ids)
 
 
 def add_forces_to_dual_buffers_index_kernel(
-    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+    env_ids: "wp.array | torch.Tensor", body_ids: "wp.array | torch.Tensor"
 ) -> wp.Kernel:
     """Select the indexed wrench-add worker for the selector dtypes."""
     return _ADD_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select(env_ids, body_ids)
 
 
-def reset_wrench_composer_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+def reset_wrench_composer_index_kernel(env_ids: "wp.array | torch.Tensor") -> wp.Kernel:
     """Select the indexed wrench-reset worker for the selector dtype."""
     return _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER.select(env_ids)
 

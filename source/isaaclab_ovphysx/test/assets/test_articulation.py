@@ -58,7 +58,7 @@ import pytest
 import torch
 import warp as wp
 
-from pxr import UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.test.utils import test_devices
 from isaaclab.test.utils.articulation_ordering import (
@@ -481,6 +481,29 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
         + torch.einsum("nbi,nbij,nbj->n", body_velocity[..., 3:], body_inertia, body_velocity[..., 3:])
     )
     torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-5)
+
+
+def test_joint_dof_sign_resolution_traverses_instance_proxies():
+    """Resolve reversed joints inside an instanceable articulation."""
+    source_stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(source_stage, "/Robot")
+    UsdGeom.Xform.Define(source_stage, "/Robot/base")
+    UsdGeom.Xform.Define(source_stage, "/Robot/link")
+    joint = UsdPhysics.RevoluteJoint.Define(source_stage, "/Robot/joint")
+    joint.GetBody0Rel().SetTargets(["/Robot/link"])
+    joint.GetBody1Rel().SetTargets(["/Robot/base"])
+    stage = Usd.Stage.CreateInMemory()
+    instance = UsdGeom.Xform.Define(stage, "/World/Robot").GetPrim()
+    instance.GetReferences().AddReference(source_stage.GetRootLayer().identifier, "/Robot")
+    instance.SetInstanceable(True)
+
+    articulation = Mock(
+        cfg=Mock(prim_path="/World/Robot"),
+        _joint_names=["joint"],
+        _body_names=["base", "link"],
+    )
+
+    assert Articulation._resolve_joint_dof_signs(articulation, stage) == (-1,)
 
 
 @pytest.mark.parametrize("num_articulations", [1])

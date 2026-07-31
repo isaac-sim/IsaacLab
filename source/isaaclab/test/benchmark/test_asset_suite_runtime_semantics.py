@@ -141,15 +141,10 @@ def test_newton_rigid_object_refresh_regenerates_kinematics_and_mass_properties(
     assert data._sim_timestamp == 1.0
 
 
-def test_newton_collection_refresh_rebinds_regenerated_sources(monkeypatch) -> None:
-    """Newton collection preparation should update all sources and recreate simulation bindings."""
+def test_newton_collection_refresh_regenerates_kinematics_and_mass_properties(monkeypatch) -> None:
+    """Newton collection preparation should refresh every source buffer."""
     view = _RecordingView()
-    data = SimpleNamespace(_sim_timestamp=0.0, binding_refreshes=0)
-
-    def create_simulation_bindings() -> None:
-        data.binding_refreshes += 1
-
-    data._create_simulation_bindings = create_simulation_bindings
+    data = SimpleNamespace(_sim_timestamp=0.0)
     monkeypatch.setattr(newton_runtime, "np", np, raising=False)
     monkeypatch.setattr(newton_runtime, "wp", wp, raising=False)
     refresh = getattr(newton_runtime, "_refresh_collection_data", None)
@@ -157,12 +152,13 @@ def test_newton_collection_refresh_rebinds_regenerated_sources(monkeypatch) -> N
     assert refresh is not None
     refresh(view, data, _CONFIG)
 
-    assert tuple(view._root_transforms.shape) == (2, 3)
-    assert tuple(view._root_velocities.shape) == (2, 3)
-    assert tuple(view._attributes["body_com"].shape) == (2, 3, 1)
-    assert tuple(view._attributes["body_mass"].shape) == (2, 3, 1)
-    assert tuple(view._attributes["body_inertia"].shape) == (2, 3, 1)
-    assert data.binding_refreshes == 1
+    assert view.calls == {
+        "root_transforms": (2, 3),
+        "root_velocities": (2, 3),
+        "coms": (2, 3, 1),
+        "masses": (2, 3, 1),
+        "inertias": (2, 3, 1),
+    }
     assert data._sim_timestamp == 1.0
 
 
@@ -287,6 +283,22 @@ def test_newton_articulation_open_targets_constructs_real_method_and_data_target
     with newton_runtime.open_asset_targets(adapter, request, _CONFIG, _CONFIG) as targets:
         assert targets.method_target._data._jacobian_buf.shape == (2, 3, 6, 10)
         assert targets.data_target._jacobian_buf.shape == (2, 3, 6, 10)
+
+
+@pytest.mark.parametrize("runtime", (physx_runtime, newton_runtime))
+def test_open_targets_preserves_setup_errors(monkeypatch, runtime) -> None:
+    app = SimpleNamespace(close=lambda: pytest.fail("close hid the setup error"))
+
+    def launcher(*args, **kwargs):
+        return SimpleNamespace(app=app)
+
+    monkeypatch.setitem(sys.modules, "isaaclab.app", SimpleNamespace(AppLauncher=launcher))
+    monkeypatch.setattr(runtime, "_load_runtime_symbols", lambda: (_ for _ in ()).throw(RuntimeError("setup")))
+    request = SimpleNamespace(launcher_args=None, check_shapes=True)
+
+    with pytest.raises(RuntimeError, match="setup"):
+        with runtime.open_asset_targets(None, request, _CONFIG, _CONFIG):
+            pass
 
 
 @pytest.mark.parametrize(

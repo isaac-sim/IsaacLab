@@ -27,7 +27,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
-from .kernels import resolve_view_ids
+from .kernels import resolve_view_ids_kernel
 from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
@@ -451,7 +451,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
         wp.launch(
-            shared_kernels.set_body_link_pose_to_sim,
+            shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_poses,
@@ -553,7 +553,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
         wp.launch(
-            shared_kernels.set_body_com_pose_to_sim,
+            shared_kernels.set_body_com_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_poses,
@@ -664,7 +664,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities"
             )
         wp.launch(
-            shared_kernels.set_body_com_velocity_to_sim,
+            shared_kernels.set_body_com_velocity_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_velocities,
@@ -782,7 +782,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             )
         # Access body_com_pose_b and body_link_pose_w to ensure they are current.
         wp.launch(
-            shared_kernels.set_body_link_velocity_to_sim,
+            shared_kernels.set_body_link_velocity_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_velocities,
@@ -976,7 +976,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer,
+            shared_kernels.write_body_com_pose_to_buffer_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
@@ -1065,7 +1065,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer,
+            shared_kernels.write_body_inertia_to_buffer_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 inertias,
@@ -1260,20 +1260,16 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     Internal helper.
     """
 
-    def _resolve_env_ids(self, env_ids) -> wp.array:
-        """Resolve environment indices to a warp array."""
+    def _resolve_env_ids(self, env_ids) -> wp.array | torch.Tensor:
+        """Resolve environment indices."""
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_ENV_INDICES
-        if isinstance(env_ids, torch.Tensor):
-            if env_ids.dtype == torch.int64:
-                env_ids = env_ids.to(torch.int32)
-            return wp.from_torch(env_ids, dtype=wp.int32)
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
 
-    def _resolve_body_ids(self, body_ids) -> wp.array:
-        """Resolve body indices to a warp array."""
+    def _resolve_body_ids(self, body_ids) -> wp.array | torch.Tensor:
+        """Resolve body indices."""
         if isinstance(body_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(body_ids, list):
@@ -1284,10 +1280,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             return wp.from_torch(
                 torch.arange(self.num_bodies, dtype=torch.int32, device=self.device)[body_ids], dtype=wp.int32
             )
-        if isinstance(body_ids, torch.Tensor):
-            if body_ids.dtype == torch.int64:
-                body_ids = body_ids.to(torch.int32)
-            return wp.from_torch(body_ids, dtype=wp.int32)
         return body_ids
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
@@ -1295,7 +1287,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if env_mask is not None:
             if isinstance(env_mask, wp.array):
                 env_mask = wp.to_torch(env_mask)
-            env_ids = torch.nonzero(env_mask)[:, 0].to(torch.int32)
+            env_ids = torch.nonzero(env_mask)[:, 0]
         else:
             env_ids = self._ALL_ENV_INDICES
         return env_ids
@@ -1305,7 +1297,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if body_mask is not None:
             if isinstance(body_mask, wp.array):
                 body_mask = wp.to_torch(body_mask)
-            body_ids = torch.nonzero(body_mask)[:, 0].to(torch.int32)
+            body_ids = torch.nonzero(body_mask)[:, 0]
         else:
             body_ids = self._ALL_BODY_INDICES
         return body_ids
@@ -1313,7 +1305,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
         """Get CPU environment indices."""
         if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
+            env_ids = wp.from_torch(env_ids.to(device="cpu", dtype=torch.int32), dtype=wp.int32)
+        elif env_ids.dtype == wp.int64:
+            return wp.array(env_ids, dtype=wp.int32, device="cpu")
         return wp.clone(env_ids, device="cpu")
 
     def _initialize_impl(self):
@@ -1405,17 +1399,17 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # return a flat tensor of indices
         # ensure env_ids and body_ids are on the target device
         if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
-        if isinstance(body_ids, torch.Tensor):
-            body_ids = wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
-        if env_ids.device != device:
+            env_ids = env_ids.to(device=device)
+        elif str(env_ids.device) != device:
             env_ids = wp.clone(env_ids, device=device)
-        if body_ids.device != device:
+        if isinstance(body_ids, torch.Tensor):
+            body_ids = body_ids.to(device=device)
+        elif str(body_ids.device) != device:
             body_ids = wp.clone(body_ids, device=device)
         num_query_envs = env_ids.shape[0]
         view_ids = wp.zeros(num_query_envs * body_ids.shape[0], dtype=wp.int32, device=device)
         wp.launch(
-            resolve_view_ids,
+            resolve_view_ids_kernel(env_ids, body_ids),
             dim=(num_query_envs, body_ids.shape[0]),
             inputs=[env_ids, body_ids, num_query_envs, self.num_instances],
             outputs=[view_ids],

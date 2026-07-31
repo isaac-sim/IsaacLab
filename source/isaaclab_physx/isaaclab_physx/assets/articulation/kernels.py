@@ -45,6 +45,123 @@ Articulation-specific warp kernels.
 
 
 @wp.kernel
+def write_joint_position_with_sim_ids(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    full_data: bool,
+    user_pos: wp.array2d(dtype=wp.float32),
+    backend_pos: wp.array2d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
+) -> None:
+    """Write joint positions and materialize simulator indices."""
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    value = in_data[env_id, joint_id] if full_data else in_data[i, j]
+    user_pos[env_id, joint_id] = value
+    if has_ordering:
+        backend_pos[env_id, user_to_backend[joint_id]] = value
+    if j == 0:
+        sim_env_ids[i] = env_id
+
+
+_WRITE_JOINT_POSITION_WITH_SIM_IDS = IndexKernelDispatcher(write_joint_position_with_sim_ids, ("env_ids", "joint_ids"))
+
+
+def write_joint_position_with_sim_ids_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-position writer for the selector dtypes."""
+    return _WRITE_JOINT_POSITION_WITH_SIM_IDS.select(env_ids, joint_ids)
+
+
+@wp.kernel
+def write_joint_velocity_with_sim_ids(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    full_data: bool,
+    user_vel: wp.array2d(dtype=wp.float32),
+    user_prev_vel: wp.array2d(dtype=wp.float32),
+    user_acc: wp.array2d(dtype=wp.float32),
+    backend_vel: wp.array2d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
+) -> None:
+    """Write joint velocities and materialize simulator indices."""
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    value = in_data[env_id, joint_id] if full_data else in_data[i, j]
+    user_vel[env_id, joint_id] = value
+    user_prev_vel[env_id, joint_id] = value
+    user_acc[env_id, joint_id] = 0.0
+    if has_ordering:
+        backend_vel[env_id, user_to_backend[joint_id]] = value
+    if j == 0:
+        sim_env_ids[i] = env_id
+
+
+_WRITE_JOINT_VELOCITY_WITH_SIM_IDS = IndexKernelDispatcher(write_joint_velocity_with_sim_ids, ("env_ids", "joint_ids"))
+
+
+def write_joint_velocity_with_sim_ids_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-velocity writer for the selector dtypes."""
+    return _WRITE_JOINT_VELOCITY_WITH_SIM_IDS.select(env_ids, joint_ids)
+
+
+@wp.kernel
+def write_joint_state_with_sim_ids(
+    position: wp.array2d(dtype=wp.float32),
+    velocity: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    full_data: bool,
+    user_pos: wp.array2d(dtype=wp.float32),
+    user_vel: wp.array2d(dtype=wp.float32),
+    user_prev_vel: wp.array2d(dtype=wp.float32),
+    user_acc: wp.array2d(dtype=wp.float32),
+    backend_pos: wp.array2d(dtype=wp.float32),
+    backend_vel: wp.array2d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
+) -> None:
+    """Write joint state and materialize simulator indices."""
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    pos_value = position[env_id, joint_id] if full_data else position[i, j]
+    vel_value = velocity[env_id, joint_id] if full_data else velocity[i, j]
+    user_pos[env_id, joint_id] = pos_value
+    user_vel[env_id, joint_id] = vel_value
+    user_prev_vel[env_id, joint_id] = vel_value
+    user_acc[env_id, joint_id] = 0.0
+    if has_ordering:
+        backend_id = user_to_backend[joint_id]
+        backend_pos[env_id, backend_id] = pos_value
+        backend_vel[env_id, backend_id] = vel_value
+    if j == 0:
+        sim_env_ids[i] = env_id
+
+
+_WRITE_JOINT_STATE_WITH_SIM_IDS = IndexKernelDispatcher(write_joint_state_with_sim_ids, ("env_ids", "joint_ids"))
+
+
+def write_joint_state_with_sim_ids_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-state writer for the selector dtypes."""
+    return _WRITE_JOINT_STATE_WITH_SIM_IDS.select(env_ids, joint_ids)
+
+
+@wp.kernel
 def get_joint_acc_from_joint_vel(
     joint_vel: wp.array2d(dtype=wp.float32),
     prev_joint_vel: wp.array2d(dtype=wp.float32),

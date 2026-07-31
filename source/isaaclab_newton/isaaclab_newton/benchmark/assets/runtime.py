@@ -256,8 +256,8 @@ def _refresh_rigid_object_data(mock_view, data, config) -> None:
     num_instances, num_bodies, device = config.num_instances, config.num_bodies, config.device
     root_transforms = np.random.randn(num_instances, 1, 7).astype(np.float32)
     root_transforms[..., 3:7] /= np.linalg.norm(root_transforms[..., 3:7], axis=-1, keepdims=True)
-    mock_view._root_transforms.assign(wp.array(root_transforms, dtype=wp.transformf, device=device))
-    mock_view._root_velocities.assign(
+    mock_view.set_mock_root_transforms(wp.array(root_transforms, dtype=wp.transformf, device=device))
+    mock_view.set_mock_root_velocities(
         wp.array(
             np.random.randn(num_instances, 1, 6).astype(np.float32),
             dtype=wp.spatial_vectorf,
@@ -266,29 +266,29 @@ def _refresh_rigid_object_data(mock_view, data, config) -> None:
     )
     link_transforms = np.random.randn(num_instances, 1, num_bodies, 7).astype(np.float32)
     link_transforms[..., 3:7] /= np.linalg.norm(link_transforms[..., 3:7], axis=-1, keepdims=True)
-    mock_view._link_transforms.assign(wp.array(link_transforms, dtype=wp.transformf, device=device))
-    mock_view._link_velocities.assign(
+    mock_view.set_mock_link_transforms(wp.array(link_transforms, dtype=wp.transformf, device=device))
+    mock_view.set_mock_link_velocities(
         wp.array(
             np.random.randn(num_instances, 1, num_bodies, 6).astype(np.float32),
             dtype=wp.spatial_vectorf,
             device=device,
         )
     )
-    mock_view._attributes["body_com"].assign(
+    mock_view.set_mock_coms(
         wp.array(
             np.random.randn(num_instances, 1, num_bodies, 3).astype(np.float32),
             dtype=wp.vec3f,
             device=device,
         )
     )
-    mock_view._attributes["body_inertia"].assign(
+    mock_view.set_mock_inertias(
         wp.array(
             np.random.randn(num_instances, 1, num_bodies, 9).astype(np.float32),
             dtype=wp.mat33f,
             device=device,
         )
     )
-    mock_view._attributes["body_mass"].assign(
+    mock_view.set_mock_masses(
         wp.array(
             (np.random.rand(num_instances, 1, num_bodies) * 10 + 0.1).astype(np.float32),
             dtype=wp.float32,
@@ -302,29 +302,29 @@ def _refresh_collection_data(mock_view, data, config) -> None:
     num_instances, num_bodies, device = config.num_instances, config.num_bodies, config.device
     root_transforms = np.random.randn(num_instances, num_bodies, 7).astype(np.float32)
     root_transforms[..., 3:7] /= np.linalg.norm(root_transforms[..., 3:7], axis=-1, keepdims=True)
-    mock_view._root_transforms.assign(wp.array(root_transforms, dtype=wp.transformf, device=device))
-    mock_view._root_velocities.assign(
+    mock_view.set_mock_root_transforms(wp.array(root_transforms, dtype=wp.transformf, device=device))
+    mock_view.set_mock_root_velocities(
         wp.array(
             np.random.randn(num_instances, num_bodies, 6).astype(np.float32),
             dtype=wp.spatial_vectorf,
             device=device,
         )
     )
-    mock_view._attributes["body_com"].assign(
+    mock_view.set_mock_coms(
         wp.array(
             np.random.randn(num_instances, num_bodies, 1, 3).astype(np.float32),
             dtype=wp.vec3f,
             device=device,
         )
     )
-    mock_view._attributes["body_mass"].assign(
+    mock_view.set_mock_masses(
         wp.array(
             (np.random.rand(num_instances, num_bodies, 1) * 10 + 0.1).astype(np.float32),
             dtype=wp.float32,
             device=device,
         )
     )
-    mock_view._attributes["body_inertia"].assign(
+    mock_view.set_mock_inertias(
         wp.array(
             np.random.randn(num_instances, num_bodies, 1, 9).astype(np.float32),
             dtype=wp.mat33f,
@@ -395,6 +395,7 @@ def open_asset_targets(adapter, request, method_config, data_config):
     app_launcher = (
         AppLauncher(headless=True, args=request.launcher_args) if request.launcher_args else AppLauncher(headless=True)
     )
+    completed = False
     try:
         _load_runtime_symbols()
         args.no_shape_checks = not request.check_shapes
@@ -426,5 +427,7 @@ def open_asset_targets(adapter, request, method_config, data_config):
                 data_target=data,
                 refresh_data=refresh_data,
             )
+            completed = True
     finally:
-        app_launcher.app.close()
+        if completed:
+            app_launcher.app.close()

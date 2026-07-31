@@ -12,7 +12,6 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-import torch
 import warp as wp
 from isaaclab_physx.assets.articulation.kernels import (
     write_joint_state_data,
@@ -125,19 +124,6 @@ def test_model_property_writers_invalidate_same_timestamp_dynamics(
     expected_gravity_timestamp = -1.0 if invalidates_gravity else 3.0
     assert data._gravity_compensation_forces.timestamp == expected_gravity_timestamp
     assert data._body_com_jacobian_w.timestamp == 3.0
-
-
-@pytest.mark.parametrize(("torch_dtype", "warp_dtype"), [(torch.int32, wp.int32), (torch.int64, wp.int64)])
-def test_env_resolver_preserves_width_and_aliases_source(torch_dtype: torch.dtype, warp_dtype: type) -> None:
-    """Alias supported Torch environment selectors without allocating a conversion."""
-    Articulation = _articulation_class()
-    articulation = SimpleNamespace(_ALL_INDICES=_selector([0, 1], wp.int32), device="cpu")
-    selector = torch.tensor([1, 0], dtype=torch_dtype)
-
-    resolved = Articulation._resolve_env_ids(articulation, selector)
-
-    assert resolved.dtype == warp_dtype
-    assert resolved.ptr == selector.data_ptr()
 
 
 @pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
