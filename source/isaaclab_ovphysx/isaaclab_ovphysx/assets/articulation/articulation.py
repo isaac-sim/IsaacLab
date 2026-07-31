@@ -47,6 +47,9 @@ from .kernels import (
     update_soft_joint_pos_limits,
     write_joint_friction_data_to_buffer_index_kernel,
     write_joint_friction_data_to_buffer_mask,
+    write_joint_position_with_sim_mask_kernel,
+    write_joint_state_with_sim_mask_kernel,
+    write_joint_velocity_with_sim_mask_kernel,
 )
 
 # import logger
@@ -959,7 +962,7 @@ class Articulation(BaseArticulation):
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         wp.launch(
-            ordering_kernels.write_joint_state_user_to_backend_with_indices_kernel(env_ids, joint_ids),
+            write_joint_state_with_sim_mask_kernel(env_ids, joint_ids),
             dim=expected_shape,
             inputs=[
                 position,
@@ -977,6 +980,7 @@ class Articulation(BaseArticulation):
                 self._data._joint_acc.data,
                 joint_pos_backend,
                 joint_vel_backend,
+                self._sim_env_mask,
             ],
             device=self._device,
         )
@@ -984,8 +988,9 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self._data._reset_pose()
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=env_ids)
-        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=self._sim_env_mask)
+        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=self._sim_env_mask)
+        self._sim_env_mask.zero_()
 
     def write_joint_position_to_sim_index(
         self,
@@ -1019,15 +1024,11 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
-        ordering_kernels.write_float_user_to_backend_with_indices(
-            position,
-            env_ids,
-            joint_ids,
-            self._joint_user_to_backend_map(),
-            has_joint_ordering,
-            False,
-            self._data._joint_pos_buf.data,
-            joint_pos_backend,
+        wp.launch(
+            write_joint_position_with_sim_mask_kernel(env_ids, joint_ids),
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[position, env_ids, joint_ids, self._joint_user_to_backend_map(), has_joint_ordering],
+            outputs=[self._data._joint_pos_buf.data, joint_pos_backend, self._sim_env_mask],
             device=self._device,
         )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
@@ -1035,7 +1036,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self._data._reset_pose()
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=self._sim_env_mask)
+        self._sim_env_mask.zero_()
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1121,21 +1123,23 @@ class Articulation(BaseArticulation):
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
         wp.launch(
-            ordering_kernels.write_joint_vel_user_to_backend_with_indices_kernel(env_ids, joint_ids),
+            write_joint_velocity_with_sim_mask_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[velocity, env_ids, joint_ids, self._joint_user_to_backend_map(), has_joint_ordering, False],
+            inputs=[velocity, env_ids, joint_ids, self._joint_user_to_backend_map(), has_joint_ordering],
             outputs=[
                 self._data._joint_vel_buf.data,
                 self._data._previous_joint_vel,
                 self._data._joint_acc.data,
                 joint_vel_backend,
+                self._sim_env_mask,
             ],
             device=self._device,
         )
         self._data._joint_acc.timestamp = self._data._sim_timestamp
         if not skip_forward:
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=self._sim_env_mask)
+        self._sim_env_mask.zero_()
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -4142,6 +4146,7 @@ class Articulation(BaseArticulation):
         self._ALL_JOINT_INDICES = wp.array(np.arange(J, dtype=np.int32), device=device)
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(FT, dtype=np.int32), device=device)
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(np.arange(ST, dtype=np.int32), device=device)
+        self._sim_env_mask = wp.zeros(N, dtype=wp.bool, device=device)
 
         self._joint_pos_target_backend: wp.array | None = None
         self._joint_vel_target_backend: wp.array | None = None

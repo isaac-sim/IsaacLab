@@ -48,6 +48,124 @@ Articulation-specific warp kernels.
 
 
 @wp.kernel
+def write_joint_position_with_sim_mask(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    user_pos: wp.array2d(dtype=wp.float32),
+    backend_pos: wp.array2d(dtype=wp.float32),
+    sim_env_mask: wp.array(dtype=wp.bool),
+) -> None:
+    """Write joint positions and materialize a simulator mask."""
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    value = in_data[i, j]
+    user_pos[env_id, joint_id] = value
+    if has_ordering:
+        backend_pos[env_id, user_to_backend[joint_id]] = value
+    if j == 0:
+        sim_env_mask[env_id] = True
+
+
+_WRITE_JOINT_POSITION_WITH_SIM_MASK = IndexKernelDispatcher(
+    write_joint_position_with_sim_mask, ("env_ids", "joint_ids")
+)
+
+
+def write_joint_position_with_sim_mask_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-position writer for the selector dtypes."""
+    return _WRITE_JOINT_POSITION_WITH_SIM_MASK.select(env_ids, joint_ids)
+
+
+@wp.kernel
+def write_joint_velocity_with_sim_mask(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    user_vel: wp.array2d(dtype=wp.float32),
+    user_prev_vel: wp.array2d(dtype=wp.float32),
+    user_acc: wp.array2d(dtype=wp.float32),
+    backend_vel: wp.array2d(dtype=wp.float32),
+    sim_env_mask: wp.array(dtype=wp.bool),
+) -> None:
+    """Write joint velocities and materialize a simulator mask."""
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    value = in_data[i, j]
+    user_vel[env_id, joint_id] = value
+    user_prev_vel[env_id, joint_id] = value
+    user_acc[env_id, joint_id] = 0.0
+    if has_ordering:
+        backend_vel[env_id, user_to_backend[joint_id]] = value
+    if j == 0:
+        sim_env_mask[env_id] = True
+
+
+_WRITE_JOINT_VELOCITY_WITH_SIM_MASK = IndexKernelDispatcher(
+    write_joint_velocity_with_sim_mask, ("env_ids", "joint_ids")
+)
+
+
+def write_joint_velocity_with_sim_mask_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-velocity writer for the selector dtypes."""
+    return _WRITE_JOINT_VELOCITY_WITH_SIM_MASK.select(env_ids, joint_ids)
+
+
+@wp.kernel
+def write_joint_state_with_sim_mask(
+    position: wp.array2d(dtype=wp.float32),
+    velocity: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    user_pos: wp.array2d(dtype=wp.float32),
+    user_vel: wp.array2d(dtype=wp.float32),
+    user_prev_vel: wp.array2d(dtype=wp.float32),
+    user_acc: wp.array2d(dtype=wp.float32),
+    backend_pos: wp.array2d(dtype=wp.float32),
+    backend_vel: wp.array2d(dtype=wp.float32),
+    sim_env_mask: wp.array(dtype=wp.bool),
+) -> None:
+    """Write joint state and materialize a simulator mask."""
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    pos_value = position[i, j]
+    vel_value = velocity[i, j]
+    user_pos[env_id, joint_id] = pos_value
+    user_vel[env_id, joint_id] = vel_value
+    user_prev_vel[env_id, joint_id] = vel_value
+    user_acc[env_id, joint_id] = 0.0
+    if has_ordering:
+        backend_id = user_to_backend[joint_id]
+        backend_pos[env_id, backend_id] = pos_value
+        backend_vel[env_id, backend_id] = vel_value
+    if j == 0:
+        sim_env_mask[env_id] = True
+
+
+_WRITE_JOINT_STATE_WITH_SIM_MASK = IndexKernelDispatcher(write_joint_state_with_sim_mask, ("env_ids", "joint_ids"))
+
+
+def write_joint_state_with_sim_mask_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-state writer for the selector dtypes."""
+    return _WRITE_JOINT_STATE_WITH_SIM_MASK.select(env_ids, joint_ids)
+
+
+@wp.kernel
 def _fd_joint_acc(
     cur_vel: wp.array2d(dtype=wp.float32),
     prev_vel: wp.array2d(dtype=wp.float32),
