@@ -4,8 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab_newton.physics import NewtonShapeCfg
-
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
@@ -29,4 +27,4 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # the base_contact termination. Other robots keep the default.
         newton_cfg = getattr(self.sim.physics, "newton_mjwarp", None)
         if newton_cfg is not None:
-            newton_cfg.default_shape_cfg = NewtonShapeCfg(margin=0.0)
+            newton_cfg.default_shape_cfg = newton_cfg.default_shape_cfg.replace(margin=0.0)
