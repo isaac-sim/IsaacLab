@@ -12,7 +12,6 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
-from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftSceneCfg as CoreSceneCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
 
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
@@ -44,19 +43,8 @@ class PhysicsCfg(CorePhysicsCfg):
 
 
 @configclass
-class SceneCfg(CoreSceneCfg):
-    """Adds the manual coupling scene preset, reusing the core proxy scene."""
-
-    newton_mjwarp_vbd = CoreSceneCfg().newton_mjwarp_vbd_proxy
-
-    default = newton_mjwarp_vbd
-
-
-@configclass
 class FrankaSoftCustomCouplingEnvCfg(FrankaSoftEnvCfg):
     """Franka soft lifting with manual MJWarp and VBD coupling."""
-
-    scene: SceneCfg = SceneCfg()
 
     def __post_init__(self) -> None:
         super().__post_init__()
