@@ -38,7 +38,7 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 import argparse
 from importlib import metadata
 
-from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
 parser.add_argument("input", type=str, help="The path to the input URDF file.")
@@ -87,10 +87,17 @@ try:
 except metadata.PackageNotFoundError:
     args_cli.require_kit = True
 
+# Report the missing importer before converting anything. Without this the launcher reports only
+# that Isaac Sim is absent, which does not mention the wheel that would make this run kitlessly.
+if args_cli.require_kit and not AppLauncher.is_available():
+    raise ImportError(
+        "URDF conversion requires either the full Isaac Sim runtime or the standalone"
+        " 'isaacsim-asset-isolated' importer wheel, but neither is installed."
+    )
+
 import os  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.app import AppLauncher  # noqa: E402
 from isaaclab.physics import PhysicsCfg  # noqa: E402
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg  # noqa: E402
 from isaaclab.utils.assets import check_file_path  # noqa: E402
