@@ -29,19 +29,19 @@ or ``--example 3`` to select which recording configuration to run.
       :language: python
       :linenos:
 
-.. |kit_viewport| image:: ../_static/how-to/record_video/example_kit_viewport.gif
+.. |kit_viewport| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_example_kit_viewport.gif
    :width: 100%
    :alt: Kit viewport — 4 Shadow Hand environments (RTX)
 
-.. |newton_viewport| image:: ../_static/how-to/record_video/example_newton_viewport.gif
+.. |newton_viewport| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_example_newton_viewport.gif
    :width: 100%
    :alt: Newton GL viewport — 4 Shadow Hand environments
 
-.. |tiled_viewport| image:: ../_static/how-to/record_video/example_tiled_kit_viewport.gif
+.. |tiled_viewport| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_example_tiled_kit_viewport.gif
    :width: 100%
    :alt: Kit tiled-camera grid — per-environment views
 
-.. |sensor| image:: ../_static/how-to/record_video/example_sensor.gif
+.. |sensor| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_example_sensor.gif
    :width: 100%
    :alt: Scene tiled-camera sensor recording
 
