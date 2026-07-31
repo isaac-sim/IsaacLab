@@ -381,7 +381,6 @@ def _spawn_mesh_geom_from_mesh(
     Raises:
         ValueError: If a prim already exists at the given path.
         ValueError: If both deformable and rigid properties are used.
-        ValueError: If both deformable and collision properties are used.
         ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
             physics material, and rigid properties require a rigid physics material.
 
@@ -398,8 +397,6 @@ def _spawn_mesh_geom_from_mesh(
     # check that invalid schema types are not used
     if cfg.deformable_props is not None and cfg.rigid_props is not None:
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
-    if cfg.deformable_props is not None and cfg.collision_props is not None:
-        raise ValueError("Cannot use both deformable and collision properties at the same time.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
         if not isinstance(cfg.physics_material, DeformableBodyMaterialBaseCfg):
@@ -442,6 +439,10 @@ def _spawn_mesh_geom_from_mesh(
         schemas.define_deformable_body_properties(
             prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type
         )
+        # the collider is the simulation mesh, resolved from the body prim
+        if cfg.collision_props is not None:
+            frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+            schemas.apply_collision_properties(prim_path, frags, stage=stage)
         if cfg.mass_props is not None:
             raise ValueError(
                 """MassPropertiesCfg are not supported for deformable bodies

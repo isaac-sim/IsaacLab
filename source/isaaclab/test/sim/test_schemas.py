@@ -24,11 +24,17 @@ from isaaclab_physx.sim.schemas import (
 )
 from isaaclab_physx.sim.schemas import (
     PhysxArticulationRootPropertiesCfg,
+    PhysxCollisionCfg,
     PhysxCollisionPropertiesCfg,
+    PhysxDeformableBodyPropertiesCfg,
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyPropertiesCfg,
 )
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg, RigidBodyMaterialCfg
+from isaaclab_physx.sim.spawners.materials import (
+    PhysxDeformableBodyMaterialCfg,
+    PhysxRigidBodyMaterialCfg,
+    RigidBodyMaterialCfg,
+)
 
 from pxr import UsdPhysics
 
@@ -386,6 +392,31 @@ def test_collision_base_cfg_no_physx_schema_when_only_usd_field_set(setup_simula
     assert "PhysxCollisionAPI" not in applied, (
         f"PhysxCollisionAPI should not be applied when only collision_enabled is set; got {list(applied)}"
     )
+
+
+@pytest.mark.isaacsim_ci
+def test_deformable_collision_props_land_on_simulation_mesh(setup_simulation):
+    """Regression: ``collision_props`` on a deformable spawner must author ``physxCollision:*``
+    on the simulation mesh, which is the prim carrying ``UsdPhysics.CollisionAPI``. Authoring
+    them on the deformable body prim leaves them inert, so PhysX falls back to its defaults."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    cfg = sim_utils.MeshCuboidCfg(
+        size=(0.3, 0.04, 0.04),
+        deformable_props=PhysxDeformableBodyPropertiesCfg(),
+        collision_props=[PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0005)],
+        physics_material=PhysxDeformableBodyMaterialCfg(youngs_modulus=2e5, poissons_ratio=0.3),
+    )
+    cfg.func("/World/beam_dc", cfg)
+
+    body_prim = stage.GetPrimAtPath("/World/beam_dc")
+    sim_mesh_prim = stage.GetPrimAtPath("/World/beam_dc/sim_mesh")
+    assert "PhysxCollisionAPI" in sim_mesh_prim.GetAppliedSchemas()
+    assert sim_mesh_prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.005)
+    assert sim_mesh_prim.GetAttribute("physxCollision:restOffset").Get() == pytest.approx(0.0005)
+    # the body prim is not a collider, so nothing may be authored there
+    assert not body_prim.GetAttribute("physxCollision:restOffset").HasAuthoredValue()
 
 
 @pytest.mark.isaacsim_ci
