@@ -71,7 +71,8 @@ _EXPORT_BACKENDS = (
             "Isaac-Lift-Cube-Franka",
             # history buffers + Object-cloud / contact observations
             "Isaac-Lift-KukaAllegro",
-            "Isaac-Reorient-Franka",
+            # manager-based locomotion with contact-rich body observations
+            "Isaac-Ant",
             # EMAJointPositionToLimitsAction is not exportable: it blends the new
             # target with ``_prev_applied_actions``, a plain buffer carried across
             # steps that the tracer inlines as a constant, freezing the recurrence
