@@ -146,10 +146,10 @@ Python environment must contain the backend being measured.
      - Asset benchmarks
      - Sensor benchmarks
    * - PhysX
-     - Launch Isaac Sim and use mocked PhysX views
+     - Run kitless with mocked PhysX views
      - Launch Isaac Sim and build a live PhysX scene
    * - Newton
-     - Launch Isaac Sim and use mocked Newton views
+     - Run kitless with mocked Newton views
      - Run kitless with the installed Newton runtime
    * - OVPhysX
      - Run kitless; require the optional ``ovphysx`` runtime wheel

@@ -74,23 +74,6 @@ def test_script_cli_uses_explicit_exact_physics_variant(monkeypatch, tmp_path) -
     assert captured["request"].physics_variant == "newton_kamino"
 
 
-def test_script_cli_accepts_app_launcher_device_argument(monkeypatch, tmp_path) -> None:
-    """Simulator-backed scripts should share AppLauncher device parsing without conflicts."""
-    adapter = SimpleNamespace(default_num_bodies=1, default_num_joints=0)
-    captured = {}
-    monkeypatch.setattr(cli, "get_asset_benchmark_adapter", lambda physics, component: adapter)
-    monkeypatch.setattr(cli, "run_asset_benchmark", lambda request, selected: captured.update(request=request) or ())
-
-    cli.run_asset_benchmark_cli(
-        "physx",
-        "rigid_object",
-        ["--device", "cpu", "--output_dir", str(tmp_path)],
-    )
-
-    assert captured["request"].config.device == "cpu"
-    assert captured["request"].launcher_args.device == "cpu"
-
-
 @pytest.mark.parametrize(
     ("option", "value", "message"),
     [
