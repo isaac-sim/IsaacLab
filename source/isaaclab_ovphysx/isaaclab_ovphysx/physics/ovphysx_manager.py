@@ -183,6 +183,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             device: Warp device for nodal position read buffers.
         """
         from isaaclab.scene_data.deformable_discovery import invalidate_deformable_discovery_cache
+
         from isaaclab_ovphysx import tensor_types as TT
         from isaaclab_ovphysx.assets.deformable_object.views import OvPhysxDeformableBodyView
 
