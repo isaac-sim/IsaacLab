@@ -299,12 +299,8 @@ jobs:
 
   docker-license-check:
     name: Docker Dependency Licenses Check
-    # The Isaac Sim base image is private, so fork PRs cannot normally build or scan it.
-    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
-    env:
-      NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
 
     steps:
     - name: Checkout code
