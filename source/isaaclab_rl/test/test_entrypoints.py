@@ -232,7 +232,7 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
 
 def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
     """SKRL training removes the JAX backend setting it created after an exception."""
-    import skrl
+    skrl = pytest.importorskip("skrl")
 
     from isaaclab_rl.entrypoints.backends import train_skrl
 
@@ -253,6 +253,7 @@ def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
 
 def test_skrl_play_main_restores_jax_backend(monkeypatch) -> None:
     """Direct SKRL play calls remove the JAX backend setting they created."""
+    pytest.importorskip("skrl")
     monkeypatch.setattr(sys, "argv", ["play_skrl.py"])
     namespace = runpy.run_module("isaaclab_rl.entrypoints.backends.play_skrl", run_name="test_play_skrl")
     skrl = namespace["skrl"]

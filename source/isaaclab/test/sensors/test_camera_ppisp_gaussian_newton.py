@@ -54,6 +54,8 @@ if not _MISSING_MODULES:
 
     from generate_synthetic_gaussian_asset import (  # noqa: E402
         SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
+        SyntheticGaussian,
+        SyntheticGaussianScene,
         assert_ppisp_controller_matches_static,
         assert_ppisp_invariants,
         assert_ppisp_lifts_exposure,
@@ -71,6 +73,8 @@ if not _MISSING_MODULES:
 else:
     tempfile = None
     SYNTHETIC_GAUSSIAN_CAMERA_REGEX = None
+    SyntheticGaussian = None
+    SyntheticGaussianScene = None
     assert_ppisp_controller_matches_static = None
     assert_ppisp_invariants = None
     assert_ppisp_lifts_exposure = None
@@ -86,6 +90,24 @@ else:
 
 SIM_DT = 1.0 / 60.0
 MULTI_TILE_COUNT = 4
+RESPONSIVITY = 20.0
+"""Lifts Newton's emissive HDR (~0.9 at a gaussian center) into the mid-LDR range the
+aggressive cfg expects. Tuned for the gaussian energy at the image center — see
+:func:`_center_probed_scene`."""
+
+
+def _center_probed_scene() -> SyntheticGaussianScene:
+    """The default RGBW grid plus a white gaussian at the origin.
+
+    The shared assertions probe the patch at the image center, which the default 2x2
+    grid leaves empty — the camera looks straight down at the gap between the four
+    gaussians. RTX-backed renderers shade the scene's ground plane there, but Newton's
+    Warp ray tracer does not, so the center patch has to be covered by a gaussian for
+    the probe to measure gaussian radiance instead of the backdrop.
+    """
+    scene = SyntheticGaussianScene()
+    scene.gaussians.append(SyntheticGaussian(position=(0.0, 0.0, 0.0), color=(0.9, 0.9, 0.9)))
+    return scene
 
 
 def _newton_sim_cfg(device: str) -> SimulationCfg:
@@ -108,17 +130,14 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton(device):
     center range, and that vignetting and bounded-output invariants hold.
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
-        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda", _center_probed_scene())
         output = render_synthetic_gaussian_scene(
             asset_path,
             sim_cfg=_newton_sim_cfg(device),
             renderer_cfg=NewtonWarpRendererCfg(),
             data_types=["rgb", "rgb_hdr"],
             sim_dt=SIM_DT,
-            # Newton's emissive HDR is ~50x lower than the RTX backends' for
-            # the same scene; lift the effective signal so the aggressive cfg
-            # (tuned for the RTX scale) lands in the same LDR range.
-            responsivity=50.0,
+            responsivity=RESPONSIVITY,
         )
     assert_ppisp_lifts_exposure(output["rgb_hdr"][0], output["rgb"][0], label="newton_warp")
     assert_ppisp_invariants(output["rgb"][0], label="newton_warp")
@@ -130,8 +149,8 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton(device):
 def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_newton(device):
     """Newton Warp renderer controller output must match the equivalent static PPISP cfg."""
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
-        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
-        ppisp_cfg = make_aggressive_ppisp_cfg(responsivity=50.0)
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda", _center_probed_scene())
+        ppisp_cfg = make_aggressive_ppisp_cfg(responsivity=RESPONSIVITY)
 
         static = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
             asset_path,
@@ -168,7 +187,7 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton_multitile
     bounded output.
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
-        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda", _center_probed_scene())
         output = render_synthetic_gaussian_scene(
             asset_path,
             sim_cfg=_newton_sim_cfg(device),
@@ -176,7 +195,7 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton_multitile
             data_types=["rgb", "rgb_hdr"],
             num_envs=MULTI_TILE_COUNT,
             sim_dt=SIM_DT,
-            responsivity=50.0,
+            responsivity=RESPONSIVITY,
         )
 
     rgb = output["rgb"]

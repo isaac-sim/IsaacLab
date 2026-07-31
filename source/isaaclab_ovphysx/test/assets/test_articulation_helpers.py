@@ -137,3 +137,15 @@ def test_mock_binding_set_rigid_object_shapes():
     # Articulation-only bindings must be absent
     assert TT.DOF_POSITION not in bindings.bindings
     assert TT.LINK_WRENCH not in bindings.bindings
+
+
+def test_mock_binding_read_preserves_structured_warp_dtype():
+    """Mock bindings should read flat component data into structured Warp arrays."""
+    from isaaclab_ovphysx import tensor_types as TT
+
+    bindings = MockOvPhysxBindingSet(num_instances=4, num_joints=1, num_bodies=2)
+    destination = wp.empty((4, 2), dtype=wp.spatial_vectorf, device="cpu")
+
+    bindings.bindings[TT.LINK_VELOCITY].read(destination)
+
+    assert destination.numpy().shape == (4, 2, 6)
