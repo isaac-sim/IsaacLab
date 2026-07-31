@@ -859,54 +859,34 @@ def _has_cameras(path: str) -> bool:
 def _make_batches(test_files: list[str], batch_size: int) -> list[list[str]]:
     """Group test files into batches for shared-Kit-session execution.
 
-    Files marked ``pytest.mark.enable_cameras`` must run in their own
-    camera-enabled batch; they cannot be mixed with non-camera files because
-    the Kit session is started once with a fixed camera setting.  Files marked
-    ``pytest.mark.device_split`` and entries in
-    ``test_settings.SOLO_KIT_SESSION_TESTS`` always get their own single-element
-    batch so they still run through the per-file path (with its device_split
-    two-pass and retry logic intact).
+    Solo files (device_split or in SOLO_KIT_SESSION_TESTS) get single-element
+    batches. Camera and non-camera files are kept separate since the Kit session
+    camera setting is fixed at startup.
     """
     solo = set(getattr(test_settings, "SOLO_KIT_SESSION_TESTS", []))
 
     def _is_solo(f: str) -> bool:
         if os.path.basename(f) in solo:
             return True
-        # device_split files need two separate subprocess passes (CPU then GPU);
-        # keep them in the single-file path so that logic is preserved.
         try:
             with open(f) as fh:
                 return is_device_split_file(f, source=fh.read())
         except OSError:
             return False
 
-    batches: list[list[str]] = []
-    current: list[str] = []
-    current_cameras: bool | None = None
+    def _chunk(files: list[str]) -> list[list[str]]:
+        return [files[i : i + batch_size] for i in range(0, len(files), batch_size)]
 
+    camera, plain, solo_batches = [], [], []
     for f in test_files:
         if _is_solo(f):
-            if current:
-                batches.append(current)
-                current = []
-                current_cameras = None
-            batches.append([f])
-            continue
+            solo_batches.append([f])
+        elif _has_cameras(f):
+            camera.append(f)
+        else:
+            plain.append(f)
 
-        has_cam = _has_cameras(f)
-        if current and (has_cam != current_cameras or len(current) >= batch_size):
-            batches.append(current)
-            current = []
-            current_cameras = None
-
-        current.append(f)
-        current_cameras = has_cam
-
-    if current:
-        batches.append(current)
-
-    return batches
-
+    return solo_batches + _chunk(camera) + _chunk(plain)
 
 
 def _run_batch(
@@ -1105,7 +1085,7 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
             timeout = sum(
                 test_settings.PER_TEST_TIMEOUTS.get(os.path.basename(f), test_settings.DEFAULT_TIMEOUT) for f in batch
             )
-            has_cameras = any(_has_cameras(f) for f in batch)
+            has_cameras = _has_cameras(batch[0])
             extra = COLD_CACHE_BUFFER if (has_cameras and not cold_cache_applied) else 0
             if extra:
                 cold_cache_applied = True
