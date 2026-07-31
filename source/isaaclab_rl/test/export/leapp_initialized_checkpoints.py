@@ -277,20 +277,28 @@ def _agent_cfg_entry_point(backend_id: str) -> str:
     return f"{backend_id}_cfg_entry_point"
 
 
-def resolved_path_file(checkpoint_root: Path) -> Path:
-    """Return the file where :func:`main` records the created checkpoint path."""
-    return checkpoint_root / "checkpoint_path.txt"
+def resolved_path_file(checkpoint_dir: Path) -> Path:
+    """Return the file that records the created checkpoint path for one task."""
+    return checkpoint_dir / "checkpoint_path.txt"
+
+
+def task_checkpoint_dir(checkpoint_root: Path, backend_id: str, task_name: str) -> Path:
+    """Return the per-backend/task directory used for one initialized checkpoint."""
+    return checkpoint_root / backend_id / task_name
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    """CLI entrypoint: create an initialized checkpoint and record its path.
+    """CLI entrypoint: create initialized checkpoints in one Kit process.
 
-    The path is written to :func:`resolved_path_file` rather than returned, because
-    ``simulation_app.close()`` terminates the process before it can return.
+    Accepts one or more ``--spec BACKEND TASK`` pairs and writes each checkpoint
+    under ``checkpoint_root/BACKEND/TASK/``. The recorded path lives in
+    :func:`resolved_path_file` for that directory.
 
     Usage:
-        python leapp_initialized_checkpoints.py --backend rsl_rl --task Isaac-Cartpole
-            --checkpoint_root /tmp/ckpt --preset newton_mjwarp
+        python leapp_initialized_checkpoints.py --checkpoint_root /tmp/ckpt \\
+            --preset newton_mjwarp \\
+            --spec rsl_rl Isaac-Cartpole \\
+            --spec rl_games Isaac-Cartpole
     """
     import argparse
     import os
@@ -298,15 +306,27 @@ def main(argv: Sequence[str] | None = None) -> None:
     import traceback
     from types import SimpleNamespace
 
-    parser = argparse.ArgumentParser(description="Create an initialized checkpoint for LEAPP export tests.")
-    parser.add_argument("--backend", required=True, choices=("rsl_rl", "rl_games", "skrl", "sb3"))
-    parser.add_argument("--task", required=True)
+    parser = argparse.ArgumentParser(description="Create initialized checkpoints for LEAPP export tests.")
+    parser.add_argument(
+        "--spec",
+        nargs=2,
+        action="append",
+        metavar=("BACKEND", "TASK"),
+        required=True,
+        help="Backend/task pair to initialize. Repeat for multiple checkpoints in one Kit process.",
+    )
     parser.add_argument("--checkpoint_root", required=True, type=Path)
-    parser.add_argument("--agent", default=None, help="Hydra agent config entry point. Defaults per backend.")
-    parser.add_argument("--preset", required=True, help="Hydra preset used to initialize the checkpoint.")
+    parser.add_argument("--preset", required=True, help="Hydra preset used to initialize the checkpoints.")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--algorithm", type=str, default="ppo", help="skrl algorithm name.")
     args = parser.parse_args(argv)
+
+    backend_choices = ("rsl_rl", "rl_games", "skrl", "sb3")
+    specs: list[tuple[str, str]] = []
+    for backend_id, task_name in args.spec:
+        if backend_id not in backend_choices:
+            raise SystemExit(f"Unsupported backend '{backend_id}'. Choose from {backend_choices}.")
+        specs.append((backend_id, task_name))
 
     from isaaclab.app import AppLauncher
 
@@ -320,29 +340,37 @@ def main(argv: Sequence[str] | None = None) -> None:
     get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
     get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
 
-    agent_entry = args.agent or _agent_cfg_entry_point(args.backend)
+    cli_args = SimpleNamespace(seed=args.seed, algorithm=args.algorithm)
+    failures: list[str] = []
     original_argv = sys.argv
-    sys.argv = [sys.argv[0], f"presets={args.preset}"]
     try:
-        env_cfg, agent_cfg = resolve_task_config(args.task, agent_entry)
-        checkpoint_path = create_initialized_checkpoint(
-            args.backend,
-            args.task,
-            SimpleNamespace(seed=args.seed, algorithm=args.algorithm),
-            env_cfg,
-            agent_cfg,
-            args.checkpoint_root,
-        )
-        resolved_path_file(args.checkpoint_root).write_text(str(checkpoint_path))
-    except BaseException:
-        # ``simulation_app.close()`` can terminate the process with a success status,
-        # which would hide the traceback and report a false pass. Exit directly instead.
-        traceback.print_exc(file=sys.stdout)
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os._exit(1)
+        for backend_id, task_name in specs:
+            task_dir = task_checkpoint_dir(args.checkpoint_root, backend_id, task_name)
+            task_dir.mkdir(parents=True, exist_ok=True)
+            sys.argv = [sys.argv[0], f"presets={args.preset}"]
+            try:
+                env_cfg, agent_cfg = resolve_task_config(task_name, _agent_cfg_entry_point(backend_id))
+                checkpoint_path = create_initialized_checkpoint(
+                    backend_id,
+                    task_name,
+                    cli_args,
+                    env_cfg,
+                    agent_cfg,
+                    task_dir,
+                )
+                resolved_path_file(task_dir).write_text(str(checkpoint_path))
+            except BaseException:
+                failures.append(f"{backend_id}/{task_name}")
+                traceback.print_exc(file=sys.stdout)
+                sys.stdout.flush()
+                sys.stderr.flush()
     finally:
         sys.argv = original_argv
+        if failures:
+            # ``simulation_app.close()`` can exit 0; fail hard before it when any
+            # checkpoint was missing so the parent subprocess call sees the error.
+            print(f"[ERROR] Failed to create checkpoints for: {', '.join(failures)}", flush=True)
+            os._exit(1)
         simulation_app.close()
 
 

@@ -5,10 +5,8 @@
 
 """Cross-backend LEAPP export integration tests.
 
-For each backend/task pair:
-1. Create an initialized checkpoint in a subprocess.
-2. Run the backend export.py CLI in a subprocess.
-3. Assert the expected LEAPP artifacts exist.
+All initialized checkpoints are created in one Kit subprocess first. Each
+backend/task export then runs in its own subprocess against those checkpoints.
 """
 
 from __future__ import annotations
@@ -21,12 +19,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from leapp_initialized_checkpoints import discover_backend_tasks, resolved_path_file
+from leapp_initialized_checkpoints import discover_backend_tasks, resolved_path_file, task_checkpoint_dir
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _LEAPP_ROOT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp"
 _CHECKPOINT_SCRIPT = Path(__file__).resolve().parent / "leapp_initialized_checkpoints.py"
 _SUBPROCESS_TIMEOUT = 600
+_CHECKPOINT_BATCH_TIMEOUT = 1200
 _OUTPUT_TAIL_CHARS = 5000
 
 
@@ -96,7 +95,12 @@ def _ensure_text(output: str | bytes | None) -> str:
     return output
 
 
-def _run_checked(cmd: Sequence[str], *, label: str) -> subprocess.CompletedProcess[str]:
+def _run_checked(
+    cmd: Sequence[str],
+    *,
+    label: str,
+    timeout: int = _SUBPROCESS_TIMEOUT,
+) -> subprocess.CompletedProcess[str]:
     """Run a subprocess and fail the test on timeout or non-zero exit."""
     try:
         result = subprocess.run(
@@ -104,13 +108,13 @@ def _run_checked(cmd: Sequence[str], *, label: str) -> subprocess.CompletedProce
             cwd=_REPO_ROOT,
             capture_output=True,
             text=True,
-            timeout=_SUBPROCESS_TIMEOUT,
+            timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
         stdout = _ensure_text(exc.stdout)
         stderr = _ensure_text(exc.stderr)
         pytest.fail(
-            f"{label} timed out after {_SUBPROCESS_TIMEOUT}s.\n"
+            f"{label} timed out after {timeout}s.\n"
             f"--- stdout tail ---\n{stdout[-_OUTPUT_TAIL_CHARS:]}\n"
             f"--- stderr tail ---\n{stderr[-_OUTPUT_TAIL_CHARS:]}"
         )
@@ -124,33 +128,40 @@ def _run_checked(cmd: Sequence[str], *, label: str) -> subprocess.CompletedProce
     return result
 
 
-def _create_checkpoint(backend: ExportFlowBackend, task_name: str, checkpoint_root: Path) -> Path:
-    """Create an initialized checkpoint and return its path."""
-    result = _run_checked(
-        [
-            sys.executable,
-            str(_CHECKPOINT_SCRIPT),
-            "--backend",
-            backend.rl_library,
-            "--task",
-            task_name,
-            "--checkpoint_root",
-            str(checkpoint_root),
-            "--preset",
-            _SIM_PRESET,
-        ],
-        label=f"checkpoint creation for {backend.rl_library}/{task_name}",
-    )
+def _tasks_for_backend(backend: ExportFlowBackend) -> tuple[str, ...]:
+    """Return manager-based tasks to export for *backend*.
 
-    path_file = resolved_path_file(checkpoint_root)
-    if not path_file.is_file():
-        pytest.fail(
-            f"checkpoint creation for {backend.rl_library}/{task_name} did not record a checkpoint path.\n"
-            f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
-            f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
-        )
+    Direct workflow tasks are excluded. They are covered separately by
+    ``test_rsl_rl_direct_export_flow.py``.
+    """
+    tasks = backend.tasks if backend.tasks else discover_backend_tasks(backend.agent_cfg_entry_points)
+    return tuple(task for task in tasks if "Direct" not in task)
 
-    checkpoint_path = Path(path_file.read_text().strip())
+
+def _export_cases() -> list[object]:
+    """Build one pytest case per backend/task pair."""
+    cases: list[object] = []
+    for backend in _EXPORT_BACKENDS:
+        for task_name in _tasks_for_backend(backend):
+            cases.append(pytest.param(backend, task_name, id=f"{backend.rl_library}-{task_name}"))
+    return cases
+
+
+def _checkpoint_specs() -> list[tuple[str, str]]:
+    """Return every backend/task pair that needs an initialized checkpoint."""
+    specs: list[tuple[str, str]] = []
+    for backend in _EXPORT_BACKENDS:
+        for task_name in _tasks_for_backend(backend):
+            specs.append((backend.rl_library, task_name))
+    return specs
+
+
+def _read_checkpoint_path(checkpoint_root: Path, backend_id: str, task_name: str) -> Path:
+    """Load the recorded checkpoint path for one backend/task pair."""
+    task_dir = task_checkpoint_dir(checkpoint_root, backend_id, task_name)
+    path_file = resolved_path_file(task_dir)
+    assert path_file.is_file(), f"Missing checkpoint path file for {backend_id}/{task_name}: {path_file}"
+    checkpoint_path = Path(path_file.read_text(encoding="utf-8").strip())
     assert checkpoint_path.is_file(), f"Checkpoint was not written: {checkpoint_path}"
     return checkpoint_path
 
@@ -182,32 +193,45 @@ def _assert_leapp_artifacts(export_root: Path, task_name: str) -> None:
     assert (export_dir / "log.txt").is_file(), f"Missing log.txt in {export_dir}"
 
 
-def _tasks_for_backend(backend: ExportFlowBackend) -> tuple[str, ...]:
-    """Return manager-based tasks to export for *backend*.
+@pytest.fixture(scope="module")
+def initialized_checkpoints(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Create every export-flow checkpoint in one Kit subprocess."""
+    checkpoint_root = tmp_path_factory.mktemp("isaaclab-leapp-checkpoints")
+    command = [
+        sys.executable,
+        str(_CHECKPOINT_SCRIPT),
+        "--checkpoint_root",
+        str(checkpoint_root),
+        "--preset",
+        _SIM_PRESET,
+    ]
+    for backend_id, task_name in _checkpoint_specs():
+        command.extend(("--spec", backend_id, task_name))
+    _run_checked(
+        command,
+        label="batched initialized checkpoint creation",
+        timeout=_CHECKPOINT_BATCH_TIMEOUT,
+    )
+    return checkpoint_root
 
-    Direct workflow tasks are excluded. They are covered separately by
-    ``test_rsl_rl_direct_export_flow.py``.
+
+def test_initialized_checkpoints(initialized_checkpoints: Path):
+    """Assert the shared Kit subprocess created every expected checkpoint.
+    This task is purely for generating mock checkpoints for the export flow.
     """
-    tasks = backend.tasks if backend.tasks else discover_backend_tasks(backend.agent_cfg_entry_points)
-    return tuple(task for task in tasks if "Direct" not in task)
-
-
-def _export_cases() -> list[pytest.ParameterSet]:
-    """Build one pytest case per backend/task pair."""
-    cases: list[pytest.ParameterSet] = []
-    for backend in _EXPORT_BACKENDS:
-        for task_name in _tasks_for_backend(backend):
-            cases.append(pytest.param(backend, task_name, id=f"{backend.rl_library}-{task_name}"))
-    return cases
+    missing = [
+        f"{backend_id}/{task_name}"
+        for backend_id, task_name in _checkpoint_specs()
+        if not resolved_path_file(task_checkpoint_dir(initialized_checkpoints, backend_id, task_name)).is_file()
+    ]
+    assert not missing, f"Missing initialized checkpoints for: {', '.join(missing)}"
 
 
 @pytest.mark.parametrize(("backend", "task_name"), _export_cases())
-def test_leapp_export_flow(backend: ExportFlowBackend, task_name: str):
-    """Create a checkpoint, run export.py, and assert LEAPP artifacts are created."""
-    with tempfile.TemporaryDirectory(prefix=f"isaaclab-leapp-{backend.rl_library}-") as tmp_dir:
-        checkpoint_root = Path(tmp_dir) / "checkpoint"
+def test_leapp_export_flow(backend: ExportFlowBackend, task_name: str, initialized_checkpoints: Path):
+    """Export one backend/task pair using the shared initialized checkpoint."""
+    checkpoint_path = _read_checkpoint_path(initialized_checkpoints, backend.rl_library, task_name)
+    with tempfile.TemporaryDirectory(prefix=f"isaaclab-leapp-export-{backend.rl_library}-") as tmp_dir:
         export_root = Path(tmp_dir) / "export"
-
-        checkpoint_path = _create_checkpoint(backend, task_name, checkpoint_root)
         _run_export(backend, task_name, checkpoint_path, export_root)
         _assert_leapp_artifacts(export_root, task_name)
