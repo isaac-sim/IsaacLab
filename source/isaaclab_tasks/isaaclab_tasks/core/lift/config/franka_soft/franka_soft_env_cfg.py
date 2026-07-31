@@ -528,6 +528,7 @@ class FrankaSoftCameraSceneCfg(PresetCfg):
         num_envs=128, env_spacing=2.5, replicate_physics=True
     )
     physx: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+    isaacsim_physx = physx
     newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
     default = newton_mjwarp_vbd_proxy
 
