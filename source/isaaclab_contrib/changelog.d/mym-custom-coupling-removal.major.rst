@@ -8,14 +8,22 @@ Added
 Deprecated
 ^^^^^^^^^^
 
-* Deprecated ``CoupledMJWarpVBDSolverCfg`` and the
-  ``deformable.coupled_mjwarp_vbd_manager`` compatibility path. Use
+* Deprecated :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg`. Use
   :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` for MJWarp and VBD
-  coupling, or import :mod:`isaaclab_contrib.custom_coupling` for the opt-in
-  manual MJWarp and VBD example.
+  coupling, or :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg`
+  to stay on the manual coupler.
 
 Removed
 ^^^^^^^
+
+* **Breaking:** Moved ``NewtonCoupledMJWarpVBDManager`` and its reaction kernel out
+  of :mod:`isaaclab_contrib.deformable` and into the opt-in
+  :mod:`isaaclab_contrib.custom_coupling` example, and removed the
+  ``isaaclab_contrib.deformable.coupled_mjwarp_vbd_manager`` module. Import the
+  manager from :mod:`isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager`
+  instead. Configurations that reference the manager through
+  :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` keep working and
+  now resolve to the moved class.
 
 * **Breaking:** Removed ``CoupledFeatherstoneVBDSolverCfg`` and
   ``NewtonCoupledFeatherstoneVBDManager`` from

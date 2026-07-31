@@ -127,7 +127,9 @@ class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):
         Use :class:`isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg`.
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
+    class_type: type[NewtonManager] | str = (
+        "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
+    )
     """Manager class for the coupled MJWarp and VBD solver."""
 
     rigid_solver_cfg: MJWarpSolverCfg = MJWarpSolverCfg()

@@ -108,7 +108,7 @@ def test_legacy_mjwarp_solver_config_warns() -> None:
         solver_cfg = LegacyMJWarpCfg()
 
     assert solver_cfg.class_type == (
-        "isaaclab_contrib.deformable.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
+        "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
     )
 
 

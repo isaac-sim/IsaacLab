@@ -21,9 +21,9 @@ def test_custom_coupling_is_opt_in() -> None:
         assert "Isaac-Lift-Soft-Franka" in gym.registry
         assert custom_id not in gym.registry
 
-        # Neither the library package nor the deprecated shim may register the task.
+        # Importing the library modules must not register the task.
         import isaaclab_contrib.custom_coupling
-        import isaaclab_contrib.deformable.coupled_mjwarp_vbd_manager
+        import isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager
 
         assert custom_id not in gym.registry
 
