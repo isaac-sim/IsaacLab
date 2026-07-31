@@ -755,6 +755,11 @@ jobs:
       fail-fast: false
       matrix:
         variant: [legacy, ovstage]
+        event_name:
+        - ${{ github.event_name }}
+        exclude:
+        - variant: ovstage
+          event_name: pull_request
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
