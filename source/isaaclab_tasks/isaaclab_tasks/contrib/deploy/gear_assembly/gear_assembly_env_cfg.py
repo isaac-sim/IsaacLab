@@ -13,6 +13,7 @@ from isaaclab_newton.physics import (
     NewtonCollisionPipelineCfg,
     NewtonShapeCfg,
 )
+from isaaclab_newton.sim.schemas import NewtonSDFCollisionPropertiesCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg
 
@@ -58,20 +59,36 @@ _NEWTON_GEAR_OFFSETS = {
 
 
 def _gear_usd_path(default_usd_path: str, asset_name: str) -> PresetCfg:
-    """Create a gear USD path preset with Newton-specific collision assets.
+    """Create a gear USD path preset with package-local SDF collision assets.
 
     Args:
         default_usd_path: Factory asset USD path used by the default and PhysX presets.
         asset_name: Gear asset directory and USD stem.
 
     Returns:
-        Preset that resolves to package-local point-SDF or hydroelastic assets for Newton collision presets.
+        Preset that resolves to the package-local SDF asset for SDF collision presets.
     """
+    newton_usd_path = os.path.join(NEWTON_GEAR_ASSETS_DIR, asset_name, f"{asset_name}.usda")
     return preset(
         default=default_usd_path,
-        newton_mjwarp=os.path.join(NEWTON_GEAR_ASSETS_DIR, asset_name, f"{asset_name}.usda"),
-        newton_sdf=os.path.join(NEWTON_GEAR_ASSETS_DIR, asset_name, f"{asset_name}.usda"),
-        newton_hydroelastic=os.path.join(NEWTON_GEAR_ASSETS_DIR, asset_name, f"{asset_name}_hydroelastic.usda"),
+        physx_sdf=newton_usd_path,
+        newton_mjwarp=newton_usd_path,
+        newton_sdf=newton_usd_path,
+        newton_hydroelastic=newton_usd_path,
+    )
+
+
+def _gear_collision_properties() -> PresetCfg:
+    """Create backend-specific collision properties for the gear assets."""
+    return preset(
+        default=PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
+        physx=PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
+        physx_sdf=PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
+        newton_mjwarp=NewtonSDFCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0, hydroelastic_enabled=False),
+        newton_sdf=NewtonSDFCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0, hydroelastic_enabled=False),
+        newton_hydroelastic=NewtonSDFCollisionPropertiesCfg(
+            contact_offset=0.02, rest_offset=0.0, hydroelastic_enabled=True
+        ),
     )
 
 
@@ -88,7 +105,8 @@ class GearAssemblyPhysicsCfg(PresetCfg):
     Newton (MuJoCo) solver limits are set conservatively. Select a preset at runtime
     with the ``presets=<name>`` CLI override:
 
-    * ``default`` and ``physx`` -- PhysX with contact buffers sized for assembly.
+    * ``default`` and ``physx`` -- PhysX with the legacy Factory assets.
+    * ``physx_sdf`` -- PhysX with the same centered, package-local SDF assets as Newton.
     * ``newton_mjwarp`` -- Newton with MuJoCo's internal contact solver.
     * ``newton_sdf`` -- Newton's collision pipeline with reduced point-SDF contacts.
     * ``newton_hydroelastic`` -- Newton's own collision pipeline (``use_mujoco_contacts=False``)
@@ -180,6 +198,11 @@ class GearAssemblyPhysicsCfg(PresetCfg):
         gpu_max_rigid_contact_count=2**23,
         gpu_max_rigid_patch_count=2**23,
     )
+    physx_sdf: PhysxCfg = PhysxCfg(
+        gpu_collision_stack_size=2**30,
+        gpu_max_rigid_contact_count=2**23,
+        gpu_max_rigid_patch_count=2**23,
+    )
     default = physx
 
 
@@ -196,6 +219,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
     replicate_physics = preset(
         default=False,
         physx=False,
+        physx_sdf=False,
         newton_mjwarp=True,
         newton_sdf=True,
         newton_hydroelastic=True,
@@ -231,7 +255,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
                 max_contact_impulse=1e32,
             ),
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
-            collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
+            collision_props=_gear_collision_properties(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
@@ -259,7 +283,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
                 max_contact_impulse=1e32,
             ),
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
-            collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
+            collision_props=_gear_collision_properties(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
@@ -287,7 +311,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
                 max_contact_impulse=1e32,
             ),
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
-            collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
+            collision_props=_gear_collision_properties(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
@@ -315,7 +339,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
                 max_contact_impulse=1e32,
             ),
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
-            collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
+            collision_props=_gear_collision_properties(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
@@ -484,6 +508,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = preset(
             default=4,
             physx=4,
+            physx_sdf=4,
             newton_mjwarp=3,
             newton_sdf=3,
             newton_hydroelastic=3,
@@ -491,6 +516,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = preset(
             default=4,
             physx=4,
+            physx_sdf=4,
             newton_mjwarp=3,
             newton_sdf=3,
             newton_hydroelastic=3,
@@ -498,6 +524,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = preset(
             default=1.0 / 120.0,
             physx=1.0 / 120.0,
+            physx_sdf=1.0 / 120.0,
             newton_mjwarp=0.01,
             newton_sdf=0.01,
             newton_hydroelastic=0.01,
@@ -508,6 +535,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         gear_offsets = preset(
             default=physx_gear_offsets,
             physx=physx_gear_offsets,
+            physx_sdf=newton_gear_offsets,
             newton_mjwarp=newton_gear_offsets,
             newton_sdf=newton_gear_offsets,
             newton_hydroelastic=newton_gear_offsets,
@@ -520,6 +548,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         reward_gear_offsets = preset(
             default=None,
             physx=None,
+            physx_sdf=newton_gear_offsets,
             newton_mjwarp=newton_gear_offsets,
             newton_sdf=newton_gear_offsets,
             newton_hydroelastic=newton_gear_offsets,

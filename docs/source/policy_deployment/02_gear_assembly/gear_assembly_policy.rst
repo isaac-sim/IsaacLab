@@ -762,6 +762,11 @@ First, launch the training with a small number of environments and visualization
         policy, use the ``IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Newton-IK`` task
         with the same Newton preset.
 
+        The centered SDF assets can also be tested with PhysX by using
+        ``presets=physx_sdf`` on the ``IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav``
+        task. The default PhysX preset retains the legacy Factory assets and frame conventions
+        for existing checkpoints.
+
 This opens the selected viewer (Isaac Sim for PhysX or Newton Viewer for Newton) so you can
 observe the training process in real time.
 

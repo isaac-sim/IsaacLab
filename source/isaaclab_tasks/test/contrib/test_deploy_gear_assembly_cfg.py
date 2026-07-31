@@ -40,9 +40,10 @@ def test_ur10e_gear_assembly_default_num_envs(task_name: str):
     assert env_cfg.scene.num_envs == 2048
 
 
-def test_rizon_gear_newton_collision_presets_use_local_sdf_assets():
-    """Newton point and hydro presets should preserve concave package-local gear collision."""
+def test_rizon_gear_sdf_presets_use_local_assets():
+    """PhysX and Newton SDF presets should share concave package-local collision assets."""
     default_cfg = resolve_presets(Rizon4sGearAssemblyEnvCfg(), {"default"})
+    physx_sdf_cfg = resolve_presets(Rizon4sGearAssemblyEnvCfg(), {"physx_sdf"})
     mujoco_cfg = resolve_presets(Rizon4sGearAssemblyEnvCfg(), {"newton_mjwarp"})
     point_cfg = resolve_presets(Rizon4sGearAssemblyEnvCfg(), {"newton_sdf"})
     hydro_cfg = resolve_presets(Rizon4sGearAssemblyEnvCfg(), {"newton_hydroelastic"})
@@ -55,6 +56,23 @@ def test_rizon_gear_newton_collision_presets_use_local_sdf_assets():
     assert default_cfg.scene.robot.spawn.rigid_props.disable_gravity is True
     assert default_cfg.scene.factory_gear_base.init_state.pos[2] == 0.071
     assert "/assets/newton/" not in default_cfg.scene.factory_gear_base.spawn.usd_path
+
+    assert type(physx_sdf_cfg.sim.physics).__name__ == "PhysxCfg"
+    assert physx_sdf_cfg.sim.dt == pytest.approx(1.0 / 120.0)
+    assert physx_sdf_cfg.decimation == 4
+    assert physx_sdf_cfg.scene.replicate_physics is False
+    assert physx_sdf_cfg.scene.factory_gear_base.init_state.pos[2] == -0.005
+    assert physx_sdf_cfg.gear_offsets == _NEWTON_GEAR_OFFSETS
+    assert physx_sdf_cfg.rewards.end_effector_gear_keypoint_tracking.params["gear_offsets"] == (_NEWTON_GEAR_OFFSETS)
+    assert physx_sdf_cfg.events.pin_unselected_gears_to_shafts is None
+    assert physx_sdf_cfg.grasp_center_body_names == ("left_finger_tip", "right_finger_tip")
+    for asset_name in (
+        "factory_gear_base",
+        "factory_gear_small",
+        "factory_gear_medium",
+        "factory_gear_large",
+    ):
+        assert "/assets/newton/" in getattr(physx_sdf_cfg.scene, asset_name).spawn.usd_path
 
     assert mujoco_cfg.sim.physics.solver_cfg.use_mujoco_contacts is True
     assert "/assets/newton/" in mujoco_cfg.scene.factory_gear_base.spawn.usd_path
@@ -79,14 +97,23 @@ def test_rizon_gear_newton_collision_presets_use_local_sdf_assets():
             "factory_gear_medium",
             "factory_gear_large",
         ):
-            usd_path = getattr(env_cfg.scene, asset_name).spawn.usd_path
-            assert "/assets/newton/" in usd_path
-            assert usd_path.endswith(".usda")
+            spawn = getattr(env_cfg.scene, asset_name).spawn
+            assert "/assets/newton/" in spawn.usd_path
+            assert spawn.usd_path.endswith(".usda")
 
     assert point_cfg.sim.physics.collision_cfg.sdf_hydroelastic_config is None
     assert hydro_cfg.sim.physics.collision_cfg.sdf_hydroelastic_config is not None
-    assert point_cfg.scene.factory_gear_small.spawn.usd_path.endswith("factory_gear_small.usda")
-    assert hydro_cfg.scene.factory_gear_small.spawn.usd_path.endswith("factory_gear_small_hydroelastic.usda")
+    for asset_name in (
+        "factory_gear_base",
+        "factory_gear_small",
+        "factory_gear_medium",
+        "factory_gear_large",
+    ):
+        point_spawn = getattr(point_cfg.scene, asset_name).spawn
+        hydro_spawn = getattr(hydro_cfg.scene, asset_name).spawn
+        assert hydro_spawn.usd_path == point_spawn.usd_path
+        assert point_spawn.collision_props.hydroelastic_enabled is False
+        assert hydro_spawn.collision_props.hydroelastic_enabled is True
 
 
 def test_rizon_gear_uses_shaft_targets_relative_actions_and_physical_gripper():
@@ -133,20 +160,22 @@ def test_rizon_gear_newton_ik_commands_physical_flange():
     assert env_cfg.terminations.gear_orientation_exceeded.params["pitch_threshold_deg"] == 15.0
 
 
-def test_rizon_gear_assets_author_newton_sdf_per_collider():
-    """Every package-local gear mesh should preserve concavity with authored Newton SDF metadata."""
+def test_rizon_gear_assets_author_sdf_per_collider():
+    """Every package-local gear mesh should author both PhysX and Newton SDF metadata."""
     for asset_name in (
         "factory_gear_base",
         "factory_gear_small",
         "factory_gear_medium",
         "factory_gear_large",
     ):
-        for suffix, hydroelastic_enabled in (("", False), ("_hydroelastic", True)):
-            usd_path = f"{NEWTON_GEAR_ASSETS_DIR}/{asset_name}/{asset_name}{suffix}.usda"
-            stage = Usd.Stage.Open(usd_path)
-            sdf_prims = [prim for prim in stage.Traverse() if prim.HasAttribute("newton:sdfMaxResolution")]
+        usd_path = f"{NEWTON_GEAR_ASSETS_DIR}/{asset_name}/{asset_name}.usda"
+        stage = Usd.Stage.Open(usd_path)
+        sdf_prims = [prim for prim in stage.Traverse() if prim.HasAttribute("newton:sdfMaxResolution")]
 
-            assert len(sdf_prims) == 1
-            assert sdf_prims[0].GetAttribute("newton:sdfMaxResolution").Get() == 128
-            assert sdf_prims[0].GetAttribute("newton:hydroelasticEnabled").Get() is hydroelastic_enabled
-            assert sdf_prims[0].GetAttribute("physics:approximation").Get() == "sdf"
+        assert len(sdf_prims) == 1
+        authored_schemas = sdf_prims[0].GetPrimStack()[0].GetInfo("apiSchemas").prependedItems
+        assert "PhysxSDFMeshCollisionAPI" in authored_schemas
+        assert sdf_prims[0].GetAttribute("physxSDFMeshCollision:sdfResolution").Get() == 256
+        assert sdf_prims[0].GetAttribute("newton:sdfMaxResolution").Get() == 128
+        assert sdf_prims[0].GetAttribute("newton:hydroelasticEnabled").Get() is False
+        assert sdf_prims[0].GetAttribute("physics:approximation").Get() == "sdf"

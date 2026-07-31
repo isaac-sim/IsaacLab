@@ -95,6 +95,7 @@ def _gear_friction_range() -> PresetCfg:
     return preset(
         default=(0.75, 0.75),
         physx=(0.75, 0.75),
+        physx_sdf=(0.75, 0.75),
         newton_mjwarp=(3.0, 3.0),
         newton_sdf=(3.0, 3.0),
         newton_hydroelastic=(3.0, 3.0),
@@ -106,9 +107,22 @@ def _backend_preset(physx_value: object, newton_value: object) -> PresetCfg:
     return preset(
         default=physx_value,
         physx=physx_value,
+        physx_sdf=physx_value,
         newton_mjwarp=newton_value,
         newton_sdf=newton_value,
         newton_hydroelastic=newton_value,
+    )
+
+
+def _gear_asset_frame_preset(legacy_value: object, centered_value: object) -> PresetCfg:
+    """Create a preset that selects centered gear frames across physics backends."""
+    return preset(
+        default=legacy_value,
+        physx=legacy_value,
+        physx_sdf=centered_value,
+        newton_mjwarp=centered_value,
+        newton_sdf=centered_value,
+        newton_hydroelastic=centered_value,
     )
 
 
@@ -210,6 +224,7 @@ class EventCfg:
             "gear_offsets": preset(
                 default=None,
                 physx=None,
+                physx_sdf=_NEWTON_GEAR_OFFSETS,
                 newton_mjwarp=_NEWTON_GEAR_OFFSETS,
                 newton_sdf=_NEWTON_GEAR_OFFSETS,
                 newton_hydroelastic=_NEWTON_GEAR_OFFSETS,
@@ -217,6 +232,7 @@ class EventCfg:
             "seated_gear_z_offset": preset(
                 default=0.0,
                 physx=0.0,
+                physx_sdf=0.0075,
                 newton_mjwarp=0.0075,
                 newton_sdf=0.0075,
                 newton_hydroelastic=0.0075,
@@ -236,6 +252,7 @@ class EventCfg:
     pin_unselected_gears_to_shafts = preset(
         default=None,
         physx=None,
+        physx_sdf=None,
         newton_mjwarp=_NEWTON_PIN_UNSELECTED_GEARS_EVENT,
         newton_sdf=_NEWTON_PIN_UNSELECTED_GEARS_EVENT,
         newton_hydroelastic=_NEWTON_PIN_UNSELECTED_GEARS_EVENT,
@@ -250,7 +267,7 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.gear_offsets = _backend_preset(_PHYSX_GEAR_OFFSETS, _NEWTON_GEAR_OFFSETS)
+        self.gear_offsets = _gear_asset_frame_preset(_PHYSX_GEAR_OFFSETS, _NEWTON_GEAR_OFFSETS)
 
         arm_joint_names = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]
         self.end_effector_body_name = "link7"
@@ -383,7 +400,7 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         base_rot = (0.0, 0.0, 0.70711, -0.70711)
         physx_asset_state = RigidObjectCfg.InitialStateCfg(pos=(0.481, -0.073, 0.071), rot=base_rot)
         newton_base_pos = (0.481, -0.073, -0.005)
-        self.scene.factory_gear_base.init_state = _backend_preset(
+        self.scene.factory_gear_base.init_state = _gear_asset_frame_preset(
             physx_asset_state,
             RigidObjectCfg.InitialStateCfg(pos=newton_base_pos, rot=base_rot),
         )
@@ -397,7 +414,7 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                 newton_base_pos[1],
                 newton_base_pos[2],
             )
-            asset.init_state = _backend_preset(
+            asset.init_state = _gear_asset_frame_preset(
                 physx_asset_state,
                 RigidObjectCfg.InitialStateCfg(pos=newton_gear_pos, rot=base_rot),
             )
@@ -408,13 +425,13 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             "gear_medium": [0.0, 0.0, -0.026],
             "gear_large": [0.0, 0.0, -0.026],
         }
-        self.gear_offsets_grasp = _backend_preset(physx_grasp_offsets, newton_grasp_offsets)
-        self.grasp_center_body_names = _backend_preset(None, ("left_finger_tip", "right_finger_tip"))
-        self.hand_grasp_width = _backend_preset(
+        self.gear_offsets_grasp = _gear_asset_frame_preset(physx_grasp_offsets, newton_grasp_offsets)
+        self.grasp_center_body_names = _gear_asset_frame_preset(None, ("left_finger_tip", "right_finger_tip"))
+        self.hand_grasp_width = _gear_asset_frame_preset(
             {"gear_small": 0.05, "gear_medium": 0.2, "gear_large": 0.28},
             {"gear_small": 0.01, "gear_medium": 0.2, "gear_large": 0.28},
         )
-        self.hand_close_width = _backend_preset(
+        self.hand_close_width = _gear_asset_frame_preset(
             {"gear_small": 0.0, "gear_medium": 0.139626, "gear_large": 0.139626},
             {"gear_small": 0.01, "gear_medium": 0.139626, "gear_large": 0.139626},
         )
