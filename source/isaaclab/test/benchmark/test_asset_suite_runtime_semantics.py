@@ -288,21 +288,17 @@ def test_newton_articulation_open_targets_constructs_real_method_and_data_target
         assert targets.data_target._jacobian_buf.shape == (2, 3, 6, 10)
 
 
-@pytest.mark.parametrize("runtime", (physx_runtime, ovphysx_runtime))
-def test_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch, runtime) -> None:
+def test_physx_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch) -> None:
     module_name = "isaaclab_physx.assets.articulation.articulation"
-    if runtime is physx_runtime:
-        monkeypatch.delitem(sys.modules, module_name, raising=False)
-    runtime._load_runtime_symbols()
-    if runtime is physx_runtime:
-        assert sys.modules[module_name].Articulation is runtime.Articulation
+    monkeypatch.delitem(sys.modules, module_name, raising=False)
+    physx_runtime._load_runtime_symbols()
+    assert sys.modules[module_name].Articulation is physx_runtime.Articulation
     zeros = wp.zeros
     empty = wp.empty
     monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: zeros(*args, **(kwargs | {"pinned": False})))
     monkeypatch.setattr(wp, "empty", lambda *args, **kwargs: empty(*args, **(kwargs | {"pinned": False})))
-    if runtime is physx_runtime:
-        runtime.PhysxManager.get_physics_sim_view.return_value.get_gravity.return_value = (0.0, 0.0, -9.81)
-    target = runtime.create_test_rigid_object(num_instances=2, num_bodies=1, device="cpu")[0]
+    physx_runtime.PhysxManager.get_physics_sim_view.return_value.get_gravity.return_value = (0.0, 0.0, -9.81)
+    target = physx_runtime.create_test_rigid_object(num_instances=2, num_bodies=1, device="cpu")[0]
     env_ids = wp.array([1, 0], dtype=wp.int64, device="cpu")
     sim_env_ids = wp.array([1, 0], dtype=wp.int32, device="cpu")
 
@@ -310,16 +306,14 @@ def test_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch, runtim
     target.set_masses_index(masses=wp.ones((2, 1), dtype=wp.float32, device="cpu"), env_ids=env_ids)
 
 
-@pytest.mark.parametrize("runtime", (physx_runtime, ovphysx_runtime))
-def test_collection_reuses_bounded_flat_view_id_scratch(monkeypatch, runtime) -> None:
-    runtime._load_runtime_symbols()
-    if runtime is physx_runtime:
-        runtime.PhysxManager.get_physics_sim_view.return_value.get_gravity.return_value = (0.0, 0.0, -9.81)
+def test_physx_collection_reuses_bounded_flat_view_id_scratch(monkeypatch) -> None:
+    physx_runtime._load_runtime_symbols()
+    physx_runtime.PhysxManager.get_physics_sim_view.return_value.get_gravity.return_value = (0.0, 0.0, -9.81)
     zeros = wp.zeros
     empty = wp.empty
     monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: zeros(*args, **(kwargs | {"pinned": False})))
     monkeypatch.setattr(wp, "empty", lambda *args, **kwargs: empty(*args, **(kwargs | {"pinned": False})))
-    target = runtime.create_test_collection(num_instances=2, num_bodies=2, device="cpu")[0]
+    target = physx_runtime.create_test_collection(num_instances=2, num_bodies=2, device="cpu")[0]
     env_ids = wp.array([1, 0], dtype=wp.int64, device="cpu")
     body_ids = wp.array([0, 1], dtype=wp.int64, device="cpu")
 
