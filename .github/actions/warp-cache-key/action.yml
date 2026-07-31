@@ -5,16 +5,20 @@
 
 name: 'Warp Cache Key'
 description: >
-  Computes the shared Warp kernel cache key, restore key, and host directory for
-  both the writer (warm-warp-cache) and the readers (test jobs). One action so
-  they cannot drift; if they do, every read misses. Requires a prior checkout.
+  Computes the Warp kernel cache collection prefix, per-run write key, and host
+  directory for both the writer (warm-warp-cache) and the readers (test jobs).
+  One action so they cannot drift; if they do, every read misses. Requires a
+  prior checkout.
 
 outputs:
+  collection:
+    description: 'Collection prefix shared by every entry that is mutually compatible'
+    value: ${{ steps.compute.outputs.collection }}
   key:
-    description: 'Primary cache key'
+    description: 'Write key, unique per run so each cumulative snapshot gets its own immutable entry'
     value: ${{ steps.compute.outputs.key }}
   restore-keys:
-    description: 'Restore-key prefix; keeps the Warp version so fallbacks stay within one cache namespace'
+    description: 'Collection prefix used to restore the newest compatible snapshot'
     value: ${{ steps.compute.outputs.restore-keys }}
   host-dir:
     description: 'Host directory holding the Warp cache; bind-mounted into the test container'
@@ -29,37 +33,19 @@ runs:
       run: |
         set -euo pipefail
 
-        # Kernels are compiled per compute capability. Restoring a cache built
-        # for a different architecture would download gigabytes only for Warp to
-        # recompile, so the capability is part of the key.
-        gpu_target="$(
-          nvidia-smi --query-gpu=compute_cap --format=csv,noheader \
-            | sed 's/[ .]//g; s/^/sm_/' \
-            | sort -u \
-            | paste -sd-
-        )"
-        if [ -z "$gpu_target" ]; then
-          echo "::error::Could not determine GPU compute capability"
-          exit 1
-        fi
+        # Warp, Newton and MuJoCo Warp decide whether a restored tree is usable.
+        # GPU architecture deliberately stays out: Warp puts the target in the
+        # artifact filename, so one collection accumulates every variant the
+        # runner fleet needs instead of splitting per GPU model.
+        versions="$(python3 .github/actions/warp-cache-key/collection_id.py)"
+        collection="warp-v2-${RUNNER_OS}-${RUNNER_ARCH}-${versions}"
 
-        # Scope on the pinned Warp version, not the Isaac Sim tag. Warp namespaces
-        # its cache dir by its own version, so that is what decides whether a
-        # restored tree is usable; the Isaac Sim tag is a floating 'latest-develop'
-        # that never changes string-wise and so never invalidates anything.
-        warp_version="$(sed -n 's/.*warp-lang==\([^"]*\)".*/\1/p' pyproject.toml | head -1)"
-        if [ -z "$warp_version" ]; then
-          echo "::error::Could not read the pinned warp-lang version from pyproject.toml"
-          exit 1
-        fi
-
-        # No date component: a time-varying key forces a fresh multi-gigabyte
-        # entry on every rollover, which exhausted the 10 GB quota last time.
-        scoped="warp-v1-${RUNNER_OS}-${RUNNER_ARCH}-${gpu_target}-wp${warp_version}"
-        echo "key=${scoped}-${SOURCE_HASH}" >> "$GITHUB_OUTPUT"
-        echo "restore-keys=${scoped}-" >> "$GITHUB_OUTPUT"
+        # Cache entries are immutable, so a cumulative writeback needs a fresh
+        # key every run - including docs-only merges and reruns, where the source
+        # is unchanged but the cache may still have grown.
+        echo "collection=${collection}" >> "$GITHUB_OUTPUT"
+        echo "key=${collection}-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+        echo "restore-keys=${collection}-" >> "$GITHUB_OUTPUT"
         echo "host-dir=${RUNNER_TEMP}/isaaclab-warp-cache" >> "$GITHUB_OUTPUT"
 
-        echo "Warp cache key: ${scoped}-${SOURCE_HASH}"
-      env:
-        SOURCE_HASH: ${{ hashFiles('uv.lock', 'source/**/*.py') }}
+        echo "Warp cache collection: ${collection}"

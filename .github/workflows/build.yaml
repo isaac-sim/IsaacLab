@@ -814,6 +814,12 @@ jobs:
     # rather than a broken build. Never fail the push build over it.
     continue-on-error: true
     needs: [build, config]
+    # One writer per branch. Two concurrent warmers would restore the same
+    # predecessor, add different kernels, and publish competing successors -
+    # whichever landed second would silently drop the other's additions.
+    concurrency:
+      group: warp-cache-write-${{ github.ref }}
+      cancel-in-progress: false
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
