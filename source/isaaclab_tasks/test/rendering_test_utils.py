@@ -1877,19 +1877,6 @@ def rendering_test_franka_soft(
             use_zero_offset=True,
         )
 
-    # Drive motion_vectors with a relative joint delta on all backends. DiffIK needs
-    # body_link_jacobian_w, which OVPhysX does not implement; keep the same path elsewhere
-    # so golden images and motion stimulus stay consistent across physics backends.
-    if data_type == "motion_vectors":
-        from isaaclab.envs.mdp.actions.actions_cfg import RelativeJointPositionActionCfg
-
-        env_cfg.actions.arm_action = RelativeJointPositionActionCfg(
-            asset_name="robot",
-            joint_names=["panda_joint.*"],
-            scale=1.0,
-            use_zero_offset=True,
-        )
-
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
