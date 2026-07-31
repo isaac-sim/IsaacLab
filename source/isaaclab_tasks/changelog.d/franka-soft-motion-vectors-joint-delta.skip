@@ -1,3 +1,0 @@
-Test-only: drive Franka soft motion_vectors with relative joint deltas on all
-physics backends (avoids DiffIK / body_link_jacobian_w on OVPhysX and keeps
-the motion stimulus consistent elsewhere).
