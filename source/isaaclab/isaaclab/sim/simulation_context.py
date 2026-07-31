@@ -863,9 +863,11 @@ class SimulationContext:
 
                 # Discard cached name-resolution data from destroyed assets.
                 run_cleanup(clear_resolve_matching_names_cache)
-                run_cleanup(gc.collect)
             finally:
                 cls._instance = None
+                del instance
+
+            run_cleanup(gc.collect)
 
             logger.info("SimulationContext cleared")
 

@@ -178,3 +178,43 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
     assert events == ["physics", "visualizer_failed", "visualizer_last", "services", "stage", "cache", "gc"]
     assert context._visualizers == []
     assert SimulationContext.instance() is None
+
+
+def test_clear_instance_releases_context_before_garbage_collection(monkeypatch):
+    """Native resource owners become unreachable before the garbage-collection phase."""
+    import isaaclab.sim.simulation_context as context_module
+    from isaaclab.sim import SimulationContext
+
+    class Manager:
+        @classmethod
+        def close(cls):
+            pass
+
+    class Services:
+        def close_all(self, caught_exceptions):
+            assert caught_exceptions == []
+
+    class Context:
+        pass
+
+    context = Context()
+    context.physics_manager = Manager
+    context._visualizers = []
+    context._services = Services()
+    context_ref = weakref.ref(context)
+    context_alive_during_gc = []
+
+    monkeypatch.setattr(SimulationContext, "_instance", context)
+    monkeypatch.setattr(context_module.stage_utils, "close_stage", lambda: None)
+    monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: None)
+    monkeypatch.setattr(
+        context_module.gc,
+        "collect",
+        lambda: context_alive_during_gc.append(context_ref() is not None),
+    )
+    del context
+
+    SimulationContext.clear_instance()
+
+    assert context_alive_during_gc == [False]
+    assert context_ref() is None
