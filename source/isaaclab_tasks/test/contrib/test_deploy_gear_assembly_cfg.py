@@ -71,7 +71,7 @@ def test_rizon_gear_newton_collision_presets_use_local_sdf_assets():
 
     for env_cfg in (point_cfg, hydro_cfg):
         assert env_cfg.sim.physics.solver_cfg.use_mujoco_contacts is False
-        assert env_cfg.sim.physics.collision_cfg.max_triangle_pairs == 1_500_000
+        assert env_cfg.sim.physics.collision_cfg.max_triangle_pairs == 4_194_304
         assert env_cfg.sim.physics.default_shape_cfg.gap == 0.005
         for asset_name in (
             "factory_gear_base",

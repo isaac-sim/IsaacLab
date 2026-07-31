@@ -42,8 +42,9 @@ CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(CONFIG_DIR, "assets")
 NEWTON_GEAR_ASSETS_DIR = os.path.join(ASSETS_DIR, "newton")
 
-# A 256-world GPU shard peaks near 1.1M broad-phase pairs during randomized resets.
-_GEAR_MAX_TRIANGLE_PAIRS = 1_500_000
+# A 256-world GPU shard reached 1.54M broad-phase pairs during randomized resets.
+# Keep power-of-two headroom so reset spikes do not discard candidate contacts.
+_GEAR_MAX_TRIANGLE_PAIRS = 4_194_304
 _PHYSX_GEAR_OFFSETS = {
     "gear_small": [0.076125, 0.0, 0.0],
     "gear_medium": [0.030375, 0.0, 0.0],

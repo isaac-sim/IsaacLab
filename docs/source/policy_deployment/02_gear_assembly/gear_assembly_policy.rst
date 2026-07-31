@@ -877,9 +877,13 @@ The Newton hydroelastic preset uses package-local concave SDF collision assets. 
 separate the expensive collision rate from contact integration: the outer physics and collision
 tick is 100 Hz, while 20 solver substeps produce a 2 kHz solver rate. A policy decimation of three
 gives a 33.3 Hz control rate. The preset also uses a 5 mm shape gap and a bounded triangle-pair
-buffer. The arm uses solver-native actuator gravity compensation so gravity remains enabled for
-the gears, and the Grav linkage is held by physical PD actuators; no action term rewrites the
-selected gear pose.
+buffer sized for 256 environments per GPU rank. The arm uses solver-native actuator gravity
+compensation so gravity remains enabled for the gears, and the Grav linkage is held by physical
+PD actuators; no action term rewrites the selected gear pose.
+
+The default triangle-pair capacity is 4,194,304 per GPU rank. If Newton reports a triangle-pair
+buffer overflow, reduce the number of environments per rank or increase the capacity before using
+the resulting policy; overflowed candidate contacts are discarded.
 
 For four-GPU training, launch 256 environments per rank (1,024 total):
 
