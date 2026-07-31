@@ -964,10 +964,6 @@ def _run_batch(
         cmd += ["-k", global_k_expr]
     cmd += targets
 
-    print(f"\n\n🚀 Running batch of {len(batch)} files in a shared Kit session...")
-    for f in batch:
-        print(f"   {f}")
-
     returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
         cmd, timeout, batch_env, startup_deadline=startup_deadline, report_file=batch_report
     )
