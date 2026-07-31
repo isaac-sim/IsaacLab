@@ -362,8 +362,10 @@ def _spawn_mesh_geom_from_mesh(
 
     There is a difference in how the properties are applied to the prim based on the type of object:
 
-    - Deformable body properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
-    - Collision properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
+    - Deformable body properties: The properties are applied to the parent prim: ``{prim_path}``, which gets a
+      simulation mesh at ``{prim_path}/sim_mesh``.
+    - Collision properties: For deformable bodies, the properties are applied to the simulation mesh:
+      ``{prim_path}/sim_mesh``. Otherwise, they are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
     - Rigid body properties: The properties are applied to the parent prim: ``{prim_path}``.
 
     Args:
@@ -383,6 +385,8 @@ def _spawn_mesh_geom_from_mesh(
         ValueError: If both deformable and rigid properties are used.
         ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
             physics material, and rigid properties require a rigid physics material.
+        ValueError: If deformable properties are used with legacy collision properties instead of collision
+            fragments.
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
@@ -397,6 +401,14 @@ def _spawn_mesh_geom_from_mesh(
     # check that invalid schema types are not used
     if cfg.deformable_props is not None and cfg.rigid_props is not None:
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
+    if cfg.deformable_props is not None and cfg.collision_props is not None:
+        # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
+        frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+        if not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
+            raise ValueError(
+                "Deformable bodies require 'collision_props' in fragment form, e.g."
+                " [UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]."
+            )
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
         if not isinstance(cfg.physics_material, DeformableBodyMaterialBaseCfg):

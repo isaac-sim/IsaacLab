@@ -131,8 +131,9 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
     Unlike rigid objects, deformable objects are affected by forces and can deform when subjected to
     external forces. This class is used to configure the properties of the deformable object.
 
-    Deformable bodies don't have a separate collision mesh. The collision mesh is the same as the visual mesh.
-    The collision properties such as rest and collision offsets are specified in the :attr:`deformable_props`.
+    Deformable bodies collide through their simulation mesh at ``{prim_path}/sim_mesh``, not the visual
+    mesh. Collision properties such as rest and contact offsets are therefore set through the spawner's
+    ``collision_props``.
 
     Note:
         By default, all properties are set to None. This means that no properties will be added or modified

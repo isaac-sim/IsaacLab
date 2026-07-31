@@ -420,6 +420,18 @@ def test_deformable_collision_props_land_on_simulation_mesh(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
+def test_deformable_collision_props_reject_legacy_cfg(setup_simulation):
+    """Legacy collision cfgs cannot resolve onto the simulation mesh, so they must be rejected."""
+    cfg = sim_utils.MeshCuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        deformable_props=PhysxDeformableBodyPropertiesCfg(),
+        collision_props=PhysxCollisionPropertiesCfg(rest_offset=0.0005),
+    )
+    with pytest.raises(ValueError, match="fragment form"):
+        cfg.func("/World/beam_legacy", cfg)
+
+
+@pytest.mark.isaacsim_ci
 def test_physx_collision_cfg_writes_torsional_patch(setup_simulation):
     """Setting ``torsional_patch_radius`` on ``PhysxCollisionPropertiesCfg`` must author
     the ``physxCollision:torsionalPatchRadius`` attribute AND apply ``PhysxCollisionAPI``."""
