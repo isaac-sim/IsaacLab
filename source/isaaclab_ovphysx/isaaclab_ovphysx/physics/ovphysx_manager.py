@@ -182,9 +182,13 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             stage: USD stage used for deformable discovery.
             device: Warp device for nodal position read buffers.
         """
+        from isaaclab.scene_data.deformable_discovery import invalidate_deformable_discovery_cache
         from isaaclab_ovphysx import tensor_types as TT
         from isaaclab_ovphysx.assets.deformable_object.views import OvPhysxDeformableBodyView
 
+        # PhysX cooking may rewrite tet meshes after the first stage walk. Drop any
+        # pre-cook cache entry so SceneData counts match the live nodal layout.
+        invalidate_deformable_discovery_cache(stage)
         entries = discover_deformables_on_stage(stage)
         if not entries:
             return
