@@ -47,9 +47,9 @@ from .kernels import (
     update_soft_joint_pos_limits,
     write_joint_friction_data_to_buffer_index_kernel,
     write_joint_friction_data_to_buffer_mask,
-    write_joint_position_with_sim_mask_kernel,
-    write_joint_state_with_sim_mask_kernel,
-    write_joint_velocity_with_sim_mask_kernel,
+    write_joint_position_with_sim_ids_kernel,
+    write_joint_state_with_sim_ids_kernel,
+    write_joint_velocity_with_sim_ids_kernel,
 )
 
 # import logger
@@ -961,8 +961,9 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(velocity, expected_shape, wp.float32, "velocity")
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            write_joint_state_with_sim_mask_kernel(env_ids, joint_ids),
+            write_joint_state_with_sim_ids_kernel(env_ids, joint_ids),
             dim=expected_shape,
             inputs=[
                 position,
@@ -980,7 +981,7 @@ class Articulation(BaseArticulation):
                 self._data._joint_acc.data,
                 joint_pos_backend,
                 joint_vel_backend,
-                self._sim_env_mask,
+                sim_env_ids,
             ],
             device=self._device,
         )
@@ -988,9 +989,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self._data._reset_pose()
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=self._sim_env_mask)
-        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=self._sim_env_mask)
-        self._sim_env_mask.zero_()
+        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
+        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_position_to_sim_index(
         self,
@@ -1024,11 +1024,12 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            write_joint_position_with_sim_mask_kernel(env_ids, joint_ids),
+            write_joint_position_with_sim_ids_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[position, env_ids, joint_ids, self._joint_user_to_backend_map(), has_joint_ordering],
-            outputs=[self._data._joint_pos_buf.data, joint_pos_backend, self._sim_env_mask],
+            outputs=[self._data._joint_pos_buf.data, joint_pos_backend, sim_env_ids],
             device=self._device,
         )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
@@ -1036,8 +1037,7 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self._data._reset_pose()
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=self._sim_env_mask)
-        self._sim_env_mask.zero_()
+        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1122,8 +1122,9 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         has_joint_ordering = self.data.has_joint_ordering
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            write_joint_velocity_with_sim_mask_kernel(env_ids, joint_ids),
+            write_joint_velocity_with_sim_ids_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[velocity, env_ids, joint_ids, self._joint_user_to_backend_map(), has_joint_ordering],
             outputs=[
@@ -1131,15 +1132,14 @@ class Articulation(BaseArticulation):
                 self._data._previous_joint_vel,
                 self._data._joint_acc.data,
                 joint_vel_backend,
-                self._sim_env_mask,
+                sim_env_ids,
             ],
             device=self._device,
         )
         self._data._joint_acc.timestamp = self._data._sim_timestamp
         if not skip_forward:
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=self._sim_env_mask)
-        self._sim_env_mask.zero_()
+        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -4146,7 +4146,8 @@ class Articulation(BaseArticulation):
         self._ALL_JOINT_INDICES = wp.array(np.arange(J, dtype=np.int32), device=device)
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(FT, dtype=np.int32), device=device)
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(np.arange(ST, dtype=np.int32), device=device)
-        self._sim_env_mask = wp.zeros(N, dtype=wp.bool, device=device)
+        self._sim_env_ids = wp.empty(N, dtype=wp.int32, device=device)
+        self._sim_env_ids_views: dict[int, wp.array] = {}
 
         self._joint_pos_target_backend: wp.array | None = None
         self._joint_vel_target_backend: wp.array | None = None
@@ -4638,6 +4639,18 @@ class Articulation(BaseArticulation):
         if isinstance(env_mask, wp.array) and str(env_mask.device) != self._device:
             env_mask = wp.clone(env_mask, device=self._device)
         return env_mask
+
+    def _sim_env_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix view of the simulator-index scratch buffer."""
+        if count not in self._sim_env_ids_views:
+            self._sim_env_ids_views[count] = wp.array(
+                ptr=self._sim_env_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device=self._device,
+                copy=False,
+            )
+        return self._sim_env_ids_views[count]
 
     def _resolve_body_mask(self, body_mask: wp.array | None) -> wp.array:
         """Resolve a body mask to a ``wp.bool`` array on ``self._device`` (Newton-style)."""
