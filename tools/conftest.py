@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import pytest
 import tomllib
-from junitparser import Error, Failure, JUnitXml, TestCase, TestSuite
+from junitparser import Error, JUnitXml, TestCase, TestSuite
 from prettytable import PrettyTable
 
 from isaaclab.test.utils import resolve_test_sim_device
@@ -972,26 +972,22 @@ def _run_batch(
     file_statuses: dict = {}
     failed_files: list[str] = []
 
-    # Parse per-file stats from the single batch XML by grouping cases on classname stem.
-    # pytest sets classname to "<stem>" (function) or "<stem>.<Class>" (method).
+    # Each suite in the batch report corresponds to one test file; pytest writes
+    # aggregate counts (errors, failures, skipped, tests, time) as suite attributes.
     batch_xml: JUnitXml | None = None
     stem_stats: dict[str, dict] = {}
     if os.path.exists(batch_report):
         try:
             batch_xml = JUnitXml.fromfile(batch_report)
             for suite in batch_xml:
-                for case in suite:
-                    classname = getattr(case, "classname", "") or ""
-                    stem = classname.split(".")[0]
-                    if stem not in stem_stats:
-                        stem_stats[stem] = {"errors": 0, "failures": 0, "skipped": 0, "tests": 0, "time": 0.0}
-                    stem_stats[stem]["tests"] += 1
-                    stem_stats[stem]["time"] += float(case.time or 0.0)
-                    for r in case.result or []:
-                        if isinstance(r, Failure):
-                            stem_stats[stem]["failures"] += 1
-                        elif isinstance(r, Error):
-                            stem_stats[stem]["errors"] += 1
+                stem = (suite.name or "").split(".")[-1]
+                stem_stats[stem] = {
+                    "errors": int(suite.errors or 0),
+                    "failures": int(suite.failures or 0),
+                    "skipped": int(suite.skipped or 0),
+                    "tests": int(suite.tests or 0),
+                    "time": float(suite.time or 0.0),
+                }
         except Exception as e:
             print(f"Error reading batch report {batch_report}: {e}")
 
