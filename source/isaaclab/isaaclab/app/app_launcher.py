@@ -19,7 +19,6 @@ import atexit
 import contextlib
 import importlib.util
 import inspect
-import io
 import logging
 import os
 import re
@@ -508,21 +507,12 @@ class AppLauncher:
             parser._option_string_actions.pop("-h")
             parser._option_string_actions.pop("--help")
 
-        # Parse known args for potential name collisions/type mismatches
-        # between the config fields SimulationApp expects and the ArgParse
-        # arguments that the user passed.
-        try:
-            # Argparse writes the usage line to stderr before exiting; discard it here so a probe
-            # that is expected to fail does not print a spurious error ahead of the real output.
-            with contextlib.redirect_stderr(io.StringIO()):
-                known, _ = parser.parse_known_args()
-            config = vars(known)
-        except SystemExit:
-            # Parsing exits when a required argument is missing, which is the case for every script
-            # that takes required positionals and is invoked with '--help'. The collision check only
-            # needs the declared argument names and their defaults, so fall back to those instead of
-            # taking the parser down before the launcher arguments make it into the help output.
-            config = {action.dest: action.default for action in parser._actions if action.dest != argparse.SUPPRESS}
+        # Collect the declared arguments for potential name collisions/type mismatches between the
+        # config fields SimulationApp expects and the ArgParse arguments that the user added. Read
+        # from the parser rather than by parsing the command line: parsing exits the process when a
+        # required argument is missing, which is the case for any script with required positionals
+        # invoked with '--help', and the launcher arguments would never reach the help output.
+        config = {action.dest: action.default for action in parser._actions if action.dest != argparse.SUPPRESS}
         if len(config) == 0:
             logger.warning(
                 "[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object."
