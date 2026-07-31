@@ -73,6 +73,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = preset(
         default=ShadowHandSceneCfg(clone_in_fabric=False),
         physx=ShadowHandSceneCfg(clone_in_fabric=True),
+        isaacsim_physx=ShadowHandSceneCfg(clone_in_fabric=True),
         ovphysx=ShadowHandSceneCfg(clone_in_fabric=True),
         newton_mjwarp=ShadowHandSceneCfg(clone_in_fabric=False),
         newton_kamino=ShadowHandSceneCfg(clone_in_fabric=False),

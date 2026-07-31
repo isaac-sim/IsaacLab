@@ -54,6 +54,9 @@ __all__ = [
     "spawn_camera",
     "spawn_sensor_frame",
     "FisheyeCameraCfg",
+    "OpenCvDistortionCfg",
+    "OpenCvFisheyeDistortionCfg",
+    "OpenCvPinholeDistortionCfg",
     "PinholeCameraCfg",
     "SensorFrameCfg",
     "spawn_capsule",
@@ -126,7 +129,16 @@ from .meshes import (
     MeshRectangleCfg,
     MeshSphereCfg,
 )
-from .sensors import spawn_camera, spawn_sensor_frame, FisheyeCameraCfg, PinholeCameraCfg, SensorFrameCfg
+from .sensors import (
+    spawn_camera,
+    spawn_sensor_frame,
+    FisheyeCameraCfg,
+    OpenCvDistortionCfg,
+    OpenCvFisheyeDistortionCfg,
+    OpenCvPinholeDistortionCfg,
+    PinholeCameraCfg,
+    SensorFrameCfg,
+)
 from .shapes import (
     spawn_capsule,
     spawn_cone,

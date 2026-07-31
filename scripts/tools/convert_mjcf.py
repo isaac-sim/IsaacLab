@@ -9,9 +9,9 @@ Utility to convert a MJCF into USD format.
 MuJoCo XML Format (MJCF) is an XML file format used in MuJoCo to describe all elements of a robot.
 For more information, see: http://www.mujoco.org/book/XMLreference.html
 
-This script uses the MJCF importer extension from Isaac Sim (``isaacsim.asset.importer.mjcf``) to convert
-a MJCF asset into USD format. It is designed as a convenience script for command-line use. For more information
-on the MJCF importer, see the documentation for the extension:
+This script uses the MJCF importer API (``isaacsim.asset.importer.mjcf``) from Isaac Sim or its standalone
+wheel to convert a MJCF asset into USD format. It is designed as a convenience script for command-line use.
+For more information on the MJCF importer, see the documentation for the extension:
 https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_mjcf.html
 
 
@@ -21,72 +21,72 @@ positional arguments:
 
 optional arguments:
   -h, --help                Show this help message and exit
-  --merge-mesh              Merge meshes where possible to optimize the model. (default: False)
-  --collision-from-visuals  Generate collision geometry from visual geometries. (default: False)
-  --collision-type          Type of collision geometry to use. (default: "default")
-  --self-collision          Activate self-collisions between links. (default: False)
-  --import-physics-scene    Import the physics scene from the MJCF file. (default: False)
+  --merge_mesh              Merge meshes where possible to optimize the model. (default: False)
+  --collision_from_visuals  Generate collision geometry from visual geometries. (default: False)
+  --collision_type          Type of collision geometry to use. (default: "Convex Hull")
+  --self_collision          Activate self-collisions between links. (default: False)
+  --import_physics_scene    Import the physics scene from the MJCF file. (default: False)
+  --viz [BACKEND]           Preview the converted asset; bare --viz picks the backend that fits
+                            the runtime (kit, newton, rerun, viser). (default: no preview)
 """
 
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
-
-from isaaclab.app import AppLauncher
-
-# add argparse arguments
-parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
-parser.add_argument("input", type=str, help="The path to the input MJCF file.")
-parser.add_argument("output", type=str, help="The path to store the USD file.")
-parser.add_argument(
-    "--merge-mesh",
-    action="store_true",
-    default=False,
-    help="Merge meshes where possible to optimize the model.",
-)
-parser.add_argument(
-    "--collision-from-visuals",
-    action="store_true",
-    default=False,
-    help="Generate collision geometry from visual geometries.",
-)
-parser.add_argument(
-    "--collision-type",
-    type=str,
-    default="default",
-    help='Type of collision geometry to use (e.g. "default", "Convex Hull", "Convex Decomposition").',
-)
-parser.add_argument(
-    "--self-collision",
-    action="store_true",
-    default=False,
-    help="Activate self-collisions between links of the articulation.",
-)
-parser.add_argument(
-    "--import-physics-scene",
-    action="store_true",
-    default=False,
-    help="Import the physics scene (worldbody, defaults) from the MJCF file. Use --no-import-physics-scene to disable.",
-)
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
-import contextlib
 import os
+import sys
+import traceback
 
-import carb
+from isaaclab.sim.converters._converter_cli import ConverterCli
 
-from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
-from isaaclab.utils.assets import check_file_path
-from isaaclab.utils.dict import print_dict
+
+def _create_parser() -> argparse.ArgumentParser:
+    """Create the MJCF converter argument parser."""
+    parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
+    parser.add_argument("input", type=str, help="The path to the input MJCF file.")
+    parser.add_argument("output", type=str, help="The path to store the USD file.")
+    parser.add_argument(
+        "--merge_mesh",
+        "--merge-mesh",
+        action="store_true",
+        default=False,
+        help="Merge meshes where possible to optimize the model.",
+    )
+    parser.add_argument(
+        "--collision_from_visuals",
+        "--collision-from-visuals",
+        action="store_true",
+        default=False,
+        help="Generate collision geometry from visual geometries.",
+    )
+    parser.add_argument(
+        "--collision_type",
+        "--collision-type",
+        type=str,
+        default="Convex Hull",
+        choices=["Convex Hull", "Convex Decomposition", "Bounding Sphere", "Bounding Cube"],
+        help='Type of collision geometry to use. Defaults to "Convex Hull".',
+    )
+    parser.add_argument(
+        "--self_collision",
+        "--self-collision",
+        action="store_true",
+        default=False,
+        help="Activate self-collisions between links of the articulation.",
+    )
+    parser.add_argument(
+        "--import_physics_scene",
+        "--import-physics-scene",
+        action="store_true",
+        default=False,
+        help="Import the physics scene (worldbody, defaults) from the MJCF file.",
+    )
+    return parser
+
+
+args_cli, simulation_app = ConverterCli.parse_args(_create_parser(), "mjcf")
+
+from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg  # noqa: E402
+from isaaclab.utils.assets import check_file_path  # noqa: E402
+from isaaclab.utils.dict import print_dict  # noqa: E402
 
 
 def main():
@@ -130,31 +130,21 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    # Determine if there is a GUI to update:
-    # acquire settings interface
-    carb_settings_iface = carb.settings.get_settings()
-    # read flag for whether a local GUI is enabled
-    local_gui = carb_settings_iface.get("/app/window/enabled")
-    # read flag for whether livestreaming GUI is enabled
-    livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
-
-    # Simulate scene (if not headless)
-    if local_gui or livestream_gui:
-        # Open the stage with USD and attach it to the Kit viewport context
-        import omni.usd
-
-        omni.usd.get_context().open_stage(mjcf_converter.usd_path)
-        # Reinitialize the simulation
-        app = omni.kit.app.get_app_interface()
-        # Run simulation
-        with contextlib.suppress(KeyboardInterrupt):
-            while app.is_running():
-                # perform step
-                app.update()
+    # Open the converted asset in a kitless visualizer (newton / rerun / viser) when requested.
+    ConverterCli.preview(args_cli, simulation_app, mjcf_converter.usd_path)
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
+    try:
+        main()
+    except Exception:
+        traceback.print_exc()
+        # Kit's shutdown hooks override the interpreter exit status, so force a failure code.
+        # os._exit skips interpreter shutdown, so flush first or the diagnostics printed
+        # above are lost whenever stdout is redirected (the CI case).
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(1)
     # close sim app
-    simulation_app.close()
+    if simulation_app is not None:
+        simulation_app.close()

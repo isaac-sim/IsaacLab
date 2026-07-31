@@ -10,6 +10,7 @@ import os
 import re
 import tempfile
 from datetime import datetime
+from html import escape
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -721,12 +722,24 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
 
     os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
     report_path = os.path.join(_COMPARISON_IMAGES_DIR, report_filename)
-    sorted_scores = sorted(comparison_scores, key=lambda e: -e["diff_pct"])
+    sorted_scores = sorted(
+        comparison_scores, key=lambda entry: (0 if entry.get("xfail_reason") else 1, -entry["diff_pct"])
+    )
 
     rows = []
     for entry in sorted_scores:
-        status_class = "pass" if entry["passed"] else "fail"
-        status_text = status_class.upper()
+        xfail_reason = entry.get("xfail_reason") or ""
+        if xfail_reason:
+            if entry.get("xfail_observed", not entry["passed"]):
+                status_class = "unreliable"
+                status_text = "UNRELIABLE (XFAIL)"
+            else:
+                status_class = "xpass"
+                status_text = "XPASS (REVIEW XFAIL)"
+        else:
+            status_class = "pass" if entry["passed"] else "fail"
+            status_text = status_class.upper()
+        reason = escape(xfail_reason)
 
         actual_img_html = ""
         golden_img_html = ""
@@ -763,6 +776,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
             f"<td{ssim_cell_class}{ssim_title}>{entry['ssim']:.4f}</td>"
             f"<td{ssim_cell_class}{ssim_title}>{ssim_threshold_cell}</td>"
             f'<td class="status-{status_class}">{status_text}</td>'
+            f"<td>{reason}</td>"
             f"<td>{actual_img_html}</td>"
             f"<td>{golden_img_html}</td>"
             f'<td class="compare-cell">{compare_html}</td>'
@@ -783,9 +797,13 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: middle; }\n"
         "  th { background: #f0f0f0; white-space: nowrap; }\n"
         "  tr.fail { background: #fff0f0; }\n"
-        "  tr.pass:hover, tr.fail:hover { filter: brightness(0.96); }\n"
+        "  tr.unreliable { background: #fff8e1; }\n"
+        "  tr.xpass { background: #eef5ff; }\n"
+        "  tr.pass:hover, tr.fail:hover, tr.unreliable:hover, tr.xpass:hover { filter: brightness(0.96); }\n"
         "  .status-pass { color: #2a7a2a; font-weight: bold; }\n"
         "  .status-fail { color: #cc0000; font-weight: bold; }\n"
+        "  .status-unreliable { color: #a15c00; font-weight: bold; }\n"
+        "  .status-xpass { color: #0969da; font-weight: bold; }\n"
         "  .ssim-disabled { color: #999; font-style: italic; }\n"
         "  img { display: block; max-width: 120px; height: auto; }\n"
         "  .compare-cell { max-width: 420px; }\n"
@@ -831,6 +849,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "<th>SSIM</th>"
         "<th>SSIM Threshold</th>"
         "<th>Status</th>"
+        "<th>Reason</th>"
         "<th>ACTUAL</th>"
         "<th>GOLDEN</th>"
         "<th>Beyond Compare Command</th>"
@@ -848,8 +867,15 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
 def attach_comparison_properties(
     request: pytest.FixtureRequest, comparison_scores: list[dict], initial_count: int
 ) -> None:
-    """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
-    for entry in comparison_scores[initial_count:]:
+    """Annotate expected HTML outcomes and attach comparison properties to JUnit XML."""
+    xfail_marker = request.node.get_closest_marker("xfail")
+    xfail_reason = xfail_marker.kwargs.get("reason") if xfail_marker is not None else None
+    entries = comparison_scores[initial_count:]
+    xfail_observed = any(not entry["passed"] for entry in entries)
+    for entry in entries:
+        if xfail_reason:
+            entry["xfail_reason"] = xfail_reason
+            entry["xfail_observed"] = xfail_observed
         label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
         request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
         ssim_value = f"{entry['ssim']:.4f}" if entry.get("ssim_checked", True) else f"{entry['ssim']:.4f} (N/A)"
@@ -897,7 +923,7 @@ def make_generate_html_report_fixture(comparison_scores: list[dict], report_file
 
 
 def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
-    """Create an autouse fixture that attaches JUnit properties for one module.
+    """Create a fixture that annotates HTML outcomes and attaches JUnit properties.
 
     Args:
         comparison_scores: Module-local comparison score storage.
@@ -905,9 +931,10 @@ def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
 
     @pytest.fixture(autouse=True)
     def _attach_comparison_properties(request):
-        """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
+        """Annotate expected HTML outcomes and attach image-comparison properties."""
         initial_count = len(comparison_scores)
         yield
+        # Function-scoped teardown runs before the session-scoped HTML report is generated.
         attach_comparison_properties(request, comparison_scores, initial_count)
 
     return _attach_comparison_properties

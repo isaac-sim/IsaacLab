@@ -25,13 +25,25 @@ import importlib.metadata
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .entrypoints import PlaybackRequest, TrainingRequest
+    from .entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest
 
 try:
     __version__ = importlib.metadata.version("isaaclab_rl")
 except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0"
-__all__ = ["PlaybackRequest", "TrainingRequest", "play", "run_play_cli", "run_train_cli", "train"]
+__all__ = [
+    "PlaybackRequest",
+    "SimpleAgentRequest",
+    "TrainingRequest",
+    "play",
+    "random_agent",
+    "run_play_cli",
+    "run_random_agent_cli",
+    "run_train_cli",
+    "run_zero_agent_cli",
+    "train",
+    "zero_agent",
+]
 
 
 def __getattr__(name: str):
