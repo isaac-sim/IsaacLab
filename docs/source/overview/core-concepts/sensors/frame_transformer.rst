@@ -15,7 +15,12 @@ Frame Transformer
 
 One of the most common operations that needs to be performed within a physics simulation is the frame transformation: rewriting a vector or quaternion in the basis of an arbitrary euclidean coordinate system. There are many ways to accomplish this within Isaac and USD, but these methods can be cumbersome to implement within Isaac Lab's GPU based simulation and cloned environments. To mitigate this problem, we have designed the Frame Transformer Sensor, that tracks and calculate the relative frame transformations for rigid bodies of interest to the scene.
 
-The sensory is minimally defined by a source frame and a list of target frames.  These definitions take the form of a prim path (for the source) and list of regex capable prim paths the rigid bodies to be tracked (for the targets).
+The sensor is minimally defined by a source frame and a list of target frames.
+Use ``prim_path_regex`` for new configurations. It filters only the prims directly
+matched by the prim-path expression: ``/Robot/pelvis`` stops at the pelvis, while
+``/Robot/.*`` can select rigid bodies at the next path level below ``/Robot``.
+The deprecated ``prim_path`` field remains available for compatibility and
+recursively searches below each matched prim.
 
 .. literalinclude:: ../../../../../scripts/demos/sensors/frame_transformer_sensor.py
     :language: python

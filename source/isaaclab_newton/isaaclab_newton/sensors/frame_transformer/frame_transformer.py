@@ -62,35 +62,42 @@ class FrameTransformer(BaseFrameTransformer):
         self._stride: int = 0
 
         self._sensor_index: int | None = None
-        self._source_frame_body_name: str = cfg.prim_path.rsplit("/", 1)[-1]
+        self._source_body_pattern = self._source_prim_path_expr
+        # Replaced with the resolved body name once Newton materializes the registered sites.
+        self._source_frame_body_name = self._source_prim_path.rsplit("/", 1)[-1]
 
         # Register world-origin reference site
         self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())
 
         # Register source site
         source_offset = wp.transform(cfg.source_frame_offset.pos, cfg.source_frame_offset.rot)
-        self._source_label = NewtonManager.cl_register_site(cfg.prim_path, source_offset)
+        self._source_label = NewtonManager.cl_register_site(self._source_body_pattern, source_offset)
 
         # Register target sites
         self._target_labels: list[str] = []
+        self._target_body_patterns: list[str] = []
         self._target_frame_body_names: list[str] = []
         self._num_targets: int = 0
 
-        for target_frame in cfg.target_frames:
+        for target_frame, target_prim_path, target_body_pattern in zip(
+            cfg.target_frames, self._target_prim_paths, self._target_prim_path_exprs
+        ):
             target_offset = wp.transform(target_frame.offset.pos, target_frame.offset.rot)
-            label = NewtonManager.cl_register_site(target_frame.prim_path, target_offset)
+            label = NewtonManager.cl_register_site(target_body_pattern, target_offset)
 
             self._target_labels.append(label)
-            body_name = target_frame.prim_path.rsplit("/", 1)[-1]
+            self._target_body_patterns.append(target_body_pattern)
+            body_name = target_prim_path.rsplit("/", 1)[-1]
             self._target_frame_body_names.append(target_frame.name or body_name)
             self._num_targets += 1
 
         # Set target frame names for base class find_bodies() and data container
-        self._target_frame_names = [t.name or t.prim_path.rsplit("/", 1)[-1] for t in cfg.target_frames]
+        self._target_frame_names = self._target_frame_body_names.copy()
         self._data._target_frame_names = self._target_frame_names
 
         logger.info(
-            f"FrameTransformer '{cfg.prim_path}': source='{self._source_frame_body_name}', "
+            f"FrameTransformer '{self._source_prim_path}': "
+            f"source='{self._source_frame_body_name}', "
             f"{self._num_targets} target(s) registered"
         )
 
@@ -130,24 +137,26 @@ class FrameTransformer(BaseFrameTransformer):
         world_origin_idx, _ = site_map[self._world_origin_label]
         source_indices, target_per_world = self._validate_site_map(
             self._source_label,
-            self.cfg.prim_path,
+            self._source_prim_path,
             self._target_labels,
-            [t.prim_path for t in self.cfg.target_frames],
+            self._target_prim_paths,
             site_map,
             num_envs,
         )
 
         # Expand targets and build sensor index lists
+        shape_labels = NewtonManager._builder.shape_label
         expanded_names, target_indices_per_target, shapes_list, references_list = self._build_sensor_index_lists(
             source_indices,
             target_per_world,
-            self._target_frame_body_names,
-            NewtonManager._builder.shape_label,
+            [target_frame.name for target_frame in self.cfg.target_frames],
+            shape_labels,
             world_origin_idx,
             num_envs,
         )
 
         # Update instance state with expanded values
+        self._source_frame_body_name = shape_labels[source_indices[0]].rsplit("/", 2)[-2]
         self._num_targets = len(target_indices_per_target)
         self._target_frame_names = expanded_names
         self._target_frame_body_names = expanded_names
@@ -249,7 +258,7 @@ class FrameTransformer(BaseFrameTransformer):
     def _build_sensor_index_lists(
         source_indices: list[int],
         target_per_world: list[list[list[int]]],
-        target_frame_body_names: list[str],
+        target_frame_names: list[str | None],
         shape_labels: list[str],
         world_origin_idx: int,
         num_envs: int,
@@ -260,7 +269,7 @@ class FrameTransformer(BaseFrameTransformer):
             source_indices: Per-env source site indices, length ``num_envs``.
             target_per_world: Per-target-config, per-world, per-body site indices.
                 Shape: ``[num_target_cfgs][num_envs][n_bodies_per_env]``.
-            target_frame_body_names: Config-level name for each target config entry.
+            target_frame_names: Optional user-provided name for each target config entry.
             shape_labels: ``builder.shape_label`` — maps shape index to its label string.
                 Site labels have the form ``"{body_name}/{site_label}"``; the body name
                 is extracted for wildcard expansion.
@@ -281,13 +290,13 @@ class FrameTransformer(BaseFrameTransformer):
             for k in range(n_bodies):
                 per_env = [per_world[env_idx][k] for env_idx in range(num_envs)]
                 target_indices_per_target.append(per_env)
-                # For wildcards (n_bodies > 1), derive the bare body name from the
-                # site label ("{body_path}/{site_label}") using env 0.
-                if n_bodies > 1:
+                # Preserve an explicit name for a single target. Otherwise derive the
+                # resolved body name from the site label ("{body_path}/{site_label}").
+                if n_bodies == 1 and target_frame_names[tgt_idx] is not None:
+                    expanded_names.append(target_frame_names[tgt_idx])
+                else:
                     site_idx = per_world[0][k]
                     expanded_names.append(shape_labels[site_idx].rsplit("/", 2)[-2])
-                else:
-                    expanded_names.append(target_frame_body_names[tgt_idx])
 
         num_targets = len(target_indices_per_target)
         shapes_list: list[int] = []
@@ -307,7 +316,7 @@ class FrameTransformer(BaseFrameTransformer):
     def _update_buffers_impl(self, env_mask: wp.array):
         """Copies transforms from Newton sensor into owned buffers."""
         if self._newton_transforms is None:
-            raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
+            raise RuntimeError(f"FrameTransformer '{self._source_prim_path}': sensor is not initialized")
         wp.launch(
             copy_from_newton_kernel,
             dim=(self._num_envs, 1 + self._num_targets),
@@ -345,10 +354,10 @@ class FrameTransformer(BaseFrameTransformer):
         self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())
 
         source_offset = wp.transform(self.cfg.source_frame_offset.pos, self.cfg.source_frame_offset.rot)
-        self._source_label = NewtonManager.cl_register_site(self.cfg.prim_path, source_offset)
+        self._source_label = NewtonManager.cl_register_site(self._source_body_pattern, source_offset)
 
         self._target_labels = []
-        for target_frame in self.cfg.target_frames:
+        for target_frame, target_body_pattern in zip(self.cfg.target_frames, self._target_body_patterns):
             target_offset = wp.transform(target_frame.offset.pos, target_frame.offset.rot)
-            label = NewtonManager.cl_register_site(target_frame.prim_path, target_offset)
+            label = NewtonManager.cl_register_site(target_body_pattern, target_offset)
             self._target_labels.append(label)

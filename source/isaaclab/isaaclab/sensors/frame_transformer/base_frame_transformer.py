@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -57,6 +58,42 @@ class BaseFrameTransformer(SensorBase):
         """
         # initialize base class
         super().__init__(cfg)
+
+        self._source_prim_path = self._select_prim_path(self.cfg.prim_path, self.cfg.prim_path_regex)
+        self._target_prim_paths = [
+            self._select_prim_path(frame.prim_path, frame.prim_path_regex) for frame in self.cfg.target_frames
+        ]
+        self._source_prim_path_expr = (
+            f"(?:{self.cfg.prim_path_regex})"
+            if self.cfg.prim_path_regex is not None
+            else f"(?:{self._source_prim_path})(?:/.*)?"
+        )
+        self._target_prim_path_exprs = [
+            f"(?:{frame.prim_path_regex})" if frame.prim_path_regex is not None else f"(?:{path})(?:/.*)?"
+            for frame, path in zip(self.cfg.target_frames, self._target_prim_paths)
+        ]
+
+        if self.cfg.prim_path is not None or any(frame.prim_path is not None for frame in self.cfg.target_frames):
+            warnings.warn(
+                "FrameTransformerCfg.prim_path is deprecated; use prim_path_regex for explicit matching.",
+                FutureWarning,
+                stacklevel=2,
+            )
+
+        # SensorBase still routes lifecycle events through ``cfg.prim_path``. Keep that
+        # internal routing path populated without changing the public user configuration.
+        self.cfg.prim_path = self._source_prim_path
+
+    @staticmethod
+    def _select_prim_path(prim_path: str | None, prim_path_regex: str | None) -> str:
+        """Select the configured path while rejecting ambiguous or empty inputs."""
+        if prim_path is not None:
+            if prim_path_regex is not None:
+                raise ValueError("Define exactly one of 'prim_path' or 'prim_path_regex'.")
+            return prim_path
+        if prim_path_regex is None:
+            raise ValueError("Define exactly one of 'prim_path' or 'prim_path_regex'.")
+        return prim_path_regex
 
     """
     Properties

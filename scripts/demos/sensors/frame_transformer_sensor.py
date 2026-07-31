@@ -67,23 +67,23 @@ class FrameTransformerSensorSceneCfg(InteractiveSceneCfg):
     )
 
     specific_transforms = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
+        prim_path_regex="{ENV_REGEX_NS}/Robot/base",
         target_frames=[
-            FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT"),
-            FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT"),
+            FrameTransformerCfg.FrameCfg(prim_path_regex="{ENV_REGEX_NS}/Robot/LF_FOOT"),
+            FrameTransformerCfg.FrameCfg(prim_path_regex="{ENV_REGEX_NS}/Robot/RF_FOOT"),
         ],
         debug_vis=True,
     )
 
     cube_transform = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Cube")],
+        prim_path_regex="{ENV_REGEX_NS}/Robot/base",
+        target_frames=[FrameTransformerCfg.FrameCfg(prim_path_regex="{ENV_REGEX_NS}/Cube")],
         debug_vis=False,
     )
 
     robot_transforms = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/.*")],
+        prim_path_regex="{ENV_REGEX_NS}/Robot/base",
+        target_frames=[FrameTransformerCfg.FrameCfg(prim_path_regex="{ENV_REGEX_NS}/Robot/.*")],
         debug_vis=False,
     )
 

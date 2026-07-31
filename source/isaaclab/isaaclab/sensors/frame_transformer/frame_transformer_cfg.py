@@ -35,15 +35,23 @@ class FrameTransformerCfg(SensorBaseCfg):
     class FrameCfg:
         """Information specific to a coordinate frame."""
 
-        prim_path: str = MISSING
+        prim_path: str | None = None
         """The prim path corresponding to a rigid body.
 
-        This can be a regex pattern to match multiple prims. For example, "/Robot/.*"
-        will match all prims under "/Robot".
+        .. deprecated::
+            Use :attr:`prim_path_regex` instead. For backwards compatibility, this path
+            recursively searches its descendants for rigid bodies.
+        """
 
-        This means that if the source :attr:`FrameTransformerCfg.prim_path` is "/Robot/base",
-        and the target :attr:`FrameTransformerCfg.FrameCfg.prim_path` is "/Robot/.*", then
-        the frame transformer will track the poses of all the prims under "/Robot",
+        prim_path_regex: str | None = None
+        """The prim path regex corresponding to a rigid body.
+
+        Only prims directly matched by the expression are selected. For example,
+        ``/Robot/.*`` matches rigid-body children of ``/Robot``.
+
+        This means that if the source :attr:`FrameTransformerCfg.prim_path_regex` is "/Robot/base",
+        and the target :attr:`FrameTransformerCfg.FrameCfg.prim_path_regex` is "/Robot/.*", then
+        the frame transformer will track the poses of matching rigid-body children under "/Robot",
         including "/Robot/base" (even though this will result in an identity pose w.r.t.
         the source frame).
         """
@@ -59,8 +67,19 @@ class FrameTransformerCfg(SensorBaseCfg):
 
     class_type: type[FrameTransformer] | str = "{DIR}.frame_transformer:FrameTransformer"
 
-    prim_path: str = MISSING
-    """The prim path of the body to transform from (source frame)."""
+    prim_path: str | None = None
+    """The prim path of the body to transform from (source frame).
+
+    .. deprecated::
+        Use :attr:`prim_path_regex` instead. For backwards compatibility, this path
+        recursively searches its descendants for a rigid body.
+    """
+
+    prim_path_regex: str | None = None
+    """The prim path regex of the body to transform from (source frame).
+
+    Only a rigid body directly matched by the expression is selected.
+    """
 
     source_frame_offset: OffsetCfg = OffsetCfg()
     """The pose offset from the source prim frame."""

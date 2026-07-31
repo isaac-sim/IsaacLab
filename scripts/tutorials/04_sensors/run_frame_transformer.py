@@ -67,11 +67,11 @@ def define_sensor() -> FrameTransformer:
 
     # Example using .* to get full body + LF_FOOT
     frame_transformer_cfg = FrameTransformerCfg(
-        prim_path=f"{ROBOT_PRIM_PATH_EXPR}/base",
+        prim_path_regex=f"{ROBOT_PRIM_PATH_EXPR}/base",
         target_frames=[
-            FrameTransformerCfg.FrameCfg(prim_path=f"{ROBOT_PRIM_PATH_EXPR}/.*"),
+            FrameTransformerCfg.FrameCfg(prim_path_regex=f"{ROBOT_PRIM_PATH_EXPR}/.*"),
             FrameTransformerCfg.FrameCfg(
-                prim_path=f"{ROBOT_PRIM_PATH_EXPR}/LF_SHANK",
+                prim_path_regex=f"{ROBOT_PRIM_PATH_EXPR}/LF_SHANK",
                 name="LF_FOOT_USER",
                 offset=OffsetCfg(pos=tuple(pos_offset.tolist()), rot=tuple(rot_offset[0].tolist())),
             ),

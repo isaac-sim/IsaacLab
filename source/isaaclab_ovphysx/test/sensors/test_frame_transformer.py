@@ -629,6 +629,25 @@ def test_frame_transformer_offset_frames(device):
             torch.testing.assert_close(cube_quat_bottom, cube_quat_w_gt)
 
 
+def test_frame_transformer_resolves_source_from_unique_descendant():
+    """A legacy container source path uses its single rigid-body descendant."""
+    with _ovphysx_sim_context(device="cpu") as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _SceneCfg(num_envs=2, env_spacing=2.0, lazy_sensor_update=False)
+        scene_cfg.cube.prim_path = "{ENV_REGEX_NS}/Group/cube"
+        scene_cfg.frame_transformer = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Group",
+            target_frames=[FrameTransformerCfg.FrameCfg(prim_path_regex="{ENV_REGEX_NS}/Group/cube")],
+        )
+        scene = InteractiveScene(scene_cfg)
+
+        sim.reset()
+
+        sensor = scene.sensors["frame_transformer"]
+        assert sensor._source_frame_body_name.endswith("/Group/cube")
+        assert sensor.data.target_frame_names == ["cube"]
+
+
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_frame_transformer_all_bodies(device):
     """Test transformation of all bodies w.r.t. base source frame.
@@ -642,10 +661,10 @@ def test_frame_transformer_all_bodies(device):
         # Spawn things into stage
         scene_cfg = _SceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
         scene_cfg.frame_transformer = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/base",
+            prim_path_regex="{ENV_REGEX_NS}/Robot/base",
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/.*",
+                    prim_path_regex="{ENV_REGEX_NS}/Robot/.*",
                 ),
             ],
         )

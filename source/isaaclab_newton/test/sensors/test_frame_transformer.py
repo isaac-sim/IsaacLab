@@ -97,6 +97,24 @@ def sim():
     # Cleanup is handled by build_simulation_context
 
 
+@pytest.mark.isaacsim_ci
+def test_frame_transformer_resolves_source_from_unique_descendant(sim):
+    """A legacy container source path uses its single rigid-body descendant."""
+    scene_cfg = MySceneCfg(num_envs=2, env_spacing=2.0, lazy_sensor_update=False)
+    scene_cfg.cube.prim_path = "{ENV_REGEX_NS}/Group/cube"
+    scene_cfg.frame_transformer = FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/Group",
+        target_frames=[FrameTransformerCfg.FrameCfg(prim_path_regex="{ENV_REGEX_NS}/Group/cube")],
+    )
+    scene = InteractiveScene(scene_cfg)
+
+    sim.reset()
+
+    sensor = scene.sensors["frame_transformer"]
+    assert sensor._source_frame_body_name == "cube"
+    assert sensor.data.target_frame_names == ["cube"]
+
+
 def test_frame_transformer_feet_wrt_base(sim):
     """Test feet transformations w.r.t. base source frame.
 
@@ -532,10 +550,10 @@ def test_frame_transformer_all_bodies(sim):
     # Spawn things into stage
     scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
     scene_cfg.frame_transformer = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
+        prim_path_regex="{ENV_REGEX_NS}/Robot/base",
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/.*",
+                prim_path_regex="{ENV_REGEX_NS}/Robot/.*",
             ),
         ],
     )
@@ -544,7 +562,9 @@ def test_frame_transformer_all_bodies(sim):
     # Play the simulator
     sim.reset()
 
-    target_frame_names = scene.sensors["frame_transformer"].data.target_frame_names
+    frame_transformer = scene.sensors["frame_transformer"]
+    assert frame_transformer._source_frame_body_name == "base"
+    target_frame_names = frame_transformer.data.target_frame_names
     articulation_body_names = scene.articulations["robot"].data.body_names
 
     reordering_indices = [target_frame_names.index(name) for name in articulation_body_names]

@@ -224,7 +224,8 @@ class InteractiveScene:
                 asset_cfg.rigid_objects.values() if isinstance(asset_cfg, RigidObjectCollectionCfg) else [asset_cfg]
             )
             for child in children:
-                if hasattr(child, "prim_path"):
+                # FrameTransformer paths are resolved when its source and targets are constructed.
+                if hasattr(child, "prim_path") and not isinstance(child, FrameTransformerCfg):
                     child.prim_path = child.prim_path.format(ENV_REGEX_NS=self.cloner_cfg.clone_regex)
                     if hasattr(child, "spawn") and child.spawn is not None and self.env_ns in child.prim_path:
                         clone_asset_names.append(asset_name)
@@ -796,7 +797,12 @@ class InteractiveScene:
 
         for asset_name, asset_cfg in ordered_items:
             # resolve prim_path with env regex
-            if hasattr(asset_cfg, "prim_path"):
+            if isinstance(asset_cfg, FrameTransformerCfg):
+                source_path_field = "prim_path_regex" if asset_cfg.prim_path_regex is not None else "prim_path"
+                source_path = getattr(asset_cfg, source_path_field)
+                if source_path is not None:
+                    setattr(asset_cfg, source_path_field, source_path.replace("{ENV_REGEX_NS}", env_regex_ns))
+            elif hasattr(asset_cfg, "prim_path"):
                 asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
             # set spawn_path on spawner if cloning is needed
             if hasattr(asset_cfg, "spawn") and asset_cfg.spawn is not None:
@@ -852,7 +858,16 @@ class InteractiveScene:
                 if isinstance(asset_cfg, FrameTransformerCfg):
                     updated_target_frames = []
                     for target_frame in asset_cfg.target_frames:
-                        target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                        target_path_field = (
+                            "prim_path_regex" if target_frame.prim_path_regex is not None else "prim_path"
+                        )
+                        target_path = getattr(target_frame, target_path_field)
+                        if target_path is not None:
+                            setattr(
+                                target_frame,
+                                target_path_field,
+                                target_path.replace("{ENV_REGEX_NS}", env_regex_ns),
+                            )
                         updated_target_frames.append(target_frame)
                     asset_cfg.target_frames = updated_target_frames
                 elif isinstance(asset_cfg, ContactSensorCfg):

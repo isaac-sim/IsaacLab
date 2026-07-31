@@ -90,6 +90,37 @@ def sim(request):
     # Cleanup is handled by build_simulation_context
 
 
+@pytest.mark.isaacsim_ci
+def test_frame_transformer_resolves_source_from_unique_descendant(sim):
+    """A legacy container source path uses its single rigid-body descendant."""
+
+    @configclass
+    class SingleRigidSceneCfg(InteractiveSceneCfg):
+        terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+        cube = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Group/cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        )
+        frame_transformer = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Group",
+            target_frames=[FrameTransformerCfg.FrameCfg(prim_path_regex="{ENV_REGEX_NS}/Group/cube")],
+        )
+
+    scene = InteractiveScene(SingleRigidSceneCfg(num_envs=2, env_spacing=2.0, lazy_sensor_update=False))
+    sim.reset()
+
+    sensor = scene.sensors["frame_transformer"]
+    assert sensor._source_frame_body_name.endswith("/Group/cube")
+    assert sensor.data.target_frame_names == ["cube"]
+
+
+
+
 @pytest.mark.parametrize(
     "sim",
     [
@@ -529,10 +560,10 @@ def test_frame_transformer_all_bodies(sim):
     # Spawn things into stage
     scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
     scene_cfg.frame_transformer = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
+        prim_path_regex="{ENV_REGEX_NS}/Robot/base",
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/.*",
+                prim_path_regex="{ENV_REGEX_NS}/Robot/.*",
             ),
         ],
     )

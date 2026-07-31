@@ -180,23 +180,26 @@ class FrameTransformer(BaseFrameTransformer):
         # the prim, check that it has the appropriate rigid body API in a single loop.
         # First element is None because user can't specify source frame name
         frames = [None] + [target_frame.name for target_frame in self.cfg.target_frames]
-        frame_prim_paths = [self.cfg.prim_path] + [target_frame.prim_path for target_frame in self.cfg.target_frames]
+        frame_prim_path_exprs = [self._source_prim_path_expr] + self._target_prim_path_exprs
         # First element is None because source frame offset is handled separately
         frame_offsets = [None] + [target_frame.offset for target_frame in self.cfg.target_frames]
         frame_types = ["source"] + ["target"] * len(self.cfg.target_frames)
-        for frame, prim_path, offset, frame_type in zip(frames, frame_prim_paths, frame_offsets, frame_types):
-            # Resolve the source-side env prims (filtered to rigid bodies) and their destination
-            # expressions. Plan-aware: with an active ``ClonePlan``, only env-0 representatives
-            # are walked and dest expressions are rebuilt against the plan's destination glob.
-            def has_rigid_body_api(prim) -> bool:
-                return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+        resolved_source_body_name = self._get_relative_body_path(self.cfg.prim_path)
 
-            matches = resolve_matching_prims_from_source(prim_path, has_rigid_body_api, raise_if_no_matches=False)
+        def has_rigid_body_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+
+        for frame, path_expr, offset, frame_type in zip(frames, frame_prim_path_exprs, frame_offsets, frame_types):
+            matches = resolve_matching_prims_from_source(
+                path_expr, predicate=has_rigid_body_api, raise_if_no_matches=False
+            )
             if not matches:
                 raise ValueError(
-                    f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
+                    f"Failed to create frame transformer for frame '{frame}' with path '{path_expr}'."
                     " No matching rigid-body prims were found."
                 )
+            if frame_type == "source":
+                resolved_source_body_name = self._get_relative_body_path(matches[0][1])
             for prim, matching_prim_path in matches:
                 # Get the name of the body: use relative prim path for unique identification
                 body_name = self._get_relative_body_path(matching_prim_path)
@@ -298,8 +301,8 @@ class FrameTransformer(BaseFrameTransformer):
         # -- target frames: use relative prim path for unique identification
         self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
 
-        # -- source frame: use relative prim path for unique identification
-        self._source_frame_body_name = self._get_relative_body_path(self.cfg.prim_path)
+        # -- source frame: use the resolved rigid-body path, which may be below a configured container path
+        self._source_frame_body_name = resolved_source_body_name
         source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
 
         # Only remove source frame from tracked bodies if it is not also a target frame
