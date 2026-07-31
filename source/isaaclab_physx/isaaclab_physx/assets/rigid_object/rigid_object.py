@@ -943,7 +943,7 @@ class RigidObject(BaseRigidObject):
             inputs=[
                 inertias,
                 env_ids,
-                self._ALL_BODY_INDICES,
+                body_ids,
                 full_data,
             ],
             outputs=[
