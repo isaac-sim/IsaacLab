@@ -85,6 +85,24 @@ def finalize_export_args(
     return args_cli, hydra_args
 
 
+def disable_torchscript_for_export() -> None:
+    """Disable TorchScript compilation so ``@torch.jit.script`` helpers stay traceable.
+
+    LEAPP traces the observation and action pipeline in Python. A compiled
+    :class:`torch.jit.ScriptFunction` is opaque to the tracer, so any environment
+    quantity flowing through one (for example the quaternion helpers in
+    ``isaaclab.utils.math``) is folded into the graph as a constant and the exported
+    policy fails validation once that quantity changes.
+
+    Call this before importing task or environment modules: :func:`torch.jit.script`
+    compiles at decoration time, so disabling afterwards has no effect on helpers that
+    were already imported.
+    """
+    import torch
+
+    torch.jit._state.disable()
+
+
 def is_two_tensor_lstm_state(states: object) -> bool:
     """Return whether *states* looks like an LSTM ``[hidden, cell]`` state."""
     import torch

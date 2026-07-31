@@ -90,8 +90,6 @@ def _load_runtime_dependencies() -> None:
     from packaging import version as version_module
     from skrl.utils.runner.torch import Runner as RunnerCls
 
-    torch_module.jit._state.disable()
-
     from isaaclab.envs import DirectMARLEnvCfg as DirectMARLEnvCfgCls
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
     from isaaclab.envs import multi_agent_to_single_agent as multi_agent_to_single_agent_fn
@@ -300,6 +298,14 @@ def export_skrl_agent(
 
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one skrl policy."""
+    _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _leapp_scripts_dir not in sys.path:
+        sys.path.insert(0, _leapp_scripts_dir)
+    from export_utils import disable_torchscript_for_export
+
+    # Must run before the imports below pull in the task modules.
+    disable_torchscript_for_export()
+
     from isaaclab.app import launch_simulation
 
     from isaaclab_tasks.utils.hydra import hydra_task_config
