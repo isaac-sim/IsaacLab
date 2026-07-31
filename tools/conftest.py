@@ -27,11 +27,11 @@ from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: sk
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "1").lower() not in ("0", "false")
+_SESSION_KIT = os.environ.get("ISAACLAB_SESSION_KIT", "0").lower() not in ("0", "false")
 """When ``True``, a single Kit/SimulationApp instance is started once for the entire pytest session.
 
-Enabled by default.  Set ``ISAACLAB_SESSION_KIT=0`` to disable and fall back to the
-subprocess-per-file mode.
+Disabled by default.  Set ``ISAACLAB_SESSION_KIT=1`` to enable; the subprocess-per-file mode
+remains the default.
 
 When the pytest invocation only specifies a directory (e.g. ``pytest tools``), session-kit mode
 runs the same :func:`_collect_test_files` discovery as subprocess mode and injects the discovered
@@ -44,7 +44,7 @@ When explicit test file paths are passed on the command line, those are used as-
     ``device_split`` test files (those that mix CPU and GPU parametrizations) must be run in
     separate processes when using this mode — pass ``-k "cpu or not cuda"`` or ``-k cuda``
     explicitly.  The automatic two-pass split in :func:`run_individual_tests` is only available
-    in the subprocess-per-file mode (``ISAACLAB_SESSION_KIT=0``).
+    in the subprocess-per-file mode (``ISAACLAB_SESSION_KIT=0`` or unset).
 """
 
 _session_kit_launcher = None

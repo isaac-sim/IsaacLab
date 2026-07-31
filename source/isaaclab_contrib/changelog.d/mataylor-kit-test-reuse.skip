@@ -1,0 +1,6 @@
+Fixed
+^^^^^
+
+* Fixed module-level ``import omni.replicator.core`` in
+  :mod:`isaaclab_contrib.sensors.visuotactile` test teardown that prevented
+  collection when camera extensions were not loaded at session startup.
