@@ -364,11 +364,12 @@ run_tests() {
         # isaaclab.sh prints an informational line before command output, and pip
         # installs scripts into the user base when Isaac Sim site-packages is read-only.
         isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)' | tail -n 1)\"
+        isaac_user_site=\"\$(./isaaclab.sh -p -c 'import site; print(site.getusersitepackages())' | tail -n 1)\"
         uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, site; print(pathlib.Path(site.getuserbase()) / \"bin\" / \"uv\")' | tail -n 1)\"
         if [ ! -x \"\${uv_executable}\" ]; then
           ./isaaclab.sh -p -m pip install uv
         fi
-        \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \${TEST_EXTRA_UV_PACKAGES}
+        \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_user_site}\" \${TEST_EXTRA_UV_PACKAGES}
       fi
       echo 'Starting pytest with path: $test_path'
       ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
