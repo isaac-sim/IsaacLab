@@ -9,6 +9,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
@@ -217,8 +218,9 @@ class DigitActionsCfg:
 class DigitPhysicsCfg(PresetCfg):
     """PhysX-only physics configuration for the Digit velocity environments."""
 
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    physx = default
+    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = physx
 
 
 @configclass

@@ -27,6 +27,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
@@ -101,6 +102,7 @@ class DeformableCfg(PresetCfg):
             ),
         ),
     )
+    isaacsim_physx = physx
 
     newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
 
@@ -180,7 +182,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=10,
     )
 
-    physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
     default = newton_mjwarp_vbd_proxy
 
@@ -435,6 +438,7 @@ class FrankaSoftSceneCfg(PresetCfg):
 
     # PhysX does not support replicating physics for deformable objects
     physx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+    isaacsim_physx = physx
 
     newton_mjwarp_vbd_proxy = newton_mjwarp_vbd
 

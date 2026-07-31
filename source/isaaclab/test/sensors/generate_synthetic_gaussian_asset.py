@@ -539,6 +539,52 @@ def assert_ppisp_lifts_exposure(
     )
 
 
+def assert_tiled_views_match(
+    tiled_images: torch.Tensor,
+    *,
+    max_mean_abs_diff: float = 12.75,
+    max_relative_mean_abs_diff: float | None = None,
+    label: str = "",
+) -> None:
+    """Assert that all views in a tiled image batch contain the same content.
+
+    Args:
+        tiled_images: Image batch with shape ``[num_tiles, H, W, C]``.
+        max_mean_abs_diff: Maximum allowed mean absolute difference from tile zero.
+            For LDR images scaled to ``[0, 255]``, the default of ``12.75``
+            (``0.05 * 255``) matches the existing tiled-camera consistency
+            tolerance. This absolute tolerance should not be used for HDR
+            images, whose raw physical float scale is renderer-dependent.
+        max_relative_mean_abs_diff: Maximum allowed mean absolute difference
+            from tile zero relative to tile zero's mean absolute value. If set,
+            this relative threshold is used instead of :paramref:`max_mean_abs_diff`.
+            Use this for ``rgb_hdr`` tiles.
+        label: Included in the assertion message.
+    """
+    prefix = f"[{label}] " if label else ""
+    assert tiled_images.ndim == 4 and tiled_images.shape[0] > 1, (
+        f"{prefix}expected a multi-tile image batch, got shape={tuple(tiled_images.shape)}"
+    )
+
+    reference = tiled_images[0][..., :3].float()
+    reference_mean_abs = reference.abs().mean().item()
+    for tile_index in range(1, tiled_images.shape[0]):
+        mean_abs_diff = (reference - tiled_images[tile_index][..., :3].float()).abs().mean().item()
+        if max_relative_mean_abs_diff is not None:
+            relative_mean_abs_diff = mean_abs_diff / max(reference_mean_abs, 1.0e-6)
+            assert relative_mean_abs_diff < max_relative_mean_abs_diff, (
+                f"{prefix}tile {tile_index} differs from tile 0: "
+                f"relative_mean_abs_diff={relative_mean_abs_diff:.4f}, "
+                f"mean_abs_diff={mean_abs_diff:.4f}, reference_mean_abs={reference_mean_abs:.4f}, "
+                f"expected relative_mean_abs_diff < {max_relative_mean_abs_diff}"
+            )
+            continue
+        assert mean_abs_diff < max_mean_abs_diff, (
+            f"{prefix}tile {tile_index} differs from tile 0: mean_abs_diff={mean_abs_diff:.3f}, "
+            f"expected < {max_mean_abs_diff}"
+        )
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # InteractiveScene helpers shared by the Isaac RTX-, Newton-, and OVRTX-backed
 # gaussian tests.

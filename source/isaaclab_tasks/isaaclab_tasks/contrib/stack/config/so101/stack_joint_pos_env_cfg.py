@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -61,8 +62,9 @@ class SO101StackPhysicsCfg(PhysicsCfg):
     object surface instead of letting it tunnel through grasped objects.
     """
 
-    default = PhysicsCfg().default.replace(solve_articulation_contact_last=True)
-    physx = default
+    isaacsim_physx = PhysicsCfg().isaacsim_physx.replace(solve_articulation_contact_last=True)
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = physx
 
 
 @configclass
