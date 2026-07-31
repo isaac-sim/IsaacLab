@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+from isaaclab_newton.physics import NewtonShapeCfg
+
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
@@ -21,3 +23,10 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # switch robot to anymal-d
         self.scene.robot = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+        # ANYmal-D's base capsule passes within a few millimetres of the thigh colliders, so
+        # the shared 1 cm Newton shape margin inflates them into constant overlap and trips
+        # the base_contact termination. Other robots keep the default.
+        newton_cfg = getattr(self.sim.physics, "newton_mjwarp", None)
+        if newton_cfg is not None:
+            newton_cfg.default_shape_cfg = NewtonShapeCfg(margin=0.0)
