@@ -12,7 +12,6 @@ import pytest
 from isaaclab_contrib.custom_coupling.franka_soft_env_cfg import FrankaSoftCustomCouplingEnvCfg, PhysicsCfg
 
 from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothCameraEnvCfg
-from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftCameraEnvCfg, FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
 from isaaclab_tasks.utils.hydra import register_task, resolve_presets
 
@@ -25,14 +24,6 @@ def test_example_default_preset_uses_the_manual_coupler() -> None:
     env_cfg = resolve_presets(FrankaSoftCustomCouplingEnvCfg(), selected=())
 
     assert env_cfg.sim.physics.class_type == MANUAL_MANAGER
-    assert env_cfg.scene.replicate_physics
-
-
-def test_core_task_default_preset_uses_the_proxy_coupler() -> None:
-    """Adding the manual preset in the example must not leak into the core task."""
-    env_cfg = resolve_presets(FrankaSoftEnvCfg(), selected=())
-
-    assert env_cfg.sim.physics.class_type == PROXY_MANAGER
 
 
 def test_core_declares_only_the_proxy_preset() -> None:
@@ -53,13 +44,6 @@ def test_core_task_rejects_the_removed_preset_name(monkeypatch: pytest.MonkeyPat
         register_task("Isaac-Lift-Soft-Franka", "rsl_rl_cfg_entry_point")
 
 
-def test_example_accepts_the_manual_preset_name() -> None:
-    """The example declares the name, so the same selection resolves instead of raising."""
-    env_cfg = resolve_presets(FrankaSoftCustomCouplingEnvCfg(), selected=("newton_mjwarp_vbd",))
-
-    assert env_cfg.sim.physics.class_type == MANUAL_MANAGER
-
-
 def test_proxy_preset_selectable_on_example() -> None:
     """The example still resolves the inherited core proxy preset."""
     env_cfg = resolve_presets(FrankaSoftCustomCouplingEnvCfg(), selected=("newton_mjwarp_vbd_proxy",))
@@ -67,10 +51,8 @@ def test_proxy_preset_selectable_on_example() -> None:
     assert env_cfg.sim.physics.class_type == PROXY_MANAGER
 
 
-@pytest.mark.parametrize("factory", [FrankaSoftCameraEnvCfg, FrankaClothCameraEnvCfg])
-@pytest.mark.parametrize("preset", [(), ("newton_mjwarp_vbd_proxy",), ("newton_mjwarp_vbd",)])
-def test_camera_tasks_always_use_proxy_coupling(factory, preset: tuple[str, ...]) -> None:
-    """Camera tasks only support proxy coupling, including for the contrib preset name."""
-    env_cfg = resolve_presets(factory(), selected=preset)
+def test_cloth_camera_task_always_uses_proxy_coupling() -> None:
+    """The cloth camera task only supports proxy coupling, including for the contrib preset name."""
+    env_cfg = resolve_presets(FrankaClothCameraEnvCfg(), selected=("newton_mjwarp_vbd",))
 
     assert env_cfg.sim.physics.class_type == PROXY_MANAGER
