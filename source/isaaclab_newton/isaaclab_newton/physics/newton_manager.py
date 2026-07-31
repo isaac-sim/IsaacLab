@@ -83,6 +83,7 @@ from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab.sim.utils.queries import has_deformable_curve_api
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
@@ -1578,8 +1579,7 @@ class NewtonManager(PhysicsManager):
             usd_prim = usd_stage.GetPrimAtPath(prim_path)
             if not usd_prim.IsValid() or not usd_prim.IsA(UsdGeom.BasisCurves):
                 continue
-            applied_schemas = usd_prim.GetPrimTypeInfo().GetAppliedAPISchemas()
-            if "PhysicsCurvesDeformableSimAPI" not in applied_schemas:
+            if not has_deformable_curve_api(usd_prim):
                 continue
 
             curve = UsdGeom.BasisCurves(usd_prim)
