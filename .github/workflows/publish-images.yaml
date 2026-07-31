@@ -66,6 +66,7 @@ jobs:
         - key: base
           tag_suffix: ""
           dockerfile: docker/Dockerfile.base
+          isaacsim_base: "true"
           # Empty: follow whatever the Isaac Sim base image supports.
           platforms: ""
           build_args: --build-arg DOCKER_USER_HOME_ARG=/root
@@ -73,6 +74,8 @@ jobs:
           # Same repository as the base image, distinguished by a tag suffix.
           tag_suffix: "-kitless"
           dockerfile: docker/Dockerfile.kitless
+          # Builds on ubuntu, so it takes none of the Isaac Sim build arguments.
+          isaacsim_base: "false"
           # No arm64 GPU runner validates this build yet.
           platforms: linux/amd64
           build_args: --build-arg DOCKER_USER_HOME_ARG=/home/isaaclab
@@ -260,16 +263,26 @@ jobs:
           TAG_ARGS+=("-t" "$t")
         done
 
+        BUILD_ARG_FLAGS=(
+          --build-arg "ISAACLAB_PATH_ARG=/workspace/isaaclab"
+          ${{ matrix.image.build_args }}
+        )
+        # Only the Isaac Sim-based image declares these; passing them to an image
+        # that does not leaves unconsumed build arguments in the build log.
+        if [ "${{ matrix.image.isaacsim_base }}" = "true" ]; then
+          BUILD_ARG_FLAGS+=(
+            --build-arg "ISAACSIM_BASE_IMAGE_ARG=${{ steps.config.outputs.isaacsim_image_name }}"
+            --build-arg "ISAACSIM_VERSION_ARG=$IMAGE_BASE_VERSION"
+            --build-arg "ISAACSIM_ROOT_PATH_ARG=/isaac-sim"
+          )
+        fi
+
         echo "🔵 Building and pushing image with tags listed above..."
         if ! docker buildx build \
           --platform "$BUILD_PLATFORMS" \
           --progress=plain \
           "${TAG_ARGS[@]}" \
-          --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ steps.config.outputs.isaacsim_image_name }} \
-          --build-arg ISAACSIM_VERSION_ARG="$IMAGE_BASE_VERSION" \
-          --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
-          --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
-          ${{ matrix.image.build_args }} \
+          "${BUILD_ARG_FLAGS[@]}" \
           --cache-from type=gha,scope=publish-${{ matrix.image.key }} \
           --cache-to type=gha,mode=max,scope=publish-${{ matrix.image.key }} \
           -f "$DOCKERFILE" \
