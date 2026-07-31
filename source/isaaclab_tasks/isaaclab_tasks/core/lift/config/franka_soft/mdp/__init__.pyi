@@ -17,9 +17,8 @@ __all__ = [
     "deformable_com_goal_distance_delta",
     "deformable_com_goal_reached",
     # terminations
-    "deformable_com_below_minimum",
     "deformable_nodal_vel_above_maximum",
-    "deformable_outside_table_bounds",
+    "deformable_outside_bounds",
     "deformable_state_invalid",
     "joint_vel_out_of_sim_limit",
     # events
@@ -53,9 +52,8 @@ from .rewards import (
     deformable_lifting,
 )
 from .terminations import (
-    deformable_com_below_minimum,
     deformable_nodal_vel_above_maximum,
-    deformable_outside_table_bounds,
+    deformable_outside_bounds,
     deformable_state_invalid,
     joint_vel_out_of_sim_limit,
 )

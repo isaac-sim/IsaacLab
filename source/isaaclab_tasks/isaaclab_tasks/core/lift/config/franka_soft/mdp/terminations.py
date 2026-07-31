@@ -22,29 +22,22 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def deformable_com_below_minimum(
-    env: ManagerBasedRLEnv,
-    minimum_height: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
-) -> torch.Tensor:
-    """Termination signal when the deformable's COM falls below ``minimum_height`` [m]."""
-    asset: DeformableObject = env.scene[asset_cfg.name]
-    com_z = asset.data.root_pos_w.torch[:, 2]
-    return com_z < minimum_height
-
-
-def deformable_outside_table_bounds(
+def deformable_outside_bounds(
     env: ManagerBasedRLEnv,
     x_bounds: tuple[float, float],
     y_bounds: tuple[float, float],
+    z_bounds: tuple[float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
 ) -> torch.Tensor:
-    """Terminate if any deformable nodal point leaves the table footprint.
+    """Terminate if any deformable nodal point leaves the allowed workspace box.
+
+    Covers both leaving the table footprint (x, y) and being dropped off it (z).
 
     Args:
         env: The environment instance.
         x_bounds: Allowed x-position range in the environment frame [m].
         y_bounds: Allowed y-position range in the environment frame [m].
+        z_bounds: Allowed z-position range in the environment frame [m].
         asset_cfg: The deformable object entity.
 
     Returns:
@@ -52,9 +45,9 @@ def deformable_outside_table_bounds(
     """
     asset: DeformableObject = env.scene[asset_cfg.name]
     nodal_pos = asset.data.nodal_pos_w.torch - env.scene.env_origins.unsqueeze(1)
-    outside_x = (nodal_pos[..., 0] < x_bounds[0]) | (nodal_pos[..., 0] > x_bounds[1])
-    outside_y = (nodal_pos[..., 1] < y_bounds[0]) | (nodal_pos[..., 1] > y_bounds[1])
-    return torch.any(outside_x | outside_y, dim=1)
+    lower = torch.tensor([x_bounds[0], y_bounds[0], z_bounds[0]], device=nodal_pos.device)
+    upper = torch.tensor([x_bounds[1], y_bounds[1], z_bounds[1]], device=nodal_pos.device)
+    return ((nodal_pos < lower) | (nodal_pos > upper)).flatten(1).any(dim=1)
 
 
 def deformable_nodal_vel_above_maximum(
@@ -94,8 +87,8 @@ def deformable_state_invalid(
     This reads the raw state, unlike the sanitized accessors used by the reward and observation
     terms, which would otherwise mask the divergence. Node positions beyond ``position_limit`` are
     also flagged, since a blow-up passes through large finite values before it overflows to
-    infinity. Unlike :func:`deformable_outside_table_bounds`, which only checks x and y, this covers
-    all three axes.
+    infinity. Unlike :func:`deformable_outside_bounds`, whose limits are task bounds, this one is a
+    numerical sanity check.
 
     Args:
         env: The environment instance.

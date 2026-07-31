@@ -531,22 +531,18 @@ class CurriculumCfg:
 
 @configclass
 class TerminationsCfg:
-    """Time out + table bounds/drop termination."""
+    """Time out + workspace bounds termination."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
-    deformable_outside_table = DoneTerm(
-        func=mdp.deformable_outside_table_bounds,
+    deformable_out_of_bounds = DoneTerm(
+        func=mdp.deformable_outside_bounds,
         params={
             "x_bounds": (0.0, 1.0),
             "y_bounds": (-0.5, 0.5),
+            "z_bounds": (-0.02, 1.0),
             "asset_cfg": SceneEntityCfg("deformable"),
         },
-    )
-
-    deformable_dropped = DoneTerm(
-        func=mdp.deformable_com_below_minimum,
-        params={"minimum_height": -0.1, "asset_cfg": SceneEntityCfg("deformable")},
     )
 
     ee_below_table = DoneTerm(
