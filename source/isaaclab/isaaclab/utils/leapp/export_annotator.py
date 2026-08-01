@@ -39,6 +39,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 import torch
+import warp as wp
 from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
@@ -58,6 +59,18 @@ if TYPE_CHECKING:
 
 
 VARIABLE_IMPEDANCE_MODES = frozenset({"variable", "variable_kp"})
+
+
+def _normalize_joint_ids(joint_ids: Any) -> Any:
+    """Return ``joint_ids`` in a form that supports torch indexing and name selection.
+
+    Action terms resolve their joint selection to different types: a ``slice``, a
+    :class:`torch.Tensor`, a list, or -- for :class:`BinaryJointAction` -- a ``wp.array``,
+    which supports neither torch fancy indexing nor ``tolist``.
+    """
+    if isinstance(joint_ids, wp.array):
+        return wp.to_torch(joint_ids)
+    return joint_ids
 
 
 def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tensor | None]:
@@ -609,7 +622,7 @@ class ExportPatcher:
             if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in VARIABLE_IMPEDANCE_MODES:
                 asset = getattr(term, "_asset", None)
                 real_asset = getattr(asset, "_real_asset", asset)
-                joint_ids = getattr(term, "_joint_ids", None)
+                joint_ids = _normalize_joint_ids(getattr(term, "_joint_ids", None))
                 joint_names = getattr(real_asset, "joint_names", None) if real_asset else None
                 scene_key = self._action_term_scene_keys.get(term_name, "ego")
                 tensors.append(
@@ -700,7 +713,7 @@ class ExportPatcher:
             asset = getattr(term, "_asset", None)
             real_asset = getattr(asset, "_real_asset", asset)
             if real_asset and hasattr(real_asset, "data"):
-                joint_ids = getattr(term, "_joint_ids", None)
+                joint_ids = _normalize_joint_ids(getattr(term, "_joint_ids", None))
                 joint_names = getattr(real_asset, "joint_names", None)
                 scene_key = self._action_term_scene_keys.get(term_name, "ego")
                 # Source the PD gains from the actuators so they are correct for every actuator
