@@ -24,7 +24,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Inhand-Roll-Allegro-v0",
+    id="IsaacContrib-Inhand-Roll-Allegro-v0",
     entry_point=f"{__name__}.allegro_rotate_env:AllegroRotateEnv",
     disable_env_checker=True,
     kwargs={
