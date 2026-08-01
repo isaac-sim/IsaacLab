@@ -157,7 +157,7 @@ To enable OmniPVD capture in Isaac Lab, add the relevant kit arguments to the co
 
       .. code:: bash
 
-          uv run python scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+          uv run --extra isaacsim python scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
