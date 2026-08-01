@@ -178,6 +178,72 @@ def test_initialization(num_envs, num_cubes, device):
             object_collection.update(sim.cfg.dt)
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_set_body_inertial_properties_updates_inverses(device):
+    """Masked inertial-property writes update only selected Newton inverse entries."""
+    num_envs = 2
+    num_cubes = 3
+    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        for env_index in range(num_envs):
+            sim_utils.create_prim(f"/World/Env_{env_index}", "Xform", translation=(float(env_index), 0.0, 1.0))
+        spawn_cfg = sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        )
+        object_collection = RigidObjectCollection(
+            RigidObjectCollectionCfg(
+                rigid_objects={
+                    f"cube_{body_index}": RigidObjectCfg(
+                        prim_path=f"/World/Env_.*/Object_{body_index}",
+                        spawn=spawn_cfg,
+                        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, float(body_index), 0.0)),
+                    )
+                    for body_index in range(num_cubes)
+                }
+            )
+        )
+        sim.reset()
+
+        env_mask = wp.array([True, False], dtype=wp.bool, device=device)
+        body_mask = wp.array([False, True, False], dtype=wp.bool, device=device)
+        selected = (0, 1)
+
+        raw_model_inv_mass = object_collection.root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[
+            :, :, 0
+        ]
+        assert object_collection.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
+        model_inv_mass = object_collection.data._sim_bind_body_inv_mass
+        original_inv_mass = wp.to_torch(model_inv_mass).clone()
+        masses = object_collection.data.body_mass.torch.clone()
+        masses[selected] = 4.0
+        object_collection.set_masses_mask(masses=masses, env_mask=env_mask, body_mask=body_mask)
+
+        updated_inv_mass = wp.to_torch(model_inv_mass).clone()
+        torch.testing.assert_close(updated_inv_mass[selected], masses[selected].reciprocal())
+        unselected = torch.ones_like(updated_inv_mass, dtype=torch.bool)
+        unselected[selected] = False
+        torch.testing.assert_close(updated_inv_mass[unselected], original_inv_mass[unselected])
+
+        raw_model_inv_inertia = object_collection.root_view.get_attribute(
+            "body_inv_inertia", SimulationManager.get_model()
+        )[:, :, 0]
+        assert object_collection.data._sim_bind_body_inv_inertia.ptr == raw_model_inv_inertia.ptr
+        model_inv_inertia = object_collection.data._sim_bind_body_inv_inertia
+        original_inv_inertia = wp.to_torch(model_inv_inertia).clone()
+        inertias = object_collection.data.body_inertia.torch.clone()
+        inertia_matrix = torch.diag(torch.tensor([2.0, 3.0, 5.0], device=device))
+        inertias[selected] = inertia_matrix.reshape(9)
+        object_collection.set_inertias_mask(inertias=inertias, env_mask=env_mask, body_mask=body_mask)
+
+        updated_inv_inertia = wp.to_torch(model_inv_inertia)
+        torch.testing.assert_close(updated_inv_inertia[selected], torch.linalg.inv(inertia_matrix))
+        torch.testing.assert_close(updated_inv_inertia[unselected], original_inv_inertia[unselected])
+        torch.testing.assert_close(wp.to_torch(model_inv_mass), updated_inv_mass)
+
+
 @pytest.mark.skip(reason="Newton doesn't support kinematic rigid bodies yet")
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 3])
