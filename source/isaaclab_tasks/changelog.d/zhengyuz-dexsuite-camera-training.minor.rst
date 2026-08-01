@@ -22,7 +22,7 @@ Changed
   ``single_camera`` and ``duo_camera`` now reduce the convolutional feature map to per-channel
   keypoint coordinates
   (:class:`~isaaclab_tasks.core.dexsuite.config.kuka_allegro.agents.models.SpatialSoftmaxCNNModel`)
-  and run with ``schedule="fixed"`` and ``learning_rate=1e-4``; the adaptive KL schedule does not
+  and run with ``schedule="fixed"`` and ``learning_rate=7e-5``; the adaptive KL schedule does not
   converge for a camera actor. State-policy optimizer settings were unchanged.
 * Changed the dexsuite camera observation normalization to fixed maps that no longer depend on the
   frame's own statistics. RGB is rescaled affinely to ``[-0.5, 0.5]`` and depth is squashed with a

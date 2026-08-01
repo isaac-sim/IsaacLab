@@ -81,7 +81,7 @@ ALGO_CFG = RslRlPpoAlgorithmCfg(
 
 # Camera actors need a fixed learning rate: the adaptive KL schedule varies it across the range
 # where encoder features change faster than the policy head can track, and does not converge.
-CAMERA_ALGO_CFG = ALGO_CFG.replace(num_mini_batches=8, schedule="fixed", learning_rate=1.0e-4)
+CAMERA_ALGO_CFG = ALGO_CFG.replace(num_mini_batches=8, schedule="fixed", learning_rate=7.0e-5)
 
 
 @configclass

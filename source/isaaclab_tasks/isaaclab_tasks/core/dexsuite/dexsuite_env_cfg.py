@@ -376,7 +376,7 @@ class EventCfg:
                     },
                 ),
             },
-            "buffer_size_per_group": 2048,
+            "buffer_size_per_group": 1024,
             # harvest more candidates than the bank holds and keep the subset that is spread widest
             # over the diversity feature; ``1.0`` keeps the states first-come instead.
             "diversity_feature": mdp.GraspTravelDistanceCfg(
