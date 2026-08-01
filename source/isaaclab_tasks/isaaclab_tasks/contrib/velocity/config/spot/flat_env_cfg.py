@@ -28,7 +28,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-import isaaclab_tasks.core.velocity.config.spot.mdp as spot_mdp
+import isaaclab_tasks.contrib.velocity.config.spot.mdp as spot_mdp
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 from isaaclab_tasks.utils import PresetCfg
