@@ -34,7 +34,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Inhand-Rotate-Grasp-Allegro-v0",
+    id="IsaacContrib-Inhand-Rotate-Grasp-Allegro-v0",
     entry_point=f"{__name__}.allegro_rotate_grasp_env:AllegroRotateGraspEnv",
     disable_env_checker=True,
     kwargs={
