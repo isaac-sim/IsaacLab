@@ -20,6 +20,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
@@ -81,7 +82,8 @@ class DrLegsPhysicsCfg(PresetCfg):
 
     default: NewtonCfg = _kamino_newton_cfg()
     newton_kamino: NewtonCfg = _kamino_newton_cfg()
-    physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
 
 ##
@@ -134,6 +136,7 @@ class DrLegsActionsCfg(PresetCfg):
     default: ActionsCfg = ActionsCfg()
     newton_kamino: ActionsCfg = ActionsCfg()
     physx: ActionsCfg = _physx_actions_cfg()
+    isaacsim_physx: ActionsCfg = physx
 
 
 @configclass
@@ -254,6 +257,7 @@ class DrLegsEventCfg(PresetCfg):
     default: EventCfg = EventCfg()
     newton_kamino: EventCfg = EventCfg()
     physx: EventCfg = _physx_event_cfg()
+    isaacsim_physx: EventCfg = physx
 
 
 @configclass
@@ -275,6 +279,8 @@ class RewardsCfg:
         weight=-2.0,
         params={"asset_cfg": _ACTUATED_JOINT_CFG},
     )
+    # Success metric (zero-weight, metric only): survived the full episode without falling/tilting.
+    success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
 @configclass

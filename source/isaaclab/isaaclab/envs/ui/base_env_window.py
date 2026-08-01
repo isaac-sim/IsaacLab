@@ -149,6 +149,16 @@ class BaseEnvWindow:
                     "/isaaclab/fabric_enabled"
                 )
 
+                # create reset episode button
+                reset_cfg = {
+                    "label": "Reset Episode",
+                    "type": "button",
+                    "text": "RESET",
+                    "tooltip": "Force-reset all environments immediately.",
+                    "on_clicked_fn": lambda: self.env.sim.request_reset(),
+                }
+                self.ui_window_elements["reset_episode"] = isaacsim.gui.components.ui_utils.btn_builder(**reset_cfg)
+
     def _build_render_mode_dropdown(self):
         """Build rendering mode dropdown if a visualizer supports it."""
         # Find first visualizer with render_mode support

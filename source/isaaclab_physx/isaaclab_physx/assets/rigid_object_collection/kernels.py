@@ -3,13 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from typing import Any
+
+import torch
 import warp as wp
+
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 
 @wp.kernel
 def resolve_view_ids(
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
     num_query_envs: wp.int32,
     num_total_envs: wp.int32,
     view_ids: wp.array(dtype=wp.int32),
@@ -29,4 +34,12 @@ def resolve_view_ids(
             (num_query_bodies * num_query_envs,).
     """
     i, j = wp.tid()
-    view_ids[j * num_query_envs + i] = body_ids[j] * num_total_envs + env_ids[i]
+    view_ids[j * num_query_envs + i] = wp.int32(body_ids[j]) * num_total_envs + wp.int32(env_ids[i])
+
+
+_RESOLVE_VIEW_IDS_DISPATCHER = IndexKernelDispatcher(resolve_view_ids, ("env_ids", "body_ids"))
+
+
+def resolve_view_ids_kernel(env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the view-index kernel for the selector dtypes."""
+    return _RESOLVE_VIEW_IDS_DISPATCHER.select(env_ids, body_ids)

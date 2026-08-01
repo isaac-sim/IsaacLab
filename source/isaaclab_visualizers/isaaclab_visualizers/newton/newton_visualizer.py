@@ -17,6 +17,19 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
+
+# pyglet.options["headless"] must be set before the first import of pyglet.window.
+# newton.viewer.ViewerGL triggers that import at class-definition time, so we must
+# set the option here — before the ViewerGL import below — not in initialize().
+# Without this, importing NewtonViewerGL in a headless environment (e.g. a pytest
+# session on a CI runner with no DISPLAY) causes ViewerGL to open an X11 connection
+# that blocks indefinitely.
+if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY"):
+    import pyglet as _pyglet_headless_init
+
+    _pyglet_headless_init.options["headless"] = True
+    del _pyglet_headless_init
+
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
@@ -90,6 +103,7 @@ class NewtonViewerGL(ViewerGL):
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
+        self._reset_requested = False
         self._metadata = metadata or {}
         self._fallback_draw_controls = False
         self._update_frequency = update_frequency
@@ -146,6 +160,16 @@ class NewtonViewerGL(ViewerGL):
     def is_rendering_paused(self) -> bool:
         """Return whether rendering is paused by viewer controls."""
         return self._paused_rendering
+
+    def is_reset_requested(self) -> bool:
+        """Return whether an episode reset was requested without clearing the flag."""
+        return self._reset_requested
+
+    def consume_reset_request(self) -> bool:
+        """Return whether an episode reset was requested and clear the flag."""
+        requested = self._reset_requested
+        self._reset_requested = False
+        return requested
 
     def _patch_viewer_panel(self) -> None:
         """Replace Newton's left panel with an IsaacLab-oriented layout.
@@ -321,6 +345,9 @@ class NewtonViewerGL(ViewerGL):
         if imgui.button(rendering_label):
             self._paused_rendering = not self._paused_rendering
             self._paused = self._paused_rendering
+
+        if imgui.button("Reset Episode"):
+            self._reset_requested = True
 
         imgui.text("Visualizer Update Frequency")
         current_frequency = self._update_frequency
@@ -1119,3 +1146,15 @@ class NewtonVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()
+
+    def is_reset_requested(self) -> bool:
+        """Return whether an episode reset was requested from viewer controls without clearing the flag."""
+        if not self._is_initialized or self._viewer is None:
+            return False
+        return self._viewer.is_reset_requested()
+
+    def consume_reset_request(self) -> bool:
+        """Return whether an episode reset was requested from viewer controls and clear the flag."""
+        if not self._is_initialized or self._viewer is None:
+            return False
+        return self._viewer.consume_reset_request()

@@ -37,6 +37,19 @@ inputs:
     description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
+  pull-on-deps-hit:
+    description: >
+      Pull the image locally after a deps-cache hit. Needed by jobs that run
+      the image in later steps of the same job: the ECR login lives in a
+      temporary docker config that is removed when this action ends, so
+      steps after the action cannot pull.
+
+      Opt-in, unlike the exact-tag hit in step 4b which always pulls: a
+      deps-cache hit is common on dependency-stable branches, so pulling
+      unconditionally would download a multi-gigabyte image for the callers
+      that only need the tag pushed.
+    required: false
+    default: 'false'
 runs:
   using: composite
   steps:
@@ -267,6 +280,27 @@ runs:
         echo "🔵 Pushing deps image for future cache hits: ${DEPS_ECR_IMAGE}"
         docker tag "${{ inputs.image-tag }}" "${DEPS_ECR_IMAGE}"
         docker push "${DEPS_ECR_IMAGE}"
+
+    ##### 8b: Pull deps-cached image for same-job use #####
+
+    # On a deps-cache hit step 5 only aliases the commit tag registry-side.
+    # Jobs that docker-run the image in later steps opt in here, while the
+    # temporary docker config (and its ECR login) still exists.
+
+    - name: Pull deps-cached image
+      if: >
+        steps.deps-cache.outputs.deps-cache-hit == 'true' &&
+        inputs.pull-on-deps-hit == 'true'
+      shell: bash
+      run: |
+        if docker image inspect "${{ inputs.image-tag }}" >/dev/null 2>&1; then
+          echo "🟢 Image already available locally, skipping pull"
+        else
+          echo "🔵 Pulling ${ECR_IMAGE} from ECR..."
+          docker pull "${ECR_IMAGE}"
+          docker tag "${ECR_IMAGE}" "${{ inputs.image-tag }}"
+          echo "🟢 Image pulled and tagged as ${{ inputs.image-tag }}"
+        fi
 
     ##### 9: Cleanup docker config #####
 

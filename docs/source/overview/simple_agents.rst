@@ -58,7 +58,7 @@ useful to ensure that the environments are configured correctly.
 
             .. code:: bash
 
-               uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole --num_envs 32
+               uv run isaaclab zero_agent --task Isaac-Cartpole --num_envs 32
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -87,7 +87,7 @@ useful to ensure that the environments are configured correctly.
 
             .. code:: bash
 
-               uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32
+               uv run isaaclab random_agent --task Isaac-Cartpole --num_envs 32
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
