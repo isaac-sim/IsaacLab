@@ -34,7 +34,7 @@ _PHYSICS_BACKEND_MIRROR_NAMES = frozenset(
     {
         "newton_kamino",
         "newton_mjwarp",
-        "newton_mjwarp_vbd",
+        "newton_mjwarp_vbd_proxy",
         "ovphysx",
         "physx",
         *PresetTarget.all_legacy_aliases().keys(),
