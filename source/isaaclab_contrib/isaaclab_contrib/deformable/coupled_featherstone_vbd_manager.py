@@ -73,6 +73,7 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonVBDManager):
 
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
+        NewtonManager._supports_rigid_body_force_input = False
 
         if solver_cfg.coupling_mode == "kinematic":
             cls._gravity_zero = wp.zeros(1, dtype=wp.vec3)

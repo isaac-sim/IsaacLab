@@ -38,8 +38,6 @@ from .coupler_cfg import (
 class NewtonCouplerManager(NewtonVBDManager):
     """Couple named Newton solver entries through proxy or ADMM interfaces."""
 
-    _supports_rigid_body_force_input = True
-
     @dataclass
     class _ResolvedEntry:
         """Entry configuration with model selectors resolved to indices."""
@@ -114,6 +112,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         NewtonManager._use_single_state = False
         NewtonManager._supports_contact_sensors = False
         NewtonManager._needs_collision_pipeline = needs_collision_pipeline
+        NewtonManager._supports_rigid_body_force_input = True
 
     @classmethod
     def _validate_config(cls, solver_cfg: CouplerCfg) -> None:

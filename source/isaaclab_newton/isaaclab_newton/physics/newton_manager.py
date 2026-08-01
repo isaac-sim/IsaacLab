@@ -909,6 +909,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._model = None
         NewtonManager._solver = None
         NewtonManager._use_single_state = None
+        NewtonManager._supports_rigid_body_force_input = False
         NewtonManager._state_0 = None
         NewtonManager._state_1 = None
         NewtonManager._control = None
@@ -1650,6 +1651,9 @@ class NewtonManager(PhysicsManager):
           manager owns Newton's :class:`CollisionPipeline` for contact
           generation; ``False`` if the solver runs internal collision
           detection (MuJoCo internal contacts, Kamino with its own detector).
+        * :attr:`NewtonManager._supports_rigid_body_force_input` — ``True`` if
+          the solver consumes external rigid-body forces from
+          :attr:`State.body_f`; ``False`` otherwise.
 
         Writing through ``NewtonManager._foo`` (rather than ``cls._foo``)
         keeps the canonical state visible to external readers regardless of
@@ -1753,9 +1757,16 @@ class NewtonManager(PhysicsManager):
                 raise RuntimeError(
                     f"{cls.__name__}._build_solver did not assign NewtonManager._solver. "
                     "Subclasses of NewtonManager must populate NewtonManager._solver, "
-                    "NewtonManager._use_single_state, and NewtonManager._needs_collision_pipeline."
+                    "NewtonManager._use_single_state, NewtonManager._needs_collision_pipeline, and "
+                    "NewtonManager._supports_rigid_body_force_input."
                 )
             cls._initialize_contacts()
+
+        # Picking callbacks must be registered after the concrete solver has
+        # published its force-input capability, but before CUDA graph capture.
+        sim = PhysicsManager._sim
+        if NewtonManager._supports_rigid_body_force_input and sim is not None:
+            sim._prepare_newton_visualizer_for_capture()
 
         # Bind the solver-specialized FK delegate to the active subclass's _eval_fk_impl so
         # that forward()/step() dispatch correctly even when forward() is invoked through the

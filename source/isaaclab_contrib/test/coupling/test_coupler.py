@@ -61,11 +61,6 @@ def test_public_coupler_config_resolves_renamed_class():
     assert CouplerCfg().class_type.__name__ == "NewtonCouplerManager"
 
 
-def test_coupler_supports_rigid_body_force_input():
-    """The coupler exposes parent-state rigid forces to viewer integrations."""
-    assert NewtonCouplerManager._supports_rigid_body_force_input is True
-
-
 def test_public_coupling_exports_are_importable():
     """The lazy-export stub must not retain deleted public symbols."""
     import isaaclab_contrib.coupling as coupling
@@ -606,6 +601,7 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
         "_use_single_state",
         "_needs_collision_pipeline",
         "_supports_contact_sensors",
+        "_supports_rigid_body_force_input",
         "_report_contacts",
     ):
         monkeypatch.setattr(coupler.NewtonManager, attribute, getattr(coupler.NewtonManager, attribute))
@@ -649,6 +645,7 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
 
     assert coupler.NewtonManager._needs_collision_pipeline is expected_outer
     assert coupler.NewtonManager._supports_contact_sensors is False
+    assert coupler.NewtonManager._supports_rigid_body_force_input is True
     assert recorded_entries == ["rigid", "soft"]
 
 
@@ -661,6 +658,7 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
         "_use_single_state",
         "_needs_collision_pipeline",
         "_supports_contact_sensors",
+        "_supports_rigid_body_force_input",
         "_report_contacts",
     ):
         monkeypatch.setattr(coupler.NewtonManager, attribute, getattr(coupler.NewtonManager, attribute))
@@ -687,6 +685,7 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
     NewtonCouplerManager._build_solver(model, cfg)
 
     assert coupler.NewtonManager._needs_collision_pipeline is True
+    assert coupler.NewtonManager._supports_rigid_body_force_input is True
 
 
 def test_contact_sensor_guard_does_not_mutate_manager_state(monkeypatch):
@@ -695,6 +694,7 @@ def test_contact_sensor_guard_does_not_mutate_manager_state(monkeypatch):
     monkeypatch.setattr(coupler.NewtonManager, "_use_single_state", True)
     monkeypatch.setattr(coupler.NewtonManager, "_needs_collision_pipeline", True)
     monkeypatch.setattr(coupler.NewtonManager, "_supports_contact_sensors", True)
+    monkeypatch.setattr(coupler.NewtonManager, "_supports_rigid_body_force_input", False)
     monkeypatch.setattr(coupler.NewtonManager, "_report_contacts", True)
 
     with pytest.raises(NotImplementedError, match="contact sensors"):
@@ -704,6 +704,7 @@ def test_contact_sensor_guard_does_not_mutate_manager_state(monkeypatch):
     assert coupler.NewtonManager._use_single_state is True
     assert coupler.NewtonManager._needs_collision_pipeline is True
     assert coupler.NewtonManager._supports_contact_sensors is True
+    assert coupler.NewtonManager._supports_rigid_body_force_input is False
 
 
 class _RecordingAdmm:

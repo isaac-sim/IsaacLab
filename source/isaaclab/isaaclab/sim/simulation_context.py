@@ -239,15 +239,6 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
-        supports_newton_picking = bool(getattr(self.physics_manager, "_supports_rigid_body_force_input", False))
-        if supports_newton_picking and any(self._is_interactive_newton_cfg(cfg) for cfg in self._get_visualizer_cfgs()):
-            self.physics_manager.register_callback(
-                self._prepare_newton_visualizer_for_capture,
-                PhysicsEvent.PHYSICS_READY,
-                order=30,
-                name="newton_visualizer_pre_capture",
-            )
-
         self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init

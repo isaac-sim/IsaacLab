@@ -20,8 +20,6 @@ class NewtonXPBDManager(NewtonManager):
     Always uses Newton's :class:`CollisionPipeline` for contact handling.
     """
 
-    _supports_rigid_body_force_input = True
-
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: XPBDSolverCfg) -> SolverXPBD:
         """Construct the configured XPBD solver."""
@@ -37,3 +35,4 @@ class NewtonXPBDManager(NewtonManager):
         NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
+        NewtonManager._supports_rigid_body_force_input = True

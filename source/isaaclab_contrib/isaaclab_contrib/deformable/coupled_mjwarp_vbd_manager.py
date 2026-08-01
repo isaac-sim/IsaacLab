@@ -70,6 +70,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
 
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
+        NewtonManager._supports_rigid_body_force_input = False
 
     @classmethod
     def _step_solver(

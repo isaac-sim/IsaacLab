@@ -117,6 +117,14 @@ SOLVER_MATRIX = [
     ),
 ]
 
+RIGID_BODY_FORCE_INPUT_SUPPORT = {
+    NewtonMJWarpManager: True,
+    NewtonXPBDManager: True,
+    NewtonFeatherstoneManager: True,
+    NewtonKaminoManager: True,
+    NewtonMPMManager: False,
+}
+
 
 # ---------------------------------------------------------------------------
 # class_type wiring (no SimulationContext required)
@@ -657,7 +665,49 @@ def test_subclass_of_newton_manager(manager):
     # Subclasses must override the abstract factory.
     assert manager._build_solver is not NewtonManager._build_solver
     assert manager._create_solver is not NewtonManager._create_solver
-    assert manager._supports_rigid_body_force_input is (manager is not NewtonMPMManager)
+
+
+def test_clear_resets_rigid_body_force_capability(monkeypatch):
+    """Teardown clears the canonical solver capability without subclass shadowing."""
+    monkeypatch.setattr(NewtonManager, "_supports_rigid_body_force_input", True)
+
+    NewtonManager.clear()
+
+    assert NewtonManager._supports_rigid_body_force_input is False
+    for manager in (
+        NewtonMJWarpManager,
+        NewtonXPBDManager,
+        NewtonFeatherstoneManager,
+        NewtonKaminoManager,
+        NewtonMPMManager,
+    ):
+        assert manager._supports_rigid_body_force_input is False
+
+
+def test_initialize_solver_prepares_picking_before_graph_capture(monkeypatch):
+    """Viewer force callbacks are registered after capability publication and before capture."""
+    events: list[str] = []
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.physics_manager.create_builder()
+        body = builder.add_body(mass=1.0)
+        builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        NewtonManager.set_builder(builder)
+        monkeypatch.setattr(sim, "_prepare_newton_visualizer_for_capture", lambda: events.append("prepare"))
+        monkeypatch.setattr(
+            NewtonMJWarpManager,
+            "_capture_or_defer_graph",
+            classmethod(lambda cls: events.append("capture")),
+        )
+
+        sim.reset()
+
+    assert events == ["prepare", "capture"]
 
 
 def test_abstract_build_solver_raises():
@@ -763,6 +813,8 @@ def test_initialize_solver_populates_canonical_state(
         NewtonManager.set_builder(builder)
 
         # Force resolution and bring up the solver.
+        expected_supports_force_input = RIGID_BODY_FORCE_INPUT_SUPPORT[expected_manager]
+        NewtonManager._supports_rigid_body_force_input = not expected_supports_force_input
         sim.reset()
 
         # Canonical state lives on the base class.
@@ -770,6 +822,7 @@ def test_initialize_solver_populates_canonical_state(
         assert isinstance(NewtonManager._solver, expected_solver_cls)
         assert NewtonManager._use_single_state is expected_use_single_state
         assert NewtonManager._needs_collision_pipeline is expected_needs_collision_pipeline
+        assert NewtonManager._supports_rigid_body_force_input is expected_supports_force_input
         assert NewtonManager._reset_solver_internals_delegate.__self__ is expected_manager
         assert (
             NewtonManager._reset_solver_internals_delegate.__func__ is expected_manager._reset_solver_internals.__func__
