@@ -269,7 +269,7 @@ def _compose_world_xforms(world_p: np.ndarray, world_q: np.ndarray, local: Seque
     return out
 
 
-def _invert_xform(xform: Sequence[float]) -> np.ndarray:
+def _invert_xform(xform: Sequence[float] | np.ndarray) -> np.ndarray:
     """Inverse of a single xyzw transform, assuming a unit quaternion."""
     xform = np.asarray(xform, dtype=np.float32)
     quat_inv = np.array([-xform[0 + 3], -xform[1 + 3], -xform[2 + 3], xform[6]], dtype=np.float32)
@@ -294,13 +294,11 @@ def replicate_builder_mapping(
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.size(1)
     local_site_map: dict[str, list[list[int]]] = {}
-    # One bulk transfer, then plain Python rows: feeding torch slices to wp.transform walks
-    # each component through the tensor's __getitem__ once per world.
     positions_np = positions.detach().cpu().numpy().astype(np.float32, copy=False)
     quaternions_np = quaternions.detach().cpu().numpy().astype(np.float32, copy=False)
-    positions_rows = positions_np.tolist()
-    quaternions_rows = quaternions_np.tolist()
-    world_xforms = [wp.transform(positions_rows[col], quaternions_rows[col]) for col in range(num_worlds)]
+    xforms_np = np.concatenate((positions_np, quaternions_np), axis=1)
+    xform_rows = xforms_np.tolist()
+    world_xforms = [wp.transform(*row) for row in xform_rows]
 
     can_batch = (
         len(sources) == 1
@@ -325,7 +323,7 @@ def replicate_builder_mapping(
         # Site index after replicate: base_shape + world * stride + source_local_index.
         base_shape = builder.shape_count
         stride = source_builder.shape_count
-        source_xform_inv = _invert_xform(positions_rows[0] + quaternions_rows[0])
+        source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions_np, quaternions_np, source_xform_inv)
         builder.replicate(source_builder, num_worlds, xforms=xforms)
 
@@ -362,7 +360,7 @@ def replicate_builder_mapping(
         row_xforms = _compose_world_xforms(
             positions_np[cols],
             quaternions_np[cols],
-            _invert_xform(positions_rows[source_col] + quaternions_rows[source_col]),
+            _invert_xform(xforms_np[source_col]),
         )
         source_xforms.update(((row, col), row_xforms[index]) for index, col in enumerate(cols))
 
@@ -383,7 +381,7 @@ def replicate_builder_mapping(
                 local_indices.extend(offset + shape_idx for shape_idx in source_shape_indices)
 
         for hook in per_world_builder_hooks:
-            hook(builder, col, positions_rows[col], quaternions_rows[col])
+            hook(builder, col, xform_rows[col][:3], xform_rows[col][3:])
         builder.end_world()
 
     for hook in post_replicate_hooks:
