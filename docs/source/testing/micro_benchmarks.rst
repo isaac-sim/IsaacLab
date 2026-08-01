@@ -146,10 +146,10 @@ Python environment must contain the backend being measured.
      - Asset benchmarks
      - Sensor benchmarks
    * - PhysX
-     - Launch Isaac Sim and use mocked PhysX views
+     - Run kitless with mocked PhysX views
      - Launch Isaac Sim and build a live PhysX scene
    * - Newton
-     - Launch Isaac Sim and use mocked Newton views
+     - Run kitless with mocked Newton views
      - Run kitless with the installed Newton runtime
    * - OVPhysX
      - Run kitless; require the optional ``ovphysx`` runtime wheel
@@ -184,6 +184,13 @@ Use the top-level component command with an exact physics selector:
 
    ./isaaclab.sh microbenchmark --component articulation physics=ovphysx \
        --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+
+To isolate one item-selector representation, select its mode explicitly:
+
+.. code-block:: bash
+
+   ./isaaclab.sh microbenchmark --component articulation physics=physx \
+       --mode torch_tensor_int64
 
 Replace ``articulation`` with ``rigid_object`` or
 ``rigid_object_collection``. Each command measures both API surfaces and emits
@@ -228,20 +235,50 @@ Defaults differ by file; use ``--help`` before creating a comparison command.
 Asset Input Modes
 ~~~~~~~~~~~~~~~~~
 
+Methods indexed only by ``env_ids`` support five selector modes:
+
 ``torch_list``
-   Pass selection IDs as Python lists. This includes list-to-tensor conversion
-   and represents common convenience-API usage.
+   Pass environment IDs as Python lists. This includes list-to-tensor
+   conversion and represents common convenience-API usage.
 
-``torch_tensor``
-   Pass pre-allocated Torch tensors. This removes repeated list conversion and
-   represents the optimized Torch path.
+``torch_tensor_int32`` and ``torch_tensor_int64``
+   Pass pre-allocated Torch tensors using the corresponding signed index width.
 
-``warp_mask``
-   Pass pre-allocated Warp boolean masks. This mode is available for supported
-   Newton and OVPhysX mask APIs.
+``warp_int32`` and ``warp_int64``
+   Pass pre-allocated Warp arrays using the corresponding signed index width.
+
+Writers with ``joint_ids`` or ``body_ids`` support the same-type modes above
+plus four mixed-width modes:
+
+``torch_tensor_int32_int64`` and ``torch_tensor_int64_int32``
+   Pass Torch environment and item selectors with the widths named in order.
+
+``warp_int32_int64`` and ``warp_int64_int32``
+   Pass Warp environment and item selectors with the widths named in order.
+
+Supported Newton and OVPhysX mask APIs are benchmarked separately with
+pre-allocated Warp boolean masks.
 
 Not every backend or method supports every mode. Compare a mode only when it has
 the same meaning on both sides.
+
+Articulation Finder Phases
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Articulation method artifacts also contain actual ``find_bodies`` and
+``find_joints`` workloads:
+
+* ``default`` measures the legacy list return.
+* ``proxy_cold`` clears the asset-local selector cache before each call, outside
+  the timer, so the measured finder call includes creation of the device-local
+  proxy selector.
+* ``proxy_cached`` warms the cache during preflight and measures repeated lookup
+  of the same proxy selector.
+
+Run timing comparisons only while the selected GPU is idle. Another process
+using the device can dominate microsecond-scale differences; correctness-only
+CPU runs and results collected on a busy GPU must not be presented as speed
+comparisons.
 
 Running Sensor Benchmarks
 -------------------------
@@ -359,12 +396,13 @@ Asset Output
 ~~~~~~~~~~~~
 
 Asset scripts print mean and standard deviation for every method/mode pair in
-microseconds, followed by mode comparisons when applicable:
+microseconds. Articulation method artifacts additionally contain the finder and
+raw index-kernel phases described above:
 
 .. code-block:: text
 
-   [1/24] [TORCH_LIST] write_root_state_to_sim... 132.02 +/- 6.79 us
-   [1/24] [TORCH_TENSOR] write_root_state_to_sim... 65.44 +/- 3.06 us
+   [1/30] [TORCH_LIST] write_root_state_to_sim... 132.02 +/- 6.79 us
+   [1/30] [TORCH_TENSOR_INT64] write_root_state_to_sim... 65.44 +/- 3.06 us
 
 They also write a timestamped JSON file to ``--output_dir`` by default. It
 contains benchmark configuration, hardware/software metadata, phase names, and
@@ -561,7 +599,7 @@ Import or Backend Errors
 
 Confirm the backend is installed in the Python environment selected by
 ``./isaaclab.sh -p``. OVPhysX requires its optional runtime wheel. PhysX
-benchmarks require Isaac Sim.
+sensor benchmarks require Isaac Sim.
 
 CUDA Out of Memory
 ~~~~~~~~~~~~~~~~~~
