@@ -13,6 +13,7 @@ from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMa
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
