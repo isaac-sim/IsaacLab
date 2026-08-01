@@ -60,7 +60,7 @@ overrides = [
     { name = "torchvision", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchvision", marker = "sys_platform == 'win32'", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "typing-extensions", specifier = ">=4.15.0" },
-    { name = "websockets", specifier = ">=13.1,<17.0.0" },
+    { name = "websockets", specifier = "==13.1" },
 ]
 
 [[package]]

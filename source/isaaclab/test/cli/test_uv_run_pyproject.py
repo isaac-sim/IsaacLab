@@ -191,7 +191,7 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
 
     assert {"isaacsim", "viser"} not in conflict_groups
-    assert "websockets>=13.1,<17.0.0" in pyproject["tool"]["uv"]["override-dependencies"]
+    assert "websockets==13.1" in pyproject["tool"]["uv"]["override-dependencies"]
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
