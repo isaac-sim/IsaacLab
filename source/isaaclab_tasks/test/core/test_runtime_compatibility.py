@@ -117,6 +117,25 @@ def test_ovphysx_dict_args_plus_kit_visualizer_raises():
 
 
 # ---------------------------------------------------------------------------
+# Invalid: OvPhysX physics + Kit renderer, with no Kit visualizer requested
+# ---------------------------------------------------------------------------
+
+
+def test_ovphysx_plus_kit_camera_without_visualizer_raises():
+    """A Kit-based renderer pulls in Kit even with no visualizer, which OvPhysX cannot share.
+
+    Without a visualizer the only Kit signal is the camera, so this is the case the visualizer-only
+    guard missed: it previously reached OvPhysX's own initialization and failed there instead.
+    """
+    env_cfg = _resolve_with_presets("ovphysx,isaacsim_rtx")
+    with pytest.raises(ValueError) as excinfo:
+        validate_runtime_compatibility(env_cfg, argparse.Namespace(visualizer=None))
+    msg = str(excinfo.value)
+    assert "OvPhysX" in msg
+    assert "renderer" in msg
+
+
+# ---------------------------------------------------------------------------
 # Valid combinations: must NOT raise
 # ---------------------------------------------------------------------------
 

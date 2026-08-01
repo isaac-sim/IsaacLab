@@ -397,16 +397,30 @@ def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | Non
     """Raise if *scan*'s physics/renderer/visualizer combination is unsupported.
 
     OVRTX is kitless and cannot share a process with Kit-based runtimes (PhysX physics
-    or the Kit visualizer); OvPhysX physics likewise cannot run with the Kit visualizer.
+    or the Kit visualizer); OvPhysX physics likewise cannot run with the Kit visualizer
+    or a Kit-based renderer.
     """
     has_kit_visualizer = _has_kit_visualizer(scan, launcher_args)
 
-    if scan.has_ovphysx_physics and has_kit_visualizer:
+    if scan.has_ovphysx_physics and (has_kit_visualizer or scan.has_kit_camera):
+        # both would initialize Carbonite in one process; without this guard OvPhysX fails
+        # deep inside its own library with "Failed to initialize Carbonite and load PhysX plugins"
+        kit_sources = []
+        if has_kit_visualizer:
+            kit_sources.append('the Kit visualizer (`--visualizer kit` / `visualizer_type="kit"`)')
+        if scan.has_kit_camera:
+            kit_sources.append('a Kit-based renderer (`IsaacRtxRendererCfg`, `renderer_type="isaac_rtx"`)')
         raise ValueError(
             "Invalid backend combination: OvPhysX physics (`OvPhysxCfg`) is kitless and cannot be used together "
-            'with the Kit visualizer (`--visualizer kit` / `visualizer_type="kit"`). Use a kitless visualizer '
-            "such as `--visualizer newton`, `--visualizer rerun`, or `--visualizer viser`, or omit the visualizer "
-            "argument for headless execution."
+            f"with Isaac Sim / Kit ({' and '.join(kit_sources)}).\n"
+            "\n"
+            "To fix this, pick one of the following supported combinations:\n"
+            "  * Keep OvPhysX physics and switch to a kitless renderer/visualizer:\n"
+            "      presets=ovphysx,ovrtx\n"
+            "    (and use `--visualizer newton`, `--visualizer rerun`, or `--visualizer viser`, or omit\n"
+            "    the visualizer argument for headless execution.)\n"
+            "  * Keep Isaac Sim / Kit and switch to a Kit-compatible physics backend:\n"
+            "      presets=isaacsim_physx,isaacsim_rtx\n"
         )
 
     if not scan.has_ovrtx or (not scan.has_kit_physics and not has_kit_visualizer):
