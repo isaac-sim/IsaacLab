@@ -88,10 +88,10 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different deformable objects and let them fall from a height:
 
-   **Physics:** ``isaacsim_physx``, ``newton_vbd``
+   **Physics:** ``isaacsim_physx``, ``newton_vbd``, ``ovphysx``
 
-   **Visualizer:** ``none``, ``kit`` for either physics backend; ``newton``,
-   ``rerun``, and ``viser`` with Newton VBD only
+   **Visualizer:** ``none`` for every physics backend; ``kit`` with Isaac Sim
+   PhysX and Newton VBD; ``newton``, ``rerun``, and ``viser`` with Newton VBD only
 
    .. tab-set::
       :sync-group: os

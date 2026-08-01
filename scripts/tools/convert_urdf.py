@@ -9,9 +9,9 @@ Utility to convert a URDF into USD format.
 Unified Robot Description Format (URDF) is an XML file format used in ROS to describe all elements of
 a robot. For more information, see: http://wiki.ros.org/urdf
 
-This script uses the URDF importer extension from Isaac Sim (``isaacsim.asset.importer.urdf``) to convert a
-URDF asset into USD format. It is designed as a convenience script for command-line use. For more
-information on the URDF importer, see the documentation for the extension:
+This script uses the URDF importer API (``isaacsim.asset.importer.urdf``) from Isaac Sim or its standalone
+wheel to convert a URDF asset into USD format. It is designed as a convenience script for command-line use.
+For more information on the URDF importer, see the documentation for the extension:
 https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_urdf.html
 
 
@@ -21,70 +21,69 @@ positional arguments:
 
 optional arguments:
   -h, --help                Show this help message and exit
-  --merge-joints            Consolidate links that are connected by fixed joints. (default: False)
-  --fix-base                Fix the base to where it is imported. (default: False)
-  --joint-stiffness         The stiffness of the joint drive. (default: 100.0)
-  --joint-damping           The damping of the joint drive. (default: 1.0)
-  --joint-target-type       The type of control to use for the joint drive. (default: "position")
+  --merge_joints            Consolidate links that are connected by fixed joints. (default: False)
+  --fix_base                Fix the base to where it is imported. (default: False)
+  --joint_stiffness         The stiffness of the joint drive. (default: 100.0)
+  --joint_damping           The damping of the joint drive. (default: 1.0)
+  --joint_target_type       The type of control to use for the joint drive. (default: "position")
+  --viz [BACKEND]           Preview the converted asset; bare --viz picks the backend that fits
+                            the runtime (kit, newton, rerun, viser). (default: no preview)
 
 """
 
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
-
-from isaaclab.app import AppLauncher
-
-# add argparse arguments
-parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
-parser.add_argument("input", type=str, help="The path to the input URDF file.")
-parser.add_argument("output", type=str, help="The path to store the USD file.")
-parser.add_argument(
-    "--merge-joints",
-    action="store_true",
-    default=False,
-    help="Consolidate links that are connected by fixed joints.",
-)
-parser.add_argument("--fix-base", action="store_true", default=False, help="Fix the base to where it is imported.")
-parser.add_argument(
-    "--joint-stiffness",
-    type=float,
-    default=100.0,
-    help="The stiffness of the joint drive.",
-)
-parser.add_argument(
-    "--joint-damping",
-    type=float,
-    default=1.0,
-    help="The damping of the joint drive.",
-)
-parser.add_argument(
-    "--joint-target-type",
-    type=str,
-    default="position",
-    choices=["position", "velocity", "none"],
-    help="The type of control to use for the joint drive.",
-)
-
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
-import contextlib
 import os
+import sys
+import traceback
 
-import carb
+from isaaclab.sim.converters._converter_cli import ConverterCli
 
-from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
-from isaaclab.utils.assets import check_file_path
-from isaaclab.utils.dict import print_dict
+
+def _create_parser() -> argparse.ArgumentParser:
+    """Create the URDF converter argument parser."""
+    parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
+    parser.add_argument("input", type=str, help="The path to the input URDF file.")
+    parser.add_argument("output", type=str, help="The path to store the USD file.")
+    parser.add_argument(
+        "--merge_joints",
+        "--merge-joints",
+        action="store_true",
+        default=False,
+        help="Consolidate links that are connected by fixed joints.",
+    )
+    parser.add_argument(
+        "--fix_base", "--fix-base", action="store_true", default=False, help="Fix the base to where it is imported."
+    )
+    parser.add_argument(
+        "--joint_stiffness",
+        "--joint-stiffness",
+        type=float,
+        default=100.0,
+        help="The stiffness of the joint drive.",
+    )
+    parser.add_argument(
+        "--joint_damping",
+        "--joint-damping",
+        type=float,
+        default=1.0,
+        help="The damping of the joint drive.",
+    )
+    parser.add_argument(
+        "--joint_target_type",
+        "--joint-target-type",
+        type=str,
+        default="position",
+        choices=["position", "velocity", "none"],
+        help="The type of control to use for the joint drive.",
+    )
+    return parser
+
+
+args_cli, simulation_app = ConverterCli.parse_args(_create_parser(), "urdf")
+
+from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg  # noqa: E402
+from isaaclab.utils.assets import check_file_path  # noqa: E402
+from isaaclab.utils.dict import print_dict  # noqa: E402
 
 
 def main():
@@ -134,31 +133,21 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    # Determine if there is a GUI to update:
-    # acquire settings interface
-    carb_settings_iface = carb.settings.get_settings()
-    # read flag for whether a local GUI is enabled
-    local_gui = carb_settings_iface.get("/app/window/enabled")
-    # read flag for whether livestreaming GUI is enabled
-    livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
-
-    # Simulate scene (if not headless)
-    if local_gui or livestream_gui:
-        # Open the stage with USD and attach it to the Kit viewport context
-        import omni.usd
-
-        omni.usd.get_context().open_stage(urdf_converter.usd_path)
-        # Reinitialize the simulation
-        app = omni.kit.app.get_app_interface()
-        # Run simulation
-        with contextlib.suppress(KeyboardInterrupt):
-            while app.is_running():
-                # perform step
-                app.update()
+    # Open the converted asset in a kitless visualizer (newton / rerun / viser) when requested.
+    ConverterCli.preview(args_cli, simulation_app, urdf_converter.usd_path)
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
+    try:
+        main()
+    except Exception:
+        traceback.print_exc()
+        # Kit's shutdown hooks override the interpreter exit status, so force a failure code.
+        # os._exit skips interpreter shutdown, so flush first or the diagnostics printed
+        # above are lost whenever stdout is redirected (the CI case).
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(1)
     # close sim app
-    simulation_app.close()
+    if simulation_app is not None:
+        simulation_app.close()
