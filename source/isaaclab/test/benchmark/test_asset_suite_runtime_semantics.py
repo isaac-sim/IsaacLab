@@ -8,7 +8,7 @@
 import importlib
 import sys
 from dataclasses import replace
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import pytest
@@ -21,6 +21,14 @@ from isaaclab_physx.benchmark.assets import runtime as physx_runtime
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
 
 pytestmark = pytest.mark.benchmark
+
+
+def _hide_app_launcher(monkeypatch) -> None:
+    import isaaclab.app
+
+    app = ModuleType("isaaclab.app")
+    app.__path__ = isaaclab.app.__path__
+    monkeypatch.setitem(sys.modules, "isaaclab.app", app)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -141,15 +149,10 @@ def test_newton_rigid_object_refresh_regenerates_kinematics_and_mass_properties(
     assert data._sim_timestamp == 1.0
 
 
-def test_newton_collection_refresh_rebinds_regenerated_sources(monkeypatch) -> None:
-    """Newton collection preparation should update all sources and recreate simulation bindings."""
+def test_newton_collection_refresh_regenerates_kinematics_and_mass_properties(monkeypatch) -> None:
+    """Newton collection preparation should refresh every source buffer."""
     view = _RecordingView()
-    data = SimpleNamespace(_sim_timestamp=0.0, binding_refreshes=0)
-
-    def create_simulation_bindings() -> None:
-        data.binding_refreshes += 1
-
-    data._create_simulation_bindings = create_simulation_bindings
+    data = SimpleNamespace(_sim_timestamp=0.0)
     monkeypatch.setattr(newton_runtime, "np", np, raising=False)
     monkeypatch.setattr(newton_runtime, "wp", wp, raising=False)
     refresh = getattr(newton_runtime, "_refresh_collection_data", None)
@@ -157,12 +160,13 @@ def test_newton_collection_refresh_rebinds_regenerated_sources(monkeypatch) -> N
     assert refresh is not None
     refresh(view, data, _CONFIG)
 
-    assert tuple(view._root_transforms.shape) == (2, 3)
-    assert tuple(view._root_velocities.shape) == (2, 3)
-    assert tuple(view._attributes["body_com"].shape) == (2, 3, 1)
-    assert tuple(view._attributes["body_mass"].shape) == (2, 3, 1)
-    assert tuple(view._attributes["body_inertia"].shape) == (2, 3, 1)
-    assert data.binding_refreshes == 1
+    assert view.calls == {
+        "root_transforms": (2, 3),
+        "root_velocities": (2, 3),
+        "coms": (2, 3, 1),
+        "masses": (2, 3, 1),
+        "inertias": (2, 3, 1),
+    }
     assert data._sim_timestamp == 1.0
 
 
@@ -273,20 +277,86 @@ def test_newton_articulation_data_target_restores_model_dynamics_and_ordering(mo
 
 def test_newton_articulation_open_targets_constructs_real_method_and_data_targets(monkeypatch) -> None:
     """The combined Newton path should configure model dimensions before constructing either data target."""
-    import isaaclab.app
     from isaaclab.benchmark.asset_suites import get_asset_benchmark_adapter
 
-    class FakeAppLauncher:
-        def __init__(self, *args, **kwargs):
-            self.app = SimpleNamespace(close=lambda: None)
-
-    monkeypatch.setattr(isaaclab.app, "AppLauncher", FakeAppLauncher)
+    _hide_app_launcher(monkeypatch)
     adapter = get_asset_benchmark_adapter("newton_mjwarp", "articulation")
     request = SimpleNamespace(launcher_args=None, check_shapes=True)
 
     with newton_runtime.open_asset_targets(adapter, request, _CONFIG, _CONFIG) as targets:
         assert targets.method_target._data._jacobian_buf.shape == (2, 3, 6, 10)
         assert targets.data_target._jacobian_buf.shape == (2, 3, 6, 10)
+
+
+def test_physx_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch) -> None:
+    module_name = "isaaclab_physx.assets.articulation.articulation"
+    monkeypatch.delitem(sys.modules, module_name, raising=False)
+    physx_runtime._load_runtime_symbols()
+    assert sys.modules[module_name].Articulation is physx_runtime.Articulation
+    zeros = wp.zeros
+    empty = wp.empty
+    monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: zeros(*args, **(kwargs | {"pinned": False})))
+    monkeypatch.setattr(wp, "empty", lambda *args, **kwargs: empty(*args, **(kwargs | {"pinned": False})))
+    physx_runtime.PhysxManager.get_physics_sim_view.return_value.get_gravity.return_value = (0.0, 0.0, -9.81)
+    target = physx_runtime.create_test_rigid_object(num_instances=2, num_bodies=1, device="cpu")[0]
+    env_ids = wp.array([1, 0], dtype=wp.int64, device="cpu")
+    sim_env_ids = wp.array([1, 0], dtype=wp.int32, device="cpu")
+
+    assert target._get_cpu_env_ids(env_ids, sim_env_ids).ptr == sim_env_ids.ptr
+    target.set_masses_index(masses=wp.ones((2, 1), dtype=wp.float32, device="cpu"), env_ids=env_ids)
+
+
+def test_physx_collection_reuses_bounded_flat_view_id_scratch(monkeypatch) -> None:
+    physx_runtime._load_runtime_symbols()
+    physx_runtime.PhysxManager.get_physics_sim_view.return_value.get_gravity.return_value = (0.0, 0.0, -9.81)
+    zeros = wp.zeros
+    empty = wp.empty
+    monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: zeros(*args, **(kwargs | {"pinned": False})))
+    monkeypatch.setattr(wp, "empty", lambda *args, **kwargs: empty(*args, **(kwargs | {"pinned": False})))
+    target = physx_runtime.create_test_collection(num_instances=2, num_bodies=2, device="cpu")[0]
+    env_ids = wp.array([1, 0], dtype=wp.int64, device="cpu")
+    body_ids = wp.array([0, 1], dtype=wp.int64, device="cpu")
+
+    first = target._env_body_ids_to_view_ids(env_ids, body_ids, device="cpu")
+    second = target._env_body_ids_to_view_ids(env_ids, body_ids, device="cpu")
+
+    assert first.ptr == second.ptr
+    np.testing.assert_array_equal(first.numpy(), [1, 0, 3, 2])
+
+    with pytest.raises(AssertionError, match="env_ids"):
+        target.set_masses_index(
+            masses=wp.ones((3, 2), dtype=wp.float32, device="cpu"),
+            env_ids=wp.array([0, 0, 1], dtype=wp.int64, device="cpu"),
+            body_ids=body_ids,
+        )
+
+    target._device = "cuda:0"
+    gpu_ids = SimpleNamespace(device="cuda:0", shape=(1,))
+    sim_ids = object()
+    cpu_ids = object()
+    calls = []
+    monkeypatch.setattr(target, "_sim_view_ids_view", lambda count: sim_ids)
+    monkeypatch.setattr(target, "_cpu_view_ids_view", lambda count: cpu_ids)
+    monkeypatch.setattr(
+        importlib.import_module(target.__class__.__module__), "resolve_view_ids_kernel", lambda *_: None
+    )
+    monkeypatch.setattr(wp, "launch", lambda *args, **kwargs: None)
+    monkeypatch.setattr(wp, "copy", lambda *args: calls.append("copy"))
+    monkeypatch.setattr(wp, "synchronize_stream", lambda device: calls.append(("sync", device)))
+
+    assert target._env_body_ids_to_view_ids(gpu_ids, gpu_ids, device="cpu") is cpu_ids
+    assert calls == ["copy", ("sync", "cuda:0")]
+
+
+@pytest.mark.parametrize("runtime", (physx_runtime, newton_runtime))
+def test_open_targets_preserves_setup_errors(monkeypatch, runtime) -> None:
+    _hide_app_launcher(monkeypatch)
+    monkeypatch.setattr(runtime, "_load_runtime_symbols", lambda: (_ for _ in ()).throw(RuntimeError("setup")))
+    request = SimpleNamespace(launcher_args=None, check_shapes=True)
+
+    with pytest.raises(RuntimeError, match="setup"):
+        with runtime.open_asset_targets(None, request, _CONFIG, _CONFIG):
+            pass
 
 
 @pytest.mark.parametrize(

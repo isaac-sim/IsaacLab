@@ -727,6 +727,32 @@ jobs:
         container-name: isaac-lab-environments-training-test
         omni-github-test-type: training-e2e
 
+  test-record-video:
+    name: "record-video"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_tasks"
+        include-files: "test_record_video.py"
+        test-k-expr: "Cartpole"
+        extra-uv-packages: "moviepy>=1.0.3,<2.0.0.dev0 decorator<5"
+        container-name: isaac-lab-record-video-test
+        omni-github-test-type: video-e2e
+
   test-rendering-correctness:
     name: "rendering-correctness"
     runs-on: [self-hosted, gpu]

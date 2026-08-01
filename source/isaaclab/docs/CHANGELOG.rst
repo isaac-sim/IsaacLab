@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+15.0.1 (2026-08-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OvPhysX support to the deformable-object demo and tutorial.
+* Added SceneData geometry APIs and deformable discovery helpers so PhysX/OVPhysX
+  soft-body and cloth nodal positions can sync into Newton visualization consumers,
+  including barycentric volume sim-to-visual remapping when simulation and render
+  meshes differ.
+* Added the ``as_proxy`` return-mode option to asset finder methods.
+  ``as_proxy=False`` is the default and returns the legacy selector
+  representation, while ``as_proxy=True`` opts into cached
+  :class:`~isaaclab.utils.warp.ProxyArray` selectors with zero-copy ``.torch``
+  and ``.warp`` index views. Pass those explicit views to downstream APIs.
+* Added a shared asset micro-benchmark grid for Torch and Warp item selectors,
+  cold and cached finder calls, and signed 32-bit versus signed 64-bit
+  articulation index-kernel timings.
+
+Fixed
+^^^^^
+
+* Fixed URDF and MJCF conversion producing assets with no physics, which left spawned
+  articulations without joints, articulation roots, or mass properties. The converters now
+  select the ``"Physics"`` variant that the importer leaves unset.
+* Fixed automatic physics backend initialization so the selected backend can
+  register schemas before USD stage creation.
+* Fixed :meth:`~isaaclab.envs.LeappDeploymentEnv.reset` to use tensor
+  environment indices when resetting the scene and managers.
+* Fixed shared articulation ordering and external wrench paths to accept signed
+  32-bit and signed 64-bit selectors without allocating Torch conversion tensors.
+* Fixed manager entity resolution for sensors with legacy body finder signatures.
+* Fixed external wrench composition to consume explicit Warp views of cached
+  body selectors without materializing Torch tensors.
+* Fixed articulation dynamics reads for reversed USD joint relationships.
+
+
 15.0.0 (2026-07-31)
 ~~~~~~~~~~~~~~~~~~~
 

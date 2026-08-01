@@ -118,7 +118,7 @@ To use the tactile sensor in a simulation environment, run the demo:
 
       .. code-block:: bash
 
-          uv run python scripts/demos/sensors/tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
+          uv run --extra isaacsim python scripts/demos/sensors/tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -159,7 +159,7 @@ For a complete list of available options:
 
       .. code-block:: bash
 
-          uv run python scripts/demos/sensors/tacsl_sensor.py -h
+          uv run --extra isaacsim python scripts/demos/sensors/tacsl_sensor.py -h
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
