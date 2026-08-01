@@ -1847,6 +1847,9 @@ def rendering_test_franka_soft(
     if physics_backend == "physx" or renderer == "isaacsim_rtx_renderer":
         pytest.skip("Random teardown hangs in the kit-based combinations (OMPE-101977).")
 
+    if physics_backend == "ovphysx" and renderer == "newton_renderer" and data_type == "rgb":
+        pytest.skip("OvPhysX soft-body rendering uses a nondeterministic tetrahedral mesh until #6773.")
+
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
 
