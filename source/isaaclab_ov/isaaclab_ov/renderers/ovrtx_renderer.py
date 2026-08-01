@@ -1522,11 +1522,25 @@ class OVRTXRenderer(BaseRenderer):
             self._render_legacy(render_data)
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
-        """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        if self._use_ovstage:
-            self._cleanup_ovstage(render_data)
-        else:
-            self._cleanup_legacy(render_data)
+        """Release per-camera resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
+
+        This backend keeps no state on ``render_data``: its stage queries, tensor bindings and render
+        products are shared by every camera that resolves to it. Releasing them from a camera's
+        invalidation would tear the scene down while the renderer is still in use, so they are
+        released when the renderer itself is destroyed instead.
+        """
+        return
+
+    def __del__(self) -> None:
+        """Release the shared stage queries, tensor bindings and render products."""
+        try:
+            if self._use_ovstage:
+                self._cleanup_ovstage(None)
+            else:
+                self._cleanup_legacy(None)
+        except Exception:  # noqa: BLE001
+            # Interpreter shutdown can already have torn down what the teardown touches.
+            pass
 
     # ---------------------------------------------------------------------------
     # ovstage implementation
