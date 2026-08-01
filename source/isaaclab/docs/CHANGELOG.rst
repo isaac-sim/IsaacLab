@@ -1,6 +1,130 @@
 Changelog
 ---------
 
+15.0.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an ``ov`` install extra that pulls both Omniverse backends (``ovphysx`` and ``ovrtx``);
+  the per-backend ``ovphysx`` / ``ovrtx`` extras still select one.
+* Added per-iteration success-rate curves to schema v1.3 training benchmark
+  bundles while preserving the existing summary success rate.
+* Added shared declarative asset micro-benchmark suites, lazy backend adapters,
+  and the ``isaaclab microbenchmark`` component command.
+* Added shared synchronized latency sampling and structured reporting utilities
+  for micro-benchmarks.
+* Added :meth:`~isaaclab.sim.SimulationContext.request_reset` and
+  :meth:`~isaaclab.sim.SimulationContext.consume_reset_request` to
+  :class:`~isaaclab.sim.SimulationContext` for routing visualizer-initiated episode resets.
+* Added :meth:`~isaaclab.visualizers.BaseVisualizer.is_reset_requested` and
+  :meth:`~isaaclab.visualizers.BaseVisualizer.consume_reset_request` to
+  :class:`~isaaclab.visualizers.BaseVisualizer` so all backends expose a consistent
+  reset-request API.
+* Added **Reset Episode** button to the Kit environment window
+  (:class:`~isaaclab.envs.ui.BaseEnvWindow`).
+* Added :class:`~isaaclab.sim.spawners.sensors.OpenCvPinholeDistortionCfg` and
+  :class:`~isaaclab.sim.spawners.sensors.OpenCvFisheyeDistortionCfg` and a ``distortion`` field on
+  :class:`~isaaclab.sim.spawners.sensors.PinholeCameraCfg`, letting a camera carry an OpenCV
+  ``fx/fy/cx/cy`` + distortion-coefficient calibration. The model is authored on the camera prim as
+  the ``omni:lensdistortion:*`` USD API, which the RTX/OVRTX renderer honors natively.
+* Added ``Dockerfile.kitless`` and a Compose profile for Newton training without Isaac Sim or Kit,
+  with OVRTX rendering and all four core reinforcement-learning frameworks.
+* Added publishing of the kit-less image alongside the Isaac Lab image under a ``-kitless`` tag suffix,
+  using the same branch tagging scheme, so it can be pulled instead of built locally.
+* Added :class:`~isaaclab.physics.PhysxAutoCfg` for explicit launch-time
+  selection between configured Isaac Sim PhysX and OvPhysX alternatives.
+* Added support for loading URDF and MJCF importer APIs from the standalone
+  ``isaacsim-asset-isolated`` package when Isaac Sim is unavailable.
+* Added :meth:`~isaaclab.app.AppLauncher.is_available` to report whether the full Isaac Sim
+  runtime is importable, i.e. Kit can be launched in the current process.
+* Added :meth:`~isaaclab.app.AppLauncher.has_gui` to report whether the resolved app state has
+  an interactive GUI (local window, livestream, or XR), wrapping the ``/isaaclab/has_gui``
+  setting that AppLauncher publishes.
+* Added :func:`~isaaclab.sim.utils.show_stage_in_viewport` to display a USD file in the Kit
+  viewport until the window is closed.
+* Added kitless ``--viz`` preview backends (``newton``, ``rerun``, ``viser``) to
+  ``scripts/tools/convert_urdf.py`` and ``scripts/tools/convert_mjcf.py``, opening the converted
+  asset in an Isaac Lab visualizer without Isaac Sim (reusing
+  :func:`~isaaclab.app.launch_simulation` and :class:`~isaaclab.sim.SimulationContext`).
+  ``--viz kit`` keeps showing the asset in the Isaac Sim viewport and now reports an error when
+  selected without a full Isaac Sim installation, instead of being silently unavailable. Passing
+  ``--viz`` without a backend selects the one that fits the runtime.
+* Added the ``zero_agent`` and ``random_agent`` commands to the Isaac Lab CLI, so the
+  checkpoint-free agents can be run with ``isaaclab zero_agent --task <TASK>`` and
+  ``isaaclab random_agent --task <TASK>``.
+* Extended the visualizer "Reset Episode" button to work in :class:`~isaaclab.envs.DirectRLEnv`
+  and :class:`~isaaclab.envs.DirectMARLEnv` (train and play). Previously only
+  :class:`~isaaclab.envs.ManagerBasedRLEnv` consumed the reset request from the visualizer.
+
+Changed
+^^^^^^^
+
+* Changed the Isaac Sim pin to ``6.0.1.0`` and the Newton commit pin to the matching upstream
+  revision. Reinstall the environment (e.g. ``uv sync``) after pulling this change.
+* Changed the dependency environment markers to explicit ``platform_machine == '<arch>'``
+  comparisons and restricted the uv resolution universe to the supported platforms
+  (Linux x86_64, Linux aarch64, Windows AMD64).
+* **Breaking:** Renamed ``--num_frames`` and ``--warmup_frames`` to
+  ``--num_steps`` and ``--warmup_steps`` for runtime and play benchmarks, and
+  renamed the corresponding ``num_frames`` and ``warmup_frames`` typed request
+  fields to ``num_steps`` and ``warmup_steps``. Use the step-based names. Pass
+  ``0`` warm-up steps to include every step in timing.
+* **Breaking:** Changed automatic volume tetrahedralization to require the
+  ``tetrahedralization`` optional dependencies. Install them with
+  ``uv sync --inexact --extra tetrahedralization``, or with
+  ``pip install "isaaclab[tetrahedralization]"`` from a wheel, or
+  ``./isaaclab.sh -i tetrahedralization`` with the legacy installer. The optional
+  ``pytetwild`` dependency now uses the 0.3 release series, adding Linux aarch64
+  support alongside Linux x86_64 and Windows amd64.
+* Changed the reconstructed :attr:`~isaaclab.sensors.camera.Camera.data` intrinsic matrices to use the
+  authored OpenCV ``fx/fy/cx/cy`` when a lens-distortion model is present, so they reflect a real
+  calibration (non-square pixels or an off-center principal point) instead of assuming ``fx == fy`` and
+  a centered principal point.
+* **Breaking:** Changed the default ``--collision_type`` in ``scripts/tools/convert_mjcf.py`` from
+  ``default`` to ``Convex Hull`` and restricted the flag to the collision approximations
+  supported by the MJCF importer. Previously accepted free-form values now fail argument
+  parsing; pass one of the listed choices instead.
+* **Breaking:** Changed ``scripts/tools/convert_urdf.py`` and ``scripts/tools/convert_mjcf.py``
+  to accept only converter arguments plus the ``--viz`` preview option.
+  :class:`~isaaclab.app.AppLauncher` flags (e.g. ``--headless``, ``--livestream``, ``--device``)
+  are no longer accepted; they never affected the conversion output. Use the ``LIVESTREAM``
+  environment variable for remote streaming.
+* Changed the URDF/MJCF converter CLI to enable the Isaac Sim importer extensions through the
+  existing :func:`~isaaclab.sim.utils.enable_extension` helper, guarded by
+  :func:`~isaaclab.utils.version.has_kit`, and to resolve them from the standalone importer wheel
+  when running kitless.
+* Changed the ``scripts/tools/convert_urdf.py`` and ``scripts/tools/convert_mjcf.py`` CLI flags to
+  ``snake_case`` (e.g. ``--merge_joints``, ``--merge_mesh``), matching the rest of the repository.
+  The hyphenated spellings (``--merge-joints``, ``--merge-mesh``, ...) remain accepted, so existing
+  conversion commands keep working.
+* Changed ``scripts/tools/convert_mesh.py`` to open its post-conversion preview through the Kit
+  USD context (:func:`~isaaclab.sim.utils.show_stage_in_viewport`) so the converted asset is
+  visible in the viewport.
+
+Fixed
+^^^^^
+
+* Fixed RSL-RL training benchmarks to report their saved checkpoint and startup
+  benchmarks to report their effective environment count.
+* Fixed :func:`~isaaclab.utils.dict.class_to_dict` silently returning a
+  :class:`~isaaclab.utils.string.ResolvableString` instance (rather than a plain :class:`str`)
+  when the value appeared inside a tuple or list, causing ``OmegaConf.create`` to raise
+  ``UnsupportedValueType`` for fields such as ``cloning_contexts``.
+* Fixed ``scripts/tools/convert_urdf.py`` and ``scripts/tools/convert_mjcf.py`` exiting with
+  code 0 when the conversion failed, which hid failures from shell scripts and CI pipelines.
+* Fixed duplicate "Training Metrics" live-plot checkbox in the Kit visualizer UI. The checkbox
+  was created by both :class:`~isaaclab.envs.ui.BaseEnvWindow` and
+  :class:`~isaaclab.envs.ui.ManagerBasedRLEnvWindow`; it is now created only by the base window.
+* Fixed :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer` and
+  :class:`~isaaclab.ui.widgets.DirectScalarLiveVisualizer` raising
+  ``UnboundLocalError: cannot access local variable 'omni'`` when a live-plot
+  checkbox was toggled a second time. The ``omni.kit.app`` import was inside a
+  conditional branch that was skipped on re-entry, leaving ``omni`` unbound when
+  ``omni.ui`` was used later in the same function.
+
+
 14.0.1 (2026-07-30)
 ~~~~~~~~~~~~~~~~~~~
 

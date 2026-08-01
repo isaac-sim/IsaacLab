@@ -465,7 +465,7 @@
   },
   {
     "package": "typing_extensions",
-    "license": "Python Software Foundation License",
+    "license": "PSF-2.0",
     "comment": "PSFL / OSRB"
   },
   {
@@ -496,6 +496,11 @@
   {
     "package": "ovphysx",
     "license": "LicenseRef-NVIDIA-Omniverse",
+    "comment": "NVIDIA"
+  },
+  {
+    "package": "ovstage",
+    "license": "NVIDIA Proprietary Software",
     "comment": "NVIDIA"
   },
   {

@@ -88,6 +88,11 @@ class PhysicsManager(ABC):
     _callback_id: ClassVar[int] = 0
 
     @classmethod
+    def _prepare_stage_creation(cls) -> None:
+        """Perform backend-specific setup required before the USD stage is created."""
+        pass
+
+    @classmethod
     def provides_implicit_damping(cls) -> bool:
         """Whether this backend's integrator has implicit numerical damping.
 

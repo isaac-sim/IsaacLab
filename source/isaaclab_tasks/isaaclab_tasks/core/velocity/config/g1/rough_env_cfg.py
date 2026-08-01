@@ -109,24 +109,17 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: G1Rewards = G1Rewards()
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # biped yaw control is harder than quadruped — relax the per-episode-mean yaw
-        # threshold to 0.8 rad/s (defaults work for quadrupeds).
-        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
-        # Scene
+        # scene
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
-
-        # G1 uses "torso_link" as base body — disable mass randomization for bipeds
-        self.events.add_base_mass = None
-        self.events.base_com = None
-        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
-        # G1 has precise initial pose — don't scale joint defaults randomly on reset
-        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-
-        # Rewards
+        # commands
+        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
+        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
+        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
+        # rewards
         self.rewards.lin_vel_z_l2.weight = 0.0
         self.rewards.undesired_contacts = None
         self.rewards.flat_orientation_l2.weight = -1.0
@@ -139,17 +132,15 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
             "robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"]
         )
-
-        # Commands
-        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
-
         # terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
+        # events
+        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_link"
+        self.events.base_com = None
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
     def play_mode(self):
-        # play-mode overrides of parent
         super().play_mode()
 
         self.episode_length_s = 40.0
