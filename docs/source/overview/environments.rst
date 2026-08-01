@@ -115,6 +115,13 @@ to list presets for every registered environment.
 See the :doc:`Hydra preset system documentation </source/features/hydra>`
 for all available backend names and how the typed selectors work.
 
+.. note::
+
+   The DexSuite Kuka Allegro tasks use the homogeneous ``cube`` object preset with
+   ``physics=ovphysx``. The heterogeneous ``shapes`` preset is not supported with
+   OvPhysX; selecting both causes configuration validation to fail. Use
+   ``presets=cube`` or choose another supported physics backend.
+
 
 Single-agent
 ------------
@@ -1007,11 +1014,11 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Cloth-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp_vbd_proxy``
+      - **physics=** ``newton_mjwarp_vbd_proxy``, ``ovphysx``
     * - Isaac-Lift-Cloth-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp_vbd_proxy``
+      - | **physics=** ``newton_mjwarp_vbd_proxy``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
     * - Isaac-Lift-Cube-Franka
       - Manager Based
@@ -1036,11 +1043,11 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Soft-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``, ``physx``
     * - Isaac-Lift-Soft-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``physx``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
     * - Isaac-Open-Drawer-Franka
       - Manager Based
