@@ -13,9 +13,10 @@ For backend capabilities, selection, and maturity, start with the
 Quick Transfer
 --------------
 
-The examples use ``Isaac-Velocity-Flat-AnymalD`` for training and its ``-Play``
-variant for replay. For general RSL-RL checkpoint and command options, see
-:doc:`Reinforcement Learning Workflows <../../reinforcement-learning/rl_existing_scripts>`.
+The examples use ``Isaac-Velocity-Flat-AnymalD`` for training and replay. The
+``play`` entry point applies the task's ``play_mode`` overrides automatically.
+For general RSL-RL checkpoint and command options, see :doc:`Reinforcement
+Learning Workflows <../../reinforcement-learning/rl_existing_scripts>`.
 
 Newton/MJWarp to PhysX
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -36,7 +37,7 @@ Newton/MJWarp run, then replay it with PhysX:
 
     CHECKPOINT="/absolute/path/to/newton-mjwarp/model.pt"
     ./isaaclab.sh play --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalD-Play \
+        --task Isaac-Velocity-Flat-AnymalD \
         --checkpoint "${CHECKPOINT}" \
         physics=physx \
         env.scene.robot.joint_ordering=mjwarp \
@@ -64,7 +65,7 @@ PhysX run, then replay it with Newton/MJWarp:
 
     CHECKPOINT="/absolute/path/to/physx/model.pt"
     ./isaaclab.sh play --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalD-Play \
+        --task Isaac-Velocity-Flat-AnymalD \
         --checkpoint "${CHECKPOINT}" \
         physics=newton_mjwarp \
         env.scene.robot.joint_ordering=physx \

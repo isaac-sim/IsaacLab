@@ -9,6 +9,7 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils.configclass import configclass
 
@@ -40,6 +41,8 @@ class KukaAllegroPhysicsCfg(dexsuite.PhysicsCfg):
         gpu_max_rigid_patch_count=4 * 5 * 2**15,
         gpu_found_lost_pairs_capacity=2**26,
     )
+    physx = PhysxAutoCfg(isaacsim_physx=dexsuite.PhysicsCfg().isaacsim_physx, ovphysx=ovphysx)
+    default = physx
 
 
 @configclass
@@ -145,6 +148,7 @@ class KukaAllegroMixinCfg:
         self.events = preset(
             default=default_events,
             physx=default_events,
+            isaacsim_physx=default_events,
             newton_mjwarp=default_events,
             ovphysx=ovphysx_events,
         )
@@ -154,6 +158,7 @@ class KukaAllegroMixinCfg:
             self.curriculum = preset(
                 default=default_curriculum,
                 physx=default_curriculum,
+                isaacsim_physx=default_curriculum,
                 newton_mjwarp=default_curriculum,
                 ovphysx=ovphysx_curriculum,
             )

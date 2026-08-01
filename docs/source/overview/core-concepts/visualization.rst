@@ -367,7 +367,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 
 .. code-block:: bash
 
-   uv run isaaclab benchmark training \
+   uv run --extra video isaaclab benchmark training \
      --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --visualizer newton \
@@ -383,7 +383,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 
 .. code-block:: bash
 
-   uv run isaaclab benchmark training \
+   uv run --extra video isaaclab benchmark training \
      --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --visualizer newton \
@@ -399,7 +399,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 
 .. code-block:: bash
 
-   uv run isaaclab benchmark training \
+   uv run --extra video isaaclab benchmark training \
      --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --visualizer kit \

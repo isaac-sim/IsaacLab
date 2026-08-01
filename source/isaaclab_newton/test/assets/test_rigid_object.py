@@ -839,30 +839,72 @@ def test_rigid_body_with_restitution(num_cubes, device):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_rigid_body_set_mass(num_cubes, device):
-    """Test getting and setting mass of rigid object."""
-    with _newton_sim_context(device, gravity_enabled=False, add_ground_plane=True, auto_add_lighting=True) as sim:
+    """Test that selected mass writes update inverse mass and inertia across static transitions."""
+    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        # Create a scene with random cubes
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
+        for index in range(num_cubes):
+            sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(float(index), 0.0, 1.0))
+        cube_object = RigidObject(
+            RigidObjectCfg(
+                prim_path="/World/Env_.*/Object",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.2, 0.2, 0.2),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                ),
+            )
+        )
 
         # Play sim
         sim.reset()
 
-        # Get masses before increasing
-        original_masses = cube_object.data.body_mass.torch
+        # Get masses before updating one environment.
+        original_masses = cube_object.data.body_mass.torch.clone()
+        raw_model_inv_mass = cube_object.root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[:, 0]
+        raw_model_inv_inertia = cube_object.root_view.get_attribute("body_inv_inertia", SimulationManager.get_model())[
+            :, 0
+        ]
+        assert cube_object.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
+        assert cube_object.data._sim_bind_body_inv_inertia.ptr == raw_model_inv_inertia.ptr
+        model_inv_mass = cube_object.data._sim_bind_body_inv_mass
+        model_inv_inertia = cube_object.data._sim_bind_body_inv_inertia
+        original_inv_mass = wp.to_torch(model_inv_mass).clone()
+        original_inv_inertia = wp.to_torch(model_inv_inertia).clone()
 
         assert original_masses.shape == (num_cubes, 1)
 
-        # Randomize mass of the object
-        masses = original_masses + torch.zeros(num_cubes, 1, device=device).uniform_(4, 8)
+        env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+        body_ids = torch.tensor([0], dtype=torch.int32, device=device)
 
-        # Set masses using Newton API
-        cube_object.set_masses_index(masses=wp.from_torch(masses, dtype=wp.float32))
+        # A positive-to-zero transition makes the selected body static.
+        zero_mass = torch.zeros(1, 1, device=device)
+        cube_object.set_masses_index(masses=zero_mass, env_ids=env_ids, body_ids=body_ids)
+        torch.testing.assert_close(wp.to_torch(model_inv_mass)[1], torch.zeros_like(original_inv_mass[1]))
+        torch.testing.assert_close(wp.to_torch(model_inv_inertia)[1], torch.zeros_like(original_inv_inertia[1]))
+        torch.testing.assert_close(wp.to_torch(model_inv_mass)[0], original_inv_mass[0])
+        torch.testing.assert_close(wp.to_torch(model_inv_inertia)[0], original_inv_inertia[0])
 
-        torch.testing.assert_close(cube_object.data.body_mass.torch, masses)
+        # Inertia writes keep inverse mass unchanged and respect the body's current static state.
+        wp.to_torch(model_inv_inertia)[1].copy_(torch.eye(3, device=device).reshape(1, 3, 3))
+        inertia_matrix = torch.diag(torch.tensor([2.0, 3.0, 4.0], device=device))
+        inertias = inertia_matrix.reshape(1, 1, 9)
+        cube_object.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
+        torch.testing.assert_close(wp.to_torch(model_inv_mass)[1], torch.zeros_like(original_inv_mass[1]))
+        torch.testing.assert_close(wp.to_torch(model_inv_inertia)[1], torch.zeros_like(original_inv_inertia[1]))
+
+        # A zero-to-positive transition restores both inverse arrays from current primary data.
+        masses = original_masses[env_ids][:, body_ids] + 4.0
+        cube_object.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
+        torch.testing.assert_close(cube_object.data.body_mass.torch[env_ids][:, body_ids], masses)
+        torch.testing.assert_close(wp.to_torch(model_inv_mass)[env_ids][:, body_ids], masses.reciprocal())
+        torch.testing.assert_close(
+            wp.to_torch(model_inv_inertia)[env_ids][:, body_ids],
+            torch.linalg.inv(inertia_matrix).reshape(1, 1, 3, 3),
+        )
 
         # Simulate physics
         # perform rendering
@@ -870,7 +912,7 @@ def test_rigid_body_set_mass(num_cubes, device):
         # update object
         cube_object.update(sim.cfg.dt)
 
-        masses_to_check = cube_object.data.body_mass.torch
+        masses_to_check = cube_object.data.body_mass.torch[env_ids][:, body_ids]
 
         # Check if mass is set correctly
         torch.testing.assert_close(masses, masses_to_check)

@@ -157,6 +157,13 @@ class RigidObjectData(BaseRigidObjectData):
         reset_timestamps(
             [
                 self._root_com_pose_w if from_link else None,
+                self._root_link_vel_w,
+                self._projected_gravity_b,
+                self._heading_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
                 self._root_state_w,
                 self._root_link_state_w,
                 self._root_com_state_w,
@@ -179,6 +186,27 @@ class RigidObjectData(BaseRigidObjectData):
         reset_timestamps(
             [
                 self._root_link_vel_w if from_com else None,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+            ]
+        )
+
+    def _reset_body_com_pose_b_dependents(self) -> None:
+        """Reset cached properties derived from the body-frame center-of-mass offset."""
+        reset_timestamps(
+            [
+                self._root_com_pose_w,
+                self._root_com_vel_w,
+                self._root_link_vel_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
                 self._root_state_w,
                 self._root_link_state_w,
                 self._root_com_state_w,
@@ -277,7 +305,8 @@ class RigidObjectData(BaseRigidObjectData):
         rigid body relative to the world.
         """
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_vel_w",
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
                 inputs=[
@@ -286,7 +315,6 @@ class RigidObjectData(BaseRigidObjectData):
                     self.body_com_pose_b,
                 ],
                 outputs=[self._root_link_vel_w.data],
-                device=self.device,
             )
             self._root_link_vel_w.timestamp = self._sim_timestamp
         if self._root_link_vel_w_ta is None:
@@ -303,7 +331,8 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_pose_w",
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
                 inputs=[
@@ -313,7 +342,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_com_pose_w.data,
                 ],
-                device=self.device,
             )
             self._root_com_pose_w.timestamp = self._sim_timestamp
 
@@ -471,12 +499,12 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "projected_gravity_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
                 outputs=[self._projected_gravity_b.data],
-                device=self.device,
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
         if self._projected_gravity_b_ta is None:
@@ -494,12 +522,12 @@ class RigidObjectData(BaseRigidObjectData):
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
         if self._heading_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "heading_w",
                 shared_kernels.root_heading_w,
                 dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
-                device=self.device,
             )
             self._heading_w.timestamp = self._sim_timestamp
         if self._heading_w_ta is None:
@@ -515,12 +543,12 @@ class RigidObjectData(BaseRigidObjectData):
         expressed in the root link's actor frame.
         """
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_lin_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_link_lin_vel_w, self.root_link_quat_w],
                 outputs=[self._root_link_lin_vel_b.data],
-                device=self.device,
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
         if self._root_link_lin_vel_b_ta is None:
@@ -536,12 +564,12 @@ class RigidObjectData(BaseRigidObjectData):
         expressed in the root link's actor frame.
         """
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_ang_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_link_ang_vel_w, self.root_link_quat_w],
                 outputs=[self._root_link_ang_vel_b.data],
-                device=self.device,
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
         if self._root_link_ang_vel_b_ta is None:
@@ -557,12 +585,12 @@ class RigidObjectData(BaseRigidObjectData):
         expressed in the root link's actor frame.
         """
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_lin_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_com_lin_vel_w, self.root_link_quat_w],
                 outputs=[self._root_com_lin_vel_b.data],
-                device=self.device,
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
         if self._root_com_lin_vel_b_ta is None:
@@ -578,12 +606,12 @@ class RigidObjectData(BaseRigidObjectData):
         expressed in the root link's actor frame.
         """
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_ang_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_com_ang_vel_w, self.root_link_quat_w],
                 outputs=[self._root_com_ang_vel_b.data],
-                device=self.device,
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp
         if self._root_com_ang_vel_b_ta is None:
@@ -1060,7 +1088,8 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._default_root_state is None:
             self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
-        wp.launch(
+        self._read_launch_cache.launch(
+            "default_root_state",
             shared_kernels.concat_root_pose_and_vel_to_state,
             dim=self._num_instances,
             inputs=[
@@ -1070,7 +1099,6 @@ class RigidObjectData(BaseRigidObjectData):
             outputs=[
                 self._default_root_state,
             ],
-            device=self.device,
         )
         if self._default_root_state_ta is None:
             self._default_root_state_ta = ProxyArray(self._default_root_state)
@@ -1086,7 +1114,8 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1096,7 +1125,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_state_w.timestamp = self._sim_timestamp
 
@@ -1114,7 +1142,8 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1124,7 +1153,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_link_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
 
@@ -1142,7 +1170,8 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1152,7 +1181,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_com_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
 
@@ -1171,7 +1199,8 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_state_w
         if self._root_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1181,7 +1210,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_state_w.timestamp = self._sim_timestamp
         if self._body_state_w_ta is None:
@@ -1199,7 +1227,8 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_link_state_w
         if self._root_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1209,7 +1238,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_link_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
         if self._body_link_state_w_ta is None:
@@ -1227,7 +1255,8 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_com_state_w
         if self._root_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1237,7 +1266,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_com_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
         if self._body_com_state_w_ta is None:

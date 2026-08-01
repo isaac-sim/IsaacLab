@@ -83,4 +83,4 @@ uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
 
 ### Run The Franka Lift Transfer
 
-For Franka, use `Isaac-Lift-Franka` to train and `Isaac-Lift-Franka-Play` to infer. The play task disables Franka gripper-closing-speed randomization. Use the exact PP, PN, NN, and NP commands from the how-to.
+For Franka, use `Isaac-Lift-Franka` to train and infer. The play entry point applies the task's `play_mode` overrides and disables Franka gripper-closing-speed randomization automatically. Use the exact PP, PN, NN, and NP commands from the how-to.

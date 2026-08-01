@@ -211,6 +211,9 @@ Sensors
 
     PinholeCameraCfg
     FisheyeCameraCfg
+    OpenCvDistortionCfg
+    OpenCvPinholeDistortionCfg
+    OpenCvFisheyeDistortionCfg
 
 .. autofunction:: spawn_camera
 
@@ -219,6 +222,18 @@ Sensors
     :exclude-members: __init__, func
 
 .. autoclass:: FisheyeCameraCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvDistortionCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvPinholeDistortionCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvFisheyeDistortionCfg
     :members:
     :exclude-members: __init__, func
 
