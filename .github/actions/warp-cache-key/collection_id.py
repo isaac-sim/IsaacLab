@@ -18,26 +18,43 @@ fleet needs.
 
 import re
 import sys
-import tomllib
 
 LOCKFILE = "uv.lock"
 
 
+def read_packages(text: str) -> dict[str, str]:
+    """Map each ``[[package]]`` name in the lockfile to the raw text of its block.
+
+    ``tomllib`` is unavailable on the runners' system Python, and uv writes
+    ``name``/``version``/``source`` as plain single-line pairs, so the few fields
+    needed here are read with a regex instead of a TOML parser.
+    """
+    packages = {}
+    for block in re.split(r"^\[\[package\]\]$", text, flags=re.MULTILINE)[1:]:
+        # The block ends at the next table header starting at column zero.
+        block = re.split(r"^\[", block, flags=re.MULTILINE)[0]
+        name = re.search(r'^name = "(.*)"$', block, flags=re.MULTILINE)
+        if name:
+            packages[name.group(1)] = block
+    return packages
+
+
 def main() -> int:
-    with open(LOCKFILE, "rb") as handle:
-        packages = {pkg["name"]: pkg for pkg in tomllib.load(handle)["package"]}
+    with open(LOCKFILE, encoding="utf-8") as handle:
+        packages = read_packages(handle.read())
 
     try:
-        warp = packages["warp-lang"]["version"]
-        mjwarp = packages["mujoco-warp"]["version"]
+        warp = re.search(r'^version = "(.*)"$', packages["warp-lang"], flags=re.MULTILINE).group(1)
+        mjwarp = re.search(r'^version = "(.*)"$', packages["mujoco-warp"], flags=re.MULTILINE).group(1)
         newton = packages["newton"]
-    except KeyError as exc:
-        print(f"::error::{LOCKFILE} has no entry for {exc}", file=sys.stderr)
+    except (AttributeError, KeyError) as exc:
+        print(f"::error::{LOCKFILE} has no version entry for {exc}", file=sys.stderr)
         return 1
 
     # Newton is a git dependency, so its resolved version is a placeholder like
     # 1.5.0.dev0 that does not move between revisions. Use the pinned revision.
-    source = newton.get("source", {}).get("git", "")
+    source = re.search(r"^source = (.*)$", newton, flags=re.MULTILINE)
+    source = source.group(1) if source else ""
     match = re.search(r"(?:rev=|#)([0-9a-f]{7,40})", source)
     if not match:
         print(f"::error::Could not read the pinned newton revision from {source!r}", file=sys.stderr)

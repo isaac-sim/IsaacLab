@@ -63,9 +63,7 @@ def main() -> int:
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as handle:
-            handle.write(
-                f"🔵 {label}: {total_bytes / 1e6:.0f} MB, {module_dirs} modules, targets [{targets}]\n"
-            )
+            handle.write(f"🔵 {label}: {total_bytes / 1e6:.0f} MB, {module_dirs} modules, targets [{targets}]\n")
     return 0
 
 
