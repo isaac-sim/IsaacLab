@@ -438,6 +438,8 @@ class PhysicsManager(ABC):
         sim = PhysicsManager._sim
         # A config may declare its manager lazily as a ``"module:Class"`` string, which proxies
         # attribute access but is a ``str``, so compare against that form as well as the class.
+        # The string must name the class's defining module; a config that pointed at a re-export
+        # path would not match here.
         is_active_manager = sim is not None and (
             sim.physics_manager is cls or sim.physics_manager == f"{cls.__module__}:{cls.__qualname__}"
         )
