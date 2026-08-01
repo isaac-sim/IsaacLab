@@ -20,7 +20,7 @@ import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
@@ -46,6 +46,19 @@ logger = logging.getLogger(__name__)
 
 # Visualizer type names (CLI and config). App launcher parses CSV and stores as a space-separated setting.
 _VISUALIZER_TYPES = ("newton", "rerun", "viser", "kit")
+
+
+def _resolve_physics_cfg(physics_cfg: Any, use_isaac_sim: bool) -> PhysicsCfg:
+    """Resolve a simulation physics config to a concrete backend."""
+    if physics_cfg is None:
+        from isaaclab_physx.physics import PhysxCfg
+
+        physics_cfg = PhysxCfg()
+
+    if not hasattr(physics_cfg, "class_type") and hasattr(physics_cfg, "default"):
+        physics_cfg = physics_cfg.default
+
+    return _resolve_physx_auto_cfg(physics_cfg, use_isaac_sim=use_isaac_sim)
 
 
 class SettingsHelper:
@@ -115,6 +128,11 @@ class SimulationContext:
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
 
+        use_isaac_sim = has_kit()
+        self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
+        self.cfg.physics = self._physics
+        self._physics.class_type._prepare_stage_creation()
+
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
         if self.cfg.create_stage_in_memory:
@@ -139,7 +157,7 @@ class SimulationContext:
 
         # When Kit is running, attach the stage to Kit's USD context so that
         # Kit extensions (PhysX views, Articulation, viewport) can discover it.
-        if has_kit():
+        if use_isaac_sim:
             import omni.usd
 
             kit_context = omni.usd.get_context()
@@ -161,19 +179,6 @@ class SimulationContext:
             device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
             self.cfg.device = f"cuda:{device_id}"
 
-        # Set default physics backend if not specified
-        if self.cfg.physics is None:
-            from isaaclab_physx.physics import PhysxCfg
-
-            self.cfg.physics = PhysxCfg()
-        self._physics = self.cfg.physics
-        # If physics is a PresetCfg wrapper (has a 'default' field but no 'class_type'),
-        # resolve to the default preset so downstream code always sees a concrete PhysicsCfg.
-        if not hasattr(self._physics, "class_type") and hasattr(self._physics, "default"):
-            self._physics = self._physics.default
-            self.cfg.physics = self._physics
-        self._physics = _resolve_physx_auto_cfg(self._physics, use_isaac_sim=has_kit())
-        self.cfg.physics = self._physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
 
