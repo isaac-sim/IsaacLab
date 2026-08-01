@@ -978,7 +978,9 @@ class AppLauncher:
             raise ModuleNotFoundError(
                 "Video recording with `--video` requires MoviePy and its imageio-ffmpeg backend, "
                 "which are not installed by default. "
-                'Install it with `uv pip install "moviepy>=1.0.3,<2.0.0.dev0"` and retry.'
+                "Run uv commands with `uv run --extra video ...`, or install MoviePy into the "
+                'legacy environment with `./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
+                "(`isaaclab.bat -p -m pip install ...` on Windows), and retry."
             )
         # Check if we can disable the viewport to improve performance
         #   This should only happen if we are running headless and do not require livestreaming or video recording

@@ -11,11 +11,22 @@ a Newton GL headless viewer.
 .. warning::
 
    Video recording requires MoviePy and its ``imageio-ffmpeg`` backend, which are not installed by default.
-   Install MoviePy in the Isaac Lab Python environment before passing ``--video``:
+   For uv commands, add ``--extra video`` to install them for that invocation. For the legacy
+   installation, install MoviePy into the Isaac Lab Python environment before passing ``--video``:
 
-   .. code-block:: bash
+   .. tab-set::
 
-      uv pip install "moviepy>=1.0.3,<2.0.0.dev0"
+      .. tab-item:: Linux
+
+         .. code-block:: bash
+
+            ./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"
+
+      .. tab-item:: Windows
+
+         .. code-block:: batch
+
+            isaaclab.bat -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"
 
 Use the following command line arguments with the training script:
 
@@ -33,7 +44,7 @@ Example usage:
 
       .. code-block:: shell
 
-          uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
+          uv run --extra video isaaclab train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
