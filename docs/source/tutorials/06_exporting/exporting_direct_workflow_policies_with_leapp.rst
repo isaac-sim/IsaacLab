@@ -26,35 +26,12 @@ This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as a concrete
 example of adding LEAPP annotations to a Direct workflow environment. Apply the same
 annotation pattern to your own Direct RL environment.
 
-This export flow requires ``leapp>=0.5.2``. Before exporting, install LEAPP into
-the Isaac Lab Python environment:
+This export flow requires ``leapp``. Install the root ``leapp`` optional extra
+(``--inexact`` keeps existing packages untouched):
 
-.. tab-set::
-   :sync-group: os
+.. code-block:: bash
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. tab-set::
-
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: bash
-
-               uv pip install leapp
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               ./isaaclab.sh -p -m pip install leapp
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-         isaaclab.bat -p -m pip install leapp
+   uv sync --inexact --extra leapp
 
 If you want to run the exported example with the existing
 ``IsaacContrib-Velocity-Rough-AnymalC-Direct`` task registration, copy the annotated
@@ -94,7 +71,8 @@ annotations, export a trained policy with:
 
             .. code-block:: bash
 
-               uv run python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra leapp python \
+                   scripts/reinforcement_learning/leapp/rsl_rl/export.py \
                    --task <TASK_NAME> \
                    --checkpoint <PATH_TO_CHECKPOINT> \
                    --export_save_path <EXPORT_PATH>
@@ -111,12 +89,27 @@ annotations, export a trained policy with:
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code-block:: batch
+      .. tab-set::
 
-         isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-             --task <TASK_NAME> ^
-             --checkpoint <PATH_TO_CHECKPOINT> ^
-             --export_save_path <EXPORT_PATH>
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: batch
+
+               set OMNI_KIT_ACCEPT_EULA=Y
+               set ACCEPT_EULA=Y
+               uv run --extra leapp python scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+                   --task <TASK_NAME> ^
+                   --checkpoint <PATH_TO_CHECKPOINT> ^
+                   --export_save_path <EXPORT_PATH>
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: batch
+
+               isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+                   --task <TASK_NAME> ^
+                   --checkpoint <PATH_TO_CHECKPOINT> ^
+                   --export_save_path <EXPORT_PATH>
 
 The ``--task`` argument is the registered task name, such as
 ``IsaacContrib-Velocity-Rough-AnymalC-Direct``. The ``--checkpoint`` argument

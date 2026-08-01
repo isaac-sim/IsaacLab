@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.6.2 (2026-08-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the DR Legs feet colliding as bounding boxes by setting an explicit ``convexHull`` mesh
+  approximation on :data:`~isaaclab_assets.robots.dr_legs.DR_LEGS_IMPLICIT_PD_CFG`.
+
+
 0.6.1 (2026-07-30)
 ~~~~~~~~~~~~~~~~~~
 

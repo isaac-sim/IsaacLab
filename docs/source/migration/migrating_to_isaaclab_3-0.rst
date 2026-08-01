@@ -670,10 +670,12 @@ The legacy ``presets=NAME`` form still works for the same values.
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 physics=newton_mjwarp
+   uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+       --task Isaac-Open-Drawer-Franka-Direct physics=newton_mjwarp
 
    # Run with default (PhysX) backend
-   python train.py task=Isaac-Franka-Cabinet-v0
+   uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+       --task Isaac-Open-Drawer-Franka-Direct
 
 Adding Multi-Backend Support to an Environment
 -----------------------------------------------
