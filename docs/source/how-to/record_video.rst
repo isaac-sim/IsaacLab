@@ -8,8 +8,27 @@ Newton visualizer is active, that visualizer selects the video backend by defaul
 backend is chosen automatically from the active physics and renderer stack: an Isaac Sim Kit camera or
 a Newton GL headless viewer.
 
-This feature can be enabled by installing ``ffmpeg`` and using the following command line arguments with the training
-script:
+.. warning::
+
+   Video recording requires MoviePy and its ``imageio-ffmpeg`` backend, which are not installed by default.
+   For uv commands, add ``--extra video`` to install them for that invocation. For the legacy
+   installation, install MoviePy into the Isaac Lab Python environment before passing ``--video``:
+
+   .. tab-set::
+
+      .. tab-item:: Linux
+
+         .. code-block:: bash
+
+            ./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"
+
+      .. tab-item:: Windows
+
+         .. code-block:: batch
+
+            isaaclab.bat -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"
+
+Use the following command line arguments with the training script:
 
 * ``--video``: enables video recording during training
 * ``--video_length``: length of each recorded video (in steps)
@@ -25,7 +44,7 @@ Example usage:
 
       .. code-block:: shell
 
-          uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
+          uv run --extra video isaaclab train --rl_library rl_games --task=Isaac-Cartpole --video --video_length 100 --video_interval 500
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat

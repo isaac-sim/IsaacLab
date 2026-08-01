@@ -80,10 +80,6 @@ dependencies = [
     # ----- rl utilities -----
     "hydra-core",
     "h5py>=3.15.0",
-    # bounded to the 1.x line: moviepy 2.x stable caps pillow below our pin, so
-    # prerelease-allowing resolvers fell through to the broken 2.0.0.dev2 build,
-    # whose write_videofile drops the clip fps and crashes video recording
-    "moviepy>=1.0.3,<2.0.0.dev0",
     "packaging",
     "tqdm>=4.67.1",
     "rsl-rl-lib==5.4.1",  # default RL framework
@@ -106,6 +102,9 @@ dependencies = [
 # Automatic surface-to-volume tetrahedralization. PyTetWild imports PyVista eagerly,
 # so its ``all`` extra is required even when only the array API is used.
 tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
+# Video recording. MoviePy bundles an FFmpeg binary through imageio-ffmpeg, so
+# keep this dependency explicit rather than including it in default installs.
+video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 # Developer/test tooling.
 test = [
     "pytest",
@@ -181,7 +180,8 @@ rlinf = [
 ]
 # Aggregate of the compatible extras. Omits teleop/ovphysx/viser, whose pins clash
 # with isaacsim (lxml, packaging<24, websockets); install those via their own extra.
-# Also omits tetrahedralization because its VTK dependency is large and narrowly used.
+# Also omits tetrahedralization and video because their dependencies are large and
+# narrowly used; request either extra explicitly when needed.
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf,mimic]",
 ]

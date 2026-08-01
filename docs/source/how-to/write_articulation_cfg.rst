@@ -117,13 +117,15 @@ to combine them into a single actuator model.
       },
 
 .. note::
-   If your asset's USD authored drives ship with zero stiffness *and* zero damping
-   — a common pattern for assets that expect ``ImplicitActuatorCfg`` to supply the
-   gains at runtime — the joints will actuate under PhysX but appear unactuated
-   under Newton-based backends (MuJoCo Warp, XPBD, Featherstone, Semi-implicit).
-   Set :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist`
-   to ``True`` on the spawn config to keep both backends in sync. See
-   :ref:`import-new-asset-ensure-drives-exist` for the full explanation.
+   Newton resolves the target mode of joints configured with
+   :class:`~isaaclab.actuators.ImplicitActuatorCfg` before solver construction:
+   stiffness-only selects position mode, damping-only velocity mode, both gains
+   combined position/velocity mode, and zero gains effort mode. A gain of
+   ``None`` retains the imported USD value; explicit actuator configurations use
+   effort mode. Zero-gain USD drives therefore need no placeholder solely for a
+   configured actuator. See :ref:`import-new-asset-ensure-drives-exist` for when
+   :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist`
+   remains useful.
 
 
 ActuatorCfg velocity/effort limits considerations

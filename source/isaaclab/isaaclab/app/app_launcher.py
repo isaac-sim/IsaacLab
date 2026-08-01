@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import contextlib
+import importlib.util
 import inspect
 import logging
 import os
@@ -971,6 +972,16 @@ class AppLauncher:
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
         self._video_enabled = bool(launcher_args.get("video", False))
+        if self._video_enabled and any(
+            importlib.util.find_spec(package) is None for package in ("moviepy", "imageio_ffmpeg")
+        ):
+            raise ModuleNotFoundError(
+                "Video recording with `--video` requires MoviePy and its imageio-ffmpeg backend, "
+                "which are not installed by default. "
+                "Run uv commands with `uv run --extra video ...`, or install MoviePy into the "
+                'legacy environment with `./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
+                "(`isaaclab.bat -p -m pip install ...` on Windows), and retry."
+            )
         # Check if we can disable the viewport to improve performance
         #   This should only happen if we are running headless and do not require livestreaming or video recording
         #   This is different from offscreen_render because this only affects the default viewport and
