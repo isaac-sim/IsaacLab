@@ -61,7 +61,6 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorators
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
-
 _default_dims = pytest.mark.parametrize("num_instances", [1, 2, 100])
 
 _default_bodies = pytest.mark.parametrize("num_bodies", [1, 3])
@@ -71,6 +70,9 @@ _index_resolution_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
 )
 _reshape_3d_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
+)
+_production_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
 )
 
@@ -108,6 +110,30 @@ def _make_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
     if wp_dtype == wp.float32:
         return wp.from_torch(t, dtype=wp.float32)
     return wp.from_torch(t.contiguous(), dtype=wp_dtype)
+
+
+def _make_com_data(backend: str, shape: tuple[int, ...], device: str) -> wp.array:
+    """Create backend-compatible center-of-mass test data."""
+    if backend == "newton":
+        return wp.zeros(shape, dtype=wp.vec3f, device=device)
+    return _make_data_warp(shape, device, wp.transformf)
+
+
+def _prime_timestamped_properties(data, property_buffer_pairs: list[tuple[str, str]]):
+    """Prime public lazy properties and return their concrete timestamped buffers."""
+    buffers = []
+    for property_name, buffer_name in property_buffer_pairs:
+        getattr(data, property_name)
+        buffer = getattr(data, buffer_name)
+        assert buffer is not None, buffer_name
+        buffer.timestamp = data._sim_timestamp
+        buffers.append((buffer_name, buffer))
+    return buffers
+
+
+def _assert_buffers_stale(data, buffers) -> None:
+    for name, buffer in buffers:
+        assert buffer.timestamp < data._sim_timestamp, name
 
 
 def _make_bad_data_torch(shape: tuple, device: str, wp_dtype=wp.float32) -> torch.Tensor:
@@ -334,6 +360,34 @@ class TestCollectionFinders:
         mask, names = obj.find_bodies(first_body)
         assert len(names) == 1
         assert names == [first_body]
+
+
+class TestCollectionFinderReturnModes:
+    """Test finder return modes on production collection backends."""
+
+    @_production_backends
+    def test_find_bodies_returns_legacy_tensor_or_cached_proxy(self, backend):
+        collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+
+        indices, names = collection.find_bodies(".*")
+        proxy, proxy_names = collection.find_bodies(".*", as_proxy=True)
+
+        assert isinstance(indices, torch.Tensor)
+        assert indices.dtype == torch.int32
+        assert indices.tolist() == proxy.torch.tolist()
+        assert names == proxy_names
+        assert proxy is collection.find_bodies(".*", as_proxy=True)[0]
+        assert proxy.dtype == wp.int32
+        assert str(proxy.device) == collection.device
+
+    @_production_backends
+    def test_find_objects_forwards_return_mode_with_alias_warning(self, backend):
+        collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+
+        with pytest.warns(DeprecationWarning):
+            proxy, _ = collection.find_objects(".*", as_proxy=True)
+
+        assert proxy is collection.find_bodies(".*", as_proxy=True)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -773,6 +827,86 @@ class TestCollectionDataDefaults:
 
 _BODY_POSE_METHODS = ["body_pose", "body_link_pose", "body_com_pose"]
 _BODY_VEL_METHODS = ["body_velocity", "body_com_velocity", "body_link_velocity"]
+
+
+class TestCollectionCacheInvalidation:
+    @_production_backends
+    def test_pose_write_invalidates_pose_dependent_caches(self, backend):
+        obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+        obj.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            obj.data,
+            [
+                ("body_link_vel_w", "_body_link_vel_w"),
+                ("projected_gravity_b", "_projected_gravity_b"),
+                ("heading_w", "_heading_w"),
+                ("body_link_lin_vel_b", "_body_link_lin_vel_b"),
+                ("body_link_ang_vel_b", "_body_link_ang_vel_b"),
+                ("body_com_lin_vel_b", "_body_com_lin_vel_b"),
+                ("body_com_ang_vel_b", "_body_com_ang_vel_b"),
+            ],
+        )
+        body_pose = _make_data_warp((obj.num_instances, obj.num_bodies), "cpu", wp.transformf)
+        obj.write_body_link_pose_to_sim_index(body_poses=body_pose)
+        _assert_buffers_stale(obj.data, buffers)
+
+    @_production_backends
+    def test_velocity_write_invalidates_body_frame_caches(self, backend):
+        obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+        obj.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            obj.data,
+            [
+                ("body_link_lin_vel_b", "_body_link_lin_vel_b"),
+                ("body_link_ang_vel_b", "_body_link_ang_vel_b"),
+                ("body_com_lin_vel_b", "_body_com_lin_vel_b"),
+                ("body_com_ang_vel_b", "_body_com_ang_vel_b"),
+            ],
+        )
+        body_velocity = _make_data_warp((obj.num_instances, obj.num_bodies), "cpu", wp.spatial_vectorf)
+        obj.write_body_com_velocity_to_sim_index(body_velocities=body_velocity)
+        _assert_buffers_stale(obj.data, buffers)
+
+    @_production_backends
+    @pytest.mark.parametrize("setter_kind", ["index", "mask"])
+    def test_set_coms_invalidates_same_timestamp_dependents(self, backend, setter_kind):
+        obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+        obj.data.update(dt=0.01)
+        common_pairs = [
+            ("body_com_pose_w", "_body_com_pose_w"),
+            ("body_link_vel_w", "_body_link_vel_w"),
+            ("body_link_lin_vel_b", "_body_link_lin_vel_b"),
+            ("body_link_ang_vel_b", "_body_link_ang_vel_b"),
+            ("body_com_lin_vel_b", "_body_com_lin_vel_b"),
+            ("body_com_ang_vel_b", "_body_com_ang_vel_b"),
+            ("body_state_w", "_body_state_w"),
+            ("body_link_state_w", "_body_link_state_w"),
+            ("body_com_state_w", "_body_com_state_w"),
+        ]
+        if backend != "newton":
+            common_pairs.append(("body_com_vel_w", "_body_com_vel_w"))
+        # Prime public properties before resolving private buffers so Newton allocates lazy caches.
+        buffers = _prime_timestamped_properties(obj.data, common_pairs)
+        if backend == "newton":
+            buffers += _prime_timestamped_properties(obj.data, [("body_com_pose_b", "_body_com_pose_b")])
+        coms = _make_com_data(backend, (obj.num_instances, obj.num_bodies), "cpu")
+
+        def set_coms() -> None:
+            if setter_kind == "index":
+                obj.set_coms_index(coms=coms)
+            else:
+                obj.set_coms_mask(coms=coms)
+
+        if backend == "newton":
+            from unittest.mock import patch
+
+            from isaaclab_newton.physics import NewtonManager
+
+            with patch.object(NewtonManager, "add_model_change"):
+                set_coms()
+        else:
+            set_coms()
+        _assert_buffers_stale(obj.data, buffers)
 
 
 class TestCollectionWritersPose:

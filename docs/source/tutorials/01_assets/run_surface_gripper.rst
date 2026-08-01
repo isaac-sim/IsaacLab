@@ -170,7 +170,7 @@ in the ``scripts/demos`` directory. You can run these scripts as:
       .. code-block:: bash
 
          # Spawn many pick-and-place robots and perform a pick-and-place task
-         uv run python scripts/demos/pick_and_place.py
+         uv run --extra isaacsim python scripts/demos/pick_and_place.py
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 

@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+1.3.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added interactive sidebar controls to :class:`~isaaclab_visualizers.viser.ViserVisualizer`:
+  **Pause Rendering** (freezes the 3D view without stopping physics), **Pause Simulation**
+  (pauses the training/rollout loop via :meth:`~isaaclab.visualizers.BaseVisualizer.is_training_paused`),
+  and **Reset Episode** (signals an episode reset via
+  :meth:`~isaaclab.visualizers.BaseVisualizer.consume_reset_request`).
+  Both pause buttons update their label and turn orange when active.
+
+Fixed
+^^^^^
+
+* Deleted stale Newton-tiled golden images (``*-newton-tiled.png``) for all scenes. The golden
+  images were invalidated by a Newton version bump in ``43187ba712`` which changed the Warp
+  renderer's visual output. The test framework will regenerate the golden images on the next CI
+  run, after which the new images should be reviewed and committed.
+
+
 1.2.2 (2026-07-30)
 ~~~~~~~~~~~~~~~~~~
 

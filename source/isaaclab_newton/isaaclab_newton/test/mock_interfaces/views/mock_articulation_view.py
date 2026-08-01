@@ -25,6 +25,8 @@ class MockNewtonCollectionView:
         - body_com:        ``(N, B, 1)`` dtype=wp.vec3f
         - body_mass:       ``(N, B, 1)`` dtype=wp.float32
         - body_inertia:    ``(N, B, 1)`` dtype=wp.mat33f
+        - body_inv_mass:   ``(N, B, 1)`` dtype=wp.float32
+        - body_inv_inertia: ``(N, B, 1)`` dtype=wp.mat33f
         - body_f:          ``(N, B, 1)`` dtype=wp.spatial_vectorf
 
     Where N = num_envs, B = num_bodies (body types in the collection).
@@ -54,6 +56,8 @@ class MockNewtonCollectionView:
             "body_com": None,
             "body_mass": None,
             "body_inertia": None,
+            "body_inv_mass": None,
+            "body_inv_inertia": None,
             "body_f": None,
         }
 
@@ -110,6 +114,10 @@ class MockNewtonCollectionView:
             return wp.zeros((N, B, 1), dtype=wp.float32, device=dev)
         elif name == "body_inertia":
             return wp.zeros((N, B, 1), dtype=wp.mat33f, device=dev)
+        elif name == "body_inv_mass":
+            return wp.zeros((N, B, 1), dtype=wp.float32, device=dev)
+        elif name == "body_inv_inertia":
+            return wp.zeros((N, B, 1), dtype=wp.mat33f, device=dev)
         elif name == "body_f":
             return wp.zeros((N, B, 1), dtype=wp.spatial_vectorf, device=dev)
         else:
@@ -140,6 +148,26 @@ class MockNewtonCollectionView:
 
     # -- Mock data injection -----------------------------------------------
 
+    def set_mock_root_transforms(self, transforms: wp.array) -> None:
+        """Update mock root transforms."""
+        self._ensure_root_transforms().assign(transforms)
+
+    def set_mock_root_velocities(self, velocities: wp.array) -> None:
+        """Update mock root velocities."""
+        self._ensure_root_velocities().assign(velocities)
+
+    def set_mock_coms(self, coms: wp.array) -> None:
+        """Update mock centers of mass."""
+        self._ensure_attribute("body_com").assign(coms)
+
+    def set_mock_masses(self, masses: wp.array) -> None:
+        """Update mock body masses."""
+        self._ensure_attribute("body_mass").assign(masses)
+
+    def set_mock_inertias(self, inertias: wp.array) -> None:
+        """Update mock body inertias."""
+        self._ensure_attribute("body_inertia").assign(inertias)
+
     def set_random_mock_data(self) -> None:
         """Set all internal state to random values for testing."""
         N, B = self._num_envs, self._num_bodies
@@ -158,12 +186,15 @@ class MockNewtonCollectionView:
         self._attributes["body_com"] = wp.array(
             np.random.randn(N, B, 1, 3).astype(np.float32), dtype=wp.vec3f, device=dev
         )
-        self._attributes["body_mass"] = wp.array(
-            (np.random.rand(N, B, 1) * 10 + 0.1).astype(np.float32), dtype=wp.float32, device=dev
+        body_mass_np = (np.random.rand(N, B, 1) * 10 + 0.1).astype(np.float32)
+        body_inertia_factor_np = np.random.randn(N, B, 1, 3, 3).astype(np.float32)
+        body_inertia_np = body_inertia_factor_np @ body_inertia_factor_np.swapaxes(-1, -2) + 0.1 * np.eye(
+            3, dtype=np.float32
         )
-        self._attributes["body_inertia"] = wp.array(
-            np.random.randn(N, B, 1, 9).astype(np.float32), dtype=wp.mat33f, device=dev
-        )
+        self._attributes["body_mass"] = wp.array(body_mass_np, dtype=wp.float32, device=dev)
+        self._attributes["body_inertia"] = wp.array(body_inertia_np, dtype=wp.mat33f, device=dev)
+        self._attributes["body_inv_mass"] = wp.array(1.0 / body_mass_np, dtype=wp.float32, device=dev)
+        self._attributes["body_inv_inertia"] = wp.array(np.linalg.inv(body_inertia_np), dtype=wp.mat33f, device=dev)
         self._attributes["body_f"] = wp.array(
             np.random.randn(N, B, 1, 6).astype(np.float32), dtype=wp.spatial_vectorf, device=dev
         )
@@ -187,6 +218,8 @@ class MockNewtonArticulationView:
         - body_com: ``(N, 1, L)`` dtype=wp.vec3f
         - body_mass: ``(N, 1, L)`` dtype=wp.float32
         - body_inertia: ``(N, 1, L)`` dtype=wp.mat33f
+        - body_inv_mass: ``(N, 1, L)`` dtype=wp.float32
+        - body_inv_inertia: ``(N, 1, L)`` dtype=wp.mat33f
 
     Where N = count, L = link_count, J = joint_dof_count
 
@@ -206,6 +239,7 @@ class MockNewtonArticulationView:
         is_fixed_base: bool = False,
         joint_names: list[str] | None = None,
         body_names: list[str] | None = None,
+        tendon_names: list[str] | None = None,
     ):
         """Initialize the mock Newton articulation view.
 
@@ -213,10 +247,12 @@ class MockNewtonArticulationView:
             num_instances: Number of articulation instances.
             num_bodies: Number of bodies (links).
             num_joints: Number of joints (DOFs).
+            num_tendons: Number of fixed tendons.
             device: Device for array allocation ("cpu" or "cuda:N").
             is_fixed_base: Whether the articulation has a fixed base.
             joint_names: Names of joints. Defaults to ["joint_0", ...].
             body_names: Names of bodies. Defaults to ["body_0", ...].
+            tendon_names: Names of fixed tendons. Defaults to ["tendon_0", ...].
         """
         self._count = num_instances
         self._link_count = num_bodies
@@ -229,6 +265,7 @@ class MockNewtonArticulationView:
         # Set joint and body names
         self._joint_dof_names = joint_names if joint_names is not None else [f"joint_{i}" for i in range(num_joints)]
         self._body_names = body_names if body_names is not None else [f"body_{i}" for i in range(num_bodies)]
+        self._tendon_names = tendon_names if tendon_names is not None else [f"tendon_{i}" for i in range(num_tendons)]
 
         # Internal state (lazily initialized)
         self._root_transforms: wp.array | None = None
@@ -246,10 +283,13 @@ class MockNewtonArticulationView:
             "body_com": None,
             "body_mass": None,
             "body_inertia": None,
+            "body_inv_mass": None,
+            "body_inv_inertia": None,
             "joint_limit_lower": None,
             "joint_limit_upper": None,
             "joint_target_ke": None,
             "joint_target_kd": None,
+            "joint_damping": None,
             "joint_armature": None,
             "joint_friction": None,
             "joint_velocity_limit": None,
@@ -301,8 +341,14 @@ class MockNewtonArticulationView:
         return self._body_names
 
     @property
-    def tendon_count(self):
+    def tendon_count(self) -> int:
+        """Number of fixed tendons per instance."""
         return self._tendon_count
+
+    @property
+    def tendon_names(self) -> list[str]:
+        """Names of fixed tendons."""
+        return self._tendon_names
 
     @property
     def articulation_ids(self) -> wp.array:
@@ -384,6 +430,10 @@ class MockNewtonArticulationView:
             return wp.zeros((N, 1, L), dtype=wp.float32, device=dev)
         elif name == "body_inertia":
             return wp.zeros((N, 1, L), dtype=wp.mat33f, device=dev)
+        elif name == "body_inv_mass":
+            return wp.zeros((N, 1, L), dtype=wp.float32, device=dev)
+        elif name == "body_inv_inertia":
+            return wp.zeros((N, 1, L), dtype=wp.mat33f, device=dev)
         elif name == "body_f":
             return wp.zeros((N, 1, L), dtype=wp.spatial_vectorf, device=dev)
         elif name in (
@@ -391,6 +441,7 @@ class MockNewtonArticulationView:
             "joint_limit_upper",
             "joint_target_ke",
             "joint_target_kd",
+            "joint_damping",
             "joint_armature",
             "joint_friction",
             "joint_velocity_limit",
@@ -538,7 +589,7 @@ class MockNewtonArticulationView:
         Args:
             transforms: Warp array with dtype=wp.transformf.
         """
-        self._root_transforms = transforms
+        self._ensure_root_transforms().assign(transforms)
 
     def set_mock_root_velocities(self, velocities: wp.array) -> None:
         """Set mock root velocity data directly for testing.
@@ -546,7 +597,9 @@ class MockNewtonArticulationView:
         Args:
             velocities: Warp array with dtype=wp.spatial_vectorf.
         """
-        self._root_velocities = velocities
+        root_velocities = self._ensure_root_velocities()
+        if root_velocities is not None:
+            root_velocities.assign(velocities)
 
     def set_mock_link_transforms(self, transforms: wp.array) -> None:
         """Set mock link transform data directly for testing.
@@ -554,7 +607,7 @@ class MockNewtonArticulationView:
         Args:
             transforms: Warp array of shape ``(N, 1, L)`` with dtype=wp.transformf.
         """
-        self._link_transforms = transforms
+        self._ensure_link_transforms().assign(transforms)
 
     def set_mock_link_velocities(self, velocities: wp.array) -> None:
         """Set mock link velocity data directly for testing.
@@ -562,7 +615,9 @@ class MockNewtonArticulationView:
         Args:
             velocities: Warp array of shape ``(N, 1, L)`` with dtype=wp.spatial_vectorf.
         """
-        self._link_velocities = velocities
+        link_velocities = self._ensure_link_velocities()
+        if link_velocities is not None:
+            link_velocities.assign(velocities)
 
     def set_mock_dof_positions(self, positions: wp.array) -> None:
         """Set mock DOF position data directly for testing.
@@ -586,7 +641,7 @@ class MockNewtonArticulationView:
         Args:
             masses: Warp array of shape ``(N, 1, L)`` with dtype=wp.float32.
         """
-        self._attributes["body_mass"] = masses
+        self._ensure_attribute("body_mass").assign(masses)
 
     def set_mock_coms(self, coms: wp.array) -> None:
         """Set mock body center-of-mass data directly for testing.
@@ -594,7 +649,7 @@ class MockNewtonArticulationView:
         Args:
             coms: Warp array of shape ``(N, 1, L)`` with dtype=wp.vec3f.
         """
-        self._attributes["body_com"] = coms
+        self._ensure_attribute("body_com").assign(coms)
 
     def set_mock_inertias(self, inertias: wp.array) -> None:
         """Set mock body inertia data directly for testing.
@@ -602,7 +657,7 @@ class MockNewtonArticulationView:
         Args:
             inertias: Warp array of shape ``(N, 1, L)`` with dtype=wp.mat33f.
         """
-        self._attributes["body_inertia"] = inertias
+        self._ensure_attribute("body_inertia").assign(inertias)
 
     def set_mock_jacobians(self, jacobians: wp.array) -> None:
         """Set mock model-order Jacobian data directly for testing."""
@@ -674,16 +729,15 @@ class MockNewtonArticulationView:
             dtype=wp.vec3f,
             device=dev,
         )
-        self._attributes["body_mass"] = wp.array(
-            (np.random.rand(N, 1, L) * 10 + 0.1).astype(np.float32),
-            dtype=wp.float32,
-            device=dev,
+        body_mass_np = (np.random.rand(N, 1, L) * 10 + 0.1).astype(np.float32)
+        body_inertia_factor_np = np.random.randn(N, 1, L, 3, 3).astype(np.float32)
+        body_inertia_np = body_inertia_factor_np @ body_inertia_factor_np.swapaxes(-1, -2) + 0.1 * np.eye(
+            3, dtype=np.float32
         )
-        self._attributes["body_inertia"] = wp.array(
-            np.random.randn(N, 1, L, 9).astype(np.float32),
-            dtype=wp.mat33f,
-            device=dev,
-        )
+        self._attributes["body_mass"] = wp.array(body_mass_np, dtype=wp.float32, device=dev)
+        self._attributes["body_inertia"] = wp.array(body_inertia_np, dtype=wp.mat33f, device=dev)
+        self._attributes["body_inv_mass"] = wp.array(1.0 / body_mass_np, dtype=wp.float32, device=dev)
+        self._attributes["body_inv_inertia"] = wp.array(np.linalg.inv(body_inertia_np), dtype=wp.mat33f, device=dev)
 
         # Joint properties
         for attr_name in (
@@ -691,6 +745,7 @@ class MockNewtonArticulationView:
             "joint_limit_upper",
             "joint_target_ke",
             "joint_target_kd",
+            "joint_damping",
             "joint_armature",
             "joint_friction",
             "joint_velocity_limit",
