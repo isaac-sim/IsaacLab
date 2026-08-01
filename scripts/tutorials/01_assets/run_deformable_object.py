@@ -8,31 +8,36 @@ This script demonstrates how to work with the deformable object and interact wit
 
 .. code-block:: bash
 
-    # Usage
+    # Usage with default PhysX physics and default kit visualizer.
     uv run python scripts/tutorials/01_assets/run_deformable_object.py
+
+    # Usage with Newton VBD physics and default kit visualizer.
+    uv run python scripts/tutorials/01_assets/run_deformable_object.py --backend newton_vbd
+
+    # Usage with OvPhysX physics without a visualizer.
+    uv run python scripts/tutorials/01_assets/run_deformable_object.py --backend ovphysx
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
-import os
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on interacting with a deformable object.")
-parser.add_argument("--backend", type=str, default="physx", choices=["physx", "newton_vbd"], help="Physics backend.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# demos should open Kit visualizer by default
-parser.set_defaults(visualizer=["kit"])
+parser.add_argument(
+    "--backend", type=str, default="physx", choices=["physx", "newton_vbd", "ovphysx"], help="Physics backend."
+)
+# append simulation launcher CLI arguments
+add_launcher_args(parser)
+# Kit cannot be combined with OvPhysX, so use no visualizer by default for that backend
+backend_args, _ = parser.parse_known_args()
+parser.set_defaults(visualizer=None if backend_args.backend == "ovphysx" else ["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+args_cli.physics = args_cli.backend
 
 """Rest everything follows."""
 
@@ -41,6 +46,7 @@ import torch
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
+from isaaclab.physics import PhysicsCfg
 
 
 def design_scene():
@@ -104,7 +110,7 @@ def design_scene():
     return scene_entities, origins
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: torch.Tensor, output_dir: str):
+def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: torch.Tensor):
     """Runs the simulation loop."""
     # Extract scene entities
     # note: we only do this here for readability. In general, it is better to access the entities directly from
@@ -120,7 +126,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
     nodal_kinematic_target = cube_object.data.nodal_kinematic_target.torch.clone()
 
     # Simulate physics
-    while simulation_app.is_running():
+    while sim.is_headless_or_exist_active_visualizer():
         # reset at start and after 3 seconds
         if count % int(3.0 / sim_dt) == 0:
             # reset counters
@@ -174,36 +180,26 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
 
 def main():
     """Main function."""
-    # Load kit helper
-    if args_cli.backend == "newton_vbd":
-        from isaaclab_newton.physics import NewtonCfg
-
-        from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
-
-        physics_cfg = NewtonCfg(solver_cfg=VBDSolverCfg(iterations=10), num_substeps=4)
-    else:
-        from isaaclab_physx.physics import PhysxCfg
-
-        physics_cfg = PhysxCfg()
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
-    # Design scene
-    scene_entities, scene_origins = design_scene()
-    scene_origins = torch.tensor(scene_origins, device=sim.device)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    camera_output = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "camera")
-    run_simulator(sim, scene_entities, scene_origins, camera_output)
-    print("[INFO]: Simulation complete...")
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        if args_cli.backend == "newton_vbd":
+            physics_cfg.solver_cfg.iterations = 10
+            physics_cfg.num_substeps = 4
+        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
+        # Design scene
+        scene_entities, scene_origins = design_scene()
+        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene_entities, scene_origins)
+        print("[INFO]: Simulation complete...")
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()
