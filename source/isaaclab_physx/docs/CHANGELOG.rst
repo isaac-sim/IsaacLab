@@ -1,6 +1,208 @@
 Changelog
 ---------
 
+3.1.5 (2026-08-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added deformable nodal position export on the PhysX SceneData backend so soft
+  bodies and cloth can drive Newton Warp / OVRTX shadow visualization.
+* Added the ``as_proxy`` return-mode option to PhysX asset finder methods.
+  ``as_proxy=False`` is the default and returns the legacy selector
+  representation, while ``as_proxy=True`` opts into cached
+  :class:`~isaaclab.utils.warp.ProxyArray` selectors. Pass their explicit
+  ``.warp`` or ``.torch`` views to downstream APIs.
+
+Changed
+^^^^^^^
+
+* Cached stable articulation and rigid asset read launches to reduce repeated
+  Warp launch setup on PhysX. No user migration is required.
+
+Fixed
+^^^^^
+
+* Fixed Isaac RTX renderer initialization in minimal Kit experiences by dynamically
+  enabling ``omni.replicator.core`` before importing it, avoiding startup resolution
+  of its bundled Warp dependency.
+* Fixed PhysX indexed articulation writes to accept signed 32-bit and 64-bit
+  environment and item selectors without Torch conversion tensors.
+* Fixed stale pose-, velocity-, and center-of-mass-derived rigid asset data
+  immediately after simulation state and property writes.
+* Fixed fixed and spatial tendon property writers to accept the selector
+  arguments advertised by the common articulation interface.
+* Fixed stale mass matrix and gravity compensation reads immediately after
+  mass, inertia, and armature writes.
+* Fixed dynamics reads for reversed USD joint relationships.
+
+
+3.1.4 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added structured summary and JSON output to PhysX sensor micro-benchmarks.
+* Added matched plane and deterministic rough-terrain phases to the ray caster
+  sensor micro-benchmark.
+
+Changed
+^^^^^^^
+
+* Changed the physx asset micro-benchmarks from separate method and data scripts
+  to one combined script per asset concept. Run the retained
+  benchmark_<asset>.py script to produce both historical result artifacts.
+
+Fixed
+^^^^^
+
+* Fixed articulation-data micro-benchmarks to use stable PhysX state, mass-property, and dynamics buffers.
+
+
+3.1.3 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cached stable articulation read launches to reduce repeated Warp launch setup on PhysX.
+  No user migration is required.
+
+
+3.1.2 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed full-articulation resets forwarding an unsupported slice to stateful
+  Isaac Lab actuators.
+
+
+3.1.1 (2026-07-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` in
+  :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`. When set, applies
+  ``/rtx/background/source/type = 2`` (Color) and ``/rtx/background/source/color`` via the
+  settings manager during camera setup.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` failing with
+  ``Annotator SimpleShadingSD is not attached to any render products`` when
+  multiple environments sequentially request ``simple_shading_*`` camera
+  outputs in the same Kit process. Each tiled render product is given a
+  unique UUID name, and the owned HydraTexture is destroyed on cleanup to
+  avoid leaking render products across env create/destroy cycles.
+
+
+3.1.0 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to use the renamed
+  ``"instance_segmentation"`` data type (previously ``"instance_segmentation_fast"``).
+  The renderer maps this key to the Replicator ``"instance_segmentation_fast"`` annotator internally.
+
+
+3.0.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added backend joint/body ordering introspection properties to
+  :class:`~isaaclab_physx.assets.Articulation`.
+* Added :data:`~isaaclab_physx.cloner.PHYSICS_CONTEXT`, the backend's default physics
+  replication context referenced by asset cfgs. USD clones for visuals are added
+  automatically under Kit by :func:`~isaaclab.cloner.replicate`.
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab.assets.ArticulationData.body_mass` and
+  :attr:`~isaaclab.assets.ArticulationData.body_inertia` to refresh from the
+  simulation lazily, at most once per simulation step, instead of on every
+  read. Values written directly through the tensor view become visible at the
+  first read after the next simulation update; use the asset's
+  :meth:`~isaaclab.assets.Articulation.set_masses_index` and
+  :meth:`~isaaclab.assets.Articulation.set_inertias_index` for immediately
+  coherent writes.
+* **Breaking:** Changed :attr:`~isaaclab_physx.physics.PhysxCfg.enable_external_forces_every_iteration`
+  to default to ``True``. Remove explicit ``True`` overrides; explicit ``False``
+  overrides emit a ``DeprecationWarning`` because the PhysX flag will be removed
+  in a future release.
+* Changed the RTX renderer to rely on automatic camera support from :class:`isaaclab.app.AppLauncher`.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+* Removed the ``write_joint_state_data`` and ``write_joint_vel_data`` kernels
+  from ``isaaclab_physx.assets.articulation.kernels``. Prefer the public-order
+  asset write APIs (:meth:`~isaaclab.assets.Articulation.write_joint_position_to_sim_index`
+  and its siblings), which apply the ordering conversion internally. Code that
+  works directly with raw solver views can instead launch the public elementwise
+  reorder kernels (the ``reorder_2d_user_to_backend`` /
+  ``reorder_2d_backend_to_user`` and ``reorder_3d_user_to_backend`` /
+  ``reorder_3d_backend_to_user`` family) from
+  ``isaaclab.assets.articulation.ordering_kernels`` together with the asset's
+  ordering maps.
+* Removed ``queue_physx_replication``: direct the contexts through
+  :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` and
+  :func:`~isaaclab.cloner.queue_replication` instead.
+
+Fixed
+^^^^^
+
+* Fixed unnecessary wrench-buffer resets when PhysX articulations had no instantaneous wrenches.
+* Reduced PhysX frame-transformer update overhead by caching the PhysX transform view and reusing a recorded Warp
+  kernel launch on CUDA devices.
+* Reduced PhysX joint-wrench sensor update overhead by caching the PhysX wrench view and reusing a recorded Warp
+  kernel launch on CUDA devices.
+* Fixed excessive PhysX IMU and PVA update overhead by reusing typed physics buffers and recorded kernel launches.
+* Reduced PhysX ray-caster update overhead by caching the PhysX transform view and replaying its Warp kernels through
+  a CUDA graph. Updating the sensor while an outer CUDA graph capture is active now raises an error, since replays of
+  such a graph would consume stale transforms.
+* Fixed :class:`~isaaclab_physx.sensors.ContactSensor` failing to initialize on assets with nested
+  rigid-body hierarchies (e.g. USD generated by the URDF importer in Isaac Sim 6.0 and later). The
+  PhysX rigid-body and contact views are now created from one path expression per body instead of a
+  single parent-level name alternation, which could not address bodies nested under other bodies.
+* Fixed PhysX tensor views being invalidated when the PhysX backend configuration
+  was imported before Kit startup.
+* Fixed Fabric frame view initialization when the hierarchy bindings had not already been imported.
+* Fixed PhysX CPU simulation initialization failing to create tensor views because
+  no USD stage was attached.
+* Fixed optional Isaac Sim extensions invalidating PhysX tensor views when they
+  loaded Isaac Sim's simulation manager after Isaac Lab's physics manager.
+* Fixed Kit viewport camera updates loading Isaac Sim's bundled Warp extension
+  through ``isaacsim.core.rendering_manager``.
+* Fixed the GUI application missing the Fabric extension required by the PhysX manager.
+* Fixed PhysX scene-data provider visualizer updates for heterogeneous clone
+  plans whose prototype sources are not all under ``env_0``.
+* Fixed CPU PhysX collision broadphase initialization by restoring backend
+  registration without explicitly attaching the USD stage.
+* Fixed intermittent ``double free or corruption`` (SIGABRT) in
+  :class:`~isaaclab_physx.cloner.PhysxReplicateContext` when running fully-heterogeneous
+  scenes with one variant per environment on multiple GPUs. Calling
+  ``rep.replicate()`` once per source with a single self-target is known to trigger
+  native heap corruption under mGPU due to per-call PhysX-internal allocations.
+  For layouts where every source maps only to its own environment no cross-env
+  replication is needed; the replicator registration is now skipped so PhysX parses
+  the source prims directly from the stage.
+
+
 2.9.1 (2026-07-15)
 ~~~~~~~~~~~~~~~~~~
 

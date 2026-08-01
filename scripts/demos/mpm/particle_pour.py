@@ -14,7 +14,7 @@ This demo shows the Isaac Lab MPM scene path:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/demos/mpm/particle_pour.py --device cuda:0 --visualizer newton
+    uv run python scripts/demos/mpm/particle_pour.py --device cuda:0 --visualizer newton
 """
 
 from __future__ import annotations
@@ -116,7 +116,7 @@ CAMERA_TARGET = (-0.01, 0.0, 0.38)
 
 def create_visualizer_cfgs():
     """Create demo-specific visualizer configs for requested backends."""
-    if "newton" not in args_cli.visualizer:
+    if "newton" not in (args_cli.visualizer or []):
         return []
 
     from isaaclab_visualizers.newton import NewtonVisualizerCfg
@@ -163,26 +163,6 @@ def container_pose_at_time(sim_time: float):
     # Newton spatial vectors are (linear, angular).
     twist = (0.0, 0.0, lift_speed, 0.0, angular_speed, 0.0)
     return pos, quat_y(angle), twist
-
-
-def launch_omniverse_asset_resolver():
-    """Start Kit for Newton-only runs that need to resolve remote USD layers.
-
-    The default teapot container is served from Nucleus over HTTPS, which plain
-    ``pxr`` cannot resolve; Kit ships the asset resolver that can. Kit-visualizer
-    runs boot Kit anyway, so this only applies to Newton-only runs.
-    """
-    if "kit" in args_cli.visualizer:
-        return None
-
-    from isaaclab.utils import has_kit
-
-    if has_kit():
-        return None
-
-    from isaaclab.app import AppLauncher
-
-    return AppLauncher(args_cli)
 
 
 def create_demo_bowl_mesh(num_segments: int = 96):
@@ -334,7 +314,7 @@ def create_sim_cfg():
 
 def preview_material(color):
     """Return a preview-surface material for Kit runs; Kit-less runs spawn no USD materials."""
-    if "kit" not in args_cli.visualizer:
+    if "kit" not in (args_cli.visualizer or []):
         return None
 
     import isaaclab.sim as sim_utils
@@ -507,29 +487,24 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Set up and run the Isaac Lab Newton MPM particle-pour demo."""
-    app_launcher = launch_omniverse_asset_resolver()
-    try:
-        sim_cfg = create_sim_cfg()
-        with launch_simulation(sim_cfg, args_cli):
-            import isaaclab.sim as sim_utils
-            from isaaclab.scene import InteractiveScene
+    sim_cfg = create_sim_cfg()
+    with launch_simulation(sim_cfg, args_cli):
+        import isaaclab.sim as sim_utils
+        from isaaclab.scene import InteractiveScene
 
-            sim = sim_utils.SimulationContext(sim_cfg)
-            scene = InteractiveScene(create_scene_cfg())
-            sim.reset()
-            sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        scene = InteractiveScene(create_scene_cfg())
+        sim.reset()
+        sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
 
-            print(
-                "[INFO]: Isaac Lab Newton particle-pour MPM demo ready."
-                f" Spawned {particle_count(scene)} MPM particles;"
-                f" voxel size {VOXEL_SIZE:.4g} m;"
-                f" the teapot will tilt after {HOLD_TIME:.2f}s.",
-                flush=True,
-            )
-            run_simulator(sim, scene)
-    finally:
-        if app_launcher is not None:
-            app_launcher.app.close()
+        print(
+            "[INFO]: Isaac Lab Newton particle-pour MPM demo ready."
+            f" Spawned {particle_count(scene)} MPM particles;"
+            f" voxel size {VOXEL_SIZE:.4g} m;"
+            f" the teapot will tilt after {HOLD_TIME:.2f}s.",
+            flush=True,
+        )
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":

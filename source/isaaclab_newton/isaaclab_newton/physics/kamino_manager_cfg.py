@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils.configclass import configclass
 
@@ -182,6 +182,21 @@ class KaminoSolverCfg(NewtonSolverCfg):
     problem. Disabling may be useful for debugging or profiling solver behavior.
     """
 
+    material_friction_mix_mode: Literal["average", "multiply", "max", "min"] = "average"
+    """How the friction coefficients of two contacting shapes are mixed into a contact-pair value.
+
+    Applied by Kamino for both contact-generation paths (Newton's collision pipeline and
+    Kamino's internal collision detector). Note that per-material combine modes (e.g. PhysX's
+    ``physxMaterial:frictionCombineMode``) are not supported by Newton; this solver-wide mode
+    governs all contact pairs.
+    """
+
+    material_restitution_mix_mode: Literal["average", "multiply", "max", "min"] = "min"
+    """How the restitution coefficients of two contacting shapes are mixed into a contact-pair value.
+
+    See :attr:`material_friction_mix_mode` for details on scope and limitations.
+    """
+
     def to_solver_config(self) -> SolverKamino.Config:
         """Build a :class:`SolverKamino.Config` from this configuration.
 
@@ -196,6 +211,7 @@ class KaminoSolverCfg(NewtonSolverCfg):
             ConstrainedDynamicsConfig,
             ConstraintStabilizationConfig,
             ForwardKinematicsSolverConfig,
+            MaterialManagerConfig,
             PADMMSolverConfig,
         )
         from newton.solvers import SolverKamino
@@ -238,6 +254,10 @@ class KaminoSolverCfg(NewtonSolverCfg):
             ),
             dynamics=ConstrainedDynamicsConfig(
                 preconditioning=self.dynamics_preconditioning,
+            ),
+            materials=MaterialManagerConfig(
+                friction_mix_mode=self.material_friction_mix_mode,
+                restitution_mix_mode=self.material_restitution_mix_mode,
             ),
             padmm=PADMMSolverConfig(
                 max_iterations=self.padmm_max_iterations,

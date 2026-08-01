@@ -53,6 +53,72 @@ Prerequisites
    Teleoperation is not currently supported on DGX Spark.
 
 
+.. _teleop-workstation-capability-check:
+
+Workstation capability check
+----------------------------
+
+When a teleop session starts, Isaac Lab measures the workstation against the spec above and
+reports any unmet requirement. The result is printed to the terminal and pushed to the connected
+XR client, where it appears as a dismissible banner in the headset -- so the warning is visible
+to the operator wearing the device, not only in a terminal they cannot see.
+
+The check is **advisory and never blocks a session**. It reports:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Requirement
+     - Threshold
+   * - CPU single-thread
+     - At least 80% of the reference CPU (AMD Ryzen Threadripper 7960X)
+   * - CPU governor
+     - ``performance``, unless the single-thread score already meets its threshold
+   * - CPU boost clock
+     - 4.0 GHz
+   * - CPU physical cores
+     - 8
+   * - GPU memory
+     - 24 GB
+   * - GPU architecture
+     - Compute capability 8.9 (Ada) or newer
+   * - NVIDIA driver
+     - 580 or newer
+   * - System memory
+     - 60 GiB (a nominal 64 GB machine)
+   * - CPU architecture
+     - ``x86_64``
+
+Thresholds are numeric rather than a list of approved CPU and GPU models, so equivalent hardware
+passes. CPU single-thread throughput is weighted most heavily and is measured with a short
+benchmark rather than inferred from the core count: Pink IK and CPU-side physics are
+single-thread bound, so a machine with fewer but faster cores teleoperates better than one with
+many slow cores.
+
+.. tip::
+
+   **The CPU governor is only reported when the machine is also measurably slow.** Ubuntu
+   defaults to ``powersave``, which costs per-frame ramp-up latency in the bursty workload
+   teleoperation generates. The governor is a proxy for delivered throughput, though, so a
+   workstation whose single-thread score already meets its threshold is fast enough whatever
+   the governor says and is not flagged. Setting ``performance`` remains a setup step -- see
+   :ref:`install-isaac-teleop`.
+
+If a probe is unavailable (for example, ``cpufreq`` is not exposed inside a container), that item
+is reported as skipped rather than failed.
+
+On a multi-GPU workstation the GPU checks measure the device the session runs on -- the one
+selected with ``--device`` -- not simply the first adapter. The reported value names the ordinal
+(e.g. ``cuda:1``) so it is clear which GPU was measured.
+
+To use the check on its own -- for example to qualify a machine before setting up a session:
+
+.. code-block:: bash
+
+   uv run python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
+
+
 .. _install-isaac-teleop:
 
 Install Isaac Teleop
@@ -66,6 +132,34 @@ Install Isaac Teleop
 
    The CloudXR runtime links against Vulkan at runtime. If your system already has the
    NVIDIA driver installed, ``libvulkan1`` may already be present.
+
+#. Set the CPU frequency governor to ``performance``:
+
+   .. code-block:: bash
+
+      # cpupower ships in linux-tools; install it if the command is not found
+      sudo apt-get install -y linux-tools-common linux-tools-$(uname -r)
+
+      sudo cpupower frequency-set -g performance
+
+   Ubuntu defaults to the ``powersave`` governor, which measurably increases Pink IK solve
+   latency and lowers the achievable teleop frame rate. Because IK and CPU-side physics are
+   single-thread bound, this is one of the highest-impact settings on the workstation.
+
+   Verify the change:
+
+   .. code-block:: bash
+
+      cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+
+   Expected output: ``performance``.
+
+   .. note::
+
+      This setting does not survive a reboot. Re-run the command after restarting, or make it
+      persistent with a systemd unit or your distribution's ``cpupower`` service configuration.
+      The :ref:`teleop-workstation-capability-check` reports the governor at session start, so a
+      machine that has reverted to ``powersave`` is flagged before you notice the frame rate.
 
 #. ``isaacteleop`` is installed automatically as a dependency of ``isaaclab_teleop``.
    No separate pip install step is required. For building from source or plugin
@@ -113,12 +207,30 @@ Run Isaac Lab with CloudXR
 The CloudXR runtime launches automatically when a teleop script is started. No separate
 terminal or ``source`` step is needed. Launch a teleoperation script directly:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit \
-       --xr
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr
+
+To verify that the headset and controller tracking poses are reaching Isaac Lab, add
+``--enable_debug_visualization`` to the command. The visualization draws red markers at tracked
+hand joints and RGB axes at tracked controller aim poses. See
+:ref:`isaac-teleop-tracking-debug-visualization` for details.
 
 .. attention::
 
@@ -148,13 +260,27 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
 To switch the CloudXR device profile at launch time (e.g. from Quest to Apple Vision Pro),
 use the ``--cloudxr_env`` flag:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-       --visualizer kit \
-       --xr \
-       --cloudxr_env avp
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr \
+             --cloudxr_env avp
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr \
+             --cloudxr_env avp
 
 For details on the shipped ``.env`` profiles and how to customise them, see
 :ref:`isaac-teleop-cloudxr-profiles` in the feature guide.
@@ -182,6 +308,16 @@ The dual-eye stereo render only becomes active once a headset connects and playb
    :alt: Isaac Lab viewport showing "Waiting for connection" status after clicking Start XR
 
 Isaac Lab is now ready to receive connections from a CloudXR client.
+
+.. note::
+
+   **Running headless (no local UI).** The commands above use ``--visualizer kit`` to open the
+   local Kit viewport, where you click **Start XR**. On a server or cloud instance without a
+   display, run headless instead: omit ``--visualizer`` (headless is the default) or pass
+   ``--visualizer none`` / ``--viz none``. In headless XR the AR session starts automatically --
+   there is no viewport to click **Start XR** -- so Isaac Lab begins streaming as soon as a
+   CloudXR client connects. The ``--headless`` flag was removed in Isaac Lab 3.0; ``HEADLESS=1``
+   in the environment also forces headless.
 
 
 .. _connect-xr-device:
@@ -213,12 +349,12 @@ choose the tab that matches your hardware.
          start automatically.
 
       #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
-         `<https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`_.
+         `<https://nvidia.github.io/IsaacTeleop/client/release-1.4.x>`_.
 
          .. note::
 
-            The web client URL is versioned. The ``release-1.3.x`` path corresponds to the
-            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.3.0`` in the
+            The web client URL is versioned. The ``release-1.4.x`` path corresponds to the
+            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.4.0`` in the
             ``teleop`` extra of the root ``pyproject.toml``). When Isaac Lab bumps its Isaac
             Teleop pin, update this link to the matching client release.
 
@@ -271,12 +407,25 @@ choose the tab that matches your hardware.
          Apple Vision Pro requires the ``auto-native`` device profile. Pass the ``avp``
          shorthand when launching the teleop script:
 
-         .. code-block:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-                --visualizer kit --xr \
-                --cloudxr_env avp
+            .. tab-item:: uv (Recommended)
+
+               .. code-block:: bash
+
+                  uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                      --visualizer kit --xr \
+                      --cloudxr_env avp
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code-block:: bash
+
+                  ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                      --visualizer kit --xr \
+                      --cloudxr_env avp
 
          See :ref:`isaac-teleop-cloudxr-profiles` for details on the shipped profiles.
 
@@ -400,16 +549,33 @@ hand tracking from the headset is occluded or when higher-precision finger data 
    (optimised for headset optical hand tracking). To use Manus gloves, create a custom
    ``.env`` file with the value set to ``1`` and pass it via ``--cloudxr_env``:
 
-   .. code-block:: bash
+   .. tab-set::
 
-      # Copy a shipped profile and enable push devices
-      cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
-      sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+      .. tab-item:: uv (Recommended)
 
-      ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-          --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-          --visualizer kit --xr \
-          --cloudxr_env ~/manus.env
+         .. code-block:: bash
+
+            # Copy a shipped profile and enable push devices
+            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+
+            uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                --visualizer kit --xr \
+                --cloudxr_env ~/manus.env
+
+      .. tab-item:: isaaclab.sh / isaaclab.bat
+
+         .. code-block:: bash
+
+            # Copy a shipped profile and enable push devices
+            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+
+            ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                --visualizer kit --xr \
+                --cloudxr_env ~/manus.env
 
    See :ref:`isaac-teleop-cloudxr-profiles` for full details on customising profiles.
 
@@ -485,13 +651,27 @@ runtime command is needed.
 
 Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
-     --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-     --num_demos 5 \
-     --dataset_file ./datasets/dataset.hdf5 \
-     --xr --visualizer kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tools/record_demos.py \
+           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+           --num_demos 5 \
+           --dataset_file ./datasets/dataset.hdf5 \
+           --xr --visualizer kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+           --num_demos 5 \
+           --dataset_file ./datasets/dataset.hdf5 \
+           --xr --visualizer kit
 
 Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 

@@ -127,6 +127,25 @@ def test_ordering_resolvers_reject_invalid_kind(entrypoint: str) -> None:
             get_articulation_name_ordering(articulation, "physx", kind="dof")  # type: ignore[arg-type]
 
 
+def test_articulation_element_kind_registry_enforces_singletons() -> None:
+    """Resolve and enumerate registered kinds while rejecting duplicate labels."""
+    kind_cls = ordering_resolvers._ArticulationElementKind
+
+    assert kind_cls.resolve("joint") is ordering_resolvers._JOINT_KIND
+    assert kind_cls.resolve(ordering_resolvers._BODY_KIND) is ordering_resolvers._BODY_KIND
+    assert kind_cls.all() == (ordering_resolvers._JOINT_KIND, ordering_resolvers._BODY_KIND)
+
+    with pytest.raises(ValueError, match="duplicate articulation element kind 'joint'"):
+        kind_cls(
+            label="joint",
+            backend_names_attr="backend_joint_names",
+            relationship_name="isaac:physics:robotJoints",
+            name_override_attrs=("isaac:NameOverride", "isaac:nameOverride"),
+            config_field="joint_ordering",
+            matches_backend_spelling=True,
+        )
+
+
 def test_articulation_cfg_accepts_optional_ordering_fields() -> None:
     """Configure explicit or symbolic public articulation ordering."""
     explicit_joint_order = ("shoulder", "elbow", "wrist")
@@ -376,7 +395,7 @@ def test_mjwarp_ordering_helper_reports_actionable_cross_backend_failure(
     message = str(exc_info.value)
     assert f"Unable to resolve 'mjwarp' {kind} ordering" in message
     assert "active backend 'physx'" in message
-    assert f"env.scene.robot.{config_field}" in message
+    assert f"ArticulationCfg.{config_field}" in message
     assert f"explicit {kind}-name permutation" in message
     assert "mjwarp_usd_builder: the Newton USD builder returned no articulation names" in message
 
@@ -1330,7 +1349,6 @@ def test_ordering_state_lives_only_on_data() -> None:
 _NONIDENTITY_ORDERING = types.SimpleNamespace(
     user_to_backend_indices=(0, 2, 1),
     backend_to_user_indices=(0, 2, 1),
-    is_identity=False,
 )
 
 

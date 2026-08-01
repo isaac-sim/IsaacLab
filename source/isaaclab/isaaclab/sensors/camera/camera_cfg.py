@@ -190,6 +190,13 @@ class CameraCfg(SensorBaseCfg):
         on :attr:`renderer_cfg` instead.
     """
 
+    background_color: tuple[float, float, float] | None = None
+    """Background color for the camera as normalized RGB floats ``(red, green, blue)`` in ``[0, 1]``.
+
+    When set, pixels that miss all geometry are filled with this solid color.
+    When ``None`` (the default), each backend uses its own default background.
+    """
+
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
     """Renderer configuration for camera sensor."""
 

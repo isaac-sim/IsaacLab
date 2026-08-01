@@ -102,8 +102,8 @@ class TestFuseKitArgs:
         assert AppLauncher._fuse_kit_args(argv) == ["--kit_args=--foo=/a", "--task", "X", "--kit_args=--bar=/b"]
 
     def test_surrounding_tokens_are_preserved(self):
-        argv = ["--task", "X", "--kit_args", "--foo=/bar", "--headless"]
-        assert AppLauncher._fuse_kit_args(argv) == ["--task", "X", "--kit_args=--foo=/bar", "--headless"]
+        argv = ["--task", "X", "--kit_args", "--foo=/bar", "--num_envs", "16"]
+        assert AppLauncher._fuse_kit_args(argv) == ["--task", "X", "--kit_args=--foo=/bar", "--num_envs", "16"]
 
 
 class TestAddAppLauncherArgsNormalization:
@@ -155,7 +155,7 @@ class TestDispatchLibraryEntrypoint:
         assert received == ["--task", "X", "--kit_args=--foo=/bar"]
 
     def test_already_working_argv_forms_forwarded_unchanged(self, tmp_path):
-        argv = ["--task", "X", "--kit_args=--foo=/bar", "--kit_args", "--a=/x --b=/y", "--num_envs", "16", "--headless"]
+        argv = ["--task", "X", "--kit_args=--foo=/bar", "--kit_args", "--a=/x --b=/y", "--num_envs", "16"]
         received = self._dispatch(tmp_path, ["--rl_library", "stub", *argv])
         assert received == argv
 

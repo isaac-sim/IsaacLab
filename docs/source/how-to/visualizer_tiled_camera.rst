@@ -59,7 +59,7 @@ To run the tutorial with the args for this example, use:
 
 .. code-block:: bash
 
-   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py --enable_cameras --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
 
 Within the script, you’ll find the ``KitVisualizerCfg`` configuration used to
 generate this example. You can use this config as a template for your own use
@@ -74,8 +74,7 @@ camera is offset by ``(3.0, 3.0, 3.0)`` from each robot base. If you change ``ti
 In this example, there are 256 total environments, and we randomly sample 36 to stream to the
 tiled camera view.
 
-Also note that the Kit visualizer tiled camera view requires passing the
-``--enable_cameras`` CLI arg.
+The Kit visualizer tiled camera view does not require an additional camera option.
 
 
 Example Two: Streaming from Robot-Mounted Cameras

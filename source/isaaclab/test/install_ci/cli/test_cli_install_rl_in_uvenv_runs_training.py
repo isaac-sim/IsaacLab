@@ -10,15 +10,15 @@ Tests:
     - ./isaaclab.sh -i rl[rsl-rl] -> verify rsl_rl importable
     - ./isaaclab.sh -i rl[skrl] -> verify skrl importable
     - ./isaaclab.sh -i rl[sb3] -> verify stable_baselines3 importable
-    - ./isaaclab.sh -i newton,rl[rsl-rl] then ./isaaclab.sh -p scripts/reinforcement_learning/train.py
+    - ./isaaclab.sh -i newton,rl[rsl-rl] then uv run python scripts/reinforcement_learning/train.py
       --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 64 presets=newton_mjwarp
-      --max_iterations 5 --headless -> verify cartpole training with rsl_rl works
-    - ./isaaclab.sh -i newton,rl[skrl] then ./isaaclab.sh -p scripts/reinforcement_learning/train.py
+      --max_iterations 5 -> verify cartpole training with rsl_rl works
+    - ./isaaclab.sh -i newton,rl[skrl] then uv run python scripts/reinforcement_learning/train.py
       --rl_library skrl --task Isaac-Cartpole-Direct --num_envs 64 presets=newton_mjwarp
-      --max_iterations 5 --headless -> verify cartpole training with skrl works
-    - ./isaaclab.sh -i newton,rl[sb3] then ./isaaclab.sh -p scripts/reinforcement_learning/train.py
+      --max_iterations 5 -> verify cartpole training with skrl works
+    - ./isaaclab.sh -i newton,rl[sb3] then uv run python scripts/reinforcement_learning/train.py
       --rl_library sb3 --task Isaac-Cartpole-Direct --num_envs 64 presets=newton_mjwarp
-      --max_iterations 5 --headless -> verify cartpole training with sb3 works
+      --max_iterations 5 -> verify cartpole training with sb3 works
     - ./isaaclab.sh -i rl -> verify all RL frameworks installed
 """
 
@@ -101,7 +101,6 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
                     "presets=newton_mjwarp",
                     "--max_iterations",
                     "5",
-                    "--headless",
                 ],
                 cwd=isaaclab_root,
             )
@@ -140,7 +139,6 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
                     "presets=newton_mjwarp",
                     "--max_iterations",
                     "5",
-                    "--headless",
                 ],
                 cwd=isaaclab_root,
             )
@@ -179,7 +177,6 @@ class Test_Cli_Install_Rl_In_Uvenv_Runs_Training(UV_Mixin):
                     "presets=newton_mjwarp",
                     "--max_iterations",
                     "5",
-                    "--headless",
                 ],
                 cwd=isaaclab_root,
             )

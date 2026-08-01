@@ -15,10 +15,10 @@ does not require a GPU.
 
 Usage::
 
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --suite broad
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --iterations 100
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py \
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py --suite broad
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py --iterations 100
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py \
         --case cartpole:Isaac-Cartpole:: \
         --case anymal:IsaacContrib-Velocity-Rough-AnymalC::env.scene.num_envs=256
 
@@ -40,7 +40,7 @@ from dataclasses import dataclass
 
 import gymnasium
 
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
+from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
@@ -181,7 +181,7 @@ def _log_results(benchmark: BaseIsaacLabBenchmark, results: dict[Case, list[floa
             )
 
     benchmark.update_manual_recorders()
-    benchmark._finalize_impl()
+    benchmark.finalize()
 
 
 def main() -> int:

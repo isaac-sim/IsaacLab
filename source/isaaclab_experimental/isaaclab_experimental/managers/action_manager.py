@@ -20,9 +20,9 @@ from prettytable import PrettyTable
 
 from isaaclab.assets import AssetBase
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
+from isaaclab.managers.manager_term_cfg import ActionTermCfg
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv

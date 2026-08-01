@@ -10,15 +10,15 @@ which is required for VLA model inference.
 
 Usage:
     # Evaluate a trained checkpoint (config YAML in the same directory as play.py)
-    ./isaaclab.sh play --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
+    uv run isaaclab play --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
         --model_path /path/to/checkpoint
 
     # Evaluate with config YAML in a custom directory
-    ./isaaclab.sh play --rl_library rlinf --config_path /path/to/config/dir \\
+    uv run isaaclab play --rl_library rlinf --config_path /path/to/config/dir \\
         --config_name isaaclab_ppo_gr00t_assemble_trocar --model_path /path/to/checkpoint
 
     # Evaluate with video recording
-    ./isaaclab.sh play --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
+    uv run isaaclab play --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar \\
         --model_path /path/to/checkpoint --video
 
 Note:

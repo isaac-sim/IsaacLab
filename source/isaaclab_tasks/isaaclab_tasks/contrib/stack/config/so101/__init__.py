@@ -33,3 +33,16 @@ gym.register(
     },
     disable_env_checker=True,
 )
+
+##
+# Joint-Space Teleoperation (SO-101 leader arm)
+##
+
+gym.register(
+    id="IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.stack_joint_teleop_env_cfg:SO101CubeStackEnvCfg",
+    },
+    disable_env_checker=True,
+)

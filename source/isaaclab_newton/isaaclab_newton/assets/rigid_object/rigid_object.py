@@ -12,21 +12,19 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
+from newton import ModelFlags
 from newton.selection import ArticulationView
-from newton.solvers import SolverNotifyFlags
 
 from pxr import UsdPhysics
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
-from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
-from isaaclab.utils.version import has_kit
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
-from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .rigid_object_data import RigidObjectData
@@ -62,9 +60,6 @@ class RigidObject(BaseRigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        if has_kit():
-            queue_usd_replication(cfg)
-        queue_newton_physics_replication(cfg)
 
     """
     Properties
@@ -180,20 +175,29 @@ class RigidObject(BaseRigidObject):
     Operations - Finders.
     """
 
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return cached proxy indices. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            Matched body indices and names.
         """
-        return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        body_ids, body_names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        resolved_ids = self._resolve_finder_indices(body_ids, domain="body", as_proxy=as_proxy, legacy_type="list")
+        return resolved_ids, body_names
 
     """
     Operations - Write to simulation.
@@ -355,7 +359,7 @@ class RigidObject(BaseRigidObject):
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.set_root_link_pose_to_sim_index,
+            shared_kernels.set_root_link_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
@@ -454,7 +458,7 @@ class RigidObject(BaseRigidObject):
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
         wp.launch(
-            shared_kernels.set_root_com_pose_to_sim_index,
+            shared_kernels.set_root_com_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
@@ -560,7 +564,7 @@ class RigidObject(BaseRigidObject):
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.set_root_com_velocity_to_sim_index,
+            shared_kernels.set_root_com_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
@@ -667,7 +671,7 @@ class RigidObject(BaseRigidObject):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.
         wp.launch(
-            shared_kernels.set_root_link_velocity_to_sim_index,
+            shared_kernels.set_root_link_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
@@ -775,20 +779,26 @@ class RigidObject(BaseRigidObject):
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_body_mass_and_inverse_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
                 env_ids,
                 body_ids,
+                self._ALL_BODY_INDICES,
+                False,
+                self.data._sim_bind_body_inertia,
             ],
             outputs=[
-                self.data.body_mass,
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
             ],
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -818,20 +828,26 @@ class RigidObject(BaseRigidObject):
             body_mask = self._ALL_BODY_MASK
         self.assert_shape_and_dtype_mask(masses, (env_mask, body_mask), wp.float32, "masses")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            shared_kernels.write_body_mass_and_inverse_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
                 masses,
                 env_mask,
                 body_mask,
+                self._ALL_BODY_INDICES,
+                False,
+                self.data._sim_bind_body_inertia,
             ],
             outputs=[
-                self.data.body_mass,
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
             ],
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
@@ -865,7 +881,7 @@ class RigidObject(BaseRigidObject):
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_com_position_to_buffer_index,
+            shared_kernels.write_body_com_position_to_buffer_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
@@ -877,8 +893,9 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -925,8 +942,9 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
@@ -955,20 +973,26 @@ class RigidObject(BaseRigidObject):
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_index,
+            shared_kernels.write_body_inertia_and_inverse_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 inertias,
                 env_ids,
                 body_ids,
+                self._ALL_BODY_INDICES,
+                False,
+                self.data._sim_bind_body_mass,
             ],
             outputs=[
-                self.data.body_inertia,
+                self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
             ],
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -998,20 +1022,26 @@ class RigidObject(BaseRigidObject):
             body_mask = self._ALL_BODY_MASK
         self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_mask,
+            shared_kernels.write_body_inertia_and_inverse_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
                 inertias,
                 env_mask,
                 body_mask,
+                self._ALL_BODY_INDICES,
+                False,
+                self.data._sim_bind_body_mass,
             ],
             outputs=[
-                self.data.body_inertia,
+                self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
             ],
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     """
     Internal helper.
@@ -1094,10 +1124,6 @@ class RigidObject(BaseRigidObject):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
-        if isinstance(env_ids, torch.Tensor):
-            if env_ids.dtype == torch.int64:
-                env_ids = env_ids.to(torch.int32)
-            return wp.from_torch(env_ids, dtype=wp.int32)
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
@@ -1111,14 +1137,12 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
+        if isinstance(body_ids, ProxyArray):
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(body_ids, list):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
             return self._ALL_BODY_INDICES
-        if isinstance(body_ids, torch.Tensor):
-            if body_ids.dtype == torch.int64:
-                body_ids = body_ids.to(torch.int32)
-            return wp.from_torch(body_ids, dtype=wp.int32)
         return body_ids
 
     """

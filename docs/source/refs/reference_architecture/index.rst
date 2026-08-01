@@ -63,7 +63,7 @@ the following ways:
 
 1. Design your assets or robot in Isaac Sim and export the USD file.
 
-2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim converters. Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_, etc. More details are found in the `Importing Assets section`_ in the `Isaac Sim Reference Architecture`_.
+2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim converters. Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_, etc. More details are found in the `Importing Assets section`_ in the `Isaac Sim Reference Architecture`_. Isaac Lab's URDF and MJCF command-line converters can also run without Isaac Sim using the standalone importer wheel.
 
 3. If you already have the URDF or MJCF file of your robot, you do not need to convert to USD as Isaac Lab takes URDF and MJCF XML.
 
@@ -299,11 +299,11 @@ Isaac Lab supports scaling up training by taking advantage of multi-GPU and mult
 
 Cloud-Based Training
 ^^^^^^^^^^^^^^^^^^^^^^^^
-Isaac Lab can be deployed alongside Isaac Sim onto the public clouds with `Isaac Automator <https://github.com/isaac-sim/IsaacAutomator>`__. AWS, GCP, Azure, and Alibaba Cloud are currently supported. Follow the tutorial on `how to run Isaac Lab in the cloud <https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/cloud_installation.html>`__.
+Isaac Lab can be deployed alongside Isaac Sim onto public clouds with `Isaac Automator <https://github.com/isaac-sim/IsaacAutomator>`__. AWS, GCP, Azure, and Alibaba Cloud are currently supported. Follow the :ref:`docker-cloud-cloud` guide to run Isaac Lab in the cloud.
 
 .. note::
 
-  Both multi-GPU and multi-node jobs can be easily scaled across heterogeneous environments with `OSMO <https://developer.nvidia.com/osmo>`__, a cloud-native, orchestration platform for scheduling complex multi-stage and multi-container heterogeneous computing workflows. Isaac Lab also provides the tools to run your RL task in Docker. See more details on `container deployment <https://isaac-sim.github.io/IsaacLab/main/source/deployment/index.html>`__.
+  Both multi-GPU and multi-node jobs can be easily scaled across heterogeneous environments with `OSMO <https://developer.nvidia.com/osmo>`__, a cloud-native, orchestration platform for scheduling complex multi-stage and multi-container heterogeneous computing workflows. Isaac Lab also provides tools to run RL tasks in Docker. See :ref:`docker-cloud` for details.
 
 .. _ra-run-testing:
 

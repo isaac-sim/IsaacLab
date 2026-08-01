@@ -33,7 +33,6 @@ _TRAIN_CMD = [
     "presets=newton_mjwarp",
     "--max_iterations",
     "5",
-    "--headless",
 ]
 
 

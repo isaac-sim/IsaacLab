@@ -23,6 +23,10 @@ are still maturing, and the Isaac Lab integration ships a focused, validated set
 classic RL and flat-terrain locomotion environments. We have validated Newton
 simulation against PhysX by transferring learned policies in both directions and
 have successfully deployed a Newton-trained locomotion policy to a G1 robot.
+See :doc:`migrating-assets-from-physx-to-newton` to migrate an asset and physical
+model specifically from PhysX to Newton with MJWarp. Then use
+:doc:`/source/how-to/transfer_policies_between_physx_and_newton` to train and
+evaluate policy checkpoints in both directions.
 
 Newton can support `multiple solvers
 <https://newton-physics.github.io/newton/latest/api/newton_solvers.html>`_ for
@@ -31,9 +35,8 @@ the following solver pages:
 
 * :doc:`mjwarp-solver` — the primary, validated solver path.
 * :doc:`kamino-solver` — beta support on selected classic tasks.
-* :doc:`using-vbd-solver` — experimental VBD solver for cloth and soft bodies,
-  available through :mod:`isaaclab_contrib.deformable` and the MJWarp + VBD or
-  Featherstone + VBD coupled managers.
+* :doc:`using-vbd-solver`: experimental VBD solver for cloth and soft bodies,
+  with MJWarp and VBD proxy coupling through :mod:`isaaclab_contrib.coupling`.
 
 Each solver is exposed as a small subclass of
 :class:`~isaaclab_newton.physics.NewtonManager`. See
@@ -54,6 +57,7 @@ new backend, see :doc:`../../multi_backend_architecture`.
 
   installation
   supported-features
+  migrating-assets-from-physx-to-newton
   mjwarp-solver
   kamino-solver
   using-vbd-solver

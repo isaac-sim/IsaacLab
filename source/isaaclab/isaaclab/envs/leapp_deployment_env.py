@@ -364,7 +364,7 @@ class LeappDeploymentEnv:
         Returns:
             The initial input tensors (for logging / debugging).
         """
-        env_ids = [0]
+        env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
         self.scene.reset(env_ids)
 

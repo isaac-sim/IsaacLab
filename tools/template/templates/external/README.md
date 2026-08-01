@@ -22,7 +22,7 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
 - Using a python interpreter that has Isaac Lab installed, install the library in editable mode using:
 
     ```bash
-    # use 'PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+    # use 'uv run python' when running from an Isaac Lab workspace
     python -m pip install -e source/{{ name }}
 
 - Verify that the extension is correctly installed by:
@@ -33,14 +33,14 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
         (in the `scripts/list_envs.py` file) so that it can be listed.
 
         ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+        # use 'uv run python' when running from an Isaac Lab workspace
         python scripts/list_envs.py
         ```
 
     - Running a task:
 
         ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+        # use 'uv run python' when running from an Isaac Lab workspace
         python scripts/train.py --rl_library <RL_LIBRARY> --task=<TASK_NAME>
         ```
 
@@ -51,13 +51,13 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
         - Zero-action agent
 
             ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+            # use 'uv run python' when running from an Isaac Lab workspace
             python scripts/zero_agent.py --task=<TASK_NAME>
             ```
         - Random-action agent
 
             ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+            # use 'uv run python' when running from an Isaac Lab workspace
             python scripts/random_agent.py --task=<TASK_NAME>
             ```
 

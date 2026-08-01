@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import warp as wp
-from newton import BodyFlags, Contacts, Control, Model, ModelBuilder, State
+from newton import BodyFlags, Contacts, Control, GeoType, Model, ModelBuilder, State
 from newton.solvers import SolverImplicitMPM
 from warp.fem import TemporaryStore
 
@@ -73,12 +73,14 @@ class NewtonMPMManager(NewtonManager):
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
-        """Normalize kinematic rigid bodies before MPM solver construction.
+        """Normalize rigid colliders before MPM solver construction.
 
         Newton's implicit MPM solver treats positive-mass body colliders as
         finite-mass colliders. Isaac Lab kinematic assets can import with a
         computed mass, so clear mass and inertia for kinematic bodies to match
-        Newton's direct-builder MPM examples.
+        Newton's direct-builder MPM examples. The solver consumes mesh vertices
+        and indices but only accepts the triangle-mesh geometry type, so classify
+        convex meshes as meshes without changing their geometry.
         """
         kinematic_flag = int(BodyFlags.KINEMATIC)
         for body_id, flags in enumerate(builder.body_flags):
@@ -87,6 +89,9 @@ class NewtonMPMManager(NewtonManager):
                 builder.body_inv_mass[body_id] = 0.0
                 builder.body_inertia[body_id] = wp.mat33()
                 builder.body_inv_inertia[body_id] = wp.mat33()
+        for shape_id, shape_type in enumerate(builder.shape_type):
+            if shape_type == GeoType.CONVEX_MESH:
+                builder.shape_type[shape_id] = GeoType.MESH
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MPMSolverCfg) -> SolverImplicitMPM:
@@ -139,6 +144,21 @@ class NewtonMPMManager(NewtonManager):
         cls._solver.step(state_0, state_1, control, contacts, substep_dt)
         if cls._project_outside_colliders:
             cls._solver.project_outside(state_1, state_1, substep_dt)
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Skip the solver-internal reset for implicit MPM.
+
+        :meth:`SolverImplicitMPM.reset` only honors a per-world mask when the
+        solver runs one FEM environment per world (``Config.separate_worlds``).
+        With the shared topology Isaac Lab builds, a masked reset is rejected,
+        and a full reset would clear the particle history of environments that
+        were not reset. Leaving MPM history untouched on an environment reset
+        matches the solver's behavior before it gained :meth:`reset`.
+
+        Args:
+            world_mask: Per-world reset mask, ignored.
+        """
 
     @classmethod
     def _solver_specific_clear(cls) -> None:

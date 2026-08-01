@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
@@ -46,8 +46,8 @@ class SimulationCfg:
     physics_prim_path: str = "/physicsScene"
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
 
-    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
-    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg.
+    physics_material: RigidBodyMaterialBaseCfg = RigidBodyMaterialBaseCfg()
+    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialBaseCfg.
 
     The physics engine defaults to this physics material for all the rigid body prims that do not have any
     physics material specified on them.

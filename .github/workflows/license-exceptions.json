@@ -502,9 +502,9 @@
   {
     "package": "typing_extensions",
     "package_type": "Python",
-    "license": "Python Software Foundation License",
+    "license": "PSF-2.0",
     "license_aliases": [
-      "PSF-2.0"
+      "Python Software Foundation License"
     ],
     "usage": "runtime_dependency",
     "interaction": "same_process_dynamic",
