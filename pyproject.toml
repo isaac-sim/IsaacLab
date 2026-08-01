@@ -70,7 +70,7 @@ dependencies = [
     # OpenUSD (kit-less mode). Both packages vendor a complete ``pxr`` runtime, so
     # they must never co-install: usd-core supplies pxr where it has wheels (x86_64),
     # usd-exchange supplies it on aarch64 (where usd-core has no wheel).
-    "usd-core>=25.11,<26.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
+    "usd-core>=26.5,<27.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
     "usd-exchange>=2.2 ; platform_machine == 'aarch64'",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
@@ -381,6 +381,8 @@ environments = [
 # Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
 override-dependencies = [
     "numpy>=2",
+    # Override Newton's stale <26.5 importer bound; OpenUSD 26.5 fixes concurrent collider parsing.
+    "usd-core>=26.5,<27.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
     "mujoco~=3.10.0",
     "mujoco-warp~=3.10.0,>=3.10.0.2",
     "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@831076f52f14612aecace894c81270c1e0ed9479",
