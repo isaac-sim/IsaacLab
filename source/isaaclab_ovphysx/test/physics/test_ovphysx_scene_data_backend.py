@@ -18,6 +18,14 @@ import pytest
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _register_ovphysx_schemas_before_test_stages():
+    """Register OvPhysX schemas before this module creates any USD stage."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    OvPhysxManager._prepare_stage_creation()
+
+
 def _make_two_environment_stage():
     """Create an in-memory USD stage with one cube in each of two environments."""
     from pxr import Usd
@@ -529,8 +537,8 @@ def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
     assert destroyed == ["isaaclab"]
 
 
-def test_manager_keeps_existing_kit_physx_schema_provider(monkeypatch, tmp_path):
-    """Kit's registered ``physxSchema`` provider prevents duplicate wheel registration."""
+def test_manager_keeps_kit_physx_provider_and_registers_deformable_schema(monkeypatch, tmp_path):
+    """Keep Kit's PhysX provider while registering the wheel's deformable schema."""
     from isaaclab_ovphysx.physics import OvPhysxManager
 
     class FakeRegistry:
@@ -550,6 +558,8 @@ def test_manager_keeps_existing_kit_physx_schema_provider(monkeypatch, tmp_path)
     fake_pxr.Plug = SimpleNamespace(Registry=lambda: registry)
     fake_ovphysx = ModuleType("ovphysx")
     fake_ovphysx.__file__ = str(tmp_path / "ovphysx" / "__init__.py")
+    deformable_schema_path = tmp_path / "ovphysx" / "plugins" / "usd" / "OmniUsdPhysicsDeformableSchema" / "resources"
+    deformable_schema_path.mkdir(parents=True)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
     monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
 
@@ -561,7 +571,82 @@ def test_manager_keeps_existing_kit_physx_schema_provider(monkeypatch, tmp_path)
         OvPhysxManager._physx_schemas_registered = previous
 
     assert registry.get_all_calls == 1
-    assert registry.registered_paths == []
+    assert registry.registered_paths == [str(deformable_schema_path)]
+
+
+def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):
+    """Creating an eager preset alternative leaves global USD plugins unchanged."""
+    from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager
+
+    calls = []
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_ensure_physx_schemas_registered",
+        classmethod(lambda cls: calls.append(cls)),
+    )
+
+    OvPhysxCfg()
+
+    assert calls == []
+
+
+def test_ovphysx_manager_registers_schemas_during_pre_stage_setup(monkeypatch):
+    """The selected OvPhysX manager registers schemas in its pre-stage hook."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    calls = []
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_ensure_physx_schemas_registered",
+        classmethod(lambda cls: calls.append(cls)),
+    )
+
+    OvPhysxManager._prepare_stage_creation()
+
+    assert calls == [OvPhysxManager]
+
+
+def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkeypatch):
+    """Automatic kitless PhysX selection prepares OvPhysX before creating the USD stage."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    import isaaclab.sim.simulation_context as simulation_context_module
+    from isaaclab.app.sim_launcher import make_physics_cfg
+    from isaaclab.sim import SimulationCfg, SimulationContext
+
+    class StageCreationReached(Exception):
+        """Signal that initialization reached stage creation."""
+
+    class StubPhysxManager:
+        """Stand in for the Kit-only manager while recording its pre-stage hook."""
+
+        @classmethod
+        def _prepare_stage_creation(cls):
+            events.append("physx")
+
+    events = []
+    monkeypatch.setattr(simulation_context_module, "has_kit", lambda: False)
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_prepare_stage_creation",
+        classmethod(lambda cls: events.append("ovphysx")),
+    )
+
+    def _stop_at_stage_creation():
+        events.append("stage")
+        raise StageCreationReached
+
+    monkeypatch.setattr(simulation_context_module, "create_new_stage", _stop_at_stage_creation)
+    cfg = SimulationCfg(create_stage_in_memory=True)
+    physics_cfg = make_physics_cfg("physx")
+    physics_cfg.class_type = StubPhysxManager
+    cfg.physics = physics_cfg
+
+    with pytest.raises(StageCreationReached):
+        SimulationContext(cfg)
+
+    assert events == ["ovphysx", "stage"]
+    assert SimulationContext.instance() is None
 
 
 def _make_stub_binding(prim_paths: list[str]) -> SimpleNamespace:

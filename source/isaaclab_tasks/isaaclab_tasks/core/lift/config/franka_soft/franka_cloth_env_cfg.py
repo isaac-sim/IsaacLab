@@ -10,6 +10,9 @@ from __future__ import annotations
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
+from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -94,6 +97,8 @@ class PhysicsCfg(PresetCfg):
         use_cuda_graph=True,
     )
 
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+
     default = newton_mjwarp_vbd_proxy
 
 
@@ -121,6 +126,28 @@ class DeformableCfg(PresetCfg):
         ),
     )
 
+    ovphysx: DeformableObjectCfg = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Deformable",
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.2)),
+        spawn=sim_utils.MeshRectangleCfg(
+            size=(0.2, 0.2),
+            resolution=(30, 30),
+            deformable_props=PhysxDeformableBodyPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
+            physics_material=PhysxSurfaceDeformableBodyMaterialCfg(
+                density=50.0,
+                youngs_modulus=2000.0,
+                poissons_ratio=0.25,
+                surface_thickness=0.005,
+                surface_stretch_stiffness=0.8,
+                surface_shear_stiffness=0.7,
+                surface_bend_stiffness=0.6,
+                elasticity_damping=0.03,
+                bend_damping=0.04,
+            ),
+        ),
+    )
+
     default = newton_mjwarp_vbd_proxy
 
 
@@ -140,6 +167,27 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
         ),
     )
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+
+        # increase franka gripper stiffness
+        self.robot.actuators["panda_hand"].effort_limit_sim = 500.0
+        self.robot.actuators["panda_hand"].stiffness = 2000.0
+        self.robot.actuators["panda_hand"].damping = 100.0
+
+
+@configclass
+class FrankaClothScenePresetCfg(PresetCfg):
+    """Preset config for the Franka surface deformable scene."""
+
+    newton_mjwarp_vbd_proxy: FrankaClothSceneCfg = FrankaClothSceneCfg(
+        num_envs=128, env_spacing=2.5, replicate_physics=True
+    )
+
+    ovphysx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
+
+    default = newton_mjwarp_vbd_proxy
 
 
 @configclass
@@ -181,6 +229,23 @@ class EventCfg(FrankaSoftEventCfg):
     )
 
 
+def _make_ovphysx_event_cfg() -> EventCfg:
+    """Create cloth events that select all robot shapes on OvPhysX."""
+    cfg = EventCfg()
+    cfg.robot_physics_material.params["asset_cfg"] = SceneEntityCfg("robot")
+    return cfg
+
+
+@configclass
+class EventPresetCfg(PresetCfg):
+    """Preset config for Franka cloth startup and reset events."""
+
+    newton_mjwarp_vbd_proxy: EventCfg = EventCfg()
+    ovphysx: EventCfg = _make_ovphysx_event_cfg()
+
+    default = newton_mjwarp_vbd_proxy
+
+
 ##
 # Environment configuration
 ##
@@ -191,11 +256,11 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a surface deformable."""
 
     # Scene settings
-    scene: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
+    scene: FrankaClothScenePresetCfg = FrankaClothScenePresetCfg()
     # Basic settings
     actions: ActionsCfg = ActionsCfg()
     # MDP settings
-    events: EventCfg = EventCfg()
+    events: EventPresetCfg = EventPresetCfg()
 
     def __post_init__(self) -> None:
         # general settings
@@ -207,11 +272,6 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.sim.render_interval = self.decimation
 
         self.sim.physics = PhysicsCfg()
-
-        # increase franka gripper stiffness
-        self.scene.robot.actuators["panda_hand"].effort_limit_sim = 500.0
-        self.scene.robot.actuators["panda_hand"].stiffness = 2000.0
-        self.scene.robot.actuators["panda_hand"].damping = 100.0
 
 
 @configclass

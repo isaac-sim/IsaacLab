@@ -284,17 +284,18 @@ class OvPhysxManager(PhysicsManager):
     _physx_schemas_registered: ClassVar[bool] = False
 
     @classmethod
-    def _ensure_physx_schemas_registered(cls) -> None:
-        """Register the ``PhysxSchema`` USD plugin shipped with the ovphysx wheel.
+    def _prepare_stage_creation(cls) -> None:
+        """Register OvPhysX USD schemas before creating the selected backend's stage."""
+        cls._ensure_physx_schemas_registered()
 
-        In Kit-based runs ``omni.physx`` registers the schema; in kitless
-        runs it must be registered manually before the wheel can match
-        ``PhysxContactReportAPI`` and friends on the stage.  The wheel
-        bundles the plugin under ``ovphysx/plugins/usd/PhysxSchema``.  This
-        method is idempotent and leaves an existing Kit ``physxSchema``
-        provider authoritative. Registering the wheel's provider after Kit's
-        provider raises duplicate-type errors even though both plugins share
-        the same name.
+    @classmethod
+    def _ensure_physx_schemas_registered(cls) -> None:
+        """Register the PhysX and deformable USD schemas shipped with the ovphysx wheel.
+
+        Kit-based runs may already provide ``physxSchema``, while still lacking
+        ``omniUsdPhysicsDeformableSchema``. Each provider is therefore checked
+        independently to preserve Kit providers and register only missing wheel
+        schemas.
         """
         if cls._physx_schemas_registered:
             return
@@ -307,14 +308,19 @@ class OvPhysxManager(PhysicsManager):
         except Exception:
             return
         registry = Plug.Registry()
-        if any(plugin.name == "physxSchema" for plugin in registry.GetAllPlugins()):
-            cls._physx_schemas_registered = True
-            return
+        registered_plugin_names = {plugin.name for plugin in registry.GetAllPlugins()}
         plugin_root = os.path.join(os.path.dirname(ovphysx.__file__), "plugins", "usd")
-        for sub in ("PhysxSchema/resources", "PhysxSchemaAddition/resources"):
-            path = os.path.join(plugin_root, sub)
-            if os.path.isdir(path):
-                registry.RegisterPlugins(path)
+        plugin_paths_by_name = {
+            "physxSchema": ("PhysxSchema/resources", "PhysxSchemaAddition/resources"),
+            "omniUsdPhysicsDeformableSchema": ("OmniUsdPhysicsDeformableSchema/resources",),
+        }
+        for plugin_name, sub_paths in plugin_paths_by_name.items():
+            if plugin_name in registered_plugin_names:
+                continue
+            for sub_path in sub_paths:
+                path = os.path.join(plugin_root, sub_path)
+                if os.path.isdir(path):
+                    registry.RegisterPlugins(path)
         cls._physx_schemas_registered = True
 
     @classmethod
