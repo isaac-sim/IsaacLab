@@ -164,4 +164,3 @@ def test_discover_volume_prefers_named_visual_over_unrelated_child_mesh():
     assert len(entries) == 1
     assert entries[0].vis_mesh_path.endswith("/visual")
     assert entries[0].vis_vertex_count == 4
-
