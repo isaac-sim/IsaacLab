@@ -715,6 +715,26 @@ def test_actuator_cfg_matches_explicit_descendant_articulation_root(sim, device,
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
 
 
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("device", test_devices())
+def test_actuator_cfg_matches_clone_plan_root_glob(sim, device, articulation_type, monkeypatch):
+    """Match builder labels when clone-plan root resolution returns a glob."""
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/envs/env_.*/Robot",
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
+        )
+    )
+    monkeypatch.setattr(
+        "isaaclab_newton.assets.articulation.articulation.resolve_matching_prims_from_source",
+        lambda *_args, **_kwargs: [(None, "/World/envs/env_*/Robot/base")],
+    )
+    builder = _make_target_mode_builder(["joint"], [JointTargetMode.NONE], [0.0], [0.0])
+    builder.articulation_label = ["/World/envs/env_0/Robot/base"]
+    _dispatch_model_init(articulation, builder)
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
+
+
 @pytest.mark.parametrize("joint_type", [JointType.FREE, JointType.FIXED])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
 @pytest.mark.parametrize("device", test_devices())

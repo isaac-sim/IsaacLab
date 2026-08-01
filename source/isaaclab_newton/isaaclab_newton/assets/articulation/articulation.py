@@ -93,9 +93,9 @@ def _resolve_articulation_root_prim_path_expr(cfg: ArticulationCfg) -> str:
 
 def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None:
     """Resolve configured actuator gains into Newton builder target modes before finalization."""
-    root_prim_path_expr = _resolve_articulation_root_prim_path_expr(cfg)
+    root_prim_path_regex = _resolve_articulation_root_prim_path_expr(cfg).replace(".*", "*").replace("*", ".*")
     articulation_ids, _ = resolve_matching_names(
-        root_prim_path_expr, builder.articulation_label, raise_when_no_match=False
+        root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
     )
     for articulation_id in articulation_ids:
         joint_start = builder.articulation_start[articulation_id]
