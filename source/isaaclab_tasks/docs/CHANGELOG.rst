@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+10.0.0 (2026-08-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added RGB camera variants of the Franka deformable lift environments.
+* Added the ``ovphysx`` physics preset to the Franka soft-body and cloth lift
+  environments.
+
+* Added rendering-correctness coverage for the OvPhysX Franka deformable
+  environments.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the ``newton_mjwarp_vbd`` preset from
+  ``Isaac-Lift-Soft-Franka`` and ``Isaac-Lift-Cloth-Franka``. Both tasks now
+  default to ``newton_mjwarp_vbd_proxy``, which uses proxy coupling. Select
+  ``presets=newton_mjwarp_vbd_proxy`` explicitly, or import
+  :mod:`isaaclab_contrib.custom_coupling.tasks` and use its
+  ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task, which adds back a
+  ``newton_mjwarp_vbd`` preset for the manual coupler.
+* **Breaking:** Moved the Spot velocity environment from ``isaaclab_tasks.core``
+  to ``isaaclab_tasks.contrib`` and renamed its task ID from
+  ``Isaac-Velocity-Flat-Spot`` to ``IsaacContrib-Velocity-Flat-Spot``. Update
+  Python imports and ``gym.make`` / ``--task`` arguments to use the contributed
+  path and ID.
+* Unified the locomotion velocity physics presets to expose automatic PhysX
+  selection and the supported concrete PhysX and Newton backends.
+* Tuned the Newton and PhysX solver settings for the locomotion velocity
+  environments.
+
+Fixed
+^^^^^
+
+* Fixed the OvPhysX Franka deformable presets to replicate every configured
+  environment.
+
+
 9.3.0 (2026-07-31)
 ~~~~~~~~~~~~~~~~~~
 

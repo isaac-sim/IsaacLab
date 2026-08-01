@@ -20,7 +20,7 @@ Read the [sim-to-sim how-to](../../../docs/source/how-to/transfer_policies_betwe
 3. **Transferring control behavior.** Match nominal actuator response before tuning the policy. Distinguish rated and solver velocity limits, use per-joint effort, gains, friction, and armature, preserve `dt * decimation`, keep targets away from hard stops, and monitor saturation and action sign changes. Increase damping to prevent bang-bang control and retune it after increasing armature.
 4. **Introducing domain randomization.** Randomize plausible robot/object friction, object mass/inertia, joint gains/friction, joint armature, gravity, actuator response, reset pose/geometry, and observation noise. Keep inertia valid and coupled mechanisms coherent. If transfer needs extreme ranges, revisit the nominal model. Use curriculum when the final distribution blocks learning, promote to final deployment difficulty, and keep a separate deterministic nominal evaluation.
 5. **Validate the full matrix.** Evaluate PP, PN, NN, and NP. For each source policy, reproduce the same-backend baseline and deploy the exact checkpoint in the other backend.
-6. **Run the Franka lift transfer.** Use `Isaac-Lift-Franka` for training and `Isaac-Lift-Franka-Play` for inference, following the PhysX-to-MJWarp and MJWarp-to-PhysX commands in the how-to.
+6. **Run the Franka lift transfer.** Use `Isaac-Lift-Franka` for both training and inference. The play entry point applies the environment's `play_mode` overrides automatically. Follow the PhysX-to-MJWarp and MJWarp-to-PhysX commands in the how-to.
 
 ## Validation
 

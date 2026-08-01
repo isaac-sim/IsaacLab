@@ -58,7 +58,6 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorator for all interface tests
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
-
 # We also need to provide the fixture params that articulation_iface reads:
 _default_dims = pytest.mark.parametrize(
     "num_instances, num_joints, num_bodies",
@@ -68,6 +67,9 @@ _default_dims = pytest.mark.parametrize(
 _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 _index_resolution_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+)
+_production_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
 )
 
 
@@ -230,6 +232,39 @@ class TestArticulationFinders:
         indices, names = art.find_joints(first_joint)
         assert indices == [0]
         assert names == [first_joint]
+
+
+class TestArticulationFinderReturnModes:
+    """Test finder return modes on production articulation backends."""
+
+    @_production_backends
+    @pytest.mark.parametrize(
+        "finder_name",
+        ["find_bodies", "find_joints", "find_fixed_tendons", "find_spatial_tendons"],
+    )
+    def test_finder_returns_legacy_list_or_cached_proxy(self, backend, finder_name):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=2,
+            num_bodies=2,
+            num_fixed_tendons=2,
+            num_spatial_tendons=2,
+            device="cpu",
+        )
+        if backend == "newton" and finder_name == "find_spatial_tendons":
+            pytest.skip("Newton does not support spatial tendons.")
+        finder = getattr(art, finder_name)
+
+        indices, names = finder(".*")
+        proxy, proxy_names = finder(".*", as_proxy=True)
+
+        assert isinstance(indices, list)
+        assert indices == proxy.torch.tolist()
+        assert names == proxy_names
+        assert proxy is finder(".*", as_proxy=True)[0]
+        assert proxy.dtype == wp.int32
+        assert str(proxy.device) == art.device
 
 
 # ---------------------------------------------------------------------------
@@ -1195,6 +1230,30 @@ def _make_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
     return wp.from_torch(t.contiguous(), dtype=wp_dtype)
 
 
+def _make_com_data(backend: str, shape: tuple[int, ...], device: str) -> wp.array:
+    """Create backend-compatible center-of-mass test data."""
+    if backend == "newton":
+        return wp.zeros(shape, dtype=wp.vec3f, device=device)
+    return _make_data_warp(shape, device, wp.transformf)
+
+
+def _prime_timestamped_properties(data, property_buffer_pairs: list[tuple[str, str]]):
+    """Prime public lazy properties and return their concrete timestamped buffers."""
+    buffers = []
+    for property_name, buffer_name in property_buffer_pairs:
+        getattr(data, property_name)
+        buffer = getattr(data, buffer_name)
+        assert buffer is not None, buffer_name
+        buffer.timestamp = data._sim_timestamp
+        buffers.append((buffer_name, buffer))
+    return buffers
+
+
+def _assert_buffers_stale(data, buffers) -> None:
+    for name, buffer in buffers:
+        assert buffer.timestamp < data._sim_timestamp, name
+
+
 def _make_bad_data_torch(shape: tuple, device: str, wp_dtype=wp.float32) -> torch.Tensor:
     """Create torch data with wrong leading shape for negative testing.
 
@@ -1249,6 +1308,133 @@ _ROOT_VEL_METHODS = ["root_velocity", "root_link_velocity", "root_com_velocity"]
 
 class TestArticulationWritersRoot:
     """Test root pose/velocity writers with all input combinations."""
+
+    @_production_backends
+    @pytest.mark.parametrize(
+        "body_ordering",
+        [None, ("body_0", "body_3", "body_2", "body_1")],
+    )
+    def test_pose_write_invalidates_pose_dependent_caches(self, backend, body_ordering):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=3,
+            num_bodies=4,
+            device="cpu",
+            body_ordering=body_ordering,
+        )
+        art.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            art.data,
+            [
+                ("root_link_vel_w", "_root_link_vel_w"),
+                ("body_link_vel_w", "_body_link_vel_w"),
+                *([("body_com_vel_w", "_body_com_vel_w")] if backend != "newton" else []),
+                ("projected_gravity_b", "_projected_gravity_b"),
+                ("heading_w", "_heading_w"),
+                ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
+                ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
+                ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
+                ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
+            ],
+        )
+        if backend == "ovphysx" and art.data._body_com_vel_w_backend is not None:
+            buffers.append(("_body_com_vel_w_backend", art.data._body_com_vel_w_backend))
+        root_pose = _make_data_warp((art.num_instances,), "cpu", wp.transformf)
+        art.write_root_link_pose_to_sim_index(root_pose=root_pose)
+        _assert_buffers_stale(art.data, buffers)
+
+    @_production_backends
+    @pytest.mark.parametrize(
+        "body_ordering",
+        [None, ("body_0", "body_3", "body_2", "body_1")],
+    )
+    def test_velocity_write_invalidates_body_frame_caches(self, backend, body_ordering):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=3,
+            num_bodies=4,
+            device="cpu",
+            body_ordering=body_ordering,
+        )
+        art.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            art.data,
+            [
+                ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
+                ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
+                ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
+                ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
+            ],
+        )
+        root_velocity = _make_data_warp((art.num_instances,), "cpu", wp.spatial_vectorf)
+        art.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
+        _assert_buffers_stale(art.data, buffers)
+
+    @_production_backends
+    @pytest.mark.parametrize("setter_kind", ["index", "mask"])
+    @pytest.mark.parametrize(
+        "body_ordering",
+        [None, ("body_0", "body_3", "body_2", "body_1")],
+    )
+    def test_set_coms_invalidates_same_timestamp_dependents(self, backend, setter_kind, body_ordering):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=3,
+            num_bodies=4,
+            device="cpu",
+            body_ordering=body_ordering,
+        )
+        art.data.update(dt=0.01)
+        common_pairs = [
+            ("root_com_pose_w", "_root_com_pose_w"),
+            ("root_link_vel_w", "_root_link_vel_w"),
+            ("body_com_pose_w", "_body_com_pose_w"),
+            ("body_link_vel_w", "_body_link_vel_w"),
+            ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
+            ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
+            ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
+            ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
+        ]
+        if backend != "newton":
+            common_pairs += [
+                ("root_com_vel_w", "_root_com_vel_w"),
+                ("body_com_vel_w", "_body_com_vel_w"),
+            ]
+        state_buffer_suffix = "_buf" if backend == "ovphysx" else ""
+        common_pairs += [
+            ("root_state_w", f"_root_state_w{state_buffer_suffix}"),
+            ("root_link_state_w", f"_root_link_state_w{state_buffer_suffix}"),
+            ("root_com_state_w", f"_root_com_state_w{state_buffer_suffix}"),
+            ("body_state_w", f"_body_state_w{state_buffer_suffix}"),
+            ("body_link_state_w", f"_body_link_state_w{state_buffer_suffix}"),
+            ("body_com_state_w", f"_body_com_state_w{state_buffer_suffix}"),
+        ]
+        # Prime public properties before resolving private buffers so Newton allocates lazy caches.
+        buffers = _prime_timestamped_properties(art.data, common_pairs)
+        if backend == "newton":
+            buffers += _prime_timestamped_properties(art.data, [("body_com_pose_b", "_body_com_pose_b")])
+        coms = _make_com_data(backend, (art.num_instances, art.num_bodies), "cpu")
+
+        def set_coms() -> None:
+            if setter_kind == "index":
+                kwargs = {} if backend != "physx" else {"full_data": True}
+                art.set_coms_index(coms=coms, **kwargs)
+            else:
+                art.set_coms_mask(coms=coms)
+
+        if backend == "newton":
+            from unittest.mock import patch
+
+            from isaaclab_newton.physics import NewtonManager
+
+            with patch.object(NewtonManager, "add_model_change"):
+                set_coms()
+        else:
+            set_coms()
+        _assert_buffers_stale(art.data, buffers)
 
     # -- index variants --
 
@@ -2497,6 +2683,7 @@ class TestArticulationWritersTendonToSim:
         art.write_fixed_tendon_properties_to_sim_index()
         # subset envs
         art.write_fixed_tendon_properties_to_sim_index(env_ids=_make_env_ids(device, True))
+        art.write_fixed_tendon_properties_to_sim_index(fixed_tendon_ids=wp.array([0], dtype=wp.int64, device=device))
 
     @_tendon_backends
     @_tendon_dims
@@ -2520,6 +2707,7 @@ class TestArticulationWritersTendonToSim:
         art.write_fixed_tendon_properties_to_sim_mask()
         # partial env mask
         art.write_fixed_tendon_properties_to_sim_mask(env_mask=_make_env_mask(num_instances, device, True))
+        art.write_fixed_tendon_properties_to_sim_mask(fixed_tendon_mask=_make_item_mask(num_fixed_tendons, [0], device))
 
     @_tendon_backends
     @_tendon_dims
@@ -2543,6 +2731,9 @@ class TestArticulationWritersTendonToSim:
         art.write_spatial_tendon_properties_to_sim_index()
         # subset envs
         art.write_spatial_tendon_properties_to_sim_index(env_ids=_make_env_ids(device, True))
+        art.write_spatial_tendon_properties_to_sim_index(
+            spatial_tendon_ids=wp.array([0], dtype=wp.int64, device=device)
+        )
 
     @_tendon_backends
     @_tendon_dims
@@ -2566,3 +2757,6 @@ class TestArticulationWritersTendonToSim:
         art.write_spatial_tendon_properties_to_sim_mask()
         # partial env mask
         art.write_spatial_tendon_properties_to_sim_mask(env_mask=_make_env_mask(num_instances, device, True))
+        art.write_spatial_tendon_properties_to_sim_mask(
+            spatial_tendon_mask=_make_item_mask(num_spatial_tendons, [0], device)
+        )
