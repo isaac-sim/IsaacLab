@@ -34,6 +34,7 @@ from isaaclab.scene_data.deformable_discovery import (
     resolve_deformable_vertex_count,
 )
 
+from isaaclab_ovphysx._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ovphysx._runtime import import_ovphysx
 
 if TYPE_CHECKING:
@@ -372,15 +373,12 @@ class OvPhysxManager(PhysicsManager):
     # :meth:`_release_physx`); we mirror it here so a clear Python error is raised
     # if a later :class:`~isaaclab.sim.SimulationContext` requests a different device.
     _locked_device: ClassVar[str | None] = None
-    # Active (source, targets, parent_positions) replication recipes for the
-    # current SimulationContext. They survive the consumable pending queue so a
-    # forced re-warmup can rebuild serialized or runtime-only clones.
-    # parent_positions is a list of (x, y, z) tuples — one per target.
-    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
+    # Active clone recipes survive the consumable pending queue so a forced
+    # re-warmup can rebuild serialized-stage or runtime-only clones.
+    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
     # Consumable snapshot of the active recipes. Full-stage warmup materializes
-    # these into the temporary export; env_0-only warmup replays them with
-    # physx.clone().
-    _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
+    # these into serialized USDA; env-0-only warmup replays them with physx.clone().
+    _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
 
@@ -410,25 +408,23 @@ class OvPhysxManager(PhysicsManager):
     def register_clone(
         cls, source: str, targets: list[str], parent_positions: list[tuple[float, float, float]] | None = None
     ) -> None:
-        """Register a clone recipe for the current simulation context.
-
-        Called by :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate` during
-        scene setup, before the PhysX instance exists. Full-stage warmups
-        materialize the recipe in the serialized USD stage before attaching
-        OVStage; env_0-only warmups replay it through
-        ``physx.clone()`` after loading. Recipes are retained so forced
-        re-warmups rebuild the same physics topology.
+        """Queue clones at the given world positions with identity rotations.
 
         Args:
             source: Source prim path (env_0 articulation root).
             targets: Target prim paths for env_1..N.
-            parent_positions: World positions (x, y, z) for each target's parent
-                Xform prim (e.g. /World/envs/env_N).  When provided the clone
-                plugin sets those transforms in Fabric so all environments start
-                at their correct grid locations, preventing solver divergence
-                during the warmup step.
+            parent_positions: Final world positions (x, y, z) [m] for whole-environment
+                target roots. Each position uses an identity rotation.
         """
-        recipe = (source, list(targets), list(parent_positions or []))
+        target_transforms = clone_transforms_from_positions(parent_positions or [])
+        cls._register_clone_transforms(source, targets, target_transforms)
+
+    @classmethod
+    def _register_clone_transforms(
+        cls, source: str, targets: list[str], target_transforms: list[CloneTransform]
+    ) -> None:
+        """Register final target-root world poses for the current simulation context."""
+        recipe = (source, list(targets), list(target_transforms))
         cls._active_clone_recipes.append(recipe)
         cls._pending_clones.append(recipe)
 
@@ -436,8 +432,8 @@ class OvPhysxManager(PhysicsManager):
     def _rearm_pending_clones(cls) -> None:
         """Refresh the consumable clone queue from active context recipes."""
         cls._pending_clones = [
-            (source, list(targets), list(parent_positions))
-            for source, targets, parent_positions in cls._active_clone_recipes
+            (source, list(targets), list(target_transforms))
+            for source, targets, target_transforms in cls._active_clone_recipes
         ]
 
     _physx_schemas_registered: ClassVar[bool] = False
@@ -796,7 +792,7 @@ class OvPhysxManager(PhysicsManager):
         if requires_full_stage:
             return
 
-        for source, targets, parent_positions in pending_clones:
+        for source, targets, target_transforms in pending_clones:
             if not targets:
                 continue
             logger.info(
@@ -806,10 +802,7 @@ class OvPhysxManager(PhysicsManager):
                 targets[0],
                 targets[-1],
             )
-            if parent_positions:
-                transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
-            else:
-                transforms = None
+            transforms = target_transforms or None
             op_idx = physx.clone(source, targets, transforms)
             physx.wait_op(op_idx)
 
