@@ -380,17 +380,23 @@ jobs:
       with:
         fetch-depth: 1
         lfs: true
+    - name: Resolve OVPhysX runtime pin from pyproject
+      if: matrix.runtime-group == 'non-kit'
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        # deformables.py tetrahedralizes its volume meshes at startup
+        extra-pip-packages: >-
+          pytetwild[all]>=0.3.0,<0.4
+          ${{ steps.ov_pins.outputs.ovphysx }}
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: ${{ matrix.runtime-group }}
-        # deformables.py tetrahedralizes its volume meshes at startup
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         result-file: "test-standalone-demos-${{ matrix.runtime-group }}-report.xml"
         container-name: isaac-lab-standalone-demos-${{ matrix.runtime-group }}-test
         omni-github-test-type: standalone-demo
@@ -591,7 +597,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
-        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
+        # Volume deformable tests tetrahedralize their meshes at startup.
+        extra-pip-packages: pytetwild[all]>=0.3.0,<0.4 ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         container-name: isaac-lab-ov-test
