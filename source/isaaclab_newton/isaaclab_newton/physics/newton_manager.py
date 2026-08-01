@@ -243,9 +243,7 @@ def _scatter_reset_masks_from_ids(
     fk_mask[articulation_ids[world, arti]] = True
 
 
-_SCATTER_RESET_MASKS_FROM_IDS_DISPATCHER = IndexKernelDispatcher(
-    _scatter_reset_masks_from_ids, ("env_ids",)
-)
+_SCATTER_RESET_MASKS_FROM_IDS_DISPATCHER = IndexKernelDispatcher(_scatter_reset_masks_from_ids, ("env_ids",))
 
 
 def _scatter_reset_masks_from_ids_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
