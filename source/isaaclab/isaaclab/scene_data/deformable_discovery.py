@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import re
-import weakref
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -37,21 +36,6 @@ class DeformableStageEntry:
     vis_indices: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int32))
     init_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
     init_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
-
-
-_DISCOVERY_CACHE: weakref.WeakKeyDictionary[Usd.Stage, list[DeformableStageEntry]] = weakref.WeakKeyDictionary()
-
-
-def invalidate_deformable_discovery_cache(stage: Usd.Stage | None = None) -> None:
-    """Clear cached deformable discovery results.
-
-    Args:
-        stage: When provided, drop only the cache entry for this stage. Otherwise clear all.
-    """
-    if stage is None:
-        _DISCOVERY_CACHE.clear()
-        return
-    _DISCOVERY_CACHE.pop(stage, None)
 
 
 def _matrix4d_to_numpy(matrix: Gf.Matrix4d) -> np.ndarray:
@@ -240,19 +224,19 @@ def _classify_deformable_meshes(
     )
 
 
-def discover_deformables_on_stage(stage: Usd.Stage, *, use_cache: bool = True) -> list[DeformableStageEntry]:
+def discover_deformables_on_stage(stage: Usd.Stage) -> list[DeformableStageEntry]:
     """Discover PhysX/OVPhysX deformable bodies under ``stage``.
+
+    Callers that need the result in more than one place should keep the returned
+    list and pass it explicitly (for example via ``entries=``) rather than relying
+    on a process-global stage cache.
 
     Args:
         stage: USD stage to traverse.
-        use_cache: When ``True``, reuse cached results for the same stage object identity.
 
     Returns:
         One :class:`DeformableStageEntry` per prim with ``OmniPhysicsDeformableBodyAPI``.
     """
-    if use_cache and stage in _DISCOVERY_CACHE:
-        return _DISCOVERY_CACHE[stage]
-
     entries: list[DeformableStageEntry] = []
     for prim in stage.Traverse():
         if not _prim_has_schema(prim, "OmniPhysicsDeformableBodyAPI"):
@@ -288,8 +272,6 @@ def discover_deformables_on_stage(stage: Usd.Stage, *, use_cache: bool = True) -
                 vis_indices=vis_indices,
             )
         )
-    if use_cache:
-        _DISCOVERY_CACHE[stage] = entries
     return entries
 
 

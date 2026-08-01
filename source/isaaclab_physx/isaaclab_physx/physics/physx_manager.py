@@ -246,10 +246,6 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if stage is None or self._simulation_view is None:
             return
 
-        from isaaclab.scene_data.deformable_discovery import invalidate_deformable_discovery_cache
-
-        # PhysX cooking may rewrite tet meshes after an earlier stage walk.
-        invalidate_deformable_discovery_cache(stage)
         entries = discover_deformables_on_stage(stage)
         if not entries:
             return

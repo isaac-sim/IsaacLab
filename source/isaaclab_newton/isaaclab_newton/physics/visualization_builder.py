@@ -14,11 +14,7 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
-from isaaclab.scene_data.deformable_discovery import (
-    DeformableStageEntry,
-    discover_deformables_on_stage,
-    invalidate_deformable_discovery_cache,
-)
+from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, discover_deformables_on_stage
 from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 from isaaclab_newton.cloner.newton_clone_utils import (
@@ -100,9 +96,7 @@ def build_visualization_builder_from_stage_envs(
     """
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     builder = ModelBuilder(up_axis=up_axis)
-    # Discover after PhysX cooking when possible; invalidate so we never reuse a
-    # pre-cook tet topology that disagrees with the live SceneData backend.
-    invalidate_deformable_discovery_cache(stage)
+    # Discover once and reuse via ``entries=`` below (ignore paths + shadow add).
     deformable_entries = discover_deformables_on_stage(stage)
 
     if clone_plan is None:
