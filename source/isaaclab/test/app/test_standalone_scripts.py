@@ -234,6 +234,25 @@ def test_commands_respect_script_launcher_capabilities():
     assert "--enable_cameras" in ray_camera_case.command()
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "scripts/demos/sensors/cameras.py",
+        "scripts/demos/sensors/contact_sensor.py",
+        "scripts/demos/sensors/frame_transformer_sensor.py",
+        "scripts/demos/sensors/imu_sensor.py",
+        "scripts/demos/sensors/multi_mesh_raycaster_camera.py",
+        "scripts/demos/sensors/pva_sensor.py",
+        "scripts/demos/sensors/raycaster_sensor.py",
+        "scripts/demos/sensors/tacsl_sensor.py",
+    ],
+)
+def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path):
+    """PhysX-only sensor demos must accept their documented backend explicitly."""
+    spec = next(spec for spec in SPECS if spec.relative_path == relative_path)
+    assert spec.physics_backends == (("--physics", "isaacsim_physx"),)
+
+
 def test_multi_mesh_raycaster_opens_requested_rerun_viewer():
     """The interactive raycaster demo must open Rerun when the user explicitly requests it."""
     path = script_cases.ROOT / "scripts/demos/sensors/multi_mesh_raycaster.py"
