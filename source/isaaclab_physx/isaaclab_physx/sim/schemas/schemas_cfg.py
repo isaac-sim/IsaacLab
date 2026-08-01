@@ -96,7 +96,7 @@ class PhysXDeformableBodyPropertiesCfg:
     r"""Distance below which self-collision is disabled [m].
 
     The default value of -inf indicates that the simulation selects a suitable value.
-    Constrained to range [:attr:`rest_offset` \* 2, inf].
+    Constrained to range [:attr:`~isaaclab.sim.schemas.CollisionBaseCfg.rest_offset` \* 2, inf].
     """
 
     enable_speculative_c_c_d: bool | None = None
@@ -133,47 +133,9 @@ class PhysXDeformableBodyPropertiesCfg:
 
 
 @configclass
-class PhysxDeformableCollisionPropertiesCfg:
-    """PhysX-specific collision properties for a deformable body.
-
-    These properties are set with the prefix ``physxCollision:<property_name>``.
-
-    See the PhysX documentation for more information on the available properties.
-
-    .. note::
-        This class is distinct from
-        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg` (lowercase x),
-        which is the rigid-body collision cfg layered on
-        :class:`~isaaclab.sim.schemas.CollisionBaseCfg`. This class is used internally
-        as a base of :class:`DeformableBodyPropertiesCfg`.
-    """
-
-    _usd_namespace: ClassVar[str | None] = "physxCollision"
-    _usd_applied_schema: ClassVar[str | None] = "PhysxCollisionAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
-
-    contact_offset: float | None = None
-    """Contact offset for the collision shape [m].
-
-    The collision detector generates contact points as soon as two shapes get closer than the sum of their
-    contact offsets. This quantity should be non-negative which means that contact generation can potentially start
-    before the shapes actually penetrate.
-    """
-
-    rest_offset: float | None = None
-    """Rest offset for the collision shape [m].
-
-    The rest offset quantifies how close a shape gets to others at rest, At rest, the distance between two
-    vertically stacked objects is the sum of their rest offsets. If a pair of shapes have a positive rest
-    offset, the shapes will be separated at rest by an air gap.
-    """
-
-
-@configclass
 class PhysxDeformableBodyPropertiesCfg(
     OmniPhysicsDeformableBodyPropertiesCfg,
     PhysXDeformableBodyPropertiesCfg,
-    PhysxDeformableCollisionPropertiesCfg,
 ):
     """PhysX-specific properties to apply to a deformable body.
 
@@ -181,10 +143,12 @@ class PhysxDeformableBodyPropertiesCfg(
     The configuration allows users to specify the properties of the deformable body,
     such as the solver iteration counts, damping, and self-collision.
 
-    An FEM-based deformable body is created by providing a collision mesh and simulation mesh. The collision mesh
-    is used for collision detection and the simulation mesh is used for simulation.
+    An FEM-based deformable body is simulated on a simulation mesh, which also acts as its collider.
 
     See :meth:`modify_deformable_body_properties` for more information.
+
+    .. note::
+        Collision offsets belong on the mesh spawner's ``collision_props``, not here.
 
     .. note::
         If the values are :obj:`None`, they are not modified. This is useful when you want to set only a subset of

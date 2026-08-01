@@ -142,7 +142,7 @@ def test_prim_world_positions_prefers_scene_articulation_state():
             root_pos_w=SimpleNamespace(torch=torch.zeros((2, 3))),
             body_pos_w=SimpleNamespace(torch=body_pos_w),
         ),
-        find_bodies=lambda name: ([0], [name]),
+        find_bodies=lambda name, **_: ([0], [name]),
     )
     scene = SimpleNamespace(articulations={"robot": articulation})
 

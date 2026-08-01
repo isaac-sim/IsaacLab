@@ -1,6 +1,41 @@
 Changelog
 ---------
 
+2.4.1 (2026-08-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a shadow Newton visualization path for PhysX/OVPhysX deformables that syncs
+  SceneData nodal positions into ``particle_q``, using dual sim/vis particle layouts
+  and barycentric remapping when volume visual meshes differ from tet simulation
+  topology.
+* Added the ``as_proxy`` return-mode option to Newton asset finder methods.
+  ``as_proxy=False`` is the default and returns the legacy selector
+  representation, while ``as_proxy=True`` opts into cached
+  :class:`~isaaclab.utils.warp.ProxyArray` selectors. Pass their explicit
+  ``.warp`` or ``.torch`` views to downstream APIs.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`
+  to always copy SceneData transforms and points into the bound shadow
+  ``body_q`` / ``particle_q`` buffers instead of aliasing backend arrays, so
+  ``get_state()`` consumers keep stable buffer identities across syncs.
+* Cached stable articulation and rigid asset read launches outside CUDA graph
+  capture on Newton. No user migration is required.
+
+Fixed
+^^^^^
+
+* Fixed Newton indexed articulation writes to accept signed 32-bit and signed
+  64-bit selectors without allocating a Torch conversion tensor.
+* Fixed stale pose-, velocity-, and center-of-mass-derived rigid asset data
+  immediately after simulation state and property writes.
+
+
 2.4.0 (2026-07-31)
 ~~~~~~~~~~~~~~~~~~
 

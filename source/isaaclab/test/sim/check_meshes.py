@@ -40,6 +40,7 @@ import random
 import numpy as np
 import torch
 import tqdm
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg
 
 import isaaclab.sim as sim_utils
 
@@ -126,8 +127,8 @@ def design_scene():
         # randomly decide if it is rigid or deformable
         if random.random() < 0.5:
             obj_cfg.rigid_props = None
-            obj_cfg.collision_props = None
-            obj_cfg.deformable_props = sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0)
+            obj_cfg.deformable_props = sim_utils.DeformableBodyPropertiesCfg()
+            obj_cfg.collision_props = [PhysxCollisionCfg(rest_offset=0.0)]
         else:
             obj_cfg.deformable_props = None
             obj_cfg.rigid_props = sim_utils.RigidBodyPropertiesCfg()

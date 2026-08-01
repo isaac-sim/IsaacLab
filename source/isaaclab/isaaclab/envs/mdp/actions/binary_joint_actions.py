@@ -54,8 +54,9 @@ class BinaryJointAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
-        self._num_joints = len(self._joint_ids)
+        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=True)
+        self._num_joints = len(joint_ids)
+        self._joint_ids = joint_ids.warp
         # log the resolved joint names for debugging
         logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"

@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.12.0 (2026-08-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added LEAPP policy export support for RL-Games, skrl, and
+  Stable-Baselines3.
+* Added the ``leapp`` optional dependency group for uv-based export and
+  deployment workflows.
+
+
 0.11.0 (2026-07-31)
 ~~~~~~~~~~~~~~~~~~~
 
