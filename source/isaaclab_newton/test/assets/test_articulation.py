@@ -626,6 +626,7 @@ def test_viscous_writer_updates_finalized_newton_model(monkeypatch):
     articulation = object.__new__(Articulation)
     articulation._device = "cpu"
     articulation._data = data
+    articulation._root_view = SimpleNamespace(count=1)
     articulation._ALL_INDICES = wp.array([0], dtype=wp.int32, device="cpu")
     articulation._ALL_JOINT_INDICES = wp.array([0], dtype=wp.int32, device="cpu")
     articulation._initialize_handle = None
