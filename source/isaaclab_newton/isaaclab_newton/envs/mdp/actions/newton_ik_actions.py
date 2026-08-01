@@ -167,8 +167,8 @@ class NewtonInverseKinematicsAction(ActionTerm):
         if not self._asset.is_fixed_base:
             raise ValueError("NewtonInverseKinematicsAction currently supports fixed-base articulations only.")
 
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
-        self._joint_ids_warp = wp.array(self._joint_ids, dtype=wp.int32, device=self.device)
+        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=True)
+        self._joint_ids = joint_ids.warp
 
         pose_cfgs = [obj for obj in self.cfg.objectives if isinstance(obj, NewtonIKPoseObjectiveCfg)]
         if not pose_cfgs:
@@ -321,7 +321,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
             inputs=[solved, self._controlled_ids, self._joint_pos_des],
             device=self.device,
         )
-        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids_warp)
+        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         env_ids = slice(None) if env_ids is None else env_ids

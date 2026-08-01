@@ -31,6 +31,12 @@ _THIS_SCRIPT = Path(__file__).resolve()
 _EXPORT_BATCH_SIZE = 8
 _EXPORT_BATCH_TIMEOUT = 600
 _OUTPUT_TAIL_CHARS = 5000
+_PROCESS_FAILURE_PATTERNS = (
+    "Traceback (most recent call last):",
+    "FileNotFoundError:",
+    "[ERROR]",
+    "Segmentation fault",
+)
 
 
 # Tasks with confirmed pretrained checkpoints (Direct and no-checkpoint tasks excluded).
@@ -107,6 +113,18 @@ def _leapp_log_tail(export_dir: str) -> str:
     with open(log_txt_path) as f:
         last_lines = f.readlines()[-50:]
     return f"\n--- leapp log.txt (last 50 lines) ---\n{''.join(last_lines)}"
+
+
+def _fail_on_process_error(result: subprocess.CompletedProcess[str], task_names: list[str]) -> None:
+    """Fail when Isaac Sim reports an error but exits with a successful status."""
+    output = f"{result.stdout}\n{result.stderr}"
+    for pattern in _PROCESS_FAILURE_PATTERNS:
+        if pattern in output:
+            pytest.fail(
+                f"export batch reported {pattern!r} for {task_names}.\n"
+                f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
+                f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
+            )
 
 
 def _load_export_module():
@@ -288,6 +306,19 @@ def test_recurrent_state_helpers_support_modular_rnn_model_lstm():
     assert policy.rnn.hidden_state is registered_state
 
 
+def test_export_flow_fails_on_sim_traceback():
+    """Catch simulator failures even when the process reports success."""
+    result = subprocess.CompletedProcess(
+        args=["export-flow"],
+        returncode=0,
+        stdout="Traceback (most recent call last):\nFileNotFoundError: missing asset",
+        stderr="",
+    )
+
+    with pytest.raises(pytest.fail.Exception):
+        _fail_on_process_error(result, ["Isaac-Reach-Franka"])
+
+
 @pytest.mark.parametrize("task_names", _task_batches(TASKS), ids=_batch_id)
 def test_export_flow(task_names: list[str]):
     """Run export.py for a task batch and assert the expected artifacts are created."""
@@ -314,6 +345,8 @@ def test_export_flow(task_names: list[str]):
             f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
             f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
         )
+
+    _fail_on_process_error(result, task_names)
 
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "--export-flow-batch":

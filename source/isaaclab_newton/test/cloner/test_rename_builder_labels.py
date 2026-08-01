@@ -415,10 +415,14 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: "newton"),
             mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: "physx"),
         ):
-            result = visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], None)
+            result, (shadow_entities, registry_groups) = (
+                visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], None)
+            )
 
         self.assertIs(result, builder)
-        builder.add_usd.assert_called_once_with(stage, schema_resolvers=["newton", "physx"])
+        self.assertEqual(shadow_entities, [])
+        self.assertEqual(registry_groups, [])
+        builder.add_usd.assert_called_once_with(stage, schema_resolvers=["newton", "physx"], ignore_paths=None)
 
     def test_visualization_builder_rejects_clone_plan_without_environment_paths(self):
         """A cloned scene must not be cached as an incomplete single-world model."""
@@ -465,7 +469,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(newton_clone_utils_module.solvers.SolverMuJoCo, "register_custom_attributes"),
             mock.patch.object(newton_clone_utils_module.solvers.SolverKamino, "register_custom_attributes"),
         ):
-            builder = visualization_builder_module.build_visualization_builder_from_stage_envs(
+            builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_stage_envs(
                 stage, env_paths, clone_plan
             )
 
