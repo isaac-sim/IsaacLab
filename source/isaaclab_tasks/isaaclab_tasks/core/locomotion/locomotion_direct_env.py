@@ -94,7 +94,8 @@ class LocomotionDirectEnv(DirectRLEnv):
             joint_gears = self.cfg.joint_gears
         self.joint_gears = torch.tensor(joint_gears, dtype=torch.float32, device=self.sim.device)
         self.motor_effort_ratio = torch.ones_like(self.joint_gears, device=self.sim.device)
-        self._joint_dof_idx, _ = self.robot.find_joints(".*")
+        joint_dof_idx, _ = self.robot.find_joints(".*", as_proxy=True)
+        self._joint_dof_idx = joint_dof_idx.warp
 
         self.potentials = torch.zeros(self.num_envs, dtype=torch.float32, device=self.sim.device)
         self.prev_potentials = torch.zeros_like(self.potentials)

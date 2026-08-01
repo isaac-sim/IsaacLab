@@ -14,7 +14,8 @@ from pathlib import Path
 from .._cli import parse_non_negative_int, parse_positive_int
 from ..method_benchmark import MethodBenchmarkRunnerConfig
 from .dispatch import get_asset_benchmark_adapter
-from .runner import run_asset_benchmark
+from .runner import resolve_method_benchmarks, run_asset_benchmark
+from .suites import get_asset_benchmark_suite
 from .types import AssetBenchmarkRequest
 
 
@@ -30,6 +31,8 @@ def run_asset_benchmark_cli(
     selector_parser.add_argument("--physics_variant", default=physics, help="Exact physics variant")
     selector_args, _ = selector_parser.parse_known_args(argv)
     adapter = get_asset_benchmark_adapter(selector_args.physics_variant, component)
+    definitions = resolve_method_benchmarks(get_asset_benchmark_suite(component), adapter)
+    modes = sorted({mode for definition in definitions for mode in definition.input_generators})
     parser = argparse.ArgumentParser(
         description=f"Benchmark {component} methods and data ({selector_args.physics_variant} backend).",
         parents=[selector_parser],
@@ -43,7 +46,7 @@ def run_asset_benchmark_cli(
     parser.add_argument(
         "--num_joints", type=parse_non_negative_int, default=adapter.default_num_joints, help="Number of joints"
     )
-    parser.add_argument("--mode", type=str, default="all", help="Benchmark input mode")
+    parser.add_argument("--mode", default="all", choices=("all", *modes), help="Benchmark input mode")
     parser.add_argument(
         "--output_path",
         "--output_dir",

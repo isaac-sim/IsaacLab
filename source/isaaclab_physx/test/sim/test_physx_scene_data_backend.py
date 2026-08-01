@@ -42,3 +42,64 @@ def test_scene_data_rigid_body_view_skips_joint_prims_with_rigid_body_api(monkey
     backend.get_rigid_body_view()
 
     assert captured_paths == ["/World/envs/env_*/Robot/robot0_forearm"]
+
+
+def test_discover_deformable_geometry_publishes_discovered_roots(monkeypatch):
+    """PhysX deformable views may report child meshes; geometry_paths must be roots."""
+    from isaaclab_physx.physics import physx_manager
+    from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
+
+    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
+
+    class _FakeDeformableView:
+        _backend = object()
+        max_simulation_nodes_per_body = 8
+        prim_paths = [
+            "/World/envs/env_0/Deformable/sim_mesh",
+            "/World/envs/env_1/Deformable/sim_mesh",
+        ]
+
+    class _SimulationView:
+        def create_volume_deformable_body_view(self, patterns):
+            return None
+
+        def create_surface_deformable_body_view(self, patterns):
+            return _FakeDeformableView()
+
+    monkeypatch.setattr(
+        physx_manager.omni.usd,
+        "get_context",
+        lambda: SimpleNamespace(get_stage=lambda: object()),
+    )
+    monkeypatch.setattr(
+        physx_manager,
+        "discover_deformables_on_stage",
+        lambda stage: [
+            DeformableStageEntry(
+                root_path="/World/envs/env_0/Deformable",
+                sim_mesh_path="/World/envs/env_0/Deformable/sim_mesh",
+                vis_mesh_path="/World/envs/env_0/Deformable/vis_mesh",
+                deformable_type="surface",
+                vertex_count=4,
+                vis_vertex_count=4,
+            ),
+            DeformableStageEntry(
+                root_path="/World/envs/env_1/Deformable",
+                sim_mesh_path="/World/envs/env_1/Deformable/sim_mesh",
+                vis_mesh_path="/World/envs/env_1/Deformable/vis_mesh",
+                deformable_type="surface",
+                vertex_count=4,
+                vis_vertex_count=4,
+            ),
+        ],
+    )
+
+    backend = PhysxSceneDataBackend()
+    backend.simulation_view = _SimulationView()
+    backend._discover_deformable_geometry()
+
+    assert backend.geometry_paths == [
+        "/World/envs/env_0/Deformable",
+        "/World/envs/env_1/Deformable",
+    ]
+    assert backend.geometry_counts == [4, 4]

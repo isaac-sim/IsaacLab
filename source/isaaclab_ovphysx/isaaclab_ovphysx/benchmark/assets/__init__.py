@@ -11,7 +11,7 @@ from isaaclab.benchmark.asset_suites.dependencies import (
     BODY_COLLECTION_DEPENDENCIES,
     OVPHYSX_RIGID_OBJECT_DEPENDENCIES,
 )
-from isaaclab.benchmark.asset_suites.generators import make_indexed_generators, make_mask_generator
+from isaaclab.benchmark.asset_suites.generators import make_item_selector_generators, make_mask_generator
 from isaaclab.benchmark.asset_suites.suites import get_asset_benchmark_suite
 
 _CAPABILITIES = frozenset({"warp_mask"})
@@ -32,13 +32,11 @@ _COLLECTION_EXCLUDED = {"default_body_state", "body_state_w", "body_link_state_w
 
 def _com_generator_overrides():
     shapes = {"coms": ("instances", "bodies", 7)}
-    indexed = make_indexed_generators(shapes, {"env_ids": "instances", "body_ids": "bodies"})
+    indexed = make_item_selector_generators(shapes, {"env_ids": "instances", "body_ids": "bodies"})
     mask = make_mask_generator(shapes, {"env_mask": "instances", "body_mask": "bodies"})
-    return {
-        ("set_coms", "torch_list"): indexed["torch_list"],
-        ("set_coms", "torch_tensor"): indexed["torch_tensor"],
-        ("set_coms_mask", "warp_mask"): mask,
-    }
+    overrides = {("set_coms", mode): generator for mode, generator in indexed.items()}
+    overrides[("set_coms_mask", "warp_mask")] = mask
+    return overrides
 
 
 def get_asset_benchmark_adapter(component: str) -> PackageAssetBenchmarkAdapter:

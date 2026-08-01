@@ -185,6 +185,9 @@ rlinf = [
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf,mimic]",
 ]
+leapp = [
+    "leapp>=0.5.2",
+]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
 # install CLI, and CI. TOML cannot interpolate, so the pins in [project.dependencies],

@@ -11,15 +11,10 @@ import argparse
 import contextlib
 import importlib.metadata as metadata
 import os
+import random
 import sys
 import time
 from collections.abc import Mapping
-
-from isaaclab.app import AppLauncher
-
-from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
-
-from isaaclab_tasks.utils import setup_preset_cli
 
 RSL_RL_MIN_VERSION = "5.0.1"
 _RUNTIME_IMPORTS_LOADED = False
@@ -47,70 +42,24 @@ hydra_task_config = None
 installed_version = None
 
 
-def create_arg_parser() -> argparse.ArgumentParser:
-    """Create the command-line parser for RSL-RL policy export."""
-    parser = argparse.ArgumentParser(description="Export an RL agent with RSL-RL.")
-    parser.add_argument(
-        "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
-    )
-    parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-    parser.add_argument(
-        "--agent", type=str, default="rsl_rl_cfg_entry_point", help="Name of the RL agent configuration entry point."
-    )
-    parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-    parser.add_argument(
-        "--use_pretrained_checkpoint",
-        action="store_true",
-        help="Use the pre-trained checkpoint from Nucleus.",
-    )
-
-    # LEAPP arguments
-    parser.add_argument(
-        "--export_task_name",
-        type=str,
-        default=None,
-        help="Name of the exported graph. Defaults to the task name.",
-    )
-    parser.add_argument(
-        "--export_method",
-        type=str,
-        default="onnx-dynamo",
-        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace"],
-        help="Method to export the policy",
-    )
-    parser.add_argument(
-        "--export_save_path",
-        type=str,
-        default=None,
-        help="Path to save the exported model",
-    )
-    parser.add_argument(
-        "--validation_steps",
-        type=int,
-        default=5,
-        help="Number of steps to validate the exported model",
-    )
-    parser.add_argument(
-        "--disable_graph_visualization",
-        action="store_true",
-        default=False,
-        help="Disable LEAPP graph visualization during compile_graph().",
-    )
-
-    cli_args.add_rsl_rl_args(parser)
-    AppLauncher.add_app_launcher_args(parser)
-    return parser
-
-
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments and return remaining Hydra overrides."""
-    parser = create_arg_parser()
+    _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _leapp_scripts_dir not in sys.path:
+        sys.path.insert(0, _leapp_scripts_dir)
+    from export_utils import add_common_export_args, finalize_export_args
+
+    parser = argparse.ArgumentParser(description="Export an RL agent with RSL-RL.")
+    add_common_export_args(parser, agent_default="rsl_rl_cfg_entry_point")
+    parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment.")
+    parser.add_argument(
+        "--experiment_name", type=str, default=None, help="Name of the experiment folder used to locate checkpoints."
+    )
+    parser.add_argument("--load_run", type=str, default=None, help="Name of the run folder to load from.")
     # setup_preset_cli attaches the preset-selection help group then parses;
     # remainder still carries typed selectors (physics=/renderer=/presets=)
     # verbatim for run_export_with_hydra to fold before invoking Hydra.
-    args_cli, hydra_args = setup_preset_cli(parser, argv)
-    args_cli.headless = True
-    return args_cli, hydra_args
+    return finalize_export_args(parser, argv)
 
 
 def _load_runtime_dependencies() -> None:
@@ -136,10 +85,6 @@ def _load_runtime_dependencies() -> None:
     from packaging import version as packaging_version_module
     from rsl_rl.runners import DistillationRunner as DistillationRunnerCls
     from rsl_rl.runners import OnPolicyRunner as OnPolicyRunnerCls
-
-    # Disable TorchScript before importing task/environment modules so any
-    # @torch.jit.script helpers resolve to plain Python functions during export.
-    torch_module.jit._state.disable()
 
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
     from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
@@ -250,6 +195,21 @@ def actor_hidden_from_registered(registered_state, original_hidden):
     return registered_state
 
 
+def _update_agent_cfg_from_export_args(agent_cfg, args_cli: argparse.Namespace):
+    """Apply export-relevant CLI overrides to the RSL-RL agent config."""
+    if args_cli.seed is not None:
+        if args_cli.seed == -1:
+            args_cli.seed = random.randint(0, 10000)
+        agent_cfg.seed = args_cli.seed
+    if args_cli.load_run is not None:
+        agent_cfg.load_run = args_cli.load_run
+    if args_cli.checkpoint is not None:
+        agent_cfg.load_checkpoint = args_cli.checkpoint
+    if args_cli.experiment_name is not None:
+        agent_cfg.experiment_name = args_cli.experiment_name
+    return agent_cfg
+
+
 def export_rsl_rl_agent(
     args_cli: argparse.Namespace,
     env_cfg,
@@ -262,7 +222,7 @@ def export_rsl_rl_agent(
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
 
-    agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
+    agent_cfg = _update_agent_cfg_from_export_args(agent_cfg, args_cli)
     env_cfg.scene.num_envs = 1
 
     agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
@@ -384,6 +344,14 @@ def export_rsl_rl_agent(
 
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one RSL-RL policy."""
+    _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _leapp_scripts_dir not in sys.path:
+        sys.path.insert(0, _leapp_scripts_dir)
+    from export_utils import disable_torchscript_for_export
+
+    # Must run before the imports below pull in the task modules.
+    disable_torchscript_for_export()
+
     from isaaclab.app import launch_simulation
 
     from isaaclab_tasks.utils.hydra import hydra_task_config

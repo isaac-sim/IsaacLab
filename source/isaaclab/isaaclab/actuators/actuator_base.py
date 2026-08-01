@@ -227,7 +227,7 @@ class ActuatorBase(ABC):
         """Returns: A string representation of the actuator group."""
         # resolve joint indices for printing
         joint_indices = self.joint_indices
-        if joint_indices == slice(None):
+        if isinstance(joint_indices, slice):
             joint_indices = list(range(self.num_joints))
         # resolve model type (implicit or explicit)
         model_type = "implicit" if self.is_implicit_model else "explicit"
