@@ -237,9 +237,10 @@ Requirements
 Limitations
 -----------
 
-* ``source="visualizer:kit"`` and ``source="visualizer:kit:tiled"`` require PhysX physics.
-  Kit Replicator cannot read Newton Fabric scene transforms, so these sources log an error
-  and produce no clip when Newton is active.  Use ``source="visualizer:newton"`` instead.
+* ``source="visualizer:kit"`` and ``source="visualizer:kit:tiled"`` require cubric to
+  propagate Newton Fabric scene transforms to the RTX renderer.  Without cubric, a warning
+  is logged and captured frames may be black.  Use ``source="visualizer:newton"`` for
+  guaranteed capture with Newton physics.
 
 * ``source="visualizer:newton:tiled"`` captures the Newton GL window framebuffer when
   ``tiled_cam_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg`.

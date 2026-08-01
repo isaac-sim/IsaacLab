@@ -188,6 +188,11 @@ class VideoRecorder:
 
         viz = candidates[0]
         if sub == "tiled":
+            if viz_type == "newton":
+                # Newton captures its entire GL viewport (which shows the tiled camera panel
+                # when tiled_cam_view=True on NewtonVisualizerCfg).  There is no separate
+                # render_tiled_rgb_array() path for Newton.
+                return viz.render_rgb_array()
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(
                     f"[VideoRecorder] source='visualizer:{viz_type}:tiled' requested but the "
