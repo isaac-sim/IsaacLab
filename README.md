@@ -30,7 +30,7 @@ R	                    reset/discard
 cd ~/Stanley_ws/IsaacLab && conda activate env_isaaclab
 ./isaaclab.sh -p scripts/tools/replay_demos.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
-    --dataset_file logs/demos/pickup_test.hdf5 \
+    --dataset_file logs/demos/pickup.hdf5 \
     --enable_cameras
 ```
 
