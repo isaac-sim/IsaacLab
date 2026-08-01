@@ -40,7 +40,7 @@ from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from newton import JointTargetMode, ModelBuilder, ModelFlags
+from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
 from newton.solvers import SolverMuJoCo
 
 from pxr import UsdPhysics
@@ -586,6 +586,9 @@ def _make_target_mode_builder(
 
 def _dispatch_model_init(articulation: Articulation, builder: ModelBuilder) -> None:
     """Dispatch model initialization with a temporary builder and clear the asset callbacks."""
+    for articulation_path in builder.articulation_label:
+        prim = sim_utils.create_prim(articulation_path, "Xform")
+        UsdPhysics.ArticulationRootAPI.Apply(prim)
     previous_builder = SimulationManager._builder
     try:
         SimulationManager._builder = builder
@@ -693,6 +696,40 @@ def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
     assert (
         solver.mjc_actuator_to_newton_idx.numpy().tolist() if solver.mjc_actuator_to_newton_idx is not None else None
     ) == expected_actuator_indices
+
+
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("device", test_devices())
+def test_actuator_cfg_matches_explicit_descendant_articulation_root(sim, device, articulation_type):
+    """Match target modes against an explicitly configured descendant articulation root."""
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Env_.*/Robot",
+            articulation_root_prim_path="/base",
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
+        )
+    )
+    builder = _make_target_mode_builder(["joint"], [JointTargetMode.NONE], [0.0], [0.0])
+    builder.articulation_label = ["/World/Env_0/Robot/base"]
+    _dispatch_model_init(articulation, builder)
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
+
+
+@pytest.mark.parametrize("joint_type", [JointType.FREE, JointType.FIXED])
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("device", test_devices())
+def test_actuator_cfg_leaves_excluded_joint_types_imported(sim, device, articulation_type, joint_type):
+    """Leave target modes for free and fixed joints unchanged."""
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Env_.*/Robot",
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
+        )
+    )
+    builder = _make_target_mode_builder(["joint"], [JointTargetMode.NONE], [0.0], [0.0])
+    builder.joint_type[0] = joint_type
+    _dispatch_model_init(articulation, builder)
+    assert builder.joint_target_mode == [int(JointTargetMode.NONE)]
 
 
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])

@@ -79,15 +79,32 @@ def _resolve_actuator_gain_values(
     return [gains] * len(dof_names)
 
 
+def _resolve_articulation_root_prim_path_expr(cfg: ArticulationCfg) -> str:
+    """Resolve the articulation root prim expression from the asset configuration."""
+    if cfg.articulation_root_prim_path is not None:
+        return cfg.prim_path + cfg.articulation_root_prim_path
+
+    def has_articulation_root_api(prim) -> bool:
+        return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+
+    resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
+    return resolve_matching_prims_from_source(cfg.prim_path, **resolve_kwargs)[0][1]
+
+
 def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None:
     """Resolve configured actuator gains into Newton builder target modes before finalization."""
-    articulation_ids, _ = resolve_matching_names(cfg.prim_path, builder.articulation_label, raise_when_no_match=False)
+    root_prim_path_expr = _resolve_articulation_root_prim_path_expr(cfg)
+    articulation_ids, _ = resolve_matching_names(
+        root_prim_path_expr, builder.articulation_label, raise_when_no_match=False
+    )
     for articulation_id in articulation_ids:
         joint_start = builder.articulation_start[articulation_id]
         joint_end = builder.articulation_end[articulation_id]
         dof_ids: list[int] = []
         dof_names: list[str] = []
         for joint_id in range(joint_start, joint_end):
+            if builder.joint_type[joint_id] in (JointType.FREE, JointType.FIXED):
+                continue
             dof_start = builder.joint_qd_start[joint_id]
             dof_end = (
                 builder.joint_qd_start[joint_id + 1]
@@ -3675,15 +3692,7 @@ class Articulation(BaseArticulation):
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
-        if self.cfg.articulation_root_prim_path is not None:
-            root_prim_path_expr = self.cfg.prim_path + self.cfg.articulation_root_prim_path
-        else:
-
-            def has_articulation_root_api(prim) -> bool:
-                return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
-
-            resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
-            _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
+        root_prim_path_expr = _resolve_articulation_root_prim_path_expr(self.cfg)
         # -- articulation
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
