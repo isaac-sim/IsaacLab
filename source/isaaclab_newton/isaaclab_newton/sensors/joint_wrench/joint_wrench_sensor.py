@@ -135,7 +135,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         self._root_view = ArticulationView(
             model,
-            root_prim_path_expr.replace(".*", "*"),
+            root_prim_path_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*"),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )

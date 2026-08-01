@@ -134,7 +134,9 @@ class Imu(BaseImu):
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
-        self._view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr.replace(".*", "*"))
+        self._view = self._physics_sim_view.create_rigid_body_view(
+            self._rigid_parent_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
+        )
 
         # Query world gravity and compute accelerometer bias (real IMUs always measure gravity)
         gravity = self._physics_sim_view.get_gravity()

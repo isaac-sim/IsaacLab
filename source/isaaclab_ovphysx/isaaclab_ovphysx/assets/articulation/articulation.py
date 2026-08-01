@@ -4114,7 +4114,7 @@ class Articulation(BaseArticulation):
         # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
         # ``create_tensor_binding`` expects fnmatch globs.
         pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
-        pattern = re.sub(r"\.\*", "*", pattern)
+        pattern = sim_utils.path_expr_to_glob(pattern)
         self._binding_pattern = pattern
 
         # eagerly create every binding the data container reads at init, so

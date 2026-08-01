@@ -644,12 +644,12 @@ class DeformableObject(AssetBase):
         if self._deformable_type == "surface":
             # surface deformable
             self._root_physx_view = self._physics_sim_view.create_surface_deformable_body_view(
-                root_prim_path_expr.replace(".*", "*")
+                root_prim_path_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
             )
         elif self._deformable_type == "volume":
             # volume deformable
             self._root_physx_view = self._physics_sim_view.create_volume_deformable_body_view(
-                root_prim_path_expr.replace(".*", "*")
+                root_prim_path_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
             )
         else:
             raise RuntimeError(
@@ -677,7 +677,7 @@ class DeformableObject(AssetBase):
                 material_prim_path_expr = material_prim_path
             # -- material view
             self._material_physx_view = self._physics_sim_view.create_deformable_material_view(
-                material_prim_path_expr.replace(".*", "*")
+                material_prim_path_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
             )
         else:
             self._material_physx_view = None

@@ -4207,7 +4207,9 @@ class Articulation(BaseArticulation):
             resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
             _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- articulation
-        self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
+        self._root_view = self._physics_sim_view.create_articulation_view(
+            root_prim_path_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
+        )
 
         # check if the articulation was created
         if self.root_view._backend is None:

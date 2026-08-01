@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ovphysx.tensor_types as TT
@@ -194,7 +194,8 @@ class ContactSensor(BaseContactSensor):
         # library is loaded by ``omni.physx``.  The unfiltered API matches what
         # the underlying USD apiSchemas listOp actually carries (verified against
         # :class:`pxr.Sdf.PrimSpec.GetInfo("apiSchemas")`).
-        parent_expr, leaf_pattern = self.cfg.prim_path.rsplit("/", 1)
+        *parent_segments, leaf_pattern = split_path_expr(self.cfg.prim_path)
+        parent_expr = "/".join(parent_segments)
         name_pattern = re.compile(leaf_pattern)
 
         def has_contact_report(prim) -> bool:

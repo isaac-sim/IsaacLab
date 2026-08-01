@@ -645,7 +645,7 @@ def test_frame_transformer_all_bodies(device):
             prim_path="{ENV_REGEX_NS}/Robot/base",
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/.*",
+                    prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
                 ),
             ],
         )
@@ -739,7 +739,7 @@ def test_sensor_print(device):
             prim_path="{ENV_REGEX_NS}/Robot/base",
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/.*",
+                    prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
                 ),
             ],
         )

@@ -131,7 +131,9 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
+        self._root_view = self._physics_sim_view.create_articulation_view(
+            root_prim_path_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
+        )
         if self._root_view._backend is None:
             raise RuntimeError(f"Failed to create articulation view at: {root_prim_path_expr}. Check PhysX logs.")
 

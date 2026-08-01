@@ -80,8 +80,8 @@ def env_path_from_template(path_template: str, env_id: int) -> str:
     if "{}" in path:
         return path.format(env_id)
     path = path.replace("/World/envs/*", f"/World/envs/env_{env_id}")
-    path = path.replace("/World/envs/env_.*", f"/World/envs/env_{env_id}")
-    path = path.replace("/World/envs/env_.*/", f"/World/envs/env_{env_id}/")
+    path = path.replace("/World/envs/env_[^/]*", f"/World/envs/env_{env_id}")
+    path = path.replace("/World/envs/env_[^/]*/", f"/World/envs/env_{env_id}/")
     return path
 
 
@@ -370,7 +370,7 @@ def create_visualizer_camera(
             attr = cam_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token)
         attr.Set(path.split("/")[-2])
     cfg = CameraCfg(
-        prim_path=f"/World/envs/env_.*/{camera_name}",
+        prim_path=f"/World/envs/env_[^/]*/{camera_name}",
         update_period=0.0,
         height=int(height),
         width=int(width),

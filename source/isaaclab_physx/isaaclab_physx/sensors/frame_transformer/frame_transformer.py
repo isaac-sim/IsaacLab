@@ -247,7 +247,8 @@ class FrameTransformer(BaseFrameTransformer):
         # Plan-mode dest expressions use ``env_.*`` (regex), legacy mode produces concrete
         # ``env_0`` paths; chain both substitutions so each mode normalises to ``env_*``.
         body_names_regex = [
-            tracked_prim_path.replace(".*", "*").replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths
+            tracked_prim_path.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*").replace("env_0", "env_*")
+            for tracked_prim_path in tracked_prim_paths
         ]
 
         # obtain global simulation view
@@ -605,5 +606,8 @@ class FrameTransformer(BaseFrameTransformer):
         Returns:
             The prim path with `/envs/env_<id>/` removed, preserving `/envs/`.
         """
-        pattern = re.compile(r"/envs/env_[^/]+/")
+        # the input may be a concrete path or an expression, so the environment segment can be a
+        # concrete id or a wildcard standing for one; a wildcard written as a character class holds
+        # a '/' that is not a separator and would otherwise be split by the one-segment alternative
+        pattern = re.compile(r"/envs/env_(?:\[\^/\][*+]|\.\*|[^/]+)/")
         return pattern.sub("/envs/", prim_path)

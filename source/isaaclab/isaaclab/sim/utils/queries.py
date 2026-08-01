@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 import re
 from collections.abc import Callable
@@ -22,6 +23,27 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+_CHARACTER_CLASS = re.compile(r"\[\^?[^]]*\]")
+"""Matches a regex character class, whose text may hold a ``/`` that is not a path separator."""
+
+_SEGMENT_WILDCARD = re.compile(r"\[\^/\][*+]|\.\*")
+"""Matches the ways an expression spells "anything within one path segment"."""
+
+
+def path_expr_to_glob(path_expr: str) -> str:
+    """Convert a prim path expression to the glob syntax the physics engines accept.
+
+    Physics views take a glob, where ``*`` spans one path segment. Every regex spelling of that --
+    ``.*`` and the segment-safe ``[^/]*`` / ``[^/]+`` -- maps onto it.
+
+    Args:
+        path_expr: The prim path expression to convert.
+
+    Returns:
+        The equivalent glob.
+    """
+    return _SEGMENT_WILDCARD.sub("*", path_expr)
 
 
 def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
@@ -314,42 +336,46 @@ def find_first_matching_prim(prim_path_regex: str, stage: Usd.Stage | None = Non
     if stage is None:
         stage = get_current_stage()
 
-    # check prim path is global
-    if not prim_path_regex.startswith("/"):
-        raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
-    prim_path_regex = _normalize_legacy_wildcard_pattern(prim_path_regex)
-    # need to wrap the token patterns in '^' and '$' to prevent matching anywhere in the string
-    pattern = f"^{prim_path_regex}$"
-    compiled_pattern = re.compile(pattern)
-    # obtain matching prim (depth-first search)
-    for prim in stage.Traverse():
-        # check if prim passes predicate
-        if compiled_pattern.match(prim.GetPath().pathString) is not None:
-            return prim
-    return None
+    matches = find_matching_prims(prim_path_regex, stage)
+    return matches[0] if matches else None
 
 
-def _normalize_legacy_wildcard_pattern(prim_path_regex: str) -> str:
-    """Convert legacy '*' wildcard usage to '.*' and warn users."""
-    fixed_regex = re.sub(r"(?<![\\\.])\*", ".*", prim_path_regex)
-    if fixed_regex != prim_path_regex:
-        logger.warning(
-            "Using '*' as a wildcard in prim path regex is deprecated; automatically converting '%s' to '%s'. "
-            "Please update your pattern to use '.*' explicitly.",
-            prim_path_regex,
-            fixed_regex,
-        )
-    return fixed_regex
+def split_path_expr(path_expr: str) -> list[str]:
+    """Split a path expression on its separators, ignoring any inside a character class.
+
+    ``str.split("/")`` cannot be used on an expression: a segment-safe wildcard is written
+    ``[^/]``, whose text holds a ``/`` that is not a separator and would split the class in two.
+
+    Args:
+        path_expr: The path expression to split.
+
+    Returns:
+        The segments, as :meth:`str.split` would return them for a plain path.
+    """
+    # blank out classes at equal length so the separator offsets carry back to the original
+    masked = _CHARACTER_CLASS.sub(lambda match: "\x00" * len(match.group()), path_expr)
+    segments, start = [], 0
+    for index, character in enumerate(masked):
+        if character == "/":
+            segments.append(path_expr[start:index])
+            start = index + 1
+    segments.append(path_expr[start:])
+    return segments
 
 
 def matches_path_expr_prefix(path_expr: str, prim_path: str) -> bool:
     """Return whether ``prim_path`` matches ``path_expr`` up to ``prim_path`` depth."""
-    prefix_expr = "/".join(path_expr.split("/")[: prim_path.count("/") + 1])
-    return re.match(f"^{_normalize_legacy_wildcard_pattern(prefix_expr)}$", prim_path) is not None
+    prefix_expr = "/".join(split_path_expr(path_expr)[: prim_path.count("/") + 1])
+    return re.match(f"^{prefix_expr}$", prim_path) is not None
 
 
 def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[Usd.Prim]:
     """Find all the matching prims in the stage based on input regex expression.
+
+    The expression is a plain Python regular expression matched against the *whole* prim path.
+    Standard regex semantics apply: ``.`` matches any character including ``/``, so
+    ``/World/Robot/.*`` selects every descendant at any depth, while ``[^/]+`` confines a
+    wildcard to a single path segment.
 
     Args:
         prim_path_regex: The regex expression for prim path.
@@ -361,39 +387,66 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    from pxr import Usd  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # normalize legacy wildcard pattern
-    prim_path_regex = _normalize_legacy_wildcard_pattern(prim_path_regex)
-
     # check prim path is global
     if not prim_path_regex.startswith("/"):
         raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
-    # need to wrap the token patterns in '^' and '$' to prevent matching anywhere in the string
-    tokens = prim_path_regex.split("/")[1:]
-    tokens = [f"^{token}$" for token in tokens]
-    # iterate over all prims in stage (breath-first search)
-    all_prims = [stage.GetPseudoRoot()]
+
+    pattern = re.compile(f"^{prim_path_regex}$")
+    # the expression itself bounds the walk -- see _bound_search
+    root_path, max_depth = _bound_search(prim_path_regex)
+
+    root = stage.GetPrimAtPath(root_path) if root_path else stage.GetPseudoRoot()
+    if not root.IsValid():
+        return []
+
     output_prims = []
-    for index, token in enumerate(tokens):
-        token_compiled = re.compile(token)
-        for prim in all_prims:
-            for child in prim.GetAllChildren():
-                if token_compiled.match(child.GetName()) is not None:
-                    output_prims.append(child)
-        if index < len(tokens) - 1:
-            all_prims = output_prims
-            output_prims = []
+    iterator = iter(Usd.PrimRange(root, Usd.TraverseInstanceProxies(Usd.PrimAllPrimsPredicate)))
+    for prim in iterator:
+        prim_path = prim.GetPath().pathString
+        if pattern.match(prim_path) is not None:
+            output_prims.append(prim)
+        if max_depth is not None and prim_path.count("/") >= max_depth:
+            iterator.PruneChildren()
     return output_prims
+
+
+_REGEX_METACHARACTERS = set(".*+?[]{}()|^$\\\x00")
+
+
+def _bound_search(prim_path_regex: str) -> tuple[str, int | None]:
+    """Return the prim path a search may start from and the depth it may stop at.
+
+    Both come from the expression, which is what keeps whole-path matching from implying a
+    whole-stage traversal.
+
+    Args:
+        prim_path_regex: The whole-path regular expression to bound.
+
+    Returns:
+        ``(root_path, max_depth)``; ``root_path`` is empty when the first segment is already a
+        pattern, and ``max_depth`` is None when a wildcard can consume a ``/``.
+    """
+    # mask classes before splitting: '[^/]' holds a '/' that is not a separator. The placeholder
+    # is itself a metacharacter, so a masked segment is never mistaken for a literal one.
+    masked = _CHARACTER_CLASS.sub("\x00", prim_path_regex)
+    segments = masked.split("/")[1:]
+    literal = list(itertools.takewhile(lambda s: s and not _REGEX_METACHARACTERS & set(s), segments))
+    # an unescaped '.' outside a class matches '/', so the expression can reach any depth
+    unbounded = re.search(r"(?<!\\)\.", masked) is not None
+    return ("/" + "/".join(literal) if literal else "", None if unbounded else len(segments))
 
 
 def resolve_matching_prims_from_source(
     path_expr: str,
     predicate: Callable[[Usd.Prim], bool] | None = None,
     expected_num_matches: int | None = None,
-    env_regex_ns: str = "/World/envs/env_.*",
+    env_regex_ns: str = "/World/envs/env_[^/]*",
     raise_if_no_matches: bool = True,
     traverse_instance_prims: bool = True,
 ) -> list[tuple[Usd.Prim, str]]:
@@ -431,8 +484,8 @@ def resolve_matching_prims_from_source(
         # search from, (2) collect the bodies of interest within just that instance and map each
         # back to the multi-instance pattern. Phase 1 stops at the first match and phase 2 walks
         # under a concrete instance prefix, so only a single instance subtree is traversed.
-        segments = path_expr.strip("/").split("/")
-        ns_segments = env_regex_ns.strip("/").split("/")
+        segments = split_path_expr(path_expr.strip("/"))
+        ns_segments = split_path_expr(env_regex_ns.strip("/"))
         # Instance ("env") boundary. Assume the standard namespace ``env_regex_ns`` and put the
         # boundary at its depth when ``path_expr`` sits under it -- literal ns segments must
         # match, wildcard ns segments (e.g. ``env_.*``) accept any segment. Otherwise fall back

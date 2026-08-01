@@ -69,7 +69,7 @@ def generate_cubes_scene(
         sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
 
     cube_object_cfg = DeformableObjectCfg(
-        prim_path="/World/env_.*/Cube",
+        prim_path="/World/env_[^/]*/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.1, 0.1, 0.1),
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
@@ -109,7 +109,7 @@ def generate_cloth_scene(
         sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
 
     cloth_object_cfg = DeformableObjectCfg(
-        prim_path="/World/env_.*/Cloth",
+        prim_path="/World/env_[^/]*/Cloth",
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
             resolution=(3, 3),
@@ -130,7 +130,7 @@ def generate_cuboid_and_cylinder_scene(height: float = 1.0) -> tuple[DeformableO
     sim_utils.create_prim("/World/env_0", "Xform", translation=(0.0, 0.0, 0.0))
 
     cuboid_cfg = DeformableObjectCfg(
-        prim_path="/World/env_.*/Cuboid",
+        prim_path="/World/env_[^/]*/Cuboid",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.16, 0.08, 0.12),
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
@@ -144,7 +144,7 @@ def generate_cuboid_and_cylinder_scene(height: float = 1.0) -> tuple[DeformableO
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
     cylinder_cfg = DeformableObjectCfg(
-        prim_path="/World/env_.*/Cylinder",
+        prim_path="/World/env_[^/]*/Cylinder",
         spawn=sim_utils.MeshCylinderCfg(
             radius=0.06,
             height=0.14,

@@ -47,7 +47,7 @@ def _ovphysx_body_glob(body_expr: str) -> str:
     fnmatch glob, so ``{}`` template placeholders and ``.*`` regex segments
     both map to ``*``.
     """
-    return body_expr.replace("{}", "*").replace(".*", "*")
+    return body_expr.replace("{}", "*").replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
 
 
 class _OvPhysxRayCasterMixin:

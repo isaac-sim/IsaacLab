@@ -236,11 +236,11 @@ class SensorBase(ABC):
             self._parent_prims = []
             self._num_envs = int(clone_plan.clone_mask.shape[1])
         elif clone_plan is not None:
-            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
             self._num_envs = int(clone_plan.env_ids.numel())
         else:
-            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
             self._num_envs = len(self._parent_prims)
         # Create warp env mask arrays for "all envs" cases and resets.
@@ -447,7 +447,7 @@ class SensorBase(ABC):
 
         The returned expression may still contain regex-style wildcards (e.g.
         ``.*``); callers are responsible for converting to glob form for their
-        physics view (e.g. ``.replace(".*", "*")``).
+        physics view (e.g. ``.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")``).
 
         Returns:
             A tuple of:

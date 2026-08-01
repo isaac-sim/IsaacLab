@@ -3250,8 +3250,8 @@ class NewtonManager(PhysicsManager):
             if expr is None:
                 return None
             if isinstance(expr, str):
-                return expr.replace(".*", "*")
-            return [p.replace(".*", "*") for p in expr]
+                return expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
+            return [p.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*") for p in expr]
 
         def _normalize_for_labels(expr: str | list[str] | None, labels: list[str]) -> str | list[str] | None:
             """Strip leading path components from *expr* when labels are bare names.

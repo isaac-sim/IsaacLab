@@ -162,7 +162,9 @@ class Pva(BasePva):
 
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
         # Create the rigid body view on the ancestor
-        self._view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr.replace(".*", "*"))
+        self._view = self._physics_sim_view.create_rigid_body_view(
+            self._rigid_parent_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
+        )
 
         # Get world gravity
         gravity = self._physics_sim_view.get_gravity()

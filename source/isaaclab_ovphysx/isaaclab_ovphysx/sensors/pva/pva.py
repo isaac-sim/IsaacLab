@@ -142,7 +142,7 @@ class Pva(BasePva):
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
 
         # Translate the regex-style path expression to an ovphysx fnmatch glob.
-        pattern = self._rigid_parent_expr.replace(".*", "*")
+        pattern = self._rigid_parent_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
 
         self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
         self._num_bodies = self._root_view.binding_for(TT.RIGID_BODY_POSE).count

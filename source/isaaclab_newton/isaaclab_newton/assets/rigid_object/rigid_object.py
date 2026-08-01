@@ -1057,7 +1057,7 @@ class RigidObject(BaseRigidObject):
         # -- object view
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
-            root_prim_path_expr.replace(".*", "*"),
+            root_prim_path_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*"),
             verbose=False,
         )
 

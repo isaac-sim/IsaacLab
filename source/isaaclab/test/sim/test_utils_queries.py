@@ -90,7 +90,7 @@ def test_get_first_matching_ancestor_prim():
 
 
 def test_matches_path_expr_prefix():
-    path_expr = "/World/envs/env_.*/Robot"
+    path_expr = "/World/envs/env_[^/]*/Robot"
     assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0")
     assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot")
     assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Object")

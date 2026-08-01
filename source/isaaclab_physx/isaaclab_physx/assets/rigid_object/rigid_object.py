@@ -1004,7 +1004,9 @@ class RigidObject(BaseRigidObject):
         resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- object view
-        self._root_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
+        self._root_view = self._physics_sim_view.create_rigid_body_view(
+            root_prim_path_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
+        )
 
         # check if the rigid body was created
         if self.root_view._backend is None:

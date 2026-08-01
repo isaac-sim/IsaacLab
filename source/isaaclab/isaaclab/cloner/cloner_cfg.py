@@ -12,6 +12,9 @@ from isaaclab.utils.configclass import configclass
 
 from .cloner_strategies import sequential
 
+DEFAULT_ENV_TEMPLATE = "/World/envs/env_{}"
+"""Default path template for a replicated env prim; ``{}`` marks the environment index."""
+
 
 @configclass
 class InclusionSet:
@@ -46,8 +49,12 @@ class CloneCfg:
     device: str = "cpu"
     """Torch device on which mapping buffers are allocated."""
 
-    clone_regex: str = "/World/envs/env_.*"
-    """Regex matching every replicated env prim. Used to expand ``{ENV_REGEX_NS}`` cfg macros."""
+    clone_template: str = DEFAULT_ENV_TEMPLATE
+    """Path template for every replicated env prim, where ``{}`` is the environment index.
+
+    The regex form used to expand ``{ENV_REGEX_NS}`` cfg macros is
+    ``clone_template.format("[^/]+")``, which confines the slot to one path segment.
+    """
 
     replicate_physics: bool = True
     """Whether physics replication clones each environment. Default is True.

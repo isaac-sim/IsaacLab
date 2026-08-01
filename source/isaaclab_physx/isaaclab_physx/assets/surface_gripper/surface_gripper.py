@@ -473,7 +473,7 @@ class SurfaceGripper(AssetBase):
         # legacy "*" wildcard that the clone-plan destination glob (e.g. "/World/envs/env_*") can
         # carry. Convert any bare "*" to ".*" (a "*" already preceded by "." is left untouched).
         self._prim_expr = re.sub(r"(?<!\.)\*", ".*", self._prim_expr)
-        env_prim_path_expr = self._prim_expr.rsplit("/", 1)[0]
+        env_prim_path_expr = "/".join(sim_utils.split_path_expr(self._prim_expr)[:-1])
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
 

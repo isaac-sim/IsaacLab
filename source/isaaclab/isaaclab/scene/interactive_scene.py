@@ -162,9 +162,10 @@ class InteractiveScene:
         self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
         self.cloner_cfg.device = self.device
         self.cloner_cfg.replicate_physics = self.cfg.replicate_physics
-        self._env_regex_ns = self.cloner_cfg.clone_regex
-        self._env_fmt = self._env_regex_ns.replace(".*", "{}")
-        self._env_ns = self._env_regex_ns.rsplit("/", 1)[0]
+        # the template is authoritative; the regex form is the same namespace spelled for matching
+        self._env_fmt = self.cloner_cfg.clone_template
+        self._env_regex_ns = self._env_fmt.format("[^/]+")
+        self._env_ns = self._env_fmt.rsplit("/", 1)[0]
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
         self._scene_asset_names: list[str] = []
         self._clone_valid_set: torch.Tensor | None = None
@@ -192,6 +193,7 @@ class InteractiveScene:
             num_clones=self.num_envs,
             env_spacing=self.cfg.env_spacing,
             device=self.device,
+            env_template=self._env_fmt,
             stage=self.stage,
             clone_strategy=self.cloner_cfg.clone_strategy,
             valid_set=self._clone_valid_set,
@@ -228,7 +230,7 @@ class InteractiveScene:
             )
             for child in children:
                 if hasattr(child, "prim_path"):
-                    child.prim_path = child.prim_path.format(ENV_REGEX_NS=self.cloner_cfg.clone_regex)
+                    child.prim_path = child.prim_path.format(ENV_REGEX_NS=self._env_regex_ns)
                     if hasattr(child, "spawn") and child.spawn is not None and self.env_ns in child.prim_path:
                         clone_asset_names.append(asset_name)
                         variant_counts.append(cloner.num_spawn_variants(child.spawn))

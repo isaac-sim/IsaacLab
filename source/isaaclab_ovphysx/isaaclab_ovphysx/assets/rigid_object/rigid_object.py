@@ -19,7 +19,7 @@ from pxr import UsdPhysics
 
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -950,7 +950,7 @@ class RigidObject(BaseRigidObject):
         # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
         # ``create_tensor_binding`` expects fnmatch globs.
         pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
-        pattern = re.sub(r"\.\*", "*", pattern)
+        pattern = path_expr_to_glob(pattern)
         self._binding_pattern = pattern
 
         # Eagerly create every binding the data container reads at init, so failures

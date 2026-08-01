@@ -192,7 +192,7 @@ def view_factory():
             prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
         sim.reset()
-        view = OvPhysxFrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+        view = OvPhysxFrameView("/World/envs/env_[^/]*/Cube/CameraMount", device=device)
 
         # Capture binding row order, populate _pose_buf once with the live spawn poses,
         # then detach the binding so subsequent reads do not overwrite the buffer.

@@ -1500,7 +1500,7 @@ def rendering_test_cartpole(
     @configclass
     class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
         robot_cfg = CARTPOLE_CFG.replace(
-            prim_path="/World/envs/env_.*/Robot",
+            prim_path="/World/envs/env_[^/]*/Robot",
             spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
         )
 
