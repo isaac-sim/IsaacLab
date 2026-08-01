@@ -52,12 +52,13 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 import torch
 import warp as wp
 
-from pxr import UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.test.utils import test_devices
 from isaaclab.test.utils.articulation_ordering import (
@@ -89,6 +90,7 @@ from isaaclab.managers import SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 from isaaclab.utils.version import get_isaac_sim_version, has_kit  # noqa: E402
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 
 ##
 # Pre-defined configs
@@ -110,83 +112,6 @@ _SPATIAL_TENDON_OVSTAGE_GAP_REASON = (
 )
 
 
-def test_cached_read_launch_reuses_command_and_resets(monkeypatch):
-    """OVPhysX should record a stable read once, replay it, and discard it on reset."""
-
-    class FakeCommand:
-        launch_count = 0
-
-        def launch(self):
-            self.launch_count += 1
-
-    class FakeDevice:
-        is_cuda = True
-        is_capturing = False
-
-    device = FakeDevice()
-    command = FakeCommand()
-    launch_calls = []
-
-    def fake_launch(*args, **kwargs):
-        launch_calls.append((args, kwargs))
-        return command
-
-    module = sys.modules[ArticulationData.__module__]
-    monkeypatch.setattr(module.wp, "get_device", lambda device_name: device)
-    monkeypatch.setattr(module.wp, "launch", fake_launch)
-    data = ArticulationData.__new__(ArticulationData)
-    data.device = "cuda:0"
-    data._cached_read_launches = {}
-
-    for _ in range(2):
-        data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
-
-    assert len(launch_calls) == 1
-    assert launch_calls[0][1]["record_cmd"] is True
-    assert command.launch_count == 2
-
-    data._reset_cached_read_launches()
-    device.is_capturing = True
-    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
-    assert "record_cmd" not in launch_calls[-1][1]
-    assert data._cached_read_launches == {}
-
-    device.is_capturing = False
-    device.is_cuda = False
-    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
-    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
-    assert len(launch_calls) == 4
-    assert all("record_cmd" not in kwargs for _, kwargs in launch_calls[-2:])
-    assert data._cached_read_launches == {}
-
-
-def test_cached_read_launch_ignores_empty_recording(monkeypatch):
-    """OVPhysX should treat an empty recorded launch as a completed no-op."""
-
-    class FakeDevice:
-        is_cuda = True
-        is_capturing = False
-
-    launch_calls = []
-
-    def fake_launch(*args, **kwargs):
-        launch_calls.append((args, kwargs))
-        return
-
-    module = sys.modules[ArticulationData.__module__]
-    monkeypatch.setattr(module.wp, "get_device", lambda device_name: FakeDevice())
-    monkeypatch.setattr(module.wp, "launch", fake_launch)
-    data = ArticulationData.__new__(ArticulationData)
-    data.device = "cuda:0"
-    data._cached_read_launches = {}
-
-    data._launch_cached_read("joint_pos", object(), dim=0, inputs=[], outputs=[])
-
-    assert len(launch_calls) == 1
-    assert launch_calls[0][1]["record_cmd"] is True
-    assert data._cached_read_launches == {}
-
-
 def test_cached_read_launches_reset_on_ordering_and_invalidation():
     """Ordering installation and simulation invalidation should discard recorded reads."""
 
@@ -198,7 +123,8 @@ def test_cached_read_launches_reset_on_ordering_and_invalidation():
         timestamp = 1.0
 
     data = MinimalData.__new__(MinimalData)
-    data._cached_read_launches = {"read": object()}
+    read_launch_cache = Mock()
+    data._read_launch_cache = read_launch_cache
     data._configure_ordering_buffers = lambda: None
     data._make_jacobian_body_user_to_backend = lambda: object()
     data.joint_ordering = None
@@ -208,17 +134,16 @@ def test_cached_read_launches_reset_on_ordering_and_invalidation():
 
     data._apply_ordering_maps_after_resolve()
 
-    assert data._cached_read_launches == {}
+    read_launch_cache.clear.assert_called_once_with()
     assert data._body_com_jacobian_w.timestamp == -1.0
     assert data._mass_matrix.timestamp == -1.0
     assert data._gravity_compensation_forces.timestamp == -1.0
 
-    data._cached_read_launches = {"read": object()}
     data._is_primed = True
     data._sim_timestamp = 1.0
     data._invalidate_initialize_callback(None)
 
-    assert data._cached_read_launches == {}
+    assert read_launch_cache.clear.call_count == 2
     assert data._is_primed is False
     assert data._sim_timestamp == 0.0
 
@@ -234,9 +159,11 @@ def test_generalized_dynamics_reorder_uses_public_joint_order():
     data = ArticulationData.__new__(ArticulationData)
     data.device = "cpu"
     data._sim_timestamp = 1.0
-    data._cached_read_launches = {}
+    data._read_launch_cache = _WarpLaunchCache("cpu")
     data.joint_ordering = object()
     data._jacobian_joint_user_to_backend = wp.array([1, 0], dtype=wp.int32, device="cpu")
+    data._joint_dof_signs = wp.ones(2, dtype=wp.int32, device="cpu")
+    data._has_reversed_joints = False
     data._num_base_dofs = 0
 
     backend_values = wp.array([[[1.0, 2.0], [3.0, 4.0]]], dtype=wp.float32, device="cpu")
@@ -485,6 +412,98 @@ def sim(request):
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
+    """Write joint state with int64 selectors."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+    sim.reset()
+    assert articulation.num_joints >= 2
+
+    env_ids = torch.tensor([1, 0], dtype=torch.int64, device=device)
+    joint_ids = torch.tensor([articulation.num_joints - 1, 0], dtype=torch.int64, device=device)
+    position = torch.tensor([[0.21, 0.11], [0.22, 0.12]], device=device)
+    velocity = torch.tensor([[1.21, 1.11], [1.22, 1.12]], device=device)
+    expected_position = articulation.data.joint_pos.torch.clone()
+    expected_velocity = articulation.data.joint_vel.torch.clone()
+
+    articulation.write_joint_state_to_sim_index(
+        position=position, velocity=velocity, env_ids=env_ids, joint_ids=joint_ids
+    )
+
+    expected_position[env_ids[:, None], joint_ids[None, :]] = position
+    expected_velocity[env_ids[:, None], joint_ids[None, :]] = velocity
+    torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
+    torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_enabled):
+    """Keep dynamics tensors consistent with public joint velocity."""
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
+            ),
+            actuators={},
+        )
+    )
+    UsdPhysics.FixedJoint.Define(sim.stage, "/World/Robot/fixed_root").GetBody1Rel().SetTargets(["/World/Robot/base"])
+    joint = UsdPhysics.RevoluteJoint.Get(sim.stage, "/World/Robot/left_elbow")
+    body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
+    joint.GetBody0Rel().SetTargets(body1)
+    joint.GetBody1Rel().SetTargets(body0)
+    sim.reset()
+
+    velocity = torch.zeros((1, articulation.num_joints), device=device)
+    velocity[:, articulation.find_joints("left_shoulder")[0][0]] = 0.4
+    velocity[:, articulation.find_joints("left_elbow")[0][0]] = 0.7
+    articulation.write_joint_velocity_to_sim_index(velocity=velocity)
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    joint_velocity = articulation.data.joint_vel.torch
+    predicted_velocity = torch.einsum("nbij,nj->nbi", articulation.data.body_com_jacobian_w.torch, joint_velocity)
+    torch.testing.assert_close(predicted_velocity, articulation.data.body_com_vel_w.torch[:, 1:], atol=1e-5, rtol=1e-5)
+
+    generalized_energy = 0.5 * torch.einsum(
+        "ni,nij,nj->n", joint_velocity, articulation.data.mass_matrix.torch, joint_velocity
+    )
+    body_velocity = articulation.data.body_com_vel_w.torch
+    body_inertia = articulation.data.body_inertia.torch.reshape(1, articulation.num_bodies, 3, 3)
+    body_energy = 0.5 * (
+        (articulation.data.body_mass.torch.unsqueeze(-1) * body_velocity[..., :3].square()).sum((-1, -2))
+        + torch.einsum("nbi,nbij,nbj->n", body_velocity[..., 3:], body_inertia, body_velocity[..., 3:])
+    )
+    torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-5)
+
+
+def test_joint_dof_sign_resolution_traverses_instance_proxies():
+    """Resolve reversed joints inside an instanceable articulation."""
+    source_stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(source_stage, "/Robot")
+    UsdGeom.Xform.Define(source_stage, "/Robot/base")
+    UsdGeom.Xform.Define(source_stage, "/Robot/link")
+    joint = UsdPhysics.RevoluteJoint.Define(source_stage, "/Robot/joint")
+    joint.GetBody0Rel().SetTargets(["/Robot/link"])
+    joint.GetBody1Rel().SetTargets(["/Robot/base"])
+    stage = Usd.Stage.CreateInMemory()
+    instance = UsdGeom.Xform.Define(stage, "/World/Robot").GetPrim()
+    instance.GetReferences().AddReference(source_stage.GetRootLayer().identifier, "/Robot")
+    instance.SetInstanceable(True)
+
+    articulation = Mock(
+        cfg=Mock(prim_path="/World/Robot"),
+        _joint_names=["joint"],
+        _body_names=["base", "link"],
+    )
+
+    assert Articulation._resolve_joint_dof_signs(articulation, stage) == (-1,)
 
 
 @pytest.mark.parametrize("num_articulations", [1])
@@ -2541,6 +2560,36 @@ def test_reset(sim, num_articulations, device):
         assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch) == num_bodies * 3
         assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == num_bodies * 3
         assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == num_bodies * 3
+
+
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", test_devices())
+def test_write_root_velocity_invalidates_body_frame_cache(sim, num_articulations, device):
+    """Writing root velocity refreshes cached body-frame root velocities before a step."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
+
+    sim.reset()
+    for _ in range(3):
+        sim.step()
+        articulation.update(sim.cfg.dt)
+    ang_before = articulation.data.root_ang_vel_b.torch.clone()
+
+    new_vel = torch.zeros(num_articulations, 6, device=device)
+    new_vel[:, :3] = torch.tensor([3.0, 0.0, 0.0], device=device)
+    new_vel[:, 3:] = torch.tensor([0.0, 0.0, 5.0], device=device)
+    articulation.write_root_velocity_to_sim_index(
+        root_velocity=wp.from_torch(new_vel.contiguous(), dtype=wp.spatial_vectorf)
+    )
+
+    ang_after = articulation.data.root_ang_vel_b.torch
+    torch.testing.assert_close(
+        ang_after.norm(dim=-1),
+        torch.full((num_articulations,), 5.0, device=device),
+        atol=1e-3,
+        rtol=1e-3,
+    )
+    assert not torch.allclose(ang_after, ang_before)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

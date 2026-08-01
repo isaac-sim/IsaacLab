@@ -111,8 +111,12 @@ def create_physx_rigid_object(
 
     # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
     N, B = num_instances, 1  # rigid object has 1 body
+    object.__setattr__(rigid_object, "_sim_env_ids", wp.empty(N, dtype=wp.int32, device=device))
+    object.__setattr__(rigid_object, "_sim_env_ids_views", {})
     cpu_env_ids = wp.array(np.arange(N, dtype=np.int32), device="cpu")
     object.__setattr__(rigid_object, "_cpu_env_ids_all", cpu_env_ids)
+    object.__setattr__(rigid_object, "_cpu_env_ids", wp.empty(N, dtype=wp.int32, device="cpu", pinned=True))
+    object.__setattr__(rigid_object, "_cpu_env_ids_views", {})
     object.__setattr__(rigid_object, "_cpu_body_mass", wp.zeros((N, B), dtype=wp.float32, device="cpu"))
     object.__setattr__(rigid_object, "_cpu_body_coms", wp.zeros((N, B, 7), dtype=wp.float32, device="cpu"))
     object.__setattr__(rigid_object, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu"))

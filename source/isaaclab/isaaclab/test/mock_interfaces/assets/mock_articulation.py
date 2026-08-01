@@ -14,6 +14,7 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.assets.asset_base import AssetBase
 from isaaclab.utils.warp import ProxyArray
 
 try:
@@ -1385,16 +1386,34 @@ class MockArticulation:
 
     # -- Finder methods --
 
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies by name regex patterns."""
-        return self._find_by_regex(self._body_names, name_keys, preserve_order)
+        indices, names = self._find_by_regex(self._body_names, name_keys, preserve_order)
+        return (
+            AssetBase._resolve_finder_indices(
+                self,
+                indices,
+                domain="body",
+                as_proxy=as_proxy,
+                legacy_type="list",
+            ),
+            list(names),
+        )
 
     def find_joints(
         self,
         name_keys: str | Sequence[str],
         joint_subset: list[str] | None = None,
         preserve_order: bool = False,
-    ) -> tuple[list[int], list[str]]:
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find joints by name regex patterns."""
         names = self._joint_names
         if joint_subset is not None:
@@ -1402,15 +1421,27 @@ class MockArticulation:
             names = joint_subset
             indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
             indices = [subset_indices[i] for i in indices]
-            return indices, matched_names
-        return self._find_by_regex(names, name_keys, preserve_order)
+        else:
+            indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
+        return (
+            AssetBase._resolve_finder_indices(
+                self,
+                indices,
+                domain="joint",
+                as_proxy=as_proxy,
+                legacy_type="list",
+            ),
+            list(matched_names),
+        )
 
     def find_fixed_tendons(
         self,
         name_keys: str | Sequence[str],
         tendon_subsets: list[str] | None = None,
         preserve_order: bool = False,
-    ) -> tuple[list[int], list[str]]:
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find fixed tendons by name regex patterns."""
         names = self._fixed_tendon_names
         if tendon_subsets is not None:
@@ -1418,15 +1449,27 @@ class MockArticulation:
             names = tendon_subsets
             indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
             indices = [subset_indices[i] for i in indices]
-            return indices, matched_names
-        return self._find_by_regex(names, name_keys, preserve_order)
+        else:
+            indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
+        return (
+            AssetBase._resolve_finder_indices(
+                self,
+                indices,
+                domain="fixed_tendon",
+                as_proxy=as_proxy,
+                legacy_type="list",
+            ),
+            list(matched_names),
+        )
 
     def find_spatial_tendons(
         self,
         name_keys: str | Sequence[str],
         tendon_subsets: list[str] | None = None,
         preserve_order: bool = False,
-    ) -> tuple[list[int], list[str]]:
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find spatial tendons by name regex patterns."""
         names = self._spatial_tendon_names
         if tendon_subsets is not None:
@@ -1434,8 +1477,18 @@ class MockArticulation:
             names = tendon_subsets
             indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
             indices = [subset_indices[i] for i in indices]
-            return indices, matched_names
-        return self._find_by_regex(names, name_keys, preserve_order)
+        else:
+            indices, matched_names = self._find_by_regex(names, name_keys, preserve_order)
+        return (
+            AssetBase._resolve_finder_indices(
+                self,
+                indices,
+                domain="spatial_tendon",
+                as_proxy=as_proxy,
+                legacy_type="list",
+            ),
+            list(matched_names),
+        )
 
     def _find_by_regex(
         self, names: list[str], name_keys: str | Sequence[str], preserve_order: bool

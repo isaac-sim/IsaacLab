@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .generators import (
     make_indexed_generators,
+    make_item_selector_generators,
     make_mask_generator,
     make_scaled_tensor_generator,
     make_signed_joint_limits_generator,
@@ -24,10 +25,15 @@ def _indexed(
     *,
     requires: str | None = None,
 ) -> AssetMethodSpec:
+    item_keys = tuple(name for name in index_dimensions if name in {"body_ids", "joint_ids"})
+    if item_keys:
+        input_generators = make_item_selector_generators(tensor_shapes, index_dimensions)
+    else:
+        input_generators = make_indexed_generators(tensor_shapes, index_dimensions)
     return AssetMethodSpec(
         name=method_name,
         method_name=method_name,
-        input_generators=make_indexed_generators(tensor_shapes, index_dimensions),
+        input_generators=input_generators,
         category=category,
         requires=requires,
     )
@@ -53,6 +59,7 @@ def _scaled_tensor_field(spec: AssetMethodSpec, field_name: str, scale: float) -
         },
         category=spec.category,
         requires=spec.requires,
+        prepare_target=spec.prepare_target,
     )
 
 
@@ -73,6 +80,7 @@ def _signed_joint_limits(spec: AssetMethodSpec) -> AssetMethodSpec:
         },
         category=spec.category,
         requires=spec.requires,
+        prepare_target=spec.prepare_target,
     )
 
 
@@ -239,6 +247,33 @@ _ARTICULATION_MASKS = tuple(
     )
     for spec in _ARTICULATION_PLAIN[3:7]
 )
+
+
+def _finder_specs(method_name: str) -> tuple[AssetMethodSpec, ...]:
+    return (
+        AssetMethodSpec(
+            name=f"{method_name}_default",
+            method_name=method_name,
+            input_generators={"default": lambda _config: {"name_keys": ".*"}},
+            category="selector_finder",
+        ),
+        AssetMethodSpec(
+            name=f"{method_name}_proxy_cold",
+            method_name=method_name,
+            input_generators={"proxy_cold": lambda _config: {"name_keys": ".*", "as_proxy": True}},
+            category="selector_finder",
+            prepare_target=lambda target: target._clear_selector_cache(),
+        ),
+        AssetMethodSpec(
+            name=f"{method_name}_proxy_cached",
+            method_name=method_name,
+            input_generators={"proxy_cached": lambda _config: {"name_keys": ".*", "as_proxy": True}},
+            category="selector_finder",
+        ),
+    )
+
+
+_ARTICULATION_FINDERS = _finder_specs("find_bodies") + _finder_specs("find_joints")
 
 
 def _articulation_mask_specs() -> tuple[AssetMethodSpec, ...]:
@@ -656,7 +691,7 @@ _COLLECTION_PROPERTIES = tuple(
 _SUITES = {
     "articulation": AssetBenchmarkSuite(
         component="articulation",
-        methods=_ARTICULATION_PLAIN + _articulation_mask_specs(),
+        methods=_ARTICULATION_PLAIN + _ARTICULATION_FINDERS + _articulation_mask_specs(),
         properties=_ARTICULATION_PROPERTIES,
     ),
     "rigid_object": AssetBenchmarkSuite(

@@ -21,34 +21,76 @@ _DIMENSIONS = {
     "joints": "num_joints",
 }
 FILL_RATIOS = (("5pct", 0.05), ("95pct", 0.95), ("100pct", 1.0))
+_SELECTOR_MODES = ("torch_list", "torch_tensor_int32", "torch_tensor_int64", "warp_int32", "warp_int64")
+_ITEM_SELECTOR_MODES = {
+    "torch_list": ("torch_list", "torch_list"),
+    "torch_tensor_int32": ("torch_tensor_int32", "torch_tensor_int32"),
+    "torch_tensor_int64": ("torch_tensor_int64", "torch_tensor_int64"),
+    "torch_tensor_int32_int64": ("torch_tensor_int32", "torch_tensor_int64"),
+    "torch_tensor_int64_int32": ("torch_tensor_int64", "torch_tensor_int32"),
+    "warp_int32": ("warp_int32", "warp_int32"),
+    "warp_int64": ("warp_int64", "warp_int64"),
+    "warp_int32_int64": ("warp_int32", "warp_int64"),
+    "warp_int64_int32": ("warp_int64", "warp_int32"),
+}
 
 
 def _resolve_shape(config: MethodBenchmarkRunnerConfig, shape: Sequence[str | int]) -> tuple[int, ...]:
     return tuple(getattr(config, _DIMENSIONS[value]) if isinstance(value, str) else value for value in shape)
 
 
+def _make_selector(count: int, mode: str, device: str) -> object:
+    if mode == "torch_list":
+        return list(range(count))
+    family, dtype_name = mode.rsplit("_", 1)
+    if family == "torch_tensor":
+        return torch.arange(count, dtype=getattr(torch, dtype_name), device=device)
+    if family == "warp":
+        return wp.array(range(count), dtype=getattr(wp, dtype_name), device=device)
+    raise ValueError(f"Unsupported selector mode: {mode!r}")
+
+
 def make_indexed_generators(
     tensor_shapes: Mapping[str, Sequence[str | int]],
     index_dimensions: Mapping[str, str],
 ) -> dict[str, InputGenerator]:
-    """Create list-index and tensor-index generators for a workload."""
+    """Create generators for one selector axis."""
 
-    def generate(config: MethodBenchmarkRunnerConfig, *, tensor_indices: bool) -> dict[str, object]:
+    def generate(config: MethodBenchmarkRunnerConfig, mode: str) -> dict[str, object]:
         inputs: dict[str, object] = {
             name: torch.rand(*_resolve_shape(config, shape), device=config.device, dtype=torch.float32)
             for name, shape in tensor_shapes.items()
         }
         for name, dimension in index_dimensions.items():
             count = getattr(config, _DIMENSIONS[dimension])
-            inputs[name] = (
-                torch.arange(count, dtype=torch.int32, device=config.device) if tensor_indices else list(range(count))
-            )
+            inputs[name] = _make_selector(count, mode, config.device)
         return inputs
 
-    return {
-        "torch_list": lambda config: generate(config, tensor_indices=False),
-        "torch_tensor": lambda config: generate(config, tensor_indices=True),
-    }
+    return {mode: lambda config, mode=mode: generate(config, mode) for mode in _SELECTOR_MODES}
+
+
+def make_item_selector_generators(
+    tensor_shapes: Mapping[str, Sequence[str | int]],
+    index_dimensions: Mapping[str, str],
+) -> dict[str, InputGenerator]:
+    """Create equivalent inputs spanning the supported item selector representations."""
+    item_keys = tuple(name for name in index_dimensions if name in {"body_ids", "joint_ids"})
+    if len(item_keys) != 1:
+        raise ValueError("Item selector benchmarks require exactly one body_ids or joint_ids field")
+    item_key = item_keys[0]
+    item_count_dimension = index_dimensions[item_key]
+
+    def generate(config: MethodBenchmarkRunnerConfig, env_mode: str, item_mode: str) -> dict[str, object]:
+        inputs: dict[str, object] = {
+            name: torch.rand(*_resolve_shape(config, shape), device=config.device, dtype=torch.float32)
+            for name, shape in tensor_shapes.items()
+        }
+        inputs["env_ids"] = _make_selector(config.num_instances, env_mode, config.device)
+        item_count = getattr(config, _DIMENSIONS[item_count_dimension])
+        inputs[item_key] = _make_selector(item_count, item_mode, config.device)
+        return inputs
+
+    return {mode: lambda config, modes=modes: generate(config, *modes) for mode, modes in _ITEM_SELECTOR_MODES.items()}
 
 
 def make_mask_generator(
@@ -110,7 +152,12 @@ def _make_tensor_fill_generator(base_generator: InputGenerator, fill_ratio: floa
                 result[name] = (
                     torch.randperm(config.num_instances, device=config.device)[:count].sort().values.to(torch.int32)
                 )
-            elif isinstance(value, torch.Tensor) and value.ndim >= 1 and value.shape[0] == config.num_instances:
+            elif (
+                name not in {"body_ids", "joint_ids"}
+                and isinstance(value, torch.Tensor)
+                and value.ndim >= 1
+                and value.shape[0] == config.num_instances
+            ):
                 result[name] = value[:count]
             else:
                 result[name] = value
@@ -141,8 +188,9 @@ def build_fill_benchmarks(
     fill_benchmarks: list[MethodBenchmarkDefinition] = []
     for benchmark in benchmarks:
         generators: dict[str, InputGenerator] = {}
-        if "tensor_fill" in capabilities and "torch_tensor" in benchmark.input_generators:
-            base_generator = benchmark.input_generators["torch_tensor"]
+        tensor_mode = "torch_tensor_int32" if "torch_tensor_int32" in benchmark.input_generators else "torch_tensor"
+        if "tensor_fill" in capabilities and tensor_mode in benchmark.input_generators:
+            base_generator = benchmark.input_generators[tensor_mode]
             for suffix, ratio in FILL_RATIOS:
                 generators[f"tensor_{suffix}"] = _make_tensor_fill_generator(base_generator, ratio)
         if "mask_fill" in capabilities and "warp_mask" in benchmark.input_generators:
