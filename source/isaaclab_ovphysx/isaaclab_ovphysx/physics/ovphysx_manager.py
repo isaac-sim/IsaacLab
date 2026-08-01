@@ -278,6 +278,11 @@ class OvPhysxManager(PhysicsManager):
     _physx_schemas_registered: ClassVar[bool] = False
 
     @classmethod
+    def _prepare_stage_creation(cls) -> None:
+        """Register OvPhysX USD schemas before creating the selected backend's stage."""
+        cls._ensure_physx_schemas_registered()
+
+    @classmethod
     def _ensure_physx_schemas_registered(cls) -> None:
         """Register the codeless USD plugins published by the OVPhysX wheel.
 

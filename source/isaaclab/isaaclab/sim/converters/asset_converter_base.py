@@ -106,6 +106,9 @@ class AssetConverterBase(abc.ABC):
                 f.write(self._asset_hash)
             # convert the asset to USD
             self._convert_asset(cfg)
+            # the importers emit the physics payloads behind a "Physics" variant set but leave it
+            # unselected, which composes the asset with geometry only
+            self._select_physics_variant()
             # dump the configuration to a file
             dump_yaml(os.path.join(self.usd_dir, "config.yaml"), cfg.to_dict())
             # add comment to top of the saved config file with information about the converter
@@ -162,6 +165,33 @@ class AssetConverterBase(abc.ABC):
     """
     Private helpers.
     """
+
+    def _select_physics_variant(self, variant: str = "physx"):
+        """Author a selection for the ``"Physics"`` variant set on the converted asset.
+
+        The URDF and MJCF importers write the physics description into a ``"Physics"`` variant set
+        without selecting a variant, so opening the asset composes it without joints, articulation
+        roots, or mass properties. Selecting a variant here restores physics for every consumer. The
+        selection is authored on the asset, so a spawner that selects a different variant on the
+        referencing prim still wins.
+
+        Does nothing when the asset has no such variant set or the importer already authored a
+        selection.
+
+        Args:
+            variant: The variant to select.
+        """
+        from pxr import Usd
+
+        stage = Usd.Stage.Open(self.usd_path)
+        prim = stage.GetDefaultPrim()
+        if not prim or "Physics" not in prim.GetVariantSets().GetNames():
+            return
+        variant_set = prim.GetVariantSets().GetVariantSet("Physics")
+        if variant_set.GetVariantSelection() or variant not in variant_set.GetVariantNames():
+            return
+        variant_set.SetVariantSelection(variant)
+        stage.GetRootLayer().Save()
 
     @staticmethod
     def _config_to_hash(cfg: AssetConverterBaseCfg) -> str:
