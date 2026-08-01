@@ -798,15 +798,29 @@ for the definition/use of the various Gymnasium observation and action spaces su
     See Direct workflow's :py:obj:`~isaaclab.envs.DirectRLEnvCfg.observation_space` / :py:obj:`~isaaclab.envs.DirectRLEnvCfg.action_space`
     documentation for more details.
 
-The following tables summarize the different pairs of showcased spaces for the *Cartpole* and *Cartpole-Camera* tasks.
-Replace ``<OBSERVATION>`` and ``<ACTION>`` with the observation and action spaces to be explored in the task names for training and evaluation.
+The following tables summarize the different pairs of showcased spaces for the *Cartpole* and
+*Cartpole-Camera* tasks. Their registered task IDs are fixed:
+``IsaacContrib-Cartpole-Showcase-Direct`` and
+``IsaacContrib-Cartpole-Camera-Showcase-Direct``. Select the observation/action pair with
+``presets=<observation>_<action>`` rather than changing the task ID, and select the matching skrl
+agent entry point for that pair. For example:
+
+.. code-block:: bash
+
+    uv run --extra isaacsim isaaclab train --rl_library skrl \
+        --task IsaacContrib-Cartpole-Showcase-Direct \
+        --agent skrl_box_box_cfg_entry_point presets=box_box
+
+    uv run --extra isaacsim isaaclab train --rl_library skrl \
+        --task IsaacContrib-Cartpole-Camera-Showcase-Direct \
+        --agent skrl_box_box_cfg_entry_point presets=box_box
 
 .. raw:: html
 
     <table class="showcase-table">
     <caption>
       <p>Showcase spaces for the <strong>Cartpole</strong> task</p>
-      <p><code>Isaac-Cartpole-Showcase-&lt;OBSERVATION&gt;-&lt;ACTION&gt;-Direct-v0</code></p>
+      <p><code>IsaacContrib-Cartpole-Showcase-Direct presets=&lt;observation&gt;_&lt;action&gt;</code></p>
     </caption>
     <tbody>
       <tr>
@@ -855,7 +869,7 @@ Replace ``<OBSERVATION>`` and ``<ACTION>`` with the observation and action space
     <table class="showcase-table">
     <caption>
         <p>Showcase spaces for the <strong>Cartpole-Camera</strong> task</p>
-        <p><code>Isaac-Cartpole-Camera-Showcase-&lt;OBSERVATION&gt;-&lt;ACTION&gt;-Direct-v0</code></p>
+        <p><code>IsaacContrib-Cartpole-Camera-Showcase-Direct presets=&lt;observation&gt;_&lt;action&gt;</code></p>
     </caption>
     <tbody>
       <tr>
