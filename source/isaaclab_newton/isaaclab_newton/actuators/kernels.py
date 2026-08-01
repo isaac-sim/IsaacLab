@@ -230,7 +230,7 @@ def build_implicit_dof_mask(
         if not isinstance(actuator, ImplicitActuator):
             continue
         j_ids = actuator.joint_indices
-        if j_ids == slice(None) or j_ids is None:
+        if isinstance(j_ids, slice) or j_ids is None:
             modes[:] = 1
         else:
             modes[j_ids.long()] = 1

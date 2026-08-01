@@ -23,6 +23,7 @@ from isaaclab.assets.articulation.ordering_kernels import (
     write_float_user_to_backend_with_indices,
     write_float_user_to_backend_with_mask,
     write_joint_state_user_to_backend_with_indices,
+    write_joint_state_user_to_backend_with_indices_kernel,
     write_joint_state_user_to_backend_with_mask,
     write_joint_vel_user_to_backend_with_indices,
     write_joint_vel_user_to_backend_with_mask,
@@ -647,3 +648,32 @@ def test_write_float_wrapper_accepts_scalar_input() -> None:
     )
     assert user_data[0, 1].item() == 7.5 and user_data[1, 1].item() == 7.5
     assert backend_data[0, 0].item() == 7.5  # user index 1 -> backend index 0
+
+
+@pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
+@pytest.mark.parametrize("joint_dtype", [wp.int32, wp.int64])
+def test_joint_state_writer_accepts_selector_widths(env_dtype: type, joint_dtype: type) -> None:
+    env_ids = wp.array([1, 0], dtype=env_dtype, device="cpu")
+    user_ids = wp.array([2, 0], dtype=joint_dtype, device="cpu")
+    user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    position = wp.array([[110.0, 111.0], [120.0, 121.0]], dtype=wp.float32, device="cpu")
+    velocity = wp.array([[10.0, 11.0], [20.0, 21.0]], dtype=wp.float32, device="cpu")
+    user_position = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    user_velocity = wp.zeros_like(user_position)
+    previous_velocity = wp.zeros_like(user_velocity)
+    acceleration = wp.ones_like(user_velocity)
+    backend_position = wp.zeros_like(user_position)
+    backend_velocity = wp.zeros_like(user_velocity)
+    kernel = write_joint_state_user_to_backend_with_indices
+    if env_dtype != wp.int32 or joint_dtype != wp.int32:
+        kernel = write_joint_state_user_to_backend_with_indices_kernel(env_ids, user_ids)
+    wp.launch(
+        kernel,
+        dim=(env_ids.shape[0], user_ids.shape[0]),
+        inputs=[position, velocity, env_ids, user_ids, user_to_backend, True, False],
+        outputs=[user_position, user_velocity, previous_velocity, acceleration, backend_position, backend_velocity],
+        device="cpu",
+    )
+
+    np.testing.assert_array_equal(user_position.numpy(), [[121.0, 0.0, 120.0], [111.0, 0.0, 110.0]])
+    np.testing.assert_array_equal(backend_position.numpy(), [[120.0, 121.0, 0.0], [110.0, 111.0, 0.0]])

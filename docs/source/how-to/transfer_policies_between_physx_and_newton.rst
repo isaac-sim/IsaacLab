@@ -238,14 +238,14 @@ in MJWarp:
 
    # PP: reproduce the PhysX source baseline.
    uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka-Play \
+       --task Isaac-Lift-Franka \
        --num_envs 32 \
        --checkpoint "$PHYSX_CHECKPOINT" \
        physics=physx
 
    # PN: deploy the PhysX-trained checkpoint in MJWarp.
    uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka-Play \
+       --task Isaac-Lift-Franka \
        --num_envs 32 \
        --checkpoint "$PHYSX_CHECKPOINT" \
        physics=newton_mjwarp
@@ -266,14 +266,14 @@ PhysX:
 
    # NN: reproduce the MJWarp source baseline.
    uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka-Play \
+       --task Isaac-Lift-Franka \
        --num_envs 32 \
        --checkpoint "$MJWARP_CHECKPOINT" \
        physics=newton_mjwarp
 
    # NP: deploy the MJWarp-trained checkpoint in PhysX.
    uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka-Play \
+       --task Isaac-Lift-Franka \
        --num_envs 32 \
        --checkpoint "$MJWARP_CHECKPOINT" \
        physics=physx
