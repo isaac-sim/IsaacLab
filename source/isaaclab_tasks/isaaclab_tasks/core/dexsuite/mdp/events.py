@@ -258,39 +258,16 @@ class conditional_reset(ManagerTermBase):
     are processed recursively), so this term only *calls* them and never resolves functions,
     scene entities, or class terms itself.
 
-    On the first reset, the wrapped terms are re-rolled and the states satisfying
+    On the first reset the wrapped terms are re-rolled and the states satisfying
     :paramref:`valid_criteria` are harvested into a buffer of :paramref:`buffer_size_per_group`
-    samples per group (rejection sampling, amortized once). The prefill ignores ``env_ids``
-    and rolls every environment — a partial first reset could otherwise never fill the groups
-    it does not cover — and since the rolls perturb all environments, the first reset then
-    restores a banked sample to every environment. Every subsequent reset restores a random
-    banked sample to the requested environments only — the wrapped terms and criteria never
-    run again.
+    samples per group by rejection sampling. The prefill ignores ``env_ids`` and rolls every
+    environment, since a partial first reset could otherwise never fill the groups it does not
+    cover. The bank is then frozen: the wrapped terms and criteria never run again, and every
+    reset from that point restores a banked sample to the requested environments.
 
-    Harvesting the first valid states leaves the bank shaped like the reset ranges: dense in
-    whatever they favor, thin in the rare-but-interesting corners. Given a
-    :paramref:`diversity_feature`, the prefill instead harvests :paramref:`oversample_factor`
-    times as many candidates and keeps the most spread-out :paramref:`buffer_size_per_group` of
-    them per group (farthest point sampling on the descriptor), which thins near-duplicates and
-    keeps the tails.
-
-    Given a :paramref:`success_monitor`, the restore stops being a uniform draw: each banked state
-    accumulates the outcomes of the episodes started from it, and the draw then favors the states
-    whose success rate sits near the monitor's target. At the default target of one half the policy
-    keeps being restarted from the states it is on the edge of solving rather than from ones it
-    already owns or cannot touch yet.
-
-    The captured state is the reset surface of the scene (see :func:`get_reset_state`):
-    root pose/velocity plus joint positions/velocities of every articulation, and the root
-    pose/velocity of every rigid object, buffered relative to the environment origins so a
-    sample harvested in one environment can be replayed in another.
-
-    With heterogeneous cloning (e.g. multi-asset spawned objects), environments are only
-    interchangeable within the same unique asset combination: a state harvested in a cube
-    environment is not a valid state for a capsule environment. The buffer is therefore
-    partitioned by the scene's clone plan — an environment's column of the plan's clone mask
-    is its asset-combination signature — as ``[num_groups * buffer_size_per_group]`` rows,
-    and failing environments are only patched from their own group's partition.
+    Given a :paramref:`diversity_feature` the prefill keeps the most spread-out states rather
+    than the first valid ones, and given a :paramref:`success_monitor` the restore is drawn by
+    each state's measured success rate rather than uniformly.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):

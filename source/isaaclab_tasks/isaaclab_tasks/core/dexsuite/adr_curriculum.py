@@ -18,7 +18,7 @@ class CurriculumCfg:
         func=mdp.DifficultyScheduler, params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10}
     )
 
-    def disable_observation_noise_terms(self):
+    def disable_observation_noise_terms(self) -> None:
         """Drop the terms that schedule observation noise.
 
         Required whenever observation corruption is off: the observation manager clears the ``noise``

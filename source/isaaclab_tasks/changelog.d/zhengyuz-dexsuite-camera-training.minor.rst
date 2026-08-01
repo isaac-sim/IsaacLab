@@ -18,21 +18,32 @@ Added
 Changed
 ^^^^^^^
 
-* Changed the dexsuite camera presets to a spatial-softmax actor at a fixed learning rate. Camera
-  actors are limited by how large an encoder update they tolerate, which ties the learning rate to
-  the size of the latent the encoder hands to the MLP, so ``single_camera`` and ``duo_camera`` now
-  reduce the convolutional feature map to per-channel keypoint coordinates
+* Changed the dexsuite camera presets to a spatial-softmax actor at a fixed learning rate.
+  ``single_camera`` and ``duo_camera`` now reduce the convolutional feature map to per-channel
+  keypoint coordinates
   (:class:`~isaaclab_tasks.core.dexsuite.config.kuka_allegro.agents.models.SpatialSoftmaxCNNModel`)
-  and run with ``schedule="fixed"`` and ``learning_rate=1e-4``. The adaptive KL schedule oscillates
-  across the stability threshold and does not train a camera actor at all. Measured at 4096
-  environments, iterations to 50% success drop by 23% for a single RGB camera and 46% for duo
-  depth, with unchanged final success. The state presets are unchanged.
-* Changed the dexsuite camera observation normalization to fixed affine maps. RGB now maps to
-  ``[-0.5, 0.5]`` and depth to the same span instead of subtracting a per-frame mean, which keeps
-  pixel values stationary and preserves the absolute-distance anchor for depth.
-* **Breaking:** Replaced ``position_command_error_tanh`` and ``orientation_command_error_tanh``
-  with :class:`~isaaclab_tasks.core.dexsuite.mdp.position_command_progress` and
+  and run with ``schedule="fixed"`` and ``learning_rate=1e-4``; the adaptive KL schedule does not
+  converge for a camera actor. State-policy optimizer settings were unchanged.
+* Changed the dexsuite camera observation normalization to fixed maps that no longer depend on the
+  frame's own statistics. RGB is rescaled affinely to ``[-0.5, 0.5]`` and depth is squashed with a
+  ``tanh`` transform over the same span, replacing per-frame mean subtraction. Pixel values are now
+  comparable across frames and depth keeps an absolute-distance reference.
+* Changed the dexsuite tracking rewards used by the shipped tasks to
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.position_command_progress` and
   :class:`~isaaclab_tasks.core.dexsuite.mdp.orientation_command_progress`, which pay a fixed amount
-  per increment of ground gained on the episode-best error so that losing and regaining ground
-  earns nothing. Replace the removed terms with the progress terms and set ``min_improvement``
-  instead of ``std``.
+  per increment of ground gained on the best error so far, so losing and regaining ground earns
+  nothing.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``position_command_error_tanh`` and ``orientation_command_error_tanh`` in favor of
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.position_command_progress` and
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.orientation_command_progress`. Swap the term and set
+  ``min_improvement`` instead of ``std``.
+
+Fixed
+^^^^^
+
+* Fixed the dexsuite progress rewards crediting against a stale reference after the tracked command
+  resampled mid-episode. The baseline is now re-seeded whenever the command changes.

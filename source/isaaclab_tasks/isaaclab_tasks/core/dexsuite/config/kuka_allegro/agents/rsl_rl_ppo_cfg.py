@@ -46,12 +46,9 @@ STATE_CRITIC_CFG = RslRlMLPModelCfg(
     activation="elu",
 )
 
-# Camera actors are only stable while the encoder's update magnitude stays bounded, which couples
-# the learning rate to the size of the latent the encoder hands to the MLP. Reducing the feature
-# map to per-channel keypoint coordinates instead of flattening it keeps that latent at two numbers
-# per channel whatever the feature-map size, which leaves room for a higher learning rate than a
-# flattened encoder tolerates. One shared configuration covers both rigs; iterations to 50% success
-# drop by 23% for a single RGB camera and 46% for duo depth, over three seeds at 4096 environments.
+# Camera actor shared by both rigs. The encoder reduces its feature map to per-channel keypoint
+# coordinates rather than flattening it, so the latent handed to the MLP stays at two numbers per
+# channel regardless of the feature-map size.
 CNN_POLICY_CFG = RslRlSpatialSoftmaxCNNModelCfg(
     obs_normalization=True,
     hidden_dims=[512, 256, 128],
@@ -82,6 +79,11 @@ ALGO_CFG = RslRlPpoAlgorithmCfg(
 )
 
 
+# Camera actors need a fixed learning rate: the adaptive KL schedule varies it across the range
+# where encoder features change faster than the policy head can track, and does not converge.
+CAMERA_ALGO_CFG = ALGO_CFG.replace(num_mini_batches=8, schedule="fixed", learning_rate=1.0e-4)
+
+
 @configclass
 class DexsuiteKukaAllegroPPOBaseRunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 32
@@ -109,9 +111,7 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         obs_groups={"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]},
         actor=CNN_POLICY_CFG,
         critic=STATE_CRITIC_CFG,
-        # fixed LR: the adaptive-KL schedule oscillates across the encoder stability threshold
-        # (its KL signal is inflated by encoder feature churn) and never trains a camera actor
-        algorithm=ALGO_CFG.replace(num_mini_batches=8, schedule="fixed", learning_rate=1.0e-4),
+        algorithm=CAMERA_ALGO_CFG,
     )
 
     duo_camera = DexsuiteKukaAllegroPPOBaseRunnerCfg().replace(
@@ -122,5 +122,5 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         },
         actor=CNN_POLICY_CFG,
         critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG.replace(num_mini_batches=8, schedule="fixed", learning_rate=1.0e-4),
+        algorithm=CAMERA_ALGO_CFG,
     )

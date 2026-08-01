@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -166,6 +167,72 @@ class success_reward(ManagerTermBase):
         return reward
 
 
+def position_command_error_tanh(
+    env: ManagerBasedRLEnv,
+    std: float,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    align_asset_cfg: SceneEntityCfg,
+    thumb_name: str,
+    finger_names: list[str],
+    contact_threshold: float = 0.1,
+) -> torch.Tensor:
+    """Reward tracking of commanded position using tanh kernel, gated by contact presence.
+
+    .. deprecated::
+        Use :class:`position_command_progress`, which pays per increment of ground gained on the
+        best error so far instead of paying every step the object is near the goal. Replace
+        ``std`` with ``min_improvement``.
+    """
+    warnings.warn(
+        "The reward term 'position_command_error_tanh' is deprecated. Use 'position_command_progress' instead,"
+        " replacing 'std' with 'min_improvement'.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    asset: RigidObject = env.scene[asset_cfg.name]
+    obj: RigidObject = env.scene[align_asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    des_pos_w, _ = combine_frame_transforms(
+        asset.data.root_pos_w.torch,
+        asset.data.root_quat_w.torch,
+        command[:, :3],
+    )
+    distance = torch.linalg.norm(obj.data.root_pos_w.torch - des_pos_w, dim=1)
+    return (1 - torch.tanh(distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()
+
+
+def orientation_command_error_tanh(
+    env: ManagerBasedRLEnv,
+    std: float,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    align_asset_cfg: SceneEntityCfg,
+    thumb_name: str,
+    finger_names: list[str],
+    contact_threshold: float = 0.1,
+) -> torch.Tensor:
+    """Reward tracking of commanded orientation using tanh kernel, gated by contact presence.
+
+    .. deprecated::
+        Use :class:`orientation_command_progress`, which pays per increment of ground gained on the
+        best error so far instead of paying every step the object is near the goal. Replace
+        ``std`` with ``min_improvement``.
+    """
+    warnings.warn(
+        "The reward term 'orientation_command_error_tanh' is deprecated. Use 'orientation_command_progress' instead,"
+        " replacing 'std' with 'min_improvement'.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    asset: RigidObject = env.scene[asset_cfg.name]
+    obj: RigidObject = env.scene[align_asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    des_quat_w = math_utils.quat_mul(asset.data.root_link_quat_w.torch, command[:, 3:7])
+    quat_distance = math_utils.quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
+    return (1 - torch.tanh(quat_distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()
+
+
 class _ProgressReward(ManagerTermBase):
     """Base class for rewards that only pay out when a tracking error reaches a new episode best.
 
@@ -177,21 +244,42 @@ class _ProgressReward(ManagerTermBase):
 
     The bar is seeded with the error measured on the first step of an episode, so holding the starting
     pose earns nothing. Progress made while the gating condition is false does not move the bar, so it
-    stays claimable once the condition is met again.
+    stays claimable once the condition is met again. The bar is measured against the command in force,
+    so it is re-seeded whenever the command resamples and never carries across goals.
     """
 
     def __init__(self, cfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        # inf marks an environment whose bar has not been seeded yet in the current episode
+        # inf marks an environment whose bar has not been seeded yet against its current command
         self.best_error = torch.full((env.num_envs,), float("inf"), device=env.device)
+        self._prev_command: torch.Tensor | None = None
 
     def reset(self, env_ids: Sequence[int] | None = None):
         if env_ids is None:
             env_ids = slice(None)
         self.best_error[env_ids] = float("inf")
 
-    def _progress(self, error: torch.Tensor, gate: torch.Tensor, min_improvement: float) -> torch.Tensor:
-        """Return 1.0 for the environments that beat their episode best while ``gate`` holds."""
+    def _progress(
+        self, error: torch.Tensor, gate: torch.Tensor, min_improvement: float, command: torch.Tensor
+    ) -> torch.Tensor:
+        """Return 1.0 for the environments that beat their best error under the command in force.
+
+        Args:
+            error: Current tracking error per environment.
+            gate: Environments allowed to be credited this step.
+            min_improvement: Amount the error must beat the bar by to be paid again.
+            command: Command being tracked; a change re-seeds the bar for that environment.
+
+        Returns:
+            Tensor of shape ``(num_envs,)`` that is ``1.0`` where a payout is due.
+        """
+        # a resampled command changes the error's reference, so the bar it was measured against no
+        # longer applies; dropping it to inf re-seeds from the first error under the new command
+        if self._prev_command is None:
+            self._prev_command = command.clone()
+        else:
+            self.best_error[(self._prev_command != command).any(dim=1)] = float("inf")
+            self._prev_command.copy_(command)
         unseeded = torch.isinf(self.best_error)
         self.best_error[unseeded] = error[unseeded]
         improved = gate & (error < self.best_error - min_improvement)
@@ -238,7 +326,8 @@ class position_command_progress(_ProgressReward):
             command[:, :3],
         )
         distance = torch.linalg.norm(obj.data.root_pos_w.torch - des_pos_w, dim=1)
-        return self._progress(distance, contacts(env, contact_threshold, thumb_name, finger_names), min_improvement)
+        gate = contacts(env, contact_threshold, thumb_name, finger_names)
+        return self._progress(distance, gate, min_improvement, command)
 
 
 class orientation_command_progress(_ProgressReward):
@@ -276,6 +365,5 @@ class orientation_command_progress(_ProgressReward):
         command = env.command_manager.get_command(command_name)
         des_quat_w = math_utils.quat_mul(asset.data.root_link_quat_w.torch, command[:, 3:7])
         quat_distance = math_utils.quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
-        return self._progress(
-            quat_distance, contacts(env, contact_threshold, thumb_name, finger_names), min_improvement
-        )
+        gate = contacts(env, contact_threshold, thumb_name, finger_names)
+        return self._progress(quat_distance, gate, min_improvement, command)

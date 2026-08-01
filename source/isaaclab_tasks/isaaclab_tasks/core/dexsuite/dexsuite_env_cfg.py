@@ -377,12 +377,8 @@ class EventCfg:
                 ),
             },
             "buffer_size_per_group": 2048,
-            # harvest more candidates than the bank holds and keep the states spread widest over
-            # hand-to-object and object-to-goal distance jointly. The descriptor's log scale is what
-            # makes this pay: it roughly doubles the share of near-grasp starts while leaving the
-            # far tail near its natural share. Two axes need more candidates to cover than one;
-            # ``1.0`` turns the pass off.
-            "oversample_factor": 5.0,
+            # harvest more candidates than the bank holds and keep the subset that is spread widest
+            # over the diversity feature; ``1.0`` keeps the states first-come instead.
             "diversity_feature": mdp.GraspTravelDistanceCfg(
                 asset_name="robot",
                 body_names=MISSING,  # overridden by robot configs
@@ -427,10 +423,8 @@ class RewardsCfg:
 
     fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=0.05)
 
-    # Tracking is rewarded progressively: one fixed payout per ``min_improvement`` of ground gained on
-    # the episode-best error, so losing and regaining ground earns nothing. Roughly 30 payouts cover
-    # the full initial error, and the manager scales each payout by ``weight * step_dt`` (1/30 s),
-    # which makes ``weight`` the total on offer for driving the error to zero.
+    # Progress rewards pay once per ``min_improvement`` of ground gained on the best error so far,
+    # so ground already credited cannot be earned again by backing off and re-approaching.
     position_tracking = RewTerm(
         func=mdp.position_command_progress,
         weight=5.0,
