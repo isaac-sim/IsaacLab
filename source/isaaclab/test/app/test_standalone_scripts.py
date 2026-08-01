@@ -163,6 +163,11 @@ def test_commands_respect_script_launcher_capabilities():
     h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/h1_locomotion.py")
     assert h1_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
 
+    pick_and_place_case = next(
+        case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/pick_and_place.py"
+    )
+    assert pick_and_place_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
+
     camera_case = next(
         case
         for case in build_cases(SPECS)
