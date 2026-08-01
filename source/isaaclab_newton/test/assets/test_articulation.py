@@ -1480,7 +1480,10 @@ def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
-def test_set_body_inertial_properties_updates_inverses(sim, device, gravity_enabled, articulation_type):
+@pytest.mark.parametrize("index_dtype", [torch.int32, torch.int64])
+def test_set_body_inertial_properties_updates_inverses(
+    sim, device, gravity_enabled, articulation_type, index_dtype, monkeypatch
+):
     """Selected inertial-property writes keep Newton inverse arrays current under body ordering."""
     fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
     articulation = Articulation(
@@ -1494,8 +1497,8 @@ def test_set_body_inertial_properties_updates_inverses(sim, device, gravity_enab
     sim.reset()
     assert articulation.data.body_ordering is not None
 
-    env_ids = torch.tensor([0], dtype=torch.int32, device=device)
-    body_ids = torch.tensor([2, articulation.num_bodies - 1], dtype=torch.int32, device=device)
+    env_ids = torch.tensor([0], dtype=index_dtype, device=device)
+    body_ids = torch.tensor([2, articulation.num_bodies - 1], dtype=index_dtype, device=device)
     backend_body_ids = torch.tensor(
         [articulation.data.body_ordering.user_to_backend_indices[index] for index in body_ids.tolist()],
         dtype=torch.int64,
@@ -1503,8 +1506,17 @@ def test_set_body_inertial_properties_updates_inverses(sim, device, gravity_enab
     )
     assert backend_body_ids[0] != body_ids[0]
 
+    launches = []
+    real_launch = wp.launch
+
+    def recording_launch(kernel, *args, **kwargs):
+        launches.append(kernel)
+        return real_launch(kernel, *args, **kwargs)
+
+    monkeypatch.setattr(wp, "launch", recording_launch)
     masses = articulation.data.body_mass.torch[env_ids][:, body_ids].clone() + torch.tensor([[1.0, 2.0]], device=device)
     articulation.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
+    assert len(launches) == 1
 
     raw_model_inv_mass = articulation.root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[:, 0]
     assert articulation.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
@@ -1513,7 +1525,9 @@ def test_set_body_inertial_properties_updates_inverses(sim, device, gravity_enab
 
     inertia_matrices = torch.diag_embed(torch.tensor([[[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]], device=device))
     inertias = inertia_matrices.reshape(1, 2, 9)
+    launches.clear()
     articulation.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
+    assert len(launches) == 1
 
     raw_model_inv_inertia = articulation.root_view.get_attribute("body_inv_inertia", SimulationManager.get_model())[
         :, 0

@@ -2395,30 +2395,20 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         has_body_ordering = self.data.has_body_ordering
-        ordering_kernels.write_float_user_to_backend_with_indices(
-            masses,
-            env_ids,
-            body_ids,
-            self._body_user_to_backend_map(),
-            has_body_ordering,
-            False,
-            self.data._body_mass_user if has_body_ordering else self.data._sim_bind_body_mass,
-            self.data._sim_bind_body_mass,
-            device=self.device,
-        )
         wp.launch(
-            shared_kernels.update_body_inertial_properties_inverse_index,
+            shared_kernels.write_body_mass_and_inverse_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
-                self.data._sim_bind_body_mass,
-                self.data._sim_bind_body_inertia,
+                masses,
                 env_ids,
                 body_ids,
                 self._body_user_to_backend_map(),
                 has_body_ordering,
-                True,
+                self.data._sim_bind_body_inertia,
             ],
             outputs=[
+                self.data._body_mass_user if has_body_ordering else self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_mass,
                 self.data._sim_bind_body_inv_mass,
                 self.data._sim_bind_body_inv_inertia,
             ],
@@ -2453,29 +2443,20 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(masses, (env_mask, body_mask), wp.float32, "masses")
         has_body_ordering = self.data.has_body_ordering
-        ordering_kernels.write_float_user_to_backend_with_mask(
-            masses,
-            env_mask,
-            body_mask,
-            self._body_user_to_backend_map(),
-            has_body_ordering,
-            self.data._body_mass_user if has_body_ordering else self.data._sim_bind_body_mass,
-            self.data._sim_bind_body_mass,
-            device=self.device,
-        )
         wp.launch(
-            shared_kernels.update_body_inertial_properties_inverse_mask,
+            shared_kernels.write_body_mass_and_inverse_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
-                self.data._sim_bind_body_mass,
-                self.data._sim_bind_body_inertia,
+                masses,
                 env_mask,
                 body_mask,
                 self._body_user_to_backend_map(),
                 has_body_ordering,
-                True,
+                self.data._sim_bind_body_inertia,
             ],
             outputs=[
+                self.data._body_mass_user if has_body_ordering else self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_mass,
                 self.data._sim_bind_body_inv_mass,
                 self.data._sim_bind_body_inv_inertia,
             ],
@@ -2609,31 +2590,20 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         has_body_ordering = self.data.has_body_ordering
-        ordering_kernels.write_3d_user_to_backend_with_indices(
-            inertias,
-            env_ids,
-            body_ids,
-            self._body_user_to_backend_map(),
-            has_body_ordering,
-            False,
-            self.data._body_inertia_user if has_body_ordering else self.data._sim_bind_body_inertia,
-            self.data._sim_bind_body_inertia,
-            dtype=wp.float32,
-            device=self.device,
-        )
         wp.launch(
-            shared_kernels.update_body_inertial_properties_inverse_index,
+            shared_kernels.write_body_inertia_and_inverse_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
-                self.data._sim_bind_body_mass,
-                self.data._sim_bind_body_inertia,
+                inertias,
                 env_ids,
                 body_ids,
                 self._body_user_to_backend_map(),
                 has_body_ordering,
-                False,
+                self.data._sim_bind_body_mass,
             ],
             outputs=[
+                self.data._body_inertia_user if has_body_ordering else self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inertia,
                 self.data._sim_bind_body_inv_mass,
                 self.data._sim_bind_body_inv_inertia,
             ],
@@ -2668,30 +2638,20 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
         has_body_ordering = self.data.has_body_ordering
-        ordering_kernels.write_3d_user_to_backend_with_mask(
-            inertias,
-            env_mask,
-            body_mask,
-            self._body_user_to_backend_map(),
-            has_body_ordering,
-            self.data._body_inertia_user if has_body_ordering else self.data._sim_bind_body_inertia,
-            self.data._sim_bind_body_inertia,
-            dtype=wp.float32,
-            device=self.device,
-        )
         wp.launch(
-            shared_kernels.update_body_inertial_properties_inverse_mask,
+            shared_kernels.write_body_inertia_and_inverse_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
-                self.data._sim_bind_body_mass,
-                self.data._sim_bind_body_inertia,
+                inertias,
                 env_mask,
                 body_mask,
                 self._body_user_to_backend_map(),
                 has_body_ordering,
-                False,
+                self.data._sim_bind_body_mass,
             ],
             outputs=[
+                self.data._body_inertia_user if has_body_ordering else self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inertia,
                 self.data._sim_bind_body_inv_mass,
                 self.data._sim_bind_body_inv_inertia,
             ],
