@@ -9,5 +9,5 @@
 # (frozen at 6.1.0-alpha.2). Isaac Sim publishes to its own NGC org, which is current.
 isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
 isaacsim_image_tag: latest-develop
-isaaclab_image_name: nvcr.io/nvidian/isaac-lab
+isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""
