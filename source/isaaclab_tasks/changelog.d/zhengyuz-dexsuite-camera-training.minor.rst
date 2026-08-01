@@ -1,6 +1,10 @@
 Added
 ^^^^^
 
+* Added :class:`~isaaclab_tasks.core.dexsuite.config.kuka_allegro.agents.models.SpatialSoftmaxCNNModel`,
+  an RSL-RL actor whose convolutional feature map is reduced to per-channel keypoint coordinates
+  rather than flattened. The latent stays at two numbers per channel whatever the feature-map size,
+  which keeps higher input resolutions affordable and leaves room for a higher learning rate.
 * Added :class:`~isaaclab_tasks.core.dexsuite.mdp.SuccessMonitorCfg` and its
   :class:`~isaaclab_tasks.core.dexsuite.mdp.SuccessMonitor` implementation, which draws banked
   reset states by measured success rate so episodes restart from the states the policy solves
@@ -14,11 +18,15 @@ Added
 Changed
 ^^^^^^^
 
-* Changed the dexsuite camera presets to a shared encoder and a fixed learning rate. Camera actor
-  stability depends on bounding the encoder update magnitude, so ``single_camera`` and
-  ``duo_camera`` now use a ``[16, 32, 32]`` convolutional encoder with ``schedule="fixed"`` and
-  ``learning_rate=5e-5``; the adaptive KL schedule oscillates across the stability threshold and
-  does not train a camera actor. The state presets are unchanged.
+* Changed the dexsuite camera presets to a spatial-softmax actor at a fixed learning rate. Camera
+  actors are limited by how large an encoder update they tolerate, which ties the learning rate to
+  the size of the latent the encoder hands to the MLP, so ``single_camera`` and ``duo_camera`` now
+  reduce the convolutional feature map to per-channel keypoint coordinates
+  (:class:`~isaaclab_tasks.core.dexsuite.config.kuka_allegro.agents.models.SpatialSoftmaxCNNModel`)
+  and run with ``schedule="fixed"`` and ``learning_rate=1e-4``. The adaptive KL schedule oscillates
+  across the stability threshold and does not train a camera actor at all. Measured at 4096
+  environments, iterations to 50% success drop by 23% for a single RGB camera and 46% for duo
+  depth, with unchanged final success. The state presets are unchanged.
 * Changed the dexsuite camera observation normalization to fixed affine maps. RGB now maps to
   ``[-0.5, 0.5]`` and depth to the same span instead of subtracting a per-frame mean, which keeps
   pixel values stationary and preserves the absolute-distance anchor for depth.
