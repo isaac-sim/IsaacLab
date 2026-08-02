@@ -113,6 +113,9 @@ class MockArticulationViewWarp:
         self._masses: wp.array | None = None
         self._coms: wp.array | None = None
         self._inertias: wp.array | None = None
+        self._jacobians: wp.array | None = None
+        self._generalized_mass_matrices: wp.array | None = None
+        self._gravity_compensation_forces: wp.array | None = None
 
     # -- Helper Methods --
 
@@ -424,6 +427,40 @@ class MockArticulationViewWarp:
                 device="cpu",
             )
         return wp.clone(self._inertias)
+
+    def get_jacobians(self) -> wp.array:
+        """Get COM-referenced geometric Jacobians of all links."""
+        if self._jacobians is None:
+            num_base_dofs = 0 if self._shared_metatype.fixed_base else 6
+            num_jacobi_bodies = self._num_links - (1 if self._shared_metatype.fixed_base else 0)
+            self._jacobians = wp.zeros(
+                (self._count, num_jacobi_bodies, 6, self._num_dofs + num_base_dofs),
+                dtype=wp.float32,
+                device=self._device,
+            )
+        return wp.clone(self._jacobians)
+
+    def get_generalized_mass_matrices(self) -> wp.array:
+        """Get generalized mass matrices."""
+        if self._generalized_mass_matrices is None:
+            num_base_dofs = 0 if self._shared_metatype.fixed_base else 6
+            self._generalized_mass_matrices = wp.zeros(
+                (self._count, self._num_dofs + num_base_dofs, self._num_dofs + num_base_dofs),
+                dtype=wp.float32,
+                device=self._device,
+            )
+        return wp.clone(self._generalized_mass_matrices)
+
+    def get_gravity_compensation_forces(self) -> wp.array:
+        """Get generalized gravity compensation forces."""
+        if self._gravity_compensation_forces is None:
+            num_base_dofs = 0 if self._shared_metatype.fixed_base else 6
+            self._gravity_compensation_forces = wp.zeros(
+                (self._count, self._num_dofs + num_base_dofs),
+                dtype=wp.float32,
+                device=self._device,
+            )
+        return wp.clone(self._gravity_compensation_forces)
 
     # -- Root Setters --
 
@@ -1031,6 +1068,18 @@ class MockArticulationViewWarp:
             inertias: Warp array of shape (N, L, 9) with dtype=wp.float32.
         """
         self._inertias = wp.clone(inertias)
+
+    def set_mock_jacobians(self, jacobians: wp.array) -> None:
+        """Set mock Jacobian data directly for testing."""
+        self._jacobians = wp.clone(jacobians)
+
+    def set_mock_generalized_mass_matrices(self, mass_matrices: wp.array) -> None:
+        """Set mock generalized mass matrix data directly for testing."""
+        self._generalized_mass_matrices = wp.clone(mass_matrices)
+
+    def set_mock_gravity_compensation_forces(self, forces: wp.array) -> None:
+        """Set mock gravity compensation data directly for testing."""
+        self._gravity_compensation_forces = wp.clone(forces)
 
     # -- Actions (no-op for testing) --
 

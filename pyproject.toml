@@ -3,6 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# The root is not a real distribution, but some tooling refuses to operate unless the
+# directory looks like a buildable Python project. Declare an empty setuptools build so
+# it treats the root as a (contents-free) dist without actually packaging anything.
+# Remove this once downstream users have migrated to a uv workflow
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []
+py-modules = []
+
 [project]
 name = "isaaclab-dev"
 version = "0.1.0"
@@ -38,19 +50,21 @@ dependencies = [
     "gymnasium>=1.2.0",
     "trimesh",
     "pyglet>=2.1.6,<3",
-    # x86_64-only wheel (sdist fails to build on aarch64). Pinned ==0.2.3: >=0.3
-    # imports pyvista at import time.
-    "pytetwild==0.2.3 ; platform_machine in 'x86_64 AMD64'",
+    # pytetwild: keep the behavior-stable 0.2.3 pin on x86_64. 0.3.0 added manylinux
+    # aarch64 wheels; it imports pyvista at import time but only declares it in its
+    # [all] extra, so depend on that extra there.
+    "pytetwild==0.2.3 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
+    "pytetwild[all]>=0.3.0,<0.4 ; platform_machine == 'aarch64' or platform_machine == 'arm64'",
     "transformers==4.57.6",
     "einops",
-    "warp-lang==1.15.0.dev20260626",
+    "warp-lang==1.16.0.dev20260723",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
     "pillow>=12.1.1",
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.0
-    "omniverseclient==2.71.1.7015",
+    "omniverseclient==2.72.3",
     "filelock",
     "lazy_loader>=0.4",
     # Pink IK stack; the install CLI derives its force-install list from these entries.
@@ -82,13 +96,15 @@ dependencies = [
     # ----- newton (default physics engine) -----
     # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
     # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
-    "newton[sim]>=1.2.0",
-    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.3.1.
+    # The importers extra carries the mesh-processing deps (coacd, fast-simplification,
+    # ...) that honoring USD-authored ``physics:approximation`` requires.
+    "newton[sim,importers]>=1.2.0",
+    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.0.
     "newton-usd-schemas>=0.2.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
     "imgui-bundle>=1.92.5",
-    "typing-extensions>=4.12.2",
+    "typing-extensions>=4.15.0",
 ]
 
 [project.optional-dependencies]
@@ -97,7 +113,6 @@ test = [
     "pytest",
     "pytest-mock",
     "junitparser",
-    "flatdict>=4.1.0",
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
     "coverage>=7.6.1",
@@ -122,8 +137,8 @@ rerun = [
 # Isaac Sim (PhysX backend); co-resolves with the base install via the [tool.uv] conflicts table.
 isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
 # Omniverse renderer / physics backends (``ov[ovphysx|ovrtx|all]`` selectors).
-ov = ["ovphysx==0.5.2+head.f62c22207c"]
-rtx = ["ovrtx>=0.3.0,<0.4.0"]
+ovphysx = ["ovphysx==0.5.9", "ovstage>=0.1.0,<0.2.0"]
+ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage>=0.1.0,<0.2.0"]
 mimic = [
     "isaaclab-mimic",
     "ipywidgets>=8.1.5",
@@ -132,7 +147,7 @@ mimic = [
 teleop = [
     "isaaclab-teleop",
     # IsaacTeleop is Linux x86_64 only
-    "isaacteleop[retargeters,ui,cloudxr]~=1.3.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
+    "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
 ]
 # RLinf VLA post-training (externally contributed).
@@ -148,7 +163,7 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-# Aggregate of the compatible extras. Omits teleop/ov/viser, whose pins clash
+# Aggregate of the compatible extras. Omits teleop/ovphysx/viser, whose pins clash
 # with isaacsim (lxml, packaging<24, websockets); install those via their own extra.
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf,mimic]",
@@ -163,11 +178,12 @@ isaacsim = "6.0.0.1"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
-ovphysx = "0.5.2+head.f62c22207c"
-ovrtx = ">=0.3.0,<0.4.0"
+ovphysx = "0.5.9"
+ovrtx = ">=0.4.0,<0.5.0"
+ovstage = ">=0.1.0,<0.2.0"
 # Newton git commit + matching warp-lang prerelease (upgraded together).
-newton = "c7ae7c7648cd0717df39e5c94b95d5a02c997320"
-warp = "1.15.0.dev20260626"
+newton = "d7581b732d83843577411d36f6a58cccee909bce"
+warp = "1.16.0.dev20260723"
 
 [tool.ruff]
 line-length = 120
@@ -312,6 +328,11 @@ url = "https://pypi.nvidia.com"
 explicit = false
 
 [[tool.uv.index]]
+name = "pypi-public"
+url = "https://pypi.org/simple"
+explicit = true
+
+[[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
@@ -326,29 +347,32 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-# Isaac Lab owns the Newton and torch versions. Overrides replace these requirements
-# for EVERY requester (unlike constraints, which only intersect), so ``--extra isaacsim``
-# — which pins ``newton[sim]==1.2.0`` and its own torch stack — can neither block
-# resolution nor downgrade an already-installed newton/torch. The torch stack routes to
-# the CUDA indexes via [tool.uv.sources]. Values mirror [tool.isaaclab.versions] above.
+# Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
+# for every requester, unlike constraints, which only intersect. The ``isaacsim`` extra
+# pins older Newton, MuJoCo, and torch versions, so these overrides prevent downgrades.
+# Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
 override-dependencies = [
     "numpy>=2",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@c7ae7c7648cd0717df39e5c94b95d5a02c997320",
+    "mujoco~=3.10.0",
+    "mujoco-warp~=3.10.0,>=3.10.0.2",
+    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@d7581b732d83843577411d36f6a58cccee909bce",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
-    "newton-usd-schemas>=0.3.1",
+    "newton-usd-schemas>=0.4.0",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
+    # Isaac Sim 6.0 pins 4.12.2, which lacks Sentinel required by the Newton viewer stack.
+    "typing-extensions>=4.15.0",
 ]
 # teleop (lxml>=5.2.2) and mimic (lxml<5.0.0, also in ``all``) cannot co-resolve;
 # declaring the conflict lets uv fork the resolution instead of failing.
-# isaacsim pins clash with teleop/ov/viser/mimic/test (and ``all`` aggregates
+# isaacsim pins clash with teleop/ovphysx/viser/mimic/test (and ``all`` aggregates
 # several of these); forking keeps ``--extra isaacsim`` resolvable on its own.
 conflicts = [
     [{ extra = "teleop" }, { extra = "mimic" }],
     [{ extra = "teleop" }, { extra = "all" }],
     [{ extra = "isaacsim" }, { extra = "teleop" }],
-    [{ extra = "isaacsim" }, { extra = "ov" }],
+    [{ extra = "isaacsim" }, { extra = "ovphysx" }],
     [{ extra = "isaacsim" }, { extra = "viser" }],
     [{ extra = "isaacsim" }, { extra = "mimic" }],
     [{ extra = "isaacsim" }, { extra = "all" }],
@@ -358,6 +382,9 @@ python-preference = "only-managed"
 package = false
 
 [tool.uv.sources]
+omniverseclient = { index = "pypi-public" }
+ovphysx = { index = "pypi-public" }
+ovstage = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }

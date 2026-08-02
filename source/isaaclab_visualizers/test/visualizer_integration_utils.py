@@ -81,7 +81,7 @@ _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tupl
 )
 """Generated tiled-camera target-relative eye offset matching the shared visualizer viewing direction."""
 
-# Resolution overrides for this test module (cartpole preset defaults: tiled camera 100×100; Kit helper was 320×240).
+# Resolution overrides for this test module (cartpole preset defaults: tiled camera 96×96; Kit helper was 320×240).
 _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit: Replicator ``render_product`` (width, height) for viewport RGB in the motion check."""
 
@@ -89,7 +89,7 @@ _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
 """Newton: ``NewtonVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
 
 _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (400, 400)
-"""Tiled camera per-env tile width/height (preset default is 100×100); keeps ``observation_space`` consistent."""
+"""Tiled camera per-env tile width/height (preset default is 96×96); keeps ``observation_space`` consistent."""
 
 _CARTPOLE_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
 """Number of generated visualizer camera tiles exercised by tiled-camera integration tests."""

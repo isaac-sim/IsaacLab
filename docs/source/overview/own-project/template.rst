@@ -176,9 +176,19 @@ Here are some general commands to get started with it:
     .. tab-item:: :icon:`fa-brands fa-linux` Linux
         :sync: linux
 
-        .. code-block:: bash
+        .. tab-set::
 
-          ./isaaclab.sh train --rl_library <library> --task=<Task-Name>
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                uv run isaaclab train --rl_library <library> --task=<Task-Name>
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                ./isaaclab.sh train --rl_library <library> --task=<Task-Name>
 
     .. tab-item:: :icon:`fa-brands fa-windows` Windows
         :sync: windows

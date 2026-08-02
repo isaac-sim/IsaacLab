@@ -42,7 +42,6 @@ from environ_docs import (  # noqa: E402
     _physics_names_for_docs,
     apply_rl_library_overrides,
     collect_environment_doc_rows,
-    find_inference_task_name,
     format_presets_rst,
     format_rl_libraries,
     is_training_task,
@@ -57,9 +56,7 @@ from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 
 def test_is_training_task_filters_inference_variants():
     assert is_training_task("Isaac-Cartpole")
-    assert not is_training_task("Isaac-Cartpole-Play-v0")
     assert not is_training_task("IsaacContrib-Assemble-Trocar-G129-Dex3-Eval")
-    assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0")
 
 
@@ -96,21 +93,6 @@ def test_apply_rl_library_overrides_supplements_registry_gaps():
         {},
     )
     assert agents == {"rlinf": ["PPO"]}
-
-
-def test_find_inference_task_name_supports_play_and_eval():
-    registry_ids = {
-        "Isaac-Ant-v0",
-        "Isaac-Ant-Play-v0",
-        "IsaacContrib-Assemble-Trocar-G129-Dex3",
-        "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval",
-    }
-    assert find_inference_task_name("Isaac-Ant-v0", registry_ids) == "Isaac-Ant-Play-v0"
-    assert (
-        find_inference_task_name("IsaacContrib-Assemble-Trocar-G129-Dex3", registry_ids)
-        == "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval"
-    )
-    assert find_inference_task_name("Isaac-Cartpole", registry_ids) is None
 
 
 def test_format_presets_rst_single_and_multi_line():
@@ -163,7 +145,7 @@ def test_format_presets_rst_keeps_ovphysx_on_physics():
 
 def test_physics_names_for_docs_infers_physx_from_default():
     names = _physics_names_for_docs(
-        "Isaac-Velocity-Flat-G1-v0",
+        "Isaac-Velocity-Flat-G1",
         {PresetTarget.PHYSICS: ["newton_mjwarp"], PresetTarget.DOMAIN: [], PresetTarget.RENDERER: []},
     )
     assert names == ["newton_mjwarp", "physx"]
@@ -183,17 +165,38 @@ def test_collect_environment_doc_rows_from_mock_specs():
             },
         ),
         EnvSpec(
-            id="Isaac-Cartpole-Direct-Play-v0",
+            id="Isaac-Cartpole-Direct-Eval",
             entry_point="isaaclab_tasks.core.cartpole.cartpole_direct_env:CartpoleEnv",
-            kwargs={"env_cfg_entry_point": "cfg:CartpoleEnvCfg_PLAY"},
+            kwargs={"env_cfg_entry_point": "cfg:CartpoleEnvCfg"},
         ),
     ]
     rows = collect_environment_doc_rows(specs)
     assert len(rows) == 1
     assert rows[0].task_name == "Isaac-Cartpole-Direct"
-    assert rows[0].inference_task_name == "Isaac-Cartpole-Direct-Play-v0"
     assert rows[0].workflow == "Direct"
     assert "sb3" in rows[0].rl_libraries
+
+
+def test_collect_environment_doc_rows_excludes_deprecated_task_aliases():
+    specs = [
+        EnvSpec(
+            id="Isaac-Example",
+            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            kwargs={"env_cfg_entry_point": "cfg:ExampleEnvCfg"},
+        ),
+        EnvSpec(
+            id="Isaac-Example-v0",
+            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            kwargs={
+                "env_cfg_entry_point": "cfg:ExampleEnvCfg",
+                "deprecated": {"alias": "--task Isaac-Example"},
+            },
+        ),
+    ]
+
+    rows = collect_environment_doc_rows(specs)
+
+    assert [row.task_name for row in rows] == ["Isaac-Example"]
 
 
 def test_collect_environment_doc_rows_applies_rlinf_override():
@@ -222,7 +225,6 @@ def test_render_comprehensive_list_table_uses_blank_cells_for_missing_values():
         [
             EnvironmentDocRow(
                 task_name="Isaac-Ant-v0",
-                inference_task_name=None,
                 workflow="Manager Based",
                 rl_libraries="",
                 presets="",
@@ -231,12 +233,12 @@ def test_render_comprehensive_list_table_uses_blank_cells_for_missing_values():
     )
     assert "Isaac-Ant-v0" in table
     assert "      - -\n" not in table
-    assert "      -\n      - Manager Based" in table
+    assert "    * - Isaac-Ant-v0\n      - Manager Based" in table
 
 
 def test_render_comprehensive_list_table_uses_narrower_task_column_width():
     table = render_comprehensive_list_table([])
-    assert ":widths: 18 17 10 22 33" in table
+    assert ":widths: 22 12 30 36" in table
 
 
 def test_patch_environments_rst_replaces_marked_section():

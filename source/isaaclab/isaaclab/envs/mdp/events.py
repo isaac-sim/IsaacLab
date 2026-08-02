@@ -256,6 +256,11 @@ class _RandomizeRigidBodyMaterialNewton:
     Samples friction (mu) and restitution continuously from the given ranges.
     Newton uses a single friction coefficient (mu), so ``dynamic_friction_range``
     and ``num_buckets`` are ignored.
+
+    The Kamino solver deduplicates contact materials globally by ``(mu, restitution)`` and
+    shares them across environments, so it cannot accept per-shape or per-env overrides. When
+    Kamino is active, one value is sampled per build-time material group and broadcast to every
+    environment (no per-env variation). All other Newton solvers keep the per-shape sampling.
     """
 
     def __init__(
@@ -263,12 +268,21 @@ class _RandomizeRigidBodyMaterialNewton:
     ):
         import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
         from isaaclab_newton.assets import Articulation as NewtonArticulation  # noqa: PLC0415
-        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+        from newton import ModelFlags  # noqa: PLC0415
+        from newton.solvers import SolverKamino  # noqa: PLC0415
 
         self.asset = asset
         self.asset_cfg = asset_cfg
         self._newton_manager = newton_manager_module.NewtonManager
-        self._notify_shape_properties = SolverNotifyFlags.SHAPE_PROPERTIES
+        self._notify_shape_properties = ModelFlags.SHAPE_PROPERTIES
+        # Kamino deduplicates contact materials globally by (mu, restitution) at build time and
+        # shares them across environments, so its in-place material update rejects per-shape /
+        # per-env overrides. When Kamino is active we instead sample one value per build-time
+        # material group and broadcast it to every environment. The grouping is derived lazily on
+        # the first call, when the shape bindings still hold their build-time values.
+        self._solver_kamino_cls = SolverKamino
+        self._kamino_group_inverse: torch.Tensor | None = None
+        self._kamino_num_groups = 0
 
         # cache friction/restitution ranges for continuous per-shape sampling
         self._static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
@@ -312,24 +326,51 @@ class _RandomizeRigidBodyMaterialNewton:
         num_shapes = len(self._shape_indices)
         shape_idx = self._shape_indices.to(device)
 
-        # sample friction (mu) and restitution continuously per shape
         friction_range = torch.tensor(self._static_friction_range, device=device)
         restitution_range_t = torch.tensor(self._restitution_range, device=device)
-        friction_samples = math_utils.sample_uniform(
-            friction_range[0], friction_range[1], (len(env_ids), num_shapes), device=device
-        )
-        restitution_samples = math_utils.sample_uniform(
-            restitution_range_t[0], restitution_range_t[1], (len(env_ids), num_shapes), device=device
-        )
-
-        # write only the affected env_ids to the warp binding
         friction_view = wp.to_torch(self._friction_binding)
         restitution_view = wp.to_torch(self._restitution_binding)
-        friction_view[env_ids[:, None], shape_idx] = friction_samples
-        restitution_view[env_ids[:, None], shape_idx] = restitution_samples
+
+        if isinstance(self._newton_manager._solver, self._solver_kamino_cls):
+            # Kamino: sample one value per build-time material group and broadcast across every
+            # environment. Per-shape / per-env variation is impossible because Kamino shares each
+            # contact material across all shapes and environments that were built with identical
+            # (mu, restitution).
+            if self._kamino_group_inverse is None:
+                build_keys = torch.stack((friction_view[0, shape_idx], restitution_view[0, shape_idx]), dim=-1)
+                _, inverse = torch.unique(build_keys, dim=0, return_inverse=True)
+                self._kamino_group_inverse = inverse
+                self._kamino_num_groups = int(inverse.max().item()) + 1 if inverse.numel() else 0
+            inverse = self._kamino_group_inverse
+            friction_groups = math_utils.sample_uniform(
+                friction_range[0], friction_range[1], (self._kamino_num_groups,), device=device
+            )
+            restitution_groups = math_utils.sample_uniform(
+                restitution_range_t[0], restitution_range_t[1], (self._kamino_num_groups,), device=device
+            )
+            friction_view[:, shape_idx] = friction_groups[inverse]
+            restitution_view[:, shape_idx] = restitution_groups[inverse]
+        else:
+            # sample friction (mu) and restitution continuously per shape
+            friction_samples = math_utils.sample_uniform(
+                friction_range[0], friction_range[1], (len(env_ids), num_shapes), device=device
+            )
+            restitution_samples = math_utils.sample_uniform(
+                restitution_range_t[0], restitution_range_t[1], (len(env_ids), num_shapes), device=device
+            )
+            # write only the affected env_ids to the warp binding
+            friction_view[env_ids[:, None], shape_idx] = friction_samples
+            restitution_view[env_ids[:, None], shape_idx] = restitution_samples
 
         # notify the physics engine
         self._newton_manager.add_model_change(self._notify_shape_properties)
+
+
+def _is_all_body_selection(body_ids: list[int] | slice, num_bodies: int) -> bool:
+    """Return whether a body selector covers the entire asset."""
+    if body_ids == slice(None):
+        return True
+    return sorted(body_ids) == list(range(num_bodies))
 
 
 class _RandomizeRigidBodyMaterialOvPhysx:
@@ -355,7 +396,7 @@ class _RandomizeRigidBodyMaterialOvPhysx:
 
         # OVPhysX cannot map body ids to shape ranges (no per-body shape counts), so a
         # per-body subset cannot be indexed -- fail loud rather than silently randomize all.
-        if asset_cfg.body_ids != slice(None):
+        if not _is_all_body_selection(asset_cfg.body_ids, asset.num_bodies):
             raise NotImplementedError(
                 "randomize_rigid_body_material on the OVPhysX backend randomizes all shapes only; "
                 "per-body selection via 'asset_cfg.body_ids' is not supported because the ovphysx "
@@ -426,7 +467,9 @@ class randomize_rigid_body_material(ManagerTermBase):
       tensor API (``root_view.set_material_properties``).
     - **Newton**: Samples friction (mu) and restitution continuously per shape (no bucket
       limitation). Newton uses a single friction coefficient, so ``dynamic_friction_range``
-      and ``num_buckets`` are ignored. Applied directly to Newton's view-level bindings.
+      and ``num_buckets`` are ignored. Applied directly to Newton's view-level bindings. The
+      Kamino solver shares contact materials across shapes and environments, so it instead
+      samples one value per build-time material group and broadcasts it to every environment.
     - **OVPhysX**: Runs the PhysX solver, so the same 3-tuple, bucket-based assignment is used,
       written through the :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` on the per-shape
       ``shape_friction_and_restitution`` binding. Randomizes all shapes only -- per-body
@@ -908,11 +951,11 @@ class _RandomizeRigidBodyColliderOffsetsNewton:
 
     def __init__(self, asset: RigidObject | Articulation):
         import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
-        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+        from newton import ModelFlags  # noqa: PLC0415
 
         self.asset = asset
         self._newton_manager = newton_manager_module.NewtonManager
-        self._notify_shape_properties = SolverNotifyFlags.SHAPE_PROPERTIES
+        self._notify_shape_properties = ModelFlags.SHAPE_PROPERTIES
 
         model = self._newton_manager.get_model()
         self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]  # type: ignore
@@ -1066,6 +1109,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
+        self._last_gravity_params: tuple | None = None
 
         manager_name = env.sim.physics_manager.__name__.lower()
         if "newton" in manager_name:
@@ -1117,12 +1161,16 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             operation: The operation to apply ('add', 'scale', or 'abs').
             distribution: The distribution type (cached at init, param ignored at runtime).
         """
-        self._dist_param_0[0] = gravity_distribution_params[0][0]
-        self._dist_param_1[0] = gravity_distribution_params[1][0]
-        self._dist_param_0[1] = gravity_distribution_params[0][1]
-        self._dist_param_1[1] = gravity_distribution_params[1][1]
-        self._dist_param_0[2] = gravity_distribution_params[0][2]
-        self._dist_param_1[2] = gravity_distribution_params[1][2]
+        # rewrite the baked device tensors only when the curriculum-driven ranges change
+        params = (tuple(gravity_distribution_params[0]), tuple(gravity_distribution_params[1]))
+        if params != self._last_gravity_params:
+            self._last_gravity_params = params
+            self._dist_param_0[0] = gravity_distribution_params[0][0]
+            self._dist_param_1[0] = gravity_distribution_params[1][0]
+            self._dist_param_0[1] = gravity_distribution_params[0][1]
+            self._dist_param_1[1] = gravity_distribution_params[1][1]
+            self._dist_param_0[2] = gravity_distribution_params[0][2]
+            self._dist_param_1[2] = gravity_distribution_params[1][2]
 
         if self._backend == "newton":
             self._call_newton(env, env_ids, operation)
@@ -1132,10 +1180,10 @@ class randomize_physics_scene_gravity(ManagerTermBase):
     def _init_newton(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         """Cache Newton manager reference and solver notification flag."""
         import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
-        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+        from newton import ModelFlags  # noqa: PLC0415
 
         self._newton_manager = newton_manager_module.NewtonManager
-        self._notify_model_properties = SolverNotifyFlags.MODEL_PROPERTIES
+        self._notify_model_properties = ModelFlags.MODEL_PROPERTIES
 
     def _call_newton(
         self,
@@ -1838,50 +1886,64 @@ def push_by_setting_velocity(
     asset.write_root_velocity_to_sim_index(root_velocity=vel_w, env_ids=env_ids)
 
 
-def reset_root_state_uniform(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
-    pose_range: dict[str, tuple[float, float]],
-    velocity_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
+class reset_root_state_uniform(ManagerTermBase):
     """Reset the asset root state to a random position and velocity uniformly within the given ranges.
 
-    This function randomizes the root position and velocity of the asset.
+    This term randomizes the root position and velocity of the asset.
 
     * It samples the root position from the given ranges and adds them to the default root position, before setting
       them into the physics simulation.
     * It samples the root orientation from the given ranges and sets them into the physics simulation.
     * It samples the root velocity from the given ranges and sets them into the physics simulation.
 
-    The function takes a dictionary of pose and velocity ranges for each axis and rotation. The keys of the
+    The term takes a dictionary of pose and velocity ranges for each axis and rotation. The keys of the
     dictionary are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form
     ``(min, max)``. If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
+
+    The range dictionaries are materialized as device tensors once at construction.
     """
-    # extract the used quantities (to enable type-hinting)
-    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-    # get default root state
-    default_root_pose = asset.data.default_root_pose.torch[env_ids].clone()
-    default_root_vel = asset.data.default_root_vel.torch[env_ids].clone()
 
-    # poses
-    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        keys = ("x", "y", "z", "roll", "pitch", "yaw")
+        pose_range = cfg.params.get("pose_range", {})
+        velocity_range = cfg.params.get("velocity_range", {})
+        self._pose_ranges = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=env.device)
+        self._velocity_ranges = torch.tensor(
+            [tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=env.device
+        )
 
-    positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
-    orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
-    orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
-    # velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        pose_range: dict[str, tuple[float, float]],
+        velocity_range: dict[str, tuple[float, float]],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ):
+        # extract the used quantities (to enable type-hinting)
+        asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+        # get default root state
+        # tensor indexing already returns a copy, and the values are only read below
+        default_root_pose = asset.data.default_root_pose.torch[env_ids]
+        default_root_vel = asset.data.default_root_vel.torch[env_ids]
 
-    velocities = default_root_vel + rand_samples
+        # poses
+        ranges = self._pose_ranges
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
 
-    # set into the physics simulation
-    asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-    asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)
+        positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+        orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
+        orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
+        # velocities
+        ranges = self._velocity_ranges
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+
+        velocities = default_root_vel + rand_samples
+
+        # set into the physics simulation
+        asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+        asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)
 
 
 def reset_root_state_with_random_orientation(
@@ -2366,10 +2428,8 @@ class randomize_visual_texture_material(ManagerTermBase):
                 " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
             )
 
-        # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
-
-        enable_extension("omni.replicator.core")
+        # enable replicator extension if not already enabled (local: Kit-only import)
+        sim_utils.enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep  # noqa: PLC0415
 
@@ -2537,10 +2597,8 @@ class randomize_visual_color(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
-
-        enable_extension("omni.replicator.core")
+        # enable replicator extension if not already enabled (local: Kit-only import)
+        sim_utils.enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep  # noqa: PLC0415
 

@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,8 @@ from .kernels import imu_reset_kernel, imu_update_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.imu import ImuCfg
+
+logger = logging.getLogger(__name__)
 
 
 class Imu(BaseImu):
@@ -62,6 +65,13 @@ class Imu(BaseImu):
         super().__init__(cfg)
         self._data = ImuData()
         self._rigid_parent_expr: str | None = None
+        self._raw_transforms: wp.array | None = None
+        self._raw_velocities: wp.array | None = None
+        self._raw_coms: wp.array | None = None
+        self._update_cmd: wp.Launch | None = None
+        self._update_env_mask: wp.array | None = None
+        self._update_inv_dt: float | None = None
+        self._use_recorded_launch: bool = False
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -148,32 +158,82 @@ class Imu(BaseImu):
             self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
             self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
 
+        self._use_recorded_launch = wp.get_device(self._device).is_cuda
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
-        transforms = self._view.get_transforms().view(wp.transformf)
-        velocities = self._view.get_velocities().view(wp.spatial_vectorf)
-        wp.copy(self._coms_buffer, self._view.get_coms().view(wp.transformf))
+        # Refresh the PhysX buffers every update, but create their typed Warp views only once:
+        # the getters lazily allocate their output buffers and refresh the same memory in place
+        # on every call, so the cached views (and the recorded launch that consumes them) stay
+        # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
+        transforms = self._view.get_transforms()
+        velocities = self._view.get_velocities()
+        coms = self._view.get_coms()
+        if self._raw_transforms is None:
+            self._raw_transforms = transforms.view(wp.transformf)
+            self._raw_velocities = velocities.view(wp.spatial_vectorf)
+            self._raw_coms = coms.view(wp.transformf)
+        elif (
+            transforms.ptr != self._raw_transforms.ptr
+            or velocities.ptr != self._raw_velocities.ptr
+            or coms.ptr != self._raw_coms.ptr
+        ):
+            raise RuntimeError(
+                f"A PhysX rigid body buffer of the sensor at '{self.cfg.prim_path}' was re-allocated"
+                " after its warp view was cached. The cached views and the recorded launch require"
+                " pointer-stable buffers refreshed in place."
+            )
+        wp.copy(self._coms_buffer, self._raw_coms)
 
-        wp.launch(
+        inv_dt = 1.0 / self._dt
+        if self._use_recorded_launch:
+            if self._update_cmd is None:
+                try:
+                    self._update_cmd = self._launch_update(env_mask, inv_dt, record_cmd=True)
+                    self._update_env_mask = env_mask
+                    self._update_inv_dt = inv_dt
+                except Exception as exc:
+                    self._use_recorded_launch = False
+                    logger.warning(
+                        f"Failed to record the update of the IMU at '{self.cfg.prim_path}'."
+                        f" Falling back to eager kernel launches. Reason: {exc}"
+                    )
+            if self._update_cmd is not None:
+                if env_mask is not self._update_env_mask:
+                    self._update_cmd.set_param_by_name("env_mask", env_mask)
+                    self._update_env_mask = env_mask
+                if inv_dt != self._update_inv_dt:
+                    self._update_cmd.set_param_by_name("inv_dt", inv_dt)
+                    self._update_inv_dt = inv_dt
+                self._update_cmd.launch()
+                return
+
+        self._launch_update(env_mask, inv_dt)
+
+    def _launch_update(self, env_mask: wp.array, inv_dt: float, record_cmd: bool = False) -> wp.Launch | None:
+        """Launch or record the kernel that updates the IMU data."""
+
+        return wp.launch(
             imu_update_kernel,
             dim=self._num_envs,
             inputs=[
                 env_mask,
-                transforms,
-                velocities,
+                self._raw_transforms,
+                self._raw_velocities,
                 self._coms_buffer,
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_bias_w,
-                1.0 / self._dt,
+                inv_dt,
                 self._timestamp,
                 self._prev_lin_vel_w,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
             ],
             device=self._device,
+            record_cmd=record_cmd,
         )
 
     def _initialize_buffers_impl(self):
@@ -188,3 +248,14 @@ class Imu(BaseImu):
         self._offset_quat_b = wp.from_torch(offset_quat_torch.contiguous(), dtype=wp.quatf)
 
         self._coms_buffer = wp.zeros(self._view.count, dtype=wp.transformf, device=self._device)
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidate the sensor and release cached PhysX and launch state."""
+        super()._invalidate_initialize_callback(event)
+        self._view = None
+        self._raw_transforms = None
+        self._raw_velocities = None
+        self._raw_coms = None
+        self._update_cmd = None
+        self._update_env_mask = None
+        self._update_inv_dt = None

@@ -6,17 +6,17 @@
 """OvPhysX Manager for Isaac Lab.
 
 This module manages an ovphysx-based physics simulation lifecycle without Kit dependencies.
-It exports the current USD stage to disk, loads it into ovphysx, and steps the simulation
-using the ovphysx C/Python API.
+It serializes the current USD stage in memory, attaches it to ovphysx through OVStage, and
+steps the simulation using the ovphysx C/Python API.
 """
 
 from __future__ import annotations
 
 import atexit
+import inspect
 import logging
 import os
 import re
-import tempfile
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
@@ -205,20 +205,23 @@ class OvPhysxManager(PhysicsManager):
 
     _cfg: ClassVar[OvPhysxCfg | None] = None
     _physx: ClassVar[Any] = None  # ovphysx.PhysX (lazy import)
-    _usd_handle: ClassVar[Any] = None
-    _stage_path: ClassVar[str | None] = None
+    _ovstage: ClassVar[Any] = None
+    _stage_usda: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
-    _tmp_dir: ClassVar[tempfile.TemporaryDirectory | None] = None
+    _requires_full_stage: ClassVar[bool] = False
     # Device the process is locked to once :meth:`_warmup_and_load` constructs the
     # ``ovphysx.PhysX`` instance for the first time.  ``ovphysx<=0.3.7`` enforces
     # a process-global device-mode lock at the C++ layer (see HACK note on
     # :meth:`_release_physx`); we mirror it here so a clear Python error is raised
     # if a later :class:`~isaaclab.sim.SimulationContext` requests a different device.
     _locked_device: ClassVar[str | None] = None
-    # Pending (source, targets, parent_positions) triples queued by
-    # queue_ovphysx_replication() before the PhysX instance exists.  Replayed via
-    # physx.clone() in _warmup_and_load().
+    # Active (source, targets, parent_positions) replication recipes for the
+    # current SimulationContext. They survive the consumable pending queue so a
+    # forced re-warmup can rebuild serialized-stage or runtime-only clones.
     # parent_positions is a list of (x, y, z) tuples — one per target.
+    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
+    # Consumable snapshot of the active recipes. Full-stage warmup materializes
+    # these into serialized USDA; env-0-only warmup replays them with physx.clone().
     _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
@@ -227,6 +230,11 @@ class OvPhysxManager(PhysicsManager):
     def get_dt(cls) -> float:
         """Get the physics timestep. Alias for get_physics_dt()."""
         return cls.get_physics_dt()
+
+    @classmethod
+    def require_full_stage(cls) -> None:
+        """Load every authored environment during the next stage warmup."""
+        cls._requires_full_stage = True
 
     @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
@@ -244,12 +252,13 @@ class OvPhysxManager(PhysicsManager):
     def register_clone(
         cls, source: str, targets: list[str], parent_positions: list[tuple[float, float, float]] | None = None
     ) -> None:
-        """Register a (source, targets, parent_positions) triple for replay via physx.clone().
+        """Register a clone recipe for the current simulation context.
 
         Called by :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate` during
-        scene setup, before the PhysX instance exists.  The clone operations
-        are executed in :meth:`_warmup_and_load` immediately after
-        ``physx.add_usd()``.
+        scene setup, before the PhysX instance exists. Full-stage warmups
+        materialize the recipe in serialized USDA before attaching OVStage;
+        env-0-only warmups replay it through ``physx.clone()`` after loading.
+        Recipes are retained so forced re-warmups rebuild the same topology.
 
         Args:
             source: Source prim path (env_0 articulation root).
@@ -260,7 +269,17 @@ class OvPhysxManager(PhysicsManager):
                 at their correct grid locations, preventing solver divergence
                 during the warmup step.
         """
-        cls._pending_clones.append((source, targets, parent_positions or []))
+        recipe = (source, list(targets), list(parent_positions or []))
+        cls._active_clone_recipes.append(recipe)
+        cls._pending_clones.append(recipe)
+
+    @classmethod
+    def _rearm_pending_clones(cls) -> None:
+        """Refresh the consumable clone queue from active context recipes."""
+        cls._pending_clones = [
+            (source, list(targets), list(parent_positions))
+            for source, targets, parent_positions in cls._active_clone_recipes
+        ]
 
     _physx_schemas_registered: ClassVar[bool] = False
 
@@ -272,8 +291,10 @@ class OvPhysxManager(PhysicsManager):
         runs it must be registered manually before the wheel can match
         ``PhysxContactReportAPI`` and friends on the stage.  The wheel
         bundles the plugin under ``ovphysx/plugins/usd/PhysxSchema``.  This
-        method is idempotent — :meth:`pxr.Plug.Registry.RegisterPlugins`
-        is a no-op once the plugin is registered.
+        method is idempotent and leaves an existing Kit ``physxSchema``
+        provider authoritative. Registering the wheel's provider after Kit's
+        provider raises duplicate-type errors even though both plugins share
+        the same name.
         """
         if cls._physx_schemas_registered:
             return
@@ -285,11 +306,15 @@ class OvPhysxManager(PhysicsManager):
             from pxr import Plug  # noqa: PLC0415
         except Exception:
             return
+        registry = Plug.Registry()
+        if any(plugin.name == "physxSchema" for plugin in registry.GetAllPlugins()):
+            cls._physx_schemas_registered = True
+            return
         plugin_root = os.path.join(os.path.dirname(ovphysx.__file__), "plugins", "usd")
         for sub in ("PhysxSchema/resources", "PhysxSchemaAddition/resources"):
             path = os.path.join(plugin_root, sub)
             if os.path.isdir(path):
-                Plug.Registry().RegisterPlugins(path)
+                registry.RegisterPlugins(path)
         cls._physx_schemas_registered = True
 
     @classmethod
@@ -311,9 +336,10 @@ class OvPhysxManager(PhysicsManager):
         super().initialize(sim_context)
         cls._ensure_physx_schemas_registered()
         cls._warmup_done = False
-        cls._usd_handle = None
-        cls._stage_path = None
+        cls._requires_full_stage = False
+        cls._stage_usda = None
         cls._pending_clones = []
+        cls._active_clone_recipes = []
         # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
         # captures a real instance (not ``None``) when it builds the central
         # :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
@@ -328,14 +354,19 @@ class OvPhysxManager(PhysicsManager):
         """Reset physics simulation.
 
         On the first (non-soft) reset the method:
-        - Exports the current USD stage to a temp file
+        - Serializes the current USD stage in memory
         - Creates the ovphysx.PhysX instance
-        - Loads the exported USD
+        - Populates and attaches an OVStage
         - Warms up GPU buffers (if on CUDA)
         - Dispatches PHYSICS_READY
+
+        A forced re-warm dispatches :attr:`~isaaclab.physics.PhysicsEvent.STOP`
+        before replacing the attached stage so listeners discard stale bindings.
         """
         if not soft:
             if not cls._warmup_done:
+                if cls._ovstage is not None:
+                    cls.dispatch_event(PhysicsEvent.STOP, payload={})
                 cls._warmup_and_load()
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
 
@@ -350,27 +381,40 @@ class OvPhysxManager(PhysicsManager):
         if cls._physx is None:
             return
         dt = cls.get_physics_dt()
-        cls._physx.step_sync(dt=dt)
+        cls._step_physx(cls._physx, dt=dt, sim_time=PhysicsManager._sim_time)
         cls._physx.update_articulations_kinematic()
         PhysicsManager._sim_time += dt
+
+    @staticmethod
+    def _step_physx(physx: Any, dt: float, sim_time: float) -> None:
+        """Step either the declared legacy runtime or the trusted current runtime."""
+        if hasattr(physx, "reset_stage"):
+            physx.step_sync(dt=dt)
+        else:
+            physx.step_sync(dt=dt, sim_time=sim_time)
+
+    @staticmethod
+    def _reset_physx_stage(physx: Any) -> None:
+        """Clear the loaded stage through the runtime's available reset API."""
+        reset = physx.reset_stage if hasattr(physx, "reset_stage") else physx.reset
+        operation = reset()
+        physx.wait_op(operation)
 
     @classmethod
     def close(cls) -> None:
         """Release ovphysx resources and clean up."""
         cls._release_physx()
 
-        cls._usd_handle = None
-        cls._stage_path = None
+        cls._stage_usda = None
         cls._warmup_done = False
+        cls._requires_full_stage = False
+        cls._active_clone_recipes = []
+        cls._pending_clones = []
         # Drop the SceneDataBackend singleton: its cached ``TensorBinding`` handles
         # point into the wheel's prior scene which we just cleared.
         # The next :class:`SimulationContext` re-creates the backend in
         # :meth:`initialize`. Matches Newton's lifecycle.
         cls._scene_data_backend = None
-
-        if cls._tmp_dir is not None:
-            cls._tmp_dir.cleanup()
-            cls._tmp_dir = None
 
         super().close()
 
@@ -378,7 +422,7 @@ class OvPhysxManager(PhysicsManager):
     def _release_physx(cls) -> None:
         """Soft-reset the ovphysx runtime stage; keep the C++ instance alive.
 
-        Calls ``physx.reset_stage()`` to clear the loaded scene, but does **not**
+        Clears the loaded scene through the runtime's reset API, but does **not**
         drop the Python reference.  The cached :class:`ovphysx.PhysX` is reused by
         the next :class:`~isaaclab.sim.SimulationContext` via the reuse path in
         :meth:`_warmup_and_load`.  Safe to call multiple times.
@@ -395,8 +439,36 @@ class OvPhysxManager(PhysicsManager):
         namespace-isolated Carbonite (different soname / hidden visibility).
         """
         if cls._physx is not None:
-            op = cls._physx.reset_stage()
-            cls._physx.wait_op(op)
+            cls._reset_physx_stage(cls._physx)
+        cls._destroy_ovstage()
+
+    @classmethod
+    def _attach_ovstage(cls, stage_usda: str) -> None:
+        """Populate an OVStage from USDA text and attach it to the runtime."""
+        import ovstage  # noqa: PLC0415
+
+        stage = ovstage.Stage("isaaclab")
+        try:
+            ovstage.population.open_usd_from_string(
+                stage,
+                stage_usda,
+                ordinal=1,
+                # FIXME: Use PHYSICS once OVStage includes native-instance collider
+                # dependencies in physics-only population.
+                domains=ovstage.PopulationDomain.ALL,
+            )
+            cls._physx.attach_ovstage(stage, read_ordinal=1)
+        except Exception:
+            stage.destroy()
+            raise
+        cls._ovstage = stage
+
+    @classmethod
+    def _destroy_ovstage(cls) -> None:
+        """Destroy the attached OVStage after PhysX has released its stage."""
+        if cls._ovstage is not None:
+            cls._ovstage.destroy()
+            cls._ovstage = None
 
     @classmethod
     def get_physx_instance(cls) -> Any:
@@ -436,66 +508,24 @@ class OvPhysxManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _export_env0_only_stage(sim_stage: Any, target_file: str) -> None:
-        """Export the simulation stage to ``target_file`` with env_1..N stripped.
+    def _serialize_env0_only_stage(sim_stage: Any) -> str:
+        """Serialize the simulation stage in memory with cloned environments stripped.
 
-        Writes a USD file containing every prim under the live stage **except**
-        ``/World/envs/env_<i>`` for ``i != 0``. Globals (``/physicsScene``,
-        ``/World/ground``, lights, materials, etc.) and ``/World/envs/env_0`` are
-        retained.  ``physx.clone()`` is then expected to repopulate env_1..N at
-        the physics layer with proper clone lineage so that subsequent
-        ``create_tensor_binding`` calls hit the wheel's fast path.
-
-        Implementation: export the full stage to disk, then re-open the result
-        as an :class:`Sdf.Layer` and delete env_1..N prim specs in place.  This
-        avoids mutating the live stage (which other consumers -- sensors,
-        visualizers -- still see in its full N-env form).
-
-        Limitations:
-            * **Homogeneous-env assumption.** Every env is treated as an
-              identical copy of env_0 from the physics runtime's point of view.
-              Anything authored *only* under ``/World/envs/env_<i>`` for
-              ``i != 0`` (per-env mass overrides, per-env friction, per-env
-              collision filters, etc.) is dropped from the file handed to
-              ``physx.add_usd`` and therefore not seen by PhysX. Sensors and
-              visualizers still see those overrides in USD (the live stage is
-              unmodified), so a divergence is possible.  Per-env physics state
-              must instead be written via the runtime APIs
-              (``RigidObject.write_root_state_to_sim_index``, etc.).
-            * **Global path convention.** Any physics-relevant prim that lives
-              under ``/World/envs/env_<i!=0>/`` (e.g. an asset-specific
-              ``PhysicsScene``, a per-env material) gets stripped. Globals must
-              live outside ``/World/envs`` (or under ``/World/envs/env_0``) to
-              survive the export.
-            * **Static topology.** Envs added or removed at runtime after
-              warmup are not supported by ``physx.clone()`` lineage and would
-              require a re-warmup with a re-exported stage.
+        The returned USDA contains every prim from the composed live stage except
+        ``/World/envs/env_<i>`` for ``i != 0``. This keeps global prims and the
+        env-0 clone source without mutating the live stage.
 
         Args:
             sim_stage: Live USD stage held by ``SimulationContext``.
-            target_file: Output ``.usda`` file path.  Overwritten if it exists.
+
+        Returns:
+            Env-0-scoped flattened USDA content.
         """
-        from pxr import Sdf  # noqa: PLC0415
-
-        # Step 1: full flatten-export of the live stage.  We pass the full file
-        # to ``Sdf.Layer.OpenAsAnonymous`` so the edits below don't write back
-        # to the source layer on disk.
-        sim_stage.Export(target_file)
-
-        # Step 2: open the exported file as an editable Sdf layer and delete
-        # ``/World/envs/env_<digits>`` children for digits != 0.  Walking the
-        # ``/World/envs`` ``PrimSpec``'s ``nameChildren`` keeps us scoped to
-        # the env-namespace and leaves the rest of the stage untouched.
-        layer = Sdf.Layer.FindOrOpen(target_file)
-        if layer is None:
-            raise RuntimeError(
-                f"OvPhysxManager: failed to re-open exported USD layer at {target_file!r} for env-scoping."
-            )
+        layer = sim_stage.Flatten()
         envs_spec = layer.GetPrimAtPath("/World/envs")
         if envs_spec is None or not envs_spec:
-            # No /World/envs in the stage (single-env or non-IsaacLab scene); nothing to scope.
-            logger.debug("OvPhysxManager: no /World/envs prim — exported stage as-is.")
-            return
+            logger.debug("OvPhysxManager: no /World/envs prim — serialized stage as-is.")
+            return layer.ExportToString()
 
         env_name_re = re.compile(r"^env_(\d+)$")
         names_to_remove = [
@@ -505,24 +535,141 @@ class OvPhysxManager(PhysicsManager):
         ]
         for child_name in names_to_remove:
             del envs_spec.nameChildren[child_name]
-
         if names_to_remove:
-            layer.Export(target_file)
             logger.info(
-                "OvPhysxManager: stripped %d env_<i!=0> subtrees from exported USD (kept env_0 + globals)",
+                "OvPhysxManager: stripped %d env_<i!=0> subtrees from in-memory USD (kept env_0 + globals)",
                 len(names_to_remove),
             )
+        return layer.ExportToString()
+
+    @classmethod
+    def _serialize_selected_stage(cls, sim_stage: Any) -> str:
+        """Serialize either the complete stage or the env-0 clone source."""
+        if cls._requires_full_stage:
+            return sim_stage.Flatten().ExportToString()
+        return cls._serialize_env0_only_stage(sim_stage)
+
+    @classmethod
+    def _materialize_pending_clones(cls, stage_usda: str) -> str:
+        """Materialize queued clone targets into serialized full-stage USDA.
+
+        OVPhysX runtime cloning is unsafe after a heterogeneous full-stage load:
+        cloning one leaf can disturb tensor discovery for already loaded sibling
+        assets. Missing targets are copied into the serialized stage. When another
+        clone has already created a target ancestor, an internal reference overlays
+        the source physics without replacing authored descendants. The live USD
+        stage remains unchanged.
+
+        Args:
+            stage_usda: Flattened full-stage USDA content to augment.
+
+        Returns:
+            Full-stage USDA content containing every materialized clone target.
+        """
+        from pxr import Sdf, Usd  # noqa: PLC0415
+
+        pending_clones = list(cls._pending_clones)
+        cls._pending_clones.clear()
+        if not pending_clones:
+            return stage_usda
+
+        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+        if not layer.ImportFromString(stage_usda):
+            raise RuntimeError("OvPhysxManager: failed to import serialized full stage.")
+        exported_stage = Usd.Stage.Open(layer)
+        if exported_stage is None:
+            raise RuntimeError("OvPhysxManager: failed to open serialized full stage.")
+
+        envs_path = Sdf.Path("/World/envs")
+        operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
+        processed_targets: set[Sdf.Path] = set()
+        for source, targets, _ in pending_clones:
+            source_path = Sdf.Path(source)
+            if layer.GetPrimAtPath(source_path) is None:
+                raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from serialized full stage.")
+            for target in targets:
+                target_path = Sdf.Path(target)
+                if target_path in processed_targets:
+                    continue
+                boundary_path = target_path.GetParentPath()
+                for prefix in target_path.GetPrefixes():
+                    if prefix.GetParentPath() == envs_path:
+                        boundary_path = prefix
+                        break
+                if layer.GetPrimAtPath(boundary_path) is None:
+                    raise RuntimeError(f"OvPhysxManager: clone target parent is absent for {target!r}.")
+                operations.append((source_path, target_path, layer.GetPrimAtPath(target_path) is not None))
+                processed_targets.add(target_path)
+
+        operations.sort(key=lambda operation: len(operation[1].GetPrefixes()))
+        for source_path, target_path, target_exists in operations:
+            parent_path = target_path.GetParentPath()
+            parent_spec = layer.GetPrimAtPath(parent_path)
+            if parent_spec is None:
+                generated_paths: list[Sdf.Path] = []
+                # ``CreatePrimInLayer`` authors missing ancestors as ``over`` specs. Track only
+                # paths absent before creation so generated ancestors become defined without
+                # changing existing authored specs.
+                ancestor_path = parent_path
+                while layer.GetPrimAtPath(ancestor_path) is None:
+                    generated_paths.append(ancestor_path)
+                    ancestor_path = ancestor_path.GetParentPath()
+                if Sdf.CreatePrimInLayer(layer, parent_path) is None:
+                    raise RuntimeError(
+                        f"OvPhysxManager: failed to materialize clone target parent {str(parent_path)!r}."
+                    )
+                for generated_path in generated_paths:
+                    generated_spec = layer.GetPrimAtPath(generated_path)
+                    if generated_spec is not None and generated_spec.specifier == Sdf.SpecifierOver:
+                        generated_spec.specifier = Sdf.SpecifierDef
+            if target_exists:
+                target_prim = exported_stage.GetPrimAtPath(target_path)
+                if not target_prim.GetReferences().AddInternalReference(source_path):
+                    raise RuntimeError(f"OvPhysxManager: failed to overlay clone target {str(target_path)!r}.")
+            elif not Sdf.CopySpec(layer, source_path, layer, target_path):
+                raise RuntimeError(f"OvPhysxManager: failed to materialize clone target {str(target_path)!r}.")
+
+        if operations:
+            logger.info("OvPhysxManager: materialized %d clone targets in full-stage USDA", len(operations))
+        return layer.ExportToString()
+
+    @classmethod
+    def _replay_pending_clones(cls, physx: Any, requires_full_stage: bool) -> None:
+        """Replay runtime clones unless the serialized stage already contains them."""
+        pending_clones = list(cls._pending_clones)
+        cls._pending_clones.clear()
+
+        if requires_full_stage:
+            return
+
+        for source, targets, parent_positions in pending_clones:
+            if not targets:
+                continue
+            logger.info(
+                "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
+                source,
+                len(targets),
+                targets[0],
+                targets[-1],
+            )
+            if parent_positions:
+                transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
+            else:
+                transforms = None
+            op_idx = physx.clone(source, targets, transforms)
+            physx.wait_op(op_idx)
 
     @classmethod
     def _warmup_and_load(cls) -> None:
-        """Export the USD stage and load it into the ovphysx runtime.
+        """Serialize the USD stage and attach it to the ovphysx runtime.
 
         On the first call per process, constructs the :class:`ovphysx.PhysX`
         instance, registers the ``atexit`` handler, and locks the process to
         the resolved device.  On subsequent calls, reuses the cached instance
-        (see HACK on :meth:`_release_physx`) -- exporting the new USD,
-        re-attaching it via ``add_usd``, replaying pending clones, and (on GPU)
-        re-running ``warmup_gpu`` so the new stage's bodies are resident.
+        (see HACK on :meth:`_release_physx`) -- serializing the new USD,
+        re-attaching it via OVStage, rebuilding active clone recipes through
+        full-stage materialization or runtime replay, and (on GPU) re-running
+        ``warmup_gpu`` so the new stage's bodies are resident.
 
         Raises:
             RuntimeError: if ``SimulationContext`` is not set, or if a device
@@ -555,78 +702,53 @@ class OvPhysxManager(PhysicsManager):
         if scene_prim.IsValid():
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
-        # Export the current USD stage to a temporary file so ovphysx can load it.
+        # Flatten the current USD stage to USDA text so OVStage can populate it
+        # without an intermediate file.
         #
         # When ``InteractiveScene`` runs with ``clone_usd=True``, the live USD
         # stage carries env_0..N's full asset subtrees as authored copies.
-        # Handing that stage to ``physx.add_usd`` would make the wheel ingest
+        # Handing that whole stage to OVStage would make the wheel ingest
         # all 4096 envs as independent USD-defined bodies, defeating the
         # ``physx.clone()`` fast path and turning every subsequent
         # ``create_tensor_binding`` call into an O(N) USD enumeration -- the
         # hang you'd see at large env counts.
         #
-        # The workaround: strip ``/World/envs/env_<i>`` for i != 0 from the
-        # exported file before handing it to the wheel.  Sensors that read
-        # USD directly (RayCaster, Camera, ContactSensor discovery) still see
-        # the full N-env stage; only the wheel-side physics ingestion is
-        # scoped to env_0, and ``physx.clone()`` re-populates env_1..N in
-        # the physics runtime with proper clone lineage (which is what the
-        # binding fast path expects).
-        cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
-        stage_file = os.path.join(cls._tmp_dir.name, "scene.usda")
-        cls._export_env0_only_stage(sim.stage, stage_file)
-        cls._stage_path = stage_file
-        logger.info("OvPhysxManager: exported env_0-scoped USD stage to %s", stage_file)
+        # By default the serialized stage keeps only env_0 and runtime cloning
+        # re-populates env_1..N. Features that need distinct authored physics in
+        # every environment request the full stage. Missing heterogeneous clone
+        # targets are copied into the serialized stage before it is attached.
+        cls._rearm_pending_clones()
+        stage_usda = cls._serialize_selected_stage(sim.stage)
+        if cls._requires_full_stage:
+            stage_usda = cls._materialize_pending_clones(stage_usda)
+        cls._stage_usda = stage_usda
+        logger.info("OvPhysxManager: serialized selected USD stage in memory")
 
         if cls._physx is None:
             cls._construct_physx(ovphysx_device, gpu_index)
             cls._locked_device = ovphysx_device
         else:
             # Reuse path: the cached PhysX may still hold the prior stage (the
-            # wheel allows only one loaded USD at a time).  ``physx.reset_stage()``
-            # is idempotent on an already-cleared stage and required when this is
+            # wheel allows only one attached stage at a time). Clearing the stage is
+            # idempotent on an already-cleared stage and required when this is
             # a second :meth:`_warmup_and_load` within the same SimulationContext
             # (e.g. when a caller manually clears ``_warmup_done`` to force a
             # re-warmup).
-            op = cls._physx.reset_stage()
-            cls._physx.wait_op(op)
+            cls._reset_physx_stage(cls._physx)
+            cls._destroy_ovstage()
 
-        usd_handle, op_idx = cls._physx.add_usd(stage_file)
-        cls._physx.wait_op(op_idx)
-        cls._usd_handle = usd_handle
-        logger.info("OvPhysxManager: loaded USD into ovphysx (device=%s)", ovphysx_device)
+        cls._attach_ovstage(stage_usda)
+        logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
-        # Replay pending physics clones registered by ovphysx_replicate().
-        # The USD stage contains only env_0's physics; env_1..N are empty
-        # Xform containers.  physx.clone() creates the remaining environments
-        # in the physics runtime without modifying the USD file.
-        if cls._pending_clones:
-            # The cfg-level OvPhysX replicator registers pending clones for physics
-            # regardless of whether USD copies were also queued for rendering. Execute
-            # unconditionally — no USD content heuristic is needed.
-            for source, targets, parent_positions in cls._pending_clones:
-                logger.info(
-                    "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
-                    source,
-                    len(targets),
-                    targets[0],
-                    targets[-1],
-                )
-                if parent_positions:
-                    transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions]
-                else:
-                    transforms = None
-                op_idx = cls._physx.clone(source, targets, transforms)
-                cls._physx.wait_op(op_idx)
-            cls._pending_clones = []
+        cls._replay_pending_clones(cls._physx, requires_full_stage=cls._requires_full_stage)
 
-        # GPU bodies must be re-warmed after every add_usd: the cached PhysX
+        # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
         # instance carries its old buffer layout from the previous stage.
         if ovphysx_device == "gpu":
             cls._physx.warmup_gpu()
 
         # Initialize the SceneDataBackend now that the wheel's PhysX is live and
-        # the USD is loaded. The central
+        # the OVStage is attached. The central
         # ``isaaclab.scene.scene_data_provider.SceneDataProvider`` consumes this
         # via :meth:`get_scene_data_backend`.
         if cls._scene_data_backend is None:
@@ -661,28 +783,7 @@ class OvPhysxManager(PhysicsManager):
             _sys.modules.update(_hidden_pxr)
 
         ovphysx = import_ovphysx()
-        ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
-
-        carbonite_overrides = {
-            "/physics/physxDispatcher": True,
-            "/physics/updateToUsd": False,
-            "/physics/updateVelocitiesToUsd": False,
-            "/physics/updateParticlesToUsd": False,
-        }
-        if ovphysx_device == "gpu":
-            carbonite_overrides.update(
-                {
-                    "/physics/suppressReadback": True,
-                    "/physics/suppressFabricUpdate": True,
-                }
-            )
-        physx_kwargs = {
-            "config": ovphysx.PhysXConfig(num_threads=8, carbonite_overrides=carbonite_overrides),
-        }
-        if ovphysx_device == "gpu":
-            physx_kwargs["active_cuda_gpus"] = str(gpu_index)
-
-        cls._physx = ovphysx.PhysX(**physx_kwargs)
+        cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index)
 
         # FIXME(malesiani): re-evaluate this when carbonite ships an isolated copy.
         # At process exit, two Carbonite instances are in memory:
@@ -716,6 +817,71 @@ class OvPhysxManager(PhysicsManager):
 
             atexit.register(_atexit_release_and_exit)
             cls._atexit_registered = True
+
+    @staticmethod
+    def _create_physx_instance(ovphysx: Any, ovphysx_device: str, gpu_index: int) -> Any:
+        """Create a PhysX instance for the declared or current OVPhysX runtime API.
+
+        Args:
+            ovphysx: Imported OVPhysX runtime module.
+            ovphysx_device: Physics device, either ``"cpu"`` or ``"gpu"``.
+            gpu_index: CUDA device ordinal selected for GPU physics.
+
+        Returns:
+            The configured ``ovphysx.PhysX`` instance.
+        """
+
+        carbonite_overrides = {
+            "/physics/physxDispatcher": True,
+            "/physics/updateToUsd": False,
+            "/physics/updateVelocitiesToUsd": False,
+            "/physics/updateParticlesToUsd": False,
+        }
+        if ovphysx_device == "gpu":
+            carbonite_overrides.update(
+                {
+                    "/physics/suppressReadback": True,
+                    "/physics/suppressFabricUpdate": True,
+                }
+            )
+        if hasattr(ovphysx.PhysX, "set_cpu_mode"):
+            ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
+            physx_kwargs = {
+                "config": ovphysx.PhysXConfig(num_threads=8, carbonite_overrides=carbonite_overrides),
+            }
+            if ovphysx_device == "gpu":
+                physx_kwargs["active_cuda_gpus"] = str(gpu_index)
+            return ovphysx.PhysX(**physx_kwargs)
+
+        physx_kwargs = {"device": ovphysx_device}
+        try:
+            physx_parameters = inspect.signature(ovphysx.PhysX).parameters
+        except (TypeError, ValueError):
+            # C-extension constructors may not expose a Python-visible signature
+            physx_parameters = {}
+        if "active_cuda_gpus" in physx_parameters and ovphysx_device == "gpu":
+            physx_kwargs["active_cuda_gpus"] = str(gpu_index)
+            physx_kwargs["config"] = ovphysx.PhysXConfig(
+                carbonite_overrides={
+                    "/physics/suppressReadback": True,
+                    "/physics/suppressFabricUpdate": True,
+                }
+            )
+        elif "gpu_index" in physx_parameters:
+            physx_kwargs["gpu_index"] = gpu_index
+
+        physx = ovphysx.PhysX(**physx_kwargs)
+        if hasattr(physx, "set_setting"):
+            physx.set_setting("/persistent/physics/numThreads", "8")
+            physx.set_setting("/physics/physxDispatcher", "true")
+            physx.set_setting("/physics/updateToUsd", "false")
+            physx.set_setting("/physics/updateVelocitiesToUsd", "false")
+            physx.set_setting("/physics/updateParticlesToUsd", "false")
+        else:
+            # the declared legacy runtime exposes no generic settings API, so
+            # only the thread count can be applied post-construction
+            physx.set_config_int32(ovphysx.ConfigInt32.NUM_THREADS, 8)
+        return physx
 
     @staticmethod
     def _configure_physx_scene_prim(scene_prim, cfg, device: str) -> None:

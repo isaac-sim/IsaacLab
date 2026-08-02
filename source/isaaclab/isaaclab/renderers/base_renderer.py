@@ -113,7 +113,16 @@ class BaseRenderer(ABC):
     def update_transforms(self) -> None:
         """Update scene transforms before rendering.
 
-        Called to sync physics/asset state into the renderer's scene representation.
+        Called to sync physics/asset pose state into the renderer's scene representation.
+        """
+        pass
+
+    @abstractmethod
+    def update_geometries(self) -> None:
+        """Update mutable geometry attributes before rendering.
+
+        Called to sync physics-driven geometry such as mesh points, extents, or other
+        per-frame geometry buffers into the renderer's scene representation.
         """
         pass
 

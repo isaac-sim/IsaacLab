@@ -5,6 +5,27 @@ isaaclab_rl
 
 .. automodule:: isaaclab_rl
 
+Unified Entrypoints
+-------------------
+
+.. automodule:: isaaclab_rl.entrypoints
+
+.. autoclass:: isaaclab_rl.entrypoints.TrainingRequest
+   :members:
+   :show-inheritance:
+
+.. autoclass:: isaaclab_rl.entrypoints.PlaybackRequest
+   :members:
+   :show-inheritance:
+
+.. autofunction:: isaaclab_rl.entrypoints.train
+
+.. autofunction:: isaaclab_rl.entrypoints.play
+
+.. autofunction:: isaaclab_rl.entrypoints.run_train_cli
+
+.. autofunction:: isaaclab_rl.entrypoints.run_play_cli
+
 RL-Games Wrapper
 ----------------
 

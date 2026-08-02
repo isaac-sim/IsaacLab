@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import contextlib
+import inspect
 import logging
 import os
 import re
@@ -41,6 +42,27 @@ _FABRIC_GPU_INTEROP_ENV = "ISAACLAB_FABRIC_USE_GPU_INTEROP"
 logging.getLogger("websockets").setLevel(logging.WARNING)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("h5py").setLevel(logging.WARNING)
+
+
+def _sanitize_sys_argv_for_kit(argv: list[str]) -> list[str]:
+    """Remove pytest arguments that Kit would otherwise interpret."""
+    if "pytest" not in sys.modules:
+        return argv
+
+    indexes_to_remove: set[int] = set()
+    for index, argument in enumerate(argv):
+        if argument == "-m" and index + 1 < len(argv):
+            marker_expression = argv[index + 1]
+            if any(marker in marker_expression for marker in ("pytest", "isaacsim_ci", "windows_ci", "arm_ci")):
+                indexes_to_remove.update((index, index + 1))
+        elif (
+            (argument.startswith("--config-file=") and "pyproject.toml" in argument)
+            or argument == "--capture=no"
+            or re.fullmatch(r"-v+", argument)
+        ):
+            indexes_to_remove.add(index)
+
+    return [argument for index, argument in enumerate(argv) if index not in indexes_to_remove]
 
 
 class ExplicitAction(argparse.Action):
@@ -234,7 +256,7 @@ class AppLauncher:
         # and will be passed directly to the SimulationApp initialization.
         #
         # We could potentially require users to enter each argument they want passed here
-        # as a kwarg, but this would require them to pass livestream, headless, and
+        # as a kwarg, but this would require them to pass livestream, display settings, and
         # any other options we choose to add here explicitly, and with the correct keywords.
         #
         # @hunter: I feel that this is cumbersome and could introduce error, and would prefer to do
@@ -313,30 +335,13 @@ class AppLauncher:
                 int(omni.timeline.TimelineEventType.PLAY), lambda e: self._hide_play_button(False)
             )
         )
-        # Signal to the CI test runner that Kit initialization is complete.
-        # stdout may be redirected to /dev/null during _create_app(), so we
-        # use __stderr__ which is never suppressed.
-        print("[ISAACLAB] AppLauncher initialization complete", file=sys.__stderr__, flush=True)
-
-        # Log Kit/runtime version information for diagnostics.
-        self._log_kit_version_info()
-
-        # Ensure SimulationApp.close() is called on normal process exit so Kit
-        # shuts down cleanly instead of relying on __del__ (which logs a warning
-        # and can leave GPU resources in a bad state for the next test).
-        def _atexit_close(app=self._app):
-            with contextlib.suppress(Exception):
-                app.close()
-
-        atexit.register(_atexit_close)
-
-        # Set up signal handlers for graceful shutdown
-        # -- during explicit `kill` commands
-        signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
-        # -- during aborts
-        signal.signal(signal.SIGABRT, self._abort_signal_handle_callback)
-        # -- during segfaults
-        signal.signal(signal.SIGSEGV, self._abort_signal_handle_callback)
+        # Report this process's lifecycle to whatever supervises it: the CI runner watches
+        # the startup announcements, and distributed launchers/schedulers/CI read the exit
+        # status. See the class docstring of :class:`_SimulationAppLifecycle` for the full
+        # exit-path policy and its rationale.
+        self._lifecycle = AppLauncher._SimulationAppLifecycle(self._app)
+        self._lifecycle.announce_startup()
+        self._lifecycle.install_exit_handlers()
 
     """
     Properties.
@@ -398,9 +403,6 @@ class AppLauncher:
 
         Currently, it adds the following parameters to the argparser object:
 
-        * ``headless`` (bool): [Deprecated CLI] If True, visualizers are disabled and host execution is headless.
-          To run headless by default, omit ``--viz``. To force headless when config visualizers may be enabled,
-          use ``--viz none``.
         * ``livestream`` (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values
           map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
           determined by the ``LIVESTREAM`` environment variable.
@@ -410,10 +412,6 @@ class AppLauncher:
           - ``1``: `WebRTC`_ over public network
           - ``2``: `WebRTC`_ over local/private network
 
-        * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
-          headless mode. This flag must be set to True if the environments contains any camera sensors.
-          The values map the same as that for the ``ENABLE_CAMERAS`` environment variable.
-          If False, then enable_cameras mode is determined by the ``ENABLE_CAMERAS`` environment variable.
         * ``device`` (str): The device to run the simulation on.
           Valid options are:
 
@@ -424,16 +422,8 @@ class AppLauncher:
         * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
           is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).
 
-          If provided as an empty string, the experience file is determined based on the command-line flags:
-
-          * If headless and enable_cameras are True, the experience file is set to
-            ``isaaclab.python.headless.rendering.kit``.
-          * If headless is False and enable_cameras is True, the experience file is set to
-            ``isaaclab.python.rendering.kit``.
-          * If headless and enable_cameras are False, the experience file is set to
-            ``isaaclab.python.kit``.
-          * If headless is True and enable_cameras is False, the experience file is set to
-            ``isaaclab.python.headless.kit``.
+          If provided as an empty string, the experience file is selected from the resolved visualizer and XR
+          settings. Rendering support is available by default, including in headless execution.
 
         * ``deterministic`` (bool): Publishes ``/isaaclab/render/deterministic`` for reproducible rendering.
           Does not change how the default experience file is chosen.
@@ -507,26 +497,11 @@ class AppLauncher:
             description="Arguments for the AppLauncher. For more details, please check the documentation.",
         )
         arg_group.add_argument(
-            "--headless",
-            action=ExplicitTrueAction,
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1],
-            help=(
-                "[DEPRECATED] Disable visualizers and force headless mode (display off)."
-                " Omit '--viz' for default headless, or use '--viz none' to force-disable visualizers."
-            ),
-        )
-        arg_group.add_argument(
             "--livestream",
             type=int,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["livestream"][1],
             choices={0, 1, 2},
             help="Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment variable.",
-        )
-        arg_group.add_argument(
-            "--enable_cameras",
-            action="store_true",
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1],
-            help="Enable camera sensors and relevant extension dependencies.",
         )
         arg_group.add_argument(
             "--xr",
@@ -567,7 +542,8 @@ class AppLauncher:
             default="",
             help=(
                 "The experience file to load when launching the SimulationApp. If an empty string is provided,"
-                " the experience file is determined based on the headless flag. If a relative path is provided,"
+                " the experience file is determined from the resolved visualizer and XR settings. If a relative"
+                " path is provided,"
                 " it is resolved relative to the `apps` folder in Isaac Sim and Isaac Lab (in that order)."
             ),
         )
@@ -826,25 +802,12 @@ class AppLauncher:
         # the bool of headless_arg to avoid messy string processing,
         headless_env = int(os.environ.get("HEADLESS", 0))
         headless_arg = launcher_args.pop("headless", AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1])
-        headless_arg_explicit = launcher_args.pop("headless_explicit", False)
         headless_valid_vals = {0, 1}
         # Value checking on HEADLESS
         if headless_env not in headless_valid_vals:
             raise ValueError(
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
-        if headless_arg and headless_arg_explicit:
-            logger.warning(
-                "The '--headless' CLI argument is deprecated. Omit '--viz' for default headless. "
-                "If config visualizers are enabled and you want to force headless, use '--viz none'."
-            )
-            if self._cli_visualizer_explicit:
-                logger.warning(
-                    "Both '--headless' and '--visualizer/--viz' were provided. "
-                    "Deprecated '--headless' takes precedence and disables all visualizers."
-                )
-            self._cli_visualizer_disable_all = True
-            self._cli_visualizer_types = []
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
@@ -889,12 +852,11 @@ class AppLauncher:
                 # - config visualizers without kit => headless
                 # - config includes kit => allow non-headless
                 if (not self._cfg_has_any_visualizers) or (not self._cfg_has_kit_visualizer):
-                    if not headless_arg_explicit:
-                        logger.info(
-                            "No visualizer was selected, so running in headless mode. "
-                            "To launch a visualizer app, pass '--viz <names>' "
-                            "(for example '--viz kit')."
-                        )
+                    logger.info(
+                        "No visualizer was selected, so running in headless mode. "
+                        "To launch a visualizer app, pass '--viz <names>' "
+                        "(for example '--viz kit')."
+                    )
                     if not self._headless:
                         logger.debug(
                             "Forcing headless mode because no Kit visualizer was requested via CLI or upstream "
@@ -945,19 +907,9 @@ class AppLauncher:
 
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
-        enable_cameras_env = int(os.environ.get("ENABLE_CAMERAS", 0))
-        enable_cameras_arg = launcher_args.get("enable_cameras", AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1])
-        enable_cameras_valid_vals = {0, 1}
-        if enable_cameras_env not in enable_cameras_valid_vals:
-            raise ValueError(
-                f"Invalid value for environment variable `ENABLE_CAMERAS`: {enable_cameras_env} ."
-                f"Expected: {enable_cameras_valid_vals} ."
-            )
-        # We allow enable_cameras kwarg to supersede ENABLE_CAMERAS envvar
-        if enable_cameras_arg is True:
-            self._enable_cameras = enable_cameras_arg
-        else:
-            self._enable_cameras = bool(enable_cameras_env)
+        self._enable_cameras = bool(
+            launcher_args.pop("enable_cameras", AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1])
+        )
         self._offscreen_render = False
         if self._enable_cameras and self._headless:
             self._offscreen_render = True
@@ -1222,27 +1174,7 @@ class AppLauncher:
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
-        # pytest may have left some things in sys.argv, this will check for some of those
-        # do a mark and sweep to remove any -m pytest, -m isaacsim_ci, -m windows_ci, -m arm_ci,
-        # and -c **/pyproject.toml
-        indexes_to_remove = []
-        for idx, arg in enumerate(sys.argv[:-1]):
-            if arg == "-m":
-                value_for_dash_m = sys.argv[idx + 1]
-                if (
-                    "pytest" in value_for_dash_m
-                    or "isaacsim_ci" in value_for_dash_m
-                    or "windows_ci" in value_for_dash_m
-                    or "arm_ci" in value_for_dash_m
-                ):
-                    indexes_to_remove.append(idx)
-                    indexes_to_remove.append(idx + 1)
-            if arg.startswith("--config-file=") and "pyproject.toml" in arg:
-                indexes_to_remove.append(idx)
-            if arg == "--capture=no":
-                indexes_to_remove.append(idx)
-        for idx in sorted(indexes_to_remove, reverse=True):
-            sys.argv = sys.argv[:idx] + sys.argv[idx + 1 :]
+        sys.argv = _sanitize_sys_argv_for_kit(sys.argv)
 
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
 
@@ -1369,13 +1301,6 @@ class AppLauncher:
             }
         )
 
-    def _interrupt_signal_handle_callback(self, signal, frame):
-        """Handle the interrupt signal from the keyboard."""
-        # close the app
-        self._app.close()
-        # raise the error for keyboard interrupt
-        raise KeyboardInterrupt
-
     def is_isaac_sim_version_5(self) -> bool:
         if not hasattr(self, "_is_sim_ver_5"):
             # 1) Try to read the VERSION file (for manual / binary installs)
@@ -1417,23 +1342,109 @@ class AppLauncher:
                 play_button_group._play_button.visible = not flag  # type: ignore
                 play_button_group._play_button.enabled = not flag  # type: ignore
 
-    def _log_kit_version_info(self):
-        """Log Kit and runtime version information."""
-        import carb
-        import omni.kit.app
+    class _SimulationAppLifecycle:
+        """Reports the lifecycle of the Kit-based :class:`SimulationApp` process.
 
-        app = omni.kit.app.get_app()
-        tokens = carb.tokens.get_tokens_interface()
+        Supervisors (the CI runner at startup; torchrun, schedulers, and CI at exit)
+        only see this process through its output markers and its exit status. Kit
+        fast shutdown exits with code 0 from inside :meth:`SimulationApp.close`, so
+        every exit path below must carry its own truthful status.
 
-        kit_version = app.get_kit_version()
-        kernel_version = app.get_kernel_version()
-        kit_git_hash = tokens.resolve("${kit_git_hash}") or "unknown"
+        Exit-path policy:
 
-        print(f"[ISAACLAB] Kit version: {kit_version}", file=sys.__stderr__, flush=True)
-        print(f"[ISAACLAB] Kit kernel:  {kernel_version}", file=sys.__stderr__, flush=True)
-        print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
+        * Normal exit: the ``atexit`` hook closes the app once; a pending unhandled
+          exception turns into exit code 1.
+        * ``SIGTERM`` / ``kill -ABRT``: ``close(exit_code=128 + signum)`` — full
+          teardown before exiting on isaacsim.simulation_app >= 2.18.5, truthful
+          status either way; if ``close()`` returns (fast shutdown disabled),
+          re-raise the signal with the default action.
+        * Signal during a running close: fall back to the default action instead of
+          re-entering ``close()``, which previously recursed until stack overflow.
+        * ``SIGSEGV``: not intercepted — a Python handler cannot run for main-thread
+          faults, reports success for worker-thread faults, and suppresses the carb
+          crash reporter's minidumps.
+        * ``SIGINT``: Python's default handler, so Ctrl-C unwinds user code and
+          exits nonzero.
 
-    def _abort_signal_handle_callback(self, signal, frame):
-        """Handle the abort/segmentation/kill signals."""
-        # close the app
-        self._app.close()
+        Not handled on the sim side, so handled here: SimulationApp installs its own
+        ``SIGINT`` handler that exits 0 before user code unwinds (changing it there
+        affects Ctrl-C semantics for every consumer), so the launcher restores
+        Python's default handler for its own processes.
+        """
+
+        def __init__(self, app: SimulationApp):
+            self._app = app
+            # set once any close starts; later signals must not start a second teardown
+            self._closing = False
+
+        def announce_startup(self):
+            """Print the CI startup marker and Kit version diagnostics."""
+            import carb
+            import omni.kit.app
+
+            # the CI runner greps this marker for hang detection; __stderr__ survives
+            # stdout being redirected to /dev/null during app creation
+            print("[ISAACLAB] AppLauncher initialization complete", file=sys.__stderr__, flush=True)
+
+            kit_app = omni.kit.app.get_app()
+            tokens = carb.tokens.get_tokens_interface()
+            kit_git_hash = tokens.resolve("${kit_git_hash}") or "unknown"
+            print(f"[ISAACLAB] Kit version: {kit_app.get_kit_version()}", file=sys.__stderr__, flush=True)
+            print(f"[ISAACLAB] Kit kernel:  {kit_app.get_kernel_version()}", file=sys.__stderr__, flush=True)
+            print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
+
+        def install_exit_handlers(self):
+            """Register the ``atexit`` hook and signal handlers implementing the exit policy."""
+            # close on normal exit so Kit shuts down cleanly instead of via __del__
+            atexit.register(self._close_at_exit)
+            signal.signal(signal.SIGTERM, self._on_abort_signal)
+            signal.signal(signal.SIGABRT, self._on_abort_signal)
+            # no SIGSEGV handler and default SIGINT — see the class docstring
+            signal.signal(signal.SIGINT, signal.default_int_handler)
+
+        def _close_at_exit(self):
+            """Close the app on normal interpreter exit, preserving a pending failure status."""
+            self._closing = True
+            with contextlib.suppress(Exception):
+                # sys.last_exc is set before atexit callbacks run for an unhandled
+                # exception (but not for SystemExit, which is not detected yet)
+                exit_code = 1 if getattr(sys, "last_exc", None) is not None else 0
+                self._close_app(exit_code)
+
+        def _on_abort_signal(self, signum, frame):
+            """Handle SIGTERM/SIGABRT: close the app once, then die by the signal."""
+            if self._closing:
+                signal.signal(signum, signal.SIG_DFL)
+                signal.raise_signal(signum)
+                return
+            self._closing = True
+            with contextlib.suppress(Exception):
+                # >= 2.18.5 tears down fully, then exits with this status; older
+                # builds exit with the status but skip the teardown
+                self._close_app(128 + signum)
+            # close() only returns when fast shutdown is disabled
+            signal.signal(signum, signal.SIG_DFL)
+            signal.raise_signal(signum)
+
+        def _close_app(self, exit_code):
+            """Close the app with ``exit_code``, warning loudly if the parameter is unsupported."""
+            # Probe the signature instead of catching ``TypeError`` from the call: a
+            # ``TypeError`` raised *inside* ``close()``'s own teardown would otherwise be
+            # misread as an unsupported ``exit_code`` and trigger a second ``close()`` on a
+            # half-torn-down app — the exact re-entrancy this class exists to prevent.
+            try:
+                accepts_exit_code = "exit_code" in inspect.signature(self._app.close).parameters
+            except (TypeError, ValueError):
+                # Signature could not be introspected (e.g. a C-bound close); fall back to
+                # the no-argument close so the app still shuts down cleanly.
+                accepts_exit_code = False
+            if accepts_exit_code:
+                self._app.close(exit_code=exit_code)
+            else:
+                print(
+                    "[ISAACLAB] WARNING: SimulationApp.close() does not accept exit_code;"
+                    " this process may report exit code 0 instead of its failure status.",
+                    file=sys.__stderr__,
+                    flush=True,
+                )
+                self._app.close()

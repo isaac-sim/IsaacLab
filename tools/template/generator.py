@@ -185,26 +185,12 @@ def _external(specification: dict) -> None:
     _write_file(os.path.join(project_dir, "README.md"), content=template.render(**specification))
     # scripts
     print("  |-- Copying scripts...")
-    # reinforcement learning libraries
+    # unified reinforcement learning entrypoints (backends are provided by the isaaclab_rl package)
     dir = os.path.join(project_dir, "scripts")
     os.makedirs(dir, exist_ok=True)
-    for rl_library in specification["rl_libraries"]:
-        shutil.copytree(
-            os.path.join(ROOT_DIR, "scripts", "reinforcement_learning", rl_library["name"]),
-            os.path.join(dir, rl_library["name"]),
-            dirs_exist_ok=True,
-        )
-        # replace placeholder in scripts
-        for file in glob.glob(os.path.join(dir, rl_library["name"], "*.py")):
-            _replace_in_file(
-                [
-                    (
-                        "# PLACEHOLDER: Extension template (do not remove this comment)",
-                        f"import {name}.tasks  # noqa: F401",
-                    )
-                ],
-                src=file,
-            )
+    for script in ["train", "play"]:
+        template = jinja_env.get_template(f"external/{script}")
+        _write_file(os.path.join(dir, f"{script}.py"), content=template.render(**specification))
     # - other scripts
     _replace_in_file(
         [("import isaaclab_tasks", f"import {name}.tasks"), ("isaaclab_tasks", name), ('"Isaac"', '"Template-"')],

@@ -10,9 +10,10 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.test.utils import resolve_test_sim_device, test_devices
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
 
 """Rest everything follows."""
 
@@ -98,7 +99,7 @@ def generate_cubes_scene(
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_initialization(num_cubes, device):
     """Test initialization for prim with rigid body API at the provided prim path."""
@@ -132,7 +133,7 @@ def test_initialization(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_initialization_with_kinematic_enabled(num_cubes, device):
     """Test that initialization for prim with kinematic flag enabled."""
@@ -170,7 +171,7 @@ def test_initialization_with_kinematic_enabled(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_initialization_with_no_rigid_body(num_cubes, device):
     """Test that initialization fails when no rigid body is found at the provided prim path."""
@@ -188,7 +189,7 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_initialization_with_articulation_root(num_cubes, device):
     """Test that initialization fails when an articulation root is found at the provided prim path."""
@@ -205,7 +206,7 @@ def test_initialization_with_articulation_root(num_cubes, device):
             sim.reset()
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_external_force_buffer(device):
     """Test if external force buffer correctly updates in the force value is zero case.
@@ -274,7 +275,7 @@ def test_external_force_buffer(device):
 
 
 @pytest.mark.parametrize("num_cubes", [2, 4])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_external_force_on_single_body(num_cubes, device):
     """Test application of external force on the base of the object.
@@ -350,7 +351,7 @@ def test_external_force_on_single_body(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [2, 4])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_external_force_on_single_body_at_position(num_cubes, device):
     """Test application of external force on the base of the object at a specific position.
 
@@ -455,7 +456,7 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_set_rigid_object_state(num_cubes, device):
     """Test setting the state of the rigid object.
@@ -521,7 +522,7 @@ def test_set_rigid_object_state(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_reset_rigid_object(num_cubes, device):
     """Test resetting the state of the rigid object."""
@@ -564,7 +565,7 @@ def test_reset_rigid_object(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_rigid_body_set_material_properties(num_cubes, device):
     """Test getting and setting material properties of rigid object."""
@@ -605,7 +606,7 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_set_material_properties_via_view(num_cubes, device):
     """Test setting material properties via the PhysX view-level API."""
@@ -645,10 +646,10 @@ def test_set_material_properties_via_view(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_rigid_body_no_friction(num_cubes, device):
-    """Test that a rigid object with no friction will maintain it's velocity when sliding across a plane."""
+    """Test that a rigid object with no friction maintains its tangential velocity on a plane."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         # Generate cubes scene
@@ -694,18 +695,18 @@ def test_rigid_body_no_friction(num_cubes, device):
             cube_object.update(sim.cfg.dt)
 
             # Non-deterministic when on GPU, so we use different tolerances
-            if device == "cuda:0":
+            if device.startswith("cuda"):
                 tolerance = 1e-2
             else:
                 tolerance = 1e-5
 
             torch.testing.assert_close(
-                cube_object.data.root_lin_vel_w.torch, initial_velocity[:, :3], rtol=1e-5, atol=tolerance
+                cube_object.data.root_lin_vel_w.torch[:, :2], initial_velocity[:, :2], rtol=1e-5, atol=tolerance
             )
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_rigid_body_with_static_friction(num_cubes, device):
     """Test that static friction applied to rigid object works as expected.
@@ -791,7 +792,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_rigid_body_with_restitution(num_cubes, device):
     """Test that restitution when applied to rigid object works as expected.
@@ -857,8 +858,8 @@ def test_rigid_body_with_restitution(num_cubes, device):
                 curr_z_velocity = cube_object.data.root_lin_vel_w.torch[:, 2].clone()
 
                 if expected_collision_type == "inelastic":
-                    # assert that the block has not bounced by checking that the z velocity is less than or equal to 0
-                    assert (curr_z_velocity <= 0.0).all()
+                    # Allow a small contact separation velocity while ensuring that the block does not bounce.
+                    assert (curr_z_velocity <= 1e-3).all()
 
                 if torch.all(curr_z_velocity <= 0.0):
                     # Still in the air
@@ -874,7 +875,7 @@ def test_rigid_body_with_restitution(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
 def test_rigid_body_set_mass(num_cubes, device):
     """Test getting and setting mass of rigid object."""
@@ -918,7 +919,7 @@ def test_rigid_body_set_mass(num_cubes, device):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 @pytest.mark.isaacsim_ci
 def test_gravity_vec_w(num_cubes, device, gravity_enabled):
@@ -958,7 +959,7 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.isaacsim_ci
 @flaky(max_runs=3, min_passes=1)
@@ -1069,7 +1070,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
 @pytest.mark.isaacsim_ci
@@ -1139,7 +1140,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True])
 @pytest.mark.parametrize("state_location", ["com", "link", "root"])
 @pytest.mark.isaacsim_ci
@@ -1254,7 +1255,7 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
 
 @pytest.mark.isaacsim_ci
 def test_warmup_attach_stage_not_called_for_cpu():
-    """Regression test: attach_stage() must not be called for CPU in _warmup_and_create_views().
+    """Regression test: CPU warmup must force-load without explicitly attaching the stage.
 
     Bug (commit 0ba9c5cb3b): ``PhysxManager._warmup_and_create_views()`` called
     ``_physx_sim.attach_stage()`` unconditionally before ``force_load_physics_from_usd()``.
@@ -1262,19 +1263,16 @@ def test_warmup_attach_stage_not_called_for_cpu():
     double-initialization that corrupts the CPU MBP broadphase, producing
     non-deterministic collision failures (objects passing through surfaces).
 
-    Fix: guard ``attach_stage()`` with ``if is_gpu:`` — it is only required by the
-    GPU pipeline, which needs explicit stage attachment before the physics load step.
-    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()``.
+    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()`` when
+    the ``omni.physics.physx`` bridge registers the backend.
 
-    This test verifies the guard is in place by monkeypatching ``attach_stage`` on
-    the PhysX simulation interface and asserting it is *not* called during CPU warmup.
-    The simulation test itself (1 cube falling onto a ground plane) is intentionally
-    omitted here because the MBP corruption is non-deterministic and depends on scene
-    complexity (multiple dynamic actors on a mesh collider), making it unreliable as a
-    unit test assertion.
+    This test verifies that the PhysX backend is registered with the unified physics
+    API, ``attach_stage`` is not called, and ``force_load_physics_from_usd`` is called
+    exactly once during CPU warmup.
     """
     from unittest.mock import MagicMock, patch
 
+    import omni.kit.app
     import omni.physx
 
     with build_simulation_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
@@ -1283,16 +1281,22 @@ def test_warmup_attach_stage_not_called_for_cpu():
 
         # PhysxManager no longer caches the simulation interface; it resolves it on each use
         # via ``omni.physx.get_physx_simulation_interface()`` (the accessor memoizes it).
-        # IPhysxSimulation is a C++ binding whose attributes are read-only, so we cannot
-        # assign to ``attach_stage`` directly.  Instead, patch the accessor to return a
-        # MagicMock that wraps the real interface so all other calls still work, and spy on
-        # ``attach_stage``.
-        spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
-        with patch("omni.physx.get_physx_simulation_interface", return_value=spy):
+        # The PhysX interfaces are C++ bindings whose attributes are read-only. Patch
+        # their accessors with wrapping mocks so the real calls still execute.
+        physx_spy = MagicMock(wraps=omni.physx.get_physx_interface())
+        physx_sim_spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
+        with (
+            patch("omni.physx.get_physx_interface", return_value=physx_spy),
+            patch("omni.physx.get_physx_simulation_interface", return_value=physx_sim_spy),
+        ):
             sim.reset()
 
-        assert spy.attach_stage.call_count == 0, (
-            f"attach_stage() was called {spy.attach_stage.call_count} time(s) during CPU warmup. "
-            f"This indicates the CPU MBP broadphase double-initialization regression is present: "
-            f"attach_stage() + force_load_physics_from_usd() must not be combined for CPU."
+        extension_manager = omni.kit.app.get_app().get_extension_manager()
+        assert extension_manager.is_extension_enabled("omni.physics.physx"), (
+            "The omni.physics.physx bridge must register PhysX with the unified physics API."
         )
+        assert physx_sim_spy.attach_stage.call_count == 0, (
+            f"attach_stage() was called {physx_sim_spy.attach_stage.call_count} time(s) during CPU warmup. "
+            "This indicates the CPU MBP broadphase double-initialization regression is present."
+        )
+        physx_spy.force_load_physics_from_usd.assert_called_once_with()

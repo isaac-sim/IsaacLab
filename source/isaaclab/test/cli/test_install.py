@@ -264,7 +264,7 @@ class TestEnsureNewton:
         install_cmds = [cmd for cmd in calls if "install" in cmd]
         assert install_cmds, "expected a pip install call"
         install_args = install_cmds[-1]
-        assert any(arg.startswith("newton[sim]") and arg.endswith(commit) for arg in install_args)
+        assert any(arg.startswith("newton[sim,importers]") and arg.endswith(commit) for arg in install_args)
         assert any(arg.startswith("newton-usd-schemas") for arg in install_args), "schemas must be forced too"
 
     def test_skips_when_commit_already_installed(self):

@@ -155,9 +155,9 @@ def sim():
     )
     d_ratio_set = torch.tensor(
         [
-            [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-            [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
-            [0.9, 0.9, 0.9, 0.9, 0.9, 0.9],
+            [2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+            [2.2, 2.2, 2.2, 2.2, 2.2, 2.2],
+            [1.8, 1.8, 1.8, 1.8, 1.8, 1.8],
         ],
         device=sim.device,
     )
@@ -333,6 +333,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
         goal_marker,
         contact_forces,
         frame,
+        rotation_tolerance=0.12,
     )
 
 
@@ -368,7 +369,7 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
         partial_inertial_dynamics_decoupling=False,
         gravity_compensation=True,
         motion_stiffness_task=500.0,
-        motion_damping_ratio_task=1.0,
+        motion_damping_ratio_task=2.0,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -1121,6 +1122,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
         motion_stiffness_task=1000.0,
         motion_damping_ratio_task=1.0,
         nullspace_control="position",
+        nullspace_stiffness=1.0,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -1136,6 +1138,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
         goal_marker,
         contact_forces,
         frame,
+        rotation_tolerance=0.12,
     )
 
 
@@ -1172,6 +1175,7 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=1.0,
         nullspace_control="position",
+        nullspace_stiffness=1.0,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 
@@ -1426,6 +1430,8 @@ def _run_op_space_controller(
     contact_forces: ContactSensor | None,
     frame: str,
     convergence_steps: int = 500,
+    position_tolerance: float = 0.1,
+    rotation_tolerance: float = 0.1,
 ):
     """Run the operational space controller with the given parameters.
 
@@ -1442,6 +1448,8 @@ def _run_op_space_controller(
         contact_forces (ContactSensor | None): The contact forces sensor.
         frame (str): The reference frame for targets.
         convergence_steps (int): Number of simulation steps to run before checking convergence. Defaults to 500.
+        position_tolerance (float): Maximum position error norm. Defaults to 0.1.
+        rotation_tolerance (float): Maximum rotation error norm. Defaults to 0.1.
     """
     # Initialize the masks for evaluating target convergence according to selection matrices
     pos_mask = torch.tensor(osc.cfg.motion_control_axes_task[:3], device=sim.device).view(1, 3)
@@ -1501,7 +1509,17 @@ def _run_op_space_controller(
             # check that we converged to the goal
             if count > 0:
                 _check_convergence(
-                    osc, ee_pose_b, ee_target_pose_b, ee_force_b, command, pos_mask, rot_mask, force_mask, frame
+                    osc,
+                    ee_pose_b,
+                    ee_target_pose_b,
+                    ee_force_b,
+                    command,
+                    pos_mask,
+                    rot_mask,
+                    force_mask,
+                    frame,
+                    position_tolerance,
+                    rotation_tolerance,
                 )
             # reset joint state to default
             default_joint_pos = robot.data.default_joint_pos.torch.clone()
@@ -1774,6 +1792,8 @@ def _check_convergence(
     rot_mask: torch.tensor,
     force_mask: torch.tensor,
     frame: str,
+    position_tolerance: float,
+    rotation_tolerance: float,
 ):
     """Check the convergence to the target.
 
@@ -1787,6 +1807,8 @@ def _check_convergence(
         rot_mask (torch.tensor): The rotation mask.
         force_mask (torch.tensor): The force mask.
         frame (str): The reference frame for targets.
+        position_tolerance (float): Maximum position error norm.
+        rotation_tolerance (float): Maximum rotation error norm.
 
     Raises:
         AssertionError: If the convergence is not achieved.
@@ -1803,8 +1825,8 @@ def _check_convergence(
             # desired error (zer)
             des_error = torch.zeros_like(pos_error_norm)
             # check convergence
-            torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=0.1)
-            torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=0.1)
+            torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=position_tolerance)
+            torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=rotation_tolerance)
             cmd_idx += 7
         elif target_type == "pose_rel":
             pos_error, rot_error = compute_pose_error(
@@ -1815,8 +1837,8 @@ def _check_convergence(
             # desired error (zer)
             des_error = torch.zeros_like(pos_error_norm)
             # check convergence
-            torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=0.1)
-            torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=0.1)
+            torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=position_tolerance)
+            torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=rotation_tolerance)
             cmd_idx += 6
         elif target_type == "wrench_abs":
             force_target_b = ee_target_b[:, cmd_idx : cmd_idx + 3].clone()

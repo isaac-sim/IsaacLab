@@ -42,6 +42,7 @@ from isaaclab_newton.physics import (
     NewtonManager,
     NewtonMJWarpManager,
     NewtonMPMManager,
+    NewtonShapeCfg,
     NewtonSolverCfg,
     NewtonXPBDManager,
     XPBDSolverCfg,
@@ -170,6 +171,88 @@ def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimat
     assert warned is should_warn
     # Cfg field round-trips regardless of warning.
     assert cfg.collision_decimation == collision_decimation
+
+
+def test_refit_sensor_bvh_rejects_missing_sensor_state(monkeypatch):
+    """BVH refitting raises when a particle BVH exists without an initialized sensor state."""
+    model = SimpleNamespace(shape_count=0, particle_count=1, bvh_particles=object())
+    monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
+
+    with pytest.raises(RuntimeError, match="requires an initialized sensor state"):
+        NewtonManager._refit_sensor_bvh()
+
+
+def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
+    """Shape and particle BVHs are built and refit before a render task runs."""
+    from isaaclab.physics import PhysicsManager
+
+    state = object()
+    status = {"shape_refit": False, "particle_refit": False, "rendered": False}
+
+    class FakeModel:
+        shape_count = 1
+        particle_count = 1
+        bvh_shapes = None
+        bvh_particles = None
+
+        def bvh_build_shapes(self, current_state):
+            assert current_state is state
+            self.bvh_shapes = object()
+
+        def bvh_build_particles(self, current_state):
+            assert current_state is state
+            self.bvh_particles = object()
+
+        def bvh_refit_shapes(self, current_state):
+            assert current_state is state
+            status["shape_refit"] = True
+
+        def bvh_refit_particles(self, current_state):
+            assert current_state is state
+            status["particle_refit"] = True
+
+    model = FakeModel()
+
+    def render():
+        assert model.bvh_shapes is not None
+        assert model.bvh_particles is not None
+        assert status["shape_refit"]
+        assert status["particle_refit"]
+        status["rendered"] = True
+
+    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
+    monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_graph", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_flags", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_flags_host", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_graph_capture_failed", False, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=False), raising=False)
+
+    NewtonManager._register_sensor_task("render", render)
+    NewtonManager._update_sensor_tasks("render")
+
+    assert status["rendered"]
+
+
+def test_newton_shape_cfg_defaults_match_newton_shape_config():
+    """``NewtonShapeCfg`` contact defaults mirror Newton's ``ShapeConfig``.
+
+    Guards the invariant that keeps ``checked_apply`` a no-op for envs that do
+    not override ``ke``/``kd``/``mu``: if Newton's upstream defaults drift, this
+    fails instead of silently clobbering every Newton scene's shape materials.
+    """
+    import newton
+
+    upstream = newton.ModelBuilder().default_shape_cfg
+    shape_cfg = NewtonShapeCfg()
+    assert shape_cfg.ke == upstream.ke
+    assert shape_cfg.kd == upstream.kd
+    assert shape_cfg.mu == upstream.mu
 
 
 def test_mpm_solver_cfg_maps_only_newton_solver_fields():
@@ -504,12 +587,19 @@ def test_subclass_of_newton_manager(manager):
     assert issubclass(manager, NewtonManager)
     # Subclasses must override the abstract factory.
     assert manager._build_solver is not NewtonManager._build_solver
+    assert manager._create_solver is not NewtonManager._create_solver
 
 
 def test_abstract_build_solver_raises():
     """Calling :meth:`_build_solver` on the abstract base raises."""
     with pytest.raises(NotImplementedError):
         NewtonManager._build_solver(model=None, solver_cfg=NewtonSolverCfg())
+
+
+def test_abstract_create_solver_raises():
+    """Calling :meth:`_create_solver` on the base manager raises."""
+    with pytest.raises(NotImplementedError):
+        NewtonManager._create_solver(model=None, solver_cfg=NewtonSolverCfg())
 
 
 @pytest.mark.parametrize(
@@ -784,3 +874,89 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
         assert np.allclose(canonical_joint_q, sentinel), (
             f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
         )
+
+
+def _build_collision_scene(sim, num_boxes=8):
+    """Add ``num_boxes`` free-falling boxes over a ground plane.
+
+    Uses ``MJWarpSolverCfg(use_mujoco_contacts=False)`` so the Newton collision
+    pipeline / contacts are allocated on ``sim.reset()``.
+    """
+    builder = sim.physics_manager.create_builder()
+    for _ in range(num_boxes):
+        body = builder.add_body(mass=1.0)
+        builder.add_joint_free(child=body)
+        builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1)
+    builder.add_ground_plane()
+    NewtonManager.set_builder(builder)
+
+
+# Model device arrays ``CollisionPipeline.collide()`` reads off its cached model.
+_COLLIDE_MODEL_ARRAYS = (
+    "shape_transform",
+    "shape_body",
+    "shape_type",
+    "shape_scale",
+    "shape_collision_radius",
+    "shape_source_ptr",
+    "shape_margin",
+    "shape_gap",
+    "shape_collision_aabb_lower",
+    "shape_collision_aabb_upper",
+)
+
+
+def _free_model_collide_arrays_and_churn(model, device):
+    """Free the arrays ``collide()`` reads off ``model``, then churn the allocator.
+
+    Reusing the freed blocks mimics the GPU memory pressure a real workload
+    applies between resets, so a stale pipeline still pointing at ``model``
+    would read overwritten memory on its next ``collide()``.
+    """
+    import gc
+
+    for attr in _COLLIDE_MODEL_ARRAYS:
+        arr = getattr(model, attr, None)
+        if isinstance(arr, wp.array) and arr.device.is_cuda:
+            setattr(model, attr, None)
+    gc.collect()
+    wp.synchronize_device(device)
+    _churn = [wp.zeros(1 << 16, dtype=wp.float32, device=device) for _ in range(128)]  # noqa: F841
+    wp.synchronize_device(device)
+
+
+@pytest.mark.parametrize("use_cuda_graph", [False, True])
+def test_hard_reset_then_step_runs(use_cuda_graph):
+    """A step after a second (hard) ``sim.reset()`` runs without a CUDA error.
+
+    Drives reset -> step -> hard reset, frees the old model's collide arrays and
+    churns the allocator to mimic GPU memory pressure, then steps and syncs.
+    Without the fix the stale pipeline reads the freed buffers and faults
+    (CUDA 700). Run with CUDA graphs off and on.
+    """
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
+            num_substeps=2,
+            use_cuda_graph=use_cuda_graph,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        _build_collision_scene(sim)
+
+        sim.reset()
+        assert NewtonManager._needs_collision_pipeline is True
+        old_model = NewtonManager._collision_pipeline.model
+        sim.step(render=False)
+
+        sim.reset()
+
+        _free_model_collide_arrays_and_churn(old_model, "cuda:0")
+
+        # A hard device sync surfaces any deferred illegal access as an exception.
+        sim.step(render=False)
+        wp.synchronize_device("cuda:0")

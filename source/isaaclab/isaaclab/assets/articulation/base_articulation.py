@@ -8,23 +8,30 @@
 
 from __future__ import annotations
 
+import logging
 import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
 
 from ...sim import SimulationContext
+from ...utils.buffers import TimestampedBufferWarp
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ..asset_base import AssetBase
+from . import ordering_kernels
+from .ordering import ArticulationNameMap, ArticulationOrderingConvention, build_articulation_name_map
+from .ordering_resolvers import _resolve_articulation_ordering_names
 
 if TYPE_CHECKING:
     from isaaclab.utils.wrench_composer import WrenchComposer
 
     from .articulation_cfg import ArticulationCfg
-    from .articulation_data import ArticulationData
+    from .base_articulation_data import BaseArticulationData
+
+logger = logging.getLogger(__name__)
 
 
 class BaseArticulation(AssetBase):
@@ -71,6 +78,12 @@ class BaseArticulation(AssetBase):
         # update the articulation state, where dt is the simulation time step
         my_articulation.update(dt)
 
+    .. note::
+        Index-based writer selectors must contain unique environment, joint, and
+        body indices. Repeated selector entries issue concurrent writes to the
+        same simulation cell, so the winning value is undefined. Use a mask when
+        a selection may contain duplicates.
+
     .. _`USD ArticulationRootAPI`: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html
 
     """
@@ -80,6 +93,16 @@ class BaseArticulation(AssetBase):
 
     __backend_name__: str = "base"
     """The name of the backend for the articulation."""
+
+    __backend_native_orderings__: tuple[str, ...] = ()
+    """Symbolic convention names this backend's native order already satisfies.
+
+    A convention listed here takes the identity fast path in ordering
+    resolution: requesting it returns backend names without any cross-backend
+    discovery. The base default is empty; concrete backends declare the
+    :class:`ArticulationOrderingConvention` values (e.g. ``("physx",)``) their
+    solver-view order matches.
+    """
 
     actuators: dict
     """Dictionary of actuator instances for the articulation.
@@ -98,6 +121,13 @@ class BaseArticulation(AssetBase):
         super().__init__(cfg)
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        # Per-articulation cache of resolved cross-backend convention name orderings,
+        # populated lazily while ordering maps are resolved. A single resolution may
+        # query the same convention for both joints and bodies, so results are keyed
+        # by ``(convention, kind)``.
+        self._ordering_convention_name_cache: dict[
+            tuple[ArticulationOrderingConvention, Literal["joint", "body"]], tuple[str, ...]
+        ] = {}
 
     """
     Properties
@@ -105,7 +135,7 @@ class BaseArticulation(AssetBase):
 
     @property
     @abstractmethod
-    def data(self) -> ArticulationData:
+    def data(self) -> BaseArticulationData:
         raise NotImplementedError()
 
     @property
@@ -144,10 +174,18 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @property
-    @abstractmethod
     def joint_names(self) -> list[str]:
-        """Ordered names of joints in articulation."""
-        raise NotImplementedError()
+        """Joint names in public API order.
+
+        The order follows :attr:`ArticulationCfg.joint_ordering` when configured
+        and otherwise matches :attr:`backend_joint_names`. Once the articulation
+        installs its resolved names on :attr:`data`, those are returned directly;
+        before that, the property falls back to :attr:`backend_joint_names`.
+        """
+        names = self.data.joint_names
+        if names is not None:
+            return list(names)
+        return list(self.backend_joint_names)
 
     @property
     @abstractmethod
@@ -162,20 +200,231 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @property
-    @abstractmethod
     def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
-        raise NotImplementedError()
+        """Body names in public API order.
+
+        The order follows :attr:`ArticulationCfg.body_ordering` when configured
+        and otherwise matches :attr:`backend_body_names`. Once the articulation
+        installs its resolved names on :attr:`data`, those are returned directly;
+        before that, the property falls back to :attr:`backend_body_names`.
+        """
+        names = self.data.body_names
+        if names is not None:
+            return list(names)
+        return list(self.backend_body_names)
+
+    @property
+    def backend_joint_names(self) -> list[str]:
+        """Joint names in active backend solver-view order.
+
+        Concrete backends must override this property so its order matches
+        ``root_view`` metadata and joint-indexed solver arrays even when
+        :attr:`joint_names` uses another public order.
+
+        The inherited compatibility fallback emits :class:`DeprecationWarning`
+        and returns :attr:`joint_names`. A subclass relying on that fallback
+        therefore receives public order and cannot expose a distinct solver order.
+
+        Raises:
+            NotImplementedError: If the subclass overrides neither
+                :attr:`joint_names` nor this property, since the two inherited
+                fallbacks delegate to each other and cannot produce names.
+        """
+        if type(self).joint_names is BaseArticulation.joint_names:
+            raise NotImplementedError(f"{type(self).__name__} must override joint_names or backend_joint_names.")
+        warnings.warn(
+            f"{type(self).__name__} must override backend_joint_names before it becomes abstract in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.joint_names
+
+    @property
+    def backend_body_names(self) -> list[str]:
+        """Body names in active backend solver-view order.
+
+        Concrete backends must override this property so its order matches
+        ``root_view`` metadata and body-indexed solver arrays even when
+        :attr:`body_names` uses another public order.
+
+        The inherited compatibility fallback emits :class:`DeprecationWarning`
+        and returns :attr:`body_names`. A subclass relying on that fallback
+        therefore receives public order and cannot expose a distinct solver order.
+
+        Raises:
+            NotImplementedError: If the subclass overrides neither
+                :attr:`body_names` nor this property, since the two inherited
+                fallbacks delegate to each other and cannot produce names.
+        """
+        if type(self).body_names is BaseArticulation.body_names:
+            raise NotImplementedError(f"{type(self).__name__} must override body_names or backend_body_names.")
+        warnings.warn(
+            f"{type(self).__name__} must override backend_body_names before it becomes abstract in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_names
+
+    @property
+    def joint_ordering(self) -> ArticulationNameMap | None:
+        """Bidirectional map between backend and public joint order.
+
+        The map is ``None`` whenever the public and backend orders coincide:
+        either no ordering is configured, or the configured ordering resolved
+        to the backend's native order. A non-``None`` map always denotes an
+        actual permutation.
+        """
+        return self.data.joint_ordering
+
+    @property
+    def body_ordering(self) -> ArticulationNameMap | None:
+        """Bidirectional map between backend and public body order.
+
+        The map is ``None`` whenever the public and backend orders coincide:
+        either no ordering is configured, or the configured ordering resolved
+        to the backend's native order. A non-``None`` map always denotes an
+        actual permutation.
+        """
+        return self.data.body_ordering
+
+    def map_joint_ids_to_backend(self, joint_ids: Sequence[int] | slice) -> Sequence[int] | slice:
+        """Translate public joint indices to active-backend joint indices.
+
+        Backend solver views expose joint metadata and joint-indexed arrays in
+        :attr:`backend_joint_names` order, which can differ from the public
+        :attr:`joint_names` order selected by :attr:`joint_ordering`. Consumers
+        that pick joints with public indices (for example event terms) must
+        convert those indices before addressing backend arrays.
+
+        When :attr:`joint_ordering` is ``None`` the public and backend orders
+        coincide and :paramref:`joint_ids` is returned unchanged without any
+        per-index lookup.
+
+        Args:
+            joint_ids: Joint indices in public :attr:`joint_names` order, or a
+                slice selecting them.
+
+        Returns:
+            The selected joint indices expressed in :attr:`backend_joint_names`
+            order, or :paramref:`joint_ids` unchanged when the orders coincide.
+            A slice is expanded to its backend indices under a permutation.
+        """
+        ordering = self.joint_ordering
+        if ordering is None:
+            return joint_ids
+        if isinstance(joint_ids, slice):
+            return list(ordering.user_to_backend_indices[joint_ids])
+        return [ordering.user_to_backend_indices[joint_id] for joint_id in joint_ids]
+
+    def map_body_ids_to_backend(self, body_ids: Sequence[int] | slice) -> Sequence[int] | slice:
+        """Translate public body indices to active-backend body indices.
+
+        Backend solver views expose body metadata and body-indexed arrays in
+        :attr:`backend_body_names` order, which can differ from the public
+        :attr:`body_names` order selected by :attr:`body_ordering`. Consumers
+        that pick bodies with public indices (for example event terms) must
+        convert those indices before addressing backend arrays.
+
+        When :attr:`body_ordering` is ``None`` the public and backend orders
+        coincide and :paramref:`body_ids` is returned unchanged without any
+        per-index lookup.
+
+        Args:
+            body_ids: Body indices in public :attr:`body_names` order, or a
+                slice selecting them.
+
+        Returns:
+            The selected body indices expressed in :attr:`backend_body_names`
+            order, or :paramref:`body_ids` unchanged when the orders coincide.
+            A slice is expanded to its backend indices under a permutation.
+        """
+        ordering = self.body_ordering
+        if ordering is None:
+            return body_ids
+        if isinstance(body_ids, slice):
+            return list(ordering.user_to_backend_indices[body_ids])
+        return [ordering.user_to_backend_indices[body_id] for body_id in body_ids]
 
     @property
     @abstractmethod
     def root_view(self):
-        """Root view for the asset.
+        """Root articulation view in active backend order.
+
+        Name metadata and joint- or body-indexed arrays exposed by this view always
+        use backend solver-view order, regardless of the configured public order.
+        Use :attr:`joint_ordering` or :attr:`body_ordering` when converting axes.
 
         .. note::
-            Use this view with caution. It requires handling of tensors in a specific way.
+            Use this view with caution. It requires handling backend tensors in
+            the backend-specific way.
         """
         raise NotImplementedError()
+
+    def _resolve_and_install_ordering_maps(self) -> None:
+        """Resolve configured articulation name orderings and store maps on :attr:`data`.
+
+        This is the single install site for ordering state: the resolved maps live
+        only on :attr:`data` (:attr:`~BaseArticulationData.joint_ordering` and
+        :attr:`~BaseArticulationData.body_ordering`) and every read path checks
+        them there. Orderings that resolve to the backend's native order are
+        normalized to ``None``, so a non-``None`` map always denotes an actual
+        permutation and ``is not None`` checks alone decide whether reordering is
+        active.
+        """
+        joint_names, joint_ordering = self._resolve_axis_ordering("joint")
+        self.data.joint_names = joint_names
+        self.data.joint_ordering = joint_ordering
+
+        body_names, body_ordering = self._resolve_axis_ordering("body")
+        if body_ordering is not None and self.is_fixed_base:
+            root_body_name = self.backend_body_names[0]
+            requested_index = body_ordering.backend_to_user_indices[0]
+            if requested_index != 0:
+                raise ValueError(
+                    f"Invalid body_ordering for fixed-base articulation '{self.cfg.prim_path}': root body "
+                    f"'{root_body_name}' must remain at public index 0, but was requested at index "
+                    f"{requested_index}. Put '{root_body_name}' first; all remaining bodies may be reordered "
+                    "freely."
+                )
+        self.data.body_names = body_names
+        self.data.body_ordering = body_ordering
+
+        self.data._apply_ordering_maps_after_resolve()
+
+    def _resolve_axis_ordering(self, kind: Literal["joint", "body"]) -> tuple[list[str], ArticulationNameMap | None]:
+        """Resolve one axis's public names and permutation from the configuration.
+
+        Args:
+            kind: Articulation element kind to resolve.
+
+        Returns:
+            The public names for the axis and its permutation map, where ``None``
+            means public order equals backend order (no ordering configured, or a
+            configured ordering that resolved to the backend's native order).
+        """
+        backend_names = tuple(self.backend_joint_names if kind == "joint" else self.backend_body_names)
+        cfg_ordering = self.cfg.joint_ordering if kind == "joint" else self.cfg.body_ordering
+        if cfg_ordering is None:
+            return list(backend_names), None
+
+        user_names = _resolve_articulation_ordering_names(
+            kind=kind,
+            backend_names=backend_names,
+            ordering=cfg_ordering,
+            active_backend_name=self.__backend_name__,
+            articulation=self,
+        )
+        ordering = build_articulation_name_map(
+            kind=kind, backend_names=backend_names, user_names=user_names, device=self.device
+        )
+        if ordering is None:
+            logger.info(
+                "Configured %s_ordering for '%s' resolves to the backend's native order; no reordering"
+                " will be applied.",
+                kind,
+                self.cfg.prim_path,
+            )
+        return list(user_names), ordering
 
     @property
     def num_base_dofs(self) -> int:
@@ -2191,6 +2440,140 @@ class BaseArticulation(AssetBase):
     def _invalidate_initialize_callback(self, event) -> None:
         """Invalidates the scene elements."""
         super()._invalidate_initialize_callback(event)
+
+    """
+    Internal helpers -- Ordering.
+    """
+
+    _ordering_joint_staging_names: tuple[str, ...] = ()
+    """Backend-order joint-target staging attributes managed by :meth:`_ordering_configure_backend_staging`.
+
+    Each named attribute is a 2-D ``(num_instances, num_joints)`` ``wp.float32``
+    staging buffer, allocated while a nonidentity joint ordering is active and set
+    to ``None`` otherwise. Backends override this tuple to declare their staging;
+    the default empty tuple keeps identity-only backends at a no-op.
+    """
+
+    def _joint_user_to_backend_map(self) -> wp.array:
+        """Device public-to-backend joint map, or the identity map when no ordering is active.
+
+        The identity fallback reads ``_ALL_JOINT_INDICES``, an index buffer that
+        backends allocate without a base-class default (a backend-owned contract,
+        like the staging attributes named by :attr:`_ordering_joint_staging_names`),
+        so unconditional launch sites -- for example in-graph publish kernels that
+        always gather -- get a valid map either way. Conditional sites should read
+        :attr:`~BaseArticulationData.joint_ordering` directly and skip the launch
+        when it is ``None``.
+        """
+        ordering = self.data.joint_ordering
+        return ordering.user_to_backend if ordering is not None else self._ALL_JOINT_INDICES
+
+    def _joint_backend_to_user_map(self) -> wp.array:
+        """Device backend-to-public joint map, or the identity map when no ordering is active.
+
+        See :meth:`_joint_user_to_backend_map` for the identity-fallback contract.
+        """
+        ordering = self.data.joint_ordering
+        return ordering.backend_to_user if ordering is not None else self._ALL_JOINT_INDICES
+
+    def _body_user_to_backend_map(self) -> wp.array:
+        """Device public-to-backend body map, or the identity map when no ordering is active.
+
+        See :meth:`_joint_user_to_backend_map` for the identity-fallback contract;
+        the body fallback reads ``_ALL_BODY_INDICES``.
+        """
+        ordering = self.data.body_ordering
+        return ordering.user_to_backend if ordering is not None else self._ALL_BODY_INDICES
+
+    def _body_backend_to_user_map(self) -> wp.array:
+        """Device backend-to-public body map, or the identity map when no ordering is active.
+
+        See :meth:`_body_user_to_backend_map` for the identity-fallback contract.
+        """
+        ordering = self.data.body_ordering
+        return ordering.backend_to_user if ordering is not None else self._ALL_BODY_INDICES
+
+    def _ordering_configure_backend_staging(self) -> None:
+        """Allocate or release backend-order joint-target staging after ordering maps change.
+
+        Iterates :attr:`_ordering_joint_staging_names`, allocating each declared
+        staging buffer while a nonidentity joint ordering is active and clearing it
+        to ``None`` otherwise. Backends that also stage body-indexed buffers extend
+        this via ``super()`` before handling their own body staging.
+        """
+        for backend_name in self._ordering_joint_staging_names:
+            if not hasattr(self, backend_name):
+                continue
+            if self.data.joint_ordering is not None:
+                if getattr(self, backend_name) is None:
+                    setattr(
+                        self,
+                        backend_name,
+                        wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device),
+                    )
+            else:
+                setattr(self, backend_name, None)
+
+    def _get_backend_ordered_joint_buffer(
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        *,
+        component_count: int | None = None,
+    ) -> wp.array:
+        """Return a backend-order view or copy of a public-order joint buffer.
+
+        When :paramref:`component_count` is ``None`` the buffer is treated as
+        two-dimensional (per joint); otherwise it is treated as three-dimensional
+        with that many trailing components per joint.
+
+        Avoid this modify-then-reorder helper on per-step hot paths: it costs a
+        full extra kernel launch over the buffer. Prefer the fused
+        ``write_*_user_to_backend`` write paths from
+        :mod:`isaaclab.assets.articulation.ordering_kernels`, which write the
+        public and backend buffers in a single launch. This helper exists for
+        infrequent property writers where the extra launch is irrelevant.
+
+        Args:
+            user_buffer: Public-order joint buffer to reorder.
+            backend_buffer: Backend-order staging destination, either a raw Warp
+                array or a :class:`~isaaclab.utils.buffers.TimestampedBufferWarp`.
+                Required when the articulation has a non-identity joint ordering.
+            component_count: Number of trailing components per joint for a
+                three-dimensional buffer, or ``None`` for a two-dimensional buffer.
+
+        Returns:
+            :paramref:`user_buffer` when the joint ordering is identity; otherwise
+            the backend-order staging array populated from :paramref:`user_buffer`.
+
+        Raises:
+            RuntimeError: If a non-identity joint ordering is active but no backend
+                staging buffer was provided.
+        """
+        ordering = self.data.joint_ordering
+        if ordering is None:
+            return user_buffer
+        if backend_buffer is None:
+            detail = "backend staging" if component_count is None else "3-D backend staging"
+            raise RuntimeError(f"{self.__backend_name__} joint ordering requires {detail}.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
+        if component_count is None:
+            wp.launch(
+                ordering_kernels.reorder_2d_user_to_backend,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[user_buffer, ordering.backend_to_user],
+                outputs=[backend_data],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                ordering_kernels.reorder_3d_user_to_backend,
+                dim=(self.num_instances, self.num_joints, component_count),
+                inputs=[user_buffer, ordering.backend_to_user],
+                outputs=[backend_data],
+                device=self.device,
+            )
+        return backend_data
 
     """
     Internal helpers -- Actuators.

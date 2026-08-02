@@ -9,15 +9,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_rl"
-version = "0.7.0"
+version = "0.9.0"
 description = "Extension containing reinforcement learning related utilities."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "rl", "wrappers", "learning"]
 requires-python = ">=3.12"
-# Third-party requirements are centralized in the root pyproject.toml.
-dependencies = []
+# Only interpackage dependencies should go here.
+dependencies = [
+    "isaaclab",
+    "isaaclab_assets",
+    "isaaclab_tasks",
+]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
+isaaclab_assets = { path = "../isaaclab_assets", editable = true }
+isaaclab_tasks = { path = "../isaaclab_tasks", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

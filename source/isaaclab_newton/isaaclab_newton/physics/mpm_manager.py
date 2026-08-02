@@ -89,6 +89,15 @@ class NewtonMPMManager(NewtonManager):
                 builder.body_inv_inertia[body_id] = wp.mat33()
 
     @classmethod
+    def _create_solver(cls, model: Model, solver_cfg: MPMSolverCfg) -> SolverImplicitMPM:
+        """Construct the configured implicit MPM solver."""
+        return SolverImplicitMPM(
+            model,
+            _make_solver_config(solver_cfg),
+            temporary_store=TemporaryStore(),
+        )
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MPMSolverCfg) -> None:
         """Construct :class:`SolverImplicitMPM` and populate the base-class slots.
 
@@ -100,11 +109,7 @@ class NewtonMPMManager(NewtonManager):
             model: Finalized Newton model the solver should run on.
             solver_cfg: Implicit MPM solver configuration.
         """
-        NewtonManager._solver = SolverImplicitMPM(
-            model,
-            _make_solver_config(solver_cfg),
-            temporary_store=TemporaryStore(),
-        )
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = False
         cls._project_outside_colliders = solver_cfg.project_outside_colliders
@@ -134,6 +139,21 @@ class NewtonMPMManager(NewtonManager):
         cls._solver.step(state_0, state_1, control, contacts, substep_dt)
         if cls._project_outside_colliders:
             cls._solver.project_outside(state_1, state_1, substep_dt)
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Skip the solver-internal reset for implicit MPM.
+
+        :meth:`SolverImplicitMPM.reset` only honors a per-world mask when the
+        solver runs one FEM environment per world (``Config.separate_worlds``).
+        With the shared topology Isaac Lab builds, a masked reset is rejected,
+        and a full reset would clear the particle history of environments that
+        were not reset. Leaving MPM history untouched on an environment reset
+        matches the solver's behavior before it gained :meth:`reset`.
+
+        Args:
+            world_mask: Per-world reset mask, ignored.
+        """
 
     @classmethod
     def _solver_specific_clear(cls) -> None:

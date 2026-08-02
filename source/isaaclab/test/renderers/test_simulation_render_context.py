@@ -32,18 +32,20 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 class _FakeBackend(BaseRenderer):
     """Test double for :class:`BaseRenderer`; does not load PhysX/Newton/OV renderer classes."""
 
-    __slots__ = ("_prepare_hits", "_update_transforms_hits", "_event_log")
+    __slots__ = ("_prepare_hits", "_update_transforms_hits", "_update_geometries_hits", "_event_log")
 
     def __init__(
         self,
         *,
         prepare_hits: list[int] | None = None,
         update_transforms_hits: list[int] | None = None,
+        update_geometries_hits: list[int] | None = None,
         event_log: list[str] | None = None,
     ) -> None:
         super().__init__()
         self._prepare_hits = prepare_hits
         self._update_transforms_hits = update_transforms_hits
+        self._update_geometries_hits = update_geometries_hits
         self._event_log = event_log
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
@@ -64,6 +66,12 @@ class _FakeBackend(BaseRenderer):
             self._update_transforms_hits.append(1)
         if self._event_log is not None:
             self._event_log.append("ut")
+
+    def update_geometries(self) -> None:
+        if self._update_geometries_hits is not None:
+            self._update_geometries_hits.append(1)
+        if self._event_log is not None:
+            self._event_log.append("geo")
 
     def update_camera(self, render_data: Any, positions: Any, orientations: Any, intrinsics: Any) -> None:
         pass
@@ -135,24 +143,33 @@ def test_ensure_prepare_stage_num_envs_mismatch():
         ctx.ensure_prepare_stage(None, 8)
 
 
-def test_update_transforms_dedupes_per_physics_step():
-    """All backends' update_transforms run once per physics step index."""
+def test_update_scene_state_dedupes_per_physics_step():
+    """All backends' scene state hooks run once per physics step index."""
 
     ctx = RenderContext()
-    hits: list[int] = []
+    transform_hits: list[int] = []
+    geometry_hits: list[int] = []
     cfg = NewtonWarpRendererCfg()
-    _set_entries(ctx, (cfg, _FakeBackend(update_transforms_hits=hits)))
+    _set_entries(
+        ctx,
+        (
+            cfg,
+            _FakeBackend(update_transforms_hits=transform_hits, update_geometries_hits=geometry_hits),
+        ),
+    )
 
-    ctx.update_transforms(1)
-    ctx.update_transforms(1)
-    assert len(hits) == 1
+    ctx.update_scene_state(1)
+    ctx.update_scene_state(1)
+    assert len(transform_hits) == 1
+    assert len(geometry_hits) == 1
 
-    ctx.update_transforms(2)
-    assert len(hits) == 2
+    ctx.update_scene_state(2)
+    assert len(transform_hits) == 2
+    assert len(geometry_hits) == 2
 
 
 def test_render_into_camera_calls_update_render_read_order():
-    """render_into_camera runs update_transforms then render then read_output; dedupes UT per step."""
+    """render_into_camera runs scene sync then render then read_output; dedupes sync per step."""
     ctx = RenderContext()
     events: list[str] = []
     cfg = IsaacRtxRendererCfg()
@@ -162,10 +179,10 @@ def test_render_into_camera_calls_update_render_read_order():
     rd = object()
     cam_data = CameraData()
     ctx.render_into_camera(cast(BaseRenderer, fake), rd, cam_data, physics_step_count=1)
-    assert events == ["ut", "render", "read"]
+    assert events == ["ut", "geo", "render", "read"]
 
     ctx.render_into_camera(cast(BaseRenderer, fake), rd, cam_data, physics_step_count=1)
-    assert events == ["ut", "render", "read", "render", "read"]
+    assert events == ["ut", "geo", "render", "read", "render", "read"]
 
 
 def test_reset_stage_prepare_flag_allows_second_prepare_stage():
@@ -185,18 +202,18 @@ def test_reset_stage_prepare_flag_allows_second_prepare_stage():
     assert len(prepares) == 2
 
 
-def test_reset_transform_cadence_allows_repeat_update_transforms_same_step():
-    """reset_transform_cadence clears step dedupe so the same physics_step_count can sync again."""
+def test_reset_scene_state_cadence_allows_repeat_update_scene_state_same_step():
+    """reset_scene_state_cadence clears step dedupe so the same physics_step_count can update again."""
     ctx = RenderContext()
     hits: list[int] = []
     cfg = IsaacRtxRendererCfg()
     _set_entries(ctx, (cfg, _FakeBackend(update_transforms_hits=hits)))
 
-    ctx.update_transforms(1)
+    ctx.update_scene_state(1)
     assert len(hits) == 1
-    ctx.update_transforms(1)
+    ctx.update_scene_state(1)
     assert len(hits) == 1
 
-    ctx.reset_transform_cadence()
-    ctx.update_transforms(1)
+    ctx.reset_scene_state_cadence()
+    ctx.update_scene_state(1)
     assert len(hits) == 2

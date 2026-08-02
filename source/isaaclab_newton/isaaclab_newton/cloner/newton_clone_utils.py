@@ -5,17 +5,67 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Sequence
 from typing import Any
 
 import torch
 import warp as wp
-from newton import ModelBuilder, solvers
+from newton import GeoType, ModelBuilder, ShapeFlags, solvers
 
-from pxr import Usd
+from pxr import Usd, UsdPhysics
 
 from isaaclab.cloner.cloner_utils import replace_path_prefix
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+
+# USD ``physics:approximation`` token (lower case) -> Newton remeshing method.
+# Mirrors Newton's own importer mapping; ``none`` keeps the raw trimesh.
+_APPROXIMATION_TO_REMESHING_METHOD = {
+    "convexdecomposition": "coacd",
+    "convexhull": "convex_hull",
+    "boundingsphere": "bounding_sphere",
+    "boundingcube": "bounding_box",
+    "meshsimplification": "quadratic",
+}
+
+
+def _authored_collision_approximations(stage: Usd.Stage) -> dict[str, str]:
+    """Prim path -> authored ``physics:approximation`` token (lower case).
+
+    SDF collision prims are excluded: the attribute has no meaning on a shape with
+    ``NewtonSDFCollisionAPI`` applied (matching Newton's importer semantics).
+    """
+    authored: dict[str, str] = {}
+    for prim in stage.Traverse():
+        attr = UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr()
+        if attr and attr.HasAuthoredValue() and "NewtonSDFCollisionAPI" not in prim.GetAppliedSchemas():
+            authored[prim.GetPath().pathString] = str(attr.Get()).lower()
+    return authored
+
+
+def _apply_authored_approximations(builder: ModelBuilder, path_shape_map: dict, authored: dict[str, str]) -> set[int]:
+    """Remesh authored collision shapes (visual shapes preserved); return their indices."""
+    authored_shape_indices: set[int] = set()
+    for path, mode in authored.items():
+        index = path_shape_map.get(path)
+        if index is None:
+            continue
+        authored_shape_indices.add(index)
+        method = _APPROXIMATION_TO_REMESHING_METHOD.get(mode)
+        if method is not None:
+            builder.approximate_meshes(method, shape_indices=[index], keep_visual_shapes=True)
+    return authored_shape_indices
+
+
+def _unauthored_collision_mesh_shapes(builder: ModelBuilder, authored_shape_indices: set[int]) -> list[int]:
+    """Colliding mesh shapes not covered by an authored ``physics:approximation``."""
+    return [
+        index
+        for index, shape_type in enumerate(builder.shape_type)
+        if shape_type == GeoType.MESH
+        and (builder.shape_flags[index] & ShapeFlags.COLLIDE_SHAPES)
+        and index not in authored_shape_indices
+    ]
 
 
 def build_source_builders(
@@ -27,25 +77,74 @@ def build_source_builders(
     ignore_paths: Sequence[str] | None = None,
     simplify_meshes: bool = True,
 ) -> dict[str, ModelBuilder]:
-    """Build one Newton builder for each clone source prim path."""
-    builders: dict[str, ModelBuilder] = {}
-    for source in sources:
-        builder = create_builder()
-        solvers.SolverMuJoCo.register_custom_attributes(builder)
-        solvers.SolverKamino.register_custom_attributes(builder)
-        builder.add_usd(
-            stage,
-            root_path=source,
-            load_visual_shapes=True,
-            skip_mesh_approximation=True,
-            schema_resolvers=schema_resolvers,
-            ignore_paths=ignore_paths,
+    """Build one Newton builder for each clone source prim path.
+
+    USD-authored ``physics:approximation`` modes are honored (applied after import so
+    visual shapes are preserved for visualization/rendering). Exception: when the
+    honored modes leave multiple sources with differing shape-type sequences (e.g.
+    heterogeneous asset variants), every mesh falls back to the uniform convex-hull
+    treatment, because :class:`SolverMuJoCo` requires homogeneous worlds.
+    """
+    authored = _authored_collision_approximations(stage)
+    builders = {
+        source: _build_source_builder(
+            stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, authored
         )
-        if simplify_meshes:
-            builder.approximate_meshes("convex_hull", keep_visual_shapes=True)
-        replace_newton_builder_shape_colors(builder, stage)
-        builders[source] = builder
+        for source in sources
+    }
+
+    if authored and len(builders) > 1:
+        shape_sequences = {tuple(int(t) for t in b.shape_type) for b in builders.values()}
+        if len(shape_sequences) > 1:
+            warnings.warn(
+                "Clone sources have differing collision shape sequences after honoring authored"
+                " physics:approximation modes, which SolverMuJoCo's homogeneous-worlds requirement"
+                " does not support. Falling back to uniform convex-hull approximation for all"
+                " collision meshes.",
+                stacklevel=2,
+            )
+            builders = {
+                source: _build_source_builder(
+                    stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, {}
+                )
+                for source in sources
+            }
     return builders
+
+
+def _build_source_builder(
+    stage: Usd.Stage,
+    source: str,
+    create_builder: Callable[[], ModelBuilder],
+    schema_resolvers: Sequence[Any],
+    ignore_paths: Sequence[str] | None,
+    simplify_meshes: bool,
+    authored: dict[str, str],
+) -> ModelBuilder:
+    """Build one source builder; an empty ``authored`` map restores hull-everything."""
+    builder = create_builder()
+    solvers.SolverMuJoCo.register_custom_attributes(builder)
+    solvers.SolverKamino.register_custom_attributes(builder)
+    import_result = builder.add_usd(
+        stage,
+        root_path=source,
+        load_visual_shapes=True,
+        skip_mesh_approximation=True,
+        schema_resolvers=schema_resolvers,
+        ignore_paths=ignore_paths,
+    )
+    if authored:
+        authored_shape_indices = _apply_authored_approximations(builder, import_result["path_shape_map"], authored)
+        if simplify_meshes:
+            builder.approximate_meshes(
+                "convex_hull",
+                shape_indices=_unauthored_collision_mesh_shapes(builder, authored_shape_indices),
+                keep_visual_shapes=True,
+            )
+    elif simplify_meshes:
+        builder.approximate_meshes("convex_hull", keep_visual_shapes=True)
+    replace_newton_builder_shape_colors(builder, stage)
+    return builder
 
 
 def replicate_builder_mapping(
@@ -66,13 +165,49 @@ def replicate_builder_mapping(
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.size(1)
     local_site_map: dict[str, list[list[int]]] = {}
-    world_xforms: list[wp.transform] = []
+    world_xforms = [wp.transform(positions[col], quaternions[col]) for col in range(num_worlds)]
+
+    can_batch = (
+        len(sources) == 1
+        and mapping.size(0) == 1
+        and num_worlds > 0
+        and bool(mapping.all().item())
+        and not per_world_builder_hooks
+    )
+    if can_batch:
+        source_builder = source_builders[sources[0]]
+
+        # Inject env-root sites into the source so replicate() copies them. Prefixed
+        # by world_xforms[0] so R_w = world_xform_w * inv(world_xform_0) lands each
+        # copy at world_xform_w * xform.
+        site_local_indices: dict[str, list[int]] = {}
+        for label, xform in env_root_sites.items():
+            idx = source_builder.add_site(body=-1, xform=wp.transform_multiply(world_xforms[0], xform), label=label)
+            site_local_indices.setdefault(label, []).append(idx)
+        for label, indices in source_site_indices.get(id(source_builder), {}).items():
+            site_local_indices.setdefault(label, []).extend(indices)
+
+        # Site index after replicate: base_shape + world * stride + source_local_index.
+        base_shape = builder.shape_count
+        stride = source_builder.shape_count
+        source_xform_inv = wp.transform_inverse(world_xforms[0])
+        xforms = [wp.transform_multiply(world_xform, source_xform_inv) for world_xform in world_xforms]
+        builder.replicate(source_builder, num_worlds, xforms=xforms)
+
+        for label, local_indices in site_local_indices.items():
+            local_site_map[label] = [
+                [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
+            ]
+
+        for hook in post_replicate_hooks:
+            hook(builder)
+        return local_site_map, world_xforms
+
     source_world_indices = mapping.to(dtype=torch.int64).argmax(dim=1)
 
     for col in range(num_worlds):
         builder.begin_world()
-        world_xform = wp.transform(positions[col], quaternions[col])
-        world_xforms.append(world_xform)
+        world_xform = world_xforms[col]
 
         for label, xform in env_root_sites.items():
             site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(world_xform, xform), label=label)
@@ -82,7 +217,7 @@ def replicate_builder_mapping(
             source_builder = source_builders[sources[int(row)]]
             offset = builder.shape_count
             source_col = int(source_world_indices[int(row)])
-            source_xform = wp.transform(positions[source_col], quaternions[source_col])
+            source_xform = world_xforms[source_col]
             builder.add_builder(
                 source_builder, xform=wp.transform_multiply(world_xform, wp.transform_inverse(source_xform))
             )

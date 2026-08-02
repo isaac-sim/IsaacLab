@@ -72,6 +72,9 @@ class FrameTransformer(BaseFrameTransformer):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data: FrameTransformerData = FrameTransformerData()
+        self._raw_transforms: wp.array | None = None
+        self._update_cmd: wp.Launch | None = None
+        self._use_recorded_launch: bool = False
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -407,20 +410,51 @@ class FrameTransformer(BaseFrameTransformer):
             target_frame_names=self._target_frame_names,
             device=self._device,
         )
+        self._use_recorded_launch = wp.get_device(self._device).is_cuda
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         # Resolve mask
         env_mask = self._resolve_indices_and_mask(None, env_mask)
-        # Get raw transforms from PhysX view and reinterpret as transformf
-        raw_transforms = self._frame_physx_view.get_transforms().view(wp.transformf)
+        # Refresh the PhysX buffer every update, but create its typed Warp view only once:
+        # the getter lazily allocates its output buffer and refreshes the same memory in place
+        # on every call, so the cached view (and the recorded launch that consumes it) stays
+        # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
+        transforms = self._frame_physx_view.get_transforms()
+        if self._raw_transforms is None:
+            self._raw_transforms = transforms.view(wp.transformf)
+        elif transforms.ptr != self._raw_transforms.ptr:
+            raise RuntimeError(
+                f"The PhysX transform buffer of the frame transformer at '{self.cfg.prim_path}' was"
+                " re-allocated after its warp view was cached. The cached view and the recorded"
+                " launch require a pointer-stable buffer refreshed in place."
+            )
 
-        wp.launch(
+        if self._use_recorded_launch:
+            if self._update_cmd is None:
+                try:
+                    self._update_cmd = self._launch_update(env_mask, record_cmd=True)
+                except Exception as exc:
+                    self._use_recorded_launch = False
+                    logger.warning(
+                        f"Failed to record the update of the frame transformer at '{self.cfg.prim_path}'."
+                        f" Falling back to eager kernel launches. Reason: {exc}"
+                    )
+            if self._update_cmd is not None:
+                self._update_cmd.launch()
+                return
+
+        self._launch_update(env_mask)
+
+    def _launch_update(self, env_mask: wp.array, record_cmd: bool = False) -> wp.Launch | None:
+        """Launch or record the kernel that updates the frame transforms."""
+
+        return wp.launch(
             frame_transformer_update_kernel,
             dim=(self._num_envs, self._num_target_frames),
             inputs=[
                 env_mask,
-                raw_transforms,
+                self._raw_transforms,
                 self._source_raw_indices,
                 self._target_raw_indices,
                 self._source_offset_pos_wp,
@@ -435,6 +469,7 @@ class FrameTransformer(BaseFrameTransformer):
                 self._data._target_quat_source,
             ],
             device=self._device,
+            record_cmd=record_cmd,
         )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
@@ -495,6 +530,8 @@ class FrameTransformer(BaseFrameTransformer):
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
         self._frame_physx_view = None
+        self._raw_transforms = None
+        self._update_cmd = None
 
     """
     Internal helpers.

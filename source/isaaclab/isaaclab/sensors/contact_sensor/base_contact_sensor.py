@@ -62,6 +62,18 @@ class BaseContactSensor(SensorBase):
         if cfg.history_length < 0:
             raise ValueError(f"History length must be greater than 0! Received: {cfg.history_length}")
 
+    def update(self, dt: float, force_recompute: bool = False) -> None:
+        """Advance the sensor timestamp and update history-bearing buffers.
+
+        Args:
+            dt: Time elapsed since the previous sensor update [s].
+            force_recompute: Whether to recompute the sensor buffers regardless of their
+                configured update period. Defaults to False.
+        """
+        super().update(dt, force_recompute=force_recompute)
+        if self._is_initialized and self.cfg.history_length > 0:
+            self._update_outdated_buffers()
+
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (

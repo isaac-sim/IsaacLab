@@ -146,6 +146,25 @@ If the issue persists, additional NCCL fallbacks that may help are:
     export NCCL_IB_DISABLE=1
     export NCCL_ALGO=Ring
 
+On some multi-GPU systems, distributed training with RTX rendering enabled (for example,
+camera-based tasks) fails when the participating GPUs span
+multiple NUMA nodes, while the same training runs fine on GPUs attached to a single PCIe
+switch. The failure typically surfaces as a hang or abort on one of the first collectives,
+with ``Watchdog caught collective operation timeout: WorkNCCL(..., OpType=BROADCAST, ...)``
+or ``OpType=ALLREDUCE`` reported by ``ProcessGroupNCCL``, and does not occur when rendering
+is disabled. On affected systems, disabling NCCL's cuMem host-memory allocations resolves
+the failure:
+
+.. code-block:: shell
+
+    export NCCL_CUMEM_HOST_ENABLE=0
+
+If the failure persists, disable NCCL's CUDA virtual-memory-management allocator entirely:
+
+.. code-block:: shell
+
+    export NCCL_CUMEM_ENABLE=0
+
 Separately, restricting training to a subset of a node's GPUs with ``CUDA_VISIBLE_DEVICES``
 (for example, ``CUDA_VISIBLE_DEVICES=0,1`` on a larger machine) can cause training to hang during
 communicator initialization or on the first collective, with no error reported. On affected
@@ -283,11 +302,23 @@ Single-node training (defaults to all available GPUs):
     .. tab-item:: isaaclab.sh
         :sync: isaaclab
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
-               --task Isaac-Reorient-KukaAllegro \
-               --num_envs 4096 --max_iterations 100
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run python scripts/reinforcement_learning/train_multigpu.py \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
         :sync: uv
@@ -306,12 +337,25 @@ Override the GPU count or torchrun settings when needed:
     .. tab-item:: isaaclab.sh
         :sync: isaaclab
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
-               --num_gpus 4 --master_port 29504 \
-               --task Isaac-Reorient-KukaAllegro \
-               --num_envs 4096 --max_iterations 100
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run python scripts/reinforcement_learning/train_multigpu.py \
+                     --num_gpus 4 --master_port 29504 \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
+                     --num_gpus 4 --master_port 29504 \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
         :sync: uv
@@ -331,13 +375,27 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
     .. tab-item:: isaaclab.sh
         :sync: isaaclab
 
-        .. code-block:: bash
+        .. tab-set::
 
-            ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
-               --rl_library skrl --ml_framework jax --num_gpus 4 \
-               --coordinator_address localhost:5000 \
-               --task Isaac-Reorient-KukaAllegro \
-               --num_envs 4096 --max_iterations 100
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run python scripts/reinforcement_learning/train_multigpu.py \
+                     --rl_library skrl --ml_framework jax --num_gpus 4 \
+                     --coordinator_address localhost:5000 \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
+                     --rl_library skrl --ml_framework jax --num_gpus 4 \
+                     --coordinator_address localhost:5000 \
+                     --task Isaac-Reorient-KukaAllegro \
+                     --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
         :sync: uv

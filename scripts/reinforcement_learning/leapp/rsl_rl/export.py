@@ -14,17 +14,12 @@ import os
 import sys
 import time
 from collections.abc import Mapping
-from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
+from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
+
 from isaaclab_tasks.utils import setup_preset_cli
-
-_RSL_RL_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "rsl_rl"
-if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_RSL_RL_SCRIPTS_DIR))
-import cli_args  # isort: skip
-
 
 RSL_RL_MIN_VERSION = "5.0.1"
 _RUNTIME_IMPORTS_LOADED = False

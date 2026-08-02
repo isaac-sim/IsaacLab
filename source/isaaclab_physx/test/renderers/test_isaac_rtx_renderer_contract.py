@@ -55,6 +55,106 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch):
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
 
 
+def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch):
+    """Each tiled render product gets a fresh ``rp_<uuid4.hex>`` name.
+
+    Unique names avoid collisions across concurrent tiled cameras and sequential
+    create/destroy cycles in one Kit process (e.g. ``simple_shading_*`` pytest).
+    uuid4 provides 122 random bits, so birthday-paradox collision chance among n
+    names is ~n^2 / 2^123 — negligible for Isaac Lab workloads.
+    """
+    replicator_core_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    from pxr import Sdf, UsdGeom
+
+    import isaaclab.sim.utils.stage as stage_utils
+
+    # Stub Kit settings / stage so create_render_data can run without Isaac Sim.
+    # has_gui=False keeps the depth-only color-render branch inactive for rgb cameras.
+    settings = MagicMock()
+    settings.get.return_value = False
+    stage = MagicMock()
+    # Pass the Camera prim check that gates render-product creation.
+    stage.GetPrimAtPath.return_value.IsA.side_effect = lambda typ: typ is UsdGeom.Camera
+
+    # Capture the ``name=`` kwarg passed to Replicator; the returned HydraTexture
+    # and annotator registry only need to exist so create_render_data can finish.
+    rp = MagicMock()
+    rp.path = "/Render/rp_test"
+    create_tiled = MagicMock(return_value=rp)
+    annotator = MagicMock()
+    registry = MagicMock()
+    registry.get_annotator.return_value = annotator
+    replicator_core_module.create = SimpleNamespace(render_product_tiled=create_tiled)
+    replicator_core_module.AnnotatorRegistry = registry
+
+    # Minimal CameraRenderSpec: one rgb tiled camera is enough to exercise naming.
+    spec = SimpleNamespace(
+        camera_prim_paths=["/World/envs/env_0/Camera"],
+        device="cpu",
+        cfg=SimpleNamespace(
+            data_types=["rgb"],
+            width=64,
+            height=64,
+            isp_cfg=None,
+            colorize_semantic_segmentation=False,
+            colorize_instance_segmentation=False,
+            colorize_instance_id_segmentation=False,
+        ),
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    # Create many products with the same spec: names must still all differ (the
+    # sequential simple_shading_* / multi-camera collision case this fix targets).
+    num_names = 256
+    names: list[str] = []
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+        patch.object(stage_utils, "get_current_stage", return_value=stage),
+    ):
+        for _ in range(num_names):
+            renderer.create_render_data(spec)
+            names.append(create_tiled.call_args.kwargs["name"])
+
+    # Every call must mint a distinct name — a reused default was the original bug.
+    assert len(set(names)) == num_names
+    for name in names:
+        # Contract: ``rp_`` + uuid4().hex so the token is a valid USD identifier
+        # (no hyphens) and cannot collide with path-derived names.
+        assert name.startswith("rp_")
+        hex_part = name.removeprefix("rp_")
+        # uuid4().hex is 32 lowercase hex digits (128 bits; 122 of them random).
+        assert len(hex_part) == 32
+        assert all(c in "0123456789abcdef" for c in hex_part)
+        # Replicator builds a USD prim from this name; reject illegal identifiers.
+        assert Sdf.Path.IsValidIdentifier(name)
+        assert Sdf.Path.IsValidPathString(f"/Render/{name}")
+
+
+def test_render_product_uuid_name_format_is_sdf_safe():
+    """``rp_{uuid4().hex}`` matches the create_render_data naming contract and is SDF-safe."""
+    import uuid
+
+    from pxr import Sdf
+
+    names = [f"rp_{uuid.uuid4().hex}" for _ in range(64)]
+    assert len(set(names)) == len(names)
+    for name in names:
+        assert name.startswith("rp_")
+        hex_part = name.removeprefix("rp_")
+        assert len(hex_part) == 32
+        int(hex_part, 16)  # raises if not hex
+        assert "-" not in name
+        assert Sdf.Path.IsValidIdentifier(name)
+        assert Sdf.Path.IsValidPathString(f"/Render/{name}")
+
+
 @pytest.mark.parametrize(
     ("has_gui", "expected_disable_color_render"),
     [

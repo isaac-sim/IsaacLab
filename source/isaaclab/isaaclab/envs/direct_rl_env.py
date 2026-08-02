@@ -220,6 +220,10 @@ class DirectRLEnv(gym.Env):
         self.has_debug_vis_implementation = "NotImplementedError" not in source_code
         self._debug_vis_handle = None
 
+        # wire episode metrics into live plots and populate manager_visualizers for Kit
+        # before the window is created so the UI can query manager_visualizers on init.
+        self.setup_direct_visualizers()
+
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
@@ -470,17 +474,17 @@ class DirectRLEnv(gym.Env):
         self.reward_buf = self._get_rewards()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
-        if len(reset_env_ids) > 0:
-            # capture the terminal observation before reset and expose it for Same-Step autoreset.
-            # apply the same observation noise as the returned obs (policy space only) so the
-            # bootstrapped terminal value matches the distribution the policy is trained on.
+        reset_env_ids = self._reset_envs_from_buffer()
+        if reset_env_ids is None:
             if self.cfg.compute_final_obs:
-                terminal_obs = self._get_observations()
-                if self.cfg.observation_noise_model:
-                    terminal_obs["policy"] = self._observation_noise_model(terminal_obs["policy"])
-                self.extras["final_obs"] = terminal_obs
-            self._reset_idx(reset_env_ids)
+                raise RuntimeError(
+                    "Mask-native reset overrides must return reset indices when compute_final_obs is enabled."
+                )
+            if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+                raise RuntimeError(
+                    "Mask-native reset overrides must return reset indices when RTX reset rerenders are enabled."
+                )
+        elif len(reset_env_ids) > 0:
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
@@ -559,6 +563,29 @@ class DirectRLEnv(gym.Env):
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
             )
+
+    def setup_direct_visualizers(self):
+        """Wire episode metrics into live plots for all active visualizer backends.
+
+        Registers ``episode/mean_reward`` and ``episode/episode_length`` as direct scalar
+        sources so that top-level training metrics are visible in the live-plot panels of
+        Newton, Rerun, and Viser visualizers.  Mirrors the equivalent hook in
+        :meth:`~isaaclab.envs.ManagerBasedRLEnv.setup_manager_visualizers`.
+        """
+        scalars = {
+            "episode": {
+                "mean_reward": lambda: float(getattr(self, "reward_buf", None).mean())
+                if getattr(self, "reward_buf", None) is not None
+                else 0.0,
+                "episode_length": lambda: float(self.episode_length_buf.float().mean()),
+            }
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots({}, scalars=scalars)
+        # Populate manager_visualizers for the Kit window (mirrors ManagerBasedRLEnv).
+        self.manager_visualizers = {
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
+        }
 
     def close(self):
         """Cleanup for the environment."""
@@ -671,6 +698,33 @@ class DirectRLEnv(gym.Env):
         # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
         self.actions = sample_space(self.single_action_space, self.sim.device, batch_size=self.num_envs, fill_value=0)
 
+    def _reset_envs_from_buffer(self) -> torch.Tensor | None:
+        """Reset environments marked in the reset buffer.
+
+        The default implementation compacts the reset mask into environment indices. CUDA
+        environments synchronize while determining the dynamic output size of
+        ``torch.Tensor.nonzero``. Tasks with backend-native mask reset support may
+        override this hook and return None to avoid that synchronization. Returning None
+        is only supported when terminal-observation capture and RTX reset rerenders are
+        disabled. Overrides must delegate to this implementation in those configurations.
+
+        Returns:
+            Reset environment indices, or None when an override completed reset
+            processing without materializing host-visible indices.
+        """
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
+        if len(reset_env_ids) > 0:
+            # capture the terminal observation before reset and expose it for Same-Step autoreset.
+            # apply the same observation noise as the returned obs (policy space only) so the
+            # bootstrapped terminal value matches the distribution the policy is trained on.
+            if self.cfg.compute_final_obs:
+                terminal_obs = self._get_observations()
+                if self.cfg.observation_noise_model:
+                    terminal_obs["policy"] = self._observation_noise_model(terminal_obs["policy"])
+                self.extras["final_obs"] = terminal_obs
+            self._reset_idx(reset_env_ids)
+        return reset_env_ids
+
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
 
@@ -693,6 +747,8 @@ class DirectRLEnv(gym.Env):
 
         # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
+
+        self.sim.render_context.reset_scene_state_cadence()
 
     """
     Implementation-specific functions.

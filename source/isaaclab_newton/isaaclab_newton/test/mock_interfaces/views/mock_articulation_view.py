@@ -238,6 +238,8 @@ class MockNewtonArticulationView:
         self._dof_positions: wp.array | None = None
         self._dof_velocities: wp.array | None = None
         self._articulation_ids: wp.array | None = None
+        self._jacobians: wp.array | None = None
+        self._mass_matrices: wp.array | None = None
 
         # Attributes dict (lazily initialized)
         self._attributes: dict[str, wp.array | None] = {
@@ -601,6 +603,30 @@ class MockNewtonArticulationView:
             inertias: Warp array of shape ``(N, 1, L)`` with dtype=wp.mat33f.
         """
         self._attributes["body_inertia"] = inertias
+
+    def set_mock_jacobians(self, jacobians: wp.array) -> None:
+        """Set mock model-order Jacobian data directly for testing."""
+        self._jacobians = jacobians
+
+    def set_mock_mass_matrices(self, mass_matrices: wp.array) -> None:
+        """Set mock model-order mass matrix data directly for testing."""
+        self._mass_matrices = mass_matrices
+
+    def eval_jacobian(self, state, J: wp.array, joint_S_s: wp.array) -> None:
+        """Write deterministic mock Jacobian data into Newton's output buffer."""
+        if self._jacobians is None:
+            self._jacobians = wp.zeros(
+                (self._count, self._link_count, 6, J.shape[2]),
+                dtype=wp.float32,
+                device=self._device,
+            )
+        J.assign(self._jacobians.reshape(J.shape))
+
+    def eval_mass_matrix(self, state, H: wp.array, J: wp.array, body_I_s: wp.array, joint_S_s: wp.array) -> None:
+        """Write deterministic mock mass matrix data into Newton's output buffer."""
+        if self._mass_matrices is None:
+            self._mass_matrices = wp.zeros(H.shape, dtype=wp.float32, device=self._device)
+        H.assign(self._mass_matrices)
 
     # -- Benchmark Utilities --
 

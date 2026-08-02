@@ -31,6 +31,7 @@ from isaaclab_physx.physics import PhysxCfg
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
 
 from isaaclab_assets import ANYMAL_C_CFG
 
@@ -42,6 +43,21 @@ NUM_ENVS = 2
 NUM_STEPS = 10
 DT = 1.0 / 120.0
 TARGET_OFFSET = 0.1  # [rad] added to initial joint positions
+_ANYMAL_C_PHYSX_JOINT_NAMES = (
+    "LF_HAA",
+    "LH_HAA",
+    "RF_HAA",
+    "RH_HAA",
+    "LF_HFE",
+    "LH_HFE",
+    "RF_HFE",
+    "RH_HFE",
+    "LF_KFE",
+    "LH_KFE",
+    "RF_KFE",
+    "RH_KFE",
+)
+
 
 # ---------------------------------------------------------------------------
 # Actuator configurations under test
@@ -128,12 +144,24 @@ def _run_simulation(
     *,
     num_steps: int = NUM_STEPS,
     feedforward: float | None = None,
+    joint_ordering: tuple[str, ...] | None = None,
+    permutation_sensitive_commands: bool = False,
 ) -> dict:
     """Run ANYmal-C on PhysX and return recorded trajectories + telemetry.
 
-    Always records ``joint_pos``, ``joint_vel``, ``computed_torque``, and
-    ``applied_torque``. Optionally applies a constant per-DOF feedforward
-    effort target.
+    Always records public joint state/telemetry and the Newton adapter outputs.
+
+    Args:
+        actuators: Actuator configuration replacing ANYmal-C defaults.
+        use_newton_actuators: Whether to use the Newton actuator fast path.
+        num_steps: Number of simulation steps to record.
+        feedforward: Optional constant effort target for every joint.
+        joint_ordering: Optional explicit public joint-name order.
+        permutation_sensitive_commands: Whether to command distinct position, velocity, and effort values by
+            physical joint name.
+
+    Returns:
+        Recorded joint-name metadata, commands, public trajectories and torque telemetry, and adapter effort traces.
     """
     sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=use_newton_actuators)
     with build_simulation_context(
@@ -145,23 +173,53 @@ def _run_simulation(
         sim._app_control_on_stop_handle = None
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-        art_cfg = ANYMAL_C_CFG.replace(actuators=actuators, prim_path="/World/Env_.*/Robot")
+        art_cfg = ANYMAL_C_CFG.replace(
+            actuators=actuators,
+            prim_path="/World/Env_.*/Robot",
+            joint_ordering=joint_ordering,
+        )
         articulation = Articulation(art_cfg)
         sim.reset()
         assert articulation.is_initialized
 
+        joint_names = tuple(articulation.joint_names)
+        backend_joint_names = tuple(articulation.backend_joint_names)
+        installed_ordering = articulation.joint_ordering
+        joint_ordering_state = (
+            None
+            if installed_ordering is None
+            else {
+                "user_names": joint_names,
+                "backend_names": backend_joint_names,
+                "user_to_backend_indices": installed_ordering.user_to_backend_indices,
+                "backend_to_user_indices": installed_ordering.backend_to_user_indices,
+            }
+        )
         init_pos = wp.to_torch(articulation.data.joint_pos).clone()
-        target_pos = init_pos + TARGET_OFFSET
-        target_vel = torch.zeros_like(init_pos)
+        if permutation_sensitive_commands:
+            scale_by_name = {name: index + 1 for index, name in enumerate(backend_joint_names)}
+            joint_scale = torch.tensor(
+                [scale_by_name[name] for name in joint_names],
+                device=articulation.device,
+                dtype=init_pos.dtype,
+            ).unsqueeze(0)
+            joint_scale = joint_scale.expand_as(init_pos)
+            target_pos = init_pos + 0.01 * joint_scale
+            target_vel = 0.001 * joint_scale
+            effort_target = 0.1 * joint_scale
+        else:
+            target_pos = init_pos + TARGET_OFFSET
+            target_vel = torch.zeros_like(init_pos)
+            effort_target = None if feedforward is None else torch.full_like(init_pos, feedforward)
+
         articulation.set_joint_position_target_index(target=target_pos)
         articulation.set_joint_velocity_target_index(target=target_vel)
-        if feedforward is not None:
-            articulation.set_joint_effort_target_index(
-                target=torch.full_like(init_pos, feedforward),
-            )
+        if effort_target is not None:
+            articulation.set_joint_effort_target_index(target=effort_target)
 
         recorded_pos, recorded_vel = [], []
         recorded_computed, recorded_applied = [], []
+        recorded_adapter_computed, recorded_adapter_applied = [], []
         for _ in range(num_steps):
             articulation.write_data_to_sim()
             sim.step()
@@ -170,15 +228,150 @@ def _run_simulation(
             recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
             recorded_computed.append(wp.to_torch(articulation.data.computed_torque).clone())
             recorded_applied.append(wp.to_torch(articulation.data.applied_torque).clone())
+            if use_newton_actuators:
+                recorded_adapter_computed.append(wp.to_torch(articulation.data._sim_bind_joint_computed_effort).clone())
+                recorded_adapter_applied.append(wp.to_torch(articulation._physx_actuator_wrapper.joint_f_2d).clone())
 
     return {
+        "joint_names": joint_names,
+        "backend_joint_names": backend_joint_names,
+        "joint_ordering": joint_ordering_state,
+        "adapter_joint_names": joint_names,
         "joint_pos": recorded_pos,
         "joint_vel": recorded_vel,
         "computed_torque": recorded_computed,
         "applied_torque": recorded_applied,
+        "adapter_computed_effort": recorded_adapter_computed,
+        "adapter_applied_effort": recorded_adapter_applied,
         "target_pos": target_pos.clone(),
         "target_vel": target_vel.clone(),
+        "effort_target": None if effort_target is None else effort_target.clone(),
     }
+
+
+def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
+    """Match PhysX Newton-actuator traces under reversed public joint ordering."""
+    identity_result = _run_simulation(
+        IDEAL_PD_ACTUATORS,
+        use_newton_actuators=True,
+        permutation_sensitive_commands=True,
+    )
+    requested_joint_names = tuple(reversed(identity_result["joint_names"]))
+    reversed_result = _run_simulation(
+        IDEAL_PD_ACTUATORS,
+        use_newton_actuators=True,
+        joint_ordering=requested_joint_names,
+        permutation_sensitive_commands=True,
+    )
+
+    assert_articulation_ordering_trace_matches(identity_result, reversed_result, requested_joint_names)
+
+
+def _assert_newton_actuator_uses_current_joint_state(
+    joint_ordering: tuple[str, ...] | None, *, num_steps: int = NUM_STEPS
+) -> None:
+    """Check that ``applied_torque`` always matches the IdealPD formula on *this* step's true state.
+
+    Ground truth is read every step via ``root_view.get_dof_positions()``/``get_dof_velocities()`` --
+    the raw PhysX view, bypassing :class:`ArticulationData`'s cached ``joint_pos``/``joint_vel`` shadow
+    entirely -- so the read itself cannot refresh (and thereby mask staleness in) the shadow under test.
+
+    Args:
+        joint_ordering: Optional explicit public joint-name order to install on the articulation.
+        num_steps: Number of simulation steps to check.
+    """
+    kp, kd, effort_limit = 40.0, 5.0, 80.0
+    actuators = {
+        "legs": IdealPDActuatorCfg(
+            joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+            stiffness=kp,
+            damping=kd,
+            effort_limit=effort_limit,
+        ),
+    }
+    sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
+    with build_simulation_context(
+        device="cuda:0",
+        gravity_enabled=True,
+        add_ground_plane=True,
+        sim_cfg=sim_cfg,
+    ) as sim:
+        sim._app_control_on_stop_handle = None
+        for i in range(NUM_ENVS):
+            sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
+        art_cfg = ANYMAL_C_CFG.replace(
+            actuators=actuators,
+            prim_path="/World/Env_.*/Robot",
+            joint_ordering=joint_ordering,
+        )
+        articulation = Articulation(art_cfg)
+        sim.reset()
+        assert articulation.is_initialized
+
+        ordering = articulation.joint_ordering
+        if ordering is not None:
+            user_to_backend = torch.tensor(
+                ordering.user_to_backend_indices, dtype=torch.long, device=articulation.device
+            )
+
+            def to_user_order(raw_backend: wp.array) -> torch.Tensor:
+                return wp.to_torch(raw_backend).index_select(1, user_to_backend)
+
+        else:
+
+            def to_user_order(raw_backend: wp.array) -> torch.Tensor:
+                return wp.to_torch(raw_backend)
+
+        init_pos = to_user_order(articulation.root_view.get_dof_positions()).clone()
+        target_pos = init_pos + TARGET_OFFSET
+        target_vel = torch.zeros_like(init_pos)
+        articulation.set_joint_position_target_index(target=target_pos)
+        articulation.set_joint_velocity_target_index(target=target_vel)
+
+        for step in range(num_steps):
+            # Ground truth for *this* step, independent of ArticulationData's joint_pos/joint_vel shadow.
+            true_pos = to_user_order(articulation.root_view.get_dof_positions()).clone()
+            true_vel = to_user_order(articulation.root_view.get_dof_velocities()).clone()
+
+            articulation.write_data_to_sim()
+            applied = wp.to_torch(articulation.data.applied_torque).clone()
+
+            expected = torch.clamp(kp * (target_pos - true_pos) - kd * true_vel, -effort_limit, effort_limit)
+            torch.testing.assert_close(
+                applied,
+                expected,
+                atol=1e-3,
+                rtol=1e-3,
+                msg=(
+                    f"applied_torque at step {step} does not match the IdealPD formula evaluated on this"
+                    " step's true PhysX joint state -- the Newton actuator likely used a stale"
+                    " joint_pos/joint_vel shadow"
+                ),
+            )
+
+            sim.step()
+            articulation.update(DT)
+
+
+def test_newton_actuator_identity_ordering_uses_current_joint_state() -> None:
+    """Sanity check: with identity joint ordering, ``applied_torque`` always reflects this step's state."""
+    _assert_newton_actuator_uses_current_joint_state(None)
+
+
+def test_newton_actuator_reversed_ordering_uses_current_joint_state() -> None:
+    """Regression test: a non-identity ordering must not lag PhysX's true joint state by one step.
+
+    ``_apply_actuator_model_newton`` binds ``w.joint_q``/``w.joint_qd`` once, at actuator setup, to
+    ``data.joint_pos``/``data.joint_vel``. With identity joint ordering those bindings alias PhysX-owned
+    memory directly and are always current. With non-identity ordering they alias an owned shadow buffer
+    that is only refreshed when the ``joint_pos``/``joint_vel`` *public* getters run -- which
+    :meth:`_apply_actuator_model_newton` itself only triggers *after* stepping the adapter (for torque
+    telemetry), i.e. one step too late for the adapter to see it. Explicit Newton PD actuators then
+    silently compute torques from one-physics-step-stale joint state whenever nothing else in that step
+    happens to read ``data.joint_pos``/``data.joint_vel`` first.
+    """
+    reversed_joint_names = tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES))
+    _assert_newton_actuator_uses_current_joint_state(reversed_joint_names)
 
 
 # ---------------------------------------------------------------------------

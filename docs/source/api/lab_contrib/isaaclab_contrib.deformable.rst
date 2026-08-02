@@ -9,10 +9,11 @@ isaaclab_contrib.deformable
 
     deformable_object.DeformableObject
     deformable_object_data.DeformableObjectData
+    newton_manager_cfg.NewtonModelCfg
+    newton_manager_cfg.NewtonModelSolverCfg
     newton_manager_cfg.VBDSolverCfg
     newton_manager_cfg.CoupledMJWarpVBDSolverCfg
     newton_manager_cfg.CoupledFeatherstoneVBDSolverCfg
-    newton_manager_cfg.NewtonModelCfg
     vbd_manager.NewtonVBDManager
     coupled_mjwarp_vbd_manager.NewtonCoupledMJWarpVBDManager
     coupled_featherstone_vbd_manager.NewtonCoupledFeatherstoneVBDManager
@@ -34,6 +35,16 @@ Deformable Object
 Newton Solver Configurations
 ----------------------------
 
+.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
 .. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.VBDSolverCfg
   :members:
   :show-inheritance:
@@ -45,11 +56,6 @@ Newton Solver Configurations
   :exclude-members: __init__
 
 .. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.CoupledFeatherstoneVBDSolverCfg
-  :members:
-  :show-inheritance:
-  :exclude-members: __init__
-
-.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__

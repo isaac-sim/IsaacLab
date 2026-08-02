@@ -9,7 +9,7 @@ This script demonstrates how to simulate a mobile manipulator.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/assets/check_ridgeback_franka.py
+    uv run python source/isaaclab/test/assets/check_ridgeback_franka.py
 
 """
 

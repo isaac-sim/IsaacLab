@@ -44,6 +44,7 @@ jobs:
           # run only when inputs that can affect the wheel have changed.
           patterns=(
             $'^apps/\tStandalone apps packaged in the wheel'
+            $'^pyproject\.toml$\tWheel dependency metadata and resolver overrides'
             $'^VERSION$\tPackage version'
             $'^source/\tPython packages'
             $'^tools/wheel_builder/\tWheel build tooling'
@@ -178,6 +179,9 @@ jobs:
 
           python -m pip install --user uv
           export PATH="$HOME/.local/bin:$PATH"
+
+          overrides="$GITHUB_WORKSPACE/tools/wheel_builder/uv-overrides.txt"
+
           cd /tmp
 
           uv venv --python 3.12 /tmp/isaaclab-wheel-install
@@ -192,6 +196,7 @@ jobs:
 
           uv pip install \
             --dry-run \
+            --overrides "$overrides" \
             --extra-index-url https://pypi.nvidia.com \
             --index-strategy unsafe-best-match \
             --prerelease=allow \

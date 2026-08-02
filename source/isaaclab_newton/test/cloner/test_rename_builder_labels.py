@@ -10,6 +10,7 @@ from unittest import mock
 
 import newton
 import torch
+import warp as wp
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner.newton_clone_utils import (
     _BUILTIN_LABEL_TYPES,
@@ -29,8 +30,11 @@ _VIS_LABEL_SUFFIXES = {
     "shape_label": "Shape",
     "articulation_label": "Articulation",
     "constraint_mimic_label": "ConstraintMimic",
+    "equality_constraint_label": "EqualityConstraint",
 }
-_VIS_LABEL_ATTRS = tuple(_VIS_LABEL_SUFFIXES)
+# Equality constraints live in custom attributes (like real newton), not plain builder lists.
+_VIS_BUILTIN_LABEL_ATTRS = tuple(attr for attr in _VIS_LABEL_SUFFIXES if attr != "equality_constraint_label")
+_VIS_EQ_FREQ = "mujoco:equality_constraint"
 
 _TENDON_FREQ = "mujoco:tendon"
 _SRC = "/Sources/protoA"
@@ -40,10 +44,22 @@ _DST = "/World/envs/env_{}"
 class _FakeVisualizationModelBuilder:
     def __init__(self, up_axis=None):
         self.up_axis = up_axis
-        for attr in _VIS_LABEL_ATTRS:
+        for attr in _VIS_BUILTIN_LABEL_ATTRS:
             setattr(self, attr, [])
             setattr(self, attr.replace("_label", "_world"), [])
-        self.custom_attributes = {}
+        self.custom_attributes = {
+            "mujoco:equality_constraint_label": newton.ModelBuilder.CustomAttribute(
+                name="equality_constraint_label", frequency=_VIS_EQ_FREQ, dtype=str, default="", namespace="mujoco"
+            ),
+            "mujoco:equality_constraint_world": newton.ModelBuilder.CustomAttribute(
+                name="equality_constraint_world",
+                frequency=_VIS_EQ_FREQ,
+                dtype=int,
+                default=0,
+                namespace="mujoco",
+                references="world",
+            ),
+        }
         self.geometry_sources = []
         self.world_slices = []
         self._current_world = None
@@ -65,9 +81,13 @@ class _FakeVisualizationModelBuilder:
             return
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
-        for attr, suffix in _VIS_LABEL_SUFFIXES.items():
-            getattr(self, attr).append(f"{root_path}/{suffix}")
+        for attr in _VIS_BUILTIN_LABEL_ATTRS:
+            getattr(self, attr).append(f"{root_path}/{_VIS_LABEL_SUFFIXES[attr]}")
             getattr(self, attr.replace("_label", "_world")).append(self._current_world or 0)
+        self.custom_attributes["mujoco:equality_constraint_label"].values.append(
+            f"{root_path}/{_VIS_LABEL_SUFFIXES['equality_constraint_label']}"
+        )
+        self.custom_attributes["mujoco:equality_constraint_world"].values.append(self._current_world or 0)
         self.geometry_sources.append(root_path)
         self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
 
@@ -75,15 +95,21 @@ class _FakeVisualizationModelBuilder:
         del xform
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
-        for attr in _VIS_LABEL_ATTRS:
+        for attr in _VIS_BUILTIN_LABEL_ATTRS:
             labels = getattr(builder, attr)
             getattr(self, attr).extend(labels)
             getattr(self, attr.replace("_label", "_world")).extend([self._current_world] * len(labels))
+        eq_labels = builder.custom_attributes["mujoco:equality_constraint_label"].values
+        self.custom_attributes["mujoco:equality_constraint_label"].values.extend(eq_labels)
+        self.custom_attributes["mujoco:equality_constraint_world"].values.extend([self._current_world] * len(eq_labels))
         self.geometry_sources.extend(builder.geometry_sources)
         self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
 
     def labels_for_world(self, world_id, attr):
-        labels = getattr(self, attr)
+        if attr == "equality_constraint_label":
+            labels = self.custom_attributes["mujoco:equality_constraint_label"].values
+        else:
+            labels = getattr(self, attr)
         return [label for start, end, _, _ in self.world_slices[world_id] for label in labels[start:end]]
 
     def geometry_sources_for_world(self, world_id):
@@ -282,6 +308,74 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         builder = _FakeVisualizationModelBuilder()
         builder.add_usd(None, root_path=root_path)
         return builder
+
+    def test_source_local_sites_batched_with_correct_indices(self):
+        source = newton.ModelBuilder()
+        source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
+        site_idx = source.add_site(body=0, xform=wp.transform(), label="ee")
+
+        # Non-zero base so site indices are not trivially zero-based.
+        builder = newton.ModelBuilder()
+        builder.add_body(xform=wp.transform())
+        builder.add_shape(body=0, type=newton.GeoType.SPHERE)
+        base_shape = builder.shape_count
+        stride = source.shape_count
+
+        positions = torch.tensor([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]])
+        quaternions = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
+
+        with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
+            local_site_map, _ = replicate_builder_mapping(
+                builder,
+                (_SRC,),
+                torch.ones((1, 3), dtype=torch.bool),
+                positions,
+                quaternions,
+                {_SRC: source},
+                source_site_indices={id(source): {"ee": [site_idx]}},
+            )
+
+        replicate.assert_called_once()
+        self.assertEqual(
+            local_site_map["ee"],
+            [[base_shape + world * stride + site_idx] for world in range(3)],
+        )
+        for world_indices in local_site_map["ee"]:
+            self.assertEqual(builder.shape_label[world_indices[0]], "ee")
+
+    def test_env_root_sites_batched_at_correct_world_positions(self):
+        source = newton.ModelBuilder()
+        source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
+
+        builder = newton.ModelBuilder()
+        base_shape = builder.shape_count
+        positions = torch.tensor([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]])
+        quaternions = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
+        env_root_offset = wp.transform((0.1, 0.0, 0.0), wp.quat_identity())
+
+        with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
+            local_site_map, _ = replicate_builder_mapping(
+                builder,
+                (_SRC,),
+                torch.ones((1, 3), dtype=torch.bool),
+                positions,
+                quaternions,
+                {_SRC: source},
+                env_root_sites={"origin": env_root_offset},
+            )
+
+        replicate.assert_called_once()
+        stride = source.shape_count
+        self.assertEqual(source.shape_count, 1)
+        self.assertEqual(
+            local_site_map["origin"],
+            [[base_shape + world * stride] for world in range(3)],
+        )
+        for world, world_indices in enumerate(local_site_map["origin"]):
+            site_pos = builder.shape_transform[world_indices[0]].p
+            self.assertAlmostEqual(float(site_pos[0]), float(positions[world][0]) + 0.1, places=5)
+            self.assertAlmostEqual(float(site_pos[1]), 0.0, places=5)
+            self.assertEqual(builder.shape_label[world_indices[0]], "origin")
 
     def test_inactive_source_rows_are_ignored(self):
         sources = ("/Sources/inactive", "/Sources/active")

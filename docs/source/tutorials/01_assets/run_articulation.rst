@@ -117,9 +117,20 @@ The Code Execution
 
 To run the code and see the results, let's run the script from the terminal:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tutorials/01_assets/run_articulation.py
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py
 
 
 This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.
@@ -137,10 +148,23 @@ buffers to read the latest state from the simulation.
 In addition to this tutorial, we also provide a few other scripts that spawn different robots. These are included
 in the ``scripts/demos`` directory. You can run these scripts as:
 
-.. code-block:: bash
+.. tab-set::
 
-   # Spawn many different single-arm manipulators
-   ./isaaclab.sh -p scripts/demos/arms.py
+   .. tab-item:: uv (Recommended)
 
-   # Spawn many different quadrupeds
-   ./isaaclab.sh -p scripts/demos/quadrupeds.py
+      .. code-block:: bash
+
+         # Spawn many different single-arm manipulators
+         uv run python scripts/demos/arms.py
+
+         # Spawn many different quadrupeds
+         uv run python scripts/demos/quadrupeds.py
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Spawn many different single-arm manipulators
+         ./isaaclab.sh -p scripts/demos/arms.py
+
+         # Spawn many different quadrupeds
+         ./isaaclab.sh -p scripts/demos/quadrupeds.py

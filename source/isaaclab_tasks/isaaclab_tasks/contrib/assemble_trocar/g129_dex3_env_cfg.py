@@ -94,14 +94,14 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     right_wrist_camera = CameraPresets.right_dex3_wrist_camera()
 
     scene = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Scene",
+        prim_path="{ENV_REGEX_NS}/Scene",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/scene03.usd",
         ),
     )
 
     trocar_1 = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/trocar_1",
+        prim_path="{ENV_REGEX_NS}/trocar_1",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar002-xform-wo.usd",
             collision_props=sim_utils.CollisionPropertiesCfg(
@@ -117,7 +117,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     )
 
     trocar_2 = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/trocar_2",
+        prim_path="{ENV_REGEX_NS}/trocar_2",
         spawn=UsdFileCfg(
             usd_path=(
                 f"{USD_ROOT}/Assets/"
@@ -134,7 +134,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         ),
     )
     tray = ArticulationCfg(
-        prim_path="/World/envs/env_.*/surgical_tray",
+        prim_path="{ENV_REGEX_NS}/surgical_tray",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/SurgicalTray001/SurgicalTray001.usd",
         ),

@@ -12,15 +12,11 @@ out a checkpointed policy under a ``BenchmarkMonitor`` and emits a ``PlayBundle`
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-_SCRIPT_DIR = Path(__file__).resolve().parent
-_RL_SCRIPTS = _SCRIPT_DIR.parent / "reinforcement_learning"
-if str(_RL_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_RL_SCRIPTS))
+from isaaclab_rl.entrypoints.common import dispatch_library_entrypoint
 
-from common import dispatch_library_entrypoint  # noqa: E402
+_SCRIPT_DIR = Path(__file__).resolve().parent
 
 LIBRARY_ENTRYPOINTS = {
     "rsl_rl": _SCRIPT_DIR / "rsl_rl" / "benchmark_rsl_rl_play.py",

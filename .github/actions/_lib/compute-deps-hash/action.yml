@@ -47,6 +47,7 @@ runs:
         # Exact files/dirs whose full content is hashed. The Dockerfile is first.
         deps_files=(
           "${DOCKERFILE_PATH}"
+          docker/scripts/install_carb_env_shim.sh
           isaaclab.sh
           environment.yml
           source/isaaclab/isaaclab/cli

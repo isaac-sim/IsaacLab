@@ -67,7 +67,7 @@ Press and hold the alt key while clicking and dragging to pan around the scene.
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/zero_agent.py \
+   uv run python scripts/environments/zero_agent.py \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1
@@ -80,7 +80,7 @@ directions.
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/random_agent.py \
+   uv run python scripts/environments/random_agent.py \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1
@@ -107,7 +107,7 @@ the environment by quitting the script with Ctrl+C.
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
@@ -138,7 +138,7 @@ To use a SpaceMouse, simply change ``--teleop_device`` accordingly:
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
@@ -194,7 +194,7 @@ variant of the task (``IsaacContrib-Stack-Cube-Franka-IK-Abs``):
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
    --task IsaacContrib-Stack-Cube-Franka-IK-Abs \
    --viz kit \
    --xr
@@ -225,7 +225,7 @@ Select the tab that matches your input device:
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
+         uv run python scripts/tools/record_demos.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --viz kit \
          --dataset_file ./datasets/dataset.hdf5 \
@@ -236,7 +236,7 @@ Select the tab that matches your input device:
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
+         uv run python scripts/tools/record_demos.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --viz kit \
          --dataset_file ./datasets/dataset.hdf5 \
@@ -251,7 +251,7 @@ Select the tab that matches your input device:
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
+         uv run python scripts/tools/record_demos.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Abs \
          --viz kit \
          --dataset_file ./datasets/dataset.hdf5 \
@@ -279,7 +279,7 @@ You can replay the collected demonstrations by running:
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/tools/replay_demos.py \
+   uv run python scripts/tools/replay_demos.py \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
@@ -337,7 +337,7 @@ Annotate the subtasks in the recording:
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+         uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
          --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 \
          --viz kit \
          --auto \
@@ -349,10 +349,9 @@ Annotate the subtasks in the recording:
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+         uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
          --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0 \
          --viz kit \
-         --enable_cameras \
          --auto \
          --input_file ./datasets/dataset.hdf5 \
          --output_file ./datasets/annotated_dataset.hdf5
@@ -368,7 +367,7 @@ Next, use Isaac Lab Mimic to generate some additional demonstrations:
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --viz kit \
          --num_envs 20 \
          --generation_num_trials 10 \
@@ -380,9 +379,8 @@ Next, use Isaac Lab Mimic to generate some additional demonstrations:
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --viz kit \
-         --enable_cameras \
          --num_envs 20 \
          --generation_num_trials 10 \
          --input_file ./datasets/annotated_dataset.hdf5 \
@@ -410,7 +408,7 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --num_envs 1000 \
          --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 \
@@ -421,8 +419,7 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --enable_cameras \
+         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --num_envs 300 \
          --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 \
@@ -482,7 +479,7 @@ Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN a
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
+         uv run python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
@@ -492,7 +489,7 @@ Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN a
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
+         uv run python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
          --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
@@ -515,7 +512,7 @@ Run the trained policy to visualize the results:
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
+         uv run python scripts/imitation_learning/robomimic/play.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --viz kit \
          --num_rollouts 50 \
@@ -526,10 +523,9 @@ Run the trained policy to visualize the results:
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
+         uv run python scripts/imitation_learning/robomimic/play.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
          --viz kit \
-         --enable_cameras \
          --num_rollouts 50 \
          --checkpoint /PATH/TO/desired_model_checkpoint.pth
 

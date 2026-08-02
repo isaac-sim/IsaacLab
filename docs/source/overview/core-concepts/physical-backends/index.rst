@@ -91,6 +91,10 @@ per-task support, see each backend's own ``limitations`` page.
       - Yes
       - Yes
       - Yes
+    * - Deformable Object API
+      - Yes
+      - Yes (experimental VBD)
+      - Experimental (CUDA only)
     * - Contact Sensor
       - Yes
       - Yes

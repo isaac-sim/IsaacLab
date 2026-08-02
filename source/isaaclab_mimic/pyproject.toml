@@ -9,16 +9,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_mimic"
-version = "2.0.1"
+version = "2.0.2"
 description = "Mimic for Isaac Lab."
 license = {text = "Apache-2.0"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["extension", "template", "isaaclab"]
 requires-python = ">=3.12"
-# Third-party requirements are centralized in the root pyproject.toml
-# (installed via the ``mimic`` extra).
-dependencies = []
+# Only interpackage dependencies should go here.
+dependencies = [
+    "isaaclab",
+    "isaaclab_assets",
+    "isaaclab_tasks",
+]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
+isaaclab_assets = { path = "../isaaclab_assets", editable = true }
+isaaclab_tasks = { path = "../isaaclab_tasks", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

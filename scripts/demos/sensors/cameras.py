@@ -9,10 +9,10 @@ This script demonstrates the different camera sensors that can be attached to a 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/demos/sensors/cameras.py --enable_cameras
+    uv run python scripts/demos/sensors/cameras.py
 
     # Usage in headless mode
-    ./isaaclab.sh -p scripts/demos/sensors/cameras.py --headless --enable_cameras
+    uv run python scripts/demos/sensors/cameras.py
 
 """
 
