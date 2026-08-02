@@ -1199,6 +1199,34 @@ def _write_empty_report():
     logger.info(f"Wrote empty report to tests/{result_file}")
 
 
+def _format_test_file_results(test_files: list[str], test_status: dict[str, dict], run_device: str) -> str:
+    """Format all per-file test results as a table."""
+    summary = "\n\n=====================\n"
+    summary += "All Test File Results\n"
+    summary += "=====================\n"
+
+    table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
+    table.align["Test Path"] = "l"
+    table.align["Test (s)"] = "r"
+    table.align["Wall (s)"] = "r"
+    sorted_test_files = sorted(test_files, key=lambda path: test_status[path]["wall_time"], reverse=True)
+    for test_path in sorted_test_files:
+        status = test_status[test_path]
+        num_tests_passed = status["tests"] - status["failures"] - status["errors"] - status["skipped"]
+        table.add_row(
+            [
+                test_path,
+                run_device,
+                status["result"],
+                f"{status['time_elapsed']:0.2f}",
+                f"{status['wall_time']:0.2f}",
+                f"{num_tests_passed}/{status['tests']}",
+            ]
+        )
+
+    return summary + table.get_string()
+
+
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
     # Get the workspace root directory (one level up from tools)
@@ -1394,34 +1422,7 @@ def pytest_sessionstart(session):
     # device mask is unset.
     run_device = resolve_test_sim_device()
 
-    summary_str += "\n\n=====================\n"
-    summary_str += "Slowest 30 Test Files\n"
-    summary_str += "=====================\n"
-
-    per_file_result_table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
-    per_file_result_table.align["Test Path"] = "l"
-    per_file_result_table.align["Test (s)"] = "r"
-    per_file_result_table.align["Wall (s)"] = "r"
-    slowest_test_files = sorted(test_files, key=lambda path: test_status[path]["wall_time"], reverse=True)[:30]
-    for test_path in slowest_test_files:
-        num_tests_passed = (
-            test_status[test_path]["tests"]
-            - test_status[test_path]["failures"]
-            - test_status[test_path]["errors"]
-            - test_status[test_path]["skipped"]
-        )
-        per_file_result_table.add_row(
-            [
-                test_path,
-                run_device,
-                test_status[test_path]["result"],
-                f"{test_status[test_path]['time_elapsed']:0.2f}",
-                f"{test_status[test_path]['wall_time']:0.2f}",
-                f"{num_tests_passed}/{test_status[test_path]['tests']}",
-            ]
-        )
-
-    summary_str += per_file_result_table.get_string()
+    summary_str += _format_test_file_results(test_files, test_status, run_device)
 
     # Print summary to console and log file
     logger.info(summary_str)

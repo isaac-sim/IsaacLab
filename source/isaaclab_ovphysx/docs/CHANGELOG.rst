@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+8.2.2 (2026-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OvPhysX environment cloning to preserve nested asset offsets and orientations.
+* Fixed the missing OvPhysX runtime error to recommend the uv-managed ``ovphysx`` extra.
+
+
 8.2.1 (2026-08-01)
 ~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.3.1 (2026-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the missing Viser runtime error to recommend the uv-managed ``viser`` extra.
+
+
 1.3.0 (2026-07-31)
 ~~~~~~~~~~~~~~~~~~
 

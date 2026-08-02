@@ -1,6 +1,50 @@
 Changelog
 ---------
 
+15.1.0 (2026-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for ``collision_props`` alongside ``deformable_props`` on mesh spawners. The collision
+  fragments are applied to the deformable's simulation mesh, which is the prim carrying
+  ``UsdPhysics.CollisionAPI``. Previously the two could not be combined.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``PhysxDeformableCollisionPropertiesCfg`` from the :mod:`isaaclab.sim.schemas`
+  compatibility re-exports, following its removal from :mod:`isaaclab_physx.sim.schemas`. Pass collision
+  offsets through the mesh spawner's ``collision_props`` instead.
+* Changed joint parameter randomization to include supported Newton viscous
+  friction. Existing event configurations require no changes.
+
+Removed
+^^^^^^^
+
+* Removed MoviePy and its bundled FFmpeg backend from default installations.
+  Run uv commands with ``--extra video`` or install MoviePy explicitly in the
+  legacy environment before using ``--video``.
+
+Fixed
+^^^^^
+
+* Fixed standalone demo preset selection and visualizer installation guidance.
+* Fixed the H1 locomotion demo to resolve its published legacy checkpoint.
+* Fixed ``uv run`` resolution when Isaac Sim and Viser extras are selected together.
+* Fixed :class:`~isaaclab.envs.mdp.actions.BinaryJointAction` resolving its joint
+  indices to a Warp array while every other action term resolves them to a
+  :class:`torch.Tensor`, which broke consumers that index tensors with them.
+* Fixed LEAPP export failing with ``RuntimeError: Boolean value of Tensor with
+  more than one value is ambiguous`` when an action term selects a subset of
+  joints.
+* Fixed kitless OvPhysX physics and OVRTX renderers accepting some configurations
+  that also require Isaac Sim / Kit, then failing during runtime initialization.
+  Compatibility validation now reports every component that requires Kit and the
+  supported alternatives.
+
+
 15.0.1 (2026-08-01)
 ~~~~~~~~~~~~~~~~~~~
 
