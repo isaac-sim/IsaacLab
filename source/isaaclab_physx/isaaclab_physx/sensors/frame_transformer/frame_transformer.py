@@ -18,7 +18,7 @@ from pxr import UsdPhysics
 
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
@@ -247,8 +247,7 @@ class FrameTransformer(BaseFrameTransformer):
         # Plan-mode dest expressions use ``env_.*`` (regex), legacy mode produces concrete
         # ``env_0`` paths; chain both substitutions so each mode normalises to ``env_*``.
         body_names_regex = [
-            tracked_prim_path.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*").replace("env_0", "env_*")
-            for tracked_prim_path in tracked_prim_paths
+            path_expr_to_glob(tracked_prim_path).replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths
         ]
 
         # obtain global simulation view

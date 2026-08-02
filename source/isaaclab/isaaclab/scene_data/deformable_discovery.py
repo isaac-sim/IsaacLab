@@ -326,7 +326,7 @@ def path_to_env_wildcard(path: str) -> str:
 
 
 def path_to_env_regex(path: str) -> str:
-    """Rewrite ``env_<id>`` segments to ``env_.*`` for Isaac Lab asset regex paths."""
+    """Rewrite ``env_<id>`` segments to ``env_[^/]*`` for Isaac Lab asset regex paths."""
     return re.sub(r"/World/envs/env_\d+", "/World/envs/env_[^/]*", path)
 
 

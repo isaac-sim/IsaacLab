@@ -254,13 +254,13 @@ def test_collect_asset_cfgs_resolves_env_regex_macros():
         objects=RigidObjectCollectionCfg(rigid_objects={"cube": cube_cfg, "shape": shape_cfg}),
     )
     scene.cloner_cfg = CloneCfg()
-    scene._env_regex_ns = scene.cloner_cfg.clone_regex
-    scene._env_ns = scene._env_regex_ns.rsplit("/", 1)[0]
+    scene._env_regex_ns = scene.cloner_cfg.clone_template.format("[^/]+")
+    scene._env_ns = scene.cloner_cfg.clone_template.rsplit("/", 1)[0]
 
     cfgs = scene._collect_asset_cfgs()
 
     prim_paths = sorted(c.prim_path for c in cfgs)
-    assert prim_paths == ["/World/envs/env_[^/]*/Cube", "/World/envs/env_[^/]*/Shape"]
+    assert prim_paths == ["/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
 
 
 def test_collect_asset_cfgs_orders_sensors_last():
@@ -272,7 +272,8 @@ def test_collect_asset_cfgs_orders_sensors_last():
     body = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot")
     scene.cfg = SimpleNamespace(num_envs=1, sensor=sensor, body=body)
     scene.cloner_cfg = CloneCfg()
-    scene._env_ns = scene.cloner_cfg.clone_regex.rsplit("/", 1)[0]
+    scene._env_regex_ns = scene.cloner_cfg.clone_template.format("[^/]+")
+    scene._env_ns = scene.cloner_cfg.clone_template.rsplit("/", 1)[0]
 
     cfgs = scene._collect_asset_cfgs()
 

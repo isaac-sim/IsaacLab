@@ -447,7 +447,7 @@ class SensorBase(ABC):
 
         The returned expression may still contain regex-style wildcards (e.g.
         ``.*``); callers are responsible for converting to glob form for their
-        physics view (e.g. ``.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")``).
+        physics view (e.g. via :func:`~isaaclab.sim.utils.path_expr_to_glob`).
 
         Returns:
             A tuple of:

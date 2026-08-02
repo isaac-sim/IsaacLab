@@ -396,7 +396,7 @@ class InteractiveScene:
 
     @property
     def env_regex_ns(self) -> str:
-        """The namespace ``/World/envs/env_.*`` in which all environments are created."""
+        """The namespace ``/World/envs/env_[^/]+`` in which all environments are created."""
         return self._env_regex_ns
 
     @property

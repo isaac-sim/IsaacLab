@@ -3,7 +3,7 @@ Added
 
 * Added :attr:`~isaaclab.cloner.CloneCfg.clone_template` for the replicated environment prim path,
   with ``{}`` marking the environment index. It replaces ``CloneCfg.clone_regex``, whose value is
-  now ``clone_template.format(".*")``.
+  now ``clone_template.format("[^/]+")``.
 * Added an ``env_template`` argument to :func:`~isaaclab.cloner.make_clone_plan` and
   :class:`~isaaclab.cloner.ReplicateSession`.
 * Added :func:`~isaaclab.sim.utils.path_expr_to_glob` and
@@ -43,3 +43,7 @@ Fixed
   more than one wildcard, and ignoring a non-default environment namespace.
 * Fixed :class:`~isaaclab.sensors.MultiMeshRayCaster` expanding ``{ENV_REGEX_NS}`` with a
   hardcoded namespace instead of the shared default.
+* Fixed callers that split a prim path expression on ``/`` cutting a ``[^/]`` character class in
+  half, which raised ``re.error: unterminated character set`` or produced a truncated body name.
+* Fixed :func:`~isaaclab.sim.spawn_multi_asset` rejecting an index slot spelled ``[^/]*``; the
+  slot is now any segment wildcard rather than a literal ``.*``.

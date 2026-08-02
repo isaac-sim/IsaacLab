@@ -101,7 +101,7 @@ def test_path_match_captures_the_clone_slot():
     """match keeps the instance the template's slot captured, which relativize discards."""
     tmpl = "/World/envs/env_{}/Robot"
     assert cloner.path.match("/World/envs/env_3/Robot/base", tmpl) == ("3", "/base")
-    assert cloner.path.match("/World/envs/env_[^/]*/Robot", tmpl) == (".*", "")
+    assert cloner.path.match("/World/envs/env_[^/]*/Robot", tmpl) == ("[^/]*", "")
     assert cloner.path.match("/World/envs/env_3/RobotArm", tmpl) is None
 
 

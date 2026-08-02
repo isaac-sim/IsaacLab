@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source, split_path_expr
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ovphysx.tensor_types as TT
@@ -219,11 +219,11 @@ class ContactSensor(BaseContactSensor):
         # hierarchies (child links authored under their parent link prim), where the bodies do
         # not share a parent. IsaacLab path forms map to ovphysx fnmatch globs the same way
         # Articulation does.
-        sensor_patterns = [re.sub(r"\.\*", "*", re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for _, expr in body_matches]
+        sensor_patterns = [path_expr_to_glob(re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for _, expr in body_matches]
 
         # Build filter patterns (flat: len = n_sensors * filters_per_sensor).
         filter_globs = [
-            re.sub(r"\.\*", "*", re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for expr in self.cfg.filter_prim_paths_expr
+            path_expr_to_glob(re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for expr in self.cfg.filter_prim_paths_expr
         ]
         filters_per_sensor = len(filter_globs)
         if filters_per_sensor > 0:

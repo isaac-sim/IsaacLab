@@ -16,6 +16,7 @@ from pxr import UsdGeom
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
+from isaaclab.sim.utils.queries import path_expr_to_glob
 
 import isaaclab_ovphysx.tensor_types as TT
 from isaaclab_ovphysx.physics import OvPhysxManager as SimulationManager
@@ -142,7 +143,7 @@ class Pva(BasePva):
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
 
         # Translate the regex-style path expression to an ovphysx fnmatch glob.
-        pattern = self._rigid_parent_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
+        pattern = path_expr_to_glob(self._rigid_parent_expr)
 
         self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
         self._num_bodies = self._root_view.binding_for(TT.RIGID_BODY_POSE).count

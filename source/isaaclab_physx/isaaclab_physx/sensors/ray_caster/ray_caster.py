@@ -32,7 +32,7 @@ def _has_rigid_body_api(prim) -> bool:
 
 def _physx_body_glob(body_expr: str) -> str:
     """Convert internal env regex/template expressions to PhysX glob syntax."""
-    return body_expr.replace("{}", "*").replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
+    return sim_utils.path_expr_to_glob(body_expr.replace("{}", "*"))
 
 
 class _PhysXRayCasterMixin:

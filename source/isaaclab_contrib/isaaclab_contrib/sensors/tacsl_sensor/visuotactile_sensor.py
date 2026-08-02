@@ -324,7 +324,7 @@ class VisuoTactileSensor(SensorBase):
         # elastomer body itself (matching :attr:`SensorBase._parent_prims`).
         elastomer_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
         elastomer_dest_expr = sim_utils.resolve_matching_prims_from_source(elastomer_expr)[0][1]
-        elastomer_pattern = elastomer_dest_expr.replace(".*", "*").replace("[^/]*", "*").replace("[^/]+", "*")
+        elastomer_pattern = sim_utils.path_expr_to_glob(elastomer_dest_expr)
         self._elastomer_body_view = self._physics_sim_view.create_rigid_body_view([elastomer_pattern])
         # Get elastomer COM for velocity correction
         self._elastomer_com_b = (
