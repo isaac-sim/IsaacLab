@@ -51,6 +51,18 @@ def test_create_visualizer_raises_import_error_when_backend_unavailable(monkeypa
         cfg.create_visualizer()
 
 
+def test_create_visualizer_rerun_import_error_recommends_uv_extra(monkeypatch):
+    monkeypatch.delitem(Visualizer._registry, "rerun", raising=False)
+    monkeypatch.setattr(Visualizer, "_get_module_name", classmethod(lambda cls, backend: "does.not.exist"))
+    cfg = VisualizerCfg(visualizer_type="rerun")
+
+    with pytest.raises(ImportError, match=r"uv run --extra rerun <command>") as exc_info:
+        cfg.create_visualizer()
+
+    assert "Original error:" in str(exc_info.value)
+    assert "pip install isaaclab_visualizers" not in str(exc_info.value)
+
+
 #
 # Base visualizer (env filtering, camera pose)
 #

@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+2.4.2 (2026-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added automatic Newton actuator target-mode inference from existing actuator
+  gains and passive viscous joint damping support.
+
+Fixed
+^^^^^
+
+* Fixed Newton runtime mass and inertia updates leaving inverse inertial
+  properties stale.
+
+
 2.4.1 (2026-08-01)
 ~~~~~~~~~~~~~~~~~~
 

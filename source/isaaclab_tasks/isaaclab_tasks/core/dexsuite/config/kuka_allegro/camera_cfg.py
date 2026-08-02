@@ -219,13 +219,9 @@ class SingleCameraObservationsCfg(StateObservationCfg):
             params={"sensor_cfg": SceneEntityCfg("base_camera")},
         )
 
+    # image groups keep the group default of no history: a stack of frames per step costs more
+    # memory than the state groups' history and the state groups already carry the temporal signal
     base_image: BaseImageObsCfg = BaseImageObsCfg()
-
-    def __post_init__(self):
-        super().__post_init__()
-        for group in self.__dataclass_fields__.values():
-            obs_group = getattr(self, group.name)
-            obs_group.history_length = None
 
 
 @configclass

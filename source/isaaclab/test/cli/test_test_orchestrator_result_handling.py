@@ -212,3 +212,28 @@ def test_module_importorskip_is_not_a_failure(monkeypatch, tmp_path: Path) -> No
     assert status["skipped"] == 1
     assert status["tests"] == 1
     assert not was_failure
+
+
+def test_result_summary_includes_fast_failure_after_thirty_slower_files():
+    """The summary must print failures even when at least 30 files ran longer."""
+    orchestrator = _load_orchestrator_module()
+    test_files = ["fast_failure.py", *(f"slow_pass_{index:02d}.py" for index in range(30))]
+    test_status = {
+        test_path: {
+            "result": "FAILED" if test_path == "fast_failure.py" else "passed",
+            "time_elapsed": 0.1 if test_path == "fast_failure.py" else float(index + 1),
+            "wall_time": 0.1 if test_path == "fast_failure.py" else float(index + 1),
+            "tests": 1,
+            "failures": int(test_path == "fast_failure.py"),
+            "errors": 0,
+            "skipped": 0,
+        }
+        for index, test_path in enumerate(test_files)
+    }
+
+    summary = orchestrator._format_test_file_results(test_files, test_status, "cuda:0")
+
+    assert "All Test File Results" in summary
+    assert "Slowest 30 Test Files" not in summary
+    assert "fast_failure.py" in summary
+    assert all(test_path in summary for test_path in test_files)
