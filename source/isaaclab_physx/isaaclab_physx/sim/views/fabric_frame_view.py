@@ -32,7 +32,9 @@ def _parent_path(prim_path: str) -> str:
         RuntimeError: If the prim is directly under the stage root and thus has
             no non-pseudoroot parent to read Fabric matrices from.
     """
-    parent = prim_path.rsplit("/", 1)[0]
+    # Slice at the last separator instead of rsplit: no list, no tail string.
+    # View prim paths are absolute, so rfind always hits at least the leading "/".
+    parent = prim_path[: prim_path.rfind("/")]
     if not parent:
         raise RuntimeError(
             f"Child prim '{prim_path}' is at the stage root and has no parent prim. "
@@ -619,9 +621,11 @@ class FabricFrameView(BaseFrameView):
         self._child_index_attr = f"isaaclab:fabricFrameView:{uid}:index"
         self._parent_index_attr = f"isaaclab:fabricFrameView:{uid}:parentIndex"
 
-        # Unique parents in first-occurrence order; ``parent_ordinal`` maps a
-        # parent path to its position in that order.
-        self._unique_parent_paths = list(dict.fromkeys(_parent_path(p) for p in self.prim_paths))
+        # Per-child parent paths, computed once and reused for the ordinal map
+        # below.  Unique parents keep first-occurrence order; ``parent_ordinal``
+        # maps a parent path to its position in that order.
+        child_parent_paths = [_parent_path(p) for p in self.prim_paths]
+        self._unique_parent_paths = list(dict.fromkeys(child_parent_paths))
         parent_ordinal = {path: i for i, path in enumerate(self._unique_parent_paths)}
 
         # Tag children and parents with their per-view index and ensure both
@@ -666,7 +670,7 @@ class FabricFrameView(BaseFrameView):
         # View-side indices + kernel-built slot-mapping buffers.
         self._view_indices = wp.array(list(range(self.count)), dtype=wp.uint32, device=self._device)
         self._child_parent_map = wp.array(
-            [parent_ordinal[_parent_path(p)] for p in self.prim_paths], dtype=wp.uint32, device=self._device
+            [parent_ordinal[p] for p in child_parent_paths], dtype=wp.uint32, device=self._device
         )
         self._child_slots_buf = wp.empty((self.count,), dtype=wp.int32, device=self._device)
         self._parent_slots_buf = wp.empty((len(self._unique_parent_paths),), dtype=wp.int32, device=self._device)
