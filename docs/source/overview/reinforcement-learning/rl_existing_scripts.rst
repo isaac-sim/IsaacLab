@@ -155,6 +155,13 @@ The contributed Cartpole showcase tasks likewise pair each non-default
 configs, such as RSL-RL symmetry or recurrent policies and skrl's AMP/IPPO/MAPPO
 algorithms, are algorithm choices rather than preset requirements.
 
+.. note::
+
+   RSL-RL is included in the default uv environment. RL-Games, SKRL, and
+   Stable-Baselines3 are optional, so their uv commands below select the
+   corresponding extra. RLinf commands assume the dedicated installation in
+   :ref:`rlinf-post-training` has been completed.
+
 
 RL-Games
 --------
@@ -239,13 +246,13 @@ RSL-RL
                .. code:: bash
 
                   # run command for training
-                  uv run --extra rsl-rl isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka
+                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka
                   # run command for training with Newton backend
-                  uv run --extra rsl-rl isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
+                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
                   # run command for playing with 32 environments
-                  uv run --extra rsl-rl isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+                  uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
                   # run command for recording video of a trained agent
-                  uv run --extra rsl-rl --extra video isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
+                  uv run --extra video isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -294,13 +301,13 @@ RSL-RL
                .. code:: bash
 
                   # run command for rl training of the teacher agent
-                  uv run --extra rsl-rl isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD
+                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD
                   # run command for rl training of the teacher agent with Newton backend
-                  uv run --extra rsl-rl isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
+                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
                   # run command for distilling the teacher agent into a student agent
-                  uv run --extra rsl-rl isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
                   # run command for playing the student with 64 environments
-                  uv run --extra rsl-rl isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
+                  uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
