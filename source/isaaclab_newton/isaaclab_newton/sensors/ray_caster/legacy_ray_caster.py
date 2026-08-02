@@ -50,11 +50,7 @@ class _LegacyNewtonRayCasterMixin(_NewtonRayCasterPoseMixin):
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         resolved = cloner.query.path_to_source(plan, prim_expr) if plan is not None else None
         if resolved is not None:
-            source_path, dest_glob, asset_suffix = resolved
-            # ``path_to_source`` reports the destination as a glob, but a site pattern is a regex
-            # and must spell the clone slot the same way the tracked-target key does. '*' cannot
-            # occur literally in a prim path, so it can only be that slot.
-            dest_expr = dest_glob.replace("*", "[^/]+")
+            source_path, dest_expr, asset_suffix = resolved
             walk_root = source_path + asset_suffix
             source_prims = sim_utils.find_matching_prims(walk_root)
             if not source_prims:

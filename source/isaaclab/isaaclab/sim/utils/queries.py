@@ -473,10 +473,10 @@ def resolve_matching_prims_from_source(
     plan = SimulationContext.instance().get_clone_plan()
     resolved = cloner.query.path_to_source(plan, path_expr) if plan is not None else None
     if resolved is not None:
-        source_path, dest_glob, asset_suffix = resolved
+        source_path, dest_expr, asset_suffix = resolved
         walk_root = source_path + asset_suffix
         results = [
-            (prim, dest_glob + prim.GetPath().pathString[len(source_path) :]) for prim in find_matching_prims(walk_root)
+            (prim, dest_expr + prim.GetPath().pathString[len(source_path) :]) for prim in find_matching_prims(walk_root)
         ]
     else:
         # No clone plan, or ``path_expr`` is not owned by any plan row. Resolve from the stage

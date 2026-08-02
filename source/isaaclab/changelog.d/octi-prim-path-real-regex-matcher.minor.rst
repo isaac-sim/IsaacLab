@@ -47,3 +47,8 @@ Fixed
   half, which raised ``re.error: unterminated character set`` or produced a truncated body name.
 * Fixed :func:`~isaaclab.sim.spawn_multi_asset` rejecting an index slot spelled ``[^/]*``; the
   slot is now any segment wildcard rather than a literal ``.*``.
+* Fixed callers that substituted a concrete environment index into a path expression by matching
+  one spelling of the environment slot, so a namespace written with a different quantifier was
+  left unresolved: the visualizer camera view, and the deformable render bindings.
+* Fixed :func:`~isaaclab.cloner.query.path_to_source` reporting its destination as a glob, which
+  matched nothing when a caller used it as the path expression its name promises.

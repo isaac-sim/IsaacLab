@@ -230,13 +230,13 @@ def test_path_to_source_nested_templates_pick_most_specific():
     resolved = cloner.query.path_to_source(plan, "/World/envs/env_0/Robot/ee_link/palm_link/Camera")
     assert resolved == (
         "/World/envs/env_0/Robot/ee_link/palm_link/Camera",
-        "/World/envs/env_*/Robot/ee_link/palm_link/Camera",
+        "/World/envs/env_[^/]+/Robot/ee_link/palm_link/Camera",
         "",
     )
 
     # A path that only the ancestor template owns still resolves against it with its suffix.
     resolved = cloner.query.path_to_source(plan, "/World/envs/env_0/Robot/base")
-    assert resolved == ("/World/envs/env_0/Robot", "/World/envs/env_*/Robot", "/base")
+    assert resolved == ("/World/envs/env_0/Robot", "/World/envs/env_[^/]+/Robot", "/base")
 
 
 def test_path_to_source_ambiguous_templates_raise():
@@ -264,11 +264,11 @@ def test_path_to_source_merges_same_template_rows():
 
     # Without an env id, the first populated row represents the asset.
     resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]*/Object/Body/Camera")
-    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
+    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
 
     # With an env id, the variant that actually populates that env is reported.
     resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]*/Object/Body/Camera", env_id=3)
-    assert resolved == ("/World/envs/env_1/Object", "/World/envs/env_*/Object", "/Body/Camera")
+    assert resolved == ("/World/envs/env_1/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
 
 
 def test_path_to_source_partial_coverage_returns():
@@ -281,7 +281,7 @@ def test_path_to_source_partial_coverage_returns():
     )
 
     resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]*/Object/Body/Camera")
-    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
+    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
 
     # No row populates env 3, so resolving for that env reports nothing.
     assert cloner.query.path_to_source(plan, "/World/envs/env_[^/]*/Object/Body/Camera", env_id=3) is None

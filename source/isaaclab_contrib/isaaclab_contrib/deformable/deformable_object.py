@@ -203,7 +203,7 @@ def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]
     synced_any = False
     for entry in manager_cls._deformable_registry:
         for inst_idx, offset in enumerate(entry.particle_offsets):
-            resolved_vis = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
+            resolved_vis = re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(inst_idx), entry.vis_mesh_prim_path)
             resolved_vis = re.sub(r"\.\*", str(inst_idx), resolved_vis)
             vis_prim = stage.GetPrimAtPath(resolved_vis)
 
