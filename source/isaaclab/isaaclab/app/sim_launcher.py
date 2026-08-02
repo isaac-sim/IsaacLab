@@ -6,8 +6,8 @@
 """Utilities for detecting and launching the appropriate simulation backend.
 
 The flow is intentionally simple: walk the config tree **once** to collect its
-signals into a :class:`Scan`, resolve those signals and launcher inputs into one
-runtime plan, then validate and launch from that plan.
+signals into a :class:`Scan`, resolve the Kit runtime sources from that scan and
+the launcher inputs, then validate and launch.
 """
 
 from __future__ import annotations
@@ -326,7 +326,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
 
     # RTX selection depends on the resolved physics backend.
     if has_auto_physx:
-        use_isaac_sim = _resolve_runtime_plan(config_scan, launcher_args).uses_kit
+        use_isaac_sim = bool(_get_kit_runtime_sources(config_scan, launcher_args))
         for node, parent, key, is_first_physics in auto_physx_locations:
             physics_cfg = _resolve_physx_auto_cfg(node, use_isaac_sim)
             concrete_physics_cfgs.append(physics_cfg)
@@ -376,22 +376,8 @@ def _has_kit_visualizer(config_scan: Scan, launcher_args: argparse.Namespace | d
     return "kit" in visualizer_types or config_scan.visualizer_intent["has_kit_visualizer"]
 
 
-@dataclass(frozen=True)
-class _RuntimePlan:
-    """Resolved process plan after config and launcher inputs are combined."""
-
-    has_ovphysx_physics: bool
-    has_ovrtx_renderer: bool
-    kit_sources: tuple[str, ...]
-
-    @property
-    def uses_kit(self) -> bool:
-        """Whether any resolved runtime component requires Isaac Sim / Kit."""
-        return bool(self.kit_sources)
-
-
-def _resolve_runtime_plan(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> _RuntimePlan:
-    """Combine scanned config facts and launcher inputs into one runtime plan."""
+def _get_kit_runtime_sources(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> tuple[str, ...]:
+    """Return the config and launcher components that require Isaac Sim / Kit."""
     kit_sources = []
     if config_scan.has_kit_physics:
         kit_sources.append("Isaac Sim PhysX physics (`PhysxCfg`)")
@@ -406,16 +392,12 @@ def _resolve_runtime_plan(config_scan: Scan, launcher_args: argparse.Namespace |
     if config_scan.needs_kit and not kit_sources:
         kit_sources.append("the default Isaac Sim / Kit runtime")
 
-    return _RuntimePlan(
-        has_ovphysx_physics=config_scan.has_ovphysx_physics,
-        has_ovrtx_renderer=config_scan.has_ovrtx,
-        kit_sources=tuple(kit_sources),
-    )
+    return tuple(kit_sources)
 
 
 def _uses_isaac_sim_runtime(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> bool:
     """Return whether the scanned config or launcher arguments require Isaac Sim / Kit."""
-    return _resolve_runtime_plan(config_scan, launcher_args).uses_kit
+    return bool(_get_kit_runtime_sources(config_scan, launcher_args))
 
 
 def _format_runtime_sources(sources: tuple[str, ...]) -> str:
@@ -425,18 +407,18 @@ def _format_runtime_sources(sources: tuple[str, ...]) -> str:
     return f"{', '.join(sources[:-1])}, and {sources[-1]}"
 
 
-def _validate_runtime(plan: _RuntimePlan) -> None:
-    """Raise if the resolved runtime plan contains an unsupported combination.
+def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
+    """Raise if the scan and resolved Kit sources form an unsupported combination.
 
     OVRTX is kitless and cannot share a process with Kit-based runtimes (PhysX physics
     or any other Kit source); OvPhysX physics is subject to the same process boundary.
     """
-    if plan.has_ovphysx_physics and plan.uses_kit:
+    if scan.has_ovphysx_physics and kit_sources:
         # both would initialize Carbonite in one process; without this guard OvPhysX fails
         # deep inside its own library with "Failed to initialize Carbonite and load PhysX plugins"
         raise ValueError(
             "Invalid backend combination: OvPhysX physics (`OvPhysxCfg`) is kitless and cannot be used together "
-            f"with Isaac Sim / Kit ({_format_runtime_sources(plan.kit_sources)}).\n"
+            f"with Isaac Sim / Kit ({_format_runtime_sources(kit_sources)}).\n"
             "\n"
             "To fix this, pick one of the following supported combinations:\n"
             "  * Keep OvPhysX physics and switch to a kitless renderer/visualizer:\n"
@@ -447,13 +429,13 @@ def _validate_runtime(plan: _RuntimePlan) -> None:
             "      presets=isaacsim_physx,isaacsim_rtx\n"
         )
 
-    if not plan.has_ovrtx_renderer or not plan.uses_kit:
+    if not scan.has_ovrtx or not kit_sources:
         return
 
     raise ValueError(
         "Invalid backend combination: the OVRTX renderer (`OVRTXRendererCfg`,"
         ' `renderer_type="ovrtx"`) is a kitless renderer and cannot be used together'
-        f" with Isaac Sim / Kit ({_format_runtime_sources(plan.kit_sources)}).\n"
+        f" with Isaac Sim / Kit ({_format_runtime_sources(kit_sources)}).\n"
         "\n"
         "To fix this, pick one of the following supported combinations:\n"
         "  * Keep Isaac Sim / Kit and switch the renderer:\n"
@@ -527,9 +509,9 @@ def launch_simulation(
     physics_cfg = config_scan.resolved_physics_cfg
     visualizer_types = _get_visualizer_types(launcher_args)
 
-    runtime_plan = _resolve_runtime_plan(config_scan, launcher_args)
-    _validate_runtime(runtime_plan)
-    needs_kit = runtime_plan.uses_kit
+    kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
+    _validate_runtime(config_scan, kit_sources)
+    needs_kit = bool(kit_sources)
     _set_arg(launcher_args, "visualizer_intent", config_scan.visualizer_intent)
 
     # Kit-based backends apply the Python logging level inside AppLauncher; kitless backends

@@ -26,7 +26,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 import isaaclab.app.sim_launcher as sim_launcher_module
 import isaaclab.utils as isaaclab_utils
 from isaaclab.app import scan
-from isaaclab.app.sim_launcher import _resolve_runtime_plan, _validate_runtime, launch_simulation
+from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, launch_simulation
 from isaaclab.physics import PhysxAutoCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -38,7 +38,8 @@ _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 def validate_runtime_compatibility(env_cfg, launcher_args=None):
     """Run the single-scan runtime validation for *env_cfg* (test adapter)."""
     config_scan = scan(env_cfg, launcher_args)
-    _validate_runtime(_resolve_runtime_plan(config_scan, launcher_args))
+    kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
+    _validate_runtime(config_scan, kit_sources)
     return config_scan
 
 
@@ -59,13 +60,13 @@ def _resolve_with_args(*args: str):
 
 
 # ---------------------------------------------------------------------------
-# Architecture: validation consumes one resolved owner
+# Architecture: validation consumes one resolved Kit-source value
 # ---------------------------------------------------------------------------
 
 
-def test_runtime_validation_consumes_only_resolved_plan():
+def test_runtime_validation_consumes_resolved_kit_sources():
     """Keep config and launcher interpretation outside the compatibility validator."""
-    assert list(inspect.signature(_validate_runtime).parameters) == ["plan"]
+    assert list(inspect.signature(_validate_runtime).parameters) == ["scan", "kit_sources"]
 
     tree = ast.parse(inspect.getsource(_validate_runtime))
     forbidden_scan_fields = {
