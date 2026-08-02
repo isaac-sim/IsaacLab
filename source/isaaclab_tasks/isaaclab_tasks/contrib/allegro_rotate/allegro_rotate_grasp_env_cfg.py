@@ -38,7 +38,7 @@ class AllegroRotateGraspEnvCfg(AllegroRotateEnvCfg):
     scale_range = [0.8, 0.8, 1]
     require_grasp_cache = False
     grasp_cache_path = ""
-    grasp_output_path = "cache/allegro_grasp_linspace"
+    grasp_output_path = "source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate/cache/allegro_grasp_linspace"
     grasp_cache_target = 50000
     reset_dof_pos_noise = 0.15
     reset_position_noise = 0.0

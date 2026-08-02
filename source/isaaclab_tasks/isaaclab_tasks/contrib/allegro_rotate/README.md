@@ -1,59 +1,64 @@
 # Allegro Rotate IsaacLab Task
 
-This package contains the Allegro in-hand cylinder-rotation task files copied in IsaacLab-relative structure.
-
-## Demo
-
-![Allegro rotate demo](docs/allegro_rotate_demo.gif)
+This package contains the Allegro in-hand cylinder-rolling task and its grasp-cache generator.
 
 
 ## 1. Setup
 
-Install IsaacLab first. For an upstream IsaacLab checkout, this task is self-contained under:
+This task is self-contained in an upstream Isaac Lab checkout under:
 
 ```text
-source/isaaclab_tasks/isaaclab_tasks/direct/allegro_rotate
+source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate
 ```
 
-For a standalone overlay copy, copy only the `source` tree into an IsaacLab repo:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if needed:
 
 ```bash
-cd <THIS_PACKAGE_ROOT>
-rsync -a source <ISAACLAB_ROOT>/
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-The overlay does not replace IsaacLab's shared RSL-RL `train.py` or `play.py`.
-
-Use the IsaacLab conda environment, then run all commands from:
+Run all commands from the Isaac Lab root:
 
 ```bash
 cd <ISAACLAB_ROOT>
 ```
 
-## 2. Generate Grasp Cache
+The commands below use `uv run --extra isaacsim`, which creates and manages the
+Python environment automatically. The first invocation downloads Isaac Sim and
+its dependencies; no manual environment activation is required.
+
+## 2. Grasp Cache
+
+A pre-generated cache is available at
+[`cache/allegro_grasp_linspace_0.8-0.8-1.npy`](cache/allegro_grasp_linspace_0.8-0.8-1.npy).
+It is stored at
+`source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate/cache/allegro_grasp_linspace_0.8-0.8-1.npy`
+relative to the Isaac Lab root. Use that task-local path to skip grasp-cache generation.
+
+Generate a new cache only when changing the cylinder scale range, hand initialization, or grasp criteria:
 
 ```bash
-./isaaclab.sh \
-  -p source/isaaclab_tasks/isaaclab_tasks/direct/allegro_rotate/tools/allegro_gen_grasp.py \
-  --task Isaac-Inhand-Rotate-Grasp-Allegro-v0 \
+uv run --extra isaacsim python \
+  source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate/tools/allegro_gen_grasp.py \
+  --task IsaacContrib-Inhand-Rotate-Grasp-Allegro-v0 \
   --num_envs 4096 \
   --max_cache_rows 50000 \
-  --output cache/allegro_grasp_linspace \
-  --headless
+  --output source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate/cache/allegro_grasp_linspace \
+  --viz none
 ```
 
 Expected cache:
 
 ```text
-cache/allegro_grasp_linspace_0.8-0.8-1.npy
+source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate/cache/allegro_grasp_linspace_0.8-0.8-1.npy
 ```
 
 ## 3. Visualize Cache
 
 ```bash
-./isaaclab.sh \
-  -p source/isaaclab_tasks/isaaclab_tasks/direct/allegro_rotate/tools/allegro_viz_cache.py \
-  --cache cache/allegro_grasp_linspace_0.8-0.8-1.npy \
+uv run --extra isaacsim python \
+  source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate/tools/allegro_viz_cache.py \
+  --cache source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate/cache/allegro_grasp_linspace_0.8-0.8-1.npy \
   --num_envs 1 \
   --viz kit \
   --real-time
@@ -61,15 +66,15 @@ cache/allegro_grasp_linspace_0.8-0.8-1.npy
 
 ## 4. Train Policy
 
-Use IsaacLab's existing RSL-RL training script:
+Use the generated grasp cache to train the rolling policy with IsaacLab's RSL-RL training script:
 
 ```bash
-./isaaclab.sh \
-  -p scripts/reinforcement_learning/rsl_rl/train.py \
-  --task Isaac-Inhand-Rotate-Allegro-v0 \
+uv run --extra isaacsim isaaclab train \
+  --rl_library rsl_rl \
+  --task IsaacContrib-Inhand-Roll-Allegro-v0 \
   --num_envs 4096 \
   --max_iterations 1500 \
-  --headless
+  --viz none
 ```
 
 ## 5. Visualize Trained Policy
@@ -77,27 +82,25 @@ Use IsaacLab's existing RSL-RL training script:
 Find recent checkpoints:
 
 ```bash
-find logs/rsl_rl/allegro_inhand_rotate -name "model_*.pt" -printf "%T@ %p\n" \
+find logs/rsl_rl/allegro_inhand_roll -name "model_*.pt" -printf "%T@ %p\n" \
   | sort -n \
   | tail -5
 ```
 
-Play a checkpoint with IsaacLab's existing RSL-RL play script:
+Validate every candidate checkpoint at the final training gravity. This disables the
+gravity curriculum and starts the environment at `-10 m/s²`:
 
 ```bash
-./isaaclab.sh \
-  -p scripts/reinforcement_learning/rsl_rl/play.py \
-  --task Isaac-Inhand-Rotate-Allegro-v0 \
+uv run --extra isaacsim python scripts/reinforcement_learning/play.py \
+  --rl_library rsl_rl \
+  --task IsaacContrib-Inhand-Roll-Allegro-v0 \
   --num_envs 16 \
-  --checkpoint <CHECKPOINT_PATH>
+  --viz kit \
+  --checkpoint <CHECKPOINT_PATH> \
+  env.gravity_curriculum=false \
+  env.sim.gravity="[0.0, 0.0, -10.0]"
 ```
 
-## 6. Details
-
-- [Design philosophy](docs/design_philosophy.md)
-- [Cache mechanism](docs/grasp_cache_mechanism.md)
-- [Cache score guide](docs/cache_score_guide.md)
-
-## 7. Reference
+## 6. Reference
 
 - [Sharpa RL Lab](https://github.com/sharpa-robotics/sharpa-rl-lab)

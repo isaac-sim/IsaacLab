@@ -16,6 +16,7 @@ import warp as wp
 
 import carb
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sensors import ContactSensor
@@ -104,6 +105,13 @@ class AllegroRotateEnv(DirectRLEnv):
         self.joint_delta_count_100 = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.rotation_count = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.last_drop = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self.action_saturation_rate = torch.zeros((), dtype=torch.float, device=self.device)
+        self.terminal_episode_count = torch.zeros((), dtype=torch.float, device=self.device)
+        self.terminal_rotation_count = torch.zeros((), dtype=torch.float, device=self.device)
+        self.terminal_success_rate = torch.zeros((), dtype=torch.float, device=self.device)
+        self.terminal_drop_rate = torch.zeros((), dtype=torch.float, device=self.device)
+        self.terminal_timeout_rate = torch.zeros((), dtype=torch.float, device=self.device)
+        self.terminal_object_pos_diff = torch.zeros((), dtype=torch.float, device=self.device)
         self.object_pos_prev = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
         self.object_rot_prev = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
         self.object_default_pose = torch.zeros((self.num_envs, 7), dtype=torch.float, device=self.device)
@@ -133,7 +141,14 @@ class AllegroRotateEnv(DirectRLEnv):
         self.finger_contact_sensor = ContactSensor(self.cfg.contact_sensor)
 
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        self.scene.clone_environments(copy_from_source=False)
+        clone_plan = cloner.ClonePlan.from_env_0(
+            "/World/envs/env_0",
+            "/World/envs/env_{}",
+            self.scene.num_envs,
+            self.scene.device,
+            positions=self.scene.env_origins,
+        )
+        cloner.replicate(clone_plan, stage=self.scene.stage)
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object
         self.scene.sensors["finger_contact"] = self.finger_contact_sensor
@@ -146,11 +161,14 @@ class AllegroRotateEnv(DirectRLEnv):
         self.object_rot_prev[:] = self.object_rot
         self.actions = torch.clamp(actions, -1.0, 1.0)
         targets = self.prev_targets[:, self.actuated_dof_indices] + self.cfg.action_scale * self.actions
+        lower_limits = self.hand_dof_lower_limits[:, self.actuated_dof_indices]
+        upper_limits = self.hand_dof_upper_limits[:, self.actuated_dof_indices]
         self.cur_targets[:, self.actuated_dof_indices] = saturate(
             targets,
-            self.hand_dof_lower_limits[:, self.actuated_dof_indices],
-            self.hand_dof_upper_limits[:, self.actuated_dof_indices],
+            lower_limits,
+            upper_limits,
         )
+        self.action_saturation_rate = ((targets <= lower_limits) | (targets >= upper_limits)).float().mean()
 
     def _apply_action(self) -> None:
         self.hand.set_joint_position_target_index(
@@ -194,78 +212,20 @@ class AllegroRotateEnv(DirectRLEnv):
     def _get_rewards(self) -> torch.Tensor:
         self._compute_intermediate_values()
 
-        fingertip_rel_pos = self.fingertip_pos - self.object_pos.unsqueeze(1)
-        fingertip_dist = torch.linalg.norm(fingertip_rel_pos, dim=-1)
-        closest_fingertip_dist = torch.topk(fingertip_dist, k=2, dim=-1, largest=False).values.mean(dim=-1)
-        mean_fingertip_dist = torch.mean(fingertip_dist, dim=-1)
-        thumb_dist = fingertip_dist[:, self.thumb_finger_id]
-        distance_gate = self._distance_gate(fingertip_dist)
-        force_gate_per_finger = self._force_gate(self.fingertip_contact_force)
-        side_wall_gate = torch.exp(-torch.abs(fingertip_rel_pos[..., 2]) / self.cfg.side_wall_z_std)
-        finger_quality = distance_gate * force_gate_per_finger * side_wall_gate
-        top2_quality = torch.topk(finger_quality, k=2, dim=-1, largest=True).values
-        top3_quality = torch.topk(finger_quality, k=min(3, self.num_fingertips), dim=-1, largest=True).values
-        rolling_contact_gate = top2_quality.min(dim=-1).values
-        three_finger_quality = top3_quality.min(dim=-1).values
-        non_thumb_quality = finger_quality[:, self.non_thumb_finger_ids]
-        top2_non_thumb_quality = torch.topk(
-            non_thumb_quality, k=min(2, non_thumb_quality.shape[-1]), dim=-1, largest=True
-        ).values
-        top2_non_thumb_support = top2_non_thumb_quality.min(dim=-1).values
-        all_non_thumb_support = non_thumb_quality.min(dim=-1).values
-        non_thumb_support_mean = non_thumb_quality.mean(dim=-1)
-        non_thumb_support = all_non_thumb_support
-        thumb_support = finger_quality[:, self.thumb_finger_id]
-        ring_support = finger_quality[:, self.ring_finger_id]
-        ring_proximity_reward = 1.0 - torch.tanh(fingertip_dist[:, self.ring_finger_id] / self.cfg.proximity_std)
-        four_finger_quality = torch.minimum(thumb_support, all_non_thumb_support)
-        top2_distance_gate = torch.topk(distance_gate, k=2, dim=-1, largest=True).values.mean(dim=-1)
-        top2_force_gate = torch.topk(force_gate_per_finger, k=2, dim=-1, largest=True).values.mean(dim=-1)
-        top2_side_gate = torch.topk(side_wall_gate, k=2, dim=-1, largest=True).values.mean(dim=-1)
-        top2_abs_z = torch.topk(torch.abs(fingertip_rel_pos[..., 2]), k=2, dim=-1, largest=False).values.mean(dim=-1)
-        proximity_reward = torch.topk(1.0 - torch.tanh(fingertip_dist / self.cfg.proximity_std), k=2, dim=-1).values.mean(
-            dim=-1
-        )
-        contact_gate = top2_distance_gate * top2_side_gate
-        top2_contact_force = torch.topk(self.fingertip_contact_force, k=2, dim=-1, largest=True).values.mean(dim=-1)
-        contact_count = torch.sum(self.fingertip_contact_force > self.cfg.contact_force_threshold, dim=-1)
-        contact_count_reward = torch.clamp(
-            contact_count.float() / float(self.cfg.min_train_contact_count),
-            max=1.0,
-        )
-        thumb_force = self.fingertip_contact_force[:, self.thumb_finger_id]
-        force_gate = top2_force_gate
-        real_contact_gate = rolling_contact_gate
-        pinch_center_pos = self._compute_pinch_center_pos()
-        pinch_center_dist = torch.linalg.norm(
-            self.object_pos - (pinch_center_pos + self.object_pinch_center_offset), dim=-1
-        )
-        pinch_center_reward = torch.exp(-pinch_center_dist / self.cfg.pinch_center_reward_std)
-        under_contact_penalty = torch.clamp(
-            float(self.cfg.min_train_contact_count) - contact_count.float(), min=0.0
-        )
-        thumb_escape_penalty = torch.clamp(
-            (thumb_dist - self.cfg.thumb_escape_dist) / self.cfg.thumb_escape_width,
-            min=0.0,
-            max=1.0,
-        )
-
         object_angvel = axis_angle_from_quat(quat_mul(self.object_rot, quat_conjugate(self.object_rot_prev))) / self.step_dt
         axis_angvel = torch.sum(object_angvel * self.target_axis, dim=-1)
         raw_rotate_reward = torch.clamp(axis_angvel, min=self.cfg.angvel_clip_min, max=self.cfg.angvel_clip_max)
         rotate_reward = raw_rotate_reward
-        positive_rotate_reward = torch.clamp(raw_rotate_reward, min=0.0)
-        negative_rotate_reward = torch.clamp(raw_rotate_reward, max=0.0)
-        thumb_opposed_support = torch.minimum(thumb_support, non_thumb_support)
-        rotate_support_quality = 0.5 * (thumb_support + non_thumb_support)
-        rotate_support_gate = self.cfg.rotate_support_gate_floor + (
-            1.0 - self.cfg.rotate_support_gate_floor
-        ) * rotate_support_quality
-        support_gated_rotate_reward = negative_rotate_reward + positive_rotate_reward * rotate_support_gate
-        off_axis_angvel = torch.linalg.norm(
-            object_angvel - axis_angvel.unsqueeze(-1) * self.target_axis.unsqueeze(0), dim=-1
-        )
-        off_axis_penalty = off_axis_angvel * rotate_support_quality
+
+        diagnostic_log: dict[str, torch.Tensor] | None = None
+        if self.cfg.enable_diagnostics:
+            off_axis_penalty, diagnostic_log = self._compute_diagnostics(
+                object_angvel, axis_angvel, raw_rotate_reward
+            )
+        elif self.cfg.off_axis_angvel_penalty_scale != 0.0:
+            off_axis_penalty = self._compute_off_axis_penalty(object_angvel, axis_angvel)
+        else:
+            off_axis_penalty = torch.zeros_like(axis_angvel)
         object_linvel_penalty = torch.norm(self.object_pos - self.object_pos_prev, p=1, dim=-1) / self.step_dt
         pos_diff_penalty = (
             (
@@ -282,10 +242,7 @@ class AllegroRotateEnv(DirectRLEnv):
             ).sum(dim=-1)
         ) ** 2
         object_pos_error = torch.linalg.norm(self.object_pos - self.object_default_pose[:, :3], dim=-1)
-        object_pos_diff = 1.0 / (object_pos_error + 0.001)
-        too_far = object_pos_error > self.cfg.drop_dist
-        height_reset_upper = self.object_pos[:, 2] > self.reset_height_upper
-        height_reset_lower = self.object_pos[:, 2] < self.reset_height_lower
+        object_pos_reward = 1.0 / (object_pos_error + 0.001)
 
         reward = compute_rewards(
             rotate_reward,
@@ -300,7 +257,7 @@ class AllegroRotateEnv(DirectRLEnv):
             self.cfg.torque_penalty_scale,
             work_penalty,
             self.cfg.work_penalty_scale,
-            object_pos_diff,
+            object_pos_reward,
             self.cfg.object_pos_reward_scale,
         )
 
@@ -310,32 +267,134 @@ class AllegroRotateEnv(DirectRLEnv):
             "rotate/ang_vel": axis_angvel.mean(),
             "rotate/rotate_reward": rotate_reward.mean(),
             "rotate/raw_rotate_reward": raw_rotate_reward.mean(),
-            "rotate/support_gated_rotate_reward": support_gated_rotate_reward.mean(),
-            "rotate/rotate_support_gate": rotate_support_gate.mean(),
-            "rotate/rotate_support_quality": rotate_support_quality.mean(),
             "rotate/positive_vel_ratio": (axis_angvel > 0.0).float().mean(),
             "rotate/reverse_ratio": (axis_angvel < 0.0).float().mean(),
             "rotate/rotation_count": self.rotation_count.mean(),
             "rotate/drop_rate": self.last_drop.float().mean(),
-            "rotate/too_far_rate": too_far.float().mean(),
-            "rotate/height_reset_upper": height_reset_upper.float().mean(),
-            "rotate/height_reset_lower": height_reset_lower.float().mean(),
             "rotate/success_rate": (self.rotation_count > self.cfg.success_rotation_count).float().mean(),
+            "rotate/action_abs_mean": self.actions.abs().mean(),
+            "rotate/action_saturation_rate": self.action_saturation_rate,
+            "rotate/terminal_episode_count": self.terminal_episode_count,
+            "rotate/terminal_rotation_count": self.terminal_rotation_count,
+            "rotate/terminal_success_rate": self.terminal_success_rate,
+            "rotate/terminal_drop_rate": self.terminal_drop_rate,
+            "rotate/terminal_timeout_rate": self.terminal_timeout_rate,
+            "rotate/terminal_object_pos_diff": self.terminal_object_pos_diff,
             "rotate/object_linvel_penalty": object_linvel_penalty.mean(),
             "rotate/pos_diff_penalty": pos_diff_penalty.mean(),
-            "rotate/off_axis_angvel": off_axis_angvel.mean(),
             "rotate/off_axis_penalty": off_axis_penalty.mean(),
             "rotate/torque_penalty": torque_penalty.mean(),
             "rotate/work_penalty": work_penalty.mean(),
-            "rotate/object_pos_reward": object_pos_diff.mean(),
+            "rotate/object_pos_reward": object_pos_reward.mean(),
             "rotate/roll": object_angvel[:, 0].mean(),
             "rotate/pitch": object_angvel[:, 1].mean(),
             "rotate/yaw": object_angvel[:, 2].mean(),
             "rotate/total_reward": reward.mean(),
+            "rotate/object_pos_diff": object_pos_error.mean(),
+            "rotate/object_linvel": torch.linalg.norm(self.object_pos - self.object_pos_prev, dim=-1).mean()
+            / self.step_dt,
+            "rotate/object_x": self.object_pos[:, 0].mean(),
+            "rotate/object_y": self.object_pos[:, 1].mean(),
+            "rotate/object_z": self.object_pos[:, 2].mean(),
+            "rotate/mean_episode_length": self.episode_length_buf.float().mean(),
+            "rotate/gravity_z": self.physics_sim_view.get_gravity()[2],
+        }
+        if diagnostic_log is not None:
+            self.extras["log"].update(diagnostic_log)
+
+        return reward
+
+    def _compute_off_axis_penalty(self, object_angvel: torch.Tensor, axis_angvel: torch.Tensor) -> torch.Tensor:
+        """Compute the optional off-axis reward term without diagnostic logging."""
+        fingertip_rel_pos = self.fingertip_pos - self.object_pos.unsqueeze(1)
+        fingertip_dist = torch.linalg.norm(fingertip_rel_pos, dim=-1)
+        distance_gate = self._distance_gate(fingertip_dist)
+        force_gate = self._force_gate(self.fingertip_contact_force)
+        side_wall_gate = torch.exp(-torch.abs(fingertip_rel_pos[..., 2]) / self.cfg.side_wall_z_std)
+        finger_quality = distance_gate * force_gate * side_wall_gate
+        non_thumb_support = finger_quality[:, self.non_thumb_finger_ids].min(dim=-1).values
+        thumb_support = finger_quality[:, self.thumb_finger_id]
+        rotate_support_quality = 0.5 * (thumb_support + non_thumb_support)
+        off_axis_angvel = torch.linalg.norm(
+            object_angvel - axis_angvel.unsqueeze(-1) * self.target_axis.unsqueeze(0), dim=-1
+        )
+        return off_axis_angvel * rotate_support_quality
+
+    def _compute_diagnostics(
+        self, object_angvel: torch.Tensor, axis_angvel: torch.Tensor, raw_rotate_reward: torch.Tensor
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """Return optional contact and grasp diagnostics for debugging training."""
+        fingertip_rel_pos = self.fingertip_pos - self.object_pos.unsqueeze(1)
+        fingertip_dist = torch.linalg.norm(fingertip_rel_pos, dim=-1)
+        closest_fingertip_dist = torch.topk(fingertip_dist, k=2, dim=-1, largest=False).values.mean(dim=-1)
+        mean_fingertip_dist = fingertip_dist.mean(dim=-1)
+        thumb_dist = fingertip_dist[:, self.thumb_finger_id]
+        distance_gate = self._distance_gate(fingertip_dist)
+        force_gate_per_finger = self._force_gate(self.fingertip_contact_force)
+        side_wall_gate = torch.exp(-torch.abs(fingertip_rel_pos[..., 2]) / self.cfg.side_wall_z_std)
+        finger_quality = distance_gate * force_gate_per_finger * side_wall_gate
+
+        top2_quality = torch.topk(finger_quality, k=2, dim=-1, largest=True).values
+        top3_quality = torch.topk(finger_quality, k=min(3, self.num_fingertips), dim=-1, largest=True).values
+        rolling_contact_gate = top2_quality.min(dim=-1).values
+        three_finger_quality = top3_quality.min(dim=-1).values
+        non_thumb_quality = finger_quality[:, self.non_thumb_finger_ids]
+        top2_non_thumb_support = torch.topk(
+            non_thumb_quality, k=min(2, non_thumb_quality.shape[-1]), dim=-1, largest=True
+        ).values.min(dim=-1).values
+        non_thumb_support = non_thumb_quality.min(dim=-1).values
+        non_thumb_support_mean = non_thumb_quality.mean(dim=-1)
+        thumb_support = finger_quality[:, self.thumb_finger_id]
+        ring_support = finger_quality[:, self.ring_finger_id]
+        ring_proximity_reward = 1.0 - torch.tanh(fingertip_dist[:, self.ring_finger_id] / self.cfg.proximity_std)
+        four_finger_quality = torch.minimum(thumb_support, non_thumb_support)
+        top2_distance_gate = torch.topk(distance_gate, k=2, dim=-1, largest=True).values.mean(dim=-1)
+        top2_force_gate = torch.topk(force_gate_per_finger, k=2, dim=-1, largest=True).values.mean(dim=-1)
+        top2_side_gate = torch.topk(side_wall_gate, k=2, dim=-1, largest=True).values.mean(dim=-1)
+        top2_abs_z = torch.topk(torch.abs(fingertip_rel_pos[..., 2]), k=2, dim=-1, largest=False).values.mean(
+            dim=-1
+        )
+        proximity_reward = torch.topk(
+            1.0 - torch.tanh(fingertip_dist / self.cfg.proximity_std), k=2, dim=-1
+        ).values.mean(dim=-1)
+        contact_gate = top2_distance_gate * top2_side_gate
+        top2_contact_force = torch.topk(self.fingertip_contact_force, k=2, dim=-1, largest=True).values.mean(dim=-1)
+        contact_count = (self.fingertip_contact_force > self.cfg.contact_force_threshold).sum(dim=-1)
+        contact_count_reward = torch.clamp(contact_count.float() / float(self.cfg.min_train_contact_count), max=1.0)
+        thumb_force = self.fingertip_contact_force[:, self.thumb_finger_id]
+
+        pinch_center_pos = self._compute_pinch_center_pos()
+        pinch_center_dist = torch.linalg.norm(
+            self.object_pos - (pinch_center_pos + self.object_pinch_center_offset), dim=-1
+        )
+        pinch_center_reward = torch.exp(-pinch_center_dist / self.cfg.pinch_center_reward_std)
+        under_contact_penalty = torch.clamp(float(self.cfg.min_train_contact_count) - contact_count.float(), min=0.0)
+        thumb_escape_penalty = torch.clamp(
+            (thumb_dist - self.cfg.thumb_escape_dist) / self.cfg.thumb_escape_width, min=0.0, max=1.0
+        )
+
+        positive_rotate_reward = torch.clamp(raw_rotate_reward, min=0.0)
+        negative_rotate_reward = torch.clamp(raw_rotate_reward, max=0.0)
+        thumb_opposed_support = torch.minimum(thumb_support, non_thumb_support)
+        rotate_support_quality = 0.5 * (thumb_support + non_thumb_support)
+        rotate_support_gate = self.cfg.rotate_support_gate_floor + (
+            1.0 - self.cfg.rotate_support_gate_floor
+        ) * rotate_support_quality
+        support_gated_rotate_reward = negative_rotate_reward + positive_rotate_reward * rotate_support_gate
+        off_axis_angvel = torch.linalg.norm(
+            object_angvel - axis_angvel.unsqueeze(-1) * self.target_axis.unsqueeze(0), dim=-1
+        )
+        off_axis_penalty = off_axis_angvel * rotate_support_quality
+
+        log = {
+            "rotate/support_gated_rotate_reward": support_gated_rotate_reward.mean(),
+            "rotate/rotate_support_gate": rotate_support_gate.mean(),
+            "rotate/rotate_support_quality": rotate_support_quality.mean(),
+            "rotate/off_axis_angvel": off_axis_angvel.mean(),
             "rotate/proximity_reward": proximity_reward.mean(),
             "rotate/contact_gate": contact_gate.mean(),
-            "rotate/force_gate": force_gate.mean(),
-            "rotate/real_contact_gate": real_contact_gate.mean(),
+            "rotate/force_gate": top2_force_gate.mean(),
+            "rotate/real_contact_gate": rolling_contact_gate.mean(),
             "rotate/rolling_contact_gate": rolling_contact_gate.mean(),
             "rotate/three_finger_quality": three_finger_quality.mean(),
             "rotate/four_finger_quality": four_finger_quality.mean(),
@@ -355,32 +414,21 @@ class AllegroRotateEnv(DirectRLEnv):
             "rotate/top2_side_gate": top2_side_gate.mean(),
             "rotate/top2_abs_z": top2_abs_z.mean(),
             "rotate/thumb_contact_force": thumb_force.mean(),
-            "rotate/two_finger_roll_contact": (real_contact_gate > 0.5).float().mean(),
+            "rotate/two_finger_roll_contact": (rolling_contact_gate > 0.5).float().mean(),
             "rotate/thumb_dist": thumb_dist.mean(),
             "rotate/thumb_force": thumb_force.mean(),
             "rotate/top2_contact_force": top2_contact_force.mean(),
             "rotate/contact_count": contact_count.float().mean(),
             "rotate/contact_count_reward": contact_count_reward.mean(),
-            "rotate/object_pos_diff": object_pos_error.mean(),
-            "rotate/object_linvel": torch.linalg.norm(self.object_pos - self.object_pos_prev, dim=-1).mean()
-            / self.step_dt,
             "rotate/mean_fingertip_dist": mean_fingertip_dist.mean(),
             "rotate/closest_fingertip_dist": closest_fingertip_dist.mean(),
             "rotate/min_fingertip_dist": fingertip_dist.min(dim=-1).values.mean(),
-            "rotate/object_x": self.object_pos[:, 0].mean(),
-            "rotate/object_y": self.object_pos[:, 1].mean(),
-            "rotate/object_z": self.object_pos[:, 2].mean(),
-            "rotate/mean_episode_length": self.episode_length_buf.float().mean(),
-            "rotate/gravity_z": self.physics_sim_view.get_gravity()[2],
         }
         for finger_id, finger_name in enumerate(self.fingertip_log_names):
-            self.extras["log"][f"rotate/finger_dist/{finger_name}"] = fingertip_dist[:, finger_id].mean()
-            self.extras["log"][f"rotate/finger_force/{finger_name}"] = self.fingertip_contact_force[
-                :, finger_id
-            ].mean()
-            self.extras["log"][f"rotate/finger_quality/{finger_name}"] = finger_quality[:, finger_id].mean()
-
-        return reward
+            log[f"rotate/finger_dist/{finger_name}"] = fingertip_dist[:, finger_id].mean()
+            log[f"rotate/finger_force/{finger_name}"] = self.fingertip_contact_force[:, finger_id].mean()
+            log[f"rotate/finger_quality/{finger_name}"] = finger_quality[:, finger_id].mean()
+        return off_axis_penalty, log
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._compute_intermediate_values()
@@ -392,6 +440,17 @@ class AllegroRotateEnv(DirectRLEnv):
         self.extras["height_reset_upper"] = height_reset_upper.float().mean()
         self.extras["height_reset_lower"] = height_reset_lower.float().mean()
         time_out = self.episode_length_buf >= self.max_episode_length - 1
+        terminal = self.last_drop | time_out
+        terminal_float = terminal.float()
+        self.terminal_episode_count = terminal_float.sum()
+        terminal_count = torch.clamp(self.terminal_episode_count, min=1.0)
+        self.terminal_rotation_count = (self.rotation_count * terminal_float).sum() / terminal_count
+        self.terminal_success_rate = (
+            ((self.rotation_count > self.cfg.success_rotation_count) & terminal).float().sum() / terminal_count
+        )
+        self.terminal_drop_rate = (self.last_drop & terminal).float().sum() / terminal_count
+        self.terminal_timeout_rate = (time_out & ~self.last_drop & terminal).float().sum() / terminal_count
+        self.terminal_object_pos_diff = (object_pos_diff * terminal_float).sum() / terminal_count
         self._update_gravity_curriculum(height_reset_upper, height_reset_lower)
         return self.last_drop, time_out
 
@@ -774,7 +833,7 @@ class AllegroRotateEnv(DirectRLEnv):
             if require_grasp_cache:
                 raise FileNotFoundError(
                     "No saved Allegro grasping states found. Generate the cache first with "
-                    "`source/isaaclab_tasks/isaaclab_tasks/direct/allegro_rotate/tools/allegro_gen_grasp.py`. "
+                    "`source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate/tools/allegro_gen_grasp.py`. "
                     f"Expected path: {cache_path}"
                 )
             return None
@@ -920,7 +979,7 @@ def compute_rewards(
     torque_penalty_scale: float,
     work_penalty: torch.Tensor,
     work_penalty_scale: float,
-    object_pos_diff: torch.Tensor,
+    object_pos_reward: torch.Tensor,
     object_pos_reward_scale: float,
 ) -> torch.Tensor:
     reward = rotate_reward * rotate_reward_scale
@@ -929,5 +988,5 @@ def compute_rewards(
     reward += pos_diff_penalty * pos_diff_penalty_scale
     reward += torque_penalty * torque_penalty_scale
     reward += work_penalty * work_penalty_scale
-    reward += object_pos_diff * object_pos_reward_scale
+    reward += object_pos_reward * object_pos_reward_scale
     return reward

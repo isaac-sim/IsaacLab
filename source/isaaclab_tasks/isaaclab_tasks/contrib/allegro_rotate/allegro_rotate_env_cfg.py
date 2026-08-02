@@ -22,7 +22,6 @@ from isaaclab_tasks.utils import PresetCfg
 
 ALLEGRO_ROTATE_DIR = Path(__file__).resolve().parent
 ALLEGRO_ROTATE_ASSET_DIR = ALLEGRO_ROTATE_DIR / "assets"
-ALLEGRO_HAND_USD_PATH = str(ALLEGRO_ROTATE_ASSET_DIR / "allegro_hand_inst.usd")
 # Optional pose-authoring USD path. Disabled for submission because the tuned
 # ready pose is copied into cfg constants below.
 # ALLEGRO_GRASP_REFERENCE_USD_PATH = "<pose_authoring_usd>"
@@ -149,7 +148,7 @@ def _allegro_hand_cfg() -> ArticulationCfg:
             joint_pos=ALLEGRO_READY_JOINT_POS.copy(),
         ),
     )
-    cfg.spawn.usd_path = ALLEGRO_HAND_USD_PATH
+    # Hand USD comes from ALLEGRO_HAND_CFG (Nucleus allegro_hand_instanceable.usd).
     cfg.spawn.activate_contact_sensors = True
     return cfg
 
@@ -315,7 +314,7 @@ class AllegroRotateEnvCfg(DirectRLEnvCfg):
     # Rotate training starts from saved stable grasp states. Keep the task
     # strict so a missing cache is not silently hidden.
     scale_range = [0.8, 0.8, 1]
-    grasp_cache_path = "cache/allegro_grasp_linspace"
+    grasp_cache_path = "source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate/cache/allegro_grasp_linspace"
     require_grasp_cache = True
 
     # reward
@@ -329,6 +328,9 @@ class AllegroRotateEnvCfg(DirectRLEnvCfg):
     torque_penalty_scale = -0.1
     work_penalty_scale = -0.5
     object_pos_reward_scale = 0.003
+    # Compute the contact/support/pinch diagnostic metrics only when debugging
+    # training. These metrics do not shape the default rolling reward.
+    enable_diagnostics = False
     proximity_std = 0.08
     contact_gate_dist = 0.12
     contact_gate_width = 0.06

@@ -19,14 +19,15 @@ import time
 import gymnasium as gym
 import torch
 
+from isaaclab.app import add_launcher_args, launch_simulation
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import resolve_task_config
 
 
 parser = argparse.ArgumentParser(description="Visualize Allegro grasp-cache resets with zero actions.")
 parser.add_argument("--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to visualize.")
-parser.add_argument("--task", type=str, default="Isaac-Inhand-Rotate-Allegro-v0", help="Task name.")
+parser.add_argument("--task", type=str, default="IsaacContrib-Inhand-Roll-Allegro-v0", help="Task name.")
 parser.add_argument("--seed", type=int, default=42, help="Seed used for the environment.")
 parser.add_argument("--cache", type=str, required=True, help="Path to Allegro grasp cache .npy file.")
 parser.add_argument(

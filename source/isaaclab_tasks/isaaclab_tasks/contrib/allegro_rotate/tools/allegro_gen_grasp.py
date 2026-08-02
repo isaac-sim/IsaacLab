@@ -14,14 +14,15 @@ import time
 import gymnasium as gym
 import torch
 
+from isaaclab.app import add_launcher_args, launch_simulation
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import resolve_task_config
 
 
 parser = argparse.ArgumentParser(description="Generate Allegro in-hand rotate grasp cache.")
 parser.add_argument("--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O.")
 parser.add_argument("--num_envs", type=int, default=16384, help="Number of environments to simulate.")
-parser.add_argument("--task", type=str, default="Isaac-Inhand-Rotate-Grasp-Allegro-v0", help="Task name.")
+parser.add_argument("--task", type=str, default="IsaacContrib-Inhand-Rotate-Grasp-Allegro-v0", help="Task name.")
 parser.add_argument("--seed", type=int, default=42, help="Seed used for the environment.")
 parser.add_argument("--max_cache_rows", type=int, default=None, help="Stop after saving this many grasp states.")
 parser.add_argument("--output", type=str, default=None, help="Output cache path or scale-suffixed prefix.")

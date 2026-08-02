@@ -66,6 +66,7 @@ from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 
 def test_is_training_task_filters_inference_variants():
     assert is_training_task("Isaac-Cartpole")
+    assert not is_training_task("IsaacContrib-Inhand-Rotate-Grasp-Allegro-v0")
     assert not is_training_task("IsaacContrib-Assemble-Trocar-G129-Dex3-Eval")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0")
 
