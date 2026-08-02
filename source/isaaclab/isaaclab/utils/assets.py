@@ -421,7 +421,7 @@ def _store_mirror(url: str, data: bytes) -> None:
         logger.debug("Unable to cache the asset '%s' locally: %s", url, exc)
         return
     _write_mirror_fingerprint(url, mirrored)
-return os.path.join(download_dir, parsed.scheme, parsed.netloc, *parsed.path.lstrip("/").split("/"))
+
 
 def check_file_path(path: str) -> Literal[0, 1, 2]:
     """Checks if a file exists on the Nucleus Server or locally.

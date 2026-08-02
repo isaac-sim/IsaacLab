@@ -384,6 +384,21 @@ def test_server_without_revision_metadata_is_announced(asset_cache, monkeypatch,
     assert "no revision metadata" in caplog.text
 
 
+def test_two_hosts_serving_the_same_path_do_not_share_a_local_copy(asset_cache, monkeypatch):
+    """Test a cloud and an on-prem server exposing the same layout get separate cache entries.
+
+    The on-prem server is unreachable, the case where an unrelated copy would otherwise be
+    accepted without a freshness check.
+    """
+    revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    on_prem_url = _REMOTE_URL.replace("example.com", "nucleus.example-lab.com")
+    _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", revision)
+    _serve(monkeypatch, {_REMOTE_URL: revision, on_prem_url: None})
+
+    assert not assets_utils._usable_mirror(on_prem_url)
+    assert assets_utils.check_file_path(on_prem_url) == 0
+
+
 def test_using_local_copies_is_announced_once_per_cache_directory(asset_cache, monkeypatch, caplog):
     """Test the announcement is visible at the default log level without one line per asset."""
     revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
