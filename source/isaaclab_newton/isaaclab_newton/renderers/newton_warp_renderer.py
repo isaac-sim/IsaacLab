@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -145,6 +146,9 @@ class RenderData:
         else:
             self.clear_color = 0xFFEEEEEE
 
+        # OpenCV lens-distortion model (``spawn.distortion``), consumed by :meth:`_build_distortion_rays`
+        # to trace distorted per-pixel rays instead of the centered, square-pixel pinhole field.
+        self._distortion = getattr(spawn, "distortion", None)
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -356,13 +360,85 @@ class RenderData:
         )
 
         if self.camera_rays is None:
-            first_focal_length = intrinsics.torch[:, 1, 1][0:1]
-            fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
+            if self._distortion is not None:
+                self.camera_rays = self._build_distortion_rays()
+            else:
+                first_focal_length = intrinsics.torch[:, 1, 1][0:1]
+                fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
-            fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
-            self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
-                self.width, self.height, camera_fovs=fov_warp
+                fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
+                self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
+                    self.width, self.height, camera_fovs=fov_warp
+                )
+
+    def _build_distortion_rays(self) -> wp.array(dtype=wp.vec3f, ndim=4):
+        """Build the ``(1, H, W, 2)`` camera-space ray field for an OpenCV lens-distortion camera.
+
+        Uses Newton's native OpenCV fisheye ray helper and the Isaac Lab OpenCV pinhole kernel. Both
+        paths honor calibrated ``fx/fy/cx/cy`` (non-square, off-center) intrinsics. When
+        :attr:`OpenCvDistortionCfg.apply_lens_distortion` is ``False``, the coefficients are treated
+        as zero while the calibrated intrinsics remain active, matching the RTX/OVRTX behavior.
+        """
+        from .opencv_distortion_rays import compute_camera_rays_opencv_pinhole
+
+        cfg = self._distortion
+        device = self.newton_sensor.model.device
+        image_width, image_height = float(cfg.image_size[0]), float(cfg.image_size[1])
+        # ``apply_lens_distortion=False`` keeps the intrinsics but mutes the distortion coefficients.
+        apply = bool(getattr(cfg, "apply_lens_distortion", True))
+
+        def _coeff(name: str) -> float:
+            return float(getattr(cfg, name, 0.0)) if apply else 0.0
+
+        if cfg.model == "opencvFisheye":
+            return self.newton_sensor.utils.compute_camera_rays_fisheye_opencv(
+                self.width,
+                self.height,
+                float(cfg.fx),
+                float(cfg.fy),
+                float(cfg.cx),
+                float(cfg.cy),
+                image_width=image_width,
+                image_height=image_height,
+                k1=_coeff("k1"),
+                k2=_coeff("k2"),
+                k3=_coeff("k3"),
+                k4=_coeff("k4"),
+                # Match the PR kernel's forward-facing camera hemisphere and avoid validating the
+                # OpenCV polynomial outside its physically meaningful calibration range.
+                max_fov=math.pi,
             )
+
+        rays = wp.empty((1, self.height, self.width, 2), dtype=wp.vec3f, device=device)
+        wp.launch(
+            compute_camera_rays_opencv_pinhole,
+            dim=(1, self.height, self.width),
+            inputs=[
+                self.width,
+                self.height,
+                float(cfg.fx),
+                float(cfg.fy),
+                float(cfg.cx),
+                float(cfg.cy),
+                image_width,
+                image_height,
+                _coeff("k1"),
+                _coeff("k2"),
+                _coeff("k3"),
+                _coeff("k4"),
+                _coeff("k5"),
+                _coeff("k6"),
+                _coeff("p1"),
+                _coeff("p2"),
+                _coeff("s1"),
+                _coeff("s2"),
+                _coeff("s3"),
+                _coeff("s4"),
+            ],
+            outputs=[rays],
+            device=device,
+        )
+        return rays
 
     @wp.kernel
     def _update_transforms(
@@ -473,20 +549,12 @@ class NewtonWarpRenderer(BaseRenderer):
 
         Also captures the USD ``stage`` so the segmentation mapper can read the scene's
         :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
+
+        OpenCV lens distortion (``spawn.distortion``) needs no preparation here: it is consumed at
+        ray-generation time by :meth:`RenderData._build_distortion_rays`, which inverts the OpenCV
+        forward model per pixel to trace the distorted camera-space rays.
         """
         self._stage = stage
-        # NOTE: OpenCV lens distortion (``spawn.distortion``) is not yet applied by the Newton
-        # renderer. The distortion cfg is renderer-agnostic and could be piped through Newton's warp
-        # ray-tracing utilities here in the future; for now the camera renders undistorted. This is
-        # the intended extension point.
-        spawn = getattr(spec.cfg, "spawn", None)
-        if getattr(spawn, "distortion", None) is not None:
-            logger.warning(
-                "OpenCV lens distortion is set on the camera cfg but is not yet applied by the Newton"
-                " renderer: it derives a single field of view from fy, so the distortion coefficients,"
-                " the principal point, and a non-square fx are ignored and the camera renders as a"
-                " centered, square-pixel pinhole. Use the RTX/OVRTX renderer to apply the full model."
-            )
         if spec.cfg.isp_cfg is None:
             return
         try:
