@@ -338,6 +338,11 @@ markers = [
     "benchmark: test covers the Isaac Lab benchmark framework and infrastructure",
     "rendering: test exercises the rendering / camera / visualizer pipeline",
     "smoke: tests for core installation, task, and RL functionality",
+    "kit: test file needs a booted headless Kit app; it calls isaaclab.test.launch.launch_kit() at module scope rather than constructing AppLauncher",
+    "kit_cameras: like `kit`, but the app is booted with cameras enabled via launch_kit(cameras=True)",
+    "kitless: test file runs without Kit; no AppLauncher and no module-scope import of omni/carb/isaacsim",
+    "kit_solo: keep this file in its own process; it is never grouped with other files",
+    "newton_ci: mark test to run in the Newton CI lane",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.
