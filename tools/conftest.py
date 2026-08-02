@@ -42,6 +42,21 @@ timeout.  Only the first such test gets the extension — after it runs, the
 on-disk cache is populated.
 """
 
+_CAMERA_MARKERS = ("enable_cameras=True", "launch_kit(cameras=True)", "pytest.mark.kit_cameras")
+"""Source-text signatures of a test file that starts Kit with cameras enabled.
+
+Matched against the file's text rather than by importing it, because importing a test
+module boots Kit. ``enable_cameras=True`` covers files that still construct
+``AppLauncher`` directly; the other two cover files migrated to
+:func:`~isaaclab.test.launch.launch_kit`, which no longer contain that literal.
+"""
+
+
+def _enables_cameras(test_content: str) -> bool:
+    """Whether the given test file's source starts Kit with cameras enabled."""
+    return any(marker in test_content for marker in _CAMERA_MARKERS)
+
+
 STARTUP_DEADLINE = 120
 """Seconds to wait for AppLauncher init or pytest collection before declaring a
 startup hang.
@@ -1001,7 +1016,7 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
 
         # The first camera-enabled test in a fresh container compiles shaders
         # (~600 s).  Give it extra time so that doesn't look like a test timeout.
-        is_cold_cache_test = not cold_cache_applied and "enable_cameras=True" in test_content
+        is_cold_cache_test = not cold_cache_applied and _enables_cameras(test_content)
         if is_cold_cache_test:
             timeout += COLD_CACHE_BUFFER
             cold_cache_applied = True

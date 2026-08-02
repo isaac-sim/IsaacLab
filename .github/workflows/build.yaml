@@ -895,13 +895,17 @@ jobs:
   #region kit-reuse timing probe
   # TEMPORARY. Measures what sharing one Kit app across test files is worth, so the decision to
   # migrate the remaining ~125 files is based on a number rather than an estimate. Both jobs run
-  # the same 30 files from source/isaaclab/test/sim; the only difference is how many Kit apps get
-  # booted. Compare the two job durations in the Actions UI, then delete this region.
+  # the same 24 `kit` files from source/isaaclab/test/sim; the only difference is how many Kit
+  # apps get booted. Compare the two job durations in the Actions UI, then delete this region.
+  #
+  # The four `kit_cameras` files in that directory are excluded from both sides. The first
+  # camera-enabled boot in a fresh container compiles shaders for ~600 s, which is an order of
+  # magnitude larger than the Kit startup being measured and would swamp the comparison.
   #
   # The file lists are spelled out rather than selected with `-m kit` because pytest's marker
-  # filtering deselects tests but still imports every collected module, and importing a
-  # kit_cameras module calls launch_kit(cameras=True). Files in TESTS_TO_SKIP are left out of
-  # both sides so the two jobs cover exactly the same tests.
+  # filtering deselects tests but still imports every collected module, so `-m` alone cannot keep
+  # a kit_cameras module from calling launch_kit(cameras=True). Files in TESTS_TO_SKIP are left
+  # out of both sides so the two jobs cover exactly the same tests.
   test-kit-reuse-probe-per-file:
     name: "kit-reuse-probe-per-file"
     runs-on: [self-hosted, gpu]
@@ -923,10 +927,6 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab/test/sim"
         include-files: >-
-          test_simulation_stage_in_memory.py,
-          test_utils_prims.py,
-          test_utils_queries.py,
-          test_utils_semantics.py,
           test_articulation_fragments.py,
           test_build_simulation_context_headless.py,
           test_cloner.py,
@@ -966,20 +966,14 @@ jobs:
       with:
         fetch-depth: 1
         lfs: true
-    # Batched: pointing test-path at the files themselves bypasses tools/conftest.py, so all 30
-    # run in one pytest process and launch_kit() boots Kit once. The four kit_cameras files are
-    # listed first on purpose: a camera-enabled app can serve tests that do not need cameras, but
-    # cameras cannot be turned on after startup, so the reverse order makes launch_kit() raise.
+    # Batched: pointing test-path at the files themselves bypasses tools/conftest.py, so all 24
+    # run in one pytest process and launch_kit() boots Kit once.
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         test-path: >-
-          source/isaaclab/test/sim/test_simulation_stage_in_memory.py
-          source/isaaclab/test/sim/test_utils_prims.py
-          source/isaaclab/test/sim/test_utils_queries.py
-          source/isaaclab/test/sim/test_utils_semantics.py
           source/isaaclab/test/sim/test_articulation_fragments.py
           source/isaaclab/test/sim/test_build_simulation_context_headless.py
           source/isaaclab/test/sim/test_cloner.py
