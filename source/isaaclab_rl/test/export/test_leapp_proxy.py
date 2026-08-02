@@ -49,6 +49,34 @@ def _capture_leapp_inputs(monkeypatch: pytest.MonkeyPatch) -> list:
     return annotated_inputs
 
 
+def test_static_action_outputs_select_tensor_joint_ids():
+    """Test static action gains can be selected with tensor joint ids."""
+
+    class _Buffer:
+        def __init__(self, tensor: torch.Tensor):
+            self.torch = tensor
+
+    real_asset = SimpleNamespace(
+        data=SimpleNamespace(
+            default_joint_stiffness=_Buffer(torch.arange(6.0).reshape(1, 6)),
+            default_joint_damping=_Buffer(torch.arange(10.0, 16.0).reshape(1, 6)),
+        ),
+        actuators={},
+        joint_names=[f"j{index}" for index in range(6)],
+    )
+    term = SimpleNamespace(_asset=real_asset, _joint_ids=torch.tensor([0, 2, 4], dtype=torch.long))
+    action_manager = SimpleNamespace(_terms={"joint_pos": term})
+
+    patcher = ExportPatcher(export_method="onnx-dynamo")
+    values = patcher._collect_action_static_outputs(action_manager)
+
+    assert [value.name for value in values] == ["joint_pos_kp_gains", "joint_pos_kd_gains"]
+    assert torch.equal(values[0].ref, torch.tensor([[0.0, 2.0, 4.0]]))
+    assert torch.equal(values[1].ref, torch.tensor([[10.0, 12.0, 14.0]]))
+    assert values[0].element_names == [["j0", "j2", "j4"]]
+    assert values[1].element_names == [["j0", "j2", "j4"]]
+
+
 def test_direct_projected_gravity_b_read_preserves_vector3d_input(monkeypatch: pytest.MonkeyPatch):
     """Test direct data proxy reads keep projected gravity as its own semantic input."""
     annotated_inputs = _capture_leapp_inputs(monkeypatch)

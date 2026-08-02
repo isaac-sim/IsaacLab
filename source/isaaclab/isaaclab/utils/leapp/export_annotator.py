@@ -88,6 +88,17 @@ def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tenso
     return kp, kd
 
 
+def _has_joint_ids(joint_ids) -> bool:
+    """Return whether a joint-id selection should index per-joint tensors."""
+    if joint_ids is None:
+        return False
+    if isinstance(joint_ids, slice):
+        return joint_ids != slice(None)
+    if isinstance(joint_ids, torch.Tensor):
+        return joint_ids.numel() > 0
+    return bool(joint_ids)
+
+
 # ══════════════════════════════════════════════════════════════════
 # ExportPatcher
 # ══════════════════════════════════════════════════════════════════
@@ -701,7 +712,7 @@ class ExportPatcher:
                     static_values.append(
                         TensorSemantics(
                             name=f"{term_name}_kp_gains",
-                            ref=kp_gains[:, joint_ids] if joint_ids else kp_gains,
+                            ref=kp_gains[:, joint_ids] if _has_joint_ids(joint_ids) else kp_gains,
                             kind="kp",
                             element_names=select_element_names(joint_names, joint_ids),
                             extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim_index"),
@@ -711,7 +722,7 @@ class ExportPatcher:
                     static_values.append(
                         TensorSemantics(
                             name=f"{term_name}_kd_gains",
-                            ref=kd_gains[:, joint_ids] if joint_ids else kd_gains,
+                            ref=kd_gains[:, joint_ids] if _has_joint_ids(joint_ids) else kd_gains,
                             kind="kd",
                             element_names=select_element_names(joint_names, joint_ids),
                             extra=build_write_connection(scene_key, "write_joint_damping_to_sim_index"),
