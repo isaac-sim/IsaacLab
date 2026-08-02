@@ -344,7 +344,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     if not has_auto_rtx:
         return config_scan
 
-    use_isaac_sim = _uses_isaac_sim_runtime(config_scan, launcher_args)
+    use_isaac_sim = bool(_get_kit_runtime_sources(config_scan, launcher_args))
     renderer_factory = IsaacRtxRendererCfg if use_isaac_sim else OVRTXRendererCfg
 
     # Resolve every auto RTX placeholder in place, tracking camera renderers that may require Kit.
@@ -393,11 +393,6 @@ def _get_kit_runtime_sources(config_scan: Scan, launcher_args: argparse.Namespac
         kit_sources.append("the default Isaac Sim / Kit runtime")
 
     return tuple(kit_sources)
-
-
-def _uses_isaac_sim_runtime(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> bool:
-    """Return whether the scanned config or launcher arguments require Isaac Sim / Kit."""
-    return bool(_get_kit_runtime_sources(config_scan, launcher_args))
 
 
 def _format_runtime_sources(sources: tuple[str, ...]) -> str:
