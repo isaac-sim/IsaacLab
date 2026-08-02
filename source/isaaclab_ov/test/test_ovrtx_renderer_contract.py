@@ -364,3 +364,40 @@ def test_ovrtx_use_ovstage_rejects_non_boolean_values(monkeypatch):
 
     with pytest.raises(ValueError, match="Expected 0 or 1"):
         ovrtx_use_ovstage_enabled()
+
+
+def test_ovrtx_cleanup_releases_only_the_given_render_data():
+    """``cleanup`` releases the render data's own buffers and leaves the renderer usable.
+
+    The stage queries, tensor bindings and render products the renderer holds are shared with
+    every other camera that resolved to it, so a single camera's cleanup must not take them.
+    """
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._render_product_paths = ["/Render/RenderProduct_camera"]
+    renderer._initialized_scene = True
+
+    render_data = _make_ovrtx_render_data()
+    render_data.warp_buffers = {"rgba": wp.zeros((8, 16, 4), dtype=wp.uint8, device="cpu")}
+    render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
+    render_data.ppisp_pipeline = object()
+
+    renderer.cleanup(render_data)
+
+    assert render_data.warp_buffers == {}
+    assert render_data.renderer_info == {}
+    assert render_data.ppisp_pipeline is None
+
+    assert renderer._render_product_paths == ["/Render/RenderProduct_camera"]
+    assert renderer._initialized_scene is True
+
+
+def test_ovrtx_cleanup_without_render_data_keeps_renderer_state():
+    """``cleanup(None)`` has nothing to release and must not disturb the renderer."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._render_product_paths = ["/Render/RenderProduct_camera"]
+    renderer._initialized_scene = True
+
+    renderer.cleanup(None)
+
+    assert renderer._render_product_paths == ["/Render/RenderProduct_camera"]
+    assert renderer._initialized_scene is True
