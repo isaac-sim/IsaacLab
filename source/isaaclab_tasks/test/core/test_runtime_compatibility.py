@@ -13,6 +13,8 @@ No Kit/GPU required — safe for CI and beginners.
 """
 
 import argparse
+import ast
+import inspect
 import sys
 
 import pytest
@@ -24,7 +26,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 import isaaclab.app.sim_launcher as sim_launcher_module
 import isaaclab.utils as isaaclab_utils
 from isaaclab.app import scan
-from isaaclab.app.sim_launcher import _validate_runtime, launch_simulation
+from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, launch_simulation
 from isaaclab.physics import PhysxAutoCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -36,7 +38,8 @@ _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 def validate_runtime_compatibility(env_cfg, launcher_args=None):
     """Run the single-scan runtime validation for *env_cfg* (test adapter)."""
     config_scan = scan(env_cfg, launcher_args)
-    _validate_runtime(config_scan, launcher_args)
+    kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
+    _validate_runtime(config_scan, kit_sources)
     return config_scan
 
 
@@ -54,6 +57,31 @@ def _resolve_with_args(*args: str):
         return env_cfg
     finally:
         sys.argv = old_argv
+
+
+# ---------------------------------------------------------------------------
+# Architecture: validation consumes one resolved Kit-source value
+# ---------------------------------------------------------------------------
+
+
+def test_runtime_validation_consumes_resolved_kit_sources():
+    """Keep config and launcher interpretation outside the compatibility validator."""
+    assert list(inspect.signature(_validate_runtime).parameters) == ["scan", "kit_sources"]
+
+    tree = ast.parse(inspect.getsource(_validate_runtime))
+    forbidden_scan_fields = {
+        "has_kit_camera",
+        "has_kit_physics",
+        "needs_kit",
+        "visualizer_intent",
+    }
+    accessed_attributes = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+    assert accessed_attributes.isdisjoint(forbidden_scan_fields)
+
+    called_helpers = {
+        node.func.id for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert "_has_kit_visualizer" not in called_helpers
 
 
 # ---------------------------------------------------------------------------
@@ -93,8 +121,45 @@ def test_kit_visualizer_dict_args_plus_ovrtx_raises():
         validate_runtime_compatibility(env_cfg, {"visualizer": "kit,newton"})
 
 
+def test_kit_renderer_plus_ovrtx_raises():
+    """A Kit renderer and OVRTX cannot initialize in the same process."""
+    env_cfg = _resolve_with_presets("newton,isaacsim_rtx")
+    mixed_cfg = argparse.Namespace(
+        physics=env_cfg.sim.physics,
+        kit_camera=env_cfg.tiled_camera,
+        ovrtx_renderer=OVRTXRendererCfg(),
+    )
+
+    with pytest.raises(ValueError, match="Kit-based renderer"):
+        validate_runtime_compatibility(mixed_cfg)
+
+
+@pytest.mark.parametrize(
+    ("launcher_args", "source"),
+    [
+        (argparse.Namespace(experience="custom.kit"), "explicit Kit experience"),
+        (argparse.Namespace(livestream=2), "livestreaming"),
+    ],
+)
+def test_launcher_kit_source_plus_ovrtx_raises(launcher_args, source):
+    """Every launcher-side Kit source must conflict with OVRTX."""
+    env_cfg = _resolve_with_presets("newton,ovrtx")
+
+    with pytest.raises(ValueError, match=source):
+        validate_runtime_compatibility(env_cfg, launcher_args)
+
+
+def test_default_kit_runtime_plus_ovrtx_raises(monkeypatch: pytest.MonkeyPatch):
+    """A config without physics defaults to Kit, which cannot share OVRTX."""
+    monkeypatch.delenv("LIVESTREAM", raising=False)
+    renderer_only_cfg = argparse.Namespace(renderer=OVRTXRendererCfg())
+
+    with pytest.raises(ValueError, match="default Isaac Sim / Kit runtime"):
+        validate_runtime_compatibility(renderer_only_cfg)
+
+
 # ---------------------------------------------------------------------------
-# Invalid: OvPhysX physics + Kit visualizer
+# Invalid: OvPhysX physics + Isaac Sim / Kit
 # ---------------------------------------------------------------------------
 
 
@@ -114,6 +179,40 @@ def test_ovphysx_dict_args_plus_kit_visualizer_raises():
     env_cfg = _resolve_with_presets("ovphysx,isaacsim_rtx")
     with pytest.raises(ValueError, match=r"OvPhysX.*Kit visualizer"):
         validate_runtime_compatibility(env_cfg, {"visualizer": "kit,newton"})
+
+
+def test_ovphysx_plus_kit_physics_raises():
+    """Two physics configs cannot pull OvPhysX and Kit into the same process."""
+    mixed_cfg = argparse.Namespace(
+        ovphysx_physics=OvPhysxCfg(),
+        kit_physics=PhysxCfg(),
+    )
+
+    with pytest.raises(ValueError, match="PhysxCfg"):
+        validate_runtime_compatibility(mixed_cfg)
+
+
+def test_explicit_kit_experience_plus_ovphysx_raises():
+    """An explicit Kit experience must conflict with OvPhysX."""
+    env_cfg = _resolve_with_presets("ovphysx,ovrtx")
+    launcher_args = argparse.Namespace(experience="custom.kit")
+
+    with pytest.raises(ValueError, match="explicit Kit experience"):
+        validate_runtime_compatibility(env_cfg, launcher_args)
+
+
+def test_ovphysx_plus_kit_camera_without_visualizer_raises():
+    """A Kit-based renderer pulls in Kit even with no visualizer, which OvPhysX cannot share.
+
+    Without a visualizer the only Kit signal is the camera, so this is the case the visualizer-only
+    guard missed: it previously reached OvPhysX's own initialization and failed there instead.
+    """
+    env_cfg = _resolve_with_presets("ovphysx,isaacsim_rtx")
+    with pytest.raises(ValueError) as excinfo:
+        validate_runtime_compatibility(env_cfg, argparse.Namespace(visualizer=None))
+    msg = str(excinfo.value)
+    assert "OvPhysX" in msg
+    assert "renderer" in msg
 
 
 # ---------------------------------------------------------------------------
