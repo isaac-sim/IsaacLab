@@ -23,6 +23,8 @@ def test_import_ovphysx_reports_install_command_when_runtime_missing(monkeypatch
         import_ovphysx("ovphysx.types")
 
     assert str(exc_info.value) == _OVPHYSX_INSTALL_MESSAGE
+    assert "uv run --extra ovphysx" in str(exc_info.value)
+    assert "./isaaclab.sh" not in str(exc_info.value)
     assert exc_info.value.name == "ovphysx"
     assert exc_info.value.__cause__.name == "ovphysx"
 

@@ -44,6 +44,7 @@ from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
+from isaaclab.utils.array import convert_to_torch
 
 from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
@@ -708,11 +709,15 @@ class ExportPatcher:
                 # exports zero gains for explicit actuators (DCMotor, IdealPDActuator, ...), which
                 # keep their gains on the actuator rather than in the sim. See _effective_joint_gains.
                 kp_gains, kd_gains = _effective_joint_gains(real_asset)
+                gain_reference = kp_gains if kp_gains is not None else kd_gains
+                if joint_ids is not None and not isinstance(joint_ids, slice) and gain_reference is not None:
+                    joint_ids = convert_to_torch(joint_ids, dtype=torch.long, device=gain_reference.device)
+
                 if kp_gains is not None:
                     static_values.append(
                         TensorSemantics(
                             name=f"{term_name}_kp_gains",
-                            ref=kp_gains[:, joint_ids] if joint_ids else kp_gains,
+                            ref=kp_gains if joint_ids is None else kp_gains[:, joint_ids],
                             kind="kp",
                             element_names=select_element_names(joint_names, joint_ids),
                             extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim_index"),
@@ -722,7 +727,7 @@ class ExportPatcher:
                     static_values.append(
                         TensorSemantics(
                             name=f"{term_name}_kd_gains",
-                            ref=kd_gains[:, joint_ids] if joint_ids else kd_gains,
+                            ref=kd_gains if joint_ids is None else kd_gains[:, joint_ids],
                             kind="kd",
                             element_names=select_element_names(joint_names, joint_ids),
                             extra=build_write_connection(scene_key, "write_joint_damping_to_sim_index"),

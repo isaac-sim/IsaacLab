@@ -223,7 +223,8 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``newton_kamino``,           |
     |                         |                              |                                                                             | ``ovphysx``                  |
     |                         |                              |                                                                             | **presets=** ``joint_pos``,  |
-    |                         |                              |                                                                             | ``diffik``, ``newton_ik``    |
+    |                         |                              |                                                                             | ``diffik``, ``diffik_abs``,  |
+    |                         |                              |                                                                             | ``newton_ik``                |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |reach-ur10|            | |reach-ur10-link|            | Move the end-effector to a sampled target pose with the UR10 robot          | **physics=**                 |
     |                         |                              |                                                                             | ``isaacsim_physx``,          |
@@ -1079,7 +1080,7 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
-          | **presets=** ``diffik``, ``joint_pos``, ``newton_ik``
+          | **presets=** ``diffik``, ``diffik_abs``, ``joint_pos``, ``newton_ik``
     * - Isaac-Reach-Franka-OSC
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1347,10 +1348,6 @@ including disabling runtime perturbations used for training.
       - Manager Based
       -
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``physx``
-    * - IsaacContrib-Reach-Franka-IK-Abs
-      - Manager Based
-      -
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - IsaacContrib-Reach-OpenArm
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)

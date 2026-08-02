@@ -13,7 +13,7 @@ import isaaclab.app.app_launcher as app_launcher_module
 import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils as utils_module
 from isaaclab.app import AppLauncher
-from isaaclab.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _uses_isaac_sim_runtime
+from isaaclab.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _get_kit_runtime_sources
 
 pytestmark = pytest.mark.integration
 
@@ -61,7 +61,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
     )
     args = argparse.Namespace(experience="isaaclab.python.kit", visualizer=None)
 
-    assert _uses_isaac_sim_runtime(scan, args)
+    assert _get_kit_runtime_sources(scan, args)
 
 
 def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.MonkeyPatch):
