@@ -394,6 +394,17 @@ def _cache_bucket_path(cache_root: Path, target_branch: str, commit: str, task_i
     )
 
 
+def _cache_run_name() -> str:
+    """Return an allocation-isolated cache directory name for this invocation."""
+    run_id = os.environ.get("GITHUB_RUN_ID", f"local-{os.getpid()}")
+    run_attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "0")
+    run_label = os.environ.get("PERF_SMOKE_RUN_LABEL", "").strip()
+    name = f"run-{run_id}-attempt-{run_attempt}"
+    if run_label:
+        name += f"-{_safe_path_component(run_label)}"
+    return name
+
+
 def _cleanup_run_dir(run_dir: Path) -> None:
     """Remove a disposable directory for one seeder invocation."""
     if not run_dir.exists():
@@ -665,9 +676,7 @@ def main() -> int:
     else:
         seed_src_dir = _create_seed_source_dir()
         atexit.register(_cleanup_run_dir, seed_src_dir)
-    run_id = os.environ.get("GITHUB_RUN_ID", f"local-{os.getpid()}")
-    run_attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "0")
-    cache_run = f"run-{run_id}-attempt-{run_attempt}"
+    cache_run = _cache_run_name()
     jit_cache_root = workdir / "jit-cache" / "seed" / cache_run
     kit_cache_root = workdir / "kit-cache" / "seed" / cache_run
     atexit.register(_cleanup_run_dir, jit_cache_root)

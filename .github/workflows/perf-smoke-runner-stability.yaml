@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# One-time staging qualification for the L40S runner pool. The workflow waits
-# for the normal gate and baseline seeder from the same push to finish, then fans
-# the commit out to five independent allocations. Each allocation collects three
-# FPS samples per bucket without publishing baselines. The final CPU job combines
-# all 15 samples and fails unless the pool meets the predeclared stability policy.
+# One-time staging qualification for the L40S runner pool. The workflow waits for
+# the commit's normal gate run to pass and for the L40 pool to go quiet, then fans
+# the commit out to five independent allocations so per-runner and run-to-run FPS
+# spread can be measured separately. Qualification only reports a verdict; it
+# never writes baselines.
 
 name: Performance Smoke - L40S Runner Stability
 
@@ -20,8 +20,9 @@ on:
 
 permissions:
   actions: read
-  # Reusable workflows cannot elevate their caller's token. The seeder requests
-  # write access for its normal publish mode, while this caller forces dry-run.
+  # The seeder this workflow calls declares contents: write, and a caller cannot
+  # grant a reusable workflow more than it holds. The stability allocations run
+  # with dry_run: true, so nothing is actually written.
   contents: write
 
 concurrency:
@@ -30,66 +31,53 @@ concurrency:
 
 jobs:
   wait_for_quiet_pool:
-    name: Wait for sibling performance workflows
-    if: ${{ github.event_name == 'push' }}
+    name: Wait for initial gate and quiet pool
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 180
     permissions:
       actions: read
       contents: read
     steps:
-    - name: Wait for the gate and seeder from this push
+    - name: Wait for the initial gate and competing L40 work
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
-        REQUIRED_WORKFLOWS=(
-          "Performance Smoke Test"
-          "Performance Smoke - Seed Baselines"
-        )
         L40_POOL_WORKFLOWS=(
           "Performance Smoke Test"
-          "Performance Smoke - Seed Baselines"
           "Perf Smoke — Publish CI Image"
           "Perf Smoke — Auto Era Roll"
         )
-        DEADLINE=$((SECONDS + 20400))
+        DEADLINE=$((SECONDS + 10200))
         QUIET_POLLS=0
         while (( SECONDS < DEADLINE )); do
           RUNS="$(gh run list \
             --repo "${GITHUB_REPOSITORY}" \
             --limit 100 \
-            --json headSha,workflowName,status)"
-          PREREQUISITES_READY=true
-          for workflow_name in "${REQUIRED_WORKFLOWS[@]}"; do
-            MATCH_COUNT="$(jq --arg name "${workflow_name}" \
-              --arg sha "${GITHUB_SHA}" \
-              '[.[] | select(.workflowName == $name and .headSha == $sha)] | length' <<<"${RUNS}")"
-            ACTIVE_COUNT="$(jq --arg name "${workflow_name}" \
-              --arg sha "${GITHUB_SHA}" \
-              '[.[] | select(.workflowName == $name and .headSha == $sha and .status != "completed")] | length' \
-              <<<"${RUNS}")"
-            if [ "${MATCH_COUNT}" -eq 0 ] || [ "${ACTIVE_COUNT}" -ne 0 ]; then
-              PREREQUISITES_READY=false
-              break
-            fi
-          done
+            --json conclusion,headSha,workflowName,status)"
+          GATE_CONCLUSION="$(jq -r --arg sha "${GITHUB_SHA}" \
+            '[.[] | select(.workflowName == "Performance Smoke Test" and .headSha == $sha and .status == "completed")]
+            | first | .conclusion // ""' <<<"${RUNS}")"
+          if [ -n "${GATE_CONCLUSION}" ] && [ "${GATE_CONCLUSION}" != "success" ]; then
+            echo "::error::Initial pinned-image gate concluded ${GATE_CONCLUSION}."
+            exit 1
+          fi
           ACTIVE_POOL_RUNS=0
           for workflow_name in "${L40_POOL_WORKFLOWS[@]}"; do
             ACTIVE_COUNT="$(jq --arg name "${workflow_name}" \
               '[.[] | select(.workflowName == $name and .status != "completed")] | length' <<<"${RUNS}")"
             ACTIVE_POOL_RUNS=$((ACTIVE_POOL_RUNS + ACTIVE_COUNT))
           done
-          if [ "${PREREQUISITES_READY}" = true ] && [ "${ACTIVE_POOL_RUNS}" -eq 0 ]; then
+          if [ "${GATE_CONCLUSION}" = "success" ] && [ "${ACTIVE_POOL_RUNS}" -eq 0 ]; then
             QUIET_POLLS=$((QUIET_POLLS + 1))
             if [ "${QUIET_POLLS}" -ge 2 ]; then
-              echo "Sibling workflows completed and the L40 pool stayed quiet; starting qualification."
+              echo "Initial gate passed and the L40 pool stayed quiet; starting qualification."
               exit 0
             fi
             echo "L40 pool is quiet; confirming for one more polling interval..."
           else
             QUIET_POLLS=0
-            echo "Waiting for sibling workflows and other L40 workloads to finish..."
+            echo "Waiting for the initial gate and other L40 workloads to finish..."
           fi
           sleep 60
         done
@@ -99,7 +87,7 @@ jobs:
   stability_sample:
     name: Runner allocation ${{ matrix.allocation }}
     needs: [wait_for_quiet_pool]
-    if: ${{ always() && (needs.wait_for_quiet_pool.result == 'success' || needs.wait_for_quiet_pool.result == 'skipped') }}
+    if: ${{ needs.wait_for_quiet_pool.result == 'success' }}
     strategy:
       fail-fast: false
       max-parallel: 5

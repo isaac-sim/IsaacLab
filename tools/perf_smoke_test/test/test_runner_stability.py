@@ -326,11 +326,12 @@ def test_staging_workflow_fans_out_complete_independent_evidence() -> None:
     assert trigger["push"]["paths"] == [".github/workflows/perf-smoke-runner-stability.yaml"]
     assert "workflow_dispatch" not in trigger
     assert workflow["permissions"]["contents"] == "write"
+
     wait_job = workflow["jobs"]["wait_for_quiet_pool"]
+    assert "needs" not in wait_job
     assert wait_job["permissions"]["contents"] == "read"
     wait_step = wait_job["steps"][0]
     assert "Performance Smoke Test" in wait_step["run"]
-    assert "Performance Smoke - Seed Baselines" in wait_step["run"]
     assert "Perf Smoke — Publish CI Image" in wait_step["run"]
     assert "Perf Smoke — Auto Era Roll" in wait_step["run"]
     assert "QUIET_POLLS" in wait_step["run"]
@@ -346,7 +347,8 @@ def test_staging_workflow_fans_out_complete_independent_evidence() -> None:
     assert "${{ matrix.allocation }}" in sample_job["with"]["concurrency_group"]
     assert sample_job["secrets"] == {"NGC_API_KEY": "${{ secrets.NGC_API_KEY }}"}
 
-    qualify_steps = workflow["jobs"]["qualify"]["steps"]
+    qualify_job = workflow["jobs"]["qualify"]
+    qualify_steps = qualify_job["steps"]
     report_step = next(step for step in qualify_steps if step.get("name") == "Build qualification report")
     assert "--require_ready" in report_step["run"]
     assert "--minimum_distinct_runners 3" in report_step["run"]
@@ -354,6 +356,12 @@ def test_staging_workflow_fans_out_complete_independent_evidence() -> None:
     assert download_step["continue-on-error"] is True
     assert any(step.get("name") == "Report artifact download failure" for step in qualify_steps)
     assert any(step.get("name") == "Fail on artifact download error" for step in qualify_steps)
+
+    # Qualification only measures the pool. It must not publish baselines or chain
+    # another gate run, so a bad verdict can never contaminate the rolling window.
+    assert qualify_job["permissions"]["contents"] == "read"
+    assert all("baseline" not in step.get("run", "").lower() for step in qualify_steps)
+    assert not any(job.get("uses") == "./.github/workflows/perf-smoke-test.yaml" for job in workflow["jobs"].values())
     assert seeder["concurrency"]["group"] == "${{ inputs.concurrency_group || 'perf-smoke-seed' }}"
     seed_step = next(
         step for step in seeder["jobs"]["seed"]["steps"] if step.get("name") == "Seed baselines from commit history"
