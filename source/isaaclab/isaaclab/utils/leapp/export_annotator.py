@@ -68,9 +68,7 @@ def _normalize_joint_ids(joint_ids: Any) -> Any:
     :class:`torch.Tensor`, a list, or -- for :class:`BinaryJointAction` -- a ``wp.array``,
     which supports neither torch fancy indexing nor ``tolist``.
     """
-    if isinstance(joint_ids, wp.array):
-        return wp.to_torch(joint_ids)
-    return joint_ids
+    return wp.to_torch(joint_ids) if isinstance(joint_ids, wp.array) else joint_ids
 
 
 def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tensor | None]:
