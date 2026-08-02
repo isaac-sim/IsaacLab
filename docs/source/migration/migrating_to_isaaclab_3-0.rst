@@ -654,12 +654,14 @@ when no CLI override is given. Other fields are named presets selectable with
 
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab.utils.configclass import configclass
+   from isaaclab_ovphysx.physics import OvPhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
    @configclass
    class MyPhysicsCfg(PresetCfg):
        isaacsim_physx: PhysxCfg = PhysxCfg(...)
-       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
        default: PhysxCfg = isaacsim_physx  # used when no override is given
        newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by physics=newton_mjwarp
 
@@ -702,13 +704,15 @@ subclass that carries both a PhysX and a Newton variant.
 
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_ovphysx.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
    @configclass
    class ReachPhysicsCfg(PresetCfg):
        isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
        default: PhysxCfg = isaacsim_physx
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
