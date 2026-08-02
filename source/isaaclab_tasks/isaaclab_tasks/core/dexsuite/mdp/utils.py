@@ -221,46 +221,50 @@ def create_primitive_mesh(prim):
 
 
 def farthest_point_sampling(
-    points: torch.Tensor, n_samples: int, memory_threashold=2 * 1024**3
-) -> torch.Tensor:  # 2 GiB
-    """
-    Farthest Point Sampling (FPS) for point sets.
+    points: torch.Tensor,
+    n_samples: int,
+    distance_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = torch.cdist,
+    memory_threshold: int = 2 * 1024**3,  # 2 GiB
+) -> torch.Tensor:
+    """Farthest point sampling (FPS): pick a maximally spread subset of the given samples.
 
-    Selects `n_samples` points such that each new point is farthest from the
-    already chosen ones. Uses a full pairwise distance matrix if memory allows,
-    otherwise falls back to an iterative version.
+    Greedily takes the sample whose distance to the already-picked set is largest, so the result
+    covers the input instead of clustering where the input is dense. Any feature space works, not
+    just 3D points, as long as :paramref:`distance_fn` measures it.
 
     Args:
-        points (torch.Tensor): Input points of shape (N, D).
-        n_samples (int): Number of samples to select.
-        memory_threashold (int): Max allowed bytes for distance matrix. Default 2 GiB.
+        points: Samples to pick from, shape [num_points, feature_dim].
+        n_samples: Number of samples to pick. Values at or above ``len(points)`` return all of them.
+        distance_fn: Pairwise distance, called as ``(a, b) -> [len(a), len(b)]``. Defaults to the
+            Euclidean :func:`torch.cdist`.
+        memory_threshold: Byte budget [B] for the full pairwise distance matrix. Above it, distances
+            to the picked sample are recomputed each round instead of cached.
 
     Returns:
-        torch.Tensor: Indices of sampled points (n_samples,).
+        Indices of the picked samples, shape [n_samples].
     """
-    device = points.device
-    N = points.shape[0]
-    elem_size = points.element_size()
-    bytes_needed = N * N * elem_size
-    if bytes_needed <= memory_threashold:
-        dist_mat = torch.cdist(points, points)
-        sampled_idx = torch.zeros(n_samples, dtype=torch.long, device=device)
-        min_dists = torch.full((N,), float("inf"), device=device)
-        farthest = torch.randint(0, N, (1,), device=device)
-        for j in range(n_samples):
-            sampled_idx[j] = farthest
-            min_dists = torch.minimum(min_dists, dist_mat[farthest].view(-1))
-            farthest = torch.argmax(min_dists)
-        return sampled_idx
-    logging.warning(f"FPS fallback to iterative (needed {bytes_needed} > {memory_threashold})")
-    sampled_idx = torch.zeros(n_samples, dtype=torch.long, device=device)
-    distances = torch.full((N,), float("inf"), device=device)
-    farthest = torch.randint(0, N, (1,), device=device)
+    num_points = len(points)
+    if n_samples >= num_points:
+        return torch.arange(num_points, device=points.device)
+
+    # caching the whole matrix costs one distance_fn call instead of one per round
+    matrix_bytes = num_points * num_points * points.element_size()
+    cached = matrix_bytes <= memory_threshold
+    if cached:
+        distances = distance_fn(points, points)
+    else:
+        logging.warning(f"FPS fallback to iterative (needed {matrix_bytes} > {memory_threshold})")
+
+    sampled_idx = torch.zeros(n_samples, dtype=torch.long, device=points.device)
+    # distance from every sample to the picked set; picked samples sit at 0 and are never re-picked
+    min_dists = torch.full((num_points,), float("inf"), device=points.device)
+    # kept one-dimensional so ``points[farthest]`` stays a batch of one for distance_fn
+    farthest = torch.randint(0, num_points, (1,), device=points.device)
     for j in range(n_samples):
         sampled_idx[j] = farthest
-        dist = torch.linalg.norm(points - points[farthest], dim=1)
-        distances = torch.minimum(distances, dist)
-        farthest = torch.argmax(distances)
+        to_farthest = distances[farthest] if cached else distance_fn(points[farthest], points)
+        min_dists = torch.minimum(min_dists, to_farthest.view(-1))
+        farthest = torch.argmax(min_dists, dim=0, keepdim=True)
     return sampled_idx
 
 
