@@ -698,6 +698,15 @@ subclass that carries both a PhysX and a Newton variant.
        self.sim.dt = 1 / 60
        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
 
+.. important::
+
+   The ``After`` example below mirrors the current Reach task, which intentionally
+   uses Newton/MJWarp as its default. The ``Before`` snippet only illustrates the
+   older single-backend form, so the default differs between the two snippets.
+   When migrating a task that should retain PhysX by default, use
+   ``default: PhysxCfg = isaacsim_physx`` instead. Adding backend variants should
+   not silently change a task's established default.
+
 *After:*
 
 .. code-block:: python
