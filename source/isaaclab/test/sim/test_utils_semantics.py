@@ -3,21 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.launch import launch_kit
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
 # note: need to enable cameras to be able to make replicator core available
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_kit(cameras=True)
 
 import pytest
 
 import isaaclab.sim as sim_utils
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.kit_cameras, pytest.mark.integration]
 
 
 @pytest.fixture(autouse=True)

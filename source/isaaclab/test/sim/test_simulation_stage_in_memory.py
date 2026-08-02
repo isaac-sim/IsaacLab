@@ -5,16 +5,10 @@
 
 """Integration tests for simulation context with stage in memory."""
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.launch import launch_kit
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
 # FIXME (mmittal): Stage in memory requires cameras to be enabled.
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
-
+launch_kit(cameras=True)
 
 import pytest
 import torch
@@ -28,7 +22,7 @@ from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.kit_cameras, pytest.mark.integration]
 
 
 @pytest.fixture

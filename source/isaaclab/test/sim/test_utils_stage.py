@@ -5,14 +5,9 @@
 
 """Tests for stage utilities."""
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.launch import launch_kit
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_kit()
 
 import tempfile
 from pathlib import Path
@@ -23,7 +18,7 @@ from pxr import Usd
 
 import isaaclab.sim as sim_utils
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = [pytest.mark.kit, pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
 def test_create_new_stage():

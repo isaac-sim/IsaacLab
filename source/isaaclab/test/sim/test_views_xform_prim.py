@@ -10,10 +10,10 @@ Imports the shared contract tests and provides the USD-specific
 prim ordering, xformOp standardization, and Isaac Sim comparison.
 """
 
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import resolve_test_sim_device, test_devices
+from isaaclab.test.launch import launch_kit
+from isaaclab.test.utils import test_devices
 
-simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
+launch_kit()
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
@@ -36,7 +36,7 @@ import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.sim.views import UsdFrameView as FrameView  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = [pytest.mark.kit, pytest.mark.integration, pytest.mark.isaacsim_ci]
 PARENT_POS = (0.0, 0.0, 1.0)
 
 
