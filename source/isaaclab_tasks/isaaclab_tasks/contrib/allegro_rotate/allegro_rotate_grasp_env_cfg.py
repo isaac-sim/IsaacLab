@@ -9,13 +9,12 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.utils.configclass import configclass
 
 from .allegro_rotate_env_cfg import (
-    AllegroRotateEnvCfg,
     CYLINDER_INIT_POS,
     CYLINDER_INIT_ROT,
+    AllegroRotateEnvCfg,
     _allegro_hand_cfg,
     _cylinder_object_cfg,
 )
-
 
 GRASP_CYLINDER_INIT_POS = CYLINDER_INIT_POS
 

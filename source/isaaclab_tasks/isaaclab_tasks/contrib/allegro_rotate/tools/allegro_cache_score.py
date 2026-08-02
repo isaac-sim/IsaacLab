@@ -20,7 +20,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 ALLEGRO_JOINT_DIM = 16
 ALLEGRO_STATE_DIM = 23
 
@@ -107,9 +106,7 @@ def main() -> int:
     joint_range = joints.max(axis=0) - joints.min(axis=0)
     joint_std_median = float(np.median(joint_std))
     joint_range_median = float(np.median(joint_range))
-    diversity_ok = (
-        joint_std_median >= args.min_joint_std_median and joint_range_median >= args.min_joint_range_median
-    )
+    diversity_ok = joint_std_median >= args.min_joint_std_median and joint_range_median >= args.min_joint_range_median
     report["joint_std_median"] = joint_std_median
     report["joint_std_min"] = float(joint_std.min())
     report["joint_range_median"] = joint_range_median
@@ -126,8 +123,7 @@ def main() -> int:
     object_pos_mean_diff = float(object_pos_diff.mean())
     object_pos_p99_diff = float(np.percentile(object_pos_diff, 99))
     object_pos_ok = (
-        object_pos_mean_diff <= args.max_object_pos_mean_diff
-        and object_pos_p99_diff <= args.max_object_pos_p99_diff
+        object_pos_mean_diff <= args.max_object_pos_mean_diff and object_pos_p99_diff <= args.max_object_pos_p99_diff
     )
     report["object_pos_ref"] = [float(v) for v in object_pos_ref]
     report["object_pos_ref_source"] = object_pos_ref_source

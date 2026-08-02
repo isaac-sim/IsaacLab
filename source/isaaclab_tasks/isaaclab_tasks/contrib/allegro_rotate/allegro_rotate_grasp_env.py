@@ -11,8 +11,9 @@ from collections.abc import Sequence
 
 import numpy as np
 import torch
-import carb
 import warp as wp
+
+import carb
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.math import axis_angle_from_quat, quat_conjugate, quat_mul
@@ -44,8 +45,7 @@ class AllegroRotateGraspEnv(AllegroRotateEnv):
                 f"expected at least scale_range[2]={scale_num}."
             )
         self.saved_grasping_states = [
-            torch.zeros((0, self.num_hand_dofs + 7), dtype=torch.float32, device=self.device)
-            for _ in range(scale_num)
+            torch.zeros((0, self.num_hand_dofs + 7), dtype=torch.float32, device=self.device) for _ in range(scale_num)
         ]
         self.grasp_contact_sensor_ids = []
         grasp_contact_finger_ids = []
@@ -164,16 +164,17 @@ class AllegroRotateGraspEnv(AllegroRotateEnv):
         object_pos_diff = torch.linalg.norm(self.object_pos - self.object_default_pose[:, :3], dim=-1)
         object_rot_diff = quat_angle_diff(self.object_rot, self.object_default_pose[:, 3:7])
         joint_delta_rad = torch.abs(
-            self.hand_dof_pos[:, self.actuated_dof_indices]
-            - self.reset_hand_dof_pos[:, self.actuated_dof_indices]
+            self.hand_dof_pos[:, self.actuated_dof_indices] - self.reset_hand_dof_pos[:, self.actuated_dof_indices]
         ).mean(dim=-1)
         jitter_mask = self.episode_length_buf <= self.cfg.joint_jitter_window_steps
         self.joint_delta_sum_100[jitter_mask] += joint_delta_rad[jitter_mask]
         self.joint_delta_count_100[jitter_mask] += 1.0
         joint_delta_100_rad = self.joint_delta_sum_100 / torch.clamp(self.joint_delta_count_100, min=1.0)
-        target_equal_error_rad = torch.abs(
-            self.prev_targets[:, self.actuated_dof_indices] - self.cur_targets[:, self.actuated_dof_indices]
-        ).max(dim=-1).values
+        target_equal_error_rad = (
+            torch.abs(self.prev_targets[:, self.actuated_dof_indices] - self.cur_targets[:, self.actuated_dof_indices])
+            .max(dim=-1)
+            .values
+        )
         target_track_error_rad = torch.abs(
             self.hand_dof_pos[:, self.actuated_dof_indices] - self.cur_targets[:, self.actuated_dof_indices]
         ).mean(dim=-1)
@@ -296,7 +297,7 @@ class AllegroRotateGraspEnv(AllegroRotateEnv):
                     f"rel=({rel_pos[0].item():+.4f},{rel_pos[1].item():+.4f},{rel_pos[2].item():+.4f})"
                 )
             suffix += ", fingers " + "; ".join(finger_parts)
-        print(f'[{time.strftime("%Y-%m-%d %H:%M:%S")}] current cache size: {total}, finished: {finished}{suffix}')
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] current cache size: {total}, finished: {finished}{suffix}")
 
     def _is_cache_complete(self) -> bool:
         return all(saved.shape[0] >= self.grasp_cache_target_per_scale for saved in self.saved_grasping_states)

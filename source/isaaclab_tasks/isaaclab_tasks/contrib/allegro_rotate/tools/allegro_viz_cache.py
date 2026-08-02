@@ -20,9 +20,9 @@ import gymnasium as gym
 import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-
 
 parser = argparse.ArgumentParser(description="Visualize Allegro grasp-cache resets with zero actions.")
 parser.add_argument("--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O.")
@@ -46,7 +46,9 @@ parser.add_argument(
 )
 parser.add_argument("--steps", type=int, default=2400, help="Maximum number of zero-action simulation steps.")
 parser.add_argument("--print_interval", type=int, default=60, help="Print status every N steps.")
-parser.add_argument("--reset_interval", type=int, default=0, help="Force reset every N steps; 0 disables forced resets.")
+parser.add_argument(
+    "--reset_interval", type=int, default=0, help="Force reset every N steps; 0 disables forced resets."
+)
 parser.add_argument("--real-time", action="store_true", default=False, help="Throttle stepping to env.step_dt.")
 add_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()

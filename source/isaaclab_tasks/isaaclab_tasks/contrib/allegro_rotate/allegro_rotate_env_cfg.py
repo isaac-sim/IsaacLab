@@ -17,8 +17,9 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
 ALLEGRO_ROTATE_DIR = Path(__file__).resolve().parent
 ALLEGRO_ROTATE_ASSET_DIR = ALLEGRO_ROTATE_DIR / "assets"
@@ -84,9 +85,7 @@ def _quat_xyzw_to_matrix(quat: tuple[float, float, float, float]) -> tuple[tuple
 
 def _transform_hand_local_to_world(local_pos: tuple[float, float, float]) -> tuple[float, float, float]:
     rot = _quat_xyzw_to_matrix(HAND_ROOT_ROT)
-    return tuple(
-        HAND_ROOT_POS[row] + sum(rot[row][col] * local_pos[col] for col in range(3)) for row in range(3)
-    )
+    return tuple(HAND_ROOT_POS[row] + sum(rot[row][col] * local_pos[col] for col in range(3)) for row in range(3))
 
 
 def _mean_pos(positions: tuple[tuple[float, float, float], ...]) -> tuple[float, float, float]:

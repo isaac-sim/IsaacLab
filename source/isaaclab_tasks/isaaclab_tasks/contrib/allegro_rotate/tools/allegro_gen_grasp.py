@@ -15,9 +15,9 @@ import gymnasium as gym
 import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-
 
 parser = argparse.ArgumentParser(description="Generate Allegro in-hand rotate grasp cache.")
 parser.add_argument("--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O.")
@@ -34,8 +34,12 @@ parser.add_argument(
     help="Probe mode only: keep a failed/fallen grasp visible for this many env steps before reset.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Throttle stepping to env.step_dt.")
-parser.add_argument("--max_steps", type=int, default=None, help="Maximum env steps before exit; default runs until cache is saved.")
-parser.add_argument("--print_interval", type=int, default=None, help="Override grasp status print interval in env steps.")
+parser.add_argument(
+    "--max_steps", type=int, default=None, help="Maximum env steps before exit; default runs until cache is saved."
+)
+parser.add_argument(
+    "--print_interval", type=int, default=None, help="Override grasp status print interval in env steps."
+)
 parser.add_argument("--reset_dof_pos_noise", type=float, default=None, help="Override reset joint-position noise.")
 parser.add_argument("--reset_position_noise", type=float, default=None, help="Override reset object-position noise.")
 parser.add_argument(

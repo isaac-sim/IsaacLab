@@ -15,6 +15,7 @@ import torch
 import warp as wp
 
 import carb
+
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation, RigidObject
@@ -83,7 +84,9 @@ class AllegroRotateEnv(DirectRLEnv):
             self.cfg.hand_init_usd_world_offset, dtype=torch.float32, device=self.device
         )
 
-        self.actions = torch.zeros((self.num_envs, len(self.actuated_dof_indices)), dtype=torch.float, device=self.device)
+        self.actions = torch.zeros(
+            (self.num_envs, len(self.actuated_dof_indices)), dtype=torch.float, device=self.device
+        )
         self.prev_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
         self.cur_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
         self.obs_history = torch.zeros(
@@ -100,7 +103,9 @@ class AllegroRotateEnv(DirectRLEnv):
         target_axis = torch.tensor(self.cfg.target_axis, dtype=torch.float, device=self.device)
         self.target_axis = target_axis / torch.clamp(torch.linalg.norm(target_axis), min=1.0e-6)
 
-        self.reset_hand_dof_pos = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
+        self.reset_hand_dof_pos = torch.zeros(
+            (self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device
+        )
         self.joint_delta_sum_100 = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.joint_delta_count_100 = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.rotation_count = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
@@ -212,34 +217,30 @@ class AllegroRotateEnv(DirectRLEnv):
     def _get_rewards(self) -> torch.Tensor:
         self._compute_intermediate_values()
 
-        object_angvel = axis_angle_from_quat(quat_mul(self.object_rot, quat_conjugate(self.object_rot_prev))) / self.step_dt
+        object_angvel = (
+            axis_angle_from_quat(quat_mul(self.object_rot, quat_conjugate(self.object_rot_prev))) / self.step_dt
+        )
         axis_angvel = torch.sum(object_angvel * self.target_axis, dim=-1)
         raw_rotate_reward = torch.clamp(axis_angvel, min=self.cfg.angvel_clip_min, max=self.cfg.angvel_clip_max)
         rotate_reward = raw_rotate_reward
 
         diagnostic_log: dict[str, torch.Tensor] | None = None
         if self.cfg.enable_diagnostics:
-            off_axis_penalty, diagnostic_log = self._compute_diagnostics(
-                object_angvel, axis_angvel, raw_rotate_reward
-            )
+            off_axis_penalty, diagnostic_log = self._compute_diagnostics(object_angvel, axis_angvel, raw_rotate_reward)
         elif self.cfg.off_axis_angvel_penalty_scale != 0.0:
             off_axis_penalty = self._compute_off_axis_penalty(object_angvel, axis_angvel)
         else:
             off_axis_penalty = torch.zeros_like(axis_angvel)
         object_linvel_penalty = torch.norm(self.object_pos - self.object_pos_prev, p=1, dim=-1) / self.step_dt
         pos_diff_penalty = (
-            (
-                self.hand_dof_pos[:, self.actuated_dof_indices]
-                - self.reset_hand_dof_pos[:, self.actuated_dof_indices]
-            )
+            (self.hand_dof_pos[:, self.actuated_dof_indices] - self.reset_hand_dof_pos[:, self.actuated_dof_indices])
             ** 2
         ).sum(dim=-1)
         torque_penalty = (self.hand_dof_torque[:, self.actuated_dof_indices] ** 2).sum(dim=-1)
         work_penalty = (
-            (
-                self.hand_dof_torque[:, self.actuated_dof_indices]
-                * self.hand_dof_vel[:, self.actuated_dof_indices]
-            ).sum(dim=-1)
+            (self.hand_dof_torque[:, self.actuated_dof_indices] * self.hand_dof_vel[:, self.actuated_dof_indices]).sum(
+                dim=-1
+            )
         ) ** 2
         object_pos_error = torch.linalg.norm(self.object_pos - self.object_default_pose[:, :3], dim=-1)
         object_pos_reward = 1.0 / (object_pos_error + 0.001)
@@ -339,9 +340,11 @@ class AllegroRotateEnv(DirectRLEnv):
         rolling_contact_gate = top2_quality.min(dim=-1).values
         three_finger_quality = top3_quality.min(dim=-1).values
         non_thumb_quality = finger_quality[:, self.non_thumb_finger_ids]
-        top2_non_thumb_support = torch.topk(
-            non_thumb_quality, k=min(2, non_thumb_quality.shape[-1]), dim=-1, largest=True
-        ).values.min(dim=-1).values
+        top2_non_thumb_support = (
+            torch.topk(non_thumb_quality, k=min(2, non_thumb_quality.shape[-1]), dim=-1, largest=True)
+            .values.min(dim=-1)
+            .values
+        )
         non_thumb_support = non_thumb_quality.min(dim=-1).values
         non_thumb_support_mean = non_thumb_quality.mean(dim=-1)
         thumb_support = finger_quality[:, self.thumb_finger_id]
@@ -351,9 +354,7 @@ class AllegroRotateEnv(DirectRLEnv):
         top2_distance_gate = torch.topk(distance_gate, k=2, dim=-1, largest=True).values.mean(dim=-1)
         top2_force_gate = torch.topk(force_gate_per_finger, k=2, dim=-1, largest=True).values.mean(dim=-1)
         top2_side_gate = torch.topk(side_wall_gate, k=2, dim=-1, largest=True).values.mean(dim=-1)
-        top2_abs_z = torch.topk(torch.abs(fingertip_rel_pos[..., 2]), k=2, dim=-1, largest=False).values.mean(
-            dim=-1
-        )
+        top2_abs_z = torch.topk(torch.abs(fingertip_rel_pos[..., 2]), k=2, dim=-1, largest=False).values.mean(dim=-1)
         proximity_reward = torch.topk(
             1.0 - torch.tanh(fingertip_dist / self.cfg.proximity_std), k=2, dim=-1
         ).values.mean(dim=-1)
@@ -377,9 +378,9 @@ class AllegroRotateEnv(DirectRLEnv):
         negative_rotate_reward = torch.clamp(raw_rotate_reward, max=0.0)
         thumb_opposed_support = torch.minimum(thumb_support, non_thumb_support)
         rotate_support_quality = 0.5 * (thumb_support + non_thumb_support)
-        rotate_support_gate = self.cfg.rotate_support_gate_floor + (
-            1.0 - self.cfg.rotate_support_gate_floor
-        ) * rotate_support_quality
+        rotate_support_gate = (
+            self.cfg.rotate_support_gate_floor + (1.0 - self.cfg.rotate_support_gate_floor) * rotate_support_quality
+        )
         support_gated_rotate_reward = negative_rotate_reward + positive_rotate_reward * rotate_support_gate
         off_axis_angvel = torch.linalg.norm(
             object_angvel - axis_angvel.unsqueeze(-1) * self.target_axis.unsqueeze(0), dim=-1
@@ -446,8 +447,8 @@ class AllegroRotateEnv(DirectRLEnv):
         terminal_count = torch.clamp(self.terminal_episode_count, min=1.0)
         self.terminal_rotation_count = (self.rotation_count * terminal_float).sum() / terminal_count
         self.terminal_success_rate = (
-            ((self.rotation_count > self.cfg.success_rotation_count) & terminal).float().sum() / terminal_count
-        )
+            (self.rotation_count > self.cfg.success_rotation_count) & terminal
+        ).float().sum() / terminal_count
         self.terminal_drop_rate = (self.last_drop & terminal).float().sum() / terminal_count
         self.terminal_timeout_rate = (time_out & ~self.last_drop & terminal).float().sum() / terminal_count
         self.terminal_object_pos_diff = (object_pos_diff * terminal_float).sum() / terminal_count
@@ -632,7 +633,8 @@ class AllegroRotateEnv(DirectRLEnv):
             "[reset_init] Allegro fingertip_center_mean="
             f"({center_mean[0].item():+.4f},{center_mean[1].item():+.4f},{center_mean[2].item():+.4f}), "
             f"fingertip_center_std=({center_std[0].item():.4f},{center_std[1].item():.4f},{center_std[2].item():.4f}), "
-            f"object_init_mean=({object_mean[0].item():+.4f},{object_mean[1].item():+.4f},{object_mean[2].item():+.4f}), "
+            f"object_init_mean=({object_mean[0].item():+.4f},"
+            f"{object_mean[1].item():+.4f},{object_mean[2].item():+.4f}), "
             f"object_init_std=({object_std[0].item():.4f},{object_std[1].item():.4f},{object_std[2].item():.4f}), "
             f"distance_to_center_mean={distance_to_center.mean().item():.4f}, "
             f"distance_to_center_std={distance_to_center.std(unbiased=False).item():.4f}"
