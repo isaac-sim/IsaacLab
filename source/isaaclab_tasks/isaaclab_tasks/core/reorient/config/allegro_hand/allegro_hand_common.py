@@ -79,7 +79,7 @@ class ObjectCfg(PresetCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
     )
     isaacsim_physx = physx
-    default = newton_mjwarp
+    default = isaacsim_physx
 
 
 @configclass
@@ -100,7 +100,7 @@ class PhysicsCfg(PresetCfg):
     )
     ovphysx = OvPhysxCfg()
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = newton_mjwarp
+    default = isaacsim_physx
 
 
 # Scene pieces shared verbatim by the manager-based variant.

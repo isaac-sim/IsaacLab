@@ -45,18 +45,18 @@ _FOOT_SENSOR_CFG = SceneEntityCfg("contact_forces", body_names=["foot_l", "foot_
 class DrLegsContactSensorCfg(PresetCfg):
     """Backend-specific foot contact sensor configuration."""
 
-    default = NewtonContactSensorCfg(
+    newton_kamino = NewtonContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/foot_.*",
         history_length=3,
         track_air_time=True,
     )
-    newton_kamino = default
     physx = PhysXContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/foot_.*",
         history_length=3,
         track_air_time=True,
     )
     isaacsim_physx = physx
+    default = isaacsim_physx
 
 
 @configclass

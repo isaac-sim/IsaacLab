@@ -167,6 +167,7 @@ class ConverterCli:
         import isaaclab.sim as sim_utils  # noqa: PLC0415
         from isaaclab.app import launch_simulation  # noqa: PLC0415
         from isaaclab.physics import PhysicsCfg  # noqa: PLC0415
+        from isaaclab.visualizers.visualizer_cfg import _get_visualizer_install_hint  # noqa: PLC0415
 
         # Request the chosen kitless visualizer on the Newton backend; ``launch_simulation`` reads
         # the keys it needs and falls back to the launcher defaults for the rest. The default
@@ -188,10 +189,9 @@ class ConverterCli:
             # nothing to display if no visualizer backend was created (e.g. package not installed)
             if not sim.visualizers:
                 logger.warning(
-                    "No '%s' visualizer available for preview (is 'isaaclab_visualizers[%s]' installed?)."
-                    " Skipping viewport preview.",
+                    "No '%s' visualizer available for preview. Skipping viewport preview. %s",
                     visualizer,
-                    visualizer,
+                    _get_visualizer_install_hint(visualizer),
                 )
                 return
 

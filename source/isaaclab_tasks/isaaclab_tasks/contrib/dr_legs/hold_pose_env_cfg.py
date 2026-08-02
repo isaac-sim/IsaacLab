@@ -80,10 +80,10 @@ def _kamino_newton_cfg() -> NewtonCfg:
 class DrLegsPhysicsCfg(PresetCfg):
     """Physics backend presets for DR Legs."""
 
-    default: NewtonCfg = _kamino_newton_cfg()
     newton_kamino: NewtonCfg = _kamino_newton_cfg()
     isaacsim_physx: PhysxCfg = PhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default: PhysxCfg = isaacsim_physx
 
 
 ##
@@ -133,10 +133,10 @@ def _physx_actions_cfg() -> ActionsCfg:
 class DrLegsActionsCfg(PresetCfg):
     """Backend-specific DR Legs action presets."""
 
-    default: ActionsCfg = ActionsCfg()
     newton_kamino: ActionsCfg = ActionsCfg()
     physx: ActionsCfg = _physx_actions_cfg()
     isaacsim_physx: ActionsCfg = physx
+    default: ActionsCfg = isaacsim_physx
 
 
 @configclass
@@ -254,10 +254,10 @@ def _physx_event_cfg() -> EventCfg:
 class DrLegsEventCfg(PresetCfg):
     """Backend-specific DR Legs event presets."""
 
-    default: EventCfg = EventCfg()
     newton_kamino: EventCfg = EventCfg()
     physx: EventCfg = _physx_event_cfg()
     isaacsim_physx: EventCfg = physx
+    default: EventCfg = isaacsim_physx
 
 
 @configclass

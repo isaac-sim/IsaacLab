@@ -123,7 +123,7 @@ class DeformableCfg(PresetCfg):
 
     ovphysx: DeformableObjectCfg = physx
 
-    default = newton_mjwarp_vbd_proxy
+    default = isaacsim_physx
 
 
 @configclass
@@ -173,7 +173,7 @@ class PhysicsCfg(PresetCfg):
     ovphysx: OvPhysxCfg = OvPhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
 
-    default = newton_mjwarp_vbd_proxy
+    default = isaacsim_physx
 
 
 ##
@@ -490,7 +490,7 @@ class FrankaSoftSceneCfg(PresetCfg):
 
     ovphysx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
 
-    default = newton_mjwarp_vbd_proxy
+    default = isaacsim_physx
 
 
 @configclass
@@ -502,7 +502,7 @@ class FrankaSoftCameraSceneCfg(PresetCfg):
     )
     physx: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
     isaacsim_physx = physx
-    default = newton_mjwarp_vbd_proxy
+    default = isaacsim_physx
 
 
 @configclass

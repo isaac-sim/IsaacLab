@@ -71,7 +71,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
     # scene — clone_in_fabric is the only backend-varying field (Newton cannot use Fabric cloning)
     scene: InteractiveSceneCfg = preset(
-        default=ShadowHandSceneCfg(clone_in_fabric=False),
+        default=ShadowHandSceneCfg(clone_in_fabric=True),
         physx=ShadowHandSceneCfg(clone_in_fabric=True),
         isaacsim_physx=ShadowHandSceneCfg(clone_in_fabric=True),
         ovphysx=ShadowHandSceneCfg(clone_in_fabric=True),

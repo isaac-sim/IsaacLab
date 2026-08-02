@@ -37,12 +37,13 @@ class KukaAllegroObjectCfg(dexsuite.ObjectCfg):
 class KukaAllegroPhysicsCfg(dexsuite.PhysicsCfg):
     """Physics presets supported by the Kuka Allegro tasks."""
 
+    isaacsim_physx = dexsuite.PhysicsCfg().isaacsim_physx
     ovphysx = OvPhysxCfg(
         gpu_max_rigid_patch_count=4 * 5 * 2**15,
         gpu_found_lost_pairs_capacity=2**26,
     )
-    physx = PhysxAutoCfg(isaacsim_physx=dexsuite.PhysicsCfg().isaacsim_physx, ovphysx=ovphysx)
-    default = physx
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = isaacsim_physx
 
 
 @configclass

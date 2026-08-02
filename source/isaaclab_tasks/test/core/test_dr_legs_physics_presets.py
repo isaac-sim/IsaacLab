@@ -5,7 +5,7 @@
 
 """Tests for the DR Legs physics presets."""
 
-from isaaclab_newton.physics import KaminoSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 
@@ -41,7 +41,7 @@ def test_dr_legs_kamino_presets_remain_unchanged() -> None:
     physics = DrLegsPhysicsCfg()
     env_cfg = resolve_presets(DrLegsHoldPoseEnvCfg(), selected=("newton_kamino",))
 
-    assert isinstance(physics.default, NewtonCfg)
+    assert isinstance(physics.default, PhysxCfg)
     assert isinstance(physics.newton_kamino.solver_cfg, KaminoSolverCfg)
     assert env_cfg.events.reset_base.params["pose_range"]["x"] == (-0.05, 0.05)
     assert env_cfg.events.reset_robot_joints.params["position_range"] == (-0.1, 0.1)

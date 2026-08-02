@@ -59,11 +59,11 @@ def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
 @pytest.mark.parametrize(
     ("presets", "action_type", "physics_type"),
     [
-        ((), "JointPositionActionCfg", "NewtonCfg"),
+        ((), "JointPositionActionCfg", "PhysxCfg"),
         (("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
         (("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
         (("ovphysx",), "JointPositionActionCfg", "OvPhysxCfg"),
-        (("diffik",), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
+        (("diffik",), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
         (("diffik", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
         (("diffik", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
         (("diffik_abs", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
@@ -89,7 +89,7 @@ def test_reach_action_presets_change_only_the_action_configuration():
     diffik_newton = _load_env_cfg("diffik", "newton_mjwarp")
     newton_ik = _load_env_cfg("newton_ik", "newton_mjwarp")
 
-    assert _load_env_cfg().actions.arm_action.to_dict() == joint_pos_newton.actions.arm_action.to_dict()
+    assert _load_env_cfg().actions.arm_action.to_dict() == joint_pos_physx.actions.arm_action.to_dict()
     assert _without_actions(joint_pos_physx) == _without_actions(diffik_physx)
     assert _without_actions(joint_pos_newton) == _without_actions(diffik_newton)
     assert _without_actions(joint_pos_newton) == _without_actions(newton_ik)
