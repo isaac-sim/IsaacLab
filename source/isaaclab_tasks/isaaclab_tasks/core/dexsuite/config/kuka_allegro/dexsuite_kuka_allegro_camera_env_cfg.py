@@ -16,7 +16,12 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
-from .camera_cfg import BaseTiledCameraCfg, DuoCameraObservationsCfg, SingleCameraObservationsCfg, WristTiledCameraCfg
+from .camera_cfg import (
+    BaseTiledCameraCfg,
+    DuoCameraObservationsCfg,
+    SingleCameraObservationsCfg,
+    WristTiledCameraCfg,
+)
 from .dexsuite_kuka_allegro_env_cfg import (
     DexsuiteKukaAllegroLiftEnvCfg,
     DexsuiteKukaAllegroReorientEnvCfg,
