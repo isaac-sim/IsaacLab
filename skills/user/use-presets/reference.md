@@ -77,13 +77,13 @@ class MyEnvCfg:
 
 For multi-backend tasks, keep backend-specific solver values in the preset wrapper. Do not branch on backend names inside step, reward, or reset logic unless behavior truly cannot be represented as config.
 
-When a task supports Isaac Sim PhysX, make `default` alias `isaacsim_physx`. Keep `physx` as the explicit automatic selector through `PhysxAutoCfg`, matching the renderer convention where `isaacsim_rtx` is concrete and `rtx` is automatic.
+When a task currently defaults to `PhysxAutoCfg`, replace that default with the concrete `isaacsim_physx` variant. Preserve explicit Newton and other backend defaults. Keep `physx` as the explicit automatic selector through `PhysxAutoCfg`, matching the renderer convention where `isaacsim_rtx` is concrete and `rtx` is automatic.
 
 For schema presets, import universal fragments and base cfgs from `isaaclab.sim.schemas`, PhysX-specific cfgs from `isaaclab_physx.sim.schemas`, and Newton or MuJoCo cfgs from `isaaclab_newton.sim.schemas`.
 
 ## Validation Checklist
 
-- The `default` variant aliases `isaacsim_physx` when the task supports Isaac Sim PhysX.
+- A default that previously aliased `PhysxAutoCfg` now aliases `isaacsim_physx`; explicit backend defaults remain unchanged.
 - Every named variant is tested.
 - Selector names match existing conventions such as `physx`, `newton_mjwarp`, `newton_kamino`, `ovphysx`, `rgb`, and `depth`.
 - A small random-agent rollout succeeds for each variant.

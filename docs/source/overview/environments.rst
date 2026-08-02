@@ -91,11 +91,12 @@ modes. The **Presets** column in each table below is divided into three labeled 
 * **physics=** — physics-backend name passed as ``physics=NAME``
   (e.g. ``physx``, ``isaacsim_physx``, ``newton_mjwarp``,
   ``newton_kamino``, ``ovphysx``, ``newton_mjwarp_vbd_proxy``). Environments
-  that support Isaac Sim PhysX use the concrete ``isaacsim_physx`` variant by
-  default. Select ``physics=physx`` to opt into automatic PhysX-family
-  selection: it uses Isaac Sim PhysX when Kit is required and OvPhysX otherwise
-  when the task supports it. Tasks without an OvPhysX alternative fall back to
-  Isaac Sim PhysX.
+  whose previous default was automatic PhysX selection use the concrete
+  ``isaacsim_physx`` variant by default; explicit backend defaults such as
+  Newton remain unchanged. Select ``physics=physx`` to opt into automatic
+  PhysX-family selection: it uses Isaac Sim PhysX when Kit is required and
+  OvPhysX otherwise when the task supports it. Tasks without an OvPhysX
+  alternative fall back to Isaac Sim PhysX.
 * **renderer=** — renderer-backend name passed as ``renderer=NAME``
   (e.g. ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``). Cameras
   using the multi-backend renderer config default to concrete ``isaacsim_rtx``;

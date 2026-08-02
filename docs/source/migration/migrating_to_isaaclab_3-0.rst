@@ -713,7 +713,6 @@ subclass that carries both a PhysX and a Newton variant.
        isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
        ovphysx: OvPhysxCfg = OvPhysxCfg()
        physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-       default: PhysxCfg = isaacsim_physx
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
@@ -723,6 +722,7 @@ subclass that carries both a PhysX and a Newton variant.
            num_substeps=1,
            debug_mode=False,
        )
+       default: NewtonCfg = newton_mjwarp
 
    # In the env cfg __post_init__:
    def __post_init__(self):

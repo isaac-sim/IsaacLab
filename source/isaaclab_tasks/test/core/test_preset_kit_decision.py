@@ -87,8 +87,8 @@ def test_isaacsim_physx_is_physics_selector():
     assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
 
 
-def test_registered_task_physx_presets_default_to_isaac_sim_and_expose_auto_cfg():
-    """Every task with Isaac Sim PhysX defaults to it and exposes automatic PhysX."""
+def test_registered_task_physx_presets_keep_auto_selection_explicit():
+    """PhysX defaults are concrete while ``physx`` remains the automatic selector."""
 
     for task_id, task_spec in gym.registry.items():
         if not task_id.startswith(("Isaac-", "IsaacContrib-")) or "env_cfg_entry_point" not in task_spec.kwargs:
@@ -105,13 +105,13 @@ def test_registered_task_physx_presets_default_to_isaac_sim_and_expose_auto_cfg(
                 default_cfg = physics_fields.get("default")
                 assert isinstance(auto_cfg, PhysxAutoCfg), location
                 assert isinstance(isaacsim_cfg, PhysxCfg), location
-                assert isinstance(default_cfg, PhysxCfg), location
-                assert default_cfg == isaacsim_cfg, location
+                assert not isinstance(default_cfg, PhysxAutoCfg), location
+                if isinstance(default_cfg, PhysxCfg):
+                    assert default_cfg == isaacsim_cfg, location
                 assert auto_cfg.isaacsim_physx == isaacsim_cfg, location
                 assert auto_cfg.ovphysx == physics_fields.get("ovphysx"), location
             elif has_auto_physx and "physx" in fields:
                 assert fields.get("isaacsim_physx") == fields["physx"], location
-                assert fields.get("default") == fields.get("isaacsim_physx"), location
 
 
 def test_auto_physx_without_ovphysx_falls_back_to_isaac_sim():

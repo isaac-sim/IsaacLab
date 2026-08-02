@@ -175,7 +175,7 @@ def _shadow_hand_cfg(
         init_state=SHADOW_HAND_CFG.init_state.replace(pos=init_pos, rot=init_rot),
     )
     return preset(
-        default=physx_cfg,
+        default=newton_mjwarp_cfg,
         physx=physx_cfg,
         isaacsim_physx=physx_cfg,
         newton_mjwarp=newton_mjwarp_cfg,
@@ -246,7 +246,7 @@ class ObjectCfg(PresetCfg):
     )
     ovphysx = physx
     isaacsim_physx = physx
-    default = isaacsim_physx
+    default = newton_mjwarp
 
 
 @configclass
@@ -282,7 +282,7 @@ class PhysicsCfg(PresetCfg):
     )
     ovphysx = OvPhysxCfg()
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = isaacsim_physx
+    default = newton_mjwarp
 
 
 @configclass

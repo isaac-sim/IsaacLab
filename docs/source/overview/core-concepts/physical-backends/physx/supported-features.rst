@@ -3,8 +3,10 @@ Supported Features
 
 PhysX is the broadest backend in Isaac Lab. It is the reference for behaviour
 parity and supports every public asset, sensor, and renderer surface in the
-framework. Tasks built before Isaac Lab 3.0 ran on PhysX. Environments that
-support Isaac Sim PhysX use its concrete ``isaacsim_physx`` preset by default.
+framework. Tasks built before Isaac Lab 3.0 ran on PhysX. Environments whose
+previous default was automatic PhysX selection now use the concrete
+``isaacsim_physx`` preset by default; explicit backend defaults remain
+unchanged.
 
 The summary below is intentionally coarse; consult each component's API
 documentation for fine-grained capability details.
@@ -51,10 +53,9 @@ Tasks and Workflows
 -------------------
 
 * Direct and Manager-based workflows
-* ``isaaclab_tasks`` environments default to concrete Isaac Sim PhysX whenever
-  they support it. Backend-specific environments without an Isaac Sim PhysX
-  implementation, such as closed-loop or cloth tasks, retain their supported
-  backend as the default.
+* ``isaaclab_tasks`` environments that previously defaulted to automatic PhysX
+  selection now default to concrete Isaac Sim PhysX. Environments with an
+  explicit backend default, including Newton tasks, retain that default.
 * Imitation learning and motion-generation pipelines (Mimic, motion generators)
 
 

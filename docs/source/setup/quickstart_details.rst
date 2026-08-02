@@ -85,7 +85,7 @@ Available Presets
 
 **Physics backends** (``physics=NAME``):
 
-- ``isaacsim_physx`` — concrete PhysX via Isaac Sim / Kit; this is the default for environments that support it
+- ``isaacsim_physx`` — concrete PhysX via Isaac Sim / Kit; this is the default when an environment would otherwise default to automatic PhysX selection
 - ``physx`` — automatic PhysX-family selection: Isaac Sim PhysX when Kit is required, otherwise OvPhysX when the task supports it; tasks without OvPhysX support fall back to Isaac Sim PhysX
 - ``newton_mjwarp`` — Newton with the MuJoCo-Warp solver
 - ``newton_kamino`` — Newton with the Kamino solver (beta, limited tasks)

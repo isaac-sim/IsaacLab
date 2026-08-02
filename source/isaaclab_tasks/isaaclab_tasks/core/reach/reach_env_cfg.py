@@ -55,7 +55,7 @@ class ReachPhysicsCfg(PresetCfg):
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
     )
-    default: PhysxCfg = isaacsim_physx
+    default: NewtonCfg = newton_mjwarp
 
 
 ##

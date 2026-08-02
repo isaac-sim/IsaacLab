@@ -26,6 +26,8 @@ This is enough when the task only supports PhysX and there are no renderer, sens
 ## Physics Presets
 
 Use `PresetCfg` when the same task supports multiple physics backends.
+The example below applies when the task's established default is PhysX. Preserve
+an explicit Newton or other backend default when adding more variants.
 
 ```python
 from isaaclab.physics import PhysxAutoCfg

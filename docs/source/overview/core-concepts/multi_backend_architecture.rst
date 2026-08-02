@@ -232,11 +232,13 @@ Users then select a physics backend at the command line:
           # OvPhysX backend
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
 
-When a task supports Isaac Sim PhysX, its ``default`` variant is the concrete
-``isaacsim_physx`` configuration. The ``physics=physx`` selector is opt-in and
-chooses between Isaac Sim PhysX and OvPhysX at launch time according to whether
-the resolved runtime requires Kit. This mirrors renderer presets: the default is
-concrete ``isaacsim_rtx``, while ``renderer=rtx`` opts into automatic selection.
+When a task's default would otherwise be automatic ``PhysxAutoCfg`` selection,
+its ``default`` variant is the concrete ``isaacsim_physx`` configuration.
+Explicit defaults such as Newton remain unchanged. The ``physics=physx``
+selector is opt-in and chooses between Isaac Sim PhysX and OvPhysX at launch
+time according to whether the resolved runtime requires Kit. This mirrors
+renderer presets: the default is concrete ``isaacsim_rtx``, while
+``renderer=rtx`` opts into automatic selection.
 
 The Physics Manager
 -------------------
