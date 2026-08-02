@@ -2,6 +2,9 @@
 
 This package contains the Allegro in-hand cylinder-rolling task and its grasp-cache generator.
 
+## Demo
+
+![Allegro rotate demo](docs/allegro_rotate_demo.gif)
 
 ## 1. Setup
 
