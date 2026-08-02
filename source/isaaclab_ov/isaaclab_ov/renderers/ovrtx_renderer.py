@@ -1413,50 +1413,6 @@ class OVRTXRenderer(BaseRenderer):
                 render_data.warp_buffers[str(RenderBufferKind.RGBA)],
             )
 
-    def _cleanup_legacy(self, render_data: OVRTXRenderData | None) -> None:
-        """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-
-        # Unbind before tearing down renderer
-        def _safe_unbind(binding, name: str) -> None:
-            if binding is None:
-                return
-            try:
-                binding.unbind()
-            except Exception as e:
-                if "destroyed" not in str(e).lower():
-                    logger.warning("Error unbinding %s: %s", name, e)
-
-        _safe_unbind(self._camera_xform_binding, "camera transforms")
-        self._camera_xform_binding = None
-        _safe_unbind(self._object_xform_binding, "object transforms")
-        self._object_xform_binding = None
-        _safe_unbind(self._deformable_points_binding, "deformable points")
-        self._deformable_points_binding = None
-        _safe_unbind(self._particle_points_binding, "particle points")
-        self._particle_points_binding = None
-
-        self._deformable_particle_offsets = []
-        self._deformable_particle_counts = []
-        self._particle_visual_offsets = []
-        self._particle_visual_counts = []
-        self._particle_workaround_applied = False
-
-        if self._renderer:
-            try:
-                self._renderer.reset_stage()
-            except Exception as e:
-                logger.warning("Error resetting stage: %s", e)
-
-            self._renderer = None
-
-        self._render_product_paths.clear()
-        self._output_id_color_buffers.clear()
-        self._initialized_scene = False
-
-    # ---------------------------------------------------------------------------
-    # Dispatch methods — route to ovstage or legacy implementation
-    # ---------------------------------------------------------------------------
-
     def _init_fields(self) -> None:
         if self._use_ovstage:
             self._init_fields_ovstage()
@@ -1522,14 +1478,17 @@ class OVRTXRenderer(BaseRenderer):
             self._render_legacy(render_data)
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
-        """Release per-camera resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
+        """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
 
-        This backend keeps no state on ``render_data``: its stage queries, tensor bindings and render
-        products are shared by every camera that resolves to it. Releasing them from a camera's
-        invalidation would tear the scene down while the renderer is still in use, so they are
-        released with the renderer itself, by ovrtx, when the last reference to it goes away.
+        The stage queries, tensor bindings and render products this renderer holds are shared by
+        every camera that resolves to it, so they are not released here; ovrtx frees them with the
+        renderer once the last reference to it goes away.
         """
-        return
+        if render_data is None:
+            return
+        render_data.warp_buffers.clear()
+        render_data.renderer_info.clear()
+        render_data.ppisp_pipeline = None
 
     # ---------------------------------------------------------------------------
     # ovstage implementation
@@ -2164,68 +2123,3 @@ class OVRTXRenderer(BaseRenderer):
                 render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
                 render_data.warp_buffers[str(RenderBufferKind.RGBA)],
             )
-
-    def _cleanup_ovstage(self, render_data: OVRTXRenderData | None) -> None:
-        def _safe_release_query(query, name: str) -> None:
-            if query is None or self._stage is None:
-                return
-            try:
-                self._stage.release_query(query).wait()
-            except Exception as e:
-                if "destroyed" not in str(e).lower():
-                    logger.warning("Error releasing %s query: %s", name, e)
-
-        def _safe_destroy_path_list(path_list, name: str) -> None:
-            if path_list is None or self._stage_paths is None:
-                return
-            try:
-                self._stage_paths.destroy_path_list(path_list)
-            except Exception as e:
-                if "destroyed" not in str(e).lower():
-                    logger.warning("Error destroying %s path list: %s", name, e)
-
-        _safe_release_query(self._camera_xform_query, "camera transforms")
-        self._camera_xform_query = None
-        _safe_destroy_path_list(self._camera_paths_list, "camera paths")
-        self._camera_paths_list = None
-        _safe_release_query(self._object_xform_query, "object transforms")
-        self._object_xform_query = None
-        _safe_destroy_path_list(self._object_paths_list, "object paths")
-        self._object_paths_list = None
-        _safe_release_query(self._deformable_points_query, "deformable points")
-        self._deformable_points_query = None
-        _safe_destroy_path_list(self._deformable_paths_list, "deformable paths")
-        self._deformable_paths_list = None
-        _safe_release_query(self._particle_points_query, "particle points")
-        self._particle_points_query = None
-        _safe_destroy_path_list(self._particle_paths_list, "particle paths")
-        self._particle_paths_list = None
-
-        self._object_newton_indices = None
-        self._deformable_particle_offsets = []
-        self._deformable_particle_counts = []
-        self._particle_visual_offsets = []
-        self._particle_visual_counts = []
-        self._env_root_xforms = None
-
-        # Detach before closing ExitStack: the renderer holds a live reference into the stage,
-        # so detaching first avoids a use-after-free when ExitStack destroys Stage and PathDictionary.
-        #
-        # Both are guarded because cleanup can run before initialization completed: Camera.__del__
-        # calls cleanup() whenever a renderer exists, even if create_render_data() never ran (e.g. the
-        # sim was never played, or scene setup raised). detach_ovstage() raises when nothing is
-        # attached, and the ExitStack does not exist until _initialize_from_spec_ovstage creates it.
-        if self._renderer is not None and self._stage is not None:
-            self._renderer.detach_ovstage()
-        self._renderer = None
-
-        if self._ovstage_exit_stack is not None:
-            self._ovstage_exit_stack.close()
-        self._ovstage_exit_stack = None
-        self._stage = None
-        self._stage_paths = None
-
-        self._render_product_paths.clear()
-        self._output_id_color_buffers.clear()
-        self._initialized_scene = False
-        self._current_ordinal = 0
