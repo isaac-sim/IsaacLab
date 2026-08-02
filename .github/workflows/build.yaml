@@ -892,6 +892,122 @@ jobs:
         omni-github-test-type: warp-cache-warm
   #endregion
 
+  #region kit-reuse timing probe
+  # TEMPORARY. Measures what sharing one Kit app across test files is worth, so the decision to
+  # migrate the remaining ~125 files is based on a number rather than an estimate. Both jobs run
+  # the same 30 files from source/isaaclab/test/sim; the only difference is how many Kit apps get
+  # booted. Compare the two job durations in the Actions UI, then delete this region.
+  #
+  # The file lists are spelled out rather than selected with `-m kit` because pytest's marker
+  # filtering deselects tests but still imports every collected module, and importing a
+  # kit_cameras module calls launch_kit(cameras=True). Files in TESTS_TO_SKIP are left out of
+  # both sides so the two jobs cover exactly the same tests.
+  test-kit-reuse-probe-per-file:
+    name: "kit-reuse-probe-per-file"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    continue-on-error: true
+    needs: [build, config]
+    if: needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    # Baseline: the default test-path of "tools" runs tools/conftest.py, which gives each file
+    # its own subprocess, so Kit boots 30 times.
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab/test/sim"
+        include-files: >-
+          test_simulation_stage_in_memory.py,
+          test_utils_prims.py,
+          test_utils_queries.py,
+          test_utils_semantics.py,
+          test_articulation_fragments.py,
+          test_build_simulation_context_headless.py,
+          test_cloner.py,
+          test_collision_fragments.py,
+          test_joint_drive_fragments.py,
+          test_mass_fragments.py,
+          test_material_fragments.py,
+          test_mesh_collision_fragments.py,
+          test_mesh_converter.py,
+          test_schema_fragments.py,
+          test_schema_writer_nested_targets.py,
+          test_schemas.py,
+          test_simulation_context.py,
+          test_spawn_from_files.py,
+          test_spawn_lights.py,
+          test_spawn_materials.py,
+          test_spawn_meshes.py,
+          test_spawn_sensors.py,
+          test_spawn_shapes.py,
+          test_spawn_wrappers.py,
+          test_tendon_fragments.py,
+          test_utils_stage.py,
+          test_utils_transforms.py,
+          test_views_xform_prim.py
+        container-name: isaac-lab-kit-reuse-probe-per-file
+        omni-github-test-type: kit-reuse-probe-per-file
+
+  test-kit-reuse-probe-batched:
+    name: "kit-reuse-probe-batched"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    continue-on-error: true
+    needs: [build, config]
+    if: needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    # Batched: pointing test-path at the files themselves bypasses tools/conftest.py, so all 30
+    # run in one pytest process and launch_kit() boots Kit once. The four kit_cameras files are
+    # listed first on purpose: a camera-enabled app can serve tests that do not need cameras, but
+    # cameras cannot be turned on after startup, so the reverse order makes launch_kit() raise.
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        test-path: >-
+          source/isaaclab/test/sim/test_simulation_stage_in_memory.py
+          source/isaaclab/test/sim/test_utils_prims.py
+          source/isaaclab/test/sim/test_utils_queries.py
+          source/isaaclab/test/sim/test_utils_semantics.py
+          source/isaaclab/test/sim/test_articulation_fragments.py
+          source/isaaclab/test/sim/test_build_simulation_context_headless.py
+          source/isaaclab/test/sim/test_cloner.py
+          source/isaaclab/test/sim/test_collision_fragments.py
+          source/isaaclab/test/sim/test_joint_drive_fragments.py
+          source/isaaclab/test/sim/test_mass_fragments.py
+          source/isaaclab/test/sim/test_material_fragments.py
+          source/isaaclab/test/sim/test_mesh_collision_fragments.py
+          source/isaaclab/test/sim/test_mesh_converter.py
+          source/isaaclab/test/sim/test_schema_fragments.py
+          source/isaaclab/test/sim/test_schema_writer_nested_targets.py
+          source/isaaclab/test/sim/test_schemas.py
+          source/isaaclab/test/sim/test_simulation_context.py
+          source/isaaclab/test/sim/test_spawn_from_files.py
+          source/isaaclab/test/sim/test_spawn_lights.py
+          source/isaaclab/test/sim/test_spawn_materials.py
+          source/isaaclab/test/sim/test_spawn_meshes.py
+          source/isaaclab/test/sim/test_spawn_sensors.py
+          source/isaaclab/test/sim/test_spawn_shapes.py
+          source/isaaclab/test/sim/test_spawn_wrappers.py
+          source/isaaclab/test/sim/test_tendon_fragments.py
+          source/isaaclab/test/sim/test_utils_stage.py
+          source/isaaclab/test/sim/test_utils_transforms.py
+          source/isaaclab/test/sim/test_views_xform_prim.py
+        container-name: isaac-lab-kit-reuse-probe-batched
+        omni-github-test-type: kit-reuse-probe-batched
+  #endregion
+
 #region disabled quarantined tests
 # test-quarantined:
 #   name: "Quarantined Tests"
