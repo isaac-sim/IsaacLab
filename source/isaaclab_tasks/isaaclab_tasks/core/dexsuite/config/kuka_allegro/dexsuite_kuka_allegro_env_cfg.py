@@ -53,15 +53,7 @@ class KukaAllegroSceneCfg(dexsuite.SceneCfg):
     camera env config populates them (see ``dexsuite_kuka_allegro_camera_env_cfg``).
     """
 
-    # Pin the public joint/body axes to one convention across backends. Left unpinned, the axes
-    # follow each backend's native order: PhysX traverses breadth-first and MJWarp depth-first, which
-    # permutes the Allegro hand's four branching fingers (the serial arm is unaffected) and breaks
-    # sim-to-sim transfer of the ``.*`` action term and the joint/body-order observations.
-    robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        joint_ordering="mjwarp",
-        body_ordering="mjwarp",
-    )
+    robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     base_camera: CameraCfg | None = None
     wrist_camera: CameraCfg | None = None
 
