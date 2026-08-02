@@ -146,6 +146,15 @@ def test_prepare_jit_cache_opens_task_cache(tmp_path: Path) -> None:
     assert cache_dir.stat().st_mode & 0o777 == 0o777
 
 
+def test_cache_run_name_isolates_stability_allocations(monkeypatch) -> None:
+    """Parallel allocations must not share writable JIT and Kit cache trees."""
+    monkeypatch.setenv("GITHUB_RUN_ID", "123")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "2")
+    monkeypatch.setenv("PERF_SMOKE_RUN_LABEL", "runner-allocation-4")
+
+    assert seed_baselines._cache_run_name() == "run-123-attempt-2-runner-allocation-4"
+
+
 def test_only_failing_camera_backends_use_container_local_jit_cache() -> None:
     """Only camera backends that failed on the host mount bypass cache reuse."""
     camera_task = "Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct"

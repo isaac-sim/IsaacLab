@@ -30,6 +30,7 @@ from baseline_manager import (  # noqa: E402
     update_baselines_git,
 )
 from contracts import BenchResult  # noqa: E402
+from environment_skew import DependencySkew, detect_dependency_skew  # noqa: E402
 from gate_config import BASELINE_PUSH_RETRIES, MIN_BASELINE_SAMPLES, load_gate_config  # noqa: E402
 from gate_types import FpsMeanThreshold, OracleVerdict  # noqa: E402
 from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
@@ -160,6 +161,18 @@ def _runtime_context(bench_result: BenchResult) -> tuple[str, str]:
     return str(gpu_name or "N/A"), runtime or "N/A"
 
 
+def _skewed_rows(rows: list[tuple]) -> list[tuple[str, str, DependencySkew]]:
+    """Return ``(task_id, backend, skew)`` for failures caused by a stale CI image."""
+    skewed = []
+    for result, bench_result in rows:
+        if result.verdict != OracleVerdict.HARD_FAILURE:
+            continue
+        skew = detect_dependency_skew(bench_result.stdout_tail)
+        if skew is not None:
+            skewed.append((result.task_id, result.backend, skew))
+    return skewed
+
+
 def _row_explanation(result) -> str:
     """Explain one verdict in reviewer-facing language."""
     if result.verdict == OracleVerdict.HARD_FAILURE:
@@ -227,16 +240,41 @@ def _build_technical_table(rows: list[tuple]) -> str:
     return "\n".join(lines)
 
 
+def _build_stale_image_section(skewed: list[tuple[str, str, DependencySkew]]) -> str:
+    """Explain that a stale CI image, not the PR, caused these failures."""
+    packages = sorted({skew.package for _, _, skew in skewed})
+    affected = "\n".join(f"- `{task_id}` ({backend}): {skew.describe()}" for task_id, backend, skew in skewed)
+    return (
+        "### Stale CI image\n\n"
+        f"The prebuilt CI image does not match this PR's pinned {' and '.join(packages)} version, so the "
+        "tasks below crashed before producing any FPS. This reflects the image, not the change under review, "
+        "so these results are advisory and do not fail the check.\n\n"
+        f"{affected}\n\n"
+        "This resolves itself once the CI image is rebuilt for the current dependency pins. Re-run the gate "
+        "after the next image publish to get real numbers for these tasks."
+    )
+
+
 def _build_summary_markdown(rows: list[tuple], *, blocking: bool) -> str:
     """Build reviewer-first Markdown for the sticky PR comment."""
     counts = {verdict: 0 for verdict in OracleVerdict}
     for result, _ in rows:
         counts[result.verdict] += 1
 
+    skewed = _skewed_rows(rows)
+    skewed_keys = {(task_id, backend) for task_id, backend, _ in skewed}
+    unexplained_failures = sum(
+        1
+        for result, _ in rows
+        if result.verdict == OracleVerdict.HARD_FAILURE and (result.task_id, result.backend) not in skewed_keys
+    )
+
     if not rows:
         overall = "❌ No benchmark results were produced"
-    elif counts[OracleVerdict.HARD_FAILURE]:
+    elif unexplained_failures:
         overall = "❌ One or more benchmarks failed before producing usable performance data"
+    elif skewed:
+        overall = "⚠️ The CI image is stale for this PR, so some tasks could not be measured"
     elif counts[OracleVerdict.BLOCK]:
         overall = "🚫 One or more blocking-level performance regressions were detected"
     elif counts[OracleVerdict.WARN]:
@@ -269,10 +307,14 @@ def _build_summary_markdown(rows: list[tuple], *, blocking: bool) -> str:
     else:
         gpu_name, runtime = "N/A", "N/A"
 
-    return "\n\n".join(
+    sections = [
+        f"### Overall result\n\n**{overall}**\n\n{count_summary}\n\n{mode}",
+        f"### Run context\n\n- **GPU:** {gpu_name}\n- **Runtime:** {runtime}",
+    ]
+    if skewed:
+        sections.append(_build_stale_image_section(skewed))
+    sections.extend(
         (
-            f"### Overall result\n\n**{overall}**\n\n{count_summary}\n\n{mode}",
-            f"### Run context\n\n- **GPU:** {gpu_name}\n- **Runtime:** {runtime}",
             "### How to read this\n\n"
             "Start with **BLOCK** and **HARD FAILURE**, then review any **WARN** rows.\n\n"
             "- **✅ PASS:** no meaningful slowdown was detected.\n"
@@ -292,6 +334,7 @@ def _build_summary_markdown(rows: list[tuple], *, blocking: bool) -> str:
             f"{_build_technical_table(rows)}\n\n</details>",
         )
     )
+    return "\n\n".join(sections)
 
 
 def _write_github_output(**values) -> None:
@@ -407,7 +450,14 @@ def main() -> int:
         if oracle_result.verdict == OracleVerdict.BLOCK:
             has_block = True
         elif oracle_result.verdict == OracleVerdict.HARD_FAILURE:
-            has_hard_failure = True
+            # A crash caused by the image lacking a symbol this source pins is a
+            # property of the image, not of the change under test, so it is
+            # reported loudly but never fails the PR.
+            skew = detect_dependency_skew(bench_result.stdout_tail)
+            if skew is None:
+                has_hard_failure = True
+            else:
+                print(f"[aggregate] {task_id}/{backend}: stale CI image; {skew.describe()}")
 
         if (
             allow_update
@@ -526,11 +576,13 @@ def main() -> int:
     if baseline_update_failed:
         return 1
 
-    if blocking:
-        if has_block:
-            return 1
-        if has_hard_failure:
-            return 2
+    # Benchmark execution health is never advisory. A crash, missing result, or
+    # invalid benchmark must fail even while FPS regressions are being rolled out
+    # in advisory mode.
+    if has_hard_failure:
+        return 2
+    if blocking and has_block:
+        return 1
     return 0
 
 
