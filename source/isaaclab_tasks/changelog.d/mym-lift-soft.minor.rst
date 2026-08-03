@@ -42,10 +42,10 @@ Changed
   ``Isaac-Lift-Cloth-Franka`` to the actor/critic model configurations, using
   :class:`~isaaclab_rl.rsl_rl.RslRlMLPModelCfg` with observation normalization and explicit
   ``obs_groups``, a learning rate of 1e-3, and ``max_iterations`` lowered from 50000 to 5000.
-* Retuned ``Isaac-Lift-Soft-Franka`` and ``Isaac-Lift-Soft-Franka-Camera`` for stable grasping: a
+* Re-tuned ``Isaac-Lift-Soft-Franka`` and ``Isaac-Lift-Soft-Franka-Camera`` for stable grasping: a
   stiffer and denser beam, a smaller particle radius, explicit collider contact and rest offsets,
   and full-surface rigid-soft contact with signed-distance fields on the gripper.
-* Retuned the Franka arm and hand actuator gains of the Franka deformable lift environments, adding
+* Re-tuned the Franka arm and hand actuator gains of the Franka deformable lift environments, adding
   realistic armature and a slower, weaker gripper so it settles on the object instead of crushing
   it. This replaces the previous per-task gripper overrides, so the cloth tasks now use the same
   gains as the soft-beam tasks.

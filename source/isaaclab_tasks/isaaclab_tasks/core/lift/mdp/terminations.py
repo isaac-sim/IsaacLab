@@ -20,7 +20,7 @@ from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCf
 from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, DeformableObject, RigidObject
+    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import FrameTransformer
 
@@ -87,29 +87,6 @@ def object_reached_goal(
     des_pos_w, _ = combine_frame_transforms(robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, command[:, :3])
     return torch.linalg.norm(des_pos_w - object.data.root_pos_w.torch[:, :3], dim=1) < threshold
 
-
-def deformable_com_below_minimum(
-    env: ManagerBasedRLEnv,
-    minimum_height: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
-) -> torch.Tensor:
-    """Return whether the deformable object's COM is below the minimum height [m]."""
-    asset: DeformableObject = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.root_pos_w)[:, 2] < minimum_height
-
-
-def deformable_outside_table_bounds(
-    env: ManagerBasedRLEnv,
-    x_bounds: tuple[float, float],
-    y_bounds: tuple[float, float],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
-) -> torch.Tensor:
-    """Return whether any deformable node left the table footprint [m]."""
-    asset: DeformableObject = env.scene[asset_cfg.name]
-    nodal_pos = wp.to_torch(asset.data.nodal_pos_w) - env.scene.env_origins.unsqueeze(1)
-    outside_x = (nodal_pos[..., 0] < x_bounds[0]) | (nodal_pos[..., 0] > x_bounds[1])
-    outside_y = (nodal_pos[..., 1] < y_bounds[0]) | (nodal_pos[..., 1] > y_bounds[1])
-    return torch.any(outside_x | outside_y, dim=1)
 
 
 def ee_below_minimum(

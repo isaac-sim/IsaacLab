@@ -40,8 +40,6 @@ __all__ = [
     "position_command_progress",
     "success_reward",
     "abnormal_robot_state",
-    "deformable_com_below_minimum",
-    "deformable_outside_table_bounds",
     "ee_below_minimum",
     "object_reached_goal",
     "out_of_bound",
@@ -85,8 +83,6 @@ from .rewards import (
 )
 from .terminations import (
     abnormal_robot_state,
-    deformable_com_below_minimum,
-    deformable_outside_table_bounds,
     ee_below_minimum,
     object_reached_goal,
     out_of_bound,
