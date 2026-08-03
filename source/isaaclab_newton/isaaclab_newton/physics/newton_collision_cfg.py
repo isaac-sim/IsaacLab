@@ -155,8 +155,8 @@ class NewtonCollisionPipelineCfg:
 
     When ``True``, Newton adds edge and triangle-interior soft contacts (in addition to the
     per-vertex particle contacts) so rigid features that pass between soft vertices are caught.
-    Requires a volume SDF on every participating rigid mesh/convex shape; provision these via
-    :attr:`~isaaclab_newton.physics.NewtonShapeSDFCfg` on :attr:`NewtonCfg.sdf_shape_cfgs`.
+    Analytic shapes (boxes, capsules, spheres) are full-surface-capable without an SDF; any
+    participating mesh/convex collider must carry a volume SDF.
 
     Defaults to ``False`` (same as Newton's default).
     """

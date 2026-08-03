@@ -11,7 +11,6 @@ from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
-    NewtonShapeSDFCfg,
 )
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
@@ -21,6 +20,7 @@ from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPro
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
@@ -39,7 +39,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
@@ -62,7 +62,7 @@ from . import mdp
 # Pre-defined configs
 ##
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG  # isort:skip
 
 
 ##
@@ -168,8 +168,8 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        r"/World/envs/env_.*/Robot/panda_hand",
-                        r"/World/envs/env_.*/Robot/panda_(left|right)finger",
+                        r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
+                        r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
                     ],
                     collide_interval=1,
                     collision_pipeline=NewtonCollisionPipelineCfg(
@@ -180,16 +180,6 @@ class PhysicsCfg(PresetCfg):
             iterations=1,
             model_cfg=NewtonModelCfg(soft_contact_ke=5.0e3),
         ),
-        sdf_shape_cfgs=[
-            NewtonShapeSDFCfg(
-                shape_label_patterns=[
-                    r"/World/envs/env_.*/Robot/panda_hand/collisions/collisions",
-                    r"/World/envs/env_.*/Robot/panda_(left|right)finger/collisions/collisions",
-                ],
-                # ~2.3 mm voxels on the fingers; finer isn't needed for contact resolution.
-                max_resolution=8,
-            )
-        ],
         num_substeps=2,
     )
 
@@ -212,15 +202,15 @@ class PhysicsCfg(PresetCfg):
 class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment."""
 
-    robot: ArticulationCfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
-        prim_path="/World/envs/env_.*/Robot/panda_link0",
+        prim_path="/World/envs/env_.*/Robot/Geometry/.*panda_link0",
         debug_vis=False,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                prim_path="/World/envs/env_.*/Robot/panda_hand",
+                prim_path="/World/envs/env_.*/Robot/Geometry/.*panda_hand",
                 name="end_effector",
                 offset=OffsetCfg(pos=[0.0, 0.0, 0.1034]),
             ),
@@ -255,25 +245,72 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     )
 
     def __post_init__(self) -> None:
-        # Re-tuned Franka actuators, most importantly with realistic velocity limits.
-        shoulder = self.robot.actuators["panda_shoulder"]
-        shoulder.velocity_limit_sim = 2.175
-        shoulder.stiffness = 600.0
-        shoulder.damping = 50.0
-        shoulder.armature = {"panda_joint[1-2]": 0.6057, "panda_joint[3-4]": 0.4625}
+        # Menagerie asset: analytic gripper colliders, so full-surface contact needs no SDF.
+        # self.robot.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
 
-        forearm = self.robot.actuators["panda_forearm"]
-        forearm.velocity_limit_sim = 2.61
-        forearm.stiffness = {"panda_joint5": 250.0, "panda_joint6": 150.0, "panda_joint7": 50.0}
-        forearm.damping = {"panda_joint5": 30.0, "panda_joint6": 25.0, "panda_joint7": 15.0}
-        forearm.armature = 0.2055
+        # # inspired by libfranka's joint_impedance_control.cpp
+        # shoulder = self.robot.actuators["panda_shoulder"]
+        # shoulder.velocity_limit_sim = 2.175
+        # shoulder.stiffness = 600.0
+        # shoulder.damping = 50.0
+        # shoulder.armature = {"panda_joint[1-2]": 0.6057, "panda_joint[3-4]": 0.4625}
 
-        hand = self.robot.actuators["panda_hand"]
-        hand.effort_limit_sim = 70.0
-        hand.velocity_limit_sim = 0.2
-        hand.stiffness = 750.0
-        hand.damping = 175.0
-        hand.armature = 0.1
+        # forearm = self.robot.actuators["panda_forearm"]
+        # forearm.velocity_limit_sim = 2.61
+        # forearm.stiffness = {"panda_joint5": 250.0, "panda_joint6": 150.0, "panda_joint7": 50.0}
+        # forearm.damping = {"panda_joint5": 30.0, "panda_joint6": 25.0, "panda_joint7": 15.0}
+        # forearm.armature = 0.2055
+
+        # hand = self.robot.actuators["panda_hand"]
+        # hand.effort_limit_sim = 70.0
+        # hand.velocity_limit_sim = 0.2
+        # hand.stiffness = 750.0
+        # hand.damping = 175.0
+        # hand.armature = 0.1
+        self.robot.actuators = {
+            # inspired by libfranka's joint_impedance_control.cpp
+            "panda_arm": ImplicitActuatorCfg(
+                joint_names_expr=["panda_joint[1-7]"],
+                effort_limit_sim={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+                velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
+                # velocity_limit_sim={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
+                stiffness={
+                    "panda_joint[1-4]": 600.0,
+                    "panda_joint5": 250.0,
+                    "panda_joint6": 150.0,
+                    "panda_joint7": 50.0,
+                },
+                damping={
+                    "panda_joint[1-4]": 50.0,
+                    "panda_joint5": 30.0,
+                    "panda_joint6": 25.0,
+                    "panda_joint7": 15.0,
+                },
+                armature={
+                    "panda_joint[1-2]": 0.6057,
+                    "panda_joint[3-4]": 0.4625,
+                    "panda_joint[5-7]": 0.2055,
+                },
+            ),
+            "panda_hand": ImplicitActuatorCfg(
+                joint_names_expr=["panda_finger_joint1"],
+                effort_limit_sim=70.0,
+                velocity_limit=0.2,
+                velocity_limit_sim=2.0,
+                stiffness=350.0,
+                damping=175.0,
+                armature=0.1,
+            ),
+            "panda_finger2_passive": ImplicitActuatorCfg(
+                joint_names_expr=["panda_finger_joint2"],
+                effort_limit_sim=1.0,
+                velocity_limit=0.2,
+                velocity_limit_sim=2.0,
+                stiffness=0.0,
+                damping=0.0,
+                armature=0.1,
+            ),
+        }
 
 
 @configclass
@@ -622,5 +659,5 @@ class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop), helps with passing rendering tests.
+        # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop).
         self.num_rerenders_on_reset = 2

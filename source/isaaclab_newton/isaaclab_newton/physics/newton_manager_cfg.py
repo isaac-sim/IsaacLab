@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
@@ -100,32 +99,6 @@ class NewtonShapeCfg:
 
 
 @configclass
-class NewtonShapeSDFCfg:
-    """Provisions a volume SDF on selected rigid collider shapes before finalize.
-
-    Full-surface rigid-soft contact
-    (:attr:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg.enable_rigid_soft_full_surface_contact`)
-    requires an SDF on every participating rigid mesh/convex shape. Newton retains per-shape SDF
-    requests on the builder until finalize; this config targets shapes by full label regex and
-    forwards to ``ModelBuilder.ShapeConfig.configure_sdf(force_sdf=True)`` semantics.
-    """
-
-    shape_label_patterns: list[str] = field(default_factory=list)
-    """Full Newton shape-label regexes; every matched collider shape receives a volume SDF.
-
-    Matching is a full-label regex against ``Model.shape_label`` (append ``.*`` to match a body's
-    descendant collider shapes, e.g. ``r"/World/envs/env_.*/Robot/panda_hand.*"``).
-    """
-
-    max_resolution: int | None = None
-    """Maximum SDF grid resolution [voxels], must be divisible by 8.
-
-    ``None`` builds the SDF at Newton's default resolution (``force_sdf`` only), which is the
-    lightest way to provision the SDF needed for full-surface contact.
-    """
-
-
-@configclass
 class NewtonCfg(PhysicsCfg):
     """Configuration for Newton physics manager.
 
@@ -194,14 +167,6 @@ class NewtonCfg(PhysicsCfg):
     Forwarded to Newton's :attr:`ModelBuilder.default_shape_cfg` at builder
     construction via :func:`~isaaclab.utils.checked_apply`. See
     :class:`NewtonShapeCfg` for the declared fields.
-    """
-
-    sdf_shape_cfgs: list[NewtonShapeSDFCfg] = field(default_factory=list)
-    """Per-shape volume SDF provisioning applied to the builder before finalize.
-
-    Each entry selects collider shapes by label regex and requests a volume SDF on them, as
-    required by :attr:`NewtonCollisionPipelineCfg.enable_rigid_soft_full_surface_contact`.
-    Defaults to an empty list (no SDFs provisioned beyond Newton's own heuristics).
     """
 
     simplify_meshes: bool = True

@@ -18,7 +18,6 @@
     NewtonCollisionPipelineCfg
     HydroelasticSDFCfg
     NewtonShapeCfg
-    NewtonShapeSDFCfg
     NewtonMJWarpManager
     NewtonXPBDManager
     NewtonFeatherstoneManager
@@ -84,11 +83,6 @@ Physics Configuration
   :exclude-members: __init__
 
 .. autoclass:: NewtonShapeCfg
-  :members:
-  :show-inheritance:
-  :exclude-members: __init__
-
-.. autoclass:: NewtonShapeSDFCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__

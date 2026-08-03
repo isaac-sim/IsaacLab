@@ -44,7 +44,10 @@ Changed
   ``obs_groups``, a learning rate of 1e-3, and ``max_iterations`` lowered from 50000 to 5000.
 * Re-tuned ``Isaac-Lift-Soft-Franka`` and ``Isaac-Lift-Soft-Franka-Camera`` for stable grasping: a
   stiffer and denser beam, a smaller particle radius, explicit collider contact and rest offsets,
-  and full-surface rigid-soft contact with signed-distance fields on the gripper.
+  and full-surface rigid-soft contact.
+* Changed the robot asset of the Franka deformable lift environments to the Menagerie
+  ``franka_panda.usda``, whose analytic gripper colliders support full-surface rigid-soft contact
+  directly without provisioning signed-distance fields.
 * Re-tuned the Franka arm and hand actuator gains of the Franka deformable lift environments, adding
   realistic armature and a slower, weaker gripper so it settles on the object instead of crushing
   it. This replaces the previous per-task gripper overrides, so the cloth tasks now use the same
