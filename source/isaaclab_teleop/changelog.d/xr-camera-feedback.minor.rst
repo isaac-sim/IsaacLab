@@ -6,6 +6,8 @@ Added
   placement.
 * Added direct and staged CUDA image presentation paths so camera feedback works with CPU physics.
 * Added lazy Kit Scene UI loading so kitless teleoperation warns and continues without PiP.
+* Added :class:`~isaaclab_teleop.XrCameraFeedSession` as the supported camera-feedback lifecycle
+  API for teleoperation entry points.
 
 Changed
 ^^^^^^^

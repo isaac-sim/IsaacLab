@@ -41,7 +41,7 @@ from isaaclab.app import AppLauncher
 from isaaclab.utils.string import list_intersection, string_to_callable
 
 if TYPE_CHECKING:
-    from isaaclab_teleop.camera_feed import _XrCameraFeedSession
+    from isaaclab_teleop import XrCameraFeedSession
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Record demonstrations for Isaac Lab environments.")
@@ -579,7 +579,7 @@ def run_simulation_loop(  # noqa: C901
     teleop_interface: object | None,
     success_term: object | None,
     rate_limiter: RateLimiter | None,
-    camera_feed_session: "_XrCameraFeedSession",
+    camera_feed_session: "XrCameraFeedSession",
     use_isaac_teleop: bool = False,
 ) -> int:
     """Run the main simulation loop for collecting demonstrations.
@@ -811,9 +811,9 @@ def main() -> None:
     global env_cfg  # Make env_cfg available to setup_teleop_device
     env_cfg, success_term, use_isaac_teleop = create_environment_config(output_dir, output_file_name)
 
-    from isaaclab_teleop.camera_feed import _XrCameraFeedSession
+    from isaaclab_teleop import XrCameraFeedSession
 
-    camera_feed_session = _XrCameraFeedSession.prepare(
+    camera_feed_session = XrCameraFeedSession.prepare(
         env_cfg,
         enabled=args_cli.xr and use_isaac_teleop,
         camera_rendering_enabled=not args_cli.disable_external_cameras,

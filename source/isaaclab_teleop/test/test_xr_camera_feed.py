@@ -12,7 +12,7 @@ import isaaclab_teleop.camera_feed as camera_feed
 import pytest
 import torch
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_teleop import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg
+from isaaclab_teleop import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg, XrCameraFeedSession
 
 from isaaclab.sensors import CameraCfg
 
@@ -151,7 +151,7 @@ def test_pip_rejects_multiple_environments_before_camera_creation(monkeypatch):
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", load_presenter)
 
     with pytest.raises(ValueError, match="exactly one environment"):
-        camera_feed._XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
+        XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
 
     load_presenter.assert_called_once_with()
 
@@ -161,7 +161,7 @@ def test_xr_without_pip_preserves_multiple_environments(monkeypatch):
     load_presenter = Mock()
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", load_presenter)
 
-    session = camera_feed._XrCameraFeedSession.prepare(
+    session = XrCameraFeedSession.prepare(
         env_cfg,
         enabled=True,
         camera_rendering_enabled=True,
@@ -180,7 +180,7 @@ def test_kitless_xr_with_configured_pip_preserves_multiple_environments(monkeypa
     )
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: None)
 
-    session = camera_feed._XrCameraFeedSession.prepare(
+    session = XrCameraFeedSession.prepare(
         env_cfg,
         enabled=True,
         camera_rendering_enabled=True,
@@ -195,7 +195,7 @@ def test_empty_camera_feed_selection_skips_pip(monkeypatch):
     load_presenter = Mock()
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", load_presenter)
 
-    session = camera_feed._XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
+    session = XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
 
     assert not session.enabled
     load_presenter.assert_not_called()
@@ -207,7 +207,7 @@ def test_existing_camera_is_selected_without_replacement(monkeypatch):
     env_cfg = _teleop_env_cfg([XrCameraFeedCfg(camera_name="robot_pov_cam")], camera=selected)
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", _FakePresenter)
 
-    session = camera_feed._XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
+    session = XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
 
     assert session.enabled
     assert env_cfg.scene.robot_pov_cam is selected
@@ -216,7 +216,7 @@ def test_existing_camera_is_selected_without_replacement(monkeypatch):
 
 def test_session_refresh_publishes_buffer_refreshed_by_env_reset():
     events = []
-    session = camera_feed._XrCameraFeedSession([], None, None, requires_responsive_denoising=False)
+    session = XrCameraFeedSession([], None, None, requires_responsive_denoising=False)
 
     class _Manager:
         def refresh(self, *, publish=True):
@@ -239,7 +239,7 @@ def test_camera_rendering_switch_disables_pip_before_presenter_load(monkeypatch)
     load_presenter = Mock()
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", load_presenter)
 
-    session = camera_feed._XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=False)
+    session = XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=False)
 
     assert not session.enabled
     load_presenter.assert_not_called()
@@ -249,13 +249,13 @@ def test_feed_selection_requires_existing_rgb_camera(monkeypatch):
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", _FakePresenter)
     missing = _teleop_env_cfg([XrCameraFeedCfg(camera_name="missing")])
     with pytest.raises(ValueError, match="not present"):
-        camera_feed._XrCameraFeedSession.prepare(missing, enabled=True, camera_rendering_enabled=True)
+        XrCameraFeedSession.prepare(missing, enabled=True, camera_rendering_enabled=True)
 
     depth = _camera_cfg()
     depth.data_types = ["distance_to_image_plane"]
     env_cfg = _teleop_env_cfg([XrCameraFeedCfg(camera_name="robot_pov_cam")], camera=depth)
     with pytest.raises(ValueError, match="RGB or RGBA"):
-        camera_feed._XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
+        XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
 
 
 def test_manual_layout_preserves_per_feed_transforms():
@@ -374,14 +374,14 @@ def test_manager_rejects_invalid_update_rate(monkeypatch, value):
         _manager(monkeypatch, [cfg], {"robot_pov_cam": _FakeImage()})
 
 
-def test_public_api_only_exports_declarative_camera_feed_types():
+def test_public_api_exports_camera_feed_types():
     import isaaclab_teleop
 
     assert isaaclab_teleop.XrCameraFeedCfg is XrCameraFeedCfg
     assert isaaclab_teleop.XrCameraFeedLayoutCfg is XrCameraFeedLayoutCfg
+    assert isaaclab_teleop.XrCameraFeedSession is XrCameraFeedSession
     for removed_name in (
         "XrCameraFeedManager",
-        "XrCameraFeedSession",
         "XrCameraFeedPresentationBackend",
         "XrCameraFeedPresentationCfg",
     ):

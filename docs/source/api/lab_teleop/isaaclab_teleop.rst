@@ -13,6 +13,7 @@ isaaclab_teleop
     IsaacTeleopDevice
     XrCameraFeedCfg
     XrCameraFeedLayoutCfg
+    XrCameraFeedSession
     HapticFeedbackCfg
     ControllerHapticFeedbackCfg
     GloveHapticFeedbackCfg
@@ -49,6 +50,9 @@ XR Camera Feedback
     :members:
 
 .. autoclass:: XrCameraFeedLayoutCfg
+    :members:
+
+.. autoclass:: XrCameraFeedSession
     :members:
 
 Device

@@ -21,6 +21,7 @@ __all__ = [
     "TELEOP_CONTROL_CHANNEL_UUID",
     "XrCameraFeedCfg",
     "XrCameraFeedLayoutCfg",
+    "XrCameraFeedSession",
     "XrAnchorRotationMode",
     "XrAnchorSynchronizer",
     "XrCfg",
@@ -31,6 +32,7 @@ __all__ = [
     "remove_camera_configs",
 ]
 
+from .camera_feed import XrCameraFeedSession
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID, ControlEvents, SupportsControlEvents, poll_control_events
 from .haptic_feedback import (
     ControllerHapticFeedbackCfg,

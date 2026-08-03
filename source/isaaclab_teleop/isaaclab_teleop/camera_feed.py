@@ -83,8 +83,12 @@ def _feeds_require_responsive_denoising(env_cfg: Any, cfgs: list[XrCameraFeedCfg
     )
 
 
-class _XrCameraFeedSession:
-    """Internal two-phase lifecycle shared by the teleoperation entry points."""
+class XrCameraFeedSession:
+    """Manage the two-phase XR camera-feed lifecycle.
+
+    Use :meth:`prepare` before constructing the environment, then call
+    :meth:`bind` with the constructed environment before entering the session.
+    """
 
     def __init__(
         self,
@@ -98,7 +102,6 @@ class _XrCameraFeedSession:
         self._layout_cfg = layout_cfg
         self._presenter = presenter
         self._requires_responsive_denoising = requires_responsive_denoising
-        self._env = None
         self._manager = None
         self._bound = False
 
@@ -109,8 +112,17 @@ class _XrCameraFeedSession:
         *,
         enabled: bool,
         camera_rendering_enabled: bool,
-    ) -> _XrCameraFeedSession:
-        """Prepare task-configured camera feeds before constructing the environment."""
+    ) -> XrCameraFeedSession:
+        """Prepare task-configured camera feeds before constructing the environment.
+
+        Args:
+            env_cfg: Environment configuration containing the IsaacTeleop and scene settings.
+            enabled: Whether XR camera feeds are enabled for this run.
+            camera_rendering_enabled: Whether external camera rendering is enabled.
+
+        Returns:
+            A session ready to bind to the constructed environment.
+        """
         if type(enabled) is not bool or type(camera_rendering_enabled) is not bool:
             raise TypeError("enabled and camera_rendering_enabled must be bool values.")
         teleop_cfg = getattr(env_cfg, "isaac_teleop", None)
@@ -141,16 +153,25 @@ class _XrCameraFeedSession:
 
     @property
     def enabled(self) -> bool:
+        """Whether the session has camera feeds to present."""
         return bool(self._cfgs)
 
     @property
     def requires_responsive_denoising(self) -> bool:
+        """Whether the selected feeds require responsive DLSS denoising."""
         return self._requires_responsive_denoising
 
-    def bind(self, env: Any) -> _XrCameraFeedSession:
+    def bind(self, env: Any) -> XrCameraFeedSession:
+        """Bind the prepared feeds to a constructed environment.
+
+        Args:
+            env: Constructed environment containing the selected scene cameras.
+
+        Returns:
+            This session, ready to use as a context manager.
+        """
         if self._bound:
             raise RuntimeError("XR camera feed session is already bound.")
-        self._env = env
         self._bound = True
         try:
             if self.enabled:
@@ -161,19 +182,20 @@ class _XrCameraFeedSession:
         return self
 
     def refresh(self) -> None:
+        """Refresh and publish feed buffers after the environment resets."""
         if not self._bound:
             raise RuntimeError("XR camera feed session must be bound before refresh.")
         if self._manager is not None:
             self._manager.refresh()
 
     def close(self) -> None:
+        """Close all feed resources and allow the session to be rebound."""
         if self._manager is not None:
             self._manager.close()
             self._manager = None
-        self._env = None
         self._bound = False
 
-    def __enter__(self) -> _XrCameraFeedSession:
+    def __enter__(self) -> XrCameraFeedSession:
         if not self._bound:
             raise RuntimeError("Call bind(env) before entering an XR camera feed session.")
         return self
@@ -307,7 +329,6 @@ class _XrCameraFeedManager:
         self._presenter = presenter
         self._layout_cfg = deepcopy(layout_cfg or XrCameraFeedLayoutCfg())
         self._frame_subscription = None
-        _validate_layout_cfg(self._layout_cfg)
 
         try:
             bound_feeds = []

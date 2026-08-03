@@ -5,12 +5,13 @@
 
 """Configuration for Isaac RTX (Replicator) Renderer."""
 
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
 
-_DLSS_EXEC_MODES = {"performance", "balanced", "quality", "auto", "rtxaa", "manual"}
+_DlssExecMode = Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"]
+_DLSS_EXEC_MODES = frozenset(get_args(_DlssExecMode))
 
 
 @configclass
@@ -125,7 +126,7 @@ class IsaacRtxRendererCfg(RendererCfg):
     ``True`` falls back to classic DLSS because responsive denoising is unavailable.
     """
 
-    dlss_exec_mode: Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"] | None = None
+    dlss_exec_mode: _DlssExecMode | None = None
     """Optional render-product-local DLSS execution mode.
 
     ``None`` preserves Kit's render-product default. Unlike

@@ -272,9 +272,9 @@ def main() -> None:  # noqa: C901
         not teleop_device_explicitly_set and hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
     )
 
-    from isaaclab_teleop.camera_feed import _XrCameraFeedSession
+    from isaaclab_teleop import XrCameraFeedSession
 
-    camera_feed_session = _XrCameraFeedSession.prepare(
+    camera_feed_session = XrCameraFeedSession.prepare(
         env_cfg,
         enabled=args_cli.xr and use_isaac_teleop,
         camera_rendering_enabled=not args_cli.disable_external_cameras,
