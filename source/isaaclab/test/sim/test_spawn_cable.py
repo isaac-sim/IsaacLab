@@ -62,7 +62,6 @@ def test_spawn_cable_authors_newton_import_contract(stage):
     assert physics_binding.GetMaterialPurpose() == "physics"
 
     physics_material_prim = stage.GetPrimAtPath(physics_binding.GetMaterialPath())
-    assert physics_material_prim.HasAPI(UsdPhysics.MaterialAPI)
     assert "PhysicsCurvesDeformableMaterialAPI" in physics_material_prim.GetPrimTypeInfo().GetAppliedAPISchemas()
     assert physics_material_prim.GetAttribute("physics:thickness").Get() == pytest.approx(0.001)
     assert physics_material_prim.GetAttribute("physics:density").Get() == pytest.approx(1000.0)

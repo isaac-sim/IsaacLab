@@ -245,8 +245,6 @@ def spawn_deformable_body_material(
     # check if prim is a material
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
-    if not UsdPhysics.MaterialAPI(prim):
-        UsdPhysics.MaterialAPI.Apply(prim)
     cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg) if f.name != "func"}
     _apply_namespaced_schemas(prim, cfg, cfg_dict)
     # return the prim
