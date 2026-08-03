@@ -202,10 +202,9 @@ is derived automatically from the robot name in the URDF):
    want them to accumulate on disk.
 
 The examples above pass ``--viz kit`` to open the converted asset in the Isaac Sim viewport, which
-requires a full Isaac Sim installation. Pass ``--viz`` on its own to let the converter pick the
-backend that fits the runtime: the Kit viewport with Isaac Sim installed, otherwise the kitless
-Newton viewer (``rerun`` and ``viser`` can be named explicitly). Omit ``--viz`` to exit after the
-conversion completes.
+requires a full Isaac Sim installation. Name a kitless backend instead -- ``--viz newton``,
+``--viz rerun``, or ``--viz viser`` -- to preview the asset without Kit. Omit ``--viz`` to exit
+after the conversion completes.
 
 In Isaac Sim, you can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.
 
@@ -352,10 +351,9 @@ Executing the above script will create the USD file inside the
    want them to accumulate on disk.
 
 The examples above pass ``--viz kit`` to open the converted asset in the Isaac Sim viewport, which
-requires a full Isaac Sim installation. Pass ``--viz`` on its own to let the converter pick the
-backend that fits the runtime: the Kit viewport with Isaac Sim installed, otherwise the kitless
-Newton viewer (``rerun`` and ``viser`` can be named explicitly). Omit ``--viz`` to exit after the
-conversion completes.
+requires a full Isaac Sim installation. Name a kitless backend instead -- ``--viz newton``,
+``--viz rerun``, or ``--viz viser`` -- to preview the asset without Kit. Omit ``--viz`` to exit
+after the conversion completes.
 
 .. figure:: ../_static/tutorials/tutorial_convert_mjcf.jpg
     :align: center
