@@ -362,9 +362,8 @@ def _spawn_mesh_geom_from_mesh(
 
     There is a difference in how the properties are applied to the prim based on the type of object:
 
-    - Deformable body properties: The properties are applied to the parent prim: ``{prim_path}``.
-    - Collision properties: The properties are applied to the simulation mesh ``{prim_path}/sim_mesh`` for
-      deformable bodies, and to the mesh prim ``{prim_path}/geometry/mesh`` otherwise.
+    - Deformable body properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
+    - Collision properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
     - Rigid body properties: The properties are applied to the parent prim: ``{prim_path}``.
 
     Args:
@@ -382,9 +381,9 @@ def _spawn_mesh_geom_from_mesh(
     Raises:
         ValueError: If a prim already exists at the given path.
         ValueError: If both deformable and rigid properties are used.
+        ValueError: If both deformable and collision properties are used.
         ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
             physics material, and rigid properties require a rigid physics material.
-        ValueError: If deformable properties are used with non-fragment collision properties.
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
@@ -399,11 +398,6 @@ def _spawn_mesh_geom_from_mesh(
     # check that invalid schema types are not used
     if cfg.deformable_props is not None and cfg.rigid_props is not None:
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
-    if cfg.deformable_props is not None and cfg.collision_props is not None:
-        # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
-        frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-        if not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
-            raise ValueError("Deformable bodies require 'collision_props' as collision fragments.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
         if not isinstance(cfg.physics_material, DeformableBodyMaterialBaseCfg):
@@ -419,6 +413,12 @@ def _spawn_mesh_geom_from_mesh(
         )
         if not is_rigid_material:
             raise ValueError("Rigid properties require a rigid physics material.")
+
+    # refine the surface for deformable primitives
+    if cfg.deformable_props is not None:
+        max_edge = 0.3 * float(np.linalg.norm(mesh.bounding_box.extents))
+        vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # create all the paths we need for clarity
     geom_prim_path = prim_path + "/geometry"

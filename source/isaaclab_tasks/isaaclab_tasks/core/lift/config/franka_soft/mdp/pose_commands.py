@@ -15,8 +15,8 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import combine_frame_transforms
 
-from isaaclab_tasks.core.dexsuite.mdp.commands.pose_commands import ObjectUniformPoseCommand
-from isaaclab_tasks.core.dexsuite.mdp.commands.pose_commands_cfg import ObjectUniformPoseCommandCfg
+from isaaclab_tasks.core.lift.mdp.commands.pose_commands import ObjectUniformPoseCommand
+from isaaclab_tasks.core.lift.mdp.commands.pose_commands_cfg import ObjectUniformPoseCommandCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
