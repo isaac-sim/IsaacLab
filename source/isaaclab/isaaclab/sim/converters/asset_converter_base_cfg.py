@@ -48,3 +48,16 @@ class AssetConverterBaseCfg:
         used in the scene. For more information, please check the USD documentation on
         `scene-graph instancing <https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html>`_.
     """
+
+    physics_variant: str = "physx"
+    """The ``"Physics"`` variant to select on the generated USD file. Defaults to ``"physx"``.
+
+    The URDF and MJCF importers emit physics as payloads behind a ``"Physics"`` variant set that they
+    leave unselected, which composes the asset without joints, articulation roots, or mass properties.
+    The converter authors this selection so that the asset carries physics on its own.
+
+    The importers offer ``"physx"`` and ``"mujoco"`` -- which both sublayer the backend-neutral
+    ``"physics"`` variant -- alongside an empty ``"none"`` variant. Assets that do not provide the
+    requested variant fall back to ``"physics"``. A selection authored on a referencing prim wins over
+    this one, so :attr:`~isaaclab.sim.UsdFileCfg.variants` can still override it at spawn time.
+    """

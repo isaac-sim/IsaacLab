@@ -6,6 +6,7 @@
 import abc
 import hashlib
 import json
+import logging
 import os
 import pathlib
 import random
@@ -15,6 +16,14 @@ from datetime import datetime
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
 from isaaclab.utils.assets import check_file_path
 from isaaclab.utils.io import dump_yaml
+
+logger = logging.getLogger(__name__)
+
+# name of the variant set the URDF and MJCF importers author, and of its deliberately empty variant
+_PHYSICS_VARIANT_SET = "Physics"
+_EMPTY_PHYSICS_VARIANT = "none"
+# both "physx" and "mujoco" sublayer this one, so it is present whenever any physics was authored
+_NEUTRAL_PHYSICS_VARIANT = "physics"
 
 
 class AssetConverterBase(abc.ABC):
@@ -108,7 +117,7 @@ class AssetConverterBase(abc.ABC):
             self._convert_asset(cfg)
             # the importers emit the physics payloads behind a "Physics" variant set but leave it
             # unselected, which composes the asset with geometry only
-            self._select_physics_variant()
+            self._select_physics_variant(cfg.physics_variant)
             # dump the configuration to a file
             dump_yaml(os.path.join(self.usd_dir, "config.yaml"), cfg.to_dict())
             # add comment to top of the saved config file with information about the converter
@@ -166,7 +175,7 @@ class AssetConverterBase(abc.ABC):
     Private helpers.
     """
 
-    def _select_physics_variant(self, variant: str = "physx"):
+    def _select_physics_variant(self, variant: str):
         """Author a selection for the ``"Physics"`` variant set on the converted asset.
 
         The URDF and MJCF importers write the physics description into a ``"Physics"`` variant set
@@ -179,19 +188,51 @@ class AssetConverterBase(abc.ABC):
         selection.
 
         Args:
-            variant: The variant to select.
+            variant: The variant to select. Resolved against the variants the asset offers by
+                :meth:`_resolve_physics_variant`.
         """
         from pxr import Usd
 
         stage = Usd.Stage.Open(self.usd_path)
         prim = stage.GetDefaultPrim()
-        if not prim or "Physics" not in prim.GetVariantSets().GetNames():
+        if not prim or _PHYSICS_VARIANT_SET not in prim.GetVariantSets().GetNames():
             return
-        variant_set = prim.GetVariantSets().GetVariantSet("Physics")
-        if variant_set.GetVariantSelection() or variant not in variant_set.GetVariantNames():
+        variant_set = prim.GetVariantSets().GetVariantSet(_PHYSICS_VARIANT_SET)
+        if variant_set.GetVariantSelection():
             return
-        variant_set.SetVariantSelection(variant)
+        selection = self._resolve_physics_variant(variant, variant_set.GetVariantNames())
+        if selection is None:
+            return
+        if selection != variant:
+            logger.warning(
+                f"{self.__class__.__name__}: the asset offers no '{variant}' physics variant, selecting"
+                f" '{selection}' instead. Available variants: {variant_set.GetVariantNames()}."
+            )
+        variant_set.SetVariantSelection(selection)
         stage.GetRootLayer().Save()
+
+    @staticmethod
+    def _resolve_physics_variant(variant: str, available: list[str]) -> str | None:
+        """Pick the physics variant to select from those the asset offers.
+
+        Importers omit variants they have nothing to write. A URDF with only fixed joints, for
+        instance, yields ``["none", "physics"]`` and no ``"physx"``. Falling back to the neutral
+        ``"physics"`` variant keeps such an asset usable, since the backend-specific variants
+        sublayer it and therefore only add tuning on top of it.
+
+        Args:
+            variant: The requested variant.
+            available: The variants the asset offers.
+
+        Returns:
+            The variant to select, or None when the asset offers no variant carrying physics.
+        """
+        if variant in available:
+            return variant
+        candidates = [name for name in available if name != _EMPTY_PHYSICS_VARIANT]
+        if _NEUTRAL_PHYSICS_VARIANT in candidates:
+            return _NEUTRAL_PHYSICS_VARIANT
+        return candidates[0] if candidates else None
 
     @staticmethod
     def _config_to_hash(cfg: AssetConverterBaseCfg) -> str:

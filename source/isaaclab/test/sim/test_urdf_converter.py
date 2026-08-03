@@ -51,6 +51,10 @@ _REPO_FRANKA_URDF = os.path.join(
 # Kept beside the tests so they are hermetic and run on either importer backend.
 _MERGE_JOINTS_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_merge_joints.urdf")
 
+# Fixed-joint-only fixture: the importer writes no PhysX data for it, so its "Physics" variant set
+# offers no "physx" variant and the converter has to fall back.
+_FIXED_ONLY_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_fixed_only.urdf")
+
 
 # Create a fixture for setup and teardown
 @pytest.fixture
@@ -751,3 +755,102 @@ def test_unsupported_features_warn(sim_config):
     # conversion should succeed despite deprecated options
     urdf_converter = UrdfConverter(config)
     assert os.path.exists(urdf_converter.usd_path), "USD file should be created despite deprecated options"
+
+
+def _physics_variant(usd_path: str) -> tuple[str, list[str]]:
+    """Return the authored ``"Physics"`` variant selection and the available variants.
+
+    Both are read while the stage is still referenced, since USD objects do not keep it alive.
+    """
+    from pxr import Usd
+
+    stage = Usd.Stage.Open(usd_path)
+    variant_set = stage.GetDefaultPrim().GetVariantSets().GetVariantSet("Physics")
+    return variant_set.GetVariantSelection(), variant_set.GetVariantNames()
+
+
+def _count_physics(usd_path: str) -> tuple[int, int]:
+    """Return the number of joints and articulation roots composed from the USD file at ``usd_path``.
+
+    The stage is held in a local for the whole traversal, since prims do not keep it alive.
+    """
+    from pxr import Usd, UsdPhysics
+
+    stage = Usd.Stage.Open(usd_path)
+    prims = list(stage.Traverse())
+    joints = sum(1 for prim in prims if prim.IsA(UsdPhysics.Joint))
+    roots = sum(1 for prim in prims if prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+    return joints, roots
+
+
+@pytest.mark.isaacsim_ci
+def test_physics_variant_selected_by_default(sim_config):
+    """Verify that the converter selects the ``"physx"`` physics variant by default.
+
+    The importer leaves its ``"Physics"`` variant set unselected, which composes the asset without
+    joints, articulation roots, or mass properties. Without a selection this asserts 0 joints.
+    """
+    sim, config = sim_config
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(test_dir, "output", "urdf_physics_variant_default")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config.force_usd_conversion = True
+    config.usd_dir = output_dir
+    urdf_converter = UrdfConverter(config)
+
+    selection, _ = _physics_variant(urdf_converter.usd_path)
+    assert selection == "physx"
+
+    joints, roots = _count_physics(urdf_converter.usd_path)
+    assert joints > 0, "Expected the converted USD to compose joints"
+    assert roots > 0, "Expected the converted USD to compose an articulation root"
+
+
+@pytest.mark.isaacsim_ci
+def test_physics_variant_override(sim_config):
+    """Verify that ``physics_variant`` selects the requested variant instead of the default."""
+    sim, config = sim_config
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(test_dir, "output", "urdf_physics_variant_override")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config.force_usd_conversion = True
+    config.usd_dir = output_dir
+    config.physics_variant = "mujoco"
+    urdf_converter = UrdfConverter(config)
+
+    selection, _ = _physics_variant(urdf_converter.usd_path)
+    assert selection == "mujoco"
+
+    joints, roots = _count_physics(urdf_converter.usd_path)
+    assert joints > 0, "Expected the converted USD to compose joints"
+    assert roots > 0, "Expected the converted USD to compose an articulation root"
+
+
+@pytest.mark.isaacsim_ci
+def test_physics_variant_falls_back_when_requested_absent():
+    """Verify that an asset without the requested variant falls back to the neutral ``"physics"`` one.
+
+    ``test_fixed_only.urdf`` carries a single fixed joint, for which the importer writes no
+    PhysX-specific data, so its variant set offers only ``"none"`` and ``"physics"``.
+    """
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(test_dir, "output", "urdf_physics_variant_fallback")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config = UrdfConverterCfg(
+        asset_path=_FIXED_ONLY_URDF,
+        fix_base=True,
+        force_usd_conversion=True,
+        usd_dir=output_dir,
+    )
+    urdf_converter = UrdfConverter(config)
+
+    selection, available = _physics_variant(urdf_converter.usd_path)
+    assert "physx" not in available, f"Fixture no longer exercises the fallback: it offers {available}"
+    assert selection == "physics"
+
+    joints, roots = _count_physics(urdf_converter.usd_path)
+    assert joints > 0, "Expected the converted USD to compose joints"
+    assert roots > 0, "Expected the converted USD to compose an articulation root"
