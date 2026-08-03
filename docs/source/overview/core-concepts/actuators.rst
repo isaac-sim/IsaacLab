@@ -606,8 +606,8 @@ backend can also consume these Newton-authored actuators through its adapter, wh
 host-side each step, so the authoring is shared across backends.
 
 Newton owns a separate native execution aggregation path. When native actuator handling is active,
-Isaac Lab keeps the named logical groups for configuration and access but does not construct the
-private host-side execution batches described above.
+Isaac Lab keeps the named logical groups for configuration and access but does not aggregate or
+execute them through its host-side batching path.
 
 **Supported models.** The authoring maps each supported config to a set of USD schemas:
 
