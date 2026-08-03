@@ -54,8 +54,8 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # headroom above that without masking real regressions, which the SSIM gate still catches.
     "shadow_hand": 5.0,
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
-    "dexsuite_kuka_homo": 8.0,
-    "dexsuite_kuka_hetero": 8.0,
+    "lift_kuka_homo": 8.0,
+    "lift_kuka_hetero": 8.0,
 }
 
 # Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled.
@@ -71,8 +71,8 @@ _SSIM_THRESHOLD = 0.985
 # (not globally) to keep the strict gate active everywhere it already passes.
 _SSIM_THRESHOLD_BY_ENV_NAME = {
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
-    "dexsuite_kuka_homo": 0.95,
-    "dexsuite_kuka_hetero": 0.95,
+    "lift_kuka_homo": 0.95,
+    "lift_kuka_hetero": 0.95,
 }
 
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
@@ -159,7 +159,7 @@ _OVRTX_TEXTURE_READINESS_DATA_TYPES = (
 )
 _OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
 _KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
-_DEXSUITE_RENDERER_CRASH_SKIP_REASON = "Dexsuite kitless OVRTX rendering may crash or time out (NVBUG#6524987)."
+_LIFT_RENDERER_CRASH_SKIP_REASON = "Lift kitless OVRTX rendering may crash or time out (NVBUG#6524987)."
 _NEWTON_WARP_MISSING_TABLE_XFAIL_REASON = "Missing table in Newton Warp renderer (OMPE-103086)."
 _OVRTX_CLOTH_MOTION_XFAIL_REASON = "Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754)."
 
@@ -316,12 +316,12 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
 )
 
 
-def make_kitless_rendering_params_dexsuite() -> list[pytest.param]:
-    """Create kitless Dexsuite parameters with known native-crash cases skipped."""
+def make_kitless_rendering_params_lift() -> list[pytest.param]:
+    """Create kitless Lift parameters with known native-crash cases skipped."""
     return make_skip_rendering_params(
         make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
         {
-            (variant, "newton", "ovrtx_renderer", data_type): _DEXSUITE_RENDERER_CRASH_SKIP_REASON
+            (variant, "newton", "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
             for variant in _KITLESS_STAGE_VARIANTS
             for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl")
         },
@@ -1616,7 +1616,7 @@ def rendering_test_cartpole(
             env = None
 
 
-def rendering_test_dexsuite_kuka(
+def rendering_test_lift_kuka(
     physics_backend: str,
     renderer: str,
     data_type: str,
@@ -1629,22 +1629,22 @@ def rendering_test_dexsuite_kuka(
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils.configclass import configclass
 
-    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.camera_cfg import (
+    from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import (
         BASE_CAMERA_CFG,
         BaseTiledCameraCfg,
         SingleCameraObservationsCfg,
     )
-    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_camera_env_cfg import (
+    from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_camera_env_cfg import (
         _SCENE_KWARGS,
-        DexsuiteKukaAllegroLiftCameraEnvCfg,
+        KukaAllegroLiftCameraEnvCfg,
         SingleCameraSceneCfg,
     )
-    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
-        DexsuiteKukaAllegroLiftEnvCfg,
+    from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import (
+        KukaAllegroLiftEnvCfg,
     )
 
     @configclass
-    class _DexsuiteBaseTiledCameraTestCfg(BaseTiledCameraCfg):
+    class _LiftBaseTiledCameraTestCfg(BaseTiledCameraCfg):
         distance_to_camera64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=64, height=64)
         distance_to_camera128 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=128, height=128)
         distance_to_camera256 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=256, height=256)
@@ -1675,13 +1675,13 @@ def rendering_test_dexsuite_kuka(
         motion_vectors256 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=256, height=256)
 
     @configclass
-    class _DexsuiteSingleCameraTestSceneCfg(SingleCameraSceneCfg):
-        base_camera: CameraCfg = _DexsuiteBaseTiledCameraTestCfg()
+    class _LiftSingleCameraTestSceneCfg(SingleCameraSceneCfg):
+        base_camera: CameraCfg = _LiftBaseTiledCameraTestCfg()
 
     @configclass
-    class _DexsuiteKukaAllegroLiftCameraTestEnvCfg(DexsuiteKukaAllegroLiftCameraEnvCfg):
-        single_camera = DexsuiteKukaAllegroLiftEnvCfg(
-            scene=_DexsuiteSingleCameraTestSceneCfg(**_SCENE_KWARGS),
+    class _KukaAllegroLiftCameraTestEnvCfg(KukaAllegroLiftCameraEnvCfg):
+        single_camera = KukaAllegroLiftEnvCfg(
+            scene=_LiftSingleCameraTestSceneCfg(**_SCENE_KWARGS),
             observations=SingleCameraObservationsCfg(),
         )
         default = single_camera
@@ -1693,7 +1693,7 @@ def rendering_test_dexsuite_kuka(
     if setup_homogeneous_envs:
         override_arg += ",cube"
 
-    env_cfg = _DexsuiteKukaAllegroLiftCameraTestEnvCfg()
+    env_cfg = _KukaAllegroLiftCameraTestEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [override_arg])
 
     env_cfg.scene.num_envs = 4
@@ -1718,7 +1718,7 @@ def rendering_test_dexsuite_kuka(
     for marker_cfg in env_cfg.commands.object_pose.success_visualizer_cfg.markers.values():
         marker_cfg.visible = False
 
-    test_name = f"dexsuite_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
+    test_name = f"lift_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
 
     env = None
 
