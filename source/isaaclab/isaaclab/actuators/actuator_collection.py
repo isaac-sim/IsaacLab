@@ -797,11 +797,12 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         joint_ids: torch.Tensor,
         target_buffer: wp.array,
     ) -> None:
+        values_snapshot = values.to(self.device, dtype=torch.float32).contiguous().clone()
         actuator_attr = {"kp": "stiffness", "kd": "damping"}[attr]
-        self._write_execution_parameter(actuator_attr, values, env_ids, joint_ids)
+        self._write_execution_parameter(actuator_attr, values_snapshot, env_ids, joint_ids)
         env_ids_wp = wp.from_torch(env_ids.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
         joint_ids_wp = wp.from_torch(joint_ids.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
-        values_wp = wp.from_torch(values.to(self.device, dtype=torch.float32).contiguous(), dtype=wp.float32)
+        values_wp = wp.from_torch(values_snapshot, dtype=wp.float32)
         wp.launch(
             actuator_kernels.write_2d_float_with_indices_kernel(env_ids_wp, joint_ids_wp),
             dim=(env_ids_wp.shape[0], joint_ids_wp.shape[0]),
@@ -809,7 +810,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             outputs=[target_buffer],
             device=self.device,
         )
-        self._control.write_native_actuator_gain(attr, values, env_ids, joint_ids)
+        self._control.write_native_actuator_gain(attr, values_snapshot, env_ids, joint_ids)
 
     def _write_execution_parameter(
         self,

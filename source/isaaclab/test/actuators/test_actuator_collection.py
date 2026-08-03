@@ -746,6 +746,47 @@ def test_runtime_gains_route_into_aggregate_and_native_hook():
     assert control.native_gain_writes[-1][0] == "kd"
 
 
+def test_aliased_runtime_gain_values_preserve_reordered_routing():
+    control = FakeActuatorControl(num_envs=1, joint_names=["joint_0", "joint_1"])
+    collection = ActuatorCollection(
+        {
+            "all": _ideal_cfg(
+                ["joint_0", "joint_1"],
+                stiffness=1.0,
+                damping=1.0,
+                effort_limit=10.0,
+            )
+        },
+        control,
+    )
+    collection["all"].stiffness.copy_(torch.tensor([[11.0, 22.0]]))
+    aliased_values = collection["all"].stiffness[:, :]
+    env_ids = torch.tensor([0], dtype=torch.long)
+    joint_ids = torch.tensor([1, 0], dtype=torch.long)
+
+    collection.write_actuator_stiffness_to_sim(
+        stiffness=aliased_values,
+        env_ids=env_ids,
+        joint_ids=joint_ids,
+    )
+
+    torch.testing.assert_close(
+        collection["all"].stiffness,
+        torch.tensor([[22.0, 11.0]]),
+        rtol=0.0,
+        atol=0.0,
+    )
+    assert control.native_gain_writes[-1][0] == "kp"
+    torch.testing.assert_close(control.native_gain_writes[-1][2], env_ids, rtol=0.0, atol=0.0)
+    torch.testing.assert_close(control.native_gain_writes[-1][3], joint_ids, rtol=0.0, atol=0.0)
+    torch.testing.assert_close(
+        torch.cat((collection.actuator_stiffness.torch, control.native_gain_writes[-1][1])),
+        torch.tensor([[22.0, 11.0], [11.0, 22.0]]),
+        rtol=0.0,
+        atol=0.0,
+    )
+
+
 def test_native_execution_bypasses_lab_aggregation_and_keeps_group_gains_current(monkeypatch):
     control = NativeFakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     collection = ActuatorCollection(
