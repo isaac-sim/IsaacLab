@@ -14,10 +14,8 @@ __all__ = [
     "deformable_com_ee_distance",
     "deformable_fingertip_distance",
     "deformable_com_goal_distance",
-    "deformable_com_goal_distance_delta",
     "deformable_com_goal_reached",
     # terminations
-    "deformable_nodal_vel_above_maximum",
     "deformable_outside_bounds",
     "joint_vel_out_of_sim_limit",
     # events
@@ -43,7 +41,6 @@ from .pose_commands import (
 from .rewards import (
     deformable_com_ee_distance,
     deformable_com_goal_distance,
-    deformable_com_goal_distance_delta,
     deformable_com_goal_reached,
     deformable_ee_distance,
     deformable_fingertip_distance,
@@ -51,7 +48,6 @@ from .rewards import (
     deformable_lifting,
 )
 from .terminations import (
-    deformable_nodal_vel_above_maximum,
     deformable_outside_bounds,
     joint_vel_out_of_sim_limit,
 )

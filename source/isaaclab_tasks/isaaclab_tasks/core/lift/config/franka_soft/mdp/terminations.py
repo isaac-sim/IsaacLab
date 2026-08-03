@@ -50,28 +50,6 @@ def deformable_outside_bounds(
     return ((nodal_pos < lower) | (nodal_pos > upper)).flatten(1).any(dim=1)
 
 
-def deformable_nodal_vel_above_maximum(
-    env: ManagerBasedRLEnv,
-    maximum_velocity: float,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
-) -> torch.Tensor:
-    """Terminate when any deformable node moves faster than ``maximum_velocity`` [m/s].
-
-    Guards against solver blow-up, where penalty contact ejects nodes at implausible speeds.
-
-    Args:
-        env: The environment instance.
-        maximum_velocity: Maximum allowed nodal speed [m/s].
-        asset_cfg: The deformable object entity.
-
-    Returns:
-        Boolean tensor with shape ``(num_envs,)``.
-    """
-    asset: DeformableObject = env.scene[asset_cfg.name]
-    speed = torch.linalg.norm(asset.data.nodal_vel_w.torch, dim=-1)
-    return speed.max(dim=1).values > maximum_velocity
-
-
 def joint_vel_out_of_sim_limit(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:

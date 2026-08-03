@@ -478,16 +478,6 @@ class RewardsCfg:
         weight=5.0,
     )
 
-    deformable_goal_tracking_delta = RewTerm(
-        func=mdp.deformable_com_goal_distance_delta,
-        params={
-            "minimal_height": 0.0,
-            "command_name": "deformable_pose",
-            "asset_cfg": SceneEntityCfg("deformable"),
-        },
-        weight=500.0,
-    )
-
     deformable_goal_tracking = RewTerm(
         func=mdp.deformable_com_goal_distance,
         params={

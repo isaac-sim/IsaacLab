@@ -215,60 +215,6 @@ class deformable_com_goal_distance(ManagerTermBase):
         return is_lifted.float() * (1.0 - torch.tanh(distance / std))
 
 
-class deformable_com_goal_distance_delta(ManagerTermBase):
-    """Reward progress of the deformable COM toward the commanded goal.
-
-    Returns the per-step decrease in the COM-to-goal distance (previous minus current),
-    gated so it only credits while the COM is lifted above ``minimal_height`` [m]. The stored
-    distance is re-baselined on the first step after reset so the reset teleport does not
-    produce a spurious reward. Success tracking matches :class:`deformable_com_goal_distance`.
-    """
-
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self._prev_distance = torch.zeros(env.num_envs, device=env.device)
-        self._needs_baseline = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
-        self._track_success = cfg.params.get("success_threshold") is not None
-        if self._track_success:
-            self._succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-
-    def reset(self, env_ids: Sequence[int] | None = None):
-        if env_ids is None:
-            env_ids = slice(None)
-        self._needs_baseline[env_ids] = True
-        if self._track_success:
-            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
-                self._succeeded[env_ids].float().mean().item()
-            )
-            self._succeeded[env_ids] = False
-
-    def __call__(
-        self,
-        env: ManagerBasedRLEnv,
-        minimal_height: float,
-        command_name: str,
-        robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
-        success_threshold: float | None = None,
-    ) -> torch.Tensor:
-        robot: Articulation = env.scene[robot_cfg.name]
-        asset: DeformableObject = env.scene[asset_cfg.name]
-        command = env.command_manager.get_command(command_name)
-        des_pos_w, _ = combine_frame_transforms(
-            robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, command[:, :3]
-        )
-        com_w = _com_w(asset)
-        distance = torch.linalg.norm(des_pos_w - com_w, dim=1)
-        self._prev_distance = torch.where(self._needs_baseline, distance, self._prev_distance)
-        self._needs_baseline[:] = False
-        is_lifted = com_w[:, 2] > minimal_height
-        if success_threshold is not None:
-            self._succeeded |= is_lifted & (distance < success_threshold)
-        delta = self._prev_distance - distance
-        self._prev_distance = distance
-        return is_lifted.float() * delta
-
-
 def deformable_com_goal_reached(
     env: ManagerBasedRLEnv,
     minimal_height: float,
