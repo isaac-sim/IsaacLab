@@ -160,8 +160,8 @@ Clip control
      - ``0``
      - ``0`` = one clip starting at step 1; ``N > 0`` = new clip every N steps
    * - ``fps``
-     - ``30``
-     - Output frame rate
+     - ``None``
+     - Output frame rate; ``None`` resolves from ``env.metadata["render_fps"]`` or ``1 / step_dt``
    * - ``output_dir``
      - ``"videos"``
      - Directory for output files (created on demand)
