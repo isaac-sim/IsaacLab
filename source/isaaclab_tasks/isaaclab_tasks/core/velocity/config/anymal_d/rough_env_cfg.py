@@ -21,6 +21,5 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # scene
         self.scene.robot = ANYMAL_D_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            init_state=ANYMAL_D_CFG.init_state.replace(pos=(0.0, 0.0, 0.65))
+            prim_path="{ENV_REGEX_NS}/Robot", init_state=ANYMAL_D_CFG.init_state.replace(pos=(0.0, 0.0, 0.65))
         )
