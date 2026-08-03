@@ -396,19 +396,22 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         if self._control.compute_native_actuators(self, dt):
             return
 
-        for actuator in self._groups.values():
+        for batch in self._execution_batches:
+            actuator = batch.actuator
+            joint_indices = batch.joint_indices
             control_action = ArticulationActions(
-                joint_positions=self.command.position.torch[:, actuator.joint_indices],
-                joint_velocities=self.command.velocity.torch[:, actuator.joint_indices],
-                joint_efforts=self.command.effort.torch[:, actuator.joint_indices],
-                joint_indices=actuator.joint_indices,
+                joint_positions=self.command.position.torch[:, joint_indices],
+                joint_velocities=self.command.velocity.torch[:, joint_indices],
+                joint_efforts=self.command.effort.torch[:, joint_indices],
+                joint_indices=joint_indices,
             )
             control_action = actuator.compute(
                 control_action,
-                joint_pos=self._control.joint_pos.torch[:, actuator.joint_indices],
-                joint_vel=self._control.joint_vel.torch[:, actuator.joint_indices],
+                joint_pos=self._control.joint_pos.torch[:, joint_indices],
+                joint_vel=self._control.joint_vel.torch[:, joint_indices],
             )
-            self._scatter_actuator_output(actuator, control_action)
+            self._bind_execution_batch_outputs(batch)
+            self._scatter_actuator_output(actuator, control_action, batch.joint_indices_wp)
 
     def submit_commands(self) -> None:
         """Submit processed actuator command buffers through the backend control object."""
@@ -675,6 +678,12 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         for group, name, view in bindings:
             setattr(group, name, view)
 
+    def _bind_execution_batch_outputs(self, batch: ActuatorCollection._ExecutionBatch) -> None:
+        for group_name, group_slice in zip(batch.group_names, batch.group_slices):
+            group = self._groups[group_name]
+            group.computed_effort = batch.actuator.computed_effort[:, group_slice]
+            group.applied_effort = batch.actuator.applied_effort[:, group_slice]
+
     def _write_index_target(
         self,
         target: torch.Tensor | wp.array,
@@ -732,8 +741,14 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             device=self.device,
         )
 
-    def _scatter_actuator_output(self, actuator: ActuatorBase, control_action: ArticulationActions) -> None:
-        joint_indices = self._joint_indices_as_wp(actuator)
+    def _scatter_actuator_output(
+        self,
+        actuator: ActuatorBase,
+        control_action: ArticulationActions,
+        joint_indices: wp.array | None = None,
+    ) -> None:
+        if joint_indices is None:
+            joint_indices = self._joint_indices_as_wp(actuator)
         wp.launch(
             actuator_kernels.scatter_processed_targets,
             dim=(self.num_instances, joint_indices.shape[0]),

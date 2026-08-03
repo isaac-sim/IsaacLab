@@ -25,6 +25,7 @@ from isaaclab.actuators import (
     DelayedPDActuatorCfg,
     IdealPDActuator,
     IdealPDActuatorCfg,
+    ImplicitActuator,
     ImplicitActuatorCfg,
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
@@ -62,6 +63,89 @@ def _dc_cfg(
         effort_limit=effort_limit,
         velocity_limit=velocity_limit,
         saturation_effort=saturation_effort,
+    )
+
+
+def _make_unbatched_reference(monkeypatch, actuator_type, cfgs, control):
+    with monkeypatch.context() as patch:
+        patch.setattr(actuator_type, "_supports_execution_aggregation", False)
+        return ActuatorCollection(cfgs, control)
+
+
+def _assign_deterministic_inputs(collection: ActuatorCollection, control: FakeActuatorControl) -> None:
+    control.joint_pos.torch.copy_(
+        torch.tensor(
+            [
+                [0.35, -0.80, 1.25, -1.60],
+                [-0.45, 0.95, -1.35, 1.80],
+            ],
+            dtype=torch.float32,
+        )
+    )
+    control.joint_vel.torch.copy_(
+        torch.tensor(
+            [
+                [16.0, 31.0, -17.0, -32.0],
+                [-18.0, -33.0, 19.0, 34.0],
+            ],
+            dtype=torch.float32,
+        )
+    )
+    collection.command.position.torch.copy_(
+        torch.tensor(
+            [
+                [1.40, -0.20, -0.75, 2.20],
+                [0.15, -1.45, 2.05, -0.65],
+            ],
+            dtype=torch.float32,
+        )
+    )
+    collection.command.velocity.torch.copy_(
+        torch.tensor(
+            [
+                [-3.5, 4.25, 5.75, -6.5],
+                [7.0, -8.5, -9.25, 10.75],
+            ],
+            dtype=torch.float32,
+        )
+    )
+    collection.command.effort.torch.copy_(
+        torch.tensor(
+            [
+                [2.25, -3.50, 4.75, -5.25],
+                [-6.50, 7.75, -8.25, 9.50],
+            ],
+            dtype=torch.float32,
+        )
+    )
+
+
+def _assert_collection_outputs_match_exactly(actual: ActuatorCollection, reference: ActuatorCollection) -> None:
+    torch.testing.assert_close(
+        actual.joint_command.position.torch,
+        reference.joint_command.position.torch,
+        rtol=0.0,
+        atol=0.0,
+    )
+    torch.testing.assert_close(
+        actual.joint_command.velocity.torch,
+        reference.joint_command.velocity.torch,
+        rtol=0.0,
+        atol=0.0,
+    )
+    torch.testing.assert_close(
+        actual.joint_command.effort.torch,
+        reference.joint_command.effort.torch,
+        rtol=0.0,
+        atol=0.0,
+    )
+    torch.testing.assert_close(actual.computed_torque.torch, reference.computed_torque.torch, rtol=0.0, atol=0.0)
+    torch.testing.assert_close(actual.applied_torque.torch, reference.applied_torque.torch, rtol=0.0, atol=0.0)
+    torch.testing.assert_close(
+        actual.soft_joint_vel_limits.torch,
+        reference.soft_joint_vel_limits.torch,
+        rtol=0.0,
+        atol=0.0,
     )
 
 
@@ -392,6 +476,167 @@ def test_dc_motor_execution_batch_packs_different_saturation_efforts():
         batch.actuator._saturation_effort,
         torch.tensor([[60.0, 60.0, 120.0, 120.0]]).expand(2, -1),
     )
+
+
+def test_ideal_pd_aggregate_matches_independent_groups_exactly(monkeypatch):
+    joint_names = [f"joint_{index}" for index in range(4)]
+    cfgs = {
+        "hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=12.0, damping=1.5, effort_limit=18.0),
+        "knees": _ideal_cfg(["joint_1", "joint_3"], stiffness=27.0, damping=2.25, effort_limit=31.0),
+    }
+    reference_control = FakeActuatorControl(joint_names=joint_names)
+    actual_control = FakeActuatorControl(joint_names=joint_names)
+    reference = _make_unbatched_reference(monkeypatch, IdealPDActuator, cfgs, reference_control)
+    actual = ActuatorCollection(cfgs, actual_control)
+    _assign_deterministic_inputs(reference, reference_control)
+    _assign_deterministic_inputs(actual, actual_control)
+
+    reference.compute()
+    actual.compute()
+
+    _assert_collection_outputs_match_exactly(actual, reference)
+
+
+def test_dc_motor_aggregate_matches_independent_groups_exactly(monkeypatch):
+    joint_names = [f"joint_{index}" for index in range(4)]
+    cfgs = {
+        "hips": _dc_cfg(
+            ["joint_0", "joint_2"],
+            stiffness=14.0,
+            damping=1.25,
+            effort_limit=20.0,
+            velocity_limit=10.0,
+            saturation_effort=40.0,
+        ),
+        "knees": _dc_cfg(
+            ["joint_1", "joint_3"],
+            stiffness=23.0,
+            damping=2.5,
+            effort_limit=30.0,
+            velocity_limit=20.0,
+            saturation_effort=60.0,
+        ),
+    }
+    reference_control = FakeActuatorControl(joint_names=joint_names)
+    actual_control = FakeActuatorControl(joint_names=joint_names)
+    reference = _make_unbatched_reference(monkeypatch, DCMotor, cfgs, reference_control)
+    actual = ActuatorCollection(cfgs, actual_control)
+    _assign_deterministic_inputs(reference, reference_control)
+    _assign_deterministic_inputs(actual, actual_control)
+
+    reference.compute()
+    actual.compute()
+
+    _assert_collection_outputs_match_exactly(actual, reference)
+
+
+def test_implicit_aggregate_matches_independent_groups_exactly(monkeypatch):
+    joint_names = [f"joint_{index}" for index in range(4)]
+    cfgs = {
+        "hips": ImplicitActuatorCfg(
+            joint_names_expr=["joint_0", "joint_2"],
+            stiffness=9.0,
+            damping=0.75,
+            effort_limit_sim=16.0,
+            velocity_limit=7.0,
+            velocity_limit_sim=70.0,
+        ),
+        "knees": ImplicitActuatorCfg(
+            joint_names_expr=["joint_1", "joint_3"],
+            stiffness=19.0,
+            damping=1.75,
+            effort_limit_sim=28.0,
+            velocity_limit=11.0,
+            velocity_limit_sim=110.0,
+        ),
+    }
+    reference_control = FakeActuatorControl(joint_names=joint_names)
+    actual_control = FakeActuatorControl(joint_names=joint_names)
+    reference = _make_unbatched_reference(monkeypatch, ImplicitActuator, cfgs, reference_control)
+    actual = ActuatorCollection(cfgs, actual_control)
+    _assign_deterministic_inputs(reference, reference_control)
+    _assign_deterministic_inputs(actual, actual_control)
+
+    reference.compute()
+    actual.compute()
+
+    _assert_collection_outputs_match_exactly(actual, reference)
+
+
+def test_aggregate_computes_once_and_refreshes_group_outputs(monkeypatch):
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(6)])
+    collection = ActuatorCollection(
+        {
+            "hips": _ideal_cfg(["joint_0", "joint_3"], stiffness=8.0, damping=0.5, effort_limit=12.0),
+            "knees": _ideal_cfg(["joint_1", "joint_4"], stiffness=13.0, damping=1.0, effort_limit=18.0),
+            "ankles": _ideal_cfg(["joint_2", "joint_5"], stiffness=21.0, damping=1.5, effort_limit=27.0),
+        },
+        control,
+    )
+    compute_calls = 0
+    scatter_calls = 0
+    original_compute = IdealPDActuator.compute
+    original_scatter = collection._scatter_actuator_output
+
+    def counted_compute(self, control_action, joint_pos, joint_vel):
+        nonlocal compute_calls
+        compute_calls += 1
+        return original_compute(self, control_action, joint_pos, joint_vel)
+
+    def counted_scatter(actuator, control_action, joint_indices=None):
+        nonlocal scatter_calls
+        scatter_calls += 1
+        if joint_indices is None:
+            return original_scatter(actuator, control_action)
+        return original_scatter(actuator, control_action, joint_indices)
+
+    monkeypatch.setattr(IdealPDActuator, "compute", counted_compute)
+    monkeypatch.setattr(collection, "_scatter_actuator_output", counted_scatter)
+    collection.command.position.torch.copy_(torch.arange(12, dtype=torch.float32).reshape(2, 6) + 0.25)
+    collection.command.velocity.torch.copy_(torch.arange(12, dtype=torch.float32).reshape(2, 6) * -0.5 - 0.75)
+    collection.command.effort.torch.copy_(torch.arange(12, dtype=torch.float32).reshape(2, 6) + 1.5)
+
+    collection.compute()
+
+    assert compute_calls == 1
+    assert scatter_calls == 1
+    batch = collection._execution_batches[0]
+    for group_name, group_slice in zip(batch.group_names, batch.group_slices):
+        torch.testing.assert_close(
+            collection[group_name].computed_effort,
+            batch.actuator.computed_effort[:, group_slice],
+            rtol=0.0,
+            atol=0.0,
+        )
+        torch.testing.assert_close(
+            collection[group_name].applied_effort,
+            batch.actuator.applied_effort[:, group_slice],
+            rtol=0.0,
+            atol=0.0,
+        )
+    first_hips_output = collection["hips"].computed_effort
+    collection.command.position.torch.mul_(-1.25)
+    collection.command.velocity.torch.add_(2.75)
+    collection.command.effort.torch.sub_(4.5)
+
+    collection.compute()
+
+    assert compute_calls == 2
+    assert scatter_calls == 2
+    assert collection["hips"].computed_effort is not first_hips_output
+    for group_name, group_slice in zip(batch.group_names, batch.group_slices):
+        torch.testing.assert_close(
+            collection[group_name].computed_effort,
+            batch.actuator.computed_effort[:, group_slice],
+            rtol=0.0,
+            atol=0.0,
+        )
+        torch.testing.assert_close(
+            collection[group_name].applied_effort,
+            batch.actuator.applied_effort[:, group_slice],
+            rtol=0.0,
+            atol=0.0,
+        )
 
 
 def test_stateful_subclasses_and_overlapping_groups_remain_unbatched():
