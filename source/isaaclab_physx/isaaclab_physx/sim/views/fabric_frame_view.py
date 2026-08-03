@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import logging
+import sys
 
 import torch
 import warp as wp
@@ -158,9 +160,12 @@ class FabricFrameView(BaseFrameView):
       requires those attributes in every prim selection, so a selection resolves
       to exactly the prims the view manages however large the stage grows.
       Tag names are unique per view instance, so views never interfere with one
-      another.  The tags are authored on first use and are not removed when the
-      view is dropped; repeatedly recreating views over the same prims on a
-      long-lived stage accumulates attributes on those prims.
+      another.  The tags are authored on first use and removed again by
+      :meth:`close` -- or, best-effort and with a warning, when the view is
+      garbage collected.  Call :meth:`close` when done with a view;
+      collection timing is up to the interpreter, so relying on it can remove
+      the tags at an arbitrary point in the frame (or, on a leaked reference,
+      not at all).
     * **Topology changes are absorbed, with no cache to invalidate.**  The
       view-to-Fabric mapping is re-derived from live Fabric data on every
       access, so prims moving between Fabric buckets can never leave a stale
@@ -247,6 +252,59 @@ class FabricFrameView(BaseFrameView):
 
         # Sentinel passed to compose/decompose kernels for unused slots.
         self._fabric_empty_2d_array_sentinel: wp.array | None = None
+
+        # Index-attribute cleanup state (see ``close``): the ``(attribute,
+        # prims)`` groups authored by ``_initialize_fabric``, and the flag that
+        # makes ``close()`` idempotent and lets ``__del__`` warn when cleanup
+        # had to happen via garbage collection.
+        self._tagged_prims: list[tuple[str, list]] = []
+        self._is_closed: bool = False
+
+    def close(self) -> None:
+        """Remove this view's Fabric index attributes. The view must not be used afterwards.
+
+        Calling :meth:`close` again is a no-op.  If :meth:`close` is never
+        called, the same cleanup runs best-effort from ``__del__`` (with a
+        warning, since collection timing is up to the interpreter) -- except at
+        interpreter exit, where Fabric is being torn down anyway and the
+        attributes die with it.
+        """
+        if self._is_closed:
+            return
+        self._is_closed = True
+        failed = total = 0
+        for attr, prims in self._tagged_prims:
+            total += len(prims)
+            for prim in prims:
+                try:
+                    prim.RemoveProperty(attr)
+                except Exception:  # noqa: BLE001 -- one bad handle must not strand the remaining tags
+                    failed += 1
+        self._tagged_prims = []
+        if failed:
+            logger.debug("FabricFrameView(%s): %d of %d tag removals failed", self._usd_view._prim_path, failed, total)
+
+    def __del__(self, _sys=sys):
+        """Best-effort cleanup when the view is collected without :meth:`close`.
+
+        Follows the repo's shutdown-safe ``__del__`` idiom (see
+        :meth:`~isaaclab.envs.ManagerBasedEnv.__del__`): ``sys`` is bound as a
+        default argument so it survives module teardown, and nothing runs during
+        interpreter finalization, when calling into Kit can crash and the
+        attributes die with Fabric anyway.
+        """
+        # getattr: __init__ may have raised before the flag existed
+        if getattr(self, "_is_closed", True) or _sys.is_finalizing() or _sys.meta_path is None:
+            return
+        if self._tagged_prims:
+            logger.warning(
+                "FabricFrameView(%s) was garbage-collected without close(); its Fabric index "
+                "attributes were removed best-effort at an arbitrary point in the frame. Call "
+                "close() for deterministic cleanup.",
+                self._usd_view._prim_path,
+            )
+        with contextlib.suppress(Exception):  # never propagate from __del__
+            self.close()
 
     # ------------------------------------------------------------------
     # Delegated properties
@@ -336,6 +394,7 @@ class FabricFrameView(BaseFrameView):
         if use_cached:
             return self._fabric_positions_ta, self._fabric_orientations_ta
         return ProxyArray(positions_wp), ProxyArray(orientations_wp)
+
     def _get_local_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
             return self._usd_view._get_local_poses_impl(indices)
@@ -390,6 +449,7 @@ class FabricFrameView(BaseFrameView):
             self._initialize_fabric()
 
         return self._decompose_scales(self._get_local_ifa(), indices)
+
     def _decompose_scales(self, ro_array, indices) -> ProxyArray:
         """Shared scale-decompose path for world / local getters."""
         indices_wp = self._resolve_indices_wp(indices)
@@ -439,6 +499,7 @@ class FabricFrameView(BaseFrameView):
 
     def _to_float32_2d_or_empty(self, data):
         return self._fabric_empty_2d_array_sentinel if data is None else _to_float32_2d(data)
+
     def _recompute_local_from_world_all(self) -> None:
         """Derive ``localMatrix = inv(parent) * worldMatrix`` for every prim in the view.
 
@@ -459,6 +520,7 @@ class FabricFrameView(BaseFrameView):
             ],
             device=self._device,
         )
+
     def _recompute_world_from_local_all(self) -> None:
         """Derive ``worldMatrix = parent * localMatrix`` for every prim in the view.
 
@@ -511,6 +573,7 @@ class FabricFrameView(BaseFrameView):
             fa=wp.fabricarray(self._sel_parent, self._WORLD_MATRIX_NAME),
             indices=self._parent_slot_of_child_buf,
         )
+
     def _refresh_child_selection(self):
         """Refresh the active child selection and rebuild its slot mapping on device.
 
@@ -536,6 +599,7 @@ class FabricFrameView(BaseFrameView):
             device=self._device,
         )
         return sel
+
     def _refresh_parent_selection(self) -> None:
         """Refresh the parent selection and rebuild the per-child parent-slot mapping.
 
@@ -624,10 +688,12 @@ class FabricFrameView(BaseFrameView):
         # the selections below match ONLY tagged prims, so their size is
         # O(view), not O(stage).  A prim that is both a child and a parent of
         # this view receives both index attributes.
+        tagged_prims: list[tuple[str, list]] = []
         for paths, index_attr in (
             (list(self.prim_paths), self._child_index_attr),
             (self._unique_parent_paths, self._parent_index_attr),
         ):
+            group_prims: list = []
             for i, path in enumerate(paths):
                 rt_prim = self._stage.GetPrimAtPath(path)
                 if not rt_prim.IsValid():
@@ -639,6 +705,11 @@ class FabricFrameView(BaseFrameView):
                 rt_xformable.SetWorldXformFromUsd()
                 rt_prim.CreateAttribute(index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
                 rt_prim.GetAttribute(index_attr).Set(i)
+                group_prims.append(rt_prim)
+            tagged_prims.append((index_attr, group_prims))
+
+        # Remembered so ``close()`` / ``__del__`` can remove the tags again.
+        self._tagged_prims = tagged_prims
 
         # Three persistent selections keyed on the per-view index attributes:
         # child RO (steady state), child RW (active only inside a writer
@@ -690,6 +761,7 @@ class FabricFrameView(BaseFrameView):
             self._sync_fabric_from_usd_initial()
         finally:
             self._is_rw = False
+
     def _sync_fabric_from_usd_initial(self) -> None:
         """Populate Fabric world+local matrices for children and parents from USD.
 

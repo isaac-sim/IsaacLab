@@ -10,6 +10,7 @@ Imports the shared contract tests and provides the Fabric-specific
 Camera prim type for Fabric SelectPrims compatibility).
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -111,7 +112,7 @@ def view_factory():
             view=view,
             get_parent_pos=_get_parent_positions,
             set_parent_pos=_set_parent_positions,
-            teardown=lambda: None,
+            teardown=view.close,
         )
 
     return factory
@@ -321,6 +322,58 @@ def test_selections_match_only_the_view_prims(device, view_factory):
         )
     parent_count = view._sel_parent.GetCount()
     assert parent_count == num_envs, f"parent selection matched {parent_count} prims, expected {num_envs}"
+
+
+def _count_prims_with_tag(view, attr: str) -> int:
+    """Number of prims on the view's Fabric stage carrying ``attr``."""
+    import usdrt  # noqa: PLC0415
+
+    sel = view._stage.SelectPrims(
+        require_attrs=[(usdrt.Sdf.ValueTypeNames.UInt, attr, usdrt.Usd.Access.Read)], device="cpu"
+    )
+    return sel.GetCount()
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_close_removes_index_attributes(device, view_factory):
+    """close() removes the view's Fabric index tags; a second close is a no-op."""
+    bundle = view_factory(2, device)
+    view = bundle.view
+    view.get_world_poses()  # trigger Fabric init (authors the tags)
+
+    child_attr = view._child_index_attr
+    assert _count_prims_with_tag(view, child_attr) == view.count
+    view.close()
+    assert _count_prims_with_tag(view, child_attr) == 0, "close() left index attributes behind"
+    view.close()  # idempotent
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_garbage_collection_removes_index_attributes_and_warns(device, view_factory, caplog):
+    """Dropping a view without close() still removes its tags, with a warning."""
+    import gc  # noqa: PLC0415
+
+    bundle = view_factory(2, device)
+    view = bundle.view
+    view.get_world_poses()
+
+    child_attr = view._child_index_attr
+    stage = view._stage  # keep a stage handle to count tags after the view dies
+    assert _count_prims_with_tag(view, child_attr) == view.count
+
+    with caplog.at_level(logging.WARNING, logger="isaaclab_physx.sim.views.fabric_frame_view"):
+        # the bundle must go too: it holds the view AND teardown=view.close,
+        # a bound method that keeps the view alive
+        del bundle, view
+        gc.collect()
+
+    import usdrt  # noqa: PLC0415
+
+    sel = stage.SelectPrims(
+        require_attrs=[(usdrt.Sdf.ValueTypeNames.UInt, child_attr, usdrt.Usd.Access.Read)], device="cpu"
+    )
+    assert sel.GetCount() == 0, "garbage collection left index attributes behind"
+    assert any("without close()" in r.message for r in caplog.records), "expected a close() warning"
 
 
 def _read_fabric_world_matrix_translation(view, prim_index=0):

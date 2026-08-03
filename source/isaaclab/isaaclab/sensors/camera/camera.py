@@ -901,5 +901,7 @@ class Camera(SensorBase):
         self._renderer = None
         # call parent
         super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._view = None
+        # release backend state deterministically, then invalidate the view
+        if self._view is not None:
+            self._view.close()
+            self._view = None
