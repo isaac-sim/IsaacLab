@@ -28,7 +28,14 @@ from hashing import stable_hash  # noqa: E402
 from oracle import Baseline, compare  # noqa: E402
 
 
-def _bench_result(*, fps: float | None = 100.0, info_present: bool = True, was_retried: bool = False) -> BenchResult:
+def _bench_result(
+    *,
+    fps: float | None = 100.0,
+    info_present: bool = True,
+    was_retried: bool = False,
+    exit_code: int = 0,
+    failure_phase: str | None = None,
+) -> BenchResult:
     """Build the minimal typed result shape used by oracle and baseline tests."""
     launch_config = {
         "task_id": "Isaac-Cartpole-Direct",
@@ -61,6 +68,8 @@ def _bench_result(*, fps: float | None = 100.0, info_present: bool = True, was_r
         launch_config_hash="launch-a",
         benchmark_contract_hash="bench-a",
         baseline_epoch=1,
+        exit_code=exit_code,
+        failure_phase=failure_phase,
     )
 
 
@@ -191,6 +200,38 @@ def test_oracle_hard_fails_missing_benchmark_info() -> None:
 
     assert result.verdict == OracleVerdict.HARD_FAILURE
     assert result.measured_fps is None
+
+
+def test_oracle_hard_fails_a_run_that_died_after_writing_its_bundle() -> None:
+    """A healthy FPS number does not redeem a run that exited nonzero.
+
+    A benchmark can write a complete bundle and then crash on teardown. Scoring
+    that on FPS alone would return PASS and make the sample eligible for the
+    baseline, so the gate would learn its window from a run that failed.
+    """
+    baseline = Baseline(median_fps=100.0, mad_fps=2.0, sample_count=5)
+
+    result = compare(_bench_result(fps=100.0, exit_code=1, failure_phase="runtime"), baseline, [])
+
+    assert result.verdict == OracleVerdict.HARD_FAILURE
+
+
+def test_oracle_hard_fails_a_phase_classified_run_that_exited_clean() -> None:
+    """An OOM kill or near-timeout hang is unhealthy even when the exit code is zero."""
+    baseline = Baseline(median_fps=100.0, mad_fps=2.0, sample_count=5)
+
+    result = compare(_bench_result(fps=100.0, exit_code=0, failure_phase="hang"), baseline, [])
+
+    assert result.verdict == OracleVerdict.HARD_FAILURE
+
+
+def test_oracle_still_passes_a_clean_run() -> None:
+    """The health check must not make every ordinary run a failure."""
+    baseline = Baseline(median_fps=100.0, mad_fps=2.0, sample_count=5)
+
+    result = compare(_bench_result(fps=100.0), baseline, [])
+
+    assert result.verdict == OracleVerdict.PASS
 
 
 def test_baseline_selection_filters_incompatible_contract_hashes(tmp_path: Path) -> None:

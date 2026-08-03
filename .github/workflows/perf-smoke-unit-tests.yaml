@@ -51,7 +51,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install test dependencies
-        run: python3 -m pip install pytest
+        # pyyaml is needed by test_workflow_contracts.py, which parses the gate's
+        # own workflow files.
+        run: python3 -m pip install pytest pyyaml
 
       - name: Test perf-smoke gate logic
         run: python3 -m pytest tools/perf_smoke_test/ -q

@@ -186,7 +186,7 @@ jobs:
     # explicitly; the clone the orchestrator makes draws its objects from here.
     - name: Fetch seed + baseline refs
       env:
-        SEED_BRANCHES: ${{ inputs.branches || 'develop' }}
+        SEED_BRANCHES: ${{ inputs.branches }}
         SEED_COMMIT_BRANCH: ${{ inputs.commit_branch || 'develop' }}
       run: |
         set -euo pipefail
@@ -275,12 +275,12 @@ jobs:
 
     - name: Seed baselines from commit history
       env:
-        SEED_BRANCHES: ${{ inputs.branches || 'develop' }}
+        SEED_BRANCHES: ${{ inputs.branches }}
         SEED_COMMITS: ${{ inputs.commits || '' }}
         SEED_COMMIT_BRANCH: ${{ inputs.commit_branch || 'develop' }}
         SEED_COMMIT_COUNT: ${{ inputs.commit_count || '1' }}
         SEED_SAMPLES_PER_COMMIT: ${{ inputs.samples_per_commit || '3' }}
-        SEED_TASKS: ${{ inputs.tasks || 'Isaac-Cartpole-Direct' }}
+        SEED_TASKS: ${{ inputs.tasks }}
         SEED_BACKENDS: ${{ inputs.backends || '' }}
         SEED_TARGET_BRANCH: ${{ inputs.target_branch || 'develop' }}
         SEED_STRICT_ANCESTRY: ${{ inputs.strict_ancestry == true && 'true' || 'false' }}
@@ -297,7 +297,7 @@ jobs:
           --commit_branch "${SEED_COMMIT_BRANCH}" \
           --commit_count "${SEED_COMMIT_COUNT}" \
           --samples_per_commit "${SEED_SAMPLES_PER_COMMIT}" \
-          --tasks "${SEED_TASKS/__ALL_TASKS__/}" \
+          --tasks "${SEED_TASKS}" \
           --backends "${SEED_BACKENDS}" \
           --image "${{ env.CI_IMAGE_TAG }}" \
           --gpu_model "${GPU_MODEL}" \
@@ -318,7 +318,7 @@ jobs:
     - name: Verify seeded baselines are gate-usable
       if: ${{ inputs.dry_run != true }}
       env:
-        SEED_TASKS: ${{ inputs.tasks || 'Isaac-Cartpole-Direct' }}
+        SEED_TASKS: ${{ inputs.tasks }}
         SEED_BACKENDS: ${{ inputs.backends || '' }}
         SEED_TARGET_BRANCH: ${{ inputs.target_branch || 'develop' }}
       run: |
@@ -330,7 +330,7 @@ jobs:
           --gpu_model "${GPU_MODEL}" \
           --target_branch "${SEED_TARGET_BRANCH}" \
           --expected_records seed-artifacts/seed_records.json \
-          --tasks "${SEED_TASKS/__ALL_TASKS__/}" \
+          --tasks "${SEED_TASKS}" \
           --backends "${SEED_BACKENDS}" \
           --repo_dir "${{ github.workspace }}" \
           --require

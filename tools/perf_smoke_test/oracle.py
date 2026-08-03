@@ -155,6 +155,21 @@ def compare(
             note=str(config_mismatch or "config_mismatch"),
         )
 
+    # Execution health is checked before any measurement is considered. A run can
+    # write a complete bundle and then die -- crashing on teardown, being OOM-killed,
+    # or running so close to its timeout that it is classified as a hang. Judging
+    # that bundle on FPS alone would let a crash score PASS and be appended to the
+    # baseline as if it were a clean sample. This mirrors the per-task commit status,
+    # which already treats a nonzero exit or any failure phase as unhealthy.
+    if bench_result.exit_code != 0 or failure_phase:
+        return _hard_failure(
+            bench_result,
+            failure_phase,
+            was_retried,
+            gpu_mem_used_mb,
+            note=f"unhealthy_run(exit={bench_result.exit_code},phase={failure_phase or 'none'})",
+        )
+
     if not bench_result.perf_smoke_test_info_present:
         return _hard_failure(bench_result, failure_phase, was_retried, gpu_mem_used_mb)
 

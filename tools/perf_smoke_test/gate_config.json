@@ -1,8 +1,6 @@
 {
-  "_comment": "Perf-smoke gate configuration. 'blocking' is intentionally false: the gate runs in advisory mode and never fails a PR on its own. Flipping it to true is a deliberate, separate rollout that turns the aggregate 'perf-smoke-test' commit status into an enforcing required check. runtime_compatibility is intentionally omitted here so it is sourced from gate_config.DEFAULT_RUNTIME_COMPATIBILITY (see gate_config.py); add a key only to override the code default.",
+  "_comment": "Perf-smoke gate configuration. 'blocking' is intentionally false: the gate runs in advisory mode and never fails a PR on its own. Flipping it to true is a deliberate, separate rollout that turns the aggregate 'perf-smoke-test' commit status into an enforcing required check. Only keys the gate actually reads belong here; the baseline window sizes (MIN_BASELINE_SAMPLES, MAX_BASELINE_SAMPLES) are imported directly by the oracle and the baseline loader and cannot be overridden from this file. runtime_compatibility is intentionally omitted so it is sourced from gate_config.DEFAULT_RUNTIME_COMPATIBILITY (see gate_config.py); add a key only to override the code default.",
   "blocking": false,
-  "min_baseline_samples": 5,
-  "max_baseline_samples": 20,
   "min_block_regression_pct": 3.0,
   "baseline_push_retries": 3
 }

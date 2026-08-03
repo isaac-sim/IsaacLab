@@ -71,10 +71,11 @@ def _merge_runtime_compatibility(raw: dict | None) -> dict:
 
 
 def load_gate_config(path: Path | str) -> dict:
+    # The baseline window sizes are deliberately absent: MIN_BASELINE_SAMPLES and
+    # MAX_BASELINE_SAMPLES are imported directly by the oracle and the baseline
+    # loader, so surfacing them here would offer a knob that changes nothing.
     config = {
         "blocking": False,
-        "min_baseline_samples": MIN_BASELINE_SAMPLES,
-        "max_baseline_samples": MAX_BASELINE_SAMPLES,
         "min_block_regression_pct": MIN_BLOCK_REGRESSION_PCT,
         "baseline_push_retries": BASELINE_PUSH_RETRIES,
         "runtime_compatibility": _merge_runtime_compatibility(None),

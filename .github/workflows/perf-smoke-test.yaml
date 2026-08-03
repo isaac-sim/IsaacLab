@@ -85,6 +85,14 @@ jobs:
       with:
         fetch-depth: 1
     - id: load
+      env:
+        # The branch whose image this run should benchmark against. On a
+        # pull_request GITHUB_REF_NAME is the synthetic "<n>/merge" ref and on a
+        # merge_group it is a gh-readonly-queue ref, so neither names the target
+        # branch; both would fall through to latest-develop and make a PR into
+        # main or release/** measure develop's image. Its samples would then carry
+        # a runtime_contract_hash that no baseline on those branches can match.
+        TARGET_BRANCH: ${{ github.base_ref || github.event.merge_group.base_ref || github.ref_name }}
       run: |
         set -euo pipefail
         f=.github/workflows/config.yaml
@@ -92,19 +100,23 @@ jobs:
         ISAACSIM_IMAGE_TAG="$(yq -r .isaacsim_image_tag "$f")"
         ISAACLAB_IMAGE_NAME="$(yq -r .isaaclab_image_name "$f")"
 
+        # merge_group supplies a fully qualified ref; the others are bare names.
+        TARGET_BRANCH="${TARGET_BRANCH#refs/heads/}"
+
         # Match the image tags published by .github/workflows/publish-images.yaml.
-        case "${GITHUB_REF_NAME}" in
+        case "${TARGET_BRANCH}" in
           main)
             ISAACLAB_IMAGE_TAG="latest"
             ;;
           release/*)
-            RELEASE_SUFFIX="$(echo "${GITHUB_REF_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')"
+            RELEASE_SUFFIX="$(echo "${TARGET_BRANCH#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')"
             ISAACLAB_IMAGE_TAG="latest-release-${RELEASE_SUFFIX}"
             ;;
           *)
             ISAACLAB_IMAGE_TAG="latest-develop"
             ;;
         esac
+        echo "Resolving the CI image for target branch '${TARGET_BRANCH}' -> ${ISAACLAB_IMAGE_TAG}"
 
         FALLBACK_REF="${ISAACLAB_IMAGE_NAME}:${ISAACLAB_IMAGE_TAG}"
 
@@ -456,9 +468,13 @@ jobs:
 
         echo "::notice::First attempt failed (exit=${{ steps.bench_run.outputs.exit_code }}); retrying benchmark for ${TASK_ID}/${BACKEND_KEY}"
 
-        # Remove any partial perf output from the failed first attempt so the retry's
-        # output is picked up cleanly by build_bench_result's normalize step.
-        rm -f "${ARTIFACT_DIR}/perf_smoke_test_info.json"
+        # Drop the first attempt's runtime bundle. build_bench_result globs
+        # benchmark_runtime_*.json, so leaving it behind lets a retry that dies
+        # before writing its own output report the failed attempt's FPS under the
+        # retry's exit code -- and that sample would be eligible for the baseline.
+        # perf_smoke_test_info.json is written later by build_bench_result itself
+        # and so cannot exist yet.
+        rm -f "${ARTIFACT_DIR}"/benchmark_runtime_*.json
 
         docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
@@ -578,8 +594,12 @@ jobs:
     # job (bench is continue-on-error) can no longer hide a benchmark that failed.
     # Note: this reports whether the benchmark *ran*, not the regression verdict —
     # that is the separate `perf-smoke-test` status posted by aggregate.
+    # A pull_request run from a fork gets a read-only GITHUB_TOKEN whatever the
+    # permissions block says, so writing a status would 403 and fail the job for
+    # an external contributor. Skip the API write there; the verdict is still in
+    # the job summary and the artifacts.
     - name: Report per-task status
-      if: always()
+      if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
       uses: actions/github-script@v7
       with:
         script: |
@@ -784,8 +804,9 @@ jobs:
     # red once blocking is enabled and the oracle reports a BLOCK/HARD_FAILURE
     # (which fails the aggregate step above). Distinct from the per-task
     # `perf-smoke (...)` statuses, which only report whether each benchmark ran.
+    # Skipped for fork pull requests; see the per-task status step for why.
     - name: Report aggregate status
-      if: always()
+      if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
       uses: actions/github-script@v7
       env:
         AGGREGATE_OUTCOME: ${{ steps.aggregate.outcome }}
@@ -807,8 +828,9 @@ jobs:
     # Post the verdict table as a single sticky comment on the PR (updated in place
     # each run), so reviewers see regressions without opening the Actions tab.
     # Skipped on manual dispatch / protected-branch pushes where there is no PR.
+    # Skipped for fork pull requests; see the per-task status step for why.
     - name: Post verdict PR comment
-      if: always()
+      if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
       uses: actions/github-script@v7
       with:
         script: |
