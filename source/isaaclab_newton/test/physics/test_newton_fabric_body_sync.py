@@ -17,13 +17,19 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, XPBDSolverCfg
 
-from usdrt import Rt
+from pxr import UsdGeom
+from usdrt import Gf, Rt
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import CableObjectCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.sim.spawners.materials import CableMaterialCfg
+from isaaclab.sim.spawners.shapes import CableCfg
+from isaaclab.utils import math as math_utils
 from isaaclab.utils.configclass import configclass
+
+from isaaclab_contrib.deformable import VBDSolverCfg
 
 
 @configclass
@@ -40,6 +46,19 @@ class _RenderSceneCfg(InteractiveSceneCfg):
     )
 
 
+@configclass
+class _CableRenderSceneCfg(InteractiveSceneCfg):
+    cable: CableObjectCfg = CableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cable",
+        spawn=CableCfg(
+            positions=((0.0, 0.0, 1.0), (0.0, 0.2, 1.0), (0.0, 0.4, 1.0), (0.0, 0.6, 1.0)),
+            physics_material=CableMaterialCfg(
+                thickness=0.02, density=500.0, stretch_stiffness=1.0e5, bend_stiffness=1.0e3
+            ),
+        ),
+    )
+
+
 def _fabric_position(body_path: str) -> torch.Tensor:
     """Read the world position consumed by Kit/RTX from the real Fabric stage."""
     stage = sim_utils.get_current_stage(fabric=True)
@@ -51,6 +70,52 @@ def _fabric_position(body_path: str) -> torch.Tensor:
     assert world_matrix is not None, f"Fabric body prim has no world matrix: {body_path}"
     translation = world_matrix.ExtractTranslation()
     return torch.tensor([float(translation[i]) for i in range(3)])
+
+
+def _fabric_curve_points_world(curve_path: str) -> torch.Tensor:
+    """Read curve points from Fabric and transform them to world space."""
+    stage = sim_utils.get_current_stage(fabric=True)
+    prim = stage.GetPrimAtPath(curve_path)
+    assert prim.IsValid(), f"Fabric curve prim does not exist: {curve_path}"
+    points_attr = prim.GetAttribute("points")
+    points_attr.SyncDataToCpu()
+    points = points_attr.Get()
+    world_matrix = Rt.Xformable(prim).GetFabricHierarchyWorldMatrixAttr().Get()
+    transformed = [
+        [float(value) for value in world_matrix.Transform(Gf.Vec3d(*[float(value) for value in point]))]
+        for point in points
+    ]
+    return torch.tensor(transformed)
+
+
+def _expected_cable_points_world(cable, env_id: int = 0) -> torch.Tensor:
+    """Reconstruct curve points from Newton body and shape state."""
+    model = NewtonManager.get_model()
+    body_q = wp.to_torch(NewtonManager.get_state_0().body_q).cpu()
+    shape_transform = wp.to_torch(model.shape_transform).cpu()
+    shape_scale = wp.to_torch(model.shape_scale).cpu()
+    root_id = int(cable.data._sim_bind_root_body_ids.numpy()[env_id])
+    link_ids = [int(value) for value in cable.data._sim_bind_link_body_ids.numpy()[env_id]]
+    body_ids = [root_id, *link_ids]
+
+    negative_endpoints = []
+    positive_endpoints = []
+    for body_id in body_ids:
+        shape_id = int(model.body_shapes[body_id][0])
+        body_pose = body_q[body_id]
+        shape_pose = shape_transform[shape_id]
+        for sign, endpoints in ((-1.0, negative_endpoints), (1.0, positive_endpoints)):
+            local_axis = torch.tensor([0.0, 0.0, sign], dtype=shape_scale.dtype)
+            local_endpoint = local_axis * shape_scale[shape_id, 1]
+            body_endpoint = shape_pose[:3] + math_utils.quat_apply(shape_pose[3:], local_endpoint)
+            endpoints.append(body_pose[:3] + math_utils.quat_apply(body_pose[3:], body_endpoint))
+
+    points = [negative_endpoints[0]]
+    points.extend(
+        0.5 * (positive_endpoints[index - 1] + negative_endpoints[index]) for index in range(1, len(body_ids))
+    )
+    points.append(positive_endpoints[-1])
+    return torch.stack(points)
 
 
 class _FakeAttribute:
@@ -258,5 +323,99 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
                     rtol=0.0,
                     atol=1.0e-4,
                 )
+        finally:
+            sim.register_interactive_scene(None)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_periodic_cable_is_skipped_by_fabric_sync():
+    """Periodic cables must not abort unsupported Fabric synchronization."""
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        physics=NewtonCfg(
+            solver_cfg=VBDSolverCfg(iterations=2),
+            num_substeps=1,
+            use_cuda_graph=False,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        cable_cfg = _CableRenderSceneCfg(num_envs=1, env_spacing=1.0).cable.spawn
+        cable_cfg.func("/World/Cable", cable_cfg)
+        curve = UsdGeom.BasisCurves(sim_utils.get_current_stage().GetPrimAtPath("/World/Cable/geometry/mesh"))
+        curve.GetWrapAttr().Set(UsdGeom.Tokens.periodic)
+
+        sim.reset()
+
+        assert NewtonManager._cable_shape_ids is None
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_cable_points_follow_newton_segments_after_step_and_reset():
+    """Fabric cable points must follow Newton segments across steps and hard resets."""
+    device = "cuda:0"
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device=device,
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(
+            solver_cfg=VBDSolverCfg(iterations=2),
+            num_substeps=1,
+            use_cuda_graph=False,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(_CableRenderSceneCfg(num_envs=2, env_spacing=2.0))
+        sim.register_interactive_scene(scene)
+        try:
+            sim.reset()
+            scene.reset()
+            scene.update(0.0)
+            sim.render()
+            wp.synchronize_device(device)
+
+            cable = scene["cable"]
+            curve_path = "/World/envs/env_0/Cable/geometry/mesh"
+            initial_points = _fabric_curve_points_world(curve_path)
+            torch.testing.assert_close(initial_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
+
+            for _ in range(8):
+                scene.write_data_to_sim()
+                sim.step(render=False)
+                scene.update(sim.cfg.dt)
+            sim.render()
+            wp.synchronize_device(device)
+            moved_points = _fabric_curve_points_world(curve_path)
+            torch.testing.assert_close(moved_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
+            assert not torch.allclose(moved_points, initial_points, rtol=0.0, atol=1.0e-5)
+            replicated_curve_path = "/World/envs/env_1/Cable/geometry/mesh"
+            torch.testing.assert_close(
+                _fabric_curve_points_world(replicated_curve_path),
+                _expected_cable_points_world(cable, env_id=1),
+                rtol=0.0,
+                atol=1.0e-4,
+            )
+
+            sim.reset()
+            scene.update(0.0)
+            sim.render()
+            wp.synchronize_device(device)
+            reset_points = _fabric_curve_points_world(curve_path)
+            torch.testing.assert_close(reset_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
+
+            for _ in range(8):
+                scene.write_data_to_sim()
+                sim.step(render=False)
+                scene.update(sim.cfg.dt)
+            sim.render()
+            wp.synchronize_device(device)
+            after_reset_points = _fabric_curve_points_world(curve_path)
+            torch.testing.assert_close(after_reset_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
+            assert not torch.allclose(after_reset_points, reset_points, rtol=0.0, atol=1.0e-5)
         finally:
             sim.register_interactive_scene(None)

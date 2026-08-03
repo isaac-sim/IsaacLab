@@ -92,6 +92,47 @@ A few quick showroom scripts to run and checkout:
       :alt: Biped robots in Isaac Lab
 
 
+-  Spawn a pile of cables that collide and settle on each other:
+
+   **Physics:** ``newton_vbd`` only
+
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. tab-set::
+
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run python scripts/demos/cables.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/cables.py
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            isaaclab.bat -p scripts\demos\cables.py
+
+   Use ``--num_cables`` and ``--num_segments`` to change the pile size and cable resolution.
+   Cables are a Newton-only asset; see :doc:`core-concepts/physical-backends/newton/using-cables`.
+
+   .. image:: ../_static/demos/cables.jpg
+      :width: 100%
+      :alt: Cable pile simulated with the Newton VBD backend in Isaac Lab
+
+
 -  Spawn different deformable objects and let them fall from a height:
 
    **Physics:** ``isaacsim_physx``, ``newton_vbd``, ``ovphysx``
