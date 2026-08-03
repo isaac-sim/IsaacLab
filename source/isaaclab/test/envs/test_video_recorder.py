@@ -25,6 +25,22 @@ _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
 
 
 # ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _patch_moviepy():
+    """Stub out ImageSequenceClip so tests run without moviepy installed.
+
+    Tests that specifically validate the ImportError path re-patch to None
+    inside their own context managers, which takes precedence over this stub.
+    """
+    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", MagicMock()):
+        yield
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
