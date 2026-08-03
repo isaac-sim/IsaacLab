@@ -20,6 +20,13 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
+        # sim
+        # Stiffen contacts. The shared ke=2500 puts the contact time constant at 4 * sim.dt, so
+        # penetration is corrected over several steps and the terrain feels soft. kd = 2*sqrt(ke)
+        # keeps the contact critically damped -- the damping ratio matters far more than the
+        # stiffness itself, and an under- or over-damped pair destabilizes training.
+        self.sim.physics.newton_mjwarp.default_shape_cfg.ke = 10000.0
+        self.sim.physics.newton_mjwarp.default_shape_cfg.kd = 200.0
         # scene
         self.scene.robot = UNITREE_GO2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["base_legs"].armature = preset(default=0.0, newton_mjwarp=0.02)

@@ -52,8 +52,12 @@ class RoughPhysicsCfg(PresetCfg):
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=200,
-            nconmax=100,
+            # Rough terrain needs far more constraint rows than the solver defaults allow.
+            # At njmax=200 the budget overflows on every robot here (G1 alone needs 218) and
+            # MuJoCo silently drops the excess rows, which reads as unstable contact rather
+            # than as an overflow. njmax=500 is still not enough for Go2; 1000 leaves headroom.
+            njmax=1000,
+            nconmax=300,
             cone="pyramidal",
             impratio=1.0,
             integrator="implicitfast",
@@ -62,10 +66,16 @@ class RoughPhysicsCfg(PresetCfg):
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
         num_substeps=1,
         debug_mode=False,
-        # 1 cm shape margin is the single most important Newton setting for rough
-        # terrain — without it, non-AnymalD robots fail to learn stable contact
-        # on triangle-mesh terrain. See isaaclab_newton 0.5.22 changelog.
-        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+        # Keep the shape margin at 0. ``margin`` is a rest offset: it inflates every collider,
+        # so a non-zero value here changes the shape of every asset that uses this preset --
+        # at margin=0.01 opposing surfaces engage across a 20 mm cushion and never actually
+        # touch (measured: zero penetrating contacts, versus 100% at margin=0). That silently
+        # breaks sim2real transfer. The margin was previously believed to be load-bearing for
+        # non-AnymalD robots on triangle-mesh terrain; it was in fact masking the constraint
+        # overflow fixed by njmax/nconmax above. With the budgets raised, every robot in this
+        # suite trains at margin=0. If a specific asset ever needs a rest offset, set it on
+        # that asset rather than here.
+        default_shape_cfg=NewtonShapeCfg(margin=0.0),
     )
     default = physx
 
