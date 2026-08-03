@@ -1438,6 +1438,12 @@ class randomize_actuator_gains(ManagerTermBase):
                 data, params, dim_0_ids=None, dim_1_ids=actuator_indices, operation=operation, distribution=distribution
             )
 
+        actuator_writer = getattr(self.asset, "actuators", self.asset)
+        if not hasattr(actuator_writer, "write_actuator_stiffness_to_sim"):
+            actuator_writer = self.asset
+        if not hasattr(actuator_writer, "write_actuator_stiffness_to_sim"):
+            actuator_writer = None
+
         # Loop through actuators and randomize gains
         for actuator in self.asset.actuators.values():
             if isinstance(self.asset_cfg.joint_ids, slice):
@@ -1462,6 +1468,10 @@ class randomize_actuator_gains(ManagerTermBase):
                     continue
                 # maps actuator indices that have to be randomized to global joint indices
                 global_indices = actuator_joint_indices[actuator_indices]
+            if isinstance(global_indices, slice):
+                writer_joint_ids = torch.arange(self.asset.num_joints, device=self.asset.device, dtype=torch.long)
+            else:
+                writer_joint_ids = global_indices.to(device=self.asset.device, dtype=torch.long)
             # Randomize stiffness
             if stiffness_distribution_params is not None:
                 stiffness = actuator.stiffness[env_ids].clone()
@@ -1471,6 +1481,10 @@ class randomize_actuator_gains(ManagerTermBase):
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_stiffness_to_sim_index(
                         stiffness=stiffness, joint_ids=actuator.joint_indices, env_ids=env_ids
+                    )
+                if actuator_writer is not None:
+                    actuator_writer.write_actuator_stiffness_to_sim(
+                        stiffness=stiffness[:, actuator_indices], env_ids=env_ids, joint_ids=writer_joint_ids
                     )
             # Randomize damping
             if damping_distribution_params is not None:
@@ -1482,49 +1496,10 @@ class randomize_actuator_gains(ManagerTermBase):
                     self.asset.write_joint_damping_to_sim_index(
                         damping=damping, joint_ids=actuator.joint_indices, env_ids=env_ids
                     )
-
-        # Push DR updates to actuator gain buffers and any backend-native controllers.
-        actuator_writer = getattr(self.asset, "actuators", self.asset)
-        if not hasattr(actuator_writer, "write_actuator_stiffness_to_sim"):
-            actuator_writer = self.asset
-        if not hasattr(actuator_writer, "write_actuator_stiffness_to_sim"):
-            return
-
-        if isinstance(self.asset_cfg.joint_ids, slice):
-            joint_ids = torch.arange(self.asset.num_joints, device=self.asset.device, dtype=torch.long)
-        else:
-            joint_ids = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device, dtype=torch.long)
-
-        if stiffness_distribution_params is not None:
-            new_stiffness = self.default_joint_stiffness[env_ids][:, joint_ids].clone()
-            _randomize_prop_by_op(
-                new_stiffness,
-                stiffness_distribution_params,
-                dim_0_ids=None,
-                dim_1_ids=slice(None),
-                operation=operation,
-                distribution=distribution,
-            )
-            actuator_writer.write_actuator_stiffness_to_sim(
-                stiffness=new_stiffness,
-                env_ids=env_ids,
-                joint_ids=joint_ids,
-            )
-        if damping_distribution_params is not None:
-            new_damping = self.default_joint_damping[env_ids][:, joint_ids].clone()
-            _randomize_prop_by_op(
-                new_damping,
-                damping_distribution_params,
-                dim_0_ids=None,
-                dim_1_ids=slice(None),
-                operation=operation,
-                distribution=distribution,
-            )
-            actuator_writer.write_actuator_damping_to_sim(
-                damping=new_damping,
-                env_ids=env_ids,
-                joint_ids=joint_ids,
-            )
+                if actuator_writer is not None:
+                    actuator_writer.write_actuator_damping_to_sim(
+                        damping=damping[:, actuator_indices], env_ids=env_ids, joint_ids=writer_joint_ids
+                    )
 
 
 class randomize_joint_parameters(ManagerTermBase):

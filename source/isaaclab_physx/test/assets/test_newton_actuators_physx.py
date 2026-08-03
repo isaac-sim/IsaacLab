@@ -695,9 +695,9 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
     the actuator adapter → write_stiffness/damping → propagation
     to controllers.
 
-    With ``operation="abs"`` and ``distribution="uniform"`` over a
-    degenerate range ``(K, K)``, every randomized cell is set to exactly
-    ``K`` — so the assertions are deterministic.
+    The native-controller tests use degenerate ranges for exact expected values.
+    The implicit-storage regression instead seeds the generator and uses
+    non-degenerate ranges to verify one sampled payload reaches every storage.
     """
 
     @staticmethod
@@ -714,6 +714,54 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             locals_ = torch.from_numpy((idx_np % num_joints).astype("int64")).to(device)
             out[envs, locals_] = flat_t
         return out
+
+    def test_implicit_storage_reuses_randomized_payload(self):
+        """Keep logical, collection, and implicit-solver gains identical after randomization."""
+        sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=False)
+        with build_simulation_context(
+            device="cuda:0",
+            gravity_enabled=True,
+            add_ground_plane=True,
+            sim_cfg=sim_cfg,
+        ) as sim:
+            sim._app_control_on_stop_handle = None
+            for i in range(NUM_ENVS):
+                sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
+            art_cfg = ANYMAL_C_CFG.replace(
+                actuators=IMPLICIT_ONLY_ACTUATORS,
+                prim_path="/World/Env_.*/Robot",
+            )
+            anymal = Articulation(art_cfg)
+            sim.reset()
+
+            actuator = anymal.actuators["legs"]
+            stiffness_before = actuator.stiffness.clone()
+            damping_before = actuator.damping.clone()
+            env = _MockEnv({"robot": anymal}, NUM_ENVS, anymal.device)
+            term, asset_cfg = _build_dr_term(env, "robot")
+            env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
+            torch.manual_seed(12345)
+
+            term(
+                env,
+                env_ids=env_ids,
+                asset_cfg=asset_cfg,
+                stiffness_distribution_params=(25.0, 75.0),
+                damping_distribution_params=(1.0, 9.0),
+                operation="abs",
+                distribution="uniform",
+            )
+
+            randomized_stiffness = actuator.stiffness[env_ids]
+            randomized_damping = actuator.damping[env_ids]
+            self.assertGreater(torch.unique(randomized_stiffness).numel(), 1)
+            self.assertGreater(torch.unique(randomized_damping).numel(), 1)
+            torch.testing.assert_close(randomized_stiffness, anymal.actuators.actuator_stiffness.torch[env_ids])
+            torch.testing.assert_close(randomized_stiffness, anymal.data.joint_stiffness.torch[env_ids])
+            torch.testing.assert_close(randomized_damping, anymal.actuators.actuator_damping.torch[env_ids])
+            torch.testing.assert_close(randomized_damping, anymal.data.joint_damping.torch[env_ids])
+            torch.testing.assert_close(actuator.stiffness[1:], stiffness_before[1:])
+            torch.testing.assert_close(actuator.damping[1:], damping_before[1:])
 
     def test_single_articulation(self):
         sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
