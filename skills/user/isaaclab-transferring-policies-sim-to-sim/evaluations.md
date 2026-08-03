@@ -74,7 +74,7 @@ Query: "How do I demonstrate transfer in both directions with Franka?"
 
 Expected behavior:
 
-- Run PP, PN, NN, and NP with `Isaac-Lift-Franka` and `Isaac-Lift-Franka-Play`.
+- Run PP, PN, NN, and NP with `Isaac-Lift-Franka` for both training and inference, relying on the play entry point to apply `play_mode` overrides.
 - Reproduce each same-backend baseline and deploy the exact checkpoint cross-backend.
 
 Known failure modes:

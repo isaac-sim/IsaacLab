@@ -205,6 +205,8 @@ class SimulationContext:
         # cameras rather than inheriting a stale True from a previously torn-down simulation. RTX
         # cameras created for this instance re-set it to True before it is read.
         self.set_setting("/isaaclab/render/rtx_sensors", False)
+        # Set by camera sensors, which draw visual-only geometry regardless of renderer backend.
+        self._visual_shapes_required = False
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self.vis_marker_registry = VisMarkerRegistry()
 
@@ -305,6 +307,20 @@ class SimulationContext:
     def is_headless_or_exist_active_visualizer(self) -> bool:
         """Return whether the simulation should keep stepping without visualizers or with an active visualizer."""
         return not self._visualizers or any(viz.is_running() and not viz.is_closed for viz in self._visualizers)
+
+    def require_visual_shapes(self) -> None:
+        """Record that something in this simulation draws the physics model's visual-only shapes.
+
+        Camera sensors call this from their constructor, before cloning runs, so backends that
+        import visual geometry lazily (see :attr:`isaaclab_newton.physics.NewtonCfg.load_visual_shapes`)
+        know the geometry is needed even when no viewer or offscreen capture is active.
+        """
+        self._visual_shapes_required = True
+
+    @property
+    def visual_shapes_required(self) -> bool:
+        """Whether :meth:`require_visual_shapes` was called for this simulation."""
+        return self._visual_shapes_required
 
     def can_render_rgb_array(self) -> bool:
         """Return whether rgb-array rendering is currently available."""

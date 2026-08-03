@@ -1471,10 +1471,10 @@ class randomize_joint_parameters(ManagerTermBase):
         self.default_joint_armature = self.asset.data.joint_armature.torch.clone()
         self.default_joint_pos_limits = self.asset.data.joint_pos_limits.torch.clone()
 
-        # cache dynamic/viscous friction (PhysX only - Newton only has static friction)
+        # Newton supports static friction and passive viscous damping but not dynamic friction.
+        self.default_viscous_joint_friction_coeff = self.asset.data.joint_viscous_friction_coeff.torch.clone()
         if self._backend == "physx":
             self.default_dynamic_joint_friction_coeff = (self.asset.data.joint_dynamic_friction_coeff.torch).clone()
-            self.default_viscous_joint_friction_coeff = (self.asset.data.joint_viscous_friction_coeff.torch).clone()
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
@@ -1533,15 +1533,29 @@ class randomize_joint_parameters(ManagerTermBase):
             # Always set static friction (indexed once)
             static_friction_coeff = friction_coeff[env_ids_for_slice, joint_ids]
 
+            viscous_friction_coeff = _randomize_prop_by_op(
+                self.default_viscous_joint_friction_coeff.clone(),
+                friction_distribution_params,
+                env_ids,
+                joint_ids,
+                operation=operation,
+                distribution=distribution,
+            )
+            viscous_friction_coeff = torch.clamp(viscous_friction_coeff, min=0.0)
+            viscous_friction_coeff = viscous_friction_coeff[env_ids_for_slice, joint_ids]
+
             if self._backend == "newton":
-                # Newton only supports static friction coefficient
                 self.asset.write_joint_friction_coefficient_to_sim_index(
                     joint_friction_coeff=static_friction_coeff,
                     joint_ids=joint_ids,
                     env_ids=env_ids,
                 )
+                self.asset.write_joint_viscous_friction_coefficient_to_sim_index(
+                    joint_viscous_friction_coeff=viscous_friction_coeff,
+                    joint_ids=joint_ids,
+                    env_ids=env_ids,
+                )
             else:
-                # Randomize raw tensors
                 dynamic_friction_coeff = _randomize_prop_by_op(
                     self.default_dynamic_joint_friction_coeff.clone(),
                     friction_distribution_params,
@@ -1550,25 +1564,14 @@ class randomize_joint_parameters(ManagerTermBase):
                     operation=operation,
                     distribution=distribution,
                 )
-                viscous_friction_coeff = _randomize_prop_by_op(
-                    self.default_viscous_joint_friction_coeff.clone(),
-                    friction_distribution_params,
-                    env_ids,
-                    joint_ids,
-                    operation=operation,
-                    distribution=distribution,
-                )
-
                 # Clamp to non-negative
                 dynamic_friction_coeff = torch.clamp(dynamic_friction_coeff, min=0.0)
-                viscous_friction_coeff = torch.clamp(viscous_friction_coeff, min=0.0)
 
                 # Ensure dynamic ≤ static (same shape before indexing)
                 dynamic_friction_coeff = torch.minimum(dynamic_friction_coeff, friction_coeff)
 
                 # Index once at the end
                 dynamic_friction_coeff = dynamic_friction_coeff[env_ids_for_slice, joint_ids]
-                viscous_friction_coeff = viscous_friction_coeff[env_ids_for_slice, joint_ids]
 
                 # Single write call for all versions
                 self.asset.write_joint_friction_coefficient_to_sim_index(

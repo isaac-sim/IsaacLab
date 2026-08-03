@@ -164,13 +164,14 @@ def test_public_ov_packages_use_public_pypi_index():
         assert sources[package] == {"index": "pypi-public"}
 
 
-def test_uv_run_isaacsim_extra_is_conflict_forked():
-    """Isaac Sim is an opt-in uv workspace extra, forked away from clashing extras.
+def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
+    """Isaac Sim is an opt-in uv workspace extra with explicit conflict handling.
 
     PhysX/Isaac Sim is never a base dependency, but it must be a real
     ``optional-dependencies`` extra so ``uv run --extra isaacsim`` resolves. Its
-    exact pins clash with several other extras, so it is declared in
-    ``[tool.uv].conflicts`` (forked resolution) rather than co-resolved with them.
+    exact pins clash with several other extras, which are declared in
+    ``[tool.uv].conflicts``. Viser is co-resolved through a compatible WebSockets
+    override so Isaac Sim demos can request both extras in one command.
     """
     pyproject = _root_pyproject()
     project = pyproject["project"]
@@ -184,10 +185,13 @@ def test_uv_run_isaacsim_extra_is_conflict_forked():
     # The legacy wheel-only table is gone (isaacsim now lives in the extras).
     assert "wheel-extras" not in pyproject.get("tool", {}).get("isaaclab", {})
 
-    # isaacsim is forked away from every extra whose pins clash with it.
+    # isaacsim is forked away from extras whose pins cannot be safely overridden.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("teleop", "ovphysx", "viser", "mimic", "all", "test"):
+    for extra in ("teleop", "ovphysx", "mimic", "all", "test"):
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
+
+    assert {"isaacsim", "viser"} not in conflict_groups
+    assert "websockets==13.1" in pyproject["tool"]["uv"]["override-dependencies"]
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():

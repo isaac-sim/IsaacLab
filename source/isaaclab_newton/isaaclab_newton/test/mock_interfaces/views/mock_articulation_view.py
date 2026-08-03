@@ -25,6 +25,8 @@ class MockNewtonCollectionView:
         - body_com:        ``(N, B, 1)`` dtype=wp.vec3f
         - body_mass:       ``(N, B, 1)`` dtype=wp.float32
         - body_inertia:    ``(N, B, 1)`` dtype=wp.mat33f
+        - body_inv_mass:   ``(N, B, 1)`` dtype=wp.float32
+        - body_inv_inertia: ``(N, B, 1)`` dtype=wp.mat33f
         - body_f:          ``(N, B, 1)`` dtype=wp.spatial_vectorf
 
     Where N = num_envs, B = num_bodies (body types in the collection).
@@ -54,6 +56,8 @@ class MockNewtonCollectionView:
             "body_com": None,
             "body_mass": None,
             "body_inertia": None,
+            "body_inv_mass": None,
+            "body_inv_inertia": None,
             "body_f": None,
         }
 
@@ -109,6 +113,10 @@ class MockNewtonCollectionView:
         elif name == "body_mass":
             return wp.zeros((N, B, 1), dtype=wp.float32, device=dev)
         elif name == "body_inertia":
+            return wp.zeros((N, B, 1), dtype=wp.mat33f, device=dev)
+        elif name == "body_inv_mass":
+            return wp.zeros((N, B, 1), dtype=wp.float32, device=dev)
+        elif name == "body_inv_inertia":
             return wp.zeros((N, B, 1), dtype=wp.mat33f, device=dev)
         elif name == "body_f":
             return wp.zeros((N, B, 1), dtype=wp.spatial_vectorf, device=dev)
@@ -178,12 +186,15 @@ class MockNewtonCollectionView:
         self._attributes["body_com"] = wp.array(
             np.random.randn(N, B, 1, 3).astype(np.float32), dtype=wp.vec3f, device=dev
         )
-        self._attributes["body_mass"] = wp.array(
-            (np.random.rand(N, B, 1) * 10 + 0.1).astype(np.float32), dtype=wp.float32, device=dev
+        body_mass_np = (np.random.rand(N, B, 1) * 10 + 0.1).astype(np.float32)
+        body_inertia_factor_np = np.random.randn(N, B, 1, 3, 3).astype(np.float32)
+        body_inertia_np = body_inertia_factor_np @ body_inertia_factor_np.swapaxes(-1, -2) + 0.1 * np.eye(
+            3, dtype=np.float32
         )
-        self._attributes["body_inertia"] = wp.array(
-            np.random.randn(N, B, 1, 9).astype(np.float32), dtype=wp.mat33f, device=dev
-        )
+        self._attributes["body_mass"] = wp.array(body_mass_np, dtype=wp.float32, device=dev)
+        self._attributes["body_inertia"] = wp.array(body_inertia_np, dtype=wp.mat33f, device=dev)
+        self._attributes["body_inv_mass"] = wp.array(1.0 / body_mass_np, dtype=wp.float32, device=dev)
+        self._attributes["body_inv_inertia"] = wp.array(np.linalg.inv(body_inertia_np), dtype=wp.mat33f, device=dev)
         self._attributes["body_f"] = wp.array(
             np.random.randn(N, B, 1, 6).astype(np.float32), dtype=wp.spatial_vectorf, device=dev
         )
@@ -207,6 +218,8 @@ class MockNewtonArticulationView:
         - body_com: ``(N, 1, L)`` dtype=wp.vec3f
         - body_mass: ``(N, 1, L)`` dtype=wp.float32
         - body_inertia: ``(N, 1, L)`` dtype=wp.mat33f
+        - body_inv_mass: ``(N, 1, L)`` dtype=wp.float32
+        - body_inv_inertia: ``(N, 1, L)`` dtype=wp.mat33f
 
     Where N = count, L = link_count, J = joint_dof_count
 
@@ -270,10 +283,13 @@ class MockNewtonArticulationView:
             "body_com": None,
             "body_mass": None,
             "body_inertia": None,
+            "body_inv_mass": None,
+            "body_inv_inertia": None,
             "joint_limit_lower": None,
             "joint_limit_upper": None,
             "joint_target_ke": None,
             "joint_target_kd": None,
+            "joint_damping": None,
             "joint_armature": None,
             "joint_friction": None,
             "joint_velocity_limit": None,
@@ -414,6 +430,10 @@ class MockNewtonArticulationView:
             return wp.zeros((N, 1, L), dtype=wp.float32, device=dev)
         elif name == "body_inertia":
             return wp.zeros((N, 1, L), dtype=wp.mat33f, device=dev)
+        elif name == "body_inv_mass":
+            return wp.zeros((N, 1, L), dtype=wp.float32, device=dev)
+        elif name == "body_inv_inertia":
+            return wp.zeros((N, 1, L), dtype=wp.mat33f, device=dev)
         elif name == "body_f":
             return wp.zeros((N, 1, L), dtype=wp.spatial_vectorf, device=dev)
         elif name in (
@@ -421,6 +441,7 @@ class MockNewtonArticulationView:
             "joint_limit_upper",
             "joint_target_ke",
             "joint_target_kd",
+            "joint_damping",
             "joint_armature",
             "joint_friction",
             "joint_velocity_limit",
@@ -708,16 +729,15 @@ class MockNewtonArticulationView:
             dtype=wp.vec3f,
             device=dev,
         )
-        self._attributes["body_mass"] = wp.array(
-            (np.random.rand(N, 1, L) * 10 + 0.1).astype(np.float32),
-            dtype=wp.float32,
-            device=dev,
+        body_mass_np = (np.random.rand(N, 1, L) * 10 + 0.1).astype(np.float32)
+        body_inertia_factor_np = np.random.randn(N, 1, L, 3, 3).astype(np.float32)
+        body_inertia_np = body_inertia_factor_np @ body_inertia_factor_np.swapaxes(-1, -2) + 0.1 * np.eye(
+            3, dtype=np.float32
         )
-        self._attributes["body_inertia"] = wp.array(
-            np.random.randn(N, 1, L, 9).astype(np.float32),
-            dtype=wp.mat33f,
-            device=dev,
-        )
+        self._attributes["body_mass"] = wp.array(body_mass_np, dtype=wp.float32, device=dev)
+        self._attributes["body_inertia"] = wp.array(body_inertia_np, dtype=wp.mat33f, device=dev)
+        self._attributes["body_inv_mass"] = wp.array(1.0 / body_mass_np, dtype=wp.float32, device=dev)
+        self._attributes["body_inv_inertia"] = wp.array(np.linalg.inv(body_inertia_np), dtype=wp.mat33f, device=dev)
 
         # Joint properties
         for attr_name in (
@@ -725,6 +745,7 @@ class MockNewtonArticulationView:
             "joint_limit_upper",
             "joint_target_ke",
             "joint_target_kd",
+            "joint_damping",
             "joint_armature",
             "joint_friction",
             "joint_velocity_limit",

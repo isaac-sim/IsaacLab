@@ -47,6 +47,14 @@ def _paused_gc():
     deterministic solver behavior and remain allowed; only the collector is
     deferred, and a collection runs immediately after the capture window,
     where freeing graph-scoped allocations is handled correctly.
+
+    Only generation 0 is collected afterwards: objects allocated inside the
+    window are still in gen 0, so this reclaims the graph-scoped garbage the
+    pause deferred, without the full-heap walk a ``gc.collect()`` would do
+    (hundreds of milliseconds once the replicated model exists). Cycles that
+    were already in an older generation before the window and became
+    unreachable during it -- a previous ``wp.Graph``/``State`` released on a
+    hard reset, for instance -- are left to the periodic collector.
     """
     was_enabled = gc.isenabled()
     gc.disable()
@@ -55,7 +63,7 @@ def _paused_gc():
     finally:
         if was_enabled:
             gc.enable()
-            gc.collect()
+            gc.collect(0)
 
 
 from newton import (

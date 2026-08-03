@@ -8,6 +8,12 @@ interfaces within a code in a minimal way.
 
 A few quick showroom scripts to run and checkout:
 
+.. note::
+
+   The recommended automatic ``uv`` commands include ``--extra isaacsim`` because the showroom
+   scripts use Isaac Sim and default to its PhysX or Kit-backed runtime. A fresh checkout does not
+   install that optional dependency group unless the command requests it.
+
 .. rst-class:: showroom-demo-list
 
 -  Spawn different arms and apply random joint position commands:
@@ -28,7 +34,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/arms.py
+                  uv run --extra isaacsim python scripts/demos/arms.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -66,7 +72,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/bipeds.py
+                  uv run --extra isaacsim python scripts/demos/bipeds.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -146,7 +152,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run --extra tetrahedralization python scripts/demos/deformables.py
+                  uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -190,7 +196,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/h1_locomotion.py
+                  uv run --extra isaacsim python scripts/demos/h1_locomotion.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -244,7 +250,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/hands.py
+                  uv run --extra isaacsim python scripts/demos/hands.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -282,7 +288,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/markers.py
+                  uv run --extra isaacsim python scripts/demos/markers.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -320,7 +326,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/multi_asset.py
+                  uv run --extra isaacsim python scripts/demos/multi_asset.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -352,9 +358,19 @@ A few quick showroom scripts to run and checkout:
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/heterogeneous_scene.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run --extra isaacsim python scripts/demos/heterogeneous_scene.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/heterogeneous_scene.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -392,7 +408,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/bin_packing.py
+                  uv run --extra isaacsim python scripts/demos/bin_packing.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -434,7 +450,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/pick_and_place.py
+                  uv run --extra isaacsim python scripts/demos/pick_and_place.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -484,7 +500,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+                  uv run --extra isaacsim python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -533,7 +549,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/procedural_terrain.py
+                  uv run --extra isaacsim python scripts/demos/procedural_terrain.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -572,7 +588,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/quadcopter.py
+                  uv run --extra isaacsim python scripts/demos/quadcopter.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -610,7 +626,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/quadrupeds.py
+                  uv run --extra isaacsim python scripts/demos/quadrupeds.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -649,7 +665,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
+                  uv run --extra isaacsim python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
