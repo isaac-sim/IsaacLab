@@ -104,7 +104,7 @@ def _spawn_balls(num_envs: int, height: float = 0.5) -> RigidObject:
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg = RigidObjectCfg(
-        prim_path="/World/env_*/ball",
+        prim_path="/World/env_[^/]+/ball",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
@@ -121,7 +121,7 @@ def _spawn_cubes(num_envs: int, height: float = 0.5) -> RigidObject:
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg = RigidObjectCfg(
-        prim_path="/World/env_*/cube",
+        prim_path="/World/env_[^/]+/cube",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, height)),
     )

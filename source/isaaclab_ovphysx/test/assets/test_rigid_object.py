@@ -157,7 +157,7 @@ def generate_cubes_scene(
     # Create rigid object.  OVPhysX matches prim paths via fnmatch globs (not regex),
     # so use ``Table_*`` rather than the PhysX ``Table_.*`` form.
     cube_object_cfg = RigidObjectCfg(
-        prim_path="/World/Table_*/Object",
+        prim_path="/World/Table_[^/]+/Object",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )

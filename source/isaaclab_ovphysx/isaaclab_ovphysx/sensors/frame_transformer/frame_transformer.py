@@ -636,5 +636,7 @@ class FrameTransformer(BaseFrameTransformer):
         Returns:
             The prim path with that segment collapsed to ``/envs/``, so prim paths from any env compare equal.
         """
-        pattern = re.compile(r"/envs/env_[^/]+/")
+        # the env slot may be a concrete id or a segment wildcard; try the wildcard spellings
+        # first so a bare ``[^/]+`` alternative cannot consume half of a character class.
+        pattern = re.compile(r"/envs/env_(?:\[\^/\][*+]|\.\*|[^/]+)/")
         return pattern.sub("/envs/", prim_path)

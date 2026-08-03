@@ -148,7 +148,7 @@ def generate_cubes_scene(
     cube_config_dict = {}
     for i in range(num_cubes):
         cube_object_cfg = RigidObjectCfg(
-            prim_path=f"/World/Table_*/Object_{i}",
+            prim_path=f"/World/Table_[^/]+/Object_{i}",
             spawn=spawn_cfg,
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3 * i, height)),
         )
