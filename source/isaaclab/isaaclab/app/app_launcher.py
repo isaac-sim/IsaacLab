@@ -681,6 +681,7 @@ class AppLauncher:
         "open_usd": [str, type(None)],
         "livesync_usd": [str, type(None)],
         "fast_shutdown": [bool],
+        "limit_cpu_threads": [int],
         "experience": [str],
     }
     """A dictionary containing the type of arguments passed to SimulationApp.
