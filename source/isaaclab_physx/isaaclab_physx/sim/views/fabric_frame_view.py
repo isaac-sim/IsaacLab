@@ -639,9 +639,13 @@ class FabricFrameView(BaseFrameView):
             if self._view_indices is None:
                 raise RuntimeError("Fabric view indices are not initialized.")
             return self._view_indices
-        if indices.dtype != wp.uint32:
-            return wp.array(indices.numpy().astype("uint32"), dtype=wp.uint32, device=self._device)
-        return indices
+        if indices.dtype == wp.uint32:
+            return indices
+        if indices.dtype == wp.int32:
+            # Zero-copy reinterpret: callers (e.g. Camera) pass non-negative int32 indices.
+            # Device placement is not checked here; ``wp.launch`` validates it for every input.
+            return indices.view(wp.uint32)
+        return wp.array(indices.numpy().astype("uint32"), dtype=wp.uint32, device=self._device)
 
     # ------------------------------------------------------------------
     # Internal -- Fabric initialization
