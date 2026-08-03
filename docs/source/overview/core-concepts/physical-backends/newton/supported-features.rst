@@ -78,7 +78,7 @@ Manager-based workflows:
 * Locomotion velocity, flat terrain: A1, AnymalB, AnymalC, AnymalD, Cassie,
   Unitree G1, Go1, Go2, Unitree H1, Spot
 * Locomotion velocity, rough terrain: AnymalC, Cassie, Go1, Go2
-* Manipulation: reach (Franka, UR10), cabinet, dexsuite
+* Manipulation: reach (Franka, UR10), cabinet, lift and reorient (Franka, KukaAllegro)
 * Manipulation lift with deformable objects: Franka soft-body lift, Franka cloth
   lift (via MJWarp and VBD proxy coupling)
 

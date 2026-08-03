@@ -299,7 +299,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         python leapp_initialized_checkpoints.py --checkpoint_root /tmp/ckpt \\
             --preset newton_mjwarp \\
             --spec rsl_rl Isaac-Cartpole \\
-            --spec rsl_rl Isaac-Lift-Cube-Franka _
+            --spec rsl_rl IsaacContrib-Lift-Cube-Franka _
     """
     import argparse
     import os

@@ -70,10 +70,10 @@ TASKS = [
     "Isaac-Reach-Franka",
     "Isaac-Reach-UR10",
     # Manipulation Lift
-    "Isaac-Lift-Cube-Franka",
+    "Isaac-Lift-Franka",
     # Manipulation Cabinet
     "Isaac-Open-Drawer-Franka",
-    # Dexsuite
+    # Dexterous manipulation
     "Isaac-Reorient-KukaAllegro",
     "Isaac-Lift-KukaAllegro",
 ]

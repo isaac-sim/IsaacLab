@@ -108,7 +108,13 @@ class NewtonViewerViser(ViewerViser):
             metadata: Optional metadata attached to the viewer.
         """
         _disable_viser_runtime_client_rebuild_if_bundled()
-        viser = self._get_viser()
+        try:
+            viser = self._get_viser()
+        except ImportError as exc:
+            raise ImportError(
+                "The Viser visualizer requires the optional 'viser' package. "
+                "Run your command with: uv run --extra viser <command>."
+            ) from exc
         original_viser_server = viser.ViserServer
 
         def _viser_server_with_bind_address(*args, **kwargs):

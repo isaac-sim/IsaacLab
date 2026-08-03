@@ -100,17 +100,12 @@ inputs:
     required: false
   warp-cache:
     description: >-
-      Warp kernel cache mode. Empty disables the cache entirely. 'restore'
-      reads the shared cache and never writes it; this is what every test job
-      uses. 'save' starts from an empty cache and publishes the result on
-      success; only the warm-warp-cache job may use it, and only on the default
-      branch, since caches written from a pull request are scoped to that pull
-      request and unreadable by any other.
+      Warp kernel cache mode. Empty disables the cache. 'restore' reads the
+      newest compatible snapshot and never writes; every test job uses this, so
+      a pull request can never publish kernels built from unmerged code. 'save'
+      restores the same way and writes the result back as a new snapshot, making
+      post-merge a cumulative writeback; only warm-warp-cache uses it.
     default: ''
-    required: false
-  warp-cache-max-mb:
-    description: 'Refuse to publish a Warp cache larger than this, in MB, to protect the repository cache quota'
-    default: '5000'
     required: false
   standalone-script-scope:
     description: 'Enable standalone script smoke tests for this scripts/ subdirectory'
@@ -197,19 +192,25 @@ runs:
       id: warp-cache-key
       uses: ./.github/actions/warp-cache-key
 
+    # Both modes restore. 'save' additionally writes the result back, so a
+    # post-merge run gets the same speedup as a pull request and the collection
+    # accumulates whatever was missing instead of restarting from empty.
     - name: Restore Warp kernel cache
-      if: inputs.warp-cache == 'restore'
+      if: inputs.warp-cache != ''
+      id: warp-cache-restore
       uses: actions/cache/restore@v4
       with:
         path: ${{ steps.warp-cache-key.outputs.host-dir }}
         key: ${{ steps.warp-cache-key.outputs.key }}
         restore-keys: ${{ steps.warp-cache-key.outputs.restore-keys }}
 
-    - name: Measure restored Warp cache
+    - name: Report restored Warp cache
       if: inputs.warp-cache != ''
       shell: bash
       env:
         HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
+        MATCHED_KEY: ${{ steps.warp-cache-restore.outputs.cache-matched-key }}
+        COLLECTION: ${{ steps.warp-cache-key.outputs.collection }}
       run: |
         set -euo pipefail
         mkdir -p "$HOST_DIR"
@@ -217,8 +218,19 @@ runs:
           echo "::error::Warp cache directory is not writable: $HOST_DIR"
           exit 1
         fi
+
+        # cache-matched-key is authoritative. Inferring a hit from directory size
+        # is not: an empty directory still measures as ~1 MB.
+        if [ -z "$MATCHED_KEY" ]; then
+          echo "::warning::Warp cache miss - no entry in collection ${COLLECTION}"
+          echo "WARP_CACHE_HIT=miss" >> "$GITHUB_ENV"
+        else
+          echo "Warp cache hit: ${MATCHED_KEY}"
+          echo "WARP_CACHE_HIT=${MATCHED_KEY}" >> "$GITHUB_ENV"
+        fi
         echo "WARP_CACHE_MB_BEFORE=$(du -sm "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
-        echo "Warp cache at $HOST_DIR: $(du -sh "$HOST_DIR" | cut -f1)"
+
+        python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" "Warp cache restored"
 
     - name: Setup wheelhouse registry authentication
       if: inputs.wheelhouse-image != ''
@@ -321,12 +333,12 @@ runs:
           exit 1
         fi
 
-    # How much the cache grew during this job is the coverage signal: growth is
-    # exactly the kernels this job needed that the warmer never compiled. A job
-    # that grows the cache a lot names an axis missing from the warmer's -k
-    # expression. Tune that expression on these numbers, not on guesses.
-    - name: Report Warp cache coverage
-      if: always() && inputs.warp-cache == 'restore'
+    # Growth is the coverage signal: it is exactly the kernels this job needed
+    # that the collection did not already hold. Reporting only - no thresholds,
+    # since we have no measured basis for one yet.
+    - name: Report Warp cache growth
+      if: always() && inputs.warp-cache != ''
+      id: warp-cache-growth
       shell: bash
       env:
         HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
@@ -335,6 +347,7 @@ runs:
 
         if [ ! -d "$HOST_DIR" ]; then
           echo "Warp cache directory is missing; nothing to report"
+          echo "empty=true" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
@@ -342,47 +355,27 @@ runs:
         after="$(du -sm "$HOST_DIR" | cut -f1)"
         grew=$(( after - before ))
 
-        if [ "$before" -eq 0 ]; then
-          verdict="no cache was restored (cold run)"
+        if [ "${WARP_CACHE_HIT:-miss}" = "miss" ]; then
+          verdict="cold run, nothing restored"
         elif [ "$grew" -le 0 ]; then
-          verdict="fully covered by the warm cache"
+          verdict="fully covered"
         else
-          verdict="compiled $(( grew * 100 / before ))% beyond the warm cache"
+          verdict="compiled $(( grew * 100 / (before > 0 ? before : 1) ))% beyond the restored cache"
         fi
 
         echo "Warp cache: restored ${before} MB, ended at ${after} MB (+${grew} MB) - ${verdict}"
-        echo "🔵 Warp cache: ${before} MB restored, +${grew} MB compiled - ${verdict}" >> "$GITHUB_STEP_SUMMARY"
+        echo "🔵 Warp cache: ${before} -> ${after} MB (+${grew}) - ${verdict}" >> "$GITHUB_STEP_SUMMARY"
+        python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" "Warp cache final"
 
-    - name: Measure Warp kernel cache
-      if: success() && inputs.warp-cache == 'save'
-      id: warp-cache-size
-      shell: bash
-      env:
-        HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
-        MAX_MB: ${{ inputs.warp-cache-max-mb }}
-      run: |
-        set -euo pipefail
+        # Publishing an empty tree would replace a good snapshot with nothing.
+        [ "$after" -lt 1 ] && echo "empty=true" >> "$GITHUB_OUTPUT" || echo "empty=false" >> "$GITHUB_OUTPUT"
 
-        size_mb="$(du -sm "$HOST_DIR" | cut -f1)"
-        echo "Warp cache size: ${size_mb} MB (limit ${MAX_MB} MB)"
-        echo "🔵 Warp cache: ${size_mb} MB" >> "$GITHUB_STEP_SUMMARY"
-
-        # The repository-wide GitHub cache quota is 10 GB and eviction is LRU
-        # across the whole repository, so an oversized Warp cache does not just
-        # fail to help - it evicts every other cache in the repository. Skip the
-        # publish rather than take that trade.
-        if [ "$size_mb" -gt "$MAX_MB" ]; then
-          echo "::warning::Warp cache is ${size_mb} MB, above the ${MAX_MB} MB limit; skipping publish"
-          echo "publish=false" >> "$GITHUB_OUTPUT"
-        elif [ "$size_mb" -lt 1 ]; then
-          echo "::warning::Warp cache is empty; skipping publish"
-          echo "publish=false" >> "$GITHUB_OUTPUT"
-        else
-          echo "publish=true" >> "$GITHUB_OUTPUT"
-        fi
-
+    # Not success(): the product is compiled kernels, and those stay valid when a
+    # test assertion fails. Gating on success() let one failing env silently
+    # discard the whole cache. Cancellation still skips, so a tree Warp was
+    # mid-write on is never published.
     - name: Save Warp kernel cache
-      if: success() && inputs.warp-cache == 'save' && steps.warp-cache-size.outputs.publish == 'true'
+      if: '!cancelled() && inputs.warp-cache == ''save'' && steps.warp-cache-growth.outputs.empty != ''true'''
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.warp-cache-key.outputs.host-dir }}

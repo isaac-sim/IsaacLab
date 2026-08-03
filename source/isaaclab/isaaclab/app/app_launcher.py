@@ -507,11 +507,12 @@ class AppLauncher:
             parser._option_string_actions.pop("-h")
             parser._option_string_actions.pop("--help")
 
-        # Parse known args for potential name collisions/type mismatches
-        # between the config fields SimulationApp expects and the ArgParse
-        # arguments that the user passed.
-        known, _ = parser.parse_known_args()
-        config = vars(known)
+        # Collect the declared arguments for potential name collisions/type mismatches between the
+        # config fields SimulationApp expects and the ArgParse arguments that the user added. Read
+        # from the parser rather than by parsing the command line: parsing exits the process when a
+        # required argument is missing, which is the case for any script with required positionals
+        # invoked with '--help', and the launcher arguments would never reach the help output.
+        config = {action.dest: action.default for action in parser._actions if action.dest != argparse.SUPPRESS}
         if len(config) == 0:
             logger.warning(
                 "[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object."

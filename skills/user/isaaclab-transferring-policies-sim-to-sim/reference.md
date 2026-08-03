@@ -68,9 +68,9 @@ Use plausible ranges around a corrected nominal model. Use curriculum only when 
 Generic command pattern:
 
 ```bash
-uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=physx
+uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=isaacsim_physx
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-  --checkpoint /absolute/path/to/physx_checkpoint.pt physics=physx
+  --checkpoint /absolute/path/to/physx_checkpoint.pt physics=isaacsim_physx
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
   --checkpoint /absolute/path/to/physx_checkpoint.pt physics=newton_mjwarp
 
@@ -78,7 +78,7 @@ uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=newton_mjwar
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
   --checkpoint /absolute/path/to/newton_checkpoint.pt physics=newton_mjwarp
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-  --checkpoint /absolute/path/to/newton_checkpoint.pt physics=physx
+  --checkpoint /absolute/path/to/newton_checkpoint.pt physics=isaacsim_physx
 ```
 
 ### Run The Franka Lift Transfer
