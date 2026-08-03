@@ -130,8 +130,8 @@ class DeformableCfg(PresetCfg):
                 density=1000.0,
                 youngs_modulus=YOUNGS_MODULUS,
                 poissons_ratio=POISSONS_RATIO,
-                static_friction=5.0,
-                dynamic_friction=5.0,
+                static_friction=10.0,
+                dynamic_friction=10.0,
             ),
         ),
     )
@@ -519,7 +519,7 @@ class RewardsCfg:
         weight=20.0,
     )
 
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-3)
 
 
 @configclass
@@ -527,7 +527,7 @@ class CurriculumCfg:
     """Ramp the action-rate penalty once the policy has learned to lift (matches rigid recipe)."""
 
     action_rate = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-2, "num_steps": 15000}
+        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 15000}
     )
 
     # Since we use 24 steps per env, 10000 steps correspond to 10000/24 = 416.67 learning iterations
