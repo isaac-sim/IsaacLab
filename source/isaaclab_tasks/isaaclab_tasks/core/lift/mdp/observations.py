@@ -54,7 +54,7 @@ class body_state_b(ManagerTermBase):
         super().__init__(cfg, env)
         body_ids = cfg.params["body_asset_cfg"].body_ids
         if isinstance(body_ids, list):
-            body_ids = torch.tensor(body_ids, dtype=torch.int32, device=env.device)
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=env.device)
         self._body_ids = body_ids
 
     def __call__(
