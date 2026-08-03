@@ -63,15 +63,15 @@ class VideoRecorder:
     """
 
     def __init__(self, cfg: VideoRecorderCfg, env: object):
-        if ImageSequenceClip is None:
-            raise ImportError("moviepy is required for video recording. Install it with: pip install 'moviepy<2'")
-
         kind, _, _ = _parse_source(cfg.source)
         if kind not in _VALID_SOURCE_KINDS:
             raise ValueError(
                 f"[VideoRecorder] Unrecognized source kind '{kind}' in source='{cfg.source}'. "
                 f"Expected one of: {_VALID_SOURCE_KINDS}."
             )
+
+        if ImageSequenceClip is None:
+            raise ImportError("moviepy is required for video recording. Install it with: pip install 'moviepy<2'")
 
         self.cfg = cfg
         self._env = env
