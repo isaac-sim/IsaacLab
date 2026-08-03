@@ -48,7 +48,6 @@ _PHYSX_FORWARDS = frozenset(
         "CollisionPropertiesCfg",
         "PhysxCollisionPropertiesCfg",
         "DeformableBodyPropertiesCfg",
-        "PhysxDeformableCollisionPropertiesCfg",
         "PhysxDeformableBodyPropertiesCfg",
         "ArticulationRootPropertiesCfg",
         "PhysxArticulationRootPropertiesCfg",

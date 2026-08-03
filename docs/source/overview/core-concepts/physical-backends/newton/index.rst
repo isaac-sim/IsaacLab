@@ -35,9 +35,8 @@ the following solver pages:
 
 * :doc:`mjwarp-solver` — the primary, validated solver path.
 * :doc:`kamino-solver` — beta support on selected classic tasks.
-* :doc:`using-vbd-solver` — experimental VBD solver for cloth and soft bodies,
-  available through :mod:`isaaclab_contrib.deformable` and the MJWarp + VBD or
-  Featherstone + VBD coupled managers.
+* :doc:`using-vbd-solver`: experimental VBD solver for cloth and soft bodies,
+  with MJWarp and VBD proxy coupling through :mod:`isaaclab_contrib.coupling`.
 
 Each solver is exposed as a small subclass of
 :class:`~isaaclab_newton.physics.NewtonManager`. See

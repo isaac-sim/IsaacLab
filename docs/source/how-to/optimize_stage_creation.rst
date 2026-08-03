@@ -90,7 +90,6 @@ Limitations
     23. Isaac-Open-Drawer-Franka-Direct
     24. Isaac-Humanoid-Direct
     25. Isaac-Humanoid
-    26. Isaac-Quadcopter-Direct-v0
     27. Isaac-Reorient-Cube-Allegro-Direct
     28. Isaac-Reorient-Cube-Allegro
     29. Isaac-Reorient-Cube-Shadow-Direct

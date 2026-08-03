@@ -18,6 +18,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -292,7 +293,7 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("object"),
-            "mass_distribution_params": [0.2, 2.0],
+            "mass_distribution_params": [0.2, 2.5],
             "operation": "scale",
         },
     )
@@ -367,7 +368,7 @@ class EventCfg:
                     params={
                         "pose_range": {"x": [-0.04, 0.04], "y": [-0.04, 0.04], "z": [-0.04, 0.04]},
                         "velocity_range": {},
-                        "probability": 0.05,
+                        "probability": 0.25,
                         # robot configs must point this at their gripper body and may shift
                         # the z range along the approach axis (e.g. between the fingertips)
                         "target_cfg": MISSING,
@@ -376,6 +377,14 @@ class EventCfg:
                 ),
             },
             "buffer_size_per_group": 1024,
+            # harvest more candidates than the bank holds and keep the subset that is spread widest
+            # over the diversity feature; ``1.0`` keeps the states first-come instead.
+            "diversity_feature": mdp.GraspTravelDistanceCfg(
+                asset_name="robot",
+                body_names=MISSING,  # overridden by robot configs
+                object_name="object",
+                command_name="object_pose",
+            ),
             "valid_criteria": {
                 "object_robot_clearance": mdp.MeshClearanceCfg(
                     asset_name="robot",
@@ -393,6 +402,10 @@ class EventCfg:
                     min_clearance=0.02,
                 ),
             },
+            # restart from the banked states the policy solves about half the time rather than
+            # drawing uniformly, which keeps the already-mastered and still-hopeless states from
+            # taking up most of the episodes
+            "success_monitor": mdp.SuccessMonitorCfg(target_success_rate=0.5),
         },
     )
 
@@ -410,23 +423,25 @@ class RewardsCfg:
 
     fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=0.05)
 
+    # Progress rewards pay once per ``min_improvement`` of ground gained on the best error so far,
+    # so ground already credited cannot be earned again by backing off and re-approaching.
     position_tracking = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=2.0,
+        func=mdp.position_command_progress,
+        weight=5.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "std": 0.1,
+            "min_improvement": 0.0025,
             "command_name": "object_pose",
             "align_asset_cfg": SceneEntityCfg("object"),
         },
     )
 
     orientation_tracking = RewTerm(
-        func=mdp.orientation_command_error_tanh,
-        weight=4.0,
+        func=mdp.orientation_command_progress,
+        weight=10.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "std": 1.5,
+            "min_improvement": 0.015,
             "command_name": "object_pose",
             "align_asset_cfg": SceneEntityCfg("object"),
         },
@@ -466,7 +481,7 @@ class TerminationsCfg:
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.01,
         gpu_max_rigid_patch_count=4 * 5 * 2**15,
         gpu_found_lost_pairs_capacity=2**26,
@@ -490,7 +505,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = default
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = physx
 
 
 @configclass
@@ -557,9 +573,18 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
         super().play_mode()
 
         self.commands.object_pose.debug_vis = True
+        # the bank shapes what a policy trains on; at play it only has to supply starts for the
+        # handful of environments the parent left, so it is harvested small and taken as it comes
+        # rather than making the viewer wait through an oversampled prefill and its spread pass
+        reset_params = self.events.conditional_reset.params
+        reset_params["buffer_size_per_group"] = 32
+        reset_params["oversample_factor"] = 1.0
+        reset_params["diversity_feature"] = None
         if self.curriculum is not None:
             self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
             self.curriculum.adr.params["promotion_only"] = True
+            # the parent turned observation corruption off, which leaves the noise terms nothing to scale
+            self.curriculum.disable_observation_noise_terms()
 
 
 class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):

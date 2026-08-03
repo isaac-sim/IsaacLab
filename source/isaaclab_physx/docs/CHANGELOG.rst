@@ -1,6 +1,81 @@
 Changelog
 ---------
 
+4.0.0 (2026-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``PhysxDeformableCollisionPropertiesCfg`` and the ``contact_offset`` /
+  ``rest_offset`` fields it contributed to
+  :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyPropertiesCfg`. They were authored onto
+  the deformable body prim, but PhysX reads collision offsets off the collider, which for a
+  deformable is its simulation mesh, so the values never reached the solver and it fell back to
+  the PhysX defaults. Pass the offsets through the mesh spawner's ``collision_props`` instead, for
+  example ``collision_props=[PhysxCollisionCfg(rest_offset=0.0005, contact_offset=0.005)]``.
+
+
+3.1.5 (2026-08-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added deformable nodal position export on the PhysX SceneData backend so soft
+  bodies and cloth can drive Newton Warp / OVRTX shadow visualization.
+* Added the ``as_proxy`` return-mode option to PhysX asset finder methods.
+  ``as_proxy=False`` is the default and returns the legacy selector
+  representation, while ``as_proxy=True`` opts into cached
+  :class:`~isaaclab.utils.warp.ProxyArray` selectors. Pass their explicit
+  ``.warp`` or ``.torch`` views to downstream APIs.
+
+Changed
+^^^^^^^
+
+* Cached stable articulation and rigid asset read launches to reduce repeated
+  Warp launch setup on PhysX. No user migration is required.
+
+Fixed
+^^^^^
+
+* Fixed Isaac RTX renderer initialization in minimal Kit experiences by dynamically
+  enabling ``omni.replicator.core`` before importing it, avoiding startup resolution
+  of its bundled Warp dependency.
+* Fixed PhysX indexed articulation writes to accept signed 32-bit and 64-bit
+  environment and item selectors without Torch conversion tensors.
+* Fixed stale pose-, velocity-, and center-of-mass-derived rigid asset data
+  immediately after simulation state and property writes.
+* Fixed fixed and spatial tendon property writers to accept the selector
+  arguments advertised by the common articulation interface.
+* Fixed stale mass matrix and gravity compensation reads immediately after
+  mass, inertia, and armature writes.
+* Fixed dynamics reads for reversed USD joint relationships.
+
+
+3.1.4 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added structured summary and JSON output to PhysX sensor micro-benchmarks.
+* Added matched plane and deterministic rough-terrain phases to the ray caster
+  sensor micro-benchmark.
+
+Changed
+^^^^^^^
+
+* Changed the physx asset micro-benchmarks from separate method and data scripts
+  to one combined script per asset concept. Run the retained
+  benchmark_<asset>.py script to produce both historical result artifacts.
+
+Fixed
+^^^^^
+
+* Fixed articulation-data micro-benchmarks to use stable PhysX state, mass-property, and dynamics buffers.
+
+
 3.1.3 (2026-07-30)
 ~~~~~~~~~~~~~~~~~~
 
