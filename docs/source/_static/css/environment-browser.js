@@ -27,7 +27,6 @@
         ["Isaac-Humanoid-Direct-Warp-v0", "rl_games,rsl_rl,skrl", "", "", ""],
         ["Isaac-Humanoid-Warp-v0", "rl_games,rsl_rl,skrl,sb3", "", "", ""],
         ["Isaac-Lift-Cloth-Franka", "rsl_rl", "newton_mjwarp_vbd_proxy", "", ""],
-        ["Isaac-Lift-Cube-Franka", "rl_games,rsl_rl,skrl,sb3", "", "", ""],
         ["Isaac-Lift-Franka", "rsl_rl", "newton_mjwarp,physx", "", "cube,shapes"],
         ["Isaac-Lift-KukaAllegro", "rsl_rl", "newton_mjwarp,ovphysx,physx", "", "cube,shapes"],
         ["Isaac-Lift-KukaAllegro-Camera", "rsl_rl", "newton_mjwarp,ovphysx,physx", "isaacsim_rtx,newton_renderer,ovrtx,rtx", "albedo128,albedo256,albedo64,cube,depth128,depth256,depth64,duo_camera,raycaster_depth128,raycaster_depth256,raycaster_depth64,rgb128,rgb256,rgb64,semantic_segmentation128,semantic_segmentation256,semantic_segmentation64,shapes,simple_shading_constant_diffuse128,simple_shading_constant_diffuse256,simple_shading_constant_diffuse64,simple_shading_diffuse_mdl128,simple_shading_diffuse_mdl256,simple_shading_diffuse_mdl64,simple_shading_full_mdl128,simple_shading_full_mdl256,simple_shading_full_mdl64,single_camera"],
