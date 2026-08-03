@@ -124,14 +124,14 @@ class DeformableCfg(PresetCfg):
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.3, 0.04, 0.04),
             deformable_props=PhysxDeformableBodyPropertiesCfg(),
-            collision_props=[PhysxCollisionCfg(rest_offset=0.0005, contact_offset=0.005)],
+            collision_props=[PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01)],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
             physics_material=PhysxDeformableBodyMaterialCfg(
                 density=1000.0,
                 youngs_modulus=YOUNGS_MODULUS,
                 poissons_ratio=POISSONS_RATIO,
-                static_friction=1.0,
-                dynamic_friction=1.0,
+                static_friction=5.0,
+                dynamic_friction=5.0,
             ),
         ),
     )
@@ -184,8 +184,8 @@ class PhysicsCfg(PresetCfg):
     )
 
     isaacsim_physx: PhysxCfg = PhysxCfg(
-        friction_offset_threshold=0.001,
-        friction_correlation_distance=0.005,
+        friction_offset_threshold=0.005,
+        friction_correlation_distance=0.01,
     )
     ovphysx: OvPhysxCfg = OvPhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
@@ -253,7 +253,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
             "panda_arm": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[1-7]"],
                 effort_limit_sim={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
-                velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
+                velocity_limit_sim={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
                 # velocity_limit_sim={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
                 stiffness={
                     "panda_joint[1-4]": 600.0,

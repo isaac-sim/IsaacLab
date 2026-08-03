@@ -249,22 +249,26 @@ for the lift-cube environment:
     | |lift-soft-franka|      | |lift-soft-franka-link|      | Pick a deformable soft body and bring it to a sampled target position with  | **physics=** ``isaacsim_physx``,        |
     |                         |                              | the Franka robot                                                            | ``newton_mjwarp_vbd_proxy``,            |
     |                         |                              |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |lift-soft-franka|      | |lift-soft-franka-cam-link|  | Camera (vision) variant of the soft-body lift task using RGB observations   | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``,            |
     |                         |                              |                                                                             | ``ovphysx``                             |
     |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
+    |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |lift-cloth-franka|     | |lift-cloth-franka-link|     | Lift a deformable cloth from a table with the Franka robot                  | **physics=**                            |
     |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``,            |
     |                         |                              |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |lift-cloth-franka|     | |lift-cloth-franka-cam-link| | Camera (vision) variant of the cloth lift task using RGB observations       | **physics=**                            |
     |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``,            |
     |                         |                              |                                                                             | ``ovphysx``                             |
     |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
+    |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |stack-cube|            | |stack-cube-link|            | Stack three cubes (bottom to top: blue, red, green) with the Franka robot.  | **physics=** ``isaacsim_physx``,        |
     |                         |                              | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       | ``newton_mjwarp``                       |
@@ -1113,12 +1117,14 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Cloth-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp_vbd_proxy``, ``ovphysx``
+      - | **physics=** ``newton_mjwarp_vbd_proxy``, ``ovphysx``
+          | **presets=** ``ik``, ``joint``
     * - Isaac-Lift-Cloth-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp_vbd_proxy``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
+          | **presets=** ``ik``, ``joint``
     * - Isaac-Lift-Franka
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1138,12 +1144,14 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Soft-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``
+          | **presets=** ``ik``, ``joint``
     * - Isaac-Lift-Soft-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
+          | **presets=** ``ik``, ``joint``
     * - Isaac-Open-Drawer-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)

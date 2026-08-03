@@ -31,7 +31,7 @@ ALGO_CFG = RslRlPpoAlgorithmCfg(
 @configclass
 class FrankaDeformablePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 5000
+    max_iterations = 3000
     save_interval = 50
     experiment_name = "franka_soft"
     obs_groups = {
