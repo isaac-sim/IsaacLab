@@ -303,6 +303,48 @@ def test_migrated_packages_declare_a_marker(facts: list[_FileFacts]):
     )
 
 
+def test_shareable_file_list_is_derived_from_the_markers():
+    """``tools/kit_test_files.py`` must agree with the markers, and order cameras first.
+
+    CI batches test files by asking that script which ones can share a Kit app, instead of
+    carrying a hand-written list that goes stale as files are added or reclassified. These are
+    the invariants a caller relies on.
+    """
+    sys.path.insert(0, str(_REPO_ROOT / "tools"))
+    from kit_test_files import shareable_test_files  # noqa: PLC0415
+    from test_settings import TESTS_TO_SKIP  # noqa: PLC0415
+
+    directory = _REPO_ROOT / "source" / "isaaclab" / "test" / "sim"
+    selected = shareable_test_files(directory)
+    names = [path.name for path in selected]
+    assert names, f"no shareable files found in {directory}"
+    assert len(names) == len(set(names)), f"duplicate entries: {names}"
+
+    sources = {path.name: path.read_text(encoding="utf-8") for path in directory.glob("test_*.py")}
+
+    def marks(name: str, marker: str) -> bool:
+        return f"pytest.mark.{marker}" in sources[name]
+
+    expected = {
+        name
+        for name, source in sources.items()
+        if name not in TESTS_TO_SKIP and "pytest.mark.kit" in source and "pytest.mark.kit_solo" not in source
+    }
+    assert set(names) == expected, (
+        "the derived list disagrees with the markers:"
+        f"\n  only in list:     {sorted(set(names) - expected)}"
+        f"\n  only in markers:  {sorted(expected - set(names))}"
+    )
+
+    # A camera-enabled app can serve tests that do not need cameras, but cameras cannot be
+    # enabled after startup, so every kit_cameras file must precede every plain kit file.
+    is_camera = [marks(name, "kit_cameras") for name in names]
+    assert is_camera == sorted(is_camera, reverse=True), (
+        "kit_cameras files must come first, otherwise a plain `kit` file boots the app without"
+        f" cameras and the later launch_kit(cameras=True) raises. Got: {names}"
+    )
+
+
 def test_kitless_files_import_without_kit(facts: list[_FileFacts]):
     """Importing every `kitless` module must not pull in Kit through a helper module.
 
