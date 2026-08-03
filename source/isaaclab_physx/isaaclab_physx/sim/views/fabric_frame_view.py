@@ -13,7 +13,6 @@ import logging
 import torch
 import warp as wp
 
-import carb.profiler
 from pxr import Gf, Usd, UsdGeom
 
 from isaaclab.app.settings_manager import SettingsManager
@@ -297,8 +296,6 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
     # Getter hooks -- read directly from Fabric (no lazy sync)
     # ------------------------------------------------------------------
-
-    @carb.profiler.profile(zone_name="FabricFrameView.get_world_poses")
     def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
             return self._usd_view._get_world_poses_impl(indices)
@@ -339,8 +336,6 @@ class FabricFrameView(BaseFrameView):
         if use_cached:
             return self._fabric_positions_ta, self._fabric_orientations_ta
         return ProxyArray(positions_wp), ProxyArray(orientations_wp)
-
-    @carb.profiler.profile(zone_name="FabricFrameView.get_local_poses")
     def _get_local_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
             return self._usd_view._get_local_poses_impl(indices)
@@ -395,8 +390,6 @@ class FabricFrameView(BaseFrameView):
             self._initialize_fabric()
 
         return self._decompose_scales(self._get_local_ifa(), indices)
-
-    @carb.profiler.profile(zone_name="FabricFrameView.decompose_scales")
     def _decompose_scales(self, ro_array, indices) -> ProxyArray:
         """Shared scale-decompose path for world / local getters."""
         indices_wp = self._resolve_indices_wp(indices)
@@ -446,8 +439,6 @@ class FabricFrameView(BaseFrameView):
 
     def _to_float32_2d_or_empty(self, data):
         return self._fabric_empty_2d_array_sentinel if data is None else _to_float32_2d(data)
-
-    @carb.profiler.profile(zone_name="FabricFrameView.recompute_local_from_world")
     def _recompute_local_from_world_all(self) -> None:
         """Derive ``localMatrix = inv(parent) * worldMatrix`` for every prim in the view.
 
@@ -468,8 +459,6 @@ class FabricFrameView(BaseFrameView):
             ],
             device=self._device,
         )
-
-    @carb.profiler.profile(zone_name="FabricFrameView.recompute_world_from_local")
     def _recompute_world_from_local_all(self) -> None:
         """Derive ``worldMatrix = parent * localMatrix`` for every prim in the view.
 
@@ -522,8 +511,6 @@ class FabricFrameView(BaseFrameView):
             fa=wp.fabricarray(self._sel_parent, self._WORLD_MATRIX_NAME),
             indices=self._parent_slot_of_child_buf,
         )
-
-    @carb.profiler.profile(zone_name="FabricFrameView.refresh_child_selection")
     def _refresh_child_selection(self):
         """Refresh the active child selection and rebuild its slot mapping on device.
 
@@ -549,8 +536,6 @@ class FabricFrameView(BaseFrameView):
             device=self._device,
         )
         return sel
-
-    @carb.profiler.profile(zone_name="FabricFrameView.refresh_parent_selection")
     def _refresh_parent_selection(self) -> None:
         """Refresh the parent selection and rebuild the per-child parent-slot mapping.
 
@@ -597,8 +582,6 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
     # Internal -- Fabric initialization
     # ------------------------------------------------------------------
-
-    @carb.profiler.profile(zone_name="FabricFrameView.initialize_fabric")
     def _initialize_fabric(self) -> None:
         """One-time Fabric setup: hierarchy handle, per-view index tagging, selections, buffers."""
         import usdrt  # noqa: PLC0415
@@ -707,8 +690,6 @@ class FabricFrameView(BaseFrameView):
             self._sync_fabric_from_usd_initial()
         finally:
             self._is_rw = False
-
-    @carb.profiler.profile(zone_name="FabricFrameView.sync_fabric_from_usd")
     def _sync_fabric_from_usd_initial(self) -> None:
         """Populate Fabric world+local matrices for children and parents from USD.
 
