@@ -264,15 +264,13 @@ override is given:
     # Use Newton physics backend
     python train.py --task=Isaac-Reach-Franka env.physics=newton_mjwarp
 
-Tasks that previously used automatic ``PhysxAutoCfg`` selection by default now
-use the concrete ``isaacsim_physx`` variant by default. Existing explicit
-defaults, such as Newton, remain unchanged. The explicit ``physics=physx``
-selector opts into automatic PhysX-family selection at launch time: Isaac Sim
-PhysX is used when a Kit renderer or Kit viewer is requested. For fully kit-less
-runs, OvPhysX is used when the task configures an OvPhysX alternative; otherwise
-selection falls back to Isaac Sim PhysX and requires Kit. This matches renderer
-selection, where ``isaacsim_rtx`` is the concrete default and ``renderer=rtx``
-is automatic.
+The concrete ``isaacsim_physx`` variant is the default in this example. Select
+``physics=physx`` to enable automatic PhysX-family selection at launch time:
+Isaac Sim PhysX is used when a Kit renderer or Kit viewer is requested. For fully
+kit-less runs, OvPhysX is used when the task configures an OvPhysX alternative;
+otherwise selection falls back to Isaac Sim PhysX and requires Kit. This matches
+renderer selection, where ``isaacsim_rtx`` is the concrete default and
+``renderer=rtx`` is automatic.
 
 The ``default`` field can be set to ``None`` to make an optional feature that is
 disabled unless explicitly selected:
