@@ -181,6 +181,7 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
 
     _usd_namespace: ClassVar[str | None] = "mjc"
     _usd_applied_schema: ClassVar[str | None] = "MjcJointAPI"
+    _modify_func: ClassVar[Callable | str] = "isaaclab_newton.sim.schemas.schemas:_modify_mujoco_joint_drive_properties"
     _usd_field_exceptions: ClassVar[dict] = {}
 
     actuatorgravcomp: bool | None = None

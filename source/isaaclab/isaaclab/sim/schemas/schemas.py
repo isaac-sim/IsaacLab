@@ -29,7 +29,7 @@ from ..utils import (
     safe_set_attribute_on_usd_schema,
 )
 from . import schemas_cfg
-from ._backend_hooks import _skip_joint_drive
+from ._backend_hooks import _modify_fixed_tendon_with_backend, _skip_joint_drive
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1644,32 +1644,23 @@ def modify_fixed_tendon_properties(
 
     # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has fixed tendon applied on it or if the mjc tendon prim exiss
+    # check if the prim has a PhysX fixed-tendon schema applied
     applied_schemas = tendon_prim.GetAppliedSchemas()
-    prim_type = tendon_prim.GetTypeName()
-    if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas) and prim_type != "MjcTendon":
-        return False
+    if not any("PhysxTendonAxisRootAPI" in schema_name for schema_name in applied_schemas):
+        return _modify_fixed_tendon_with_backend(cfg, prim_path, stage)
 
     # resolve all available instances of the schema since it is multi-instance
-    cfg = cfg.to_dict()
-    if prim_type != "MjcTendon":
-        for schema_name in applied_schemas:
-            if "PhysxTendonAxisRootAPI" not in schema_name:
-                continue
-            # set into PhysX API by attribute prefix schema_name: (e.g. PhysxTendonAxisRootAPI:default:stiffness)
-            for attr_name, value in cfg.items():
-                safe_set_attribute_on_usd_prim(
-                    tendon_prim,
-                    f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
-                    value,
-                    camel_case=False,
-                )
-    else:
-        # NOTE: ``mjc:*`` branch (``MjcTendon`` prim) kept inline; future split candidate into isaaclab_newton.
-        # only stiffness and damping in the cfg map to mjc attributes
-        for attr_name, value in cfg.items():
+    cfg_dict = cfg.to_dict()
+    for schema_name in applied_schemas:
+        if "PhysxTendonAxisRootAPI" not in schema_name:
+            continue
+        # set into PhysX API by attribute prefix schema_name: (e.g. PhysxTendonAxisRootAPI:default:stiffness)
+        for attr_name, value in cfg_dict.items():
             safe_set_attribute_on_usd_prim(
-                tendon_prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
+                tendon_prim,
+                f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
+                value,
+                camel_case=False,
             )
     # success
     return True

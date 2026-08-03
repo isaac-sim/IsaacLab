@@ -30,6 +30,7 @@ from isaaclab.sim.utils import (
     set_prim_visibility,
 )
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
+from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
@@ -432,44 +433,19 @@ def _spawn_from_usd_file(
     # note: these are only for setting low-level simulation properties. all others should be set or are
     #  and overridden by the articulation/actuator properties.
     if cfg.joint_drive_props is not None:
-        # transition shim, remove later: a fragment list -> apply_joint_drive_properties (the
-        # MujocoJointCfg fragment handles its own body-gravcomp coupling in apply_mujoco_joint, so
-        # the fragment path adds no backend coupling here); a legacy single cfg -> the pre-existing
-        # gravcomp auto-enable + modify_joint_drive_properties below.
+        # Transition shim, remove later: fragment lists dispatch through each fragment's callback;
+        # legacy cfgs dispatch through class metadata so backend compatibility behavior stays in
+        # the package that owns the cfg.
         joint_frags = (
             cfg.joint_drive_props if isinstance(cfg.joint_drive_props, (list, tuple)) else [cfg.joint_drive_props]
         )
         if joint_frags and all(isinstance(f, schemas.SchemaFragment) for f in joint_frags):
             schemas.apply_joint_drive_properties(prim_path, joint_frags, ensure_drives_exist=cfg.ensure_drives_exist)
         else:
-            # auto-enable body-level gravcomp if joint-level actuator gravcomp is requested
-            # without it — actuatorgravcomp has no effect since there are no forces to route.
-            # Only auto-populates when the user did not already set ``gravcomp`` themselves;
-            # an explicit ``MujocoRigidBodyPropertiesCfg(gravcomp=0.5)`` is preserved as-is.
-            from isaaclab_newton.sim.schemas.schemas_cfg import (
-                MujocoJointDrivePropertiesCfg,
-                MujocoRigidBodyCfg,
-                MujocoRigidBodyPropertiesCfg,
-            )
-
-            # gravcomp may be authored either via the legacy MujocoRigidBodyPropertiesCfg or via a
-            # MujocoRigidBodyCfg fragment in a rigid_props list. Treat either as "already set".
-            rigid_props_list = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
-            body_gravcomp_unset = not any(
-                isinstance(f, (MujocoRigidBodyPropertiesCfg, MujocoRigidBodyCfg)) and f.gravcomp is not None
-                for f in rigid_props_list
-            )
-            if (
-                isinstance(cfg.joint_drive_props, MujocoJointDrivePropertiesCfg)
-                and cfg.joint_drive_props.actuatorgravcomp
-                and body_gravcomp_unset
-            ):
-                logger.info(
-                    "Joint-level actuator gravity compensation requires body-level gravcomp."
-                    " Auto-setting MujocoRigidBodyPropertiesCfg(gravcomp=1.0)."
-                )
-                schemas.modify_rigid_body_properties(prim_path, MujocoRigidBodyPropertiesCfg(gravcomp=1.0))
-            schemas.modify_joint_drive_properties(prim_path, cfg.joint_drive_props)
+            modify_func = cfg.joint_drive_props._modify_func
+            if not callable(modify_func):
+                modify_func = string_to_callable(modify_func)
+            modify_func(prim_path, cfg.joint_drive_props, stage)
 
     # define deformable body properties, or modify if deformable body API is present (PhysX only)
     if cfg.deformable_props is not None:
@@ -560,14 +536,15 @@ def spawn_from_usd_with_compliant_contact_material(
         prim_paths = cfg.physics_material_prim_path
 
     if stiff is not None or damp is not None:
-        from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: PLC0415
-
         material_kwargs = {}
         if stiff is not None:
             material_kwargs["compliant_contact_stiffness"] = stiff
         if damp is not None:
             material_kwargs["compliant_contact_damping"] = damp
-        material_cfg = PhysxRigidBodyMaterialCfg(**material_kwargs)
+        material_cfg_type = cfg._physics_material_cfg_type
+        if not callable(material_cfg_type):
+            material_cfg_type = string_to_callable(material_cfg_type)
+        material_cfg = material_cfg_type(**material_kwargs)
 
         for path in prim_paths:
             if not path.startswith("/"):

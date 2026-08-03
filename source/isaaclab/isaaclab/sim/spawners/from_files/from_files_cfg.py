@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import ClassVar
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners import materials
@@ -252,6 +253,9 @@ class UsdFileWithCompliantContactCfg(UsdFileCfg):
     """
 
     func: Callable | str = "{DIR}.from_files:spawn_from_usd_with_compliant_contact_material"
+    _physics_material_cfg_type: ClassVar[Callable | str] = (
+        "isaaclab_physx.sim.spawners.materials:PhysxRigidBodyMaterialCfg"
+    )
 
     compliant_contact_stiffness: float | None = None
     """Stiffness of the compliant contact. Defaults to None.

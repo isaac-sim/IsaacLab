@@ -16,14 +16,68 @@ import dataclasses
 
 from pxr import Sdf, Usd, UsdPhysics, Vt
 
-from isaaclab.sim.schemas.schemas import apply_namespaced
+from isaaclab.sim.schemas.schemas import apply_namespaced, modify_joint_drive_properties
 from isaaclab.sim.utils import change_prim_property, safe_set_attribute_on_usd_prim
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import to_camel_case
 
-from .schemas_cfg import MujocoCollisionCfg, MujocoFixedTendonCfg, MujocoJointCfg
+from .schemas_cfg import MujocoCollisionCfg, MujocoFixedTendonCfg, MujocoJointCfg, MujocoJointDrivePropertiesCfg
 
 __all__ = ["apply_mujoco_collision", "apply_mujoco_fixed_tendon", "apply_mujoco_joint"]
+
+
+def _modify_mujoco_fixed_tendon_properties(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+    """Modify a MuJoCo fixed tendon from a legacy fixed-tendon configuration.
+
+    This compatibility hook keeps ``MjcTendon`` detection and ``mjc:*`` authoring in the Newton
+    package while the core legacy writer remains backend-neutral.
+
+    Args:
+        cfg: The legacy fixed-tendon configuration.
+        prim_path: The prim path of the possible MuJoCo tendon.
+        stage: The stage where to find the prim. Defaults to the current stage.
+
+    Returns:
+        True if the prim is a MuJoCo tendon and was updated, otherwise False.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if prim.GetTypeName() != "MjcTendon":
+        return False
+    cfg_dict = cfg.to_dict()
+    for attr_name in ("stiffness", "damping"):
+        value = cfg_dict.get(attr_name)
+        if value is not None:
+            safe_set_attribute_on_usd_prim(prim, f"mjc:{attr_name}", value, camel_case=False)
+    return True
+
+
+def _modify_mujoco_joint_drive_properties(
+    prim_path: str, cfg: MujocoJointDrivePropertiesCfg, stage: Usd.Stage | None = None
+) -> None:
+    """Modify legacy MuJoCo joint drives and maintain body-level gravity compensation.
+
+    Args:
+        prim_path: The prim path whose joint drives should be modified.
+        cfg: The legacy MuJoCo joint-drive configuration.
+        stage: The stage where to find the prim. Defaults to the current stage.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    modify_joint_drive_properties(prim_path, cfg, stage)
+    if not cfg.actuatorgravcomp:
+        return
+
+    root = stage.GetPrimAtPath(prim_path)
+    rigid_bodies = [prim for prim in Usd.PrimRange(root) if UsdPhysics.RigidBodyAPI(prim)]
+    gravcomp_is_authored = any(
+        (attribute := body.GetAttribute("mjc:gravcomp")) and attribute.HasAuthoredValueOpinion()
+        for body in rigid_bodies
+    )
+    if not gravcomp_is_authored:
+        for body in rigid_bodies:
+            safe_set_attribute_on_usd_prim(body, "mjc:gravcomp", 1.0, camel_case=False)
 
 
 def apply_mujoco_collision(cfg: MujocoCollisionCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:

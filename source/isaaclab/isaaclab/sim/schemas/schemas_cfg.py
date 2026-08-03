@@ -682,6 +682,7 @@ class JointDriveBaseCfg:
     # USD path to ``Model.joint_velocity_limit`` today).
     _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = None
+    _modify_func: ClassVar[Callable | str] = "isaaclab.sim.schemas:modify_joint_drive_properties"
     _usd_field_exceptions: ClassVar[dict] = {
         "PhysxJointAPI": ("physxJoint", ["max_joint_velocity"]),
     }
