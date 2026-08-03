@@ -31,6 +31,10 @@ name: Performance Smoke Test
 on:
   pull_request:
     branches: [main, develop, 'release/**']
+    # ready_for_review is not a default type. Without it, a PR opened as a draft
+    # (whose jobs are skipped below) would never be benchmarked when it is marked
+    # ready, and would silently wait for an unrelated push to trigger the gate.
+    types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
     branches: [main, develop, 'release/**']
   push:
