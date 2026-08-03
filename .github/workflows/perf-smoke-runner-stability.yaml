@@ -8,6 +8,10 @@
 # the commit out to five independent allocations so per-runner and run-to-run FPS
 # spread can be measured separately. Qualification only reports a verdict; it
 # never writes baselines.
+#
+# Scope is the Newton-touching buckets. The PhysX-only buckets already produced
+# clean evidence on 2026-07-28; these five crashed on a Newton import and are the
+# ones still lacking a verdict. Halving the matrix also halves the pool time.
 
 name: Performance Smoke - L40S Runner Stability
 
@@ -28,6 +32,11 @@ permissions:
 concurrency:
   group: perf-smoke-runner-stability-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  # Every backend_key whose benchmark loads Newton. Covers five task/backend
+  # buckets, since `newton` applies to both Cartpole and Velocity-Flat-G1.
+  STABILITY_BACKENDS: "newton,newton_rtx_renderer,newton_newton_renderer,physx_newton_renderer"
 
 jobs:
   wait_for_quiet_pool:
@@ -102,6 +111,9 @@ jobs:
       commit_count: "1"
       samples_per_commit: "3"
       tasks: "__ALL_TASKS__"
+      # Literal because `with:` cannot read the `env` context. Kept in sync with
+      # STABILITY_BACKENDS by test_staging_workflow_qualifies_only_newton_buckets.
+      backends: "newton,newton_rtx_renderer,newton_newton_renderer,physx_newton_renderer"
       target_branch: perf-smoke/develop-staging
       strict_ancestry: true
       dry_run: true
@@ -156,6 +168,7 @@ jobs:
         done
         python3 tools/perf_smoke_test/runner_stability.py \
           "${RECORD_ARGS[@]}" \
+          --backends "${STABILITY_BACKENDS}" \
           --gpu_model l40s \
           --expected_target_branch perf-smoke/develop-staging \
           --expected_commit "${GITHUB_SHA}" \

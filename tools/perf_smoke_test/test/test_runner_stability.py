@@ -312,6 +312,58 @@ def test_report_states_scope_and_decision() -> None:
     assert "runner-1" in markdown
 
 
+def test_backend_allowlist_narrows_the_qualified_scope() -> None:
+    """Only the requested backends are qualified, so unrelated buckets are not demanded."""
+    tasks = runner_stability.load_tasks(_GATE_DIR / "tasks.json")
+
+    selected = runner_stability.select_backends(tasks, "newton,physx_newton_renderer")
+
+    assert {task.backend_key for task in selected} == {"newton", "physx_newton_renderer"}
+    assert len(selected) < len(tasks)
+
+
+def test_empty_backend_allowlist_keeps_every_bucket() -> None:
+    """An empty allowlist must not silently narrow the scope."""
+    tasks = runner_stability.load_tasks(_GATE_DIR / "tasks.json")
+
+    assert runner_stability.select_backends(tasks, "") == tasks
+
+
+def test_unknown_backend_is_rejected_rather_than_silently_dropped() -> None:
+    """A typo would otherwise shrink the scope and produce a weaker verdict unnoticed."""
+    tasks = runner_stability.load_tasks(_GATE_DIR / "tasks.json")
+
+    with pytest.raises(ValueError, match="Unknown backend_key"):
+        runner_stability.select_backends(tasks, "newton,nwton")
+
+
+def test_staging_workflow_qualifies_only_newton_buckets() -> None:
+    """The sampled backends and the qualified backends must be the same set."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = yaml.safe_load(
+        (repo_root / ".github/workflows/perf-smoke-runner-stability.yaml").read_text(encoding="utf-8")
+    )
+
+    declared = workflow["env"]["STABILITY_BACKENDS"]
+    sampled = workflow["jobs"]["stability_sample"]["with"]["backends"]
+    assert sampled == declared, "the seeder's backend list drifted from STABILITY_BACKENDS"
+
+    report_step = next(
+        step for step in workflow["jobs"]["qualify"]["steps"] if step.get("name") == "Build qualification report"
+    )
+    assert '--backends "${STABILITY_BACKENDS}"' in report_step["run"]
+
+    # Exactly the buckets that crashed on 2026-07-28, and no PhysX-only bucket.
+    tasks = runner_stability.select_backends(runner_stability.load_tasks(_GATE_DIR / "tasks.json"), declared)
+    assert {(task.task_id, task.backend_key) for task in tasks} == {
+        ("Isaac-Cartpole-Direct", "newton"),
+        ("Isaac-Velocity-Flat-G1", "newton"),
+        ("Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct", "newton_rtx_renderer"),
+        ("Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct", "newton_newton_renderer"),
+        ("Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct", "physx_newton_renderer"),
+    }
+
+
 def test_staging_workflow_fans_out_complete_independent_evidence() -> None:
     """One staging merge automatically gathers and qualifies five allocations."""
     repo_root = Path(__file__).resolve().parents[3]
