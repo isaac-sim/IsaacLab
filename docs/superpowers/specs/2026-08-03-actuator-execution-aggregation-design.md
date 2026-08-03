@@ -29,8 +29,9 @@ model without changing the existing actuator compute implementations.
 - Preserve named actuator groups as the public configuration and access API.
 - Preserve the concrete type, group-sized tensors, configuration, joint names,
   and articulation joint indices returned by each mapping entry.
-- Aggregate all groups of the same supported exact concrete actuator class,
-  regardless of differences in their per-joint numeric parameters.
+- Aggregate all mutually disjoint groups of the same supported exact concrete
+  actuator class, regardless of differences in their per-joint numeric
+  parameters.
 - Execute one existing `compute()` call and one pair of output scatter launches
   per aggregate instead of per logical group.
 - Preserve processed commands and actuator telemetry exactly for the initial
@@ -79,6 +80,15 @@ execution batch for the articulation. Numeric parameters do not participate in
 the compatibility decision. Stiffness, damping, effort limits, velocity limits,
 solver limits, armature, friction values, and DC-motor saturation effort may all
 differ across groups and joints.
+
+Every joint in an aggregate must be controlled by exactly one logical group in
+the complete collection. The current collection permits overlapping groups and
+applies them sequentially, so their config order determines which processed
+command is scattered last. Any group touching a multiply-controlled joint
+retains per-group execution, including when the other controlling group uses a
+different actuator class. This preserves ordered overwrite behavior and avoids
+duplicate writes within one scatter launch. The structural safety condition is
+independent of actuator parameter compatibility.
 
 Eligibility must not be inherited accidentally. In particular,
 `ActuatorNetMLP`, `ActuatorNetLSTM`, `DelayedPDActuator`, and
@@ -253,8 +263,9 @@ Validation covers:
 - combined articulation indices match the packed joint names and group slices;
 - the public group binding shapes remain unchanged.
 
-Existing articulation coverage validation continues to reject missing or
-multiply controlled joints before aggregation.
+Existing articulation coverage validation remains unchanged. The execution-plan
+builder counts joint use across every logical group and leaves any group touching
+a multiply-controlled joint unbatched.
 
 ## Public API and documentation
 
@@ -296,10 +307,12 @@ They cover:
 7. Mixed eligible, delayed, neural, and custom groups produce the expected
    execution plan.
 8. Subclasses of supported models do not inherit aggregation eligibility.
-9. Runtime gain writes update executor storage, logical group views, collection
+9. Overlapping same- or different-class groups retain deterministic per-group
+   execution.
+10. Runtime gain writes update executor storage, logical group views, collection
    resolved-gain buffers, and the native write hook.
-10. Native handling bypasses Lab aggregate construction and execution.
-11. A compute-call spy observes one invocation per aggregated exact class and one
+11. Native handling bypasses Lab aggregate construction and execution.
+12. A compute-call spy observes one invocation per aggregated exact class and one
     invocation for each unsupported logical group.
 
 All numerical equivalence assertions for the three stateless models use zero
@@ -307,16 +320,18 @@ absolute and relative tolerance. The tests also compare processed position,
 velocity, and effort commands, not only actuator torque telemetry.
 
 Before committing implementation, the focused tests and `./isaaclab.sh -f` must
-pass. A one-off profiler comparison should confirm that multiple same-class
-groups reduce to one compute dispatch and one pair of scatter launches per class;
-the profiler script is not added as a permanent benchmark.
+pass. Direct dispatch instrumentation must confirm that multiple same-class
+groups reduce to one compute dispatch and one pair of scatter launches per class.
+This assertion belongs in the focused collection test rather than a permanent
+performance benchmark.
 
 ## Success criteria
 
 The change is complete when:
 
 - public logical group access remains source compatible;
-- every supported exact class executes at most once per articulation step;
+- every disjoint supported exact class executes at most once per articulation
+  step;
 - differing per-joint parameters remain exact and independently writable;
 - supported batched outputs are exactly equal to independent execution;
 - unsupported and Newton-native paths retain their existing behavior;
