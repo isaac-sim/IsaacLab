@@ -11,6 +11,7 @@ from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverse
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.physics import NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
@@ -18,7 +19,7 @@ from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsA
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 ##
 # Pre-defined configs
@@ -51,6 +52,10 @@ class FrankaArmActionCfg(PresetCfg):
         scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
     )
+    diffik_abs: DifferentialInverseKinematicsActionCfg = diffik.replace(
+        controller=diffik.controller.replace(use_relative_mode=False),
+        scale=1.0,
+    )
     newton_ik: NewtonInverseKinematicsActionCfg = NewtonInverseKinematicsActionCfg(
         asset_name="robot",
         joint_names=["panda_joint.*"],
@@ -81,6 +86,12 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             self.sim.physics, NewtonCfg
         ):
             raise ValueError("The 'newton_ik' action preset requires a Newton physics preset.")
+        if (
+            isinstance(self.actions.arm_action, DifferentialInverseKinematicsActionCfg)
+            and not self.actions.arm_action.controller.use_relative_mode
+            and not isinstance(self.sim.physics, PhysxCfg)
+        ):
+            raise ValueError("The 'diffik_abs' action preset requires the 'isaacsim_physx' physics preset.")
 
     def __post_init__(self) -> None:
         # post init of parent
@@ -88,6 +99,7 @@ class FrankaReachEnvCfg(ReachEnvCfg):
 
         # switch robot to franka
         self.scene.robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.rigid_props.disable_gravity = preset(default=False, diffik_abs=True)
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]

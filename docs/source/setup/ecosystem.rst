@@ -183,7 +183,8 @@ Concretely, Isaac Lab offers:
 * **RL library integrations** — wrappers for RSL-RL, skrl, Stable Baselines 3, and RL Games
   ship in ``isaaclab_rl``.
 * **Kit-less deployment** — run policies and simulations using the Newton backend without a
-  full Isaac Sim installation.
+  full Isaac Sim installation. URDF and MJCF command-line conversion can also run kit-less
+  when the standalone ``isaacsim-asset-isolated`` importer wheel is installed.
 
 We are working with labs in universities and research institutions to integrate their work into
 Isaac Lab and hope that others in the community will join us. If you are interested in

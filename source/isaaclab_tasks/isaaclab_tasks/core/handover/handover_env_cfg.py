@@ -16,7 +16,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.physics.physics_manager_cfg import _AutoPhysxCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
@@ -281,7 +281,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     ovphysx = OvPhysxCfg()
-    physx = _AutoPhysxCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 
 

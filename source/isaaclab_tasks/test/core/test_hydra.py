@@ -1180,7 +1180,7 @@ def test_apply_overrides_conflicting_globals_raises():
 def test_apply_overrides_aliased_globals_no_conflict():
     """Two global presets resolving to equal values do not raise.
 
-    Mirrors the dexsuite ObjectCfg pattern where ``newton_mjwarp = cube`` creates
+    Mirrors the Lift ObjectCfg pattern where ``newton_mjwarp = cube`` creates
     separate but equal dataclass instances after @configclass processing.
     """
 

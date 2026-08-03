@@ -575,7 +575,23 @@ def has_deformable_body_api(prim: Usd.Prim) -> bool:
         prim: The USD prim to check.
 
     Returns:
-        True if ``OmniPhysicsDeformableBodyAPI`` or ``PhysicsDeformableBodyAPI`` is applied.
+        True if a deformable body API is applied.
     """
     applied_schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
     return "OmniPhysicsDeformableBodyAPI" in applied_schemas or "PhysicsDeformableBodyAPI" in applied_schemas
+
+
+def has_deformable_curve_api(prim: Usd.Prim) -> bool:
+    """Check whether a deformable curve (cable) API schema is applied on the prim.
+
+    Uses :meth:`Usd.PrimTypeInfo.GetAppliedAPISchemas` so that token-authored schemas
+    (e.g. Newton's unregistered ``PhysicsCurvesDeformableSimAPI``) are detected in addition
+    to registered applied schemas.
+
+    Args:
+        prim: The USD prim to check.
+
+    Returns:
+        True if a deformable curve API is applied.
+    """
+    return "PhysicsCurvesDeformableSimAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas()

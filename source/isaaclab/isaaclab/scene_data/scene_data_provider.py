@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import re
 from collections import deque
 from typing import TYPE_CHECKING, Any
@@ -16,6 +17,8 @@ import warp as wp
 import isaaclab.sim as sim_utils
 
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -217,6 +220,103 @@ class SceneDataProvider:
             if not np.array_equal(mapping, np.arange(len(input_paths))):
                 return wp.array(mapping, dtype=wp.int32)
         return None
+
+    def create_geometry_mapping(
+        self,
+        paths: list[str | None],
+        particle_offsets: list[int],
+    ) -> wp.array(dtype=wp.int32) | None:
+        """Create a mapping from backend geometry entities to consumer particle offsets.
+
+        For each geometry entity in the sim backend, the resulting array stores the
+        destination particle offset in the consumer buffer. Entities whose path does not
+        appear in ``paths`` receive ``-1`` and are skipped during copy.
+
+        Args:
+            paths: Desired consumer entity paths in particle-offset order.
+            particle_offsets: Particle offset in the consumer buffer for each ``paths`` entry.
+
+        Returns:
+            A Warp int32 array of length ``len(geometry_paths)`` containing destination
+            particle offsets, or ``None`` when no geometry is available or every entity
+            maps identically in order.
+        """
+        input_paths = self.backend.geometry_paths
+        input_counts = self.backend.geometry_counts
+        if not input_paths or not input_counts:
+            return None
+
+        path_to_offset = {
+            path: offset for path, offset in zip(paths, particle_offsets, strict=True) if path is not None
+        }
+        mapping = [-1] * len(input_paths)
+        identity = True
+        flat_offset = 0
+        for index, path in enumerate(input_paths):
+            dest_offset = path_to_offset.get(path, -1)
+            mapping[index] = dest_offset
+            if dest_offset != flat_offset:
+                identity = False
+            flat_offset += int(input_counts[index])
+
+        if identity and all(value >= 0 for value in mapping):
+            return None
+        return wp.array(mapping, dtype=wp.int32)
+
+    def get_points(
+        self,
+        output: SceneDataFormat.Points,
+        mapping: wp.array(dtype=wp.int32) | None = None,
+        allow_passthrough: bool = True,
+    ) -> bool:
+        """Copy sim backend geometry points into ``output``.
+
+        Args:
+            output: Pre-allocated :class:`SceneDataFormat.Points` buffer (typically aliased
+                to shadow ``particle_q``).
+            mapping: Optional destination particle-offset array from
+                :meth:`create_geometry_mapping`.
+            allow_passthrough: When ``True`` and no mapping is needed, alias ``output.points``
+                directly to the backend buffer.
+
+        Returns:
+            ``True`` when points were copied or passed through, ``False`` when the backend
+            exposes no geometry.
+        """
+        if self.point_count == 0:
+            return False
+
+        input_points = self.backend.points
+        if input_points.points is None:
+            return False
+
+        if mapping is None and allow_passthrough:
+            output.points = input_points.points
+            return True
+
+        if output.points is None:
+            output.points = wp.empty(self.point_count, dtype=wp.vec3f)
+
+        entity_counts = self.backend.geometry_counts
+        if not entity_counts:
+            wp.copy(output.points, input_points.points)
+            return True
+
+        from isaaclab.scene_data.geometry_points import scatter_geometry_points
+
+        scatter_geometry_points(
+            input_points.points,
+            output.points,
+            entity_counts,
+            mapping,
+            device=str(output.points.device),
+        )
+        return True
+
+    @property
+    def point_count(self) -> int:
+        """Number of geometry points available from the sim backend."""
+        return self.backend.point_count
 
 
 class ConversionKernels:

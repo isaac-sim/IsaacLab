@@ -29,6 +29,12 @@ parser = argparse.ArgumentParser(
 )
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
+parser.add_argument(
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx"],
+    help="Physics backend.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # demos should open Kit visualizer by default
@@ -87,7 +93,7 @@ class H1RoughDemo:
         agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(TASK, args_cli)
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
         # create envionrment
-        env_cfg = resolve_presets(H1RoughEnvCfg())
+        env_cfg = resolve_presets(H1RoughEnvCfg(), selected=(args_cli.physics,))
         env_cfg.play_mode()
         env_cfg.scene.num_envs = 25
         env_cfg.episode_length_s = 1000000
@@ -97,6 +103,8 @@ class H1RoughDemo:
         # load the trained jit policy
         backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
         checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK, *backend_names)
+        if checkpoint is None:
+            raise FileNotFoundError("No published checkpoint is available for the H1 locomotion demo.")
         # wrap around environment for rsl-rl
         self.env = RslRlVecEnvWrapper(ManagerBasedRLEnv(cfg=env_cfg))
         self.device = self.env.unwrapped.device

@@ -37,6 +37,11 @@ Examples:
     # Resume collection after training jobs have completed.
     ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py --collect --all --core
 
+    # Select legacy jobs with workflow and task wildcards.
+    rl_games:Isaac-Humanoid-*        # Wildcard for any Humanoid version
+    rsl_rl:Isaac-Ant-*               # Wildcard for any Ant environment
+    *:IsaacContrib-Velocity-Flat-Spot    # Wildcard for any workflow, specific task
+
 Legacy ``workflow:task`` job selectors remain supported when ``--core`` is
 omitted.
 """

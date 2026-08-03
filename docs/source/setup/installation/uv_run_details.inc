@@ -30,9 +30,14 @@ Clone the repo and start training immediately — no virtual environment setup r
    uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct presets=physx
 
+   # Add automatic tetrahedralization for volume deformables explicitly
+   uv run --extra isaacsim --extra tetrahedralization isaaclab train \
+      --rl_library rsl_rl --task Isaac-Lift-Soft-Franka presets=physx
+
 ``uv`` resolves and manages the environment automatically on each invocation. Supported
 libraries for ``--rl_library`` are: ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``, and ``rlinf``.
-
+The ``tetrahedralization`` extra is not included in the default environment or the
+``all`` extra.
 
 .. rubric:: Play / Evaluation
 

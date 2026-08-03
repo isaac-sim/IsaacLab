@@ -5,12 +5,13 @@
 
 """Misc commands"""
 
+import shutil
+
 from ..utils import (
     ISAACLAB_ROOT,
     extract_isaacsim_exe,
-    extract_python_exe,
-    get_pip_command,
     is_windows,
+    print_error,
     print_info,
     print_warning,
     run_command,
@@ -79,24 +80,29 @@ def command_vscode_settings() -> None:
 def command_build_docs() -> None:
     """Build the documentation."""
     print_info("Building documentation...")
-    python_exe = extract_python_exe()
     docs_dir = ISAACLAB_ROOT / "docs"
 
-    # Install reqs.
-    pip_cmd = get_pip_command(python_exe)
-    run_command(
-        pip_cmd + ["install", "-r", "requirements.txt"],
-        cwd=docs_dir,
-    )
+    uv_exe = shutil.which("uv")
+    if uv_exe is None:
+        print_error("uv could not be found. Please install uv and try again.")
+        print_error("https://docs.astral.sh/uv/getting-started/installation/")
+        raise SystemExit(1)
 
-    # Build
-    # sphinx-build -b html -d _build/doctrees . _build/current
-    # using python -m sphinx.
     out_dir = docs_dir / "_build" / "current"
     cmd = [
-        python_exe,
+        uv_exe,
+        "run",
+        "--isolated",
+        "--extra",
+        "test",
+        "--",
+        "python",
         "-m",
         "sphinx",
+        "-W",
+        "--keep-going",
+        "-j",
+        "auto",
         "-b",
         "html",
         "-d",

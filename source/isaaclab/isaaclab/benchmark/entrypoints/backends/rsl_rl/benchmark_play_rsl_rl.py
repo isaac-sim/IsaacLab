@@ -48,7 +48,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
     parser.add_argument(
-        "--num_frames", type=parse_positive_int, default=100, help="Number of inference steps to benchmark."
+        "--num_steps", type=parse_positive_int, default=100, help="Number of inference steps to benchmark."
     )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument(
@@ -67,7 +67,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument(
-        "--warmup_frames",
+        "--warmup_steps",
         type=parse_non_negative_int,
         default=1,
         help="Exclude the first N env.step() calls from environment-step timing. Default 1 removes cold start.",
@@ -167,12 +167,12 @@ def run(argv: list[str]) -> BenchmarkResult:
                     "metadata": [
                         {"name": "task", "data": args.task},
                         {"name": "num_envs", "data": args.num_envs},
-                        {"name": "num_frames", "data": args.num_frames},
+                        {"name": "num_steps", "data": args.num_steps},
                         {
                             "name": "environment_step_measurement_mode",
                             "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
                         },
-                        {"name": "environment_step_warmup_frames", "data": args.warmup_frames},
+                        {"name": "environment_step_warmup_steps", "data": args.warmup_steps},
                         {"name": "presets", "data": ",".join(cfg.presets)},
                     ]
                 },
@@ -200,14 +200,14 @@ def run(argv: list[str]) -> BenchmarkResult:
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
                 env,
                 measure_synchronized_step_breakdown=args.measure_sync_step,
-                warmup_steps=args.warmup_frames,
+                warmup_steps=args.warmup_steps,
             )
-            total_frames = args.warmup_frames + args.num_frames
+            total_steps = args.warmup_steps + args.num_steps
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
-                all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_frames)
+                all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_steps)
 
             first_step_s = all_step_times[0]
-            step_times = all_step_times[args.warmup_frames :]
+            step_times = all_step_times[args.warmup_steps :]
 
             benchmark.update_manual_recorders()
 
@@ -225,6 +225,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 total_fps=fps,
                 steps_per_iteration=num_envs,
                 frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_warmup_steps=args.warmup_steps,
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,

@@ -36,6 +36,7 @@ class TestMockArticulationViewWarpInit:
             fixed_base=True,
         )
         assert view.count == 4
+        assert view.max_dofs == 12
         assert view.shared_metatype.dof_count == 12
         assert view.shared_metatype.link_count == 13
         assert view.shared_metatype.fixed_base is True
@@ -229,6 +230,13 @@ class TestMockArticulationViewWarpMassGetters:
         inertias = view.get_inertias()
         assert inertias.shape == (4, 13, 9)
         assert inertias.dtype == wp.float32
+
+    @pytest.mark.parametrize("getter_name", ["get_masses", "get_inertias"])
+    def test_get_mass_properties_returns_stable_view(self, view, getter_name):
+        """Test mass-property getters alias their stable PhysX-style buffers."""
+        getter = getattr(view, getter_name)
+
+        assert getter().ptr == getter().ptr
 
 
 class TestMockArticulationViewWarpSetters:

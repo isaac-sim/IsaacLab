@@ -406,7 +406,7 @@ absolute-difference images.
 
       .. code-block:: bash
 
-         uv run python scripts/demos/sensors/ppisp_camera.py \
+         uv run --extra isaacsim python scripts/demos/sensors/ppisp_camera.py \
              --renderer newton_renderer --max_steps 60
 
    .. tab-item:: isaaclab.sh / isaaclab.bat

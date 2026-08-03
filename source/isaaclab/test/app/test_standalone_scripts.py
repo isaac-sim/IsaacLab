@@ -160,6 +160,14 @@ def test_showroom_documents_options_for_each_mentioned_demo():
 
 def test_commands_respect_script_launcher_capabilities():
     """Commands must enable cameras and avoid unsupported launcher arguments."""
+    h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/h1_locomotion.py")
+    assert h1_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
+
+    pick_and_place_case = next(
+        case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/pick_and_place.py"
+    )
+    assert pick_and_place_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
+
     camera_case = next(
         case
         for case in build_cases(SPECS)
@@ -224,6 +232,76 @@ def test_commands_respect_script_launcher_capabilities():
         and case.visualizer == "none"
     )
     assert "--enable_cameras" in ray_camera_case.command()
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "scripts/demos/sensors/cameras.py",
+        "scripts/demos/sensors/contact_sensor.py",
+        "scripts/demos/sensors/frame_transformer_sensor.py",
+        "scripts/demos/sensors/imu_sensor.py",
+        "scripts/demos/sensors/multi_mesh_raycaster_camera.py",
+        "scripts/demos/sensors/pva_sensor.py",
+        "scripts/demos/sensors/raycaster_sensor.py",
+        "scripts/demos/sensors/tacsl_sensor.py",
+    ],
+)
+def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path):
+    """PhysX-only sensor demos must accept their documented backend explicitly."""
+    spec = next(spec for spec in SPECS if spec.relative_path == relative_path)
+    assert spec.physics_backends == (("--physics", "isaacsim_physx"),)
+
+
+def test_multi_mesh_raycaster_opens_requested_rerun_viewer():
+    """The interactive raycaster demo must open Rerun when the user explicitly requests it."""
+    path = script_cases.ROOT / "scripts/demos/sensors/multi_mesh_raycaster.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    rerun_cfg_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "RerunVisualizerCfg"
+    ]
+    assert any(
+        keyword.arg == "open_browser" and isinstance(keyword.value, ast.Constant) and keyword.value.value is True
+        for call in rerun_cfg_calls
+        for keyword in call.keywords
+    )
+
+
+def test_h1_locomotion_uses_published_legacy_checkpoint_and_rejects_missing_policy():
+    """The H1 demo must use its published legacy policy without passing None to RSL-RL."""
+    path = script_cases.ROOT / "scripts/demos/h1_locomotion.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+    constants = {
+        target.id: node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance((target := node.targets[0]), ast.Name)
+        and isinstance(node.value, ast.Constant)
+    }
+    assert constants["LEGACY_CHECKPOINT_TASK"] == "Isaac-Velocity-Rough-H1-v0"
+
+    checkpoint_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "get_published_pretrained_checkpoint"
+    ]
+    assert any(
+        len(call.args) == 2 and isinstance(call.args[1], ast.Name) and call.args[1].id == "LEGACY_CHECKPOINT_TASK"
+        for call in checkpoint_calls
+    )
+    assert any(
+        isinstance(node, ast.Raise)
+        and isinstance(node.exc, ast.Call)
+        and isinstance(node.exc.func, ast.Name)
+        and node.exc.func.id == "FileNotFoundError"
+        for node in ast.walk(tree)
+    )
 
 
 def test_launch_case_reports_script_and_combination_exemptions():

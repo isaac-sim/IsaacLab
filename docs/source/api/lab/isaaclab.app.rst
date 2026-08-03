@@ -55,13 +55,13 @@ To set the environment variables, one can use the following command in the termi
 
    export LIVESTREAM=2
    # run the python script
-   uv run python scripts/demos/quadrupeds.py
+   uv run --extra isaacsim python scripts/demos/quadrupeds.py
 
 Alternatively, one can set the environment variables to the python script directly:
 
 .. code:: bash
 
-   LIVESTREAM=2 uv run python scripts/demos/quadrupeds.py
+   LIVESTREAM=2 uv run --extra isaacsim python scripts/demos/quadrupeds.py
 
 
 Overriding the environment variables

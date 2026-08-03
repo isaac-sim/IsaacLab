@@ -64,6 +64,11 @@ component yet:
      - :class:`~isaaclab_physx.assets.DeformableObject`
      - :class:`~isaaclab_newton.assets.DeformableObject`
      - Not supported
+   * - Cable Object
+     - :class:`~isaaclab.assets.CableObject`
+     - Not supported
+     - :class:`~isaaclab_newton.assets.CableObject`
+     - Not supported
    * - Contact Sensor
      - :class:`~isaaclab.sensors.ContactSensor`
      - :class:`~isaaclab_physx.sensors.ContactSensor`

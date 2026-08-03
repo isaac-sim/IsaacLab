@@ -26,22 +26,25 @@ the :meth:`gymnasium.make` function.
 .. dropdown:: Environment creation in this tutorial
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/environments/random_agent.py
+   .. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
       :language: python
-      :lines: 36-47
+      :start-at: # parse configuration via Hydra
+      :end-at: env = gym.make(args_cli.task, cfg=env_cfg)
 
 
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``random_agent.py`` script in the ``scripts/environments`` directory.
+The tutorial corresponds to the ``random_agent.py`` script in the ``scripts/environments`` directory. The
+script is a thin wrapper that calls into the :mod:`isaaclab_rl.entrypoints` module, where the actual
+implementation lives.
 
-.. dropdown:: Code for random_agent.py
+.. dropdown:: Code for simple_agents.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/environments/random_agent.py
+   .. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
       :language: python
-      :emphasize-lines: 36-37, 42-47
+      :emphasize-lines: 24, 64-75
       :linenos:
 
 
@@ -78,7 +81,7 @@ call for the cartpole environment in the ``isaaclab_tasks.core.cartpole`` sub-pa
 
 .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
-   :lines: 14-16,50-64
+   :lines: 14-16,61-75
    :emphasize-lines: 5, 6, 9
 
 The ``id`` argument is the name of the environment. As a convention, we name all the environments
@@ -113,7 +116,7 @@ As an example, the following shows the registration call for the cartpole enviro
 
 .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
-   :lines: 14-16,22-33
+   :lines: 14-16,32-43
    :emphasize-lines: 5, 6, 9
 
 
@@ -124,7 +127,7 @@ To inform the ``gym`` registry with all the environments provided by the ``isaac
 extension, we must import the module at the start of the script. This will execute the ``__init__.py``
 file which iterates over all the sub-packages and registers their respective environments.
 
-.. literalinclude:: ../../../../scripts/environments/random_agent.py
+.. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
    :language: python
    :start-at: import isaaclab_tasks  # noqa: F401
    :end-at: import isaaclab_tasks  # noqa: F401
@@ -134,7 +137,7 @@ the default configuration as well as to create the environment instance. In addi
 parsed command line arguments such as the number of environments, the simulation device,
 and whether to render, are used to override the default configuration.
 
-.. literalinclude:: ../../../../scripts/environments/random_agent.py
+.. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
    :language: python
    :start-at: # parse configuration via Hydra
    :end-at: env = gym.make(args_cli.task, cfg=env_cfg)

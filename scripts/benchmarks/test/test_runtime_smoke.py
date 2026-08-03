@@ -27,9 +27,9 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool)
         _TASK,
         "--num_envs",
         "16",
-        "--num_frames",
+        "--num_steps",
         "20",
-        "--warmup_frames",
+        "--warmup_steps",
         "0",
         "--seed",
         "0",
@@ -59,9 +59,10 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool)
     schema_data = json.loads(schema_files[0].read_text())
     assert schema_data["run"]["config"]["physics_backend"] == "newton_mjwarp"
     assert schema_data["runtime"]["iterations_completed"] == 20
-    assert schema_data["extra"]["warmup_frames"] == 0
+    assert schema_data["extra"] is None
     assert schema_data["runtime"]["startup_time_s"]["first_step"] > 0.0
     timing = schema_data["runtime"]["environment_step_timing"]
+    assert timing["warmup_steps"] == 0
     assert timing["environment_step_calls"] == 20
     assert timing["environment_step_fps"]["mean"] > 0
     if measure_sync_step:
@@ -79,6 +80,7 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool)
     assert timing["environment_step_time_s"]["std"] >= 0.0
     omniperf_data = json.loads(omniperf_files[0].read_text())
     assert omniperf_data["benchmark_info"]["environment_step_measurement_mode"] == timing["measurement_mode"]
+    assert omniperf_data["benchmark_info"]["environment_step_warmup_steps"] == 0
     if measure_sync_step:
         assert "Mean Serialized Diagnostic Total FPS" in omniperf_data["runtime"]
         assert "Mean Total FPS" not in omniperf_data["runtime"]

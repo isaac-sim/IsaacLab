@@ -18,6 +18,8 @@ Tests:
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
     - import pinocchio -> verify importable
+    - python -c "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)"
+        -> verify the all extra omits tetrahedralization dependencies
 """
 
 from __future__ import annotations
@@ -131,3 +133,14 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         """Verify pinocchio is importable and has the expected version."""
         result = self.run_in_uv_env(["python", "-c", "import pinocchio as pin; print(pin.__version__)"])
         assert result.returncode == 0, f"import pinocchio failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_install_all_omits_tetrahedralization_dependencies(self):
+        """Verify the wheel's all extra does not install pytetwild."""
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)",
+            ]
+        )
+        assert result.returncode == 0, f"pytetwild should not be installed by [all]:\n{result.stdout}\n{result.stderr}"

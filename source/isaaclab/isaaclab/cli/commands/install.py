@@ -668,11 +668,12 @@ VALID_EXTRA_FEATURES: set[str] = {
     "newton",
     "ov",
     "rl",
+    "tetrahedralization",
     "visualizer",
 }
 
 # Extra features excluded from the automatic ``-i all`` / ``-i`` install.
-MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov"}
+MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov", "tetrahedralization"}
 
 
 def split_install_items(install_type: str) -> list[str]:
@@ -821,6 +822,10 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         print_info(f"Installing RL framework extras: {extra}...")
         for framework in sorted(frameworks):
             _install_root_extra(framework)
+    elif feature_name == "tetrahedralization":
+        if selector:
+            print_warning(f"tetrahedralization does not support selectors (got {selector!r}).")
+        _install_root_extra("tetrahedralization")
     elif feature_name == "visualizer":
         extra = selector if selector else "all"
         backends = {"newton", "rerun", "viser"} if extra == "all" else {extra}
@@ -1104,12 +1109,14 @@ def command_install(install_type: str = "all") -> None:
 
               - Optional submodules: ``mimic``, ``teleop``
               - Extra features: ``contrib[rlinf]``, ``rl[<framework>]``,
-                ``visualizer[<backend>]``, ``ov[ovrtx|ovphysx|all]``
+                ``tetrahedralization``, ``visualizer[<backend>]``,
+                ``ov[ovrtx|ovphysx|all]``
               - Special: ``isaacsim``
 
               Examples::
 
                   ./isaaclab.sh -i rl[rsl-rl]
+                  ./isaaclab.sh -i tetrahedralization
                   ./isaaclab.sh -i mimic,visualizer[rerun]
                   ./isaaclab.sh -i teleop,rl[skrl],ov[ovrtx]
     """

@@ -27,7 +27,8 @@ gym.register(
   {% for algorithm in rl_library.algorithms %}
     {# configuration file #}
     {% if rl_library.name == "rsl_rl" %}
-      {% set agent_config = "." ~ rl_library.name ~ "_" ~ algorithm ~ "_cfg:" ~ algorithm|upper ~ "RunnerCfg" %}
+      {% set runner_prefix = {"distillation": "Distillation"}.get(algorithm, algorithm|upper) %}
+      {% set agent_config = "." ~ rl_library.name ~ "_" ~ algorithm ~ "_cfg:" ~ runner_prefix ~ "RunnerCfg" %}
     {% else %}
       {% set agent_config = ":" ~ rl_library.name ~ "_" ~ algorithm ~ "_cfg.yaml" %}
     {% endif %}

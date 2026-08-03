@@ -8,12 +8,14 @@
 from __future__ import annotations
 
 import re
+import warnings
 from collections.abc import Sequence
 
 import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.assets.asset_base import AssetBase
 from isaaclab.utils.warp import ProxyArray
 
 try:
@@ -554,13 +556,13 @@ class MockRigidObjectCollection:
     # -- Finder methods --
 
     def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str]]:
-        """Find bodies by name regex patterns.
-
-        Returns:
-            Tuple of (body_mask, body_names).
-        """
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
+        """Find bodies by name regex patterns."""
         if isinstance(name_keys, str):
             name_keys = [name_keys]
 
@@ -583,14 +585,31 @@ class MockRigidObjectCollection:
                         matched_names.append(name)
                         break
 
-        # Create body mask
-        body_mask = torch.zeros(self._num_bodies, dtype=torch.bool, device=self._device)
-        body_mask[matched_indices] = True
+        return (
+            AssetBase._resolve_finder_indices(
+                self,
+                matched_indices,
+                domain="body",
+                as_proxy=as_proxy,
+                legacy_type="tensor",
+            ),
+            list(matched_names),
+        )
 
-        return body_mask, matched_names
-
-    def find_objects(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
-        return self.find_bodies(name_keys, preserve_order)
+    def find_objects(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
+        """Deprecated method. Please use :meth:`find_bodies` instead."""
+        warnings.warn(
+            "The `find_objects` method will be deprecated in a future release. Please use `find_bodies` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.find_bodies(name_keys, preserve_order, as_proxy=as_proxy)
 
     # -- State writer methods (no-op for mock) --
 
