@@ -11,6 +11,7 @@ from typing import ClassVar
 
 from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.module import deferred_import
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.spawners.materials.physics_materials_cfg
@@ -27,11 +28,13 @@ _PHYSX_FORWARDS = frozenset(
     }
 )
 
+_PHYSX_CFG = deferred_import("isaaclab_physx.sim.spawners.materials.physics_materials_cfg")
+
 
 def __getattr__(name):
     if name in _PHYSX_FORWARDS:
         try:
-            from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as _physx_mat_cfg
+            return getattr(_PHYSX_CFG, name)
         except ImportError as e:
             raise ImportError(
                 f"'isaaclab.sim.spawners.materials.physics_materials_cfg.{name}' has moved to"
@@ -39,7 +42,6 @@ def __getattr__(name):
                 " isaaclab_physx extension or update your import. This forwarding shim is scheduled"
                 " for removal in 4.0."
             ) from e
-        return getattr(_physx_mat_cfg, name)
     raise AttributeError(f"module 'isaaclab.sim.spawners.materials.physics_materials_cfg' has no attribute {name!r}")
 
 

@@ -14,8 +14,39 @@ import sys
 import tempfile
 import warnings
 from collections.abc import Callable
+from types import ModuleType
 
 import lazy_loader as lazy
+
+
+class _DeferredModule(ModuleType):
+    """Module proxy that imports its target on first attribute access."""
+
+    def __init__(self, module_name: str):
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module: ModuleType | None = None
+
+    def __getattr__(self, name: str):
+        if self._module is None:
+            self._module = importlib.import_module(self._module_name)
+        return getattr(self._module, name)
+
+
+def deferred_import(module_name: str) -> ModuleType:
+    """Create a module proxy that imports an optional dependency on first use.
+
+    Unlike :func:`lazy_loader.load`, constructing this proxy does not inspect the module spec or
+    import parent packages. This allows dependency-free configuration modules to declare optional
+    backend forwarding targets at module scope without importing those backends eagerly.
+
+    Args:
+        module_name: Fully qualified module name to load on first attribute access.
+
+    Returns:
+        A module proxy for the deferred import.
+    """
+    return _DeferredModule(module_name)
 
 
 def _parse_stub(

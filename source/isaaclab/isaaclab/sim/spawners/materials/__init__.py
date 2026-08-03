@@ -52,7 +52,7 @@ Usage:
 .. _Physics Scene: https://openusd.org/dev/api/usd_physics_page_front.html
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab.utils.module import deferred_import, lazy_export
 
 _stub_getattr, _stub_dir, __all__ = lazy_export()
 
@@ -68,18 +68,19 @@ _PHYSX_FORWARDS = frozenset({
     "PhysxSurfaceDeformableBodyMaterialCfg",
 })
 
+_PHYSX_CFG = deferred_import("isaaclab_physx.sim.spawners.materials.physics_materials_cfg")
+
 
 def __getattr__(name):
     if name in _PHYSX_FORWARDS:
         try:
-            from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as _physx_cfg
+            return getattr(_PHYSX_CFG, name)
         except ImportError as e:
             raise ImportError(
                 f"'isaaclab.sim.spawners.materials.{name}' has moved to"
                 " 'isaaclab_physx.sim.spawners.materials'. Install the isaaclab_physx extension"
                 " or update your import. This forwarding shim is scheduled for removal in 4.0."
             ) from e
-        return getattr(_physx_cfg, name)
     return _stub_getattr(name)
 
 

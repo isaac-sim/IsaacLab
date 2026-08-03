@@ -26,7 +26,7 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab.utils.module import deferred_import, lazy_export
 
 _stub_getattr, _stub_dir, __all__ = lazy_export()
 
@@ -94,38 +94,39 @@ _NEWTON_FORWARDS = frozenset(
     }
 )
 
+_PHYSX_CFG = deferred_import("isaaclab_physx.sim.schemas.schemas_cfg")
+_PHYSX_MATERIAL_CFG = deferred_import("isaaclab_physx.sim.spawners.materials.physics_materials_cfg")
+_NEWTON_CFG = deferred_import("isaaclab_newton.sim.schemas.schemas_cfg")
+
 
 def __getattr__(name):
     if name in _PHYSX_FORWARDS_SCHEMAS:
         try:
-            from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
+            return getattr(_PHYSX_CFG, name)
         except ImportError as e:
             raise ImportError(
                 f"'isaaclab.sim.{name}' has moved to 'isaaclab_physx.sim.schemas'."
                 " Install the isaaclab_physx extension or update your import. This forwarding"
                 " shim is scheduled for removal in 4.0."
             ) from e
-        return getattr(_physx_cfg, name)
     if name in _PHYSX_FORWARDS_MATERIALS:
         try:
-            from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as _physx_mat_cfg
+            return getattr(_PHYSX_MATERIAL_CFG, name)
         except ImportError as e:
             raise ImportError(
                 f"'isaaclab.sim.{name}' has moved to 'isaaclab_physx.sim.spawners.materials'."
                 " Install the isaaclab_physx extension or update your import. This forwarding"
                 " shim is scheduled for removal in 4.0."
             ) from e
-        return getattr(_physx_mat_cfg, name)
     if name in _NEWTON_FORWARDS:
         try:
-            from isaaclab_newton.sim.schemas import schemas_cfg as _newton_cfg
+            return getattr(_NEWTON_CFG, name)
         except ImportError as e:
             raise ImportError(
                 f"'isaaclab.sim.{name}' has moved to 'isaaclab_newton.sim.schemas'."
                 " Install the isaaclab_newton extension or update your import. This forwarding"
                 " shim is scheduled for removal in 4.0."
             ) from e
-        return getattr(_newton_cfg, name)
     return _stub_getattr(name)
 
 

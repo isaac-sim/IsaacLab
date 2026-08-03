@@ -10,6 +10,7 @@ from collections.abc import Callable
 from typing import ClassVar, Literal
 
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.module import deferred_import
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
@@ -59,11 +60,14 @@ _NEWTON_FORWARDS = frozenset(
     }
 )
 
+_PHYSX_CFG = deferred_import("isaaclab_physx.sim.schemas.schemas_cfg")
+_NEWTON_CFG = deferred_import("isaaclab_newton.sim.schemas.schemas_cfg")
+
 
 def __getattr__(name):
     if name in _PHYSX_FORWARDS:
         try:
-            from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
+            return getattr(_PHYSX_CFG, name)
         except ImportError as e:
             raise ImportError(
                 f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
@@ -71,10 +75,9 @@ def __getattr__(name):
                 " extension or update your import. This forwarding shim is scheduled for"
                 " removal in 4.0."
             ) from e
-        return getattr(_physx_cfg, name)
     if name in _NEWTON_FORWARDS:
         try:
-            from isaaclab_newton.sim.schemas import schemas_cfg as _newton_cfg
+            return getattr(_NEWTON_CFG, name)
         except ImportError as e:
             raise ImportError(
                 f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
@@ -82,7 +85,6 @@ def __getattr__(name):
                 " extension or update your import. This forwarding shim is scheduled for"
                 " removal in 4.0."
             ) from e
-        return getattr(_newton_cfg, name)
     raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
 
 
