@@ -24,11 +24,17 @@ from isaaclab_physx.sim.schemas import (
 )
 from isaaclab_physx.sim.schemas import (
     PhysxArticulationRootPropertiesCfg,
+    PhysxCollisionCfg,
     PhysxCollisionPropertiesCfg,
+    PhysxDeformableBodyPropertiesCfg,
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyPropertiesCfg,
 )
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg, RigidBodyMaterialCfg
+from isaaclab_physx.sim.spawners.materials import (
+    PhysxRigidBodyMaterialCfg,
+    PhysxSurfaceDeformableBodyMaterialCfg,
+    RigidBodyMaterialCfg,
+)
 
 from pxr import UsdPhysics
 
@@ -386,6 +392,42 @@ def test_collision_base_cfg_no_physx_schema_when_only_usd_field_set(setup_simula
     assert "PhysxCollisionAPI" not in applied, (
         f"PhysxCollisionAPI should not be applied when only collision_enabled is set; got {list(applied)}"
     )
+
+
+@pytest.mark.isaacsim_ci
+def test_deformable_collision_props_land_on_simulation_mesh(setup_simulation):
+    """Regression: ``collision_props`` on a deformable spawner must author ``physxCollision:*``
+    on the simulation mesh, which is the prim carrying ``UsdPhysics.CollisionAPI``. Authoring
+    them on the deformable body prim leaves them inert."""
+    stage = sim_utils.get_current_stage()
+
+    cfg = sim_utils.MeshCuboidCfg(
+        size=(0.3, 0.04, 0.04),
+        deformable_props=PhysxDeformableBodyPropertiesCfg(),
+        collision_props=[PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0005)],
+        # selects the surface branch, which needs no tetrahedralization dependency
+        physics_material=PhysxSurfaceDeformableBodyMaterialCfg(),
+    )
+    cfg.func("/World/beam_dc", cfg)
+
+    sim_mesh_prim = stage.GetPrimAtPath("/World/beam_dc/sim_mesh")
+    assert "PhysxCollisionAPI" in sim_mesh_prim.GetAppliedSchemas()
+    assert sim_mesh_prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.005)
+    assert sim_mesh_prim.GetAttribute("physxCollision:restOffset").Get() == pytest.approx(0.0005)
+    body_prim = stage.GetPrimAtPath("/World/beam_dc")
+    assert not body_prim.GetAttribute("physxCollision:restOffset").HasAuthoredValue()
+
+
+@pytest.mark.isaacsim_ci
+def test_deformable_collision_props_reject_legacy_cfg(setup_simulation):
+    """Legacy collision cfgs cannot resolve onto the simulation mesh, so they must be rejected."""
+    cfg = sim_utils.MeshCuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        deformable_props=PhysxDeformableBodyPropertiesCfg(),
+        collision_props=PhysxCollisionPropertiesCfg(rest_offset=0.0005),
+    )
+    with pytest.raises(ValueError, match="collision fragments"):
+        cfg.func("/World/beam_legacy", cfg)
 
 
 @pytest.mark.isaacsim_ci

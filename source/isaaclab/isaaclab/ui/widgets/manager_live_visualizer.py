@@ -201,6 +201,8 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         Args:
             debug_vis: Whether to enable or disable debug visualization.
         """
+        import omni.kit.app
+        import omni.ui
 
         if not hasattr(self, "_vis_frame"):
             raise RuntimeError("No frame set for debug visualization.")
@@ -221,8 +223,6 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         if debug_vis:
             # if enabled create a subscriber for the post update event if it doesn't exist
             if not hasattr(self, "_debug_vis_handle") or self._debug_vis_handle is None:
-                import omni.kit.app
-
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
@@ -381,6 +381,9 @@ class DirectScalarLiveVisualizer(UiVisualizerBase):
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Build or tear down the omni.ui scalar plot widgets."""
+        import omni.kit.app
+        import omni.ui
+
         if not hasattr(self, "_vis_frame"):
             raise RuntimeError("No frame set for debug visualization.")
 
@@ -390,8 +393,6 @@ class DirectScalarLiveVisualizer(UiVisualizerBase):
 
         if debug_vis:
             if not hasattr(self, "_debug_vis_handle") or self._debug_vis_handle is None:
-                import omni.kit.app
-
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)

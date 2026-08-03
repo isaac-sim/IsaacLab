@@ -5,7 +5,7 @@
 
 import gymnasium as gym
 
-from . import agents
+from isaaclab_tasks.core.reach.config.ur_10 import agents
 
 ##
 # Register Gym environments.

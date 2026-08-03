@@ -13,6 +13,7 @@ No Kit/GPU required — safe for CI and beginners.
 import sys
 from argparse import Namespace
 
+import gymnasium as gym
 import pytest
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
@@ -20,13 +21,21 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.app import scan
+from isaaclab.physics import PhysicsCfg, PhysxAutoCfg
+from isaaclab.sim import SimulationCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
+from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
+
+
+def _physics_cfg(value):
+    return value if isinstance(value, PhysicsCfg) else getattr(value, "physics", None)
 
 
 def _resolve_with_presets(presets: str):
@@ -78,14 +87,37 @@ def test_isaacsim_physx_is_physics_selector():
     assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
 
 
-def test_cartpole_physx_preset_is_plain_physx_cfg():
-    """Task configs expose ``physx`` as concrete PhysX, not a public auto wrapper."""
-    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpolePhysicsCfg
+def test_registered_task_physx_presets_use_explicit_auto_cfg():
+    """Every task with Isaac Sim PhysX exposes automatic and concrete presets."""
 
-    physics_cfg = CartpolePhysicsCfg()
+    for task_id, task_spec in gym.registry.items():
+        if not task_id.startswith(("Isaac-", "IsaacContrib-")) or "env_cfg_entry_point" not in task_spec.kwargs:
+            continue
+        env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
+        presets = collect_presets(env_cfg)
+        has_auto_physx = any(isinstance(_physics_cfg(fields.get("physx")), PhysxAutoCfg) for fields in presets.values())
+        for path, fields in presets.items():
+            location = f"{task_id}:{path}"
+            physics_fields = {name: _physics_cfg(value) for name, value in fields.items()}
+            if any(isinstance(value, PhysxCfg) for value in physics_fields.values()):
+                auto_cfg = physics_fields.get("physx")
+                isaacsim_cfg = physics_fields.get("isaacsim_physx")
+                assert isinstance(auto_cfg, PhysxAutoCfg), location
+                assert isinstance(isaacsim_cfg, PhysxCfg), location
+                assert auto_cfg.isaacsim_physx == isaacsim_cfg, location
+                assert auto_cfg.ovphysx == physics_fields.get("ovphysx"), location
+            elif has_auto_physx and "physx" in fields:
+                assert fields.get("isaacsim_physx") == fields["physx"], location
 
-    assert isinstance(physics_cfg.physx, PhysxCfg)
-    assert isinstance(physics_cfg.default, PhysxCfg)
+
+def test_auto_physx_without_ovphysx_falls_back_to_isaac_sim():
+    """Automatic PhysX keeps Isaac Sim when a task does not support OvPhysX."""
+    cfg = SimulationCfg(physics=PhysxAutoCfg(isaacsim_physx=PhysxCfg()))
+
+    config_scan = scan(cfg)
+
+    assert isinstance(cfg.physics, PhysxCfg)
+    assert config_scan.needs_kit is True
 
 
 def test_physx_and_isaacsim_physx_presets_conflict():
@@ -125,7 +157,7 @@ def test_renderer_selector_physx_rtx_resolves_to_ovphysx_without_kit():
     """Automatic PhysX and RTX selectors use kitless backends when no Kit runtime is requested."""
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.sim.physics, PhysxAutoCfg)
 
     config_scan = _resolve_runtime_renderer(env_cfg)
 
@@ -138,7 +170,7 @@ def test_renderer_selector_physx_rtx_resolves_to_physx_with_kit_visualizer():
     """Automatic PhysX and RTX selectors use Isaac Sim backends when the Kit visualizer is requested."""
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.sim.physics, PhysxAutoCfg)
 
     config_scan = _resolve_runtime_renderer(env_cfg, Namespace(visualizer="kit"))
 
