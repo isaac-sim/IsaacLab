@@ -311,23 +311,6 @@ jobs:
           --source_mount true \
           --dry_run "${SEED_DRY_RUN}"
 
-    # Quantify the seeder's repetitions without enforcing a threshold, so a run
-    # that publishes a noisy bucket says so in its own summary.
-    - name: Report run-to-run variance
-      if: ${{ always() }}
-      run: |
-        set -euo pipefail
-        RECORDS="seed-artifacts/seed_records.json"
-        if [ ! -s "${RECORDS}" ]; then
-          echo "::notice::No successful seed records were available for variance analysis"
-          exit 0
-        fi
-        python3 tools/perf_smoke_test/analyze_seed_variance.py \
-          --records "${RECORDS}" \
-          --json_output seed-artifacts/variance_report.json \
-          --markdown_output seed-artifacts/variance_report.md \
-          --github_step_summary "${GITHUB_STEP_SUMMARY}"
-
     # Prove the just-pushed samples will actually be used by the gate: replay the
     # gate's per-bucket match logic (fingerprint + commit ancestry) against the
     # target branch tip and require MIN_BASELINE_SAMPLES usable samples per bucket.
