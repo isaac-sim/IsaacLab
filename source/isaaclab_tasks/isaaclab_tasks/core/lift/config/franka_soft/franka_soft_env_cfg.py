@@ -178,7 +178,7 @@ class PhysicsCfg(PresetCfg):
                 )
             ],
             iterations=1,
-            model_cfg=NewtonModelCfg(soft_contact_ke=5.0e3),
+            model_cfg=NewtonModelCfg(soft_contact_ke=8.0e3, soft_contact_mu=10.0),
         ),
         num_substeps=2,
     )
@@ -245,28 +245,6 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
     )
 
     def __post_init__(self) -> None:
-        # Menagerie asset: analytic gripper colliders, so full-surface contact needs no SDF.
-        # self.robot.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
-
-        # # inspired by libfranka's joint_impedance_control.cpp
-        # shoulder = self.robot.actuators["panda_shoulder"]
-        # shoulder.velocity_limit_sim = 2.175
-        # shoulder.stiffness = 600.0
-        # shoulder.damping = 50.0
-        # shoulder.armature = {"panda_joint[1-2]": 0.6057, "panda_joint[3-4]": 0.4625}
-
-        # forearm = self.robot.actuators["panda_forearm"]
-        # forearm.velocity_limit_sim = 2.61
-        # forearm.stiffness = {"panda_joint5": 250.0, "panda_joint6": 150.0, "panda_joint7": 50.0}
-        # forearm.damping = {"panda_joint5": 30.0, "panda_joint6": 25.0, "panda_joint7": 15.0}
-        # forearm.armature = 0.2055
-
-        # hand = self.robot.actuators["panda_hand"]
-        # hand.effort_limit_sim = 70.0
-        # hand.velocity_limit_sim = 0.2
-        # hand.stiffness = 750.0
-        # hand.damping = 175.0
-        # hand.armature = 0.1
         self.robot.actuators = {
             # inspired by libfranka's joint_impedance_control.cpp
             "panda_arm": ImplicitActuatorCfg(
@@ -365,7 +343,7 @@ class _JointActionsCfg:
     arm_action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=["panda_joint.*"], scale=0.03)
 
     gripper_action = mdp.JointPositionToLimitsActionCfg(
-        asset_name="robot", joint_names=["panda_finger.*"], rescale_to_limits=True
+        asset_name="robot", joint_names=["panda_finger_joint1"], rescale_to_limits=True
     )
 
 
@@ -388,9 +366,9 @@ class _IkActionsCfg:
 
     gripper_action = mdp.BinaryJointPositionActionCfg(
         asset_name="robot",
-        joint_names=["panda_finger.*"],
-        open_command_expr={"panda_finger_.*": 0.05},
-        close_command_expr={"panda_finger_.*": 0.015},
+        joint_names=["panda_finger_joint1"],
+        open_command_expr={"panda_finger_joint1": 0.04},
+        close_command_expr={"panda_finger_joint1": 0.015},
     )
 
 
@@ -535,7 +513,7 @@ class RewardsCfg:
             "success_threshold": 0.05,
             "asset_cfg": SceneEntityCfg("deformable"),
         },
-        weight=10.0,
+        weight=20.0,
     )
 
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
@@ -552,7 +530,7 @@ class CurriculumCfg:
     # Since we use 24 steps per env, 10000 steps correspond to 10000/24 = 416.67 learning iterations
     gravity = CurrTerm(
         func=mdp.modify_gravity_linear,
-        params={"start_gravity_z": -0.0001, "end_gravity_z": -9.81, "start_step": 0, "end_step": 5000},
+        params={"start_gravity_z": -0.0001, "end_gravity_z": -9.81, "start_step": 0, "end_step": 10000},
     )
 
 
