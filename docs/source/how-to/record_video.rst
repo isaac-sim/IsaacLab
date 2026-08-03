@@ -91,8 +91,8 @@ No visualizer window opens.  Frames are read directly from the ``tiled_camera`` 
 writing one clip to ``videos/recording_tutorial/example_2/sensor_0000.mp4``.
 
 ``source="sensor:tiled_camera"`` refers to the key under which the camera is registered
-in ``env.scene.sensors``.  The sensor must have ``"rgb"`` in its ``data_types``; other
-channels can be recorded by appending the channel name (e.g. ``"sensor:tiled_camera:depth"``).
+in ``env.scene.sensors``.  The sensor must have ``"rgb"`` in its ``data_types``; only the
+``rgb`` channel is currently supported for sensor sources.
 
 
 Example 3: All sources simultaneously

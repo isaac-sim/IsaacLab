@@ -1790,6 +1790,8 @@ def rendering_test_franka_cloth(
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
 
+    _skip_if_newton_motion_vectors(physics_backend, data_type)
+
     from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothCameraEnvCfg

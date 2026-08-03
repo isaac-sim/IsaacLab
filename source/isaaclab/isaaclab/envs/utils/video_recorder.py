@@ -256,7 +256,13 @@ class VideoRecorder:
         try:
             os.makedirs(self._effective_output_dir(), exist_ok=True)
             path = self._clip_path(self._clip_index)
-            clip = ImageSequenceClip(self._frames, fps=self.cfg.fps)
+            fps = self.cfg.fps
+            if fps is None:
+                fps = self._env.metadata.get("render_fps") if hasattr(self._env, "metadata") else None
+                if fps is None:
+                    step_dt = getattr(self._env, "step_dt", None)
+                    fps = round(1.0 / step_dt) if step_dt else 30
+            clip = ImageSequenceClip(self._frames, fps=fps)
             clip.write_videofile(path, codec="libx264", audio=False, logger=None)
             logger.info("[VideoRecorder] Wrote %d frames to %s", len(self._frames), path)
             self._clip_index += 1

@@ -65,7 +65,7 @@ class DirectMARLEnv(gym.Env):
     """
 
     metadata: ClassVar[dict[str, Any]] = {
-        "render_modes": [None, "human"],
+        "render_modes": [None, "human", "rgb_array"],
         "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
     }
     """Metadata for the environment."""
@@ -581,9 +581,15 @@ class DirectMARLEnv(gym.Env):
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "rgb_array":
-            raise NotImplementedError(
-                "render_mode='rgb_array' is not supported. Use VideoRecorderCfg on env_cfg.video_recorders instead."
+            import warnings
+
+            warnings.warn(
+                "render_mode='rgb_array' is deprecated and will be removed in a future release. "
+                "Use VideoRecorderCfg on env_cfg.video_recorders to capture frames instead.",
+                DeprecationWarning,
+                stacklevel=2,
             )
+            return None
         if self.render_mode == "human" or self.render_mode is None:
             return None
         else:

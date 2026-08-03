@@ -146,9 +146,8 @@ class KitVisualizer(BaseVisualizer):
             ],
         )
         self._setup_camera_sensor_view(num_envs)
-        self._setup_initial_camera_view()
-
         self._is_initialized = True
+        self._setup_initial_camera_view()
 
     def step(self, dt: float) -> None:
         """Advance visualizer/UI updates for one simulation step.

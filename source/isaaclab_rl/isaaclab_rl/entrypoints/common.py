@@ -600,35 +600,28 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
     if not getattr(args_cli, "video", False):
         return
 
-    frontend = getattr(args_cli, "frontend", "torch") or "torch"
-    if frontend != "torch":
-        raise ValueError(
-            f"--video is not supported with --frontend {frontend!r}. "
-            "Video recording requires the standard torch frontend. "
-            "Remove --video or switch to --frontend torch."
-        )
-
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     existing: list = getattr(env_cfg, "video_recorders", []) or []
     if not existing:
-        env_cfg.video_recorders = [VideoRecorderCfg()]
-        # Auto-inject a default visualizer so source="visualizer" can resolve a capture target.
+        # Preserve historical --video cadence: record immediately then every 2000 steps.
+        env_cfg.video_recorders = [VideoRecorderCfg(video_interval=2000)]
+        # Set a default visualizer hint so source="visualizer" can resolve a capture target.
+        # Use default_visualizer_cfg rather than visualizer_cfgs so the launcher's backend
+        # selection (auto_rtx, PhysxAutoCfg) remains visible to launch_simulation.
         sim_cfg = getattr(env_cfg, "sim", None)
-        if sim_cfg is not None:
-            existing_viz = getattr(sim_cfg, "visualizer_cfgs", None) or []
-            if not (existing_viz if isinstance(existing_viz, list) else [existing_viz]):
+        if sim_cfg is not None and getattr(sim_cfg, "default_visualizer_cfg", None) is None:
+            try:
+                from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+
+                sim_cfg.default_visualizer_cfg = _KitCfg()
+            except (ImportError, ModuleNotFoundError):
                 try:
-                    from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+                    from isaaclab_visualizers.newton import NewtonVisualizerCfg as _NwtCfg
 
-                    sim_cfg.visualizer_cfgs = [_KitCfg()]
+                    sim_cfg.default_visualizer_cfg = _NwtCfg(headless=True)
                 except (ImportError, ModuleNotFoundError):
-                    try:
-                        from isaaclab_visualizers.newton import NewtonVisualizerCfg as _NwtCfg
-
-                        sim_cfg.visualizer_cfgs = [_NwtCfg(headless=True)]
-                    except (ImportError, ModuleNotFoundError):
-                        pass
+                    pass
 
     fallback_output_dir = os.path.join(log_dir, "videos", subdir)
     video_length = getattr(args_cli, "video_length", None)

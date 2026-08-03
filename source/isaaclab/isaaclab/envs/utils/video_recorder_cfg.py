@@ -43,8 +43,13 @@ class VideoRecorderCfg:
     this to ``<log_dir>/videos/<subdir>`` automatically.  Set an explicit path to override.
     """
 
-    fps: int = 30
-    """Output video frame rate in frames per second."""
+    fps: int | None = None
+    """Output video frame rate in frames per second.
+
+    ``None`` (default): resolved automatically from the environment at recording time
+    using ``env.metadata["render_fps"]`` when available, falling back to
+    ``round(1.0 / env.step_dt)``.  Set an explicit integer to override.
+    """
 
     video_length: int = 200
     """Number of env steps captured per clip."""

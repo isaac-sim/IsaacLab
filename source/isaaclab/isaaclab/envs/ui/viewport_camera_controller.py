@@ -139,9 +139,16 @@ class ViewportCameraController:
         if lookat is not None:
             self.default_cam_lookat = np.asarray(lookat, dtype=float)
         for viz in self._get_kit_visualizers():
+            # Preserve the historical origin-relative behaviour: eye and lookat are
+            # offsets from the current viewer origin, not absolute world coordinates.
+            origin = getattr(viz, "_viewer_origin", None)
+            if origin is not None:
+                origin_np = origin.detach().cpu().numpy()
+            else:
+                origin_np = np.zeros(3)
             viz.set_camera_view(
-                tuple(self.default_cam_eye.tolist()),
-                tuple(self.default_cam_lookat.tolist()),
+                tuple((self.default_cam_eye + origin_np).tolist()),
+                tuple((self.default_cam_lookat + origin_np).tolist()),
             )
 
     # ------------------------------------------------------------------

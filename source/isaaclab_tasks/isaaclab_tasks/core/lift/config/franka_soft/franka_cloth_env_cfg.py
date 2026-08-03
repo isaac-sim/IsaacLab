@@ -13,7 +13,6 @@ from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMa
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -272,10 +271,14 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.sim.dt = 1 / 60.0
         self.sim.render_interval = self.decimation
 
-        # visualizer camera settings
-        self.sim.visualizer_cfgs = [
-            KitVisualizerCfg(origin_type="asset", origin_track_path="robot", origin_env_index=0, eye=(1.25, -1.5, 0.6))
-        ]
+        # Hint for the viewport camera when running interactively with --viz kit.
+        # Using default_visualizer_cfg rather than visualizer_cfgs avoids forcing
+        # Kit viewport creation in kitless/headless contexts.
+        from isaaclab_visualizers.kit import KitVisualizerCfg
+
+        self.sim.default_visualizer_cfg = KitVisualizerCfg(
+            origin_type="asset", origin_track_path="robot", origin_env_index=0, eye=(1.25, -1.5, 0.6)
+        )
         self.sim.physics = PhysicsCfg()
 
 
