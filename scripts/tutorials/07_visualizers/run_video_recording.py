@@ -130,6 +130,7 @@ def _build_env_cfg_example_1(num_envs: int):
 def _build_env_cfg_example_2(num_envs: int):
     """Shadow Hand + headless: scene tiled-camera sensor clip only."""
     env_cfg = _shadow_env_cfg(num_envs, env_spacing=2.0)
+    env_cfg.sim.physics = env_cfg.sim.physics.default
     env_cfg.sim.visualizer_cfgs = []  # no interactive visualizer
 
     out = _output_dir(2)
