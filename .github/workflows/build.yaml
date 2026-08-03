@@ -895,17 +895,23 @@ jobs:
   #region kit-reuse timing probe
   # TEMPORARY. Measures what sharing one Kit app across test files is worth, so the decision to
   # migrate the remaining ~125 files is based on a number rather than an estimate. Both jobs run
-  # the same 24 `kit` files from source/isaaclab/test/sim; the only difference is how many Kit
-  # apps get booted. Compare the two job durations in the Actions UI, then delete this region.
+  # the same 26 files from source/isaaclab/test/sim; the only difference is how many Kit apps get
+  # booted. Compare the two job durations in the Actions UI, then delete this region.
   #
-  # The four `kit_cameras` files in that directory are excluded from both sides. The first
-  # camera-enabled boot in a fresh container compiles shaders for ~600 s, which is an order of
-  # magnitude larger than the Kit startup being measured and would swamp the comparison.
+  # The 26 are every file in that directory that can share a Kit app. Excluded are the two marked
+  # kit_solo, which demonstrably cannot -- see the comments on their pytestmark for what each one
+  # does to a shared process -- and anything in TESTS_TO_SKIP. Both jobs use the identical set so
+  # the durations stay comparable.
   #
-  # The file lists are spelled out rather than selected with `-m kit` because pytest's marker
+  # The three `kit_cameras` files come first in the batched list. A camera-enabled app can serve
+  # tests that do not need cameras, but cameras cannot be turned on after startup, so the reverse
+  # order would make launch_kit() raise. Both sides pay the one-off ~600 s cold shader compile
+  # that the first camera-enabled boot in a fresh container incurs, so it does not bias the
+  # comparison.
+  #
+  # The file lists are spelled out rather than selected with `-m` because pytest's marker
   # filtering deselects tests but still imports every collected module, so `-m` alone cannot keep
-  # a kit_cameras module from calling launch_kit(cameras=True). Files in TESTS_TO_SKIP are left
-  # out of both sides so the two jobs cover exactly the same tests.
+  # a kit_cameras module from calling launch_kit(cameras=True).
   test-kit-reuse-probe-per-file:
     name: "kit-reuse-probe-per-file"
     runs-on: [self-hosted, gpu]
@@ -927,6 +933,9 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab/test/sim"
         include-files: >-
+          test_utils_prims.py,
+          test_utils_queries.py,
+          test_utils_semantics.py,
           test_articulation_fragments.py,
           test_build_simulation_context_headless.py,
           test_cloner.py,
@@ -949,8 +958,7 @@ jobs:
           test_spawn_wrappers.py,
           test_tendon_fragments.py,
           test_utils_stage.py,
-          test_utils_transforms.py,
-          test_views_xform_prim.py
+          test_utils_transforms.py
         container-name: isaac-lab-kit-reuse-probe-per-file
         omni-github-test-type: kit-reuse-probe-per-file
 
@@ -974,6 +982,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         test-path: >-
+          source/isaaclab/test/sim/test_utils_prims.py
+          source/isaaclab/test/sim/test_utils_queries.py
+          source/isaaclab/test/sim/test_utils_semantics.py
           source/isaaclab/test/sim/test_articulation_fragments.py
           source/isaaclab/test/sim/test_build_simulation_context_headless.py
           source/isaaclab/test/sim/test_cloner.py
@@ -997,7 +1008,6 @@ jobs:
           source/isaaclab/test/sim/test_tendon_fragments.py
           source/isaaclab/test/sim/test_utils_stage.py
           source/isaaclab/test/sim/test_utils_transforms.py
-          source/isaaclab/test/sim/test_views_xform_prim.py
         container-name: isaac-lab-kit-reuse-probe-batched
         omni-github-test-type: kit-reuse-probe-batched
   #endregion
