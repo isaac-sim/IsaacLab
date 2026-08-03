@@ -95,7 +95,7 @@ def _set_parent_positions(positions, num_envs):
 
 
 @pytest.fixture
-def view_factory():
+def view_factory(request):
     """Fabric factory: Camera child at CHILD_OFFSET under parent Xforms, with Fabric enabled."""
 
     def factory(num_envs: int, device: str) -> ViewBundle:
@@ -108,6 +108,10 @@ def view_factory():
 
         sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
         view = FrameView("/World/Parent_.*/Child", device=device)
+        # close() is idempotent, so this is safe even for tests that close (or
+        # tear down) themselves; it keeps views from being reaped by garbage
+        # collection, which would log the missing-close() warning per test.
+        request.addfinalizer(view.close)
         return ViewBundle(
             view=view,
             get_parent_pos=_get_parent_positions,
@@ -349,12 +353,22 @@ def test_close_removes_index_attributes(device, view_factory):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-def test_garbage_collection_removes_index_attributes_and_warns(device, view_factory, caplog):
-    """Dropping a view without close() still removes its tags, with a warning."""
+def test_garbage_collection_removes_index_attributes_and_warns(device, caplog):
+    """Dropping a view without close() still removes its tags, with a warning.
+
+    Builds the view directly instead of via ``view_factory``: the fixture
+    registers ``view.close`` as a finalizer, and that bound method would keep
+    the view alive past the ``del`` below.
+    """
     import gc  # noqa: PLC0415
 
-    bundle = view_factory(2, device)
-    view = bundle.view
+    _skip_if_unavailable(device)
+    stage_usd = sim_utils.get_current_stage()
+    for i in range(2):
+        sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage_usd)
+        sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage_usd)
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    view = FrameView("/World/Parent_.*/Child", device=device)
     view.get_world_poses()
 
     child_attr = view._child_index_attr
@@ -362,9 +376,7 @@ def test_garbage_collection_removes_index_attributes_and_warns(device, view_fact
     assert _count_prims_with_tag(view, child_attr) == view.count
 
     with caplog.at_level(logging.WARNING, logger="isaaclab_physx.sim.views.fabric_frame_view"):
-        # the bundle must go too: it holds the view AND teardown=view.close,
-        # a bound method that keeps the view alive
-        del bundle, view
+        del view
         gc.collect()
 
     import usdrt  # noqa: PLC0415
@@ -563,6 +575,7 @@ def test_set_local_then_get_world_with_rotated_parent(device):
     world_pos, _ = view.get_world_poses()
     expected = torch.tensor([[0.0, 1.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(torch.as_tensor(world_pos, device=device), expected, atol=1e-5, rtol=0)
+    view.close()
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -585,6 +598,7 @@ def test_set_world_then_get_local_with_rotated_parent(device):
     local_pos, _ = view.get_local_poses()
     expected = torch.tensor([[0.0, -5.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(torch.as_tensor(local_pos, device=device), expected, atol=1e-5, rtol=0)
+    view.close()
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -633,6 +647,7 @@ def test_initial_seed_with_scaled_parent(device):
         atol=1e-5,
         rtol=0,
     )
+    view.close()
 
 
 # ------------------------------------------------------------------
@@ -711,6 +726,8 @@ def test_multi_view_writer_isolation(device):
             assert view_b._active_writer is not None
     assert view_a._active_writer is None
     assert view_b._active_writer is None
+    view_a.close()
+    view_b.close()
 
 
 # ------------------------------------------------------------------
@@ -868,6 +885,7 @@ def test_sequential_world_then_local_scopes_partial_indices(device):
         atol=1e-5,
         rtol=0,
     )
+    view.close()
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -916,6 +934,7 @@ def test_sequential_local_then_world_scopes_partial_indices(device):
         atol=1e-5,
         rtol=0,
     )
+    view.close()
 
 
 # ------------------------------------------------------------------
