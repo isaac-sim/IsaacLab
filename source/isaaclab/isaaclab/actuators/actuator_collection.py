@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterator, Mapping, Sequence
+from dataclasses import dataclass
 
 import torch
 import warp as wp
@@ -34,6 +35,14 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     groups remain visible through the mapping interface, but membership is fixed
     after construction.
     """
+
+    @dataclass
+    class _ExecutionBatch:
+        actuator: ActuatorBase
+        group_names: tuple[str, ...]
+        group_slices: tuple[slice, ...]
+        joint_indices: torch.Tensor
+        joint_indices_wp: wp.array
 
     class Command:
         """Commands received by the actuator models.
@@ -278,6 +287,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._build_groups(actuator_cfgs)
         self._control.finalize_native_actuators(self)
         self._validate_coverage()
+        self._build_execution_batches()
         if debug_value_resolution:
             self._print_value_resolution_table()
 
@@ -509,6 +519,161 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         if isinstance(joint_indices, wp.array):
             return joint_indices
         return wp.from_torch(joint_indices.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
+
+    def _joint_indices_as_torch(self, actuator: ActuatorBase) -> torch.Tensor:
+        if actuator.joint_indices == slice(None) or actuator.joint_indices is None:
+            return torch.arange(self.num_joints, dtype=torch.int32, device=self.device)
+        joint_indices = actuator.joint_indices
+        if isinstance(joint_indices, wp.array):
+            joint_indices = wp.to_torch(joint_indices)
+        return joint_indices.to(self.device, dtype=torch.int32).contiguous()
+
+    def _make_execution_batch(
+        self,
+        group_names: tuple[str, ...],
+        groups: tuple[ActuatorBase, ...],
+        joint_indices: torch.Tensor,
+        *,
+        executor: ActuatorBase | None = None,
+    ) -> ActuatorCollection._ExecutionBatch:
+        if executor is None:
+            executor = groups[0]
+        group_slices = []
+        start = 0
+        for group in groups:
+            stop = start + group.num_joints
+            group_slices.append(slice(start, stop))
+            start = stop
+        joint_indices = joint_indices.to(self.device, dtype=torch.int32).contiguous()
+        executor._joint_names = [name for group in groups for name in group.joint_names]
+        executor._joint_indices = joint_indices
+        return self._ExecutionBatch(
+            actuator=executor,
+            group_names=group_names,
+            group_slices=tuple(group_slices),
+            joint_indices=joint_indices,
+            joint_indices_wp=wp.from_torch(joint_indices, dtype=wp.int32),
+        )
+
+    def _build_execution_batches(self) -> None:
+        native_active = getattr(self._control, "native_active", False)
+        batch_by_group: dict[str, ActuatorCollection._ExecutionBatch] = {}
+        if not self._groups:
+            self._execution_batches = []
+            return
+        group_joint_indices = {name: self._joint_indices_as_torch(group) for name, group in self._groups.items()}
+        joint_use_count = torch.bincount(
+            torch.cat(list(group_joint_indices.values())).to(dtype=torch.long),
+            minlength=self.num_joints,
+        )
+
+        for actuator_type in self._groups_by_class:
+            names = tuple(name for name, group in self._groups.items() if type(group) is actuator_type)
+            groups = [self._groups[name] for name in names]
+            joint_indices = [group_joint_indices[name] for name in names]
+            supported = actuator_type.__dict__.get("_supports_execution_aggregation", False)
+
+            if native_active or not supported:
+                for name, group, indices in zip(names, groups, joint_indices):
+                    batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
+                continue
+
+            safe = [
+                (name, group, indices)
+                for name, group, indices in zip(names, groups, joint_indices)
+                if torch.all(joint_use_count[indices.to(dtype=torch.long)] == 1)
+            ]
+            safe_names_set = {name for name, _, _ in safe}
+            unsafe = [
+                (name, group, indices)
+                for name, group, indices in zip(names, groups, joint_indices)
+                if name not in safe_names_set
+            ]
+            for name, group, indices in unsafe:
+                batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
+            if len(safe) < 2:
+                for name, group, indices in safe:
+                    batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
+                continue
+
+            safe_names, safe_groups, safe_indices = zip(*safe)
+            combined = torch.cat(safe_indices)
+            executor = actuator_type._build_execution_actuator(safe_groups)
+            executor._joint_indices = combined
+            batch = self._make_execution_batch(safe_names, safe_groups, combined, executor=executor)
+            self._validate_execution_batch(batch, safe_groups)
+            self._bind_execution_batch_parameters(batch, safe_groups)
+            for name in safe_names:
+                batch_by_group[name] = batch
+
+        seen: set[int] = set()
+        self._execution_batches = []
+        for name in self._groups:
+            batch = batch_by_group[name]
+            if id(batch) not in seen:
+                self._execution_batches.append(batch)
+                seen.add(id(batch))
+
+    def _validate_execution_batch(
+        self, batch: ActuatorCollection._ExecutionBatch, groups: Sequence[ActuatorBase]
+    ) -> None:
+        expected_joint_names = [name for group in groups for name in group.joint_names]
+        expected_num_joints = len(expected_joint_names)
+        if len(batch.group_names) != len(groups) or len(batch.group_slices) != len(groups):
+            raise ValueError("Execution batch group metadata is inconsistent.")
+        if any(self._groups[name] is not group for name, group in zip(batch.group_names, groups)):
+            raise ValueError("Execution batch group names do not match its logical groups.")
+        if batch.actuator.joint_names != expected_joint_names:
+            raise ValueError("Execution batch joint names do not match its logical groups.")
+        if batch.joint_indices.ndim != 1 or batch.joint_indices.shape[0] != expected_num_joints:
+            raise ValueError("Execution batch joint indices do not match its logical groups.")
+        if (
+            batch.joint_indices.dtype != torch.int32
+            or batch.joint_indices.device != torch.device(self.device)
+            or not batch.joint_indices.is_contiguous()
+        ):
+            raise ValueError("Execution batch joint indices use an unexpected dtype or device.")
+        if not torch.equal(batch.actuator.joint_indices, batch.joint_indices):
+            raise ValueError("Execution actuator joint indices do not match its batch.")
+        if (
+            batch.joint_indices_wp.shape[0] != expected_num_joints
+            or batch.joint_indices_wp.dtype != wp.int32
+            or batch.joint_indices_wp.device != wp.get_device(self.device)
+        ):
+            raise ValueError("Execution batch Warp joint indices do not match its logical groups.")
+
+        expected_start = 0
+        for group, group_slice in zip(groups, batch.group_slices):
+            expected_stop = expected_start + group.num_joints
+            if group_slice != slice(expected_start, expected_stop):
+                raise ValueError("Execution batch group slices are not contiguous.")
+            expected_start = expected_stop
+        if expected_start != expected_num_joints:
+            raise ValueError("Execution batch group slices do not cover all executor joints.")
+
+        tensor_names = (*ActuatorBase._EXECUTION_PARAMETER_NAMES, "computed_effort", "applied_effort")
+        for name in tensor_names:
+            value = getattr(batch.actuator, name)
+            if value.shape != (self.num_instances, expected_num_joints):
+                raise ValueError(f"Execution batch tensor '{name}' has an unexpected shape.")
+            if value.device != torch.device(self.device) or value.dtype != getattr(groups[0], name).dtype:
+                raise ValueError(f"Execution batch tensor '{name}' has an unexpected dtype or device.")
+
+    def _bind_execution_batch_parameters(
+        self, batch: ActuatorCollection._ExecutionBatch, groups: Sequence[ActuatorBase]
+    ) -> None:
+        tensor_names = (*ActuatorBase._EXECUTION_PARAMETER_NAMES, "computed_effort", "applied_effort")
+        bindings: list[tuple[ActuatorBase, str, torch.Tensor]] = []
+        for group, group_slice in zip(groups, batch.group_slices):
+            for name in tensor_names:
+                original = getattr(group, name)
+                view = getattr(batch.actuator, name)[:, group_slice]
+                if view.shape != original.shape or view.dtype != original.dtype or view.device != original.device:
+                    raise ValueError(f"Execution batch view for '{name}' is incompatible with its logical group.")
+                bindings.append((group, name, view))
+
+        for group, name, view in bindings:
+            setattr(group, name, view)
 
     def _write_index_target(
         self,

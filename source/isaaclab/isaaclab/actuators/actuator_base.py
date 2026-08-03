@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import copy
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
@@ -42,6 +43,20 @@ class ActuatorBase(ABC):
 
     If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
     """
+
+    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = (
+        "effort_limit",
+        "effort_limit_sim",
+        "velocity_limit",
+        "velocity_limit_sim",
+        "stiffness",
+        "damping",
+        "armature",
+        "friction",
+        "dynamic_friction",
+        "viscous_friction",
+    )
+    _supports_execution_aggregation: ClassVar[bool] = False
 
     computed_effort: torch.Tensor
     """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
@@ -300,6 +315,17 @@ class ActuatorBase(ABC):
     """
     Helper functions.
     """
+
+    @classmethod
+    def _build_execution_actuator(cls, actuators: Sequence[ActuatorBase]) -> ActuatorBase:
+        """Build one private executor from resolved logical actuator groups."""
+        executor = copy.copy(actuators[0])
+        executor._joint_names = [name for actuator in actuators for name in actuator.joint_names]
+        for name in cls._EXECUTION_PARAMETER_NAMES:
+            setattr(executor, name, torch.cat([getattr(actuator, name) for actuator in actuators], dim=1))
+        executor.computed_effort = torch.zeros(executor._num_envs, len(executor._joint_names), device=executor._device)
+        executor.applied_effort = torch.zeros_like(executor.computed_effort)
+        return executor
 
     def _record_actuator_resolution(self, cfg_val, new_val, usd_val, joint_names, joint_ids, actuator_param: str):
         if actuator_param not in self.joint_property_resolution_table:

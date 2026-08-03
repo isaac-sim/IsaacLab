@@ -55,6 +55,8 @@ class ImplicitActuator(ActuatorBase):
     cfg: ImplicitActuatorCfg
     """The configuration for the actuator model."""
 
+    _supports_execution_aggregation = True
+
     def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
@@ -176,6 +178,8 @@ class IdealPDActuator(ActuatorBase):
     cfg: IdealPDActuatorCfg
     """The configuration for the actuator model."""
 
+    _supports_execution_aggregation = True
+
     """
     Operations.
     """
@@ -260,6 +264,8 @@ class DCMotor(IdealPDActuator):
     cfg: DCMotorCfg
     """The configuration for the actuator model."""
 
+    _supports_execution_aggregation = True
+
     def __init__(self, cfg: DCMotorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
         # parse configuration
@@ -291,6 +297,20 @@ class DCMotor(IdealPDActuator):
     """
     Helper functions.
     """
+
+    @classmethod
+    def _build_execution_actuator(cls, actuators: Sequence[ActuatorBase]) -> ActuatorBase:
+        executor = super()._build_execution_actuator(actuators)
+        executor._saturation_effort = torch.cat(
+            [torch.full_like(actuator.effort_limit, float(actuator._saturation_effort)) for actuator in actuators],
+            dim=1,
+        )
+        executor._vel_at_effort_lim = executor.velocity_limit * (
+            1 + executor.effort_limit / executor._saturation_effort
+        )
+        executor._joint_vel = torch.zeros_like(executor.computed_effort)
+        executor._zeros_effort = torch.zeros_like(executor.computed_effort)
+        return executor
 
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
         # save current joint vel

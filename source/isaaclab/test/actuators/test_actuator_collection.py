@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 import warnings
 from collections.abc import Sequence
 from types import SimpleNamespace
@@ -15,7 +16,17 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.actuators import ActuatorCollection, ActuatorControl, ActuatorJointProperties, ImplicitActuatorCfg
+from isaaclab.actuators import (
+    ActuatorCollection,
+    ActuatorControl,
+    ActuatorJointProperties,
+    DCMotor,
+    DCMotorCfg,
+    DelayedPDActuatorCfg,
+    IdealPDActuator,
+    IdealPDActuatorCfg,
+    ImplicitActuatorCfg,
+)
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.utils.warp import ProxyArray
 
@@ -23,6 +34,35 @@ from isaaclab.utils.warp import ProxyArray
 def _implicit_cfg() -> ImplicitActuatorCfg:
     """Create a valid implicit actuator config for collection tests."""
     return ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)
+
+
+def _ideal_cfg(joints: list[str], *, stiffness: float, damping: float, effort_limit: float):
+    return IdealPDActuatorCfg(
+        joint_names_expr=joints,
+        stiffness=stiffness,
+        damping=damping,
+        effort_limit=effort_limit,
+        velocity_limit=100.0,
+    )
+
+
+def _dc_cfg(
+    joints: list[str],
+    *,
+    stiffness: float,
+    damping: float,
+    effort_limit: float,
+    velocity_limit: float,
+    saturation_effort: float,
+):
+    return DCMotorCfg(
+        joint_names_expr=joints,
+        stiffness=stiffness,
+        damping=damping,
+        effort_limit=effort_limit,
+        velocity_limit=velocity_limit,
+        saturation_effort=saturation_effort,
+    )
 
 
 class FakeActuatorControl(ActuatorControl):
@@ -63,7 +103,13 @@ class FakeActuatorControl(ActuatorControl):
         return self._joint_vel
 
     def find_joints(self, name_keys: str | Sequence[str]) -> tuple[list[int], list[str]]:
-        return list(range(len(self._joint_names))), list(self._joint_names)
+        expressions = [name_keys] if isinstance(name_keys, str) else list(name_keys)
+        matches = [
+            (joint_id, joint_name)
+            for joint_id, joint_name in enumerate(self._joint_names)
+            if any(re.fullmatch(expression, joint_name) for expression in expressions)
+        ]
+        return [joint_id for joint_id, _ in matches], [joint_name for _, joint_name in matches]
 
     def resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> torch.Tensor | wp.array:
         if env_ids is None:
@@ -289,6 +335,105 @@ def test_collection_is_mapping_like_and_read_only():
     assert list(collection.items())[0][0] == "all"
     with pytest.raises(TypeError, match="membership is fixed"):
         collection["new"] = collection["all"]
+
+
+def test_same_stateless_class_builds_one_execution_batch_with_group_views():
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    collection = ActuatorCollection(
+        {
+            "hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=10.0, damping=1.0, effort_limit=20.0),
+            "knees": _ideal_cfg(["joint_1", "joint_3"], stiffness=30.0, damping=2.0, effort_limit=40.0),
+        },
+        control,
+    )
+
+    assert len(collection._execution_batches) == 1
+    batch = collection._execution_batches[0]
+    assert type(batch.actuator) is IdealPDActuator
+    assert batch.group_names == ("hips", "knees")
+    assert isinstance(collection["hips"], IdealPDActuator)
+    assert collection["hips"].joint_names == ["joint_0", "joint_2"]
+    assert collection["hips"].stiffness.shape == (2, 2)
+    torch.testing.assert_close(batch.actuator.stiffness[:, :2], torch.full((2, 2), 10.0))
+    torch.testing.assert_close(batch.actuator.stiffness[:, 2:], torch.full((2, 2), 30.0))
+
+    collection["hips"].stiffness.fill_(17.0)
+    torch.testing.assert_close(batch.actuator.stiffness[:, :2], torch.full((2, 2), 17.0))
+    torch.testing.assert_close(batch.actuator.stiffness[:, 2:], torch.full((2, 2), 30.0))
+
+
+def test_dc_motor_execution_batch_packs_different_saturation_efforts():
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    collection = ActuatorCollection(
+        {
+            "hips": _dc_cfg(
+                ["joint_0", "joint_1"],
+                stiffness=20.0,
+                damping=1.0,
+                effort_limit=40.0,
+                velocity_limit=10.0,
+                saturation_effort=60.0,
+            ),
+            "knees": _dc_cfg(
+                ["joint_2", "joint_3"],
+                stiffness=30.0,
+                damping=2.0,
+                effort_limit=70.0,
+                velocity_limit=20.0,
+                saturation_effort=120.0,
+            ),
+        },
+        control,
+    )
+
+    batch = collection._execution_batches[0]
+    assert type(batch.actuator) is DCMotor
+    torch.testing.assert_close(
+        batch.actuator._saturation_effort,
+        torch.tensor([[60.0, 60.0, 120.0, 120.0]]).expand(2, -1),
+    )
+
+
+def test_stateful_subclasses_and_overlapping_groups_remain_unbatched():
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    delayed = ActuatorCollection(
+        {
+            "first": DelayedPDActuatorCfg(
+                joint_names_expr=["joint_0", "joint_1"], stiffness=1.0, damping=1.0, max_delay=0
+            ),
+            "second": DelayedPDActuatorCfg(
+                joint_names_expr=["joint_2", "joint_3"], stiffness=2.0, damping=2.0, max_delay=0
+            ),
+        },
+        control,
+    )
+    assert len(delayed._execution_batches) == 2
+
+    overlapping = ActuatorCollection(
+        {
+            "first": _ideal_cfg(["joint_0", "joint_1"], stiffness=1.0, damping=1.0, effort_limit=10.0),
+            "second": _ideal_cfg(["joint_1", "joint_2"], stiffness=2.0, damping=2.0, effort_limit=20.0),
+        },
+        FakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2"]),
+    )
+    assert len(overlapping._execution_batches) == 2
+
+    cross_class = ActuatorCollection(
+        {
+            "ideal_a": _ideal_cfg(["joint_0"], stiffness=1.0, damping=1.0, effort_limit=10.0),
+            "dc": _dc_cfg(
+                ["joint_1", "joint_2"],
+                stiffness=2.0,
+                damping=2.0,
+                effort_limit=20.0,
+                velocity_limit=10.0,
+                saturation_effort=30.0,
+            ),
+            "ideal_b": _ideal_cfg(["joint_1"], stiffness=3.0, damping=3.0, effort_limit=30.0),
+        },
+        FakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2"]),
+    )
+    assert len(cross_class._execution_batches) == 3
 
 
 def test_collection_exports_proxy_arrays():
