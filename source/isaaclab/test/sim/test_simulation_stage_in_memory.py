@@ -22,7 +22,12 @@ from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version
 
-pytestmark = [pytest.mark.kit_cameras, pytest.mark.integration]
+# kit_solo: sharing a Kit app with other test files killed the pytest process here. In the
+# kit-reuse-probe-batched CI job this file's first test aborted the interpreter immediately
+# after collection, with no Python traceback, while the same test is fine in its own process.
+# The cause is not yet understood -- creating the stage in memory is sensitive to what else has
+# already touched the stage or the extension set -- so keep the file on its own until it is.
+pytestmark = [pytest.mark.kit_cameras, pytest.mark.kit_solo, pytest.mark.integration]
 
 
 @pytest.fixture

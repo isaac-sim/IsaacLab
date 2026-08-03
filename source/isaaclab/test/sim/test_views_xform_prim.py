@@ -24,6 +24,9 @@ from pxr import Gf, UsdGeom  # noqa: E402
 try:
     from isaaclab.sim.utils import enable_extension  # noqa: E402
 
+    # NOTE: this runs at import, so in a process shared with other test files it changes the
+    # running app's extension set during collection, before any test executes. Harmless when
+    # this file has the process to itself; a hazard once files are batched together.
     enable_extension("isaacsim.core.experimental.prims")
     from isaacsim.core.experimental.prims import XformPrim as _IsaacSimXformPrimView
 except (ModuleNotFoundError, ImportError, RuntimeError):
