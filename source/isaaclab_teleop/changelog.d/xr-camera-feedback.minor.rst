@@ -5,13 +5,14 @@ Added
   existing-camera selection, declarative layouts, and viewer-start, head-locked, or explicit-world
   placement.
 * Added direct and staged CUDA image presentation paths so camera feedback works with CPU physics.
+* Added lazy Kit Scene UI loading so kitless teleoperation warns and continues without PiP.
 
 Changed
 ^^^^^^^
 
-* Changed Kit Scene UI loading to be lazy so kitless teleoperation warns and continues without PiP.
 * Changed ``--disable_external_cameras`` into the master camera-rendering and PiP gate for
-  ``teleop_se3_agent.py`` and ``record_demos.py``.
+  ``teleop_se3_agent.py`` and ``record_demos.py``. To keep task cameras enabled without PiP, leave
+  this flag unset and configure ``xr_camera_feeds`` as an empty list or with every feed disabled.
 
 Fixed
 ^^^^^

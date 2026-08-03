@@ -98,17 +98,8 @@ uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
     --task My-IsaacTeleop-Env-v0 --xr
 ```
 
-`IsaacContrib-PickPlace-GR1T2-Abs` and
-`IsaacContrib-PickPlace-Locomanipulation-G1-Abs` are camera-feedback reference tasks. Both show
-their recorded `robot_pov_cam` observation in PiP:
-
-```bash
-uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
-    --task IsaacContrib-PickPlace-GR1T2-Abs --xr --device cpu
-```
-
 See [XR Camera Feedback](../../../docs/source/features/isaac_teleop.rst#xr-camera-feedback) for
-camera selection, layout, placement, renderer, disable, and kitless behavior.
+reference tasks, camera selection, layout, placement, renderer, disable, and kitless behavior.
 
 ### 4. Programmatic Usage
 

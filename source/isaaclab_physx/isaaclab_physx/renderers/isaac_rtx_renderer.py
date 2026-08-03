@@ -18,7 +18,7 @@ import numpy as np
 import warp as wp
 from packaging import version
 
-from pxr import Sdf, Usd, UsdGeom, UsdRender
+from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
@@ -471,7 +471,7 @@ class IsaacRtxRenderer(BaseRenderer):
             render_product = stage.GetPrimAtPath(render_product_path)
             if not render_product.IsValid():
                 raise RuntimeError(f"Render product '{render_product_path}' was not materialized on the USD stage.")
-            if not render_product.IsA(UsdRender.Product):
+            if render_product.GetTypeName() != "RenderProduct":
                 raise RuntimeError(f"Prim '{render_product_path}' is not a RenderProduct.")
             if ray_reconstruction is not None:
                 self._set_render_product_schema_attribute(

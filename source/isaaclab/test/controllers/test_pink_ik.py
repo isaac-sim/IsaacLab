@@ -7,8 +7,8 @@
 
 from isaaclab.app import AppLauncher
 
-# Camera-enabled tasks under test require the rendering experience.
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+# Pink IK tests strip task cameras before environment construction.
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
@@ -21,6 +21,7 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+from isaaclab_teleop import remove_camera_configs
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 
@@ -66,7 +67,7 @@ def create_test_env(env_name, num_envs):
     sim_utils.create_new_stage()
 
     try:
-        env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
+        env_cfg = remove_camera_configs(parse_env_cfg(env_name, device=device, num_envs=num_envs))
         # Deterministic seed so IK convergence residual is reproducible across runs / machines.
         env_cfg.seed = 42
         # Modify scene config to not spawn the packing table to avoid collision with the robot

@@ -18,7 +18,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, ContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
@@ -29,18 +29,7 @@ from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg  # isort: skip
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg  # isort: skip
 from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
-from isaaclab_physx.renderers import IsaacRtxRendererCfg  # isort: skip
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg  # isort: skip
-
-
-@configclass
-class _RobotPovCameraRendererCfg(MultiBackendRendererCfg):
-    default: IsaacRtxRendererCfg = IsaacRtxRendererCfg(
-        camera_output_device="cuda:0",
-        enable_dlss_ray_reconstruction=True,
-        dlss_exec_mode="quality",
-    )
-    isaacsim_rtx = default
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
 
 
 def _build_gr1t2_pickplace_pipeline():
@@ -379,20 +368,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
     """GR1T2 pick-place scene with the camera observation shown in XR PiP."""
 
-    robot_pov_cam = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/RobotPOVCam",
-        update_period=0.0,
-        height=450,
-        width=720,
-        data_types=["rgb"],
-        renderer_cfg=_RobotPovCameraRendererCfg(),
-        spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2.0)),
-        offset=CameraCfg.OffsetCfg(
-            pos=(0.0, 0.12, 1.67675),
-            rot=(0.9801, 0.0, 0.0, -0.19848),
-            convention="ros",
-        ),
-    )
+    robot_pov_cam = robot_pov_camera_cfg()
 
 
 ##
@@ -670,6 +646,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
+        self.num_rerenders_on_reset = 3
 
         # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
         self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path

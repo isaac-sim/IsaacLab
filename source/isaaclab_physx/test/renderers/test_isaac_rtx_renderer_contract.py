@@ -192,7 +192,7 @@ def test_dlss_settings_are_authored_per_render_product(monkeypatch):
     stage.GetPrimAtPath.side_effect = prims.__getitem__
     for prim in prims.values():
         prim.IsValid.return_value = True
-        prim.IsA.return_value = True
+        prim.GetTypeName.return_value = "RenderProduct"
         prim.ApplyAPI.return_value = True
         attributes = {
             "omni:rtx:newDenoiser:enabled": MagicMock(),
@@ -239,7 +239,7 @@ def test_ray_reconstruction_uses_renderer_owned_version_fallback(
     stage = MagicMock()
     render_product = stage.GetPrimAtPath.return_value
     render_product.IsValid.return_value = True
-    render_product.IsA.return_value = True
+    render_product.GetTypeName.return_value = "RenderProduct"
     render_product.ApplyAPI.return_value = True
     attribute = render_product.GetAttribute.return_value
     attribute.IsValid.return_value = True
@@ -350,11 +350,31 @@ def test_render_product_schema_failure_is_reported(monkeypatch):
     stage = MagicMock()
     render_product = stage.GetPrimAtPath.return_value
     render_product.IsValid.return_value = True
-    render_product.IsA.return_value = True
+    render_product.GetTypeName.return_value = "RenderProduct"
     render_product.ApplyAPI.return_value = False
 
     with pytest.raises(RuntimeError, match="OmniRtxDebugSettingsAPI_1"):
         renderer._apply_render_product_settings(stage, ["/Render/RP"])
+
+
+def test_render_product_settings_reject_non_render_product(monkeypatch):
+    """The schema authoring path rejects a valid prim with the wrong USD type."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=False)
+    render_product = MagicMock()
+    render_product.IsValid.return_value = True
+    render_product.GetTypeName.return_value = "Camera"
+    stage = MagicMock()
+    stage.GetPrimAtPath.return_value = render_product
+
+    with pytest.raises(RuntimeError, match="not a RenderProduct"):
+        renderer._apply_render_product_settings(stage, ["/Render/NotRenderProduct"])
+
+    render_product.ApplyAPI.assert_not_called()
 
 
 @pytest.mark.parametrize(

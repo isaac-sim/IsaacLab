@@ -20,7 +20,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, ContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -37,18 +37,7 @@ from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
 )
-from isaaclab_physx.renderers import IsaacRtxRendererCfg  # isort: skip
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg  # isort: skip
-
-
-@configclass
-class _RobotPovCameraRendererCfg(MultiBackendRendererCfg):
-    default: IsaacRtxRendererCfg = IsaacRtxRendererCfg(
-        camera_output_device="cuda:0",
-        enable_dlss_ray_reconstruction=True,
-        dlss_exec_mode="quality",
-    )
-    isaacsim_rtx = default
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
 
 
 def _build_g1_locomanipulation_pipeline():
@@ -309,20 +298,7 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # Fixed task camera matching the GR1T2 training-camera placement.
-    robot_pov_cam = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/RobotPOVCam",
-        update_period=0.0,
-        height=450,
-        width=720,
-        data_types=["rgb"],
-        renderer_cfg=_RobotPovCameraRendererCfg(),
-        spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2.0)),
-        offset=CameraCfg.OffsetCfg(
-            pos=(0.0, 0.12, 1.67675),
-            rot=(0.9801, 0.0, 0.0, -0.19848),
-            convention="ros",
-        ),
-    )
+    robot_pov_cam = robot_pov_camera_cfg()
 
     # Per-hand contact sensors over all finger links, used to drive controller
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
@@ -484,6 +460,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
+        self.num_rerenders_on_reset = 3
 
         # Set the URDF path for the IK controller. Path resolution (Nucleus → local) happens at runtime.
         self.actions.upper_body_ik.controller.urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501

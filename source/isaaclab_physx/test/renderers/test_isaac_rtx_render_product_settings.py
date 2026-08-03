@@ -15,6 +15,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True, device="cpu").a
 import pytest
 from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 
+import carb
 import omni.replicator.core as rep
 import usdrt.Usd as UsdRtUsd
 from pxr import UsdUtils
@@ -24,6 +25,27 @@ from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sensors.camera import Camera, CameraCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
+
+_GLOBAL_RTX_SETTINGS = (
+    "/rtx/post/dlss/execMode",
+    "/rtx-transient/dldenoiser/enabled",
+    "/rtx/dldenoiser/responsiveDenoising",
+)
+
+
+@pytest.fixture(autouse=True)
+def restore_global_rtx_settings():
+    """Restore every process-global RTX setting changed by these tests."""
+    settings = carb.settings.get_settings()
+    previous = {path: settings.get(path) for path in _GLOBAL_RTX_SETTINGS}
+    try:
+        yield
+    finally:
+        for path, value in previous.items():
+            if value is None:
+                settings.destroy_item(path)
+            else:
+                settings.set(path, value)
 
 
 def _read_dlss_settings(prim) -> tuple[str, bool]:
@@ -46,7 +68,6 @@ def test_camera_local_dlss_settings_survive_annotator_attachment():
             spawn=sim_utils.PinholeCameraCfg(),
             renderer_cfg=IsaacRtxRendererCfg(
                 global_settings=IsaacRtxRendererGlobalSettingsCfg(
-                    antialiasing_mode="DLSS",
                     dlss_mode=0,
                     enable_dl_denoiser=True,
                     carb_settings={"/rtx/dldenoiser/responsiveDenoising": True},

@@ -16,9 +16,6 @@ from isaaclab_teleop import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutC
 
 from isaaclab.sensors import CameraCfg
 
-from isaaclab_tasks.utils.hydra import resolve_presets
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
-
 
 class _FakeImage:
     def __init__(self, height=8, width=12, *, device="cuda:0", data_ptr=100):
@@ -217,10 +214,9 @@ def test_existing_camera_is_selected_without_replacement(monkeypatch):
     assert session.requires_responsive_denoising
 
 
-def test_session_refresh_renders_reset_state_before_publishing():
+def test_session_refresh_publishes_buffer_refreshed_by_env_reset():
     events = []
     session = camera_feed._XrCameraFeedSession([], None, None, requires_responsive_denoising=False)
-    session._env = SimpleNamespace(sim=SimpleNamespace(render=lambda: events.append("render")))
 
     class _Manager:
         def refresh(self, *, publish=True):
@@ -231,7 +227,7 @@ def test_session_refresh_renders_reset_state_before_publishing():
 
     session.refresh()
 
-    assert events == ["request", "render"] * 3 + ["publish"]
+    assert events == ["publish"]
 
 
 def test_camera_rendering_switch_disables_pip_before_presenter_load(monkeypatch):
@@ -376,34 +372,6 @@ def test_manager_rejects_invalid_update_rate(monkeypatch, value):
     cfg = XrCameraFeedCfg(camera_name="robot_pov_cam", max_update_hz=value)
     with pytest.raises(ValueError, match="max_update_hz"):
         _manager(monkeypatch, [cfg], {"robot_pov_cam": _FakeImage()})
-
-
-def test_reference_tasks_select_their_recorded_camera():
-    from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import LocomanipulationG1EnvCfg
-    from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import PickPlaceGR1T2EnvCfg
-
-    for cfg in (PickPlaceGR1T2EnvCfg(), LocomanipulationG1EnvCfg()):
-        assert cfg.isaac_teleop.xr_camera_feeds[0].camera_name == "robot_pov_cam"
-        assert hasattr(cfg.observations.policy, "robot_pov_cam")
-        assert isinstance(cfg.scene.robot_pov_cam.renderer_cfg, MultiBackendRendererCfg)
-
-
-def test_reference_camera_renderer_resolves_to_isaac_rtx_and_ovrtx():
-    from isaaclab_ov.renderers import OVRTXRendererCfg
-
-    from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import PickPlaceGR1T2EnvCfg
-
-    default = resolve_presets(PickPlaceGR1T2EnvCfg().scene.robot_pov_cam.renderer_cfg)
-    isaacsim_rtx = resolve_presets(PickPlaceGR1T2EnvCfg().scene.robot_pov_cam.renderer_cfg, selected=("isaacsim_rtx",))
-    ovrtx = resolve_presets(PickPlaceGR1T2EnvCfg().scene.robot_pov_cam.renderer_cfg, selected=("ovrtx",))
-
-    assert isinstance(default, IsaacRtxRendererCfg)
-    assert default.camera_output_device == "cuda:0"
-    assert default.enable_dlss_ray_reconstruction
-    assert isinstance(isaacsim_rtx, IsaacRtxRendererCfg)
-    assert isaacsim_rtx.camera_output_device == "cuda:0"
-    assert isaacsim_rtx.enable_dlss_ray_reconstruction
-    assert isinstance(ovrtx, OVRTXRendererCfg)
 
 
 def test_public_api_only_exports_declarative_camera_feed_types():

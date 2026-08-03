@@ -164,12 +164,6 @@ class _XrCameraFeedSession:
         if not self._bound:
             raise RuntimeError("XR camera feed session must be bound before refresh.")
         if self._manager is not None:
-            # Request post-reset camera output before each render. Temporal
-            # RTX cameras need several frames to replace their pre-reset
-            # annotator contents, matching Isaac Lab's reset rerender path.
-            for _ in range(3):
-                self._manager.refresh(publish=False)
-                self._env.sim.render()
             self._manager.refresh()
 
     def close(self) -> None:
