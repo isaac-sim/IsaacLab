@@ -249,8 +249,8 @@ def _select_physics_variants(
     for backend in requested_backends:
         selector = None
         if variants:
-            if backend == "physx" and "physx" in variants:
-                selector = "physx"
+            if backend == "physx" and "isaacsim_physx" in variants:
+                selector = "isaacsim_physx"
             elif backend == "newton":
                 selector = next(
                     (candidate for candidate in ("newton_mjwarp", "newton_mjwarp_vbd") if candidate in variants),
