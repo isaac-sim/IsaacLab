@@ -45,11 +45,14 @@ concurrency:
   group: perf-smoke-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# Read-only by default. A same-repo PR runs its own checked-out Python on the
+# host, so write scopes are granted per job and only where a job actually calls
+# the API: `bench` posts per-task statuses and `aggregate` posts the verdict
+# comment. `config` and `validate` also run PR code and need no write scope at
+# all, so a modified tasks_to_ci_matrix.py or validate_tasks.py holds a
+# read-only token.
 permissions:
   contents: read
-  issues: write          # post/update the sticky verdict comment on the PR
-  pull-requests: read
-  statuses: write        # post per-task benchmark commit statuses on the PR head
 
 env:
   # NGC_API_KEY is intentionally NOT set workflow-wide: a same-repo PR runs
@@ -155,6 +158,9 @@ jobs:
     needs: [config, validate]
     continue-on-error: true
     timeout-minutes: ${{ matrix.job_timeout_minutes }}
+    permissions:
+      contents: read
+      statuses: write     # post per-task benchmark commit statuses on the PR head
     strategy:
       fail-fast: false
       matrix:
@@ -927,7 +933,10 @@ jobs:
       && github.ref == 'refs/heads/develop'
       && needs.aggregate.outputs.reseed_tasks != '' }}
     uses: ./.github/workflows/perf-smoke-seed-baselines.yaml
-    secrets: inherit
+    # Pass only the credential the seed workflow declares. `secrets: inherit`
+    # would hand it every secret this repository holds.
+    secrets:
+      NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
     with:
       branches: "${{ github.sha }}:develop"
       commit_count: "1"
