@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import ClassVar
@@ -47,14 +48,63 @@ def __getattr__(name):
 class PhysicsMaterialCfg:
     """Configuration parameters for creating a physics material.
 
-    Physics material are PhysX schemas that can be applied to a USD material prim to define the
-    physical properties related to the material. For example, the friction coefficient, restitution
-    coefficient, etc. For more information on physics material, please refer to the
-    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxBaseMaterial.html>`__.
+    Physics materials are USD schemas applied to a material prim to define the physical properties
+    related to the material. For example, the friction coefficient, restitution coefficient, etc.
+    Subclasses author the schema of a specific backend, such as the standard ``UsdPhysics``
+    attributes, the AOUSD deformable schemas, or the PhysX extensions.
     """
 
     func: Callable = MISSING
     """Function to use for creating the material."""
+
+
+@configclass
+class CableMaterialCfg(PhysicsMaterialCfg):
+    """Physics material parameters for deformable curves."""
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = "PhysicsCurvesDeformableMaterialAPI"
+
+    func: Callable | str = "{DIR}.physics_materials:spawn_deformable_body_material"
+
+    thickness: float = 0.001
+    """The finite, positive full cable thickness (diameter) [m]. Defaults to 0.001 m."""
+
+    density: float = 1000.0
+    """The finite, positive cable density [kg/m^3]. Defaults to 1000 kg/m^3."""
+
+    stretch_stiffness: float = 1.0e9
+    """The finite, nonnegative cable stretch elastic modulus [Pa]. Defaults to 1e9 Pa."""
+
+    bend_stiffness: float = 1.0e6
+    """The finite, nonnegative cable bend elastic modulus [Pa]. Defaults to 1e6 Pa."""
+
+    shear_stiffness: float | None = None
+    """The finite, nonnegative cable shear elastic modulus [Pa].
+
+    Defaults to None, in which case it is not authored and the solver falls back to
+    :attr:`stretch_stiffness`.
+    """
+
+    twist_stiffness: float | None = None
+    """The finite, nonnegative cable twist elastic modulus [Pa].
+
+    Defaults to None, in which case it is not authored and the solver falls back to
+    :attr:`bend_stiffness`.
+    """
+
+    def validate_config(self) -> None:
+        """Validate cable material values."""
+        for field in ("thickness", "density"):
+            value = getattr(self, field)
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError(f"CableMaterialCfg {field} must be finite and greater than zero.")
+        for field in ("stretch_stiffness", "bend_stiffness", "shear_stiffness", "twist_stiffness"):
+            value = getattr(self, field)
+            if value is None:
+                continue
+            if not math.isfinite(value) or value < 0.0:
+                raise ValueError(f"CableMaterialCfg {field} must be finite and nonnegative.")
 
 
 @configclass
