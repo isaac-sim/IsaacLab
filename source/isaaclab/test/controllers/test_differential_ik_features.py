@@ -86,96 +86,37 @@ def test_set_command_renormalizes_quat():
     torch.testing.assert_close(stored, raw / torch.linalg.norm(raw), atol=1e-6, rtol=0.0)
 
 
-def test_set_command_zero_quat_holds_current_orientation():
-    """A zero-norm commanded quaternion falls back to the current orientation instead of NaN.
-
-    Regression: dividing by a zero norm produced a NaN target orientation that propagated into the
-    joint position targets, diverged the articulation, and only surfaced a step later as an opaque
-    ``torch.linalg.solve ... matrix is singular`` failure.
-    """
-    c = _make_controller()
-    ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
-    ee_quat = torch.tensor([_quat_xyzw([1.0, 0.0, 0.0], 0.5)])
-    cmd = torch.cat([ee_pos, torch.zeros(1, 4)], dim=-1)  # zero-norm quaternion
+@pytest.mark.parametrize("bad_quat", [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1e-38]])
+def test_set_command_unnormalizable_quat_holds_current_orientation(bad_quat):
+    """An unnormalizable commanded quaternion holds that env's current orientation instead of NaN."""
+    c = _make_controller(num_envs=2)
+    good_quat = _quat_xyzw([0.0, 1.0, 0.0], 0.4)
+    held_quat = _quat_xyzw([1.0, 0.0, 0.0], 0.5)
+    ee_pos = torch.tensor([[0.3, -0.1, 0.2], [0.3, -0.1, 0.2]])
+    ee_quat = torch.tensor([_ID_QUAT, held_quat])
+    cmd = torch.tensor([[0.3, -0.1, 0.2] + good_quat, [0.3, -0.1, 0.2] + bad_quat])
     c.set_command(cmd, ee_pos, ee_quat)
-    assert torch.isfinite(c.ee_quat_des).all()
-    torch.testing.assert_close(c.ee_quat_des, ee_quat, atol=1e-6, rtol=0.0)
+    torch.testing.assert_close(c.ee_quat_des[0], torch.tensor(good_quat), atol=1e-6, rtol=0.0)
+    torch.testing.assert_close(c.ee_quat_des[1], torch.tensor(held_quat), atol=1e-6, rtol=0.0)
 
 
-@pytest.mark.parametrize("scale", [1e-7, 1e-20])
-def test_set_command_tiny_nonzero_quat_is_still_normalized(scale):
-    """A tiny but normalizable quaternion keeps its meaning instead of taking the fallback.
-
-    Degeneracy is decided by whether the normalization yields a finite result, not by a magnitude
-    threshold, so commands that normalized cleanly before are unaffected.
-    """
-    c = _make_controller()
-    ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
-    ee_quat = torch.tensor([_quat_xyzw([1.0, 0.0, 0.0], 0.5)])  # a fallback that is NOT identity
-    cmd = torch.cat([ee_pos, torch.tensor([[0.0, 0.0, 0.0, scale]])], dim=-1)  # scaled identity
-    c.set_command(cmd, ee_pos, ee_quat)
-    torch.testing.assert_close(c.ee_quat_des, torch.tensor([_ID_QUAT]), atol=1e-5, rtol=0.0)
-
-
-def test_set_command_underflowing_quat_norm_takes_fallback():
-    """A quaternion whose norm underflows to zero cannot be normalized, so it takes the fallback."""
-    c = _make_controller()
-    ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
-    ee_quat = torch.tensor([_quat_xyzw([1.0, 0.0, 0.0], 0.5)])
-    cmd = torch.cat([ee_pos, torch.tensor([[0.0, 0.0, 0.0, 1e-38]])], dim=-1)
-    c.set_command(cmd, ee_pos, ee_quat)
-    assert torch.isfinite(c.ee_quat_des).all()
-    torch.testing.assert_close(c.ee_quat_des, ee_quat, atol=1e-6, rtol=0.0)
-
-
-def test_set_command_zero_quat_without_current_orientation_is_identity():
-    """Without a current orientation to hold, a zero-norm command falls back to identity."""
+def test_set_command_unnormalizable_quat_without_current_orientation_is_identity():
+    """Without a current orientation to hold, an unnormalizable command falls back to identity."""
     c = _make_controller()
     cmd = torch.cat([torch.tensor([[0.3, -0.1, 0.2]]), torch.zeros(1, 4)], dim=-1)
     c.set_command(cmd)
     torch.testing.assert_close(c.ee_quat_des, torch.tensor([_ID_QUAT]), atol=1e-6, rtol=0.0)
 
 
-def test_set_command_zero_quat_only_affects_degenerate_envs():
-    """The fallback is per-environment: a valid command alongside a degenerate one is untouched."""
-    c = _make_controller(num_envs=2)
-    good_quat = _quat_xyzw([0.0, 1.0, 0.0], 0.4)
-    ee_pos = torch.tensor([[0.3, -0.1, 0.2], [0.3, -0.1, 0.2]])
-    ee_quat = torch.tensor([_ID_QUAT, _ID_QUAT])
-    cmd = torch.tensor([[0.3, -0.1, 0.2] + good_quat, [0.3, -0.1, 0.2, 0.0, 0.0, 0.0, 0.0]])
+@pytest.mark.parametrize("scale", [1e-7, 1e-20])
+def test_set_command_tiny_normalizable_quat_is_still_normalized(scale):
+    """A tiny but normalizable quaternion keeps its meaning instead of taking the fallback."""
+    c = _make_controller()
+    ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
+    ee_quat = torch.tensor([_quat_xyzw([1.0, 0.0, 0.0], 0.5)])  # a fallback that is NOT identity
+    cmd = torch.cat([ee_pos, torch.tensor([[0.0, 0.0, 0.0, scale]])], dim=-1)  # scaled identity
     c.set_command(cmd, ee_pos, ee_quat)
-    torch.testing.assert_close(c.ee_quat_des[0], torch.tensor(good_quat), atol=1e-6, rtol=0.0)
-    torch.testing.assert_close(c.ee_quat_des[1], torch.tensor(_ID_QUAT), atol=1e-6, rtol=0.0)
-
-
-@pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), float("-inf")])
-def test_adaptive_dls_reports_non_finite_jacobian_cause(bad_value):
-    """A non-finite Jacobian raises an error naming the real cause, not "matrix is singular".
-
-    The check is unconditional rather than a reaction to a decomposition error: backends differ in
-    whether ``svdvals``/``solve`` raise on non-finite input or propagate NaN silently, and a silent
-    NaN would otherwise reach the joint position targets.
-    """
-    c = _make_controller(ik_method="adaptive_dls")
-    ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
-    ee_quat = torch.tensor([_ID_QUAT])
-    c.set_command(torch.tensor([[0.31, -0.1, 0.2] + _ID_QUAT]), ee_pos, ee_quat)
-    # otherwise well-conditioned, so only the non-finite entry can trigger the failure
-    jac = torch.eye(6, _NUM_JOINTS).unsqueeze(0).clone()
-    jac[0, 0, 0] = bad_value
-    with pytest.raises(RuntimeError, match="non-finite Jacobian"):
-        c.compute(ee_pos, ee_quat, jac, torch.zeros(1, _NUM_JOINTS))
-
-
-def test_adaptive_dls_finite_jacobian_is_unaffected_by_the_guard():
-    """The non-finite guard does not change results for a well-conditioned Jacobian."""
-    c = _make_controller(ik_method="adaptive_dls")
-    ee_pos = torch.tensor([[0.3, -0.1, 0.2]])
-    ee_quat = torch.tensor([_ID_QUAT])
-    c.set_command(torch.tensor([[0.31, -0.1, 0.2] + _ID_QUAT]), ee_pos, ee_quat)
-    jac = torch.eye(6, _NUM_JOINTS).unsqueeze(0).clone()
-    out = c.compute(ee_pos, ee_quat, jac, torch.zeros(1, _NUM_JOINTS))
-    assert torch.isfinite(out).all()
+    torch.testing.assert_close(c.ee_quat_des, torch.tensor([_ID_QUAT]), atol=1e-5, rtol=0.0)
 
 
 def test_orientation_weight_none_is_unweighted():

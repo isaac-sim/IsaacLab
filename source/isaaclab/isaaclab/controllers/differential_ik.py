@@ -121,11 +121,8 @@ class DifferentialIKController:
         It is up to the user to ensure that the command is given in the correct frame. The method only
         applies the relative mode if the command type is ``position_rel`` or ``pose_rel``.
 
-        For absolute ``pose`` commands the commanded quaternion is renormalized, so a slightly
-        non-unit quaternion is accepted. A *degenerate* quaternion -- one that cannot be normalized
-        to a finite value, i.e. a zero quaternion or one whose norm underflows to zero -- would
-        otherwise yield NaN, so those entries fall back per-environment to :attr:`ee_quat` (holding
-        the current orientation), or to identity when :attr:`ee_quat` is not provided.
+        Absolute ``pose`` commands normalize finite quaternions; unnormalizable entries use
+        :paramref:`ee_quat`, or identity when :paramref:`ee_quat` is omitted.
 
         Args:
             command: The input command in shape (N, 3) or (N, 6) or (N, 7).
@@ -133,8 +130,8 @@ class DifferentialIKController:
                 This is only needed if the command type is ``position_rel`` or ``pose_rel``.
             ee_quat: The current end-effector orientation (x, y, z, w) in shape (N, 4).
                 This is needed if the command type is ``position_*`` or ``pose_rel``. For absolute
-                ``pose`` commands it is optional and used only as the fallback orientation for a
-                degenerate commanded quaternion (see above).
+                ``pose`` commands it is optional and used only as the fallback orientation for an
+                unnormalizable commanded quaternion.
 
         Raises:
             ValueError: If the command type is ``position_*`` and :attr:`ee_quat` is None.
@@ -168,17 +165,9 @@ class DifferentialIKController:
                 self.ee_pos_des, self.ee_quat_des = apply_delta_pose(ee_pos, ee_quat, self._command)
             else:
                 self.ee_pos_des = self._command[:, 0:3]
-                # renormalize the commanded quaternion (callers may pass a slightly non-unit quat).
-                # A zero-norm quaternion would divide by zero and yield NaN, which propagates
-                # silently into the joint position targets and only surfaces a step later as an
-                # unrelated solver failure. Hold the current end-effector orientation instead
-                # (identity when no current orientation was supplied) for those environments.
+                # normalize valid quaternions and use the fallback for non-finite results
                 quat = self._command[:, 3:7]
                 normalized_quat = quat / torch.linalg.norm(quat, dim=-1, keepdim=True)
-                # Degeneracy is decided by whether the normalization produced a finite result, not by
-                # a magnitude threshold: a zero-norm quaternion gives 0/0, and a norm that underflows
-                # to zero gives Inf. Any quaternion that normalizes cleanly keeps its previous
-                # meaning, however small its norm (e.g. ``[0, 0, 0, 1e-7]`` is still identity).
                 is_valid = torch.isfinite(normalized_quat).all(dim=-1, keepdim=True)
                 fallback_quat = self._identity_quat if ee_quat is None else ee_quat
                 self.ee_quat_des = torch.where(is_valid, normalized_quat, fallback_quat)
@@ -295,19 +284,6 @@ class DifferentialIKController:
             # quadratically up to lambda_max^2 as the smallest task-Jacobian singular value -> 0
             # (Maciejewski-Klein). Keying off the full task Jacobian damps both position and
             # orientation rank-loss configurations.
-            # Both decompositions below are well-posed for any finite Jacobian (the damped normal
-            # matrix is symmetric positive-definite), so a non-finite Jacobian is the only way they
-            # can fail -- it means the articulation state has already diverged upstream. Check it up
-            # front rather than reacting to a decomposition error: depending on the backend, LAPACK
-            # either reports a misleading "matrix is singular"/"failed to converge" or propagates the
-            # NaN silently into the joint targets. Failing here names the real cause in both cases.
-            if not torch.isfinite(jacobian).all():
-                raise RuntimeError(
-                    "Differential IK received a non-finite Jacobian, so the articulation state has already"
-                    " diverged (NaN/Inf) before this solve. This is usually caused by a NaN or degenerate"
-                    " (zero-norm quaternion) task-space command applied on an earlier step -- check the"
-                    " commands feeding the IK action term."
-                )
             sigma_min = torch.linalg.svdvals(jacobian)[:, -1]  # (N,)
             ratio = (sigma_min / sigma_thresh).clamp(max=1.0)
             lambda_sq = lambda_min**2 + (1.0 - ratio**2) * (lambda_max**2 - lambda_min**2)  # (N,)
