@@ -39,6 +39,7 @@ __all__ = [
     "find_matching_prim_paths",
     "find_global_fixed_joint_prim",
     "has_deformable_body_api",
+    "has_deformable_curve_api",
     "add_labels",
     "get_labels",
     "remove_labels",
@@ -108,6 +109,7 @@ from .queries import (
     find_matching_prim_paths,
     find_global_fixed_joint_prim,
     has_deformable_body_api,
+    has_deformable_curve_api,
 )
 from .semantics import (
     add_labels,

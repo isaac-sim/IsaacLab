@@ -48,6 +48,7 @@ isaaclab.sim.schemas
     modify_mesh_collision_properties
     modify_fixed_tendon_properties
     define_deformable_body_properties
+    define_deformable_curve_properties
     modify_deformable_body_properties
 
 Articulation Root
@@ -168,4 +169,5 @@ Deformable Body
     :exclude-members: __init__
 
 .. autofunction:: define_deformable_body_properties
+.. autofunction:: define_deformable_curve_properties
 .. autofunction:: modify_deformable_body_properties
