@@ -109,3 +109,73 @@ def scatter_actuator_state_model(
     if has_gear_ratio:
         target_gear_ratio[env_id, target_joint_id] = source_gear_ratio[env_id, source_joint_id]
     target_velocity_limit[env_id, target_joint_id] = source_velocity_limit[env_id, source_joint_id]
+
+
+@wp.kernel(enable_backward=False)
+def compute_implicit_actuator_batch(
+    command_pos: wp.array2d(dtype=wp.float32),
+    command_vel: wp.array2d(dtype=wp.float32),
+    command_effort: wp.array2d(dtype=wp.float32),
+    joint_pos: wp.array2d(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    stiffness: wp.array2d(dtype=wp.float32),
+    damping: wp.array2d(dtype=wp.float32),
+    effort_limit: wp.array2d(dtype=wp.float32),
+    velocity_limit: wp.array2d(dtype=wp.float32),
+    joint_indices: wp.array(dtype=wp.int32),
+    batch_computed_effort: wp.array2d(dtype=wp.float32),
+    batch_applied_effort: wp.array2d(dtype=wp.float32),
+    target_pos: wp.array2d(dtype=wp.float32),
+    target_vel: wp.array2d(dtype=wp.float32),
+    target_effort: wp.array2d(dtype=wp.float32),
+    computed_effort: wp.array2d(dtype=wp.float32),
+    applied_effort: wp.array2d(dtype=wp.float32),
+    soft_velocity_limit: wp.array2d(dtype=wp.float32),
+):
+    """Compute and publish one implicit actuator execution batch."""
+    env_id, batch_joint_id = wp.tid()
+    joint_id = joint_indices[batch_joint_id]
+
+    position_target = command_pos[env_id, joint_id]
+    velocity_target = command_vel[env_id, joint_id]
+    feedforward = command_effort[env_id, joint_id]
+    effort = (
+        stiffness[env_id, batch_joint_id] * (position_target - joint_pos[env_id, joint_id])
+        + damping[env_id, batch_joint_id] * (velocity_target - joint_vel[env_id, joint_id])
+        + feedforward
+    )
+    limit = effort_limit[env_id, batch_joint_id]
+    clamped_effort = wp.clamp(effort, -limit, limit)
+
+    batch_computed_effort[env_id, batch_joint_id] = effort
+    batch_applied_effort[env_id, batch_joint_id] = clamped_effort
+    target_pos[env_id, joint_id] = position_target
+    target_vel[env_id, joint_id] = velocity_target
+    target_effort[env_id, joint_id] = feedforward
+    computed_effort[env_id, joint_id] = effort
+    applied_effort[env_id, joint_id] = clamped_effort
+    soft_velocity_limit[env_id, joint_id] = velocity_limit[env_id, batch_joint_id]
+
+
+@wp.kernel(enable_backward=False)
+def gather_actuator_batch(
+    command_pos: wp.array2d(dtype=wp.float32),
+    command_vel: wp.array2d(dtype=wp.float32),
+    command_effort: wp.array2d(dtype=wp.float32),
+    joint_pos: wp.array2d(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    joint_indices: wp.array(dtype=wp.int32),
+    batch_command_pos: wp.array2d(dtype=wp.float32),
+    batch_command_vel: wp.array2d(dtype=wp.float32),
+    batch_command_effort: wp.array2d(dtype=wp.float32),
+    batch_joint_pos: wp.array2d(dtype=wp.float32),
+    batch_joint_vel: wp.array2d(dtype=wp.float32),
+):
+    """Gather full articulation commands and state into one execution batch."""
+    env_id, batch_joint_id = wp.tid()
+    joint_id = joint_indices[batch_joint_id]
+    batch_command_pos[env_id, batch_joint_id] = command_pos[env_id, joint_id]
+    batch_command_vel[env_id, batch_joint_id] = command_vel[env_id, joint_id]
+    batch_command_effort[env_id, batch_joint_id] = command_effort[env_id, joint_id]
+    batch_joint_pos[env_id, batch_joint_id] = joint_pos[env_id, joint_id]
+    batch_joint_vel[env_id, batch_joint_id] = joint_vel[env_id, joint_id]

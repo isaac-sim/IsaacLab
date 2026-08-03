@@ -6,6 +6,8 @@ Added
   telemetry, and actuator-resolved gains.
 * Added execution aggregation for disjoint stateless actuator groups while
   preserving named group configuration and access.
+* Added reusable Warp execution for implicit and stateless explicit actuator
+  batches to avoid per-step staging allocations and launch reconstruction.
 
 Deprecated
 ^^^^^^^^^^

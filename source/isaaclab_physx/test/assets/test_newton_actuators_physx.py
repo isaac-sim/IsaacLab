@@ -23,6 +23,7 @@ import os
 import tempfile
 import unittest
 
+import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
@@ -146,6 +147,7 @@ def _run_simulation(
     feedforward: float | None = None,
     joint_ordering: tuple[str, ...] | None = None,
     permutation_sensitive_commands: bool = False,
+    capture_first_compute: bool = False,
 ) -> dict:
     """Run ANYmal-C on PhysX and return recorded trajectories + telemetry.
 
@@ -159,6 +161,7 @@ def _run_simulation(
         joint_ordering: Optional explicit public joint-name order.
         permutation_sensitive_commands: Whether to command distinct position, velocity, and effort values by
             physical joint name.
+        capture_first_compute: Whether to invoke the first actuator computation inside an outer CUDA capture.
 
     Returns:
         Recorded joint-name metadata, commands, public trajectories and torque telemetry, and adapter effort traces.
@@ -220,6 +223,9 @@ def _run_simulation(
         recorded_pos, recorded_vel = [], []
         recorded_computed, recorded_applied = [], []
         recorded_adapter_computed, recorded_adapter_applied = [], []
+        if capture_first_compute:
+            with wp.ScopedCapture(device=articulation.device, force_module_load=True):
+                articulation.actuators.compute(DT)
         for _ in range(num_steps):
             articulation.write_data_to_sim()
             sim.step()
@@ -231,6 +237,7 @@ def _run_simulation(
             if use_newton_actuators:
                 recorded_adapter_computed.append(wp.to_torch(articulation.data._sim_bind_joint_computed_effort).clone())
                 recorded_adapter_applied.append(wp.to_torch(articulation._physx_actuator_wrapper.joint_f_2d).clone())
+        native_actuator_graph_count = len(getattr(articulation._actuator_control, "_native_actuator_graphs", ()) or ())
 
     return {
         "joint_names": joint_names,
@@ -246,7 +253,78 @@ def _run_simulation(
         "target_pos": target_pos.clone(),
         "target_vel": target_vel.clone(),
         "effort_target": None if effort_target is None else effort_target.clone(),
+        "native_actuator_graph_count": native_actuator_graph_count,
     }
+
+
+def test_graphable_newton_actuators_capture_ping_pong_graphs() -> None:
+    result = _run_simulation(DELAYED_PD_ACTUATORS, use_newton_actuators=True, num_steps=2)
+
+    assert result["native_actuator_graph_count"] == 2
+
+
+def test_newton_actuator_graph_capture_failure_falls_back_to_eager(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FailingCapture:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            raise RuntimeError("capture unavailable")
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+    monkeypatch.setattr(wp, "ScopedCapture", FailingCapture)
+
+    result = _run_simulation(DC_MOTOR_ACTUATORS, use_newton_actuators=True, num_steps=2)
+
+    assert result["native_actuator_graph_count"] == 0
+    assert len(result["joint_pos"]) == 2
+    assert all(torch.isfinite(joint_pos).all() for joint_pos in result["joint_pos"])
+
+
+def test_stateful_newton_actuators_reject_outer_cuda_capture() -> None:
+    with pytest.raises(RuntimeError, match="stateful Newton actuators cannot run inside an outer CUDA graph capture"):
+        _run_simulation(
+            DELAYED_PD_ACTUATORS,
+            use_newton_actuators=True,
+            num_steps=0,
+            capture_first_compute=True,
+        )
+
+
+def test_non_graphable_stateful_newton_actuators_reject_outer_cuda_capture() -> None:
+    from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg
+
+    checkpoint_path = _make_dummy_lstm_checkpoint()
+    try:
+        actuators = {
+            "lstm_legs": ActuatorNetLSTMCfg(
+                joint_names_expr=[".*HAA"],
+                network_file=checkpoint_path,
+                saturation_effort=120.0,
+                effort_limit=80.0,
+                velocity_limit=7.5,
+            ),
+            "pd_legs": IdealPDActuatorCfg(
+                joint_names_expr=[".*HFE", ".*KFE"],
+                stiffness=40.0,
+                damping=5.0,
+                effort_limit=80.0,
+            ),
+        }
+        with pytest.raises(
+            RuntimeError,
+            match="stateful Newton actuators cannot run inside an outer CUDA graph capture",
+        ):
+            _run_simulation(
+                actuators,
+                use_newton_actuators=True,
+                num_steps=0,
+                capture_first_compute=True,
+            )
+    finally:
+        os.unlink(checkpoint_path)
 
 
 def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:

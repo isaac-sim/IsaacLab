@@ -602,6 +602,50 @@ def test_implicit_aggregate_matches_independent_groups_exactly(monkeypatch):
     _assert_collection_outputs_match_exactly(actual, reference)
 
 
+def test_implicit_batch_bypasses_torch_actuator_compute(monkeypatch):
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    collection = ActuatorCollection(
+        {
+            "hips": ImplicitActuatorCfg(
+                joint_names_expr=["joint_0", "joint_2"],
+                stiffness=9.0,
+                damping=0.75,
+                effort_limit_sim=16.0,
+            ),
+            "knees": ImplicitActuatorCfg(
+                joint_names_expr=["joint_1", "joint_3"],
+                stiffness=19.0,
+                damping=1.75,
+                effort_limit_sim=28.0,
+            ),
+        },
+        control,
+    )
+    _assign_deterministic_inputs(collection, control)
+
+    def fail_compute(*args, **kwargs):
+        raise AssertionError("Implicit batches must execute through the fused Warp path")
+
+    monkeypatch.setattr(ImplicitActuator, "compute", fail_compute)
+
+    collection.compute()
+
+    position_error = collection.command.position.torch - control.joint_pos.torch
+    velocity_error = collection.command.velocity.torch - control.joint_vel.torch
+    expected_computed = (
+        collection.actuator_stiffness.torch * position_error
+        + collection.actuator_damping.torch * velocity_error
+        + collection.command.effort.torch
+    )
+    expected_applied = torch.clamp(expected_computed, min=-torch.tensor(28.0), max=torch.tensor(28.0))
+    expected_applied[:, [0, 2]] = torch.clamp(expected_computed[:, [0, 2]], min=-16.0, max=16.0)
+    torch.testing.assert_close(collection.computed_torque.torch, expected_computed, rtol=0.0, atol=0.0)
+    torch.testing.assert_close(collection.applied_torque.torch, expected_applied, rtol=0.0, atol=0.0)
+    torch.testing.assert_close(collection.joint_command.position.torch, collection.command.position.torch)
+    torch.testing.assert_close(collection.joint_command.velocity.torch, collection.command.velocity.torch)
+    torch.testing.assert_close(collection.joint_command.effort.torch, collection.command.effort.torch)
+
+
 def test_aggregate_computes_once_and_refreshes_group_outputs(monkeypatch):
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(6)])
     collection = ActuatorCollection(
@@ -662,7 +706,7 @@ def test_aggregate_computes_once_and_refreshes_group_outputs(monkeypatch):
 
     assert compute_calls == 2
     assert scatter_calls == 2
-    assert collection["hips"].computed_effort is not first_hips_output
+    assert collection["hips"].computed_effort is first_hips_output
     for group_name, group_slice in zip(batch.group_names, batch.group_slices):
         torch.testing.assert_close(
             collection[group_name].computed_effort,
@@ -676,6 +720,92 @@ def test_aggregate_computes_once_and_refreshes_group_outputs(monkeypatch):
             rtol=0.0,
             atol=0.0,
         )
+
+
+def test_stateless_explicit_batch_preserves_output_storage():
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    collection = ActuatorCollection(
+        {
+            "hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=8.0, damping=0.5, effort_limit=12.0),
+            "knees": _ideal_cfg(["joint_1", "joint_3"], stiffness=13.0, damping=1.0, effort_limit=18.0),
+        },
+        control,
+    )
+    _assign_deterministic_inputs(collection, control)
+    batch = collection._execution_batches[0]
+
+    collection.compute()
+    computed_ptr = batch.actuator.computed_effort.data_ptr()
+    applied_ptr = batch.actuator.applied_effort.data_ptr()
+    collection.command.position.torch.mul_(-1.25)
+    collection.command.velocity.torch.add_(2.75)
+    collection.command.effort.torch.sub_(4.5)
+
+    collection.compute()
+
+    assert batch.actuator.computed_effort.data_ptr() == computed_ptr
+    assert batch.actuator.applied_effort.data_ptr() == applied_ptr
+
+
+def test_stateless_explicit_batch_preserves_input_staging_storage():
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    collection = ActuatorCollection(
+        {
+            "hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=8.0, damping=0.5, effort_limit=12.0),
+            "knees": _ideal_cfg(["joint_1", "joint_3"], stiffness=13.0, damping=1.0, effort_limit=18.0),
+        },
+        control,
+    )
+    _assign_deterministic_inputs(collection, control)
+    batch = collection._execution_batches[0]
+
+    collection.compute()
+    pointers = (
+        batch.control_action.joint_positions.data_ptr(),
+        batch.control_action.joint_velocities.data_ptr(),
+        batch.control_action.joint_efforts.data_ptr(),
+        batch.joint_pos.data_ptr(),
+        batch.joint_vel.data_ptr(),
+    )
+    collection.command.position.torch.mul_(-1.25)
+    collection.command.velocity.torch.add_(2.75)
+    collection.command.effort.torch.sub_(4.5)
+    control.joint_pos.torch.add_(0.125)
+    control.joint_vel.torch.sub_(0.25)
+
+    collection.compute()
+
+    assert pointers == (
+        batch.control_action.joint_positions.data_ptr(),
+        batch.control_action.joint_velocities.data_ptr(),
+        batch.control_action.joint_efforts.data_ptr(),
+        batch.joint_pos.data_ptr(),
+        batch.joint_vel.data_ptr(),
+    )
+
+
+def test_stateless_explicit_batch_routes_repeated_launches_through_cache(monkeypatch):
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    collection = ActuatorCollection(
+        {
+            "hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=8.0, damping=0.5, effort_limit=12.0),
+            "knees": _ideal_cfg(["joint_1", "joint_3"], stiffness=13.0, damping=1.0, effort_limit=18.0),
+        },
+        control,
+    )
+    _assign_deterministic_inputs(collection, control)
+    launch_kinds = []
+    original_launch = collection._launch_cache.launch
+
+    def record_launch(key, *args, **kwargs):
+        launch_kinds.append(key[0])
+        return original_launch(key, *args, **kwargs)
+
+    monkeypatch.setattr(collection._launch_cache, "launch", record_launch)
+
+    collection.compute()
+
+    assert launch_kinds == ["gather", "scatter_targets", "scatter_telemetry"]
 
 
 def test_stateful_subclasses_and_overlapping_groups_remain_unbatched():

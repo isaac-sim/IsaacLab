@@ -17,12 +17,13 @@ from prettytable import PrettyTable
 
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from . import actuator_kernels
 from .actuator_base import ActuatorBase
 from .actuator_base_cfg import ActuatorBaseCfg
 from .actuator_control import ActuatorControl
-from .actuator_pd import ImplicitActuator
+from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,13 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         group_slices: tuple[slice, ...]
         joint_indices: torch.Tensor
         joint_indices_wp: wp.array
+        implicit_inputs: list[wp.array] | None = None
+        implicit_outputs: list[wp.array] | None = None
+        control_action: ArticulationActions | None = None
+        joint_pos: torch.Tensor | None = None
+        joint_vel: torch.Tensor | None = None
+        gather_inputs: list[wp.array] | None = None
+        gather_outputs: list[wp.array] | None = None
 
     class Command:
         """Commands received by the actuator models.
@@ -288,6 +296,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._native_group_names: set[str] = set()
         self._has_implicit_actuators = False
         self._joint_indices_wp: dict[str, wp.array] = {}
+        self._launch_cache = _WarpLaunchCache(self.device)
 
         self._allocate_buffers()
         self._command = self.Command(self)
@@ -407,6 +416,25 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
         for batch in self._execution_batches:
             actuator = batch.actuator
+            if type(actuator) is ImplicitActuator:
+                self._compute_implicit_batch(batch)
+                continue
+            if batch.control_action is not None:
+                self._gather_explicit_batch(batch)
+                control_action = batch.control_action
+                command_pos = control_action.joint_positions
+                command_vel = control_action.joint_velocities
+                command_effort = control_action.joint_efforts
+                control_action = actuator.compute(
+                    control_action,
+                    joint_pos=batch.joint_pos,
+                    joint_vel=batch.joint_vel,
+                )
+                self._scatter_actuator_output(actuator, control_action, batch.joint_indices_wp)
+                control_action.joint_positions = command_pos
+                control_action.joint_velocities = command_vel
+                control_action.joint_efforts = command_effort
+                continue
             joint_indices = actuator.joint_indices if len(batch.group_names) == 1 else batch.joint_indices
             control_action = ArticulationActions(
                 joint_positions=self.command.position.torch[:, joint_indices],
@@ -419,7 +447,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 joint_pos=self._control.joint_pos.torch[:, joint_indices],
                 joint_vel=self._control.joint_vel.torch[:, joint_indices],
             )
-            self._bind_execution_batch_outputs(batch)
             self._scatter_actuator_output(actuator, control_action, batch.joint_indices_wp)
 
     def submit_commands(self) -> None:
@@ -560,13 +587,67 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         else:
             executor._joint_names = [name for group in groups for name in group.joint_names]
             executor._joint_indices = joint_indices
-        return self._ExecutionBatch(
+        batch = self._ExecutionBatch(
             actuator=executor,
             group_names=group_names,
             group_slices=tuple(group_slices),
             joint_indices=joint_indices,
             joint_indices_wp=wp.from_torch(joint_indices, dtype=wp.int32),
         )
+        if type(executor) is ImplicitActuator:
+            batch.implicit_inputs = [
+                self._joint_pos_target,
+                self._joint_vel_target,
+                self._joint_effort_target,
+                self._control.joint_pos.warp,
+                self._control.joint_vel.warp,
+                wp.from_torch(executor.stiffness, dtype=wp.float32),
+                wp.from_torch(executor.damping, dtype=wp.float32),
+                wp.from_torch(executor.effort_limit, dtype=wp.float32),
+                wp.from_torch(executor.velocity_limit, dtype=wp.float32),
+                batch.joint_indices_wp,
+            ]
+            batch.implicit_outputs = [
+                wp.from_torch(executor.computed_effort, dtype=wp.float32),
+                wp.from_torch(executor.applied_effort, dtype=wp.float32),
+                self._joint_pos_target_sim,
+                self._joint_vel_target_sim,
+                self._joint_effort_target_sim,
+                self._computed_torque,
+                self._applied_torque,
+                self._soft_joint_vel_limits,
+            ]
+        elif type(executor) in (IdealPDActuator, DCMotor):
+            shape = (self.num_instances, joint_indices.shape[0])
+            command_pos = torch.empty(shape, dtype=torch.float32, device=self.device)
+            command_vel = torch.empty_like(command_pos)
+            command_effort = torch.empty_like(command_pos)
+            joint_pos = torch.empty_like(command_pos)
+            joint_vel = torch.empty_like(command_pos)
+            batch.control_action = ArticulationActions(
+                joint_positions=command_pos,
+                joint_velocities=command_vel,
+                joint_efforts=command_effort,
+                joint_indices=joint_indices,
+            )
+            batch.joint_pos = joint_pos
+            batch.joint_vel = joint_vel
+            batch.gather_inputs = [
+                self._joint_pos_target,
+                self._joint_vel_target,
+                self._joint_effort_target,
+                self._control.joint_pos.warp,
+                self._control.joint_vel.warp,
+                batch.joint_indices_wp,
+            ]
+            batch.gather_outputs = [
+                wp.from_torch(command_pos, dtype=wp.float32),
+                wp.from_torch(command_vel, dtype=wp.float32),
+                wp.from_torch(command_effort, dtype=wp.float32),
+                wp.from_torch(joint_pos, dtype=wp.float32),
+                wp.from_torch(joint_vel, dtype=wp.float32),
+            ]
+        return batch
 
     def _build_execution_batches(self) -> None:
         native_active = getattr(self._control, "native_active", False)
@@ -693,6 +774,28 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             group.computed_effort = batch.actuator.computed_effort[:, group_slice]
             group.applied_effort = batch.actuator.applied_effort[:, group_slice]
 
+    def _compute_implicit_batch(self, batch: ActuatorCollection._ExecutionBatch) -> None:
+        if batch.implicit_inputs is None or batch.implicit_outputs is None:
+            raise RuntimeError("Implicit actuator execution batch was not initialized.")
+        self._launch_cache.launch(
+            ("implicit", id(batch)),
+            actuator_kernels.compute_implicit_actuator_batch,
+            dim=(self.num_instances, batch.joint_indices_wp.shape[0]),
+            inputs=batch.implicit_inputs,
+            outputs=batch.implicit_outputs,
+        )
+
+    def _gather_explicit_batch(self, batch: ActuatorCollection._ExecutionBatch) -> None:
+        if batch.gather_inputs is None or batch.gather_outputs is None:
+            raise RuntimeError("Explicit actuator execution batch was not initialized.")
+        self._launch_cache.launch(
+            ("gather", id(batch)),
+            actuator_kernels.gather_actuator_batch,
+            dim=(self.num_instances, batch.joint_indices_wp.shape[0]),
+            inputs=batch.gather_inputs,
+            outputs=batch.gather_outputs,
+        )
+
     def _write_index_target(
         self,
         target: torch.Tensor | wp.array,
@@ -758,45 +861,68 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     ) -> None:
         if joint_indices is None:
             joint_indices = self._joint_indices_as_wp(actuator)
-        wp.launch(
-            actuator_kernels.scatter_processed_targets,
-            dim=(self.num_instances, joint_indices.shape[0]),
-            inputs=[
-                control_action.joint_positions,
-                control_action.joint_velocities,
-                control_action.joint_efforts,
-                joint_indices,
-            ],
-            outputs=[
-                self._joint_pos_target_sim,
-                self._joint_vel_target_sim,
-                self._joint_effort_target_sim,
-            ],
-            device=self.device,
-        )
+        target_inputs = [
+            control_action.joint_positions,
+            control_action.joint_velocities,
+            control_action.joint_efforts,
+            joint_indices,
+        ]
+        target_outputs = [
+            self._joint_pos_target_sim,
+            self._joint_vel_target_sim,
+            self._joint_effort_target_sim,
+        ]
+        stable_launch = type(actuator) in (IdealPDActuator, DCMotor)
+        if stable_launch:
+            self._launch_cache.launch(
+                ("scatter_targets", id(actuator)),
+                actuator_kernels.scatter_processed_targets,
+                dim=(self.num_instances, joint_indices.shape[0]),
+                inputs=target_inputs,
+                outputs=target_outputs,
+            )
+        else:
+            wp.launch(
+                actuator_kernels.scatter_processed_targets,
+                dim=(self.num_instances, joint_indices.shape[0]),
+                inputs=target_inputs,
+                outputs=target_outputs,
+                device=self.device,
+            )
         gear_ratio = getattr(actuator, "gear_ratio", None)
         has_gear_ratio = gear_ratio is not None
         if gear_ratio is None:
             gear_ratio = self._gear_ratio
-        wp.launch(
-            actuator_kernels.scatter_actuator_state_model,
-            dim=(self.num_instances, joint_indices.shape[0]),
-            inputs=[
-                actuator.computed_effort,
-                actuator.applied_effort,
-                gear_ratio,
-                actuator.velocity_limit,
-                has_gear_ratio,
-                joint_indices,
-            ],
-            outputs=[
-                self._computed_torque,
-                self._applied_torque,
-                self._gear_ratio,
-                self._soft_joint_vel_limits,
-            ],
-            device=self.device,
-        )
+        telemetry_inputs = [
+            actuator.computed_effort,
+            actuator.applied_effort,
+            gear_ratio,
+            actuator.velocity_limit,
+            has_gear_ratio,
+            joint_indices,
+        ]
+        telemetry_outputs = [
+            self._computed_torque,
+            self._applied_torque,
+            self._gear_ratio,
+            self._soft_joint_vel_limits,
+        ]
+        if stable_launch:
+            self._launch_cache.launch(
+                ("scatter_telemetry", id(actuator)),
+                actuator_kernels.scatter_actuator_state_model,
+                dim=(self.num_instances, joint_indices.shape[0]),
+                inputs=telemetry_inputs,
+                outputs=telemetry_outputs,
+            )
+        else:
+            wp.launch(
+                actuator_kernels.scatter_actuator_state_model,
+                dim=(self.num_instances, joint_indices.shape[0]),
+                inputs=telemetry_inputs,
+                outputs=telemetry_outputs,
+                device=self.device,
+            )
 
     def _write_actuator_gain(
         self,

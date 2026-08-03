@@ -164,6 +164,10 @@ class NewtonActuatorAdapter:
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             act.step(sim_state, sim_control, sa, sb, dt=dt)
+        self._swap_state_buffers()
+
+    def _swap_state_buffers(self) -> None:
+        """Advance the actuator state ping-pong after an eager step or graph replay."""
         self._states_a, self._states_b = self._states_b, self._states_a
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
@@ -276,6 +280,11 @@ class NewtonActuatorAdapter:
     def is_all_graphable(self) -> bool:
         """``True`` when all actuators are CUDA-graph-safe."""
         return len(self.actuators) > 0 and all(a.is_graphable() for a in self.actuators)
+
+    @property
+    def is_stateful(self) -> bool:
+        """``True`` when any actuator maintains delay or controller state."""
+        return any(a.is_stateful() for a in self.actuators)
 
     @classmethod
     def from_usd(

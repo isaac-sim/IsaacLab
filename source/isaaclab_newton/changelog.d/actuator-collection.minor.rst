@@ -1,3 +1,9 @@
+Added
+^^^^^
+
+* Added explicit state-buffer advancement so Newton actuator adapters can be
+  replayed from backend-owned CUDA graphs.
+
 Changed
 ^^^^^^^
 

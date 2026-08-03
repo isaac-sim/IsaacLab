@@ -491,6 +491,15 @@ from the collection, and do not rely on the number of execution batches. Set
 commands and perform lifecycle operations through the articulation and its
 :class:`~isaaclab.actuators.ActuatorCollection`.
 
+The execution path avoids rebuilding those batches every step. Exact
+:class:`~isaaclab.actuators.ImplicitActuator` batches compute and publish their
+commands and telemetry in one Warp launch. Aggregated
+:class:`~isaaclab.actuators.IdealPDActuator` and
+:class:`~isaaclab.actuators.DCMotor` batches keep fixed-size input and output
+buffers, and reuse recorded Warp launches to gather articulation data and
+scatter the processed targets and telemetry. Stateful and neural-network
+actuators retain their model-specific execution paths.
+
 Commands, telemetry, and lifecycle
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -602,8 +611,12 @@ models **inside the Newton solver**:
 :meth:`ActuatorCollection.compute`. On the Newton backend the actuators run inside the
 CUDA-graph-captured region. Implicit actuators are unaffected: their gains are written to the
 solver and PD runs there as before, so implicit joints keep working exactly the same. The PhysX
-backend can also consume these Newton-authored actuators through its adapter, which steps them
-host-side each step, so the authoring is shared across backends.
+backend can also consume these Newton-authored actuators through its adapter, so the authoring is
+shared across backends. On CUDA, PhysX attempts to capture graphable Newton actuator staging, model
+execution, and telemetry publication into alternating graphs. The two graphs preserve the
+adapter's state-buffer ping-pong without rebuilding launches each step. Unsupported models and
+capture failures fall back to eager execution. Stateful Newton actuators cannot be nested inside a
+caller-owned CUDA graph; let the PhysX adapter manage their alternating graphs instead.
 
 Newton owns a separate native execution aggregation path. When native actuator handling is active,
 Isaac Lab keeps the named logical groups for configuration and access but does not aggregate or

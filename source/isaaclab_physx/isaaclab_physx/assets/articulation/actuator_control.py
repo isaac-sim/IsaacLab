@@ -44,6 +44,8 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         self._physx_actuator_wrapper = None
         self._all_env_mask: wp.array | None = None
         self._all_joint_mask: wp.array | None = None
+        self._native_actuator_graphs: tuple[wp.Graph, wp.Graph] | None = None
+        self._native_actuator_graph_index = 0
 
     def resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
         """Resolve an optional environment mask to a full Warp bool mask.
@@ -184,12 +186,15 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         if not self._native_active:
             return False
 
-        from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
-
         articulation = self._articulation
-        wrapper = self._physx_actuator_wrapper
-        wrapper.joint_f_2d.assign(collection._joint_effort_target)
         if articulation.newton_actuator_adapter is not None:
+            adapter = articulation.newton_actuator_adapter
+            device = wp.get_device(self.device)
+            if device.is_cuda and device.is_capturing and adapter.is_stateful:
+                raise RuntimeError(
+                    "stateful Newton actuators cannot run inside an outer CUDA graph capture; "
+                    "let PhysX capture their alternating state graphs automatically"
+                )
             if articulation.data.has_joint_ordering:
                 # ``wrapper.joint_q``/``joint_qd`` were bound once (at actuator setup) to
                 # ``_data.joint_pos``/``joint_vel``. With identity ordering those bindings alias
@@ -200,6 +205,26 @@ class PhysxActuatorControl(ArticulationActuatorControl):
                 # sees this step's state instead of a stale one-step-old shadow.
                 articulation._data._refresh_joint_pos()
                 articulation._data._refresh_joint_vel()
+            if adapter.is_all_graphable and device.is_cuda:
+                if not device.is_capturing:
+                    if self._native_actuator_graphs is None:
+                        self._capture_native_actuator_graphs(collection)
+                    if self._native_actuator_graphs:
+                        wp.capture_launch(self._native_actuator_graphs[self._native_actuator_graph_index])
+                        adapter._swap_state_buffers()
+                        self._native_actuator_graph_index ^= 1
+                        return True
+
+        self._run_native_actuator_kernels(collection)
+        return True
+
+    def _run_native_actuator_kernels(self, collection: ActuatorCollection) -> None:
+        from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
+
+        articulation = self._articulation
+        wrapper = self._physx_actuator_wrapper
+        wrapper.joint_f_2d.assign(collection._joint_effort_target)
+        if articulation.newton_actuator_adapter is not None:
             articulation.newton_actuator_adapter.step(wrapper, wrapper, SimulationManager.get_physics_dt())
 
         wp.launch(
@@ -225,7 +250,27 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             ],
             device=self.device,
         )
-        return True
+
+    def _capture_native_actuator_graphs(self, collection: ActuatorCollection) -> None:
+        adapter = self._articulation.newton_actuator_adapter
+        if adapter is None:
+            return
+        states_a = adapter._states_a
+        states_b = adapter._states_b
+        graphs = []
+        try:
+            for _ in range(2):
+                with wp.ScopedCapture(device=self.device, force_module_load=True) as capture:
+                    self._run_native_actuator_kernels(collection)
+                graphs.append(capture.graph)
+        except Exception as exc:
+            logger.warning("PhysX Newton-actuator CUDA graph capture failed; using eager execution: %s", exc)
+            graphs = []
+        finally:
+            adapter._states_a = states_a
+            adapter._states_b = states_b
+        self._native_actuator_graphs = tuple(graphs) if graphs else ()
+        self._native_actuator_graph_index = 0
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
         articulation = self._articulation
