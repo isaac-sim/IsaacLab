@@ -8,11 +8,17 @@ interfaces within a code in a minimal way.
 
 A few quick showroom scripts to run and checkout:
 
+.. note::
+
+   The recommended automatic ``uv`` commands include ``--extra isaacsim`` because the showroom
+   scripts use Isaac Sim and default to its PhysX or Kit-backed runtime. A fresh checkout does not
+   install that optional dependency group unless the command requests it.
+
 .. rst-class:: showroom-demo-list
 
 -  Spawn different arms and apply random joint position commands:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -28,7 +34,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/arms.py
+                  uv run --extra isaacsim python scripts/demos/arms.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -50,7 +56,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different biped robots:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -66,7 +72,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/bipeds.py
+                  uv run --extra isaacsim python scripts/demos/bipeds.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -88,10 +94,10 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different deformable objects and let them fall from a height:
 
-   **Physics:** ``physx``, ``newton_vbd``
+   **Physics:** ``isaacsim_physx``, ``newton_vbd``, ``ovphysx``
 
-   **Visualizer:** ``none``, ``kit`` for either physics backend; ``newton``,
-   ``rerun``, and ``viser`` with Newton VBD only
+   **Visualizer:** ``none`` for every physics backend; ``kit`` with Isaac Sim
+   PhysX and Newton VBD; ``newton``, ``rerun``, and ``viser`` with Newton VBD only
 
    .. tab-set::
       :sync-group: os
@@ -105,11 +111,13 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/deformables.py
+                  uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
                .. code:: bash
+
+                  ./isaaclab.sh -i tetrahedralization
 
                   ./isaaclab.sh -p scripts/demos/deformables.py
 
@@ -117,6 +125,8 @@ A few quick showroom scripts to run and checkout:
          :sync: windows
 
          .. code:: batch
+
+            isaaclab.bat -i tetrahedralization
 
             isaaclab.bat -p scripts\demos\deformables.py
 
@@ -127,7 +137,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Interactive inference of trained H1 rough terrain locomotion policy:
 
-   **Physics:** ``physx`` only
+   **Physics:** ``isaacsim_physx`` only
 
    **Visualizer:** ``kit`` only
 
@@ -145,7 +155,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/h1_locomotion.py
+                  uv run --extra isaacsim python scripts/demos/h1_locomotion.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -183,7 +193,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different hands and command them to open and close:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -199,7 +209,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/hands.py
+                  uv run --extra isaacsim python scripts/demos/hands.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -221,7 +231,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Define multiple markers that are useful for visualizations:
 
-   **Physics:** ``physx`` only
+   **Physics:** ``isaacsim_physx`` only
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -237,7 +247,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/markers.py
+                  uv run --extra isaacsim python scripts/demos/markers.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -259,7 +269,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the interactive scene and spawn varying assets in individual environments:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -275,7 +285,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/multi_asset.py
+                  uv run --extra isaacsim python scripts/demos/multi_asset.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -297,7 +307,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Compose task scenes into one heterogeneous simulation using clone combinations:
 
-   **Physics:** ``physx`` only
+   **Physics:** ``isaacsim_physx`` only
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -307,9 +317,19 @@ A few quick showroom scripts to run and checkout:
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
-         .. code:: bash
+         .. tab-set::
 
-            ./isaaclab.sh -p scripts/demos/heterogeneous_scene.py
+            .. tab-item:: uv (Recommended)
+
+               .. code:: bash
+
+                  uv run --extra isaacsim python scripts/demos/heterogeneous_scene.py
+
+            .. tab-item:: isaaclab.sh / isaaclab.bat
+
+               .. code:: bash
+
+                  ./isaaclab.sh -p scripts/demos/heterogeneous_scene.py
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -331,7 +351,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the RigidObjectCollection spawn and view manipulation to demonstrate bin-packing example:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -347,7 +367,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/bin_packing.py
+                  uv run --extra isaacsim python scripts/demos/bin_packing.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -370,7 +390,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the interactive scene and spawn a simple parallel robot for pick and place:
 
-   **Physics:** ``physx`` only
+   **Physics:** ``isaacsim_physx`` only
 
    **Visualizer:** ``kit`` only
 
@@ -389,7 +409,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/pick_and_place.py
+                  uv run --extra isaacsim python scripts/demos/pick_and_place.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -421,7 +441,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Teleoperate a Franka Panda robot using Haply haptic device with force feedback:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -439,7 +459,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+                  uv run --extra isaacsim python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -472,7 +492,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Create and spawn procedurally generated terrains with different configurations:
 
-   **Physics:** ``physx`` only
+   **Physics:** ``isaacsim_physx`` only
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -488,7 +508,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/procedural_terrain.py
+                  uv run --extra isaacsim python scripts/demos/procedural_terrain.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -511,7 +531,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn a quadcopter in the default environment:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -527,7 +547,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/quadcopter.py
+                  uv run --extra isaacsim python scripts/demos/quadcopter.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -549,7 +569,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn different quadrupeds and make robots stand using position commands:
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -565,7 +585,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/quadrupeds.py
+                  uv run --extra isaacsim python scripts/demos/quadrupeds.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -587,7 +607,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Spawn a multi-mesh ray caster that uses Warp kernels for raycasting
 
-   **Physics:** ``physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
    **Visualizer:** ``none``, ``newton``, ``rerun``, ``viser`` with either physics
    backend; ``kit`` with PhysX only
@@ -604,7 +624,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
+                  uv run --extra isaacsim python scripts/demos/sensors/multi_mesh_raycaster.py --num_envs 16 --asset_type objects
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 

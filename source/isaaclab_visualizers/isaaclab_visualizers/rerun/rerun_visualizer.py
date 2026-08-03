@@ -132,6 +132,7 @@ class NewtonViewerRerun(ViewerRerun):
                 stack.callback(setattr, rr, "serve_web_viewer", original_serve_web_viewer)
                 super().__init__(*args, **kwargs)
         self._paused_rendering = False
+        self._reset_requested = False
 
     def _get_blueprint(self):
         """Return a per-manager blueprint when live plots are registered, else the default.
@@ -162,6 +163,16 @@ class NewtonViewerRerun(ViewerRerun):
         """Return whether rendering is paused by viewer controls."""
         return self._paused_rendering
 
+    def is_reset_requested(self) -> bool:
+        """Return whether an episode reset was requested without clearing the flag."""
+        return self._reset_requested
+
+    def consume_reset_request(self) -> bool:
+        """Return whether an episode reset was requested and clear the flag."""
+        requested = self._reset_requested
+        self._reset_requested = False
+        return requested
+
     def _render_ui(self):
         """Extend base UI with Isaac Lab rendering pause toggle."""
         super()._render_ui()
@@ -176,6 +187,8 @@ class NewtonViewerRerun(ViewerRerun):
         if imgui.collapsing_header("IsaacLab Controls"):
             if imgui.button("Pause Rendering" if not self._paused_rendering else "Resume Rendering"):
                 self._paused_rendering = not self._paused_rendering
+            if imgui.button("Reset Episode"):
+                self._reset_requested = True
 
     def log_geo(
         self,
@@ -271,6 +284,7 @@ class RerunVisualizer(BaseVisualizer):
         if self.cfg.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
         self._viewer.set_model(self._model)
+        self._viewer.show_particles = self.cfg.show_particles
         apply_viewer_visible_worlds(
             self._viewer,
             env_ids=self._env_ids,
@@ -304,6 +318,7 @@ class RerunVisualizer(BaseVisualizer):
                 ("grpc_port", grpc_port),
                 ("web_port", web_port),
                 ("open_browser", self.cfg.open_browser),
+                ("show_particles", self.cfg.show_particles),
                 ("record_to_rrd", self.cfg.record_to_rrd or "<none>"),
             ],
         )
@@ -491,3 +506,15 @@ class RerunVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()
+
+    def is_reset_requested(self) -> bool:
+        """Return whether an episode reset was requested from viewer controls without clearing the flag."""
+        if not self._is_initialized or self._viewer is None:
+            return False
+        return self._viewer.is_reset_requested()
+
+    def consume_reset_request(self) -> bool:
+        """Return whether an episode reset was requested from viewer controls and clear the flag."""
+        if not self._is_initialized or self._viewer is None:
+            return False
+        return self._viewer.consume_reset_request()

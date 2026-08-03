@@ -76,6 +76,7 @@ Guidelines for modifications:
 * Chenyu Yang
 * Connor Smith
 * CY (Chien-Ying) Chen
+* David Cao-Mueller
 * David Leon
 * David Yang
 * Daniela Hasenbring
@@ -126,6 +127,7 @@ Guidelines for modifications:
 * Krishna Lakhi
 * Lin He
 * Lionel Gulich
+* Lior Ben Horin
 * Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay

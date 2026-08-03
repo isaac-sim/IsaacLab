@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -22,6 +23,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
@@ -38,6 +40,8 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
+
+    from omni.replicator.core.scripts.utils.viewport_manager import HydraTexture
 
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
@@ -95,7 +99,7 @@ class IsaacRtxRenderData:
     """Render data for Isaac RTX renderer."""
 
     annotators: dict[str, Any]
-    render_product_paths: list[str]
+    render_product: HydraTexture
     output_data: dict[str, ProxyArray] | None = None
     spec: CameraRenderSpec | None = None
     renderer_info: dict[str, Any] = field(default_factory=dict)
@@ -120,6 +124,9 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
+        # Enable Replicator only when the Isaac RTX renderer is selected. Declaring it
+        # in a Kit experience would resolve its bundled omni.warp.core dependency at startup.
+        enable_extension("omni.replicator.core")
         settings = get_settings_manager()
         apply_isaac_rtx_global_settings(self.cfg.global_settings, settings)
         if settings.get("/isaaclab/render/deterministic", False):
@@ -136,6 +143,9 @@ class IsaacRtxRenderer(BaseRenderer):
         ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
         RTX's physical-camera exposure model does not compound on top of the
         ISP. Without an ISP, the camera prim's authored exposure is left alone.
+
+        :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` is applied
+        per-render-product in :meth:`create_render_data` via USD attributes.
         """
         if spec.cfg.isp_cfg is None:
             return
@@ -180,7 +190,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         seg_specs = (
             (RenderBufferKind.SEMANTIC_SEGMENTATION, self.cfg.colorize_semantic_segmentation),
-            (RenderBufferKind.INSTANCE_SEGMENTATION_FAST, self.cfg.colorize_instance_segmentation),
+            (RenderBufferKind.INSTANCE_SEGMENTATION, self.cfg.colorize_instance_segmentation),
             (RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST, self.cfg.colorize_instance_id_segmentation),
         )
         for name, colorize in seg_specs:
@@ -274,7 +284,7 @@ class IsaacRtxRenderer(BaseRenderer):
         # outputs for instanceable assets. Disable instancing as a workaround.
         stage = get_current_stage()
         if isaac_sim_version == version.parse("4.5") and (
-            "semantic_segmentation" in spec.cfg.data_types or "instance_segmentation_fast" in spec.cfg.data_types
+            "semantic_segmentation" in spec.cfg.data_types or "instance_segmentation" in spec.cfg.data_types
         ):
             logger.warning(
                 "Isaac Sim 4.5 introduced a bug in Camera when outputting instance and semantic"
@@ -293,9 +303,34 @@ class IsaacRtxRenderer(BaseRenderer):
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
 
-        # Create replicator tiled render product
-        rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(spec.cfg.width, spec.cfg.height))
-        render_product_paths = [rp.path]
+        # Unique UUID name so concurrent tiled cameras and sequential env create/destroy
+        # cycles in one Kit process do not reuse a stale Replicator / SyntheticData activation.
+        # ``uuid4().hex`` (no hyphens) prefixed with ``rp_`` is a valid USD identifier.
+        # Collision risk is negligible: uuid4 provides 122 random bits, so the birthday-paradox
+        # chance among n names is ~n^2 / 2^123 (e.g. ~10^-25 for a million names).
+        rp = rep.create.render_product_tiled(
+            cameras=cam_prim_paths,
+            tile_resolution=(spec.cfg.width, spec.cfg.height),
+            name=f"rp_{uuid.uuid4().hex}",
+        )
+
+        # Apply background color as per-render-product USD attributes so each render product gets its own
+        # background without touching the process-wide /rtx/background carb settings.
+        background_color = getattr(spec.cfg, "background_color", None)
+        if background_color is not None:
+            r, g, b = background_color
+            rp_prim = stage.GetPrimAtPath(rp.path)
+            if rp_prim is not None and rp_prim.IsValid():
+                with Sdf.ChangeBlock():
+                    rp_prim.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
+                    rp_prim.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3).Set(
+                        (r, g, b)
+                    )
+            else:
+                logger.warning(
+                    "create_render_data: render product prim at '%s' not found; background_color will not be applied.",
+                    rp.path,
+                )
 
         # Synthetic-data instance mapping filter for segmentation; before annotator attach.
         SyntheticData.Get().set_instance_mapping_semantic_filter(
@@ -368,19 +403,24 @@ class IsaacRtxRenderer(BaseRenderer):
                         "colorize": self.cfg.colorize_semantic_segmentation,
                         "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
                     }
-                elif annotator_type == "instance_segmentation_fast":
+                elif annotator_type == "instance_segmentation":
                     init_params = {"colorize": self.cfg.colorize_instance_segmentation}
                 elif annotator_type == "instance_id_segmentation_fast":
                     init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
 
+                # Map the user-facing key to the Replicator annotator name when they differ.
+                _REP_ANNOTATOR_NAME = {
+                    "instance_segmentation": "instance_segmentation_fast",
+                }
+                rep_annotator_name = _REP_ANNOTATOR_NAME.get(annotator_type, annotator_type)
                 annotator = rep.AnnotatorRegistry.get_annotator(
-                    annotator_type, init_params, device=spec.device, do_array_copy=False
+                    rep_annotator_name, init_params, device=spec.device, do_array_copy=False
                 )
                 annotators[annotator_type] = annotator
 
         # Attach annotators to render product
         for annotator in annotators.values():
-            annotator.attach(render_product_paths)
+            annotator.attach([rp.path])
 
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
@@ -393,7 +433,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         return IsaacRtxRenderData(
             annotators=annotators,
-            render_product_paths=render_product_paths,
+            render_product=rp,
             spec=spec,
             ppisp_pipeline=ppisp_pipeline,
         )
@@ -504,7 +544,7 @@ class IsaacRtxRenderer(BaseRenderer):
             #   so we need to convert them to uint8 4 channel images for colorized types
             if (
                 (data_type == "semantic_segmentation" and self.cfg.colorize_semantic_segmentation)
-                or (data_type == "instance_segmentation_fast" and self.cfg.colorize_instance_segmentation)
+                or (data_type == "instance_segmentation" and self.cfg.colorize_instance_segmentation)
                 or (data_type == "instance_id_segmentation_fast" and self.cfg.colorize_instance_id_segmentation)
             ):
                 tiled_data_buffer = wp.array(
@@ -586,9 +626,20 @@ class IsaacRtxRenderer(BaseRenderer):
             camera_data.info[output_name] = render_data.renderer_info.get(output_name)
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
-        """Detach annotators from render product.
+        """Detach annotators, destroy the owned tiled render product, and drop held refs.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        if render_data:
-            for annotator in render_data.annotators.values():
-                annotator.detach(render_data.render_product_paths)
-            render_data.spec = None
+        if render_data is None:
+            return
+
+        for annotator in render_data.annotators.values():
+            annotator.detach([render_data.render_product.path])
+
+        render_data.render_product.destroy()
+        render_data.render_product = None
+
+        render_data.annotators.clear()
+        render_data.output_data = None
+        render_data.spec = None
+        render_data.renderer_info.clear()
+        render_data.ppisp_pipeline = None
+        render_data._hdr_scratch_wp = None

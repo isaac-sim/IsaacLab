@@ -10,7 +10,7 @@ Until ``ovannotators`` ships, these helpers decode the OVRTX segmentation "map" 
 ``idToLabels`` / ``idToSemantics`` info dicts that Replicator / Isaac RTX expose through ``camera.data.info``:
 
 - ``semantic_segmentation``: from ``SemanticIdMap`` -> ``idToLabels`` (id -> ``{type: label}``).
-- ``instance_segmentation_fast``: from ``StableIdSemanticIdMap`` + ``StableIdMap`` + ``SemanticIdMap`` ->
+- ``instance_segmentation``: from ``StableIdSemanticIdMap`` + ``StableIdMap`` + ``SemanticIdMap`` ->
   ``idToLabels`` (instance -> USD prim path) and ``idToSemantics`` (instance -> ``{type: label}``).
 
 For colorized outputs the keys are raw ``(r, g, b, a)`` tuples, matching Replicator's fast segmentation nodes.

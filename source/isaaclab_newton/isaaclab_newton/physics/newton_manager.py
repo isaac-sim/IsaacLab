@@ -16,7 +16,7 @@ import re
 from abc import abstractmethod
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -58,17 +58,34 @@ def _paused_gc():
             gc.collect()
 
 
-from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
+from newton import (
+    Axis,
+    CollisionPipeline,
+    Contacts,
+    Control,
+    Heightfield,
+    Model,
+    ModelBuilder,
+    ModelFlags,
+    ShapeFlags,
+    State,
+    eval_fk,
+)
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
-from newton.solvers import SolverBase, SolverKamino, SolverNotifyFlags
+from newton.solvers import SolverBase, SolverKamino
 
-from pxr import UsdGeom
+from pxr import Usd, UsdGeom
 
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
+from isaaclab.scene_data.deformable_vis_remap import (
+    VolumeVisRemap,
+    launch_batch_particle_slice_copy,
+    launch_batch_volume_vis_remap,
+)
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
@@ -76,15 +93,18 @@ from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
-from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
+from isaaclab_newton.cloner.newton_clone_utils import (
+    _restore_visible_colliders_without_visual_shapes,
+    replicate_builder_mapping,
+)
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
+from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
 
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
     from isaaclab_newton.actuators import NewtonActuatorAdapter
 
     from .newton_collision_cfg import NewtonCollisionPipelineCfg
@@ -170,16 +190,24 @@ def _or_reset_masks_from_mask(
 
 @wp.kernel(enable_backward=False)
 def _scatter_reset_masks_from_ids(
-    env_ids: wp.array(dtype=int),
+    env_ids: wp.array(dtype=Any),
     articulation_ids: wp.array2d(dtype=int),
     world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
     """Scatter-set world_mask and fk_mask from sparse env_ids."""
     i, arti = wp.tid()
-    world = env_ids[i]
+    world = wp.int32(env_ids[i])
     world_mask[world] = True
     fk_mask[articulation_ids[world, arti]] = True
+
+
+_SCATTER_RESET_MASKS_FROM_IDS_DISPATCHER = IndexKernelDispatcher(_scatter_reset_masks_from_ids, ("env_ids",))
+
+
+def _scatter_reset_masks_from_ids_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the reset-mask writer matching the environment selector dtype."""
+    return _SCATTER_RESET_MASKS_FROM_IDS_DISPATCHER.select(env_ids)
 
 
 class NewtonSceneDataBackend(SceneDataBackend):
@@ -230,6 +258,14 @@ def _eval_fk_unbound(world_reset_mask: wp.array | None, fk_mask: wp.array | None
     raise RuntimeError(
         "FK hook is not bound. NewtonManager.initialize_solver() must run "
         "(via reset()) before forward()/step() can run forward kinematics."
+    )
+
+
+def _reset_solver_internals_unbound(world_mask: wp.array | None) -> None:
+    """Default reset-hook delegate value before a solver is initialized."""
+    raise RuntimeError(
+        "Solver reset hook is not bound. NewtonManager.initialize_solver() must run "
+        "(via reset()) before forward()/step() can reset solver internals."
     )
 
 
@@ -304,6 +340,8 @@ class NewtonManager(PhysicsManager):
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
     # Solver-specialized FK delegate. Bound in initialize_solver() to the active subclass's choice of FK implementation.
     _eval_fk: Callable[[wp.array | None, wp.array | None], None] = _eval_fk_unbound
+    # Solver-specialized reset delegate. Like _eval_fk, this must dispatch correctly through the base manager.
+    _reset_solver_internals_delegate: Callable[[wp.array | None], None] = _reset_solver_internals_unbound
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
@@ -329,6 +367,7 @@ class NewtonManager(PhysicsManager):
     _sensor_state: State | None = None
     _sensor_state_dirty: bool = True
     _sensor_graph_capture_failed: bool = False
+    _sensor_bvh_has_collision_shapes: bool = False  # set once a ray-cast sensor widens the shape BVH
 
     # USD/Fabric sync
     _newton_stage_path = None
@@ -347,6 +386,12 @@ class NewtonManager(PhysicsManager):
     _cubric_adapter: int | None = None
     _cubric_bound_fabric_id: int | None = None
 
+    # Set to True after sync_transforms_to_usd() successfully writes body positions for
+    # the first time in each simulation session.  Reset to False in clear().  Polled by
+    # test drain helpers to know when the GPU has propagated the newton:index Fabric
+    # attribute and body_q values are valid.
+    _newton_fabric_ready: bool = False
+
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
 
@@ -358,6 +403,15 @@ class NewtonManager(PhysicsManager):
     # frame in :meth:`update_visualization_state`.
     _scene_data: SceneDataFormat.Transform | None = None
     _scene_data_mapping: wp.array | None = None
+    _scene_data_points: SceneDataFormat.Points | None = None
+    _scene_data_geometry_mapping: wp.array | None = None
+    _shadow_deformable_entities: list | None = None
+    _sim_particle_q: wp.array | None = None
+    _mapped_sim_particle_offsets: set[int] | None = None
+    _shadow_deformable_sync_skip_warned: set[str] = set()
+    _shadow_deformable_remap_batches: list | None = None
+    _shadow_deformable_copy_batch: tuple | None = None
+    _shadow_deformable_batch_sync_key: tuple | None = None
 
     # Views list for assets to register their views
     _views: list = []
@@ -379,7 +433,7 @@ class NewtonManager(PhysicsManager):
     _world_xforms: list[wp.transform] | None = None
     # Per-source builders retained from replication, keyed by clone-plan source
     # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
-    # model from these and resolve it via ``resolve_clone_plan_source``.
+    # model from these and resolve it via ``query.path_to_source``.
     _cl_protos: dict[str, ModelBuilder] = {}
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, list[float], list[float]], None]] = []
@@ -473,7 +527,7 @@ class NewtonManager(PhysicsManager):
         data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
-        cls._reset_solver_internals(cls._world_reset_mask)
+        cls._reset_solver_internals_delegate(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
@@ -559,7 +613,12 @@ class NewtonManager(PhysicsManager):
                     device=str(PhysicsManager._device),
                 )
                 if selection.GetCount() == 0:
-                    NewtonManager._transforms_dirty = False
+                    # The newton:index attribute is written CPU-side by start_simulation() but
+                    # GPU propagation is deferred.  Keep _transforms_dirty=True so the next
+                    # pre_render() retries once initialize_solver() has completed (FK delegate
+                    # bound) and body_q holds valid values.
+                    if cls._eval_fk is _eval_fk_unbound:
+                        NewtonManager._transforms_dirty = False
                     return
 
                 fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
@@ -572,6 +631,7 @@ class NewtonManager(PhysicsManager):
                 )
                 wp.synchronize_device(PhysicsManager._device)
 
+                NewtonManager._newton_fabric_ready = True
                 NewtonManager._transforms_dirty = False
 
                 if use_cubric and fabric_hierarchy is not None:
@@ -753,7 +813,7 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
-        cls._reset_solver_internals(cls._world_reset_mask)
+        cls._reset_solver_internals_delegate(cls._world_reset_mask)
 
         # Notify solver of model changes
         if cls._model_changes:
@@ -864,6 +924,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._cubric = None
         NewtonManager._cubric_adapter = None
         NewtonManager._cubric_bound_fabric_id = None
+        NewtonManager._newton_fabric_ready = False
         NewtonManager._builder = None
         NewtonManager._model = None
         NewtonManager._solver = None
@@ -874,6 +935,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._contacts = None
         NewtonManager._needs_collision_pipeline = False
         NewtonManager._eval_fk = _eval_fk_unbound
+        NewtonManager._reset_solver_internals_delegate = _reset_solver_internals_unbound
         NewtonManager._collision_pipeline = None
         NewtonManager._collision_cfg = None
         NewtonManager._newton_contact_sensors = {}
@@ -900,6 +962,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._sensor_state = None
         NewtonManager._sensor_state_dirty = True
         NewtonManager._sensor_graph_capture_failed = False
+        NewtonManager._sensor_bvh_has_collision_shapes = False
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_dirty = False
@@ -913,6 +976,15 @@ class NewtonManager(PhysicsManager):
         NewtonManager._up_axis = "Z"
         NewtonManager._scene_data = None
         NewtonManager._scene_data_mapping = None
+        NewtonManager._scene_data_points = None
+        NewtonManager._scene_data_geometry_mapping = None
+        NewtonManager._shadow_deformable_entities = None
+        NewtonManager._sim_particle_q = None
+        NewtonManager._mapped_sim_particle_offsets = None
+        NewtonManager._shadow_deformable_sync_skip_warned = set()
+        NewtonManager._shadow_deformable_remap_batches = None
+        NewtonManager._shadow_deformable_copy_batch = None
+        NewtonManager._shadow_deformable_batch_sync_key = None
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
@@ -1162,7 +1234,7 @@ class NewtonManager(PhysicsManager):
         cls._cl_pending_sites.clear()
 
     @classmethod
-    def add_model_change(cls, change: SolverNotifyFlags) -> None:
+    def add_model_change(cls, change: ModelFlags) -> None:
         """Register a model change to notify the solver."""
         cls._model_changes.add(change)
 
@@ -1203,7 +1275,7 @@ class NewtonManager(PhysicsManager):
             )
         elif articulation_ids is not None and env_ids is not None:
             wp.launch(
-                _scatter_reset_masks_from_ids,
+                _scatter_reset_masks_from_ids_kernel(env_ids),
                 dim=(env_ids.shape[0], articulation_ids.shape[1]),
                 inputs=[env_ids, articulation_ids],
                 outputs=[NewtonManager._world_reset_mask, NewtonManager._fk_reset_mask],
@@ -1391,6 +1463,66 @@ class NewtonManager(PhysicsManager):
             fabric_hierarchy.update_world_xforms()
 
     @classmethod
+    def _inject_terrain_heightfields(cls, stage: Usd.Stage, builder: ModelBuilder) -> list[str]:
+        """Replace height-field-tagged terrain colliders with Newton heightfields.
+
+        Scans the stage for prims carrying the ``newton:heightfield:resolution``
+        attribute authored by :class:`~isaaclab.terrains.TerrainImporter`. For each,
+        the collision mesh is rasterized into a :class:`newton.Heightfield` through
+        :meth:`newton.Heightfield.create_from_mesh` and added to *builder* as a
+        static heightfield shape. The tagged prim paths are returned so the caller
+        can exclude them from ``add_usd`` -- otherwise the terrain would be imported
+        twice (once as a mesh, once as a heightfield).
+
+        Heightfields compile on the MuJoCo solver roughly two orders of magnitude
+        faster than the equivalent multi-hundred-thousand-vertex terrain mesh while
+        colliding identically at the same horizontal resolution.
+
+        Args:
+            stage: The USD stage being imported.
+            builder: The Newton model builder receiving the heightfield shapes.
+
+        Returns:
+            Prim paths of terrain colliders that were converted to heightfields.
+        """
+        ignore_paths: list[str] = []
+        xform_cache = UsdGeom.XformCache()
+        for prim in stage.Traverse():
+            attr = prim.GetAttribute("newton:heightfield:resolution")
+            if not attr or not attr.HasAuthoredValue():
+                continue
+            resolution = float(attr.Get())
+            # Locate the collision mesh under the tagged prim.
+            if prim.IsA(UsdGeom.Mesh):
+                mesh_prim = prim
+            else:
+                mesh_prim = next((p for p in Usd.PrimRange(prim) if p.IsA(UsdGeom.Mesh)), None)
+            if mesh_prim is None:
+                continue
+            mesh = UsdGeom.Mesh(mesh_prim)
+            points = np.asarray(mesh.GetPointsAttr().Get(), dtype=np.float64)
+            faces = np.asarray(mesh.GetFaceVertexIndicesAttr().Get(), dtype=np.int32)
+            # Transform vertices into world frame (USD uses row-vector convention).
+            mat = np.array(xform_cache.GetLocalToWorldTransform(mesh_prim), dtype=np.float64).reshape(4, 4)
+            world = (points @ mat[:3, :3] + mat[3, :3]).astype(np.float32)
+            device = str(PhysicsManager._device)
+            wp_mesh = wp.Mesh(
+                points=wp.array(world, dtype=wp.vec3, device=device),
+                indices=wp.array(faces, dtype=wp.int32, device=device),
+            )
+            heightfield, xform = Heightfield.create_from_mesh(wp_mesh, resolution)
+            builder.add_shape_heightfield(heightfield=heightfield, xform=xform)
+            logger.info(
+                "Converted terrain collider %s (%d faces) to a %dx%d heightfield.",
+                prim.GetPath().pathString,
+                faces.shape[0] // 3,
+                heightfield.nrow,
+                heightfield.ncol,
+            )
+            ignore_paths.append(prim.GetPath().pathString)
+        return ignore_paths
+
+    @classmethod
     def instantiate_builder_from_stage(cls):
         """Create builder from USD stage.
 
@@ -1431,22 +1563,32 @@ class NewtonManager(PhysicsManager):
         # ordering arguments are ever passed here, update the resolver
         # constants in lockstep or MJWarp resolution will silently diverge
         # from the live backend.
+        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder)
+
         if not env_paths:
             # No env Xforms — flat loading
-            builder.add_usd(stage, schema_resolvers=schema_resolvers)
+            import_result = builder.add_usd(stage, ignore_paths=hf_ignore_paths, schema_resolvers=schema_resolvers)
+            _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
             for hook in cls._per_world_builder_hooks:
                 hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
-            ignore_paths = [path for _, path in env_paths]
-            builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+            # and any terrain colliders already added as heightfields above.
+            ignore_paths = [path for _, path in env_paths] + hf_ignore_paths
+            import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+            _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
 
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
-            source_builders[proto_path].add_usd(stage, root_path=proto_path, schema_resolvers=schema_resolvers)
+            import_result = source_builders[proto_path].add_usd(
+                stage, root_path=proto_path, schema_resolvers=schema_resolvers
+            )
+            _restore_visible_colliders_without_visual_shapes(
+                source_builders[proto_path], stage, import_result["path_shape_map"]
+            )
             replace_newton_builder_shape_colors(source_builders[proto_path], stage)
             cls._cl_protos = source_builders
 
@@ -1648,6 +1790,7 @@ class NewtonManager(PhysicsManager):
         # base class (the data layer imports NewtonManager directly). ``cls`` is the concrete
         # subclass here, since initialize_solver is reached via sim.physics_manager.reset().
         NewtonManager._eval_fk = cls._eval_fk_impl
+        NewtonManager._reset_solver_internals_delegate = cls._reset_solver_internals
 
         # Establish the initial kinematically-consistent body state through the
         # solver-specialized FK delegate, now that the solver and the delegate both exist.
@@ -2012,16 +2155,32 @@ class NewtonManager(PhysicsManager):
         return cls._contacts
 
     @classmethod
-    def _register_sensor_task(cls, name: str, update_fn: Callable[[], None]) -> None:
-        """Register a graph-capturable scene-query task."""
+    def _register_sensor_task(
+        cls, name: str, update_fn: Callable[[], None], *, include_collision_shapes: bool = False
+    ) -> None:
+        """Register a graph-capturable scene-query task.
+
+        Args:
+            name: Unique task name.
+            update_fn: Graph-capturable callable run by :meth:`_update_sensor_tasks`.
+            include_collision_shapes: Whether the task must see collision-only
+                geometry. Newton builds the shape BVH over visible shapes, which is
+                what renderers want; the first ray-cast sensor rebuilds it with
+                collision shapes added, since those must be hit even when they carry
+                no visual representation.
+        """
         if name in cls._sensor_tasks:
             raise ValueError(f"Newton sensor task '{name}' is already registered.")
         model = cls.get_model()
         state = cls.get_state_0()
         if model is None or state is None:
             raise RuntimeError("Registering a Newton sensor task requires an initialized model and state.")
-        if model.shape_count > 0 and model.bvh_shapes is None:
-            model.bvh_build_shapes(state)
+        if model.shape_count > 0:
+            if include_collision_shapes and not cls._sensor_bvh_has_collision_shapes:
+                model.bvh_build_shapes(state, shape_flags=ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES)
+                NewtonManager._sensor_bvh_has_collision_shapes = True
+            elif model.bvh_shapes is None:
+                model.bvh_build_shapes(state)
         if model.particle_count > 0 and model.bvh_particles is None:
             model.bvh_build_particles(state)
         cls._sensor_tasks[name] = update_fn
@@ -2196,39 +2355,66 @@ class NewtonManager(PhysicsManager):
         up_axis_token = UsdGeom.GetStageUpAxis(stage)
         up_axis = Axis.from_string(str(up_axis_token))
 
-        env_pattern = re.compile(r"^env_(\d+)$")
-        env_paths = sorted(
-            (int(match.group(1)), child.GetPath().pathString)
-            for child in stage.GetPrimAtPath("/World/envs").GetChildren()
-            if (match := env_pattern.match(child.GetName()))
-        )
-        if not env_paths:
-            logger.error(
-                "[NewtonManager] No /World/envs/env_<id> prims found; cannot build a "
-                "Newton visualization model from the cloned Isaac Lab scene."
+        env_paths = []
+        envs_prim = stage.GetPrimAtPath("/World/envs")
+        if envs_prim.IsValid():
+            env_pattern = re.compile(r"^env_(\d+)$")
+            env_paths = sorted(
+                (int(match.group(1)), child.GetPath().pathString)
+                for child in envs_prim.GetChildren()
+                if (match := env_pattern.match(child.GetName()))
             )
-            return
 
-        NewtonManager._num_envs = len(env_paths)
         sim = SimulationContext.instance()
         assert sim is not None
-        builder = build_visualization_builder_from_stage_envs(stage, env_paths, sim.get_clone_plan(), up_axis=up_axis)
-
-        if builder.body_count == 0:
-            logger.error(
-                "[NewtonManager] USD stage walk produced no Newton bodies; the shadow "
-                "Newton model for visualization will be empty. Common causes: the cloned "
-                "envs are not yet on the stage, or PhysX schemas could not be parsed by "
-                "Newton's add_usd. Check that /World/envs/env_<id> prims exist when the "
-                "renderer is initialized."
+        clone_plan = sim.get_clone_plan()
+        if clone_plan is not None and not env_paths:
+            logger.warning(
+                "[NewtonManager] Clone plan is available but no environment prims were found; "
+                "deferring visualization model creation."
             )
             return
+        NewtonManager._num_envs = len(env_paths) if clone_plan is not None else 1
+        builder, (shadow_entities, registry_groups) = build_visualization_builder_from_stage_envs(
+            stage, env_paths, clone_plan, up_axis=up_axis, device=str(PhysicsManager._device or "cpu")
+        )
+        NewtonManager._shadow_deformable_entities = shadow_entities
+        NewtonManager._scene_data_geometry_mapping = None
+        NewtonManager._mapped_sim_particle_offsets = None
+        cls._invalidate_shadow_deformable_batch_sync()
+        sim_particle_total = sum(entity.sim_particle_count for entity in shadow_entities)
+        if sim_particle_total > 0:
+            device = PhysicsManager._device or "cpu"
+            NewtonManager._sim_particle_q = wp.zeros(sim_particle_total, dtype=wp.vec3f, device=device)
+        else:
+            NewtonManager._sim_particle_q = None
+
+        particle_count = getattr(builder, "particle_count", 0)
+        if builder.body_count == 0 and particle_count == 0:
+            if clone_plan is not None or env_paths:
+                logger.error(
+                    "[NewtonManager] USD stage walk produced no Newton bodies or particles; the shadow "
+                    "Newton model for visualization will be empty. Common causes: the cloned "
+                    "envs are not yet on the stage, or PhysX schemas could not be parsed by "
+                    "Newton's add_usd. Check that /World/envs/env_<id> prims exist when the "
+                    "renderer is initialized."
+                )
+                return
+            logger.info(
+                "[NewtonManager] USD stage walk produced no Newton bodies or particles; "
+                "finalizing an empty visualization model."
+            )
+        elif builder.body_count == 0:
+            log = logger.warning if clone_plan is not None or env_paths else logger.info
+            log("[NewtonManager] USD stage walk produced no Newton bodies; finalizing an empty visualization model.")
 
         device = PhysicsManager._device or "cpu"
         try:
             NewtonManager._model = builder.finalize(device=device)
             NewtonManager._state_0 = cls._model.state()
             cls._model.num_envs = cls._num_envs
+            NewtonManager._deformable_registry = []
+            populate_shadow_deformable_registry(cls, registry_groups)
 
         except Exception:
             logger.exception(
@@ -2252,11 +2438,17 @@ class NewtonManager(PhysicsManager):
         Newton sim backend: no-op — ``_state_0`` is the live, authoritative state
         already advanced by :meth:`step` / forward kinematics.
 
-        PhysX sim backend: pull rigid-body transforms from the
-        :class:`~isaaclab.scene_data.SceneDataProvider` and write
-        them into the shadow ``_state_0.body_q`` so Newton-native consumers
-        (Newton renderer, Newton/Rerun/Viser visualizers, OVRTX renderer, Newton
-        GL video) see fresh poses.
+        PhysX / OVPhysX sim backend: pull rigid-body transforms and deformable
+        nodal positions from the :class:`~isaaclab.scene_data.SceneDataProvider`
+        and write them into the shadow ``_state_0.body_q`` / ``particle_q`` so
+        Newton-native consumers (Newton renderer, Newton/Rerun/Viser visualizers,
+        OVRTX renderer, Newton GL video) see fresh poses and mesh points.
+
+        Calls use ``allow_passthrough=False`` so identity mappings still copy into
+        the pre-bound shadow buffers. Passthrough would rebind the temporary
+        :class:`~isaaclab.scene_data.SceneDataFormat` fields away from
+        ``_state_0``, leaving OVRTX and other ``get_state()`` consumers on stale
+        rest-pose particle / body state.
 
         Invoked lazily from :meth:`get_state` so consumers do not need to
         coordinate the sync explicitly.
@@ -2269,19 +2461,278 @@ class NewtonManager(PhysicsManager):
 
         if cls._backend_is_newton(scene_data_provider):
             return
+
         cls._ensure_visualization_model()
-        if cls._state_0 is None or cls._model is None or cls._state_0.body_q is None:
+
+        if cls._state_0 is None or cls._model is None:
             return
 
-        if cls._scene_data is None:
-            cls._scene_data = SceneDataFormat.Transform()
-        if cls._scene_data_mapping is None:
-            body_paths = cls._resolve_scene_data_body_paths(list(cls._model.body_label), scene_data_provider.usd_stage)
-            cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
+        if cls._state_0.body_q is not None:
+            if cls._scene_data is None:
+                cls._scene_data = SceneDataFormat.Transform()
 
-        cls._scene_data.transforms = cls._state_0.body_q
-        scene_data_provider.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
+            # Invalidate stale mapping when the model's body count changed (e.g. tiled → viewport
+            # test within the same process where _model was rebuilt from a different stage).
+            if cls._scene_data_mapping is not None and cls._scene_data_mapping.shape[0] != cls._model.body_count:
+                cls._scene_data_mapping = None
+
+            if cls._scene_data_mapping is None:
+                body_labels = list(cls._model.body_label)
+                body_paths = cls._resolve_scene_data_body_paths(body_labels, scene_data_provider.usd_stage)
+                cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
+
+            cls._scene_data.transforms = cls._state_0.body_q
+            scene_data_provider.get_transforms(
+                cls._scene_data, mapping=cls._scene_data_mapping, allow_passthrough=False
+            )
+
+        if cls._state_0.particle_q is not None and scene_data_provider.point_count > 0:
+            if cls._scene_data_points is None:
+                cls._scene_data_points = SceneDataFormat.Points()
+
+            # Recreate when ``None``. Identity layouts return ``None`` from
+            # :meth:`create_geometry_mapping`, so this also refreshes mapped-offset and
+            # batch-sync metadata each frame. Caching ``None`` via a ready-flag without
+            # that refresh regresses Franka soft viz (stretched / missing deformables).
+            if cls._scene_data_geometry_mapping is None and cls._shadow_deformable_entities:
+                geometry_paths = [entity.root_path for entity in cls._shadow_deformable_entities]
+                geometry_offsets = [entity.sim_particle_offset for entity in cls._shadow_deformable_entities]
+                cls._scene_data_geometry_mapping = scene_data_provider.create_geometry_mapping(
+                    geometry_paths, geometry_offsets
+                )
+
+                # Invalidate the mapped-offset cache so that it can be rebuilt immediately after.
+                cls._mapped_sim_particle_offsets = None
+                cls._invalidate_shadow_deformable_batch_sync()
+
+            if cls._mapped_sim_particle_offsets is None:
+                cls._mapped_sim_particle_offsets = cls._geometry_mapped_sim_offsets(scene_data_provider)
+
+            if cls._sim_particle_q is None:
+                sim_total = sum(entity.sim_particle_count for entity in cls._shadow_deformable_entities or [])
+                if sim_total > 0:
+                    device = PhysicsManager._device or "cpu"
+                    cls._sim_particle_q = wp.zeros(sim_total, dtype=wp.vec3f, device=device)
+
+            if cls._sim_particle_q is not None:
+                cls._scene_data_points.points = cls._sim_particle_q
+                scene_data_provider.get_points(
+                    cls._scene_data_points,
+                    mapping=cls._scene_data_geometry_mapping,
+                    allow_passthrough=False,
+                )
+                cls._sync_render_particle_q_from_sim()
+            else:
+                cls._scene_data_points.points = cls._state_0.particle_q
+                scene_data_provider.get_points(
+                    cls._scene_data_points,
+                    mapping=cls._scene_data_geometry_mapping,
+                    allow_passthrough=False,
+                )
+
         cls._mark_sensor_state_dirty()
+
+    @classmethod
+    def _geometry_mapped_sim_offsets(cls, scene_data_provider: SceneDataProvider) -> set[int]:
+        """Return ``_sim_particle_q`` offsets filled by :meth:`get_points` for the cached mapping.
+
+        Called once when the geometry mapping is created (or when that cache is
+        invalidated). ``create_geometry_mapping`` indexes by backend entity and stores
+        consumer destinations (or ``-1`` when a backend path has no consumer). The
+        inverse case — a shadow entity whose path the backend never reports — never
+        appears in that array, so its sim slice stays at the zero initialization.
+        """
+        mapping = cls._scene_data_geometry_mapping
+        if mapping is not None:
+            return {int(value) for value in mapping.numpy() if int(value) >= 0}
+
+        # Identity layout: backend entities land at sequential flat offsets.
+        offsets: set[int] = set()
+        flat_offset = 0
+        for count in scene_data_provider.backend.geometry_counts:
+            offsets.add(flat_offset)
+            flat_offset += int(count)
+        return offsets
+
+    @classmethod
+    def _invalidate_shadow_deformable_batch_sync(cls) -> None:
+        """Drop cached batched remap/copy metadata."""
+        cls._shadow_deformable_remap_batches = None
+        cls._shadow_deformable_copy_batch = None
+        cls._shadow_deformable_batch_sync_key = None
+
+    @classmethod
+    def _ensure_shadow_deformable_batch_sync(cls) -> None:
+        """Build batched remap/copy launch metadata for mapped shadow deformables."""
+        entities = cls._shadow_deformable_entities or []
+        mapped_offsets = cls._mapped_sim_particle_offsets
+        sync_key = (
+            id(entities),
+            frozenset(mapped_offsets or ()),
+            tuple(
+                (
+                    entity.root_path,
+                    entity.sim_particle_offset,
+                    entity.vis_particle_offset,
+                    entity.sim_particle_count,
+                    entity.vis_particle_count,
+                    id(entity.volume_vis_remap),
+                )
+                for entity in entities
+            ),
+        )
+        if cls._shadow_deformable_batch_sync_key == sync_key:
+            return
+
+        cls._shadow_deformable_batch_sync_key = sync_key
+        cls._shadow_deformable_remap_batches = []
+        cls._shadow_deformable_copy_batch = None
+
+        if cls._sim_particle_q is None or not entities:
+            return
+
+        device = str(cls._sim_particle_q.device)
+        copy_entity_ids: list[int] = []
+        copy_src_offsets: list[int] = []
+        copy_dst_offsets: list[int] = []
+        copy_counts: list[int] = []
+        remap_groups: dict[int, tuple[VolumeVisRemap, list]] = {}
+
+        for entity_index, entity in enumerate(entities):
+            if mapped_offsets is not None and entity.sim_particle_offset not in mapped_offsets:
+                continue
+
+            if entity.volume_vis_remap is not None:
+                remap_key = id(entity.volume_vis_remap)
+                if remap_key not in remap_groups:
+                    remap_groups[remap_key] = (entity.volume_vis_remap, [])
+                remap_groups[remap_key][1].append(entity)
+            elif entity.vis_particle_count > 0 and entity.vis_particle_count == entity.sim_particle_count:
+                copy_src_offsets.append(entity.sim_particle_offset)
+                copy_dst_offsets.append(entity.vis_particle_offset)
+                copy_counts.append(entity.vis_particle_count)
+
+        if copy_counts:
+            count_prefix = np.zeros(len(copy_counts), dtype=np.int32)
+            running = 0
+            for index, count in enumerate(copy_counts):
+                count_prefix[index] = running
+                for _ in range(int(count)):
+                    copy_entity_ids.append(index)
+                running += int(count)
+            cls._shadow_deformable_copy_batch = (
+                wp.array(copy_entity_ids, dtype=wp.int32, device=device),
+                wp.array(copy_src_offsets, dtype=wp.int32, device=device),
+                wp.array(copy_dst_offsets, dtype=wp.int32, device=device),
+                wp.array(np.asarray(copy_counts, dtype=np.int32), dtype=wp.int32, device=device),
+                wp.array(count_prefix, dtype=wp.int32, device=device),
+            )
+
+        remap_batches: list[tuple] = []
+        for remap, group_entities in remap_groups.values():
+            entity_ids: list[int] = []
+            sim_offsets: list[int] = []
+            render_offsets: list[int] = []
+            vis_counts: list[int] = []
+            vis_prefix = np.zeros(len(group_entities), dtype=np.int32)
+            running = 0
+            for index, entity in enumerate(group_entities):
+                vis_prefix[index] = running
+                for _ in range(entity.vis_particle_count):
+                    entity_ids.append(index)
+                running += entity.vis_particle_count
+                sim_offsets.append(entity.sim_particle_offset)
+                render_offsets.append(entity.vis_particle_offset)
+                vis_counts.append(entity.vis_particle_count)
+
+            if not entity_ids:
+                continue
+
+            remap_batches.append(
+                (
+                    wp.array(entity_ids, dtype=wp.int32, device=device),
+                    wp.array(np.asarray(sim_offsets, dtype=np.int32), dtype=wp.int32, device=device),
+                    wp.array(np.asarray(render_offsets, dtype=wp.int32), dtype=wp.int32, device=device),
+                    wp.array(np.asarray(vis_counts, dtype=wp.int32), dtype=wp.int32, device=device),
+                    wp.array(vis_prefix, dtype=wp.int32, device=device),
+                    remap,
+                )
+            )
+
+        cls._shadow_deformable_remap_batches = remap_batches
+
+    @classmethod
+    def _sync_render_particle_q_from_sim(cls) -> None:
+        """Copy or remap sim nodal positions into shadow ``particle_q`` render slots."""
+        if cls._state_0 is None or cls._state_0.particle_q is None or cls._sim_particle_q is None:
+            return
+        if not cls._shadow_deformable_entities:
+            return
+
+        mapped_offsets = cls._mapped_sim_particle_offsets
+        for entity in cls._shadow_deformable_entities:
+            if mapped_offsets is not None and entity.sim_particle_offset not in mapped_offsets:
+                warned = cls._shadow_deformable_sync_skip_warned
+                if entity.root_path not in warned:
+                    warned.add(entity.root_path)
+                    logger.warning(
+                        "Skipping particle sync for deformable '%s': no SceneData geometry "
+                        "mapping resolved for sim_offset=%d; render slots stay at rest pose.",
+                        entity.root_path,
+                        entity.sim_particle_offset,
+                    )
+                continue
+
+            if (
+                entity.volume_vis_remap is None
+                and entity.vis_particle_count != entity.sim_particle_count
+                and entity.vis_particle_count > 0
+            ):
+                warned = cls._shadow_deformable_sync_skip_warned
+                if entity.root_path not in warned:
+                    warned.add(entity.root_path)
+                    logger.warning(
+                        "Skipping particle sync for deformable '%s': vis_count=%d != sim_count=%d "
+                        "and no volume remapping table is available; render slots stay at rest pose.",
+                        entity.root_path,
+                        entity.vis_particle_count,
+                        entity.sim_particle_count,
+                    )
+
+        cls._ensure_shadow_deformable_batch_sync()
+
+        for (
+            entity_ids,
+            sim_offsets,
+            render_offsets,
+            vis_counts,
+            vis_prefix,
+            remap,
+        ) in cls._shadow_deformable_remap_batches or []:
+            launch_batch_volume_vis_remap(
+                cls._sim_particle_q,
+                cls._state_0.particle_q,
+                entity_ids,
+                sim_offsets,
+                render_offsets,
+                vis_counts,
+                vis_prefix,
+                remap.tet_vertex_indices,
+                remap.bary_weights,
+            )
+
+        copy_batch = cls._shadow_deformable_copy_batch
+        if copy_batch is not None:
+            entity_ids, src_offsets, dst_offsets, counts, count_prefix = copy_batch
+            launch_batch_particle_slice_copy(
+                cls._sim_particle_q,
+                cls._state_0.particle_q,
+                entity_ids,
+                src_offsets,
+                dst_offsets,
+                counts,
+                count_prefix,
+            )
 
     @staticmethod
     def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:
@@ -2400,7 +2851,10 @@ class NewtonManager(PhysicsManager):
         :meth:`_is_all_graphable` is ``True``, captured) region right after the
         final solver substep of the decimation loop and before
         :meth:`_update_sensors`, so the launches it issues are recorded into
-        every captured CUDA graph and replayed on each tick. Callbacks must be
+        every captured CUDA graph and replayed on each tick. The hook fires
+        exactly once per :meth:`step` call, reflecting the state after all
+        decimation iterations (and their solver substeps) have completed -- not
+        once per substep and not once per decimation iteration. Callbacks must be
         graph-safe (fixed shapes, no host branching on device data) and must be
         registered before capture. Articulations with non-identity ordering
         register their backend-to-user state republish here; all registered

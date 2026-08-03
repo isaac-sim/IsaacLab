@@ -245,11 +245,14 @@ override is given:
 
 .. code-block:: python
 
+    from isaaclab.physics import PhysxAutoCfg
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
     class PhysicsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
+        isaacsim_physx: PhysxCfg = PhysxCfg()
+        physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+        default: PhysxAutoCfg = physx
         newton_mjwarp: NewtonCfg = NewtonCfg()
 
     @configclass
@@ -260,6 +263,12 @@ override is given:
 
     # Use Newton physics backend
     python train.py --task=Isaac-Reach-Franka env.physics=newton_mjwarp
+
+For tasks that expose automatic PhysX-family selection, ``physics=physx`` is
+resolved at launch time: Isaac Sim PhysX is used when a Kit renderer or Kit viewer
+is requested. For fully kit-less runs, OvPhysX is used when the task configures
+an OvPhysX alternative; otherwise selection falls back to Isaac Sim PhysX and
+requires Kit. Use ``physics=isaacsim_physx`` to force Isaac Sim PhysX.
 
 The ``default`` field can be set to ``None`` to make an optional feature that is
 disabled unless explicitly selected:
@@ -295,15 +304,24 @@ Physics backend selection uses the same preset system. A task can define a
 
 .. code-block:: python
 
-    from isaaclab.utils.configclass import configclass
     from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+    from isaaclab_ovphysx.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
+
+    from isaaclab.physics import PhysxAutoCfg
+    from isaaclab.utils.configclass import configclass
+
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
     class CartpolePhysicsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
-        physx: PhysxCfg = PhysxCfg()
+        isaacsim_physx: PhysxCfg = PhysxCfg()
+        ovphysx: OvPhysxCfg = OvPhysxCfg()
+        physx: PhysxAutoCfg = PhysxAutoCfg(
+            isaacsim_physx=isaacsim_physx,
+            ovphysx=ovphysx,
+        )
+        default = physx
         newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3),
             num_substeps=1,

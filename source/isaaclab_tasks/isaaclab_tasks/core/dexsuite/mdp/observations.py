@@ -228,15 +228,12 @@ class vision_camera(ManagerTermBase):
         return images
 
     def _rgb_norm(self, images: torch.Tensor) -> torch.Tensor:
-        images = images.float() / 255.0
-        mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
-        images -= mean_tensor
-        return images
+        return images.float() / 255.0 - 0.5
 
     def _depth_norm(self, images: torch.Tensor) -> torch.Tensor:
-        images = torch.tanh(images / 2) * 2
-        images -= torch.mean(images, dim=(1, 2), keepdim=True)
-        return images
+        # same [-0.5, 0.5) span as the RGB normalization: a wider depth range doubles the
+        # encoder's effective input scale and halves the stable learning-rate budget
+        return torch.tanh(images / 2) - 0.5
 
     def show_collage(self, images: torch.Tensor, save_path: str = "collage.png"):
         import matplotlib

@@ -23,9 +23,8 @@ def test_startup_writes_startup_bundle(tmp_path):
     whitelist = tmp_path / "whitelist.yaml"
     whitelist.write_text('python_imports:\n  - "*isaaclab_tasks*importer:_walk_packages"\n')
 
-    sh = ROOT / "isaaclab.sh"
     cmd = [
-        str(sh),
+        str(ROOT / "isaaclab.sh"),
         "-p",
         "scripts/benchmarks/startup.py",
         "--task",
@@ -46,7 +45,9 @@ def test_startup_writes_startup_bundle(tmp_path):
     ]
     res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=900)
     if res.returncode != 0:
-        pytest.fail(f"startup.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
+        pytest.fail(
+            f"startup benchmark rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}"
+        )
 
     files = list(tmp_path.glob("*.json"))
     schema_files = [path for path in files if path.name.endswith("_schema.json")]
@@ -54,6 +55,7 @@ def test_startup_writes_startup_bundle(tmp_path):
     assert len(schema_files) == len(omniperf_files) == 1
 
     data = json.loads(schema_files[0].read_text())
+    assert data["run"]["num_envs"] == 16
     assert set(data["phases"]) == _EXPECTED_PHASES
     assert data["config"]["whitelist"] == str(whitelist)
     assert data["phases"]["python_imports"]["top_functions"]

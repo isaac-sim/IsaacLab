@@ -18,10 +18,11 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import RewardTermCfg
+
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import RewardTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -271,9 +272,14 @@ class RewardManager(ManagerBase):
                 device=self.device,
             )
 
-        # reset all the reward terms
+        # reset all the reward terms; class terms may expose logging values as
+        # persistent tensor views (see :meth:`ManagerTermBase.reset`), which are
+        # merged into the manager's reset extras. Merging the same views again on
+        # subsequent resets is a no-op, so this stays capture-safe.
         for term_cfg in self._class_term_cfgs:
-            term_cfg.func.reset(env_mask=env_mask)
+            term_extras = term_cfg.func.reset(env_mask=env_mask)
+            if term_extras:
+                self._reset_extras.update(term_extras)
 
         return self._reset_extras
 

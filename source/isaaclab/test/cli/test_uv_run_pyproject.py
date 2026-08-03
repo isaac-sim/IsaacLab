@@ -55,22 +55,41 @@ def test_uv_run_exposes_centralized_feature_extras():
         "viser",
         "rerun",
         "ov",
-        "rtx",
+        "ovphysx",
+        "ovrtx",
         "mimic",
         "teleop",
         "rlinf",
+        "tetrahedralization",
         "all",
     }
     assert expected_extras <= set(optional_dependencies)
 
     # The Newton viewer GUI is part of the base install, so there is no ``newton`` extra.
     assert "newton" not in optional_dependencies
+    assert "rtx" not in optional_dependencies
 
     # Concrete third-party deps live in the extras (not subpackage self-references).
-    # OVPhysX and OVRTX are separate extras, selectable via ``ov[ovphysx]`` / ``ov[ovrtx]``.
+    # ``ov`` installs both Omniverse backends; ``ovphysx`` / ``ovrtx`` select one.
+    # Every Omniverse extra carries ``ovstage``, which both backends need.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
-    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["rtx"])
+    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
+    assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ovphysx"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovphysx"])
+    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ovrtx"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
+
+
+def test_tetrahedralization_is_explicit_and_excluded_from_all():
+    """TetWild and its visualization stack are installed only when requested."""
+    project = _root_pyproject()["project"]
+    optional = project["optional-dependencies"]
+
+    assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
+    assert optional["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
+    assert not any("tetrahedralization" in dep or dep.startswith("pytetwild") for dep in optional["all"])
 
 
 def test_version_single_source_matches_literal_pins():
@@ -86,6 +105,9 @@ def test_version_single_source_matches_literal_pins():
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
+    assert versions["ovphysx"] == "0.5.9"
+    assert "omniverseclient==2.72.3" in dependencies
+
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
 
@@ -95,14 +117,17 @@ def test_version_single_source_matches_literal_pins():
         value = versions[package]
         return f"{package}=={value}" if value[0].isdigit() else f"{package}{value}"
 
-    assert spec("ovphysx") in optional["ov"]
-    assert spec("ovrtx") in optional["rtx"]
+    assert spec("ovphysx") in optional["ovphysx"]
+    assert spec("ovrtx") in optional["ovrtx"]
+    assert spec("ovstage") in optional["ovphysx"]
+    assert spec("ovstage") in optional["ovrtx"]
 
     # CI installs OVRTX through a generic pip-package input (a bare ``pip install
     # ovrtx`` ignores this ceiling). Each such install must therefore be pinned:
     # either by carrying the literal range, or by referencing the ``resolve-ov-pins``
     # action output, which reads the pin from this same table. Never a bare ``ovrtx``.
     build_workflow = (_repo_root() / ".github/workflows/build.yaml").read_text(encoding="utf-8")
+    assert "ovphysx==0.4.13" not in build_workflow
     ovrtx_install_lines = [
         line.strip() for line in build_workflow.splitlines() if "extra-pip-packages:" in line and "ovrtx" in line
     ]
@@ -115,18 +140,38 @@ def test_version_single_source_matches_literal_pins():
     for package in ("torch", "torchvision", "torchaudio"):
         assert f"{package}=={versions[package]}" in overrides
 
-    # Newton git commit is pinned via a uv override; warp-lang is a core dependency.
+    # Newton is pinned to a git ref (branch/tag/commit) via a uv override; warp-lang is a
+    # core dependency whose table value may be an exact pin ("1.2.3" -> ``==``) or a range
+    # (">=1.2.3" -> mirrored verbatim).
     assert any(dep.endswith(f"newton.git@{versions['newton']}") for dep in overrides)
-    assert f"warp-lang=={versions['warp']}" in dependencies
+    warp_value = versions["warp"]
+    warp_spec = f"warp-lang=={warp_value}" if warp_value[0].isdigit() else f"warp-lang{warp_value}"
+    assert warp_spec in dependencies
 
 
-def test_uv_run_isaacsim_extra_is_conflict_forked():
-    """Isaac Sim is an opt-in uv workspace extra, forked away from clashing extras.
+def test_public_ov_packages_use_public_pypi_index():
+    """Public OV packages must not resolve from the NVIDIA package index."""
+    pyproject = _root_pyproject()
+    indexes = {index.get("name"): index for index in pyproject["tool"]["uv"]["index"]}
+    sources = pyproject["tool"]["uv"]["sources"]
+
+    assert indexes["pypi-public"] == {
+        "name": "pypi-public",
+        "url": "https://pypi.org/simple",
+        "explicit": True,
+    }
+    for package in ("omniverseclient", "ovphysx", "ovstage"):
+        assert sources[package] == {"index": "pypi-public"}
+
+
+def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
+    """Isaac Sim is an opt-in uv workspace extra with explicit conflict handling.
 
     PhysX/Isaac Sim is never a base dependency, but it must be a real
     ``optional-dependencies`` extra so ``uv run --extra isaacsim`` resolves. Its
-    exact pins clash with several other extras, so it is declared in
-    ``[tool.uv].conflicts`` (forked resolution) rather than co-resolved with them.
+    exact pins clash with several other extras, which are declared in
+    ``[tool.uv].conflicts``. Viser is co-resolved through a compatible WebSockets
+    override so Isaac Sim demos can request both extras in one command.
     """
     pyproject = _root_pyproject()
     project = pyproject["project"]
@@ -140,10 +185,13 @@ def test_uv_run_isaacsim_extra_is_conflict_forked():
     # The legacy wheel-only table is gone (isaacsim now lives in the extras).
     assert "wheel-extras" not in pyproject.get("tool", {}).get("isaaclab", {})
 
-    # isaacsim is forked away from every extra whose pins clash with it.
+    # isaacsim is forked away from extras whose pins cannot be safely overridden.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("teleop", "ov", "viser", "mimic", "all", "test"):
+    for extra in ("teleop", "ovphysx", "mimic", "all", "test"):
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
+
+    assert {"isaacsim", "viser"} not in conflict_groups
+    assert "websockets==13.1" in pyproject["tool"]["uv"]["override-dependencies"]
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():

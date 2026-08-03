@@ -16,6 +16,7 @@ from isaaclab_physx.physics import PhysxCfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
@@ -77,12 +78,13 @@ class ObjectCfg(PresetCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
     )
+    isaacsim_physx = physx
     default = newton_mjwarp
 
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    physx = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.2,
     )
     newton_mjwarp = NewtonCfg(
@@ -97,6 +99,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
     )
     ovphysx = OvPhysxCfg()
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 
 

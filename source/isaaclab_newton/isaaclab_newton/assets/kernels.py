@@ -3,7 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 import warp as wp
+
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+
+if TYPE_CHECKING:
+    import torch
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
 
@@ -510,7 +519,7 @@ Root-level write kernels (1D — used by RigidObject + Articulation).
 @wp.kernel
 def set_root_link_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     root_link_pose_w: wp.array(dtype=wp.transformf),
 ):
     """Write root link pose data to simulation buffers.
@@ -523,7 +532,8 @@ def set_root_link_pose_to_sim_index(
         root_link_pose_w: Output array where root link poses are written. Shape is (num_envs,).
     """
     i = wp.tid()
-    root_link_pose_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_link_pose_w[env_id] = data[i]
 
 
 @wp.kernel
@@ -550,7 +560,7 @@ def set_root_link_pose_to_sim_mask(
 def set_root_com_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     root_com_pose_w: wp.array(dtype=wp.transformf),
     root_link_pose_w: wp.array(dtype=wp.transformf),
 ):
@@ -569,11 +579,10 @@ def set_root_com_pose_to_sim_index(
             Shape is (num_envs,).
     """
     i = wp.tid()
-    root_com_pose_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_com_pose_w[env_id] = data[i]
     # Get the com pose in the link frame
-    root_link_pose_w[env_ids[i]] = get_com_pose_in_link_frame_func(
-        root_com_pose_w[env_ids[i]], body_com_pos_b[env_ids[i], 0]
-    )
+    root_link_pose_w[env_id] = get_com_pose_in_link_frame_func(root_com_pose_w[env_id], body_com_pos_b[env_id, 0])
 
 
 @wp.kernel
@@ -608,7 +617,7 @@ def set_root_com_pose_to_sim_mask(
 @wp.kernel
 def set_root_com_velocity_to_sim_index(
     data: wp.array(dtype=wp.spatial_vectorf),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     num_bodies: wp.int32,
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
@@ -627,10 +636,11 @@ def set_root_com_velocity_to_sim_index(
             (num_envs, num_bodies).
     """
     i = wp.tid()
-    root_com_velocity_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_com_velocity_w[env_id] = data[i]
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
-        body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        body_acc_w[env_id, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 @wp.kernel
@@ -667,7 +677,7 @@ def set_root_link_velocity_to_sim_index(
     data: wp.array(dtype=wp.spatial_vectorf),
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     link_pose_w: wp.array(dtype=wp.transformf),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     num_bodies: wp.int32,
     root_link_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
@@ -694,14 +704,15 @@ def set_root_link_velocity_to_sim_index(
             Shape is (num_envs, num_bodies).
     """
     i = wp.tid()
-    root_link_velocity_w[env_ids[i]] = data[i]
+    env_id = wp.int32(env_ids[i])
+    root_link_velocity_w[env_id] = data[i]
     # Get the link velocity in the com frame
-    root_com_velocity_w[env_ids[i]] = get_link_velocity_in_com_frame_func(
-        root_link_velocity_w[env_ids[i]], link_pose_w[env_ids[i]], body_com_pos_b[env_ids[i], 0]
+    root_com_velocity_w[env_id] = get_link_velocity_in_com_frame_func(
+        root_link_velocity_w[env_id], link_pose_w[env_id], body_com_pos_b[env_id, 0]
     )
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
-        body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        body_acc_w[env_id, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 @wp.kernel
@@ -747,6 +758,34 @@ def set_root_link_velocity_to_sim_mask(
             body_acc_w[i, j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
+_SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(set_root_link_pose_to_sim_index, ("env_ids",))
+_SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(set_root_com_pose_to_sim_index, ("env_ids",))
+_SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(set_root_com_velocity_to_sim_index, ("env_ids",))
+_SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER = IndexKernelDispatcher(
+    set_root_link_velocity_to_sim_index, ("env_ids",)
+)
+
+
+def set_root_link_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the root-link pose writer matching the environment selector dtype."""
+    return _SET_ROOT_LINK_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
+
+
+def set_root_com_pose_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the root-COM pose writer matching the environment selector dtype."""
+    return _SET_ROOT_COM_POSE_TO_SIM_INDEX_DISPATCHER.select(env_ids)
+
+
+def set_root_com_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the root-COM velocity writer matching the environment selector dtype."""
+    return _SET_ROOT_COM_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
+
+
+def set_root_link_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the root-link velocity writer matching the environment selector dtype."""
+    return _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
+
+
 """
 Body-level write kernels (2D — used by RigidObjectCollection).
 """
@@ -755,8 +794,8 @@ Body-level write kernels (2D — used by RigidObjectCollection).
 @wp.kernel
 def set_body_link_pose_to_sim(
     data: wp.array2d(dtype=wp.transformf),
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
     from_mask: bool,
     body_link_pose_w: wp.array2d(dtype=wp.transformf),
 ):
@@ -775,18 +814,20 @@ def set_body_link_pose_to_sim(
             Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    body_id = wp.int32(body_ids[j])
     if from_mask:
-        body_link_pose_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
+        body_link_pose_w[env_id, body_id] = data[env_id, body_id]
     else:
-        body_link_pose_w[env_ids[i], body_ids[j]] = data[i, j]
+        body_link_pose_w[env_id, body_id] = data[i, j]
 
 
 @wp.kernel
 def set_body_com_pose_to_sim(
     data: wp.array2d(dtype=wp.transformf),
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
     from_mask: bool,
     body_com_pose_w: wp.array2d(dtype=wp.transformf),
     body_link_pose_w: wp.array2d(dtype=wp.transformf),
@@ -811,21 +852,23 @@ def set_body_com_pose_to_sim(
             Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    body_id = wp.int32(body_ids[j])
     if from_mask:
-        body_com_pose_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
+        body_com_pose_w[env_id, body_id] = data[env_id, body_id]
     else:
-        body_com_pose_w[env_ids[i], body_ids[j]] = data[i, j]
+        body_com_pose_w[env_id, body_id] = data[i, j]
     # Get the link pose from com pose
-    body_link_pose_w[env_ids[i], body_ids[j]] = get_com_pose_in_link_frame_func(
-        body_com_pose_w[env_ids[i], body_ids[j]], body_com_pos_b[env_ids[i], body_ids[j]]
+    body_link_pose_w[env_id, body_id] = get_com_pose_in_link_frame_func(
+        body_com_pose_w[env_id, body_id], body_com_pos_b[env_id, body_id]
     )
 
 
 @wp.kernel
 def set_body_com_velocity_to_sim(
     data: wp.array2d(dtype=wp.spatial_vectorf),
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
     from_mask: bool,
     body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
@@ -848,12 +891,14 @@ def set_body_com_velocity_to_sim(
             Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    body_id = wp.int32(body_ids[j])
     if from_mask:
-        body_com_velocity_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
+        body_com_velocity_w[env_id, body_id] = data[env_id, body_id]
     else:
-        body_com_velocity_w[env_ids[i], body_ids[j]] = data[i, j]
+        body_com_velocity_w[env_id, body_id] = data[i, j]
     # Make the acceleration zero to prevent reporting old values
-    body_acc_w[env_ids[i], body_ids[j]] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    body_acc_w[env_id, body_id] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 @wp.kernel
@@ -861,8 +906,8 @@ def set_body_link_velocity_to_sim(
     data: wp.array2d(dtype=wp.spatial_vectorf),
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     body_link_pose_w: wp.array2d(dtype=wp.transformf),
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
     from_mask: bool,
     body_link_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
     body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
@@ -892,18 +937,52 @@ def set_body_link_velocity_to_sim(
             Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    body_id = wp.int32(body_ids[j])
     if from_mask:
-        body_link_velocity_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
+        body_link_velocity_w[env_id, body_id] = data[env_id, body_id]
     else:
-        body_link_velocity_w[env_ids[i], body_ids[j]] = data[i, j]
+        body_link_velocity_w[env_id, body_id] = data[i, j]
     # Get the link velocity in the com frame
-    body_com_velocity_w[env_ids[i], body_ids[j]] = get_link_velocity_in_com_frame_func(
-        body_link_velocity_w[env_ids[i], body_ids[j]],
-        body_link_pose_w[env_ids[i], body_ids[j]],
-        body_com_pos_b[env_ids[i], body_ids[j]],
+    body_com_velocity_w[env_id, body_id] = get_link_velocity_in_com_frame_func(
+        body_link_velocity_w[env_id, body_id],
+        body_link_pose_w[env_id, body_id],
+        body_com_pos_b[env_id, body_id],
     )
     # Make the acceleration zero to prevent reporting old values
-    body_acc_w[env_ids[i], body_ids[j]] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    body_acc_w[env_id, body_id] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+
+_SET_BODY_LINK_POSE_TO_SIM_DISPATCHER = IndexKernelDispatcher(set_body_link_pose_to_sim, ("env_ids", "body_ids"))
+_SET_BODY_COM_POSE_TO_SIM_DISPATCHER = IndexKernelDispatcher(set_body_com_pose_to_sim, ("env_ids", "body_ids"))
+_SET_BODY_COM_VELOCITY_TO_SIM_DISPATCHER = IndexKernelDispatcher(set_body_com_velocity_to_sim, ("env_ids", "body_ids"))
+_SET_BODY_LINK_VELOCITY_TO_SIM_DISPATCHER = IndexKernelDispatcher(
+    set_body_link_velocity_to_sim, ("env_ids", "body_ids")
+)
+
+
+def set_body_link_pose_to_sim_kernel(env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the body-link pose writer for the selector dtypes."""
+    return _SET_BODY_LINK_POSE_TO_SIM_DISPATCHER.select(env_ids, body_ids)
+
+
+def set_body_com_pose_to_sim_kernel(env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the body-COM pose writer for the selector dtypes."""
+    return _SET_BODY_COM_POSE_TO_SIM_DISPATCHER.select(env_ids, body_ids)
+
+
+def set_body_com_velocity_to_sim_kernel(
+    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the body-COM velocity writer for the selector dtypes."""
+    return _SET_BODY_COM_VELOCITY_TO_SIM_DISPATCHER.select(env_ids, body_ids)
+
+
+def set_body_link_velocity_to_sim_kernel(
+    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the body-link velocity writer for the selector dtypes."""
+    return _SET_BODY_LINK_VELOCITY_TO_SIM_DISPATCHER.select(env_ids, body_ids)
 
 
 """
@@ -914,8 +993,8 @@ Generic buffer-writing kernels (used by Articulation + RigidObject + RigidObject
 @wp.kernel
 def write_2d_data_to_buffer_with_indices(
     in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     out_data: wp.array2d(dtype=wp.float32),
 ):
     """Write 2D float data to a buffer at specified indices.
@@ -930,7 +1009,21 @@ def write_2d_data_to_buffer_with_indices(
         out_data: Output array where data is written. Shape is (num_envs, num_joints).
     """
     i, j = wp.tid()
-    out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    out_data[env_id, joint_id] = in_data[i, j]
+
+
+_WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
+    write_2d_data_to_buffer_with_indices, ("env_ids", "joint_ids")
+)
+
+
+def write_2d_data_to_buffer_with_indices_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the 2-D buffer writer matching the selector dtypes."""
+    return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel
@@ -956,57 +1049,187 @@ def write_2d_data_to_buffer_with_mask(
         out_data[i, j] = in_data[i, j]
 
 
-@wp.kernel
-def write_body_inertia_to_buffer_index(
-    in_data: wp.array3d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
-    out_data: wp.array3d(dtype=wp.float32),
+@wp.func
+def _update_body_inertial_properties_inverse(
+    env_id: int,
+    body_id: int,
+    body_mass: wp.array2d(dtype=wp.float32),
+    body_inertia: wp.array3d(dtype=wp.float32),
+    update_inv_mass: bool,
+    body_inv_mass: wp.array2d(dtype=wp.float32),
+    body_inv_inertia: wp.array2d(dtype=wp.mat33f),
 ):
-    """Write body inertia data to a buffer at specified indices.
+    """Update inverse inertial properties for one resolved backend body."""
+    mass = body_mass[env_id, body_id]
+    if mass > 0.0:
+        if update_inv_mass:
+            body_inv_mass[env_id, body_id] = 1.0 / mass
+        inertia = wp.mat33f(
+            body_inertia[env_id, body_id, 0],
+            body_inertia[env_id, body_id, 1],
+            body_inertia[env_id, body_id, 2],
+            body_inertia[env_id, body_id, 3],
+            body_inertia[env_id, body_id, 4],
+            body_inertia[env_id, body_id, 5],
+            body_inertia[env_id, body_id, 6],
+            body_inertia[env_id, body_id, 7],
+            body_inertia[env_id, body_id, 8],
+        )
+        body_inv_inertia[env_id, body_id] = wp.inverse(inertia)
+    else:
+        if update_inv_mass:
+            body_inv_mass[env_id, body_id] = 0.0
+        body_inv_inertia[env_id, body_id] = wp.mat33f(0.0)
 
-    This kernel copies 3x3 inertia tensor data (stored as 9 floats) from an input array
-    to an output buffer at the specified environment and body indices.
+
+@wp.kernel
+def write_body_mass_and_inverse_index(
+    masses: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
+    body_user_to_backend: wp.array(dtype=wp.int32),
+    has_body_ordering: bool,
+    body_inertia_backend: wp.array3d(dtype=wp.float32),
+    body_mass_user: wp.array2d(dtype=wp.float32),
+    body_mass_backend: wp.array2d(dtype=wp.float32),
+    body_inv_mass: wp.array2d(dtype=wp.float32),
+    body_inv_inertia: wp.array2d(dtype=wp.mat33f),
+):
+    """Write selected body masses and update Newton inverse inertial properties.
 
     Args:
-        in_data: Input array containing inertia data. Shape is (num_selected_envs, num_selected_bodies, 9).
-        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        body_ids: Input array of body indices to write to. Shape is (num_selected_bodies,).
-        out_data: Output array where inertia data is written. Shape is (num_envs, num_bodies, 9).
+        masses: Selected body masses. Shape is (num_selected_envs, num_selected_bodies).
+        env_ids: Selected environment indices. Shape is (num_selected_envs,).
+        body_ids: Selected public body indices. Shape is (num_selected_bodies,).
+        body_user_to_backend: Public-to-backend body index map. Shape is (num_bodies,).
+        has_body_ordering: Whether to apply the public-to-backend body index map.
+        body_inertia_backend: Backend-order body inertias. Shape is (num_envs, num_bodies, 9).
+        body_mass_user: Public-order body masses. Shape is (num_envs, num_bodies).
+        body_mass_backend: Backend-order body masses. Shape is (num_envs, num_bodies).
+        body_inv_mass: Backend-order inverse body masses. Shape is (num_envs, num_bodies).
+        body_inv_inertia: Backend-order inverse body inertias. Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
-    for k in range(9):
-        out_data[env_ids[i], body_ids[j], k] = in_data[i, j, k]
+    env_id = wp.int32(env_ids[i])
+    user_body_id = wp.int32(body_ids[j])
+    backend_body_id = user_body_id
+    if has_body_ordering:
+        backend_body_id = body_user_to_backend[user_body_id]
+    mass = masses[i, j]
+    body_mass_user[env_id, user_body_id] = mass
+    if has_body_ordering:
+        body_mass_backend[env_id, backend_body_id] = mass
+    _update_body_inertial_properties_inverse(
+        env_id, backend_body_id, body_mass_backend, body_inertia_backend, True, body_inv_mass, body_inv_inertia
+    )
 
 
 @wp.kernel
-def write_body_inertia_to_buffer_mask(
-    in_data: wp.array3d(dtype=wp.float32),
+def write_body_mass_and_inverse_mask(
+    masses: wp.array2d(dtype=wp.float32),
     env_mask: wp.array(dtype=wp.bool),
     body_mask: wp.array(dtype=wp.bool),
-    out_data: wp.array3d(dtype=wp.float32),
+    body_user_to_backend: wp.array(dtype=wp.int32),
+    has_body_ordering: bool,
+    body_inertia_backend: wp.array3d(dtype=wp.float32),
+    body_mass_user: wp.array2d(dtype=wp.float32),
+    body_mass_backend: wp.array2d(dtype=wp.float32),
+    body_inv_mass: wp.array2d(dtype=wp.float32),
+    body_inv_inertia: wp.array2d(dtype=wp.mat33f),
 ):
-    """Write body inertia data to a buffer at specified indices.
-
-    This kernel copies 3x3 inertia tensor data (stored as 9 floats) from an input array
-    to an output buffer at the specified environment and body indices.
+    """Write masked body masses and update Newton inverse inertial properties.
 
     Args:
-        in_data: Input array containing inertia data. Shape is (num_selected_envs, num_selected_bodies, 9).
-        env_mask: Input array of environment mask. Shape is (num_selected_envs,).
-        body_mask: Input array of body mask. Shape is (num_selected_bodies,).
-        out_data: Output array where inertia data is written. Shape is (num_envs, num_bodies, 9).
+        masses: Full public-order body masses. Shape is (num_envs, num_bodies).
+        env_mask: Selected environment mask. Shape is (num_envs,).
+        body_mask: Selected public body mask. Shape is (num_bodies,).
+        body_user_to_backend: Public-to-backend body index map. Shape is (num_bodies,).
+        has_body_ordering: Whether to apply the public-to-backend body index map.
+        body_inertia_backend: Backend-order body inertias. Shape is (num_envs, num_bodies, 9).
+        body_mass_user: Public-order body masses. Shape is (num_envs, num_bodies).
+        body_mass_backend: Backend-order body masses. Shape is (num_envs, num_bodies).
+        body_inv_mass: Backend-order inverse body masses. Shape is (num_envs, num_bodies).
+        body_inv_inertia: Backend-order inverse body inertias. Shape is (num_envs, num_bodies).
     """
+    env_id, user_body_id = wp.tid()
+    if not env_mask[env_id] or not body_mask[user_body_id]:
+        return
+    backend_body_id = user_body_id
+    if has_body_ordering:
+        backend_body_id = body_user_to_backend[user_body_id]
+    mass = masses[env_id, user_body_id]
+    body_mass_user[env_id, user_body_id] = mass
+    if has_body_ordering:
+        body_mass_backend[env_id, backend_body_id] = mass
+    _update_body_inertial_properties_inverse(
+        env_id, backend_body_id, body_mass_backend, body_inertia_backend, True, body_inv_mass, body_inv_inertia
+    )
+
+
+@wp.kernel
+def write_body_inertia_and_inverse_index(
+    inertias: wp.array3d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
+    body_user_to_backend: wp.array(dtype=wp.int32),
+    has_body_ordering: bool,
+    body_mass_backend: wp.array2d(dtype=wp.float32),
+    body_inertia_user: wp.array3d(dtype=wp.float32),
+    body_inertia_backend: wp.array3d(dtype=wp.float32),
+    body_inv_mass: wp.array2d(dtype=wp.float32),
+    body_inv_inertia: wp.array2d(dtype=wp.mat33f),
+):
+    """Write selected body inertias and update Newton inverse inertia."""
     i, j = wp.tid()
-    if env_mask[i] and body_mask[j]:
-        for k in range(9):
-            out_data[i, j, k] = in_data[i, j, k]
+    env_id = wp.int32(env_ids[i])
+    user_body_id = wp.int32(body_ids[j])
+    backend_body_id = user_body_id
+    if has_body_ordering:
+        backend_body_id = body_user_to_backend[user_body_id]
+    for k in range(9):
+        value = inertias[i, j, k]
+        body_inertia_user[env_id, user_body_id, k] = value
+        if has_body_ordering:
+            body_inertia_backend[env_id, backend_body_id, k] = value
+    _update_body_inertial_properties_inverse(
+        env_id, backend_body_id, body_mass_backend, body_inertia_backend, False, body_inv_mass, body_inv_inertia
+    )
+
+
+@wp.kernel
+def write_body_inertia_and_inverse_mask(
+    inertias: wp.array3d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+    body_user_to_backend: wp.array(dtype=wp.int32),
+    has_body_ordering: bool,
+    body_mass_backend: wp.array2d(dtype=wp.float32),
+    body_inertia_user: wp.array3d(dtype=wp.float32),
+    body_inertia_backend: wp.array3d(dtype=wp.float32),
+    body_inv_mass: wp.array2d(dtype=wp.float32),
+    body_inv_inertia: wp.array2d(dtype=wp.mat33f),
+):
+    """Write masked body inertias and update Newton inverse inertia."""
+    env_id, user_body_id = wp.tid()
+    if not env_mask[env_id] or not body_mask[user_body_id]:
+        return
+    backend_body_id = user_body_id
+    if has_body_ordering:
+        backend_body_id = body_user_to_backend[user_body_id]
+    for k in range(9):
+        value = inertias[env_id, user_body_id, k]
+        body_inertia_user[env_id, user_body_id, k] = value
+        if has_body_ordering:
+            body_inertia_backend[env_id, backend_body_id, k] = value
+    _update_body_inertial_properties_inverse(
+        env_id, backend_body_id, body_mass_backend, body_inertia_backend, False, body_inv_mass, body_inv_inertia
+    )
 
 
 @wp.kernel
 def write_single_body_inertia_to_buffer(
     in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     from_mask: bool,
     out_data: wp.array2d(dtype=wp.float32),
 ):
@@ -1023,19 +1246,20 @@ def write_single_body_inertia_to_buffer(
         out_data: Output array where inertia data is written. Shape is (num_envs, 9).
     """
     i = wp.tid()
+    env_id = wp.int32(env_ids[i])
     if from_mask:
         for k in range(9):
-            out_data[env_ids[i], k] = in_data[env_ids[i], k]
+            out_data[env_id, k] = in_data[env_id, k]
     else:
         for k in range(9):
-            out_data[env_ids[i], k] = in_data[i, k]
+            out_data[env_id, k] = in_data[i, k]
 
 
 @wp.kernel
 def write_body_com_position_to_buffer_index(
     in_data: wp.array2d(dtype=wp.vec3f),
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
     out_data: wp.array2d(dtype=wp.vec3f),
 ):
     """Write body COM position data to a buffer at specified indices.
@@ -1050,7 +1274,47 @@ def write_body_com_position_to_buffer_index(
         out_data: Output array where body COM positions are written. Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
-    out_data[env_ids[i], body_ids[j]] = in_data[i, j]
+    out_data[wp.int32(env_ids[i]), wp.int32(body_ids[j])] = in_data[i, j]
+
+
+_WRITE_BODY_MASS_AND_INVERSE_INDEX_DISPATCHER = IndexKernelDispatcher(
+    write_body_mass_and_inverse_index, ("env_ids", "body_ids")
+)
+_WRITE_BODY_INERTIA_AND_INVERSE_INDEX_DISPATCHER = IndexKernelDispatcher(
+    write_body_inertia_and_inverse_index, ("env_ids", "body_ids")
+)
+_WRITE_SINGLE_BODY_INERTIA_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
+    write_single_body_inertia_to_buffer, ("env_ids",)
+)
+_WRITE_BODY_COM_POSITION_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
+    write_body_com_position_to_buffer_index, ("env_ids", "body_ids")
+)
+
+
+def write_body_mass_and_inverse_index_kernel(
+    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the fused body-mass writer for the selector dtypes."""
+    return _WRITE_BODY_MASS_AND_INVERSE_INDEX_DISPATCHER.select(env_ids, body_ids)
+
+
+def write_body_inertia_and_inverse_index_kernel(
+    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the fused body-inertia writer for the selector dtypes."""
+    return _WRITE_BODY_INERTIA_AND_INVERSE_INDEX_DISPATCHER.select(env_ids, body_ids)
+
+
+def write_single_body_inertia_to_buffer_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the single-body inertia writer for the selector dtype."""
+    return _WRITE_SINGLE_BODY_INERTIA_TO_BUFFER_DISPATCHER.select(env_ids)
+
+
+def write_body_com_position_to_buffer_index_kernel(
+    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the COM-position writer for the selector dtypes."""
+    return _WRITE_BODY_COM_POSITION_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, body_ids)
 
 
 @wp.kernel

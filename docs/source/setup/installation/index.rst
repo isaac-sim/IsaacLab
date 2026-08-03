@@ -117,8 +117,7 @@ unsupported host configurations.
          libxi-dev libxinerama-dev libxrandr-dev
 
    SkillGen, XR teleoperation, livestream, Hub Workstation Cache, Cosmos Transfer1, and RLinf are
-   not currently supported or validated on DGX Spark. Newton VBD deformables are limited because
-   no pre-built ``pytetwild`` wheel is available for aarch64. SkillGen depends on native CUDA/C++
+   not currently supported or validated on DGX Spark. SkillGen depends on native CUDA/C++
    extensions whose toolchain has not been validated on DGX Spark, while XR remains limited by
    unvalidated encoding performance.
 
@@ -147,7 +146,7 @@ Run the workflow you need from the repository root:
       --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
    # Add OVRTX and OVPhysX only when needed
-   uv run --extra ov --extra rtx isaaclab train --rl_library rsl_rl \
+   uv run --extra ovphysx --extra ovrtx isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
    # Full Isaac Sim support

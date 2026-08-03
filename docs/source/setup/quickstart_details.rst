@@ -38,11 +38,17 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
            --num_envs=4096 \
            physics=newton_mjwarp --visualizer newton
 
-         # With Isaac Sim: PhysX
+         # Automatic PhysX-family selection: OvPhysX unless Kit is requested
          uv run isaaclab train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
            --num_envs=4096 \
            physics=physx
+
+         # Force Isaac Sim PhysX with the Kit visualizer
+         uv run isaaclab train --rl_library rsl_rl \
+           --task=Isaac-Cartpole-Direct \
+           --num_envs=4096 \
+           physics=isaacsim_physx --visualizer kit
 
          # Camera task: physics + renderer + domain preset
          uv run isaaclab train --rl_library rsl_rl \
@@ -74,7 +80,8 @@ Available Presets
 
 **Physics backends** (``physics=NAME``):
 
-- ``physx`` — PhysX via Isaac Sim (default when no selector is given)
+- ``physx`` — automatic PhysX-family selection: Isaac Sim PhysX when Kit is required, otherwise OvPhysX when the task supports it; tasks without OvPhysX support fall back to Isaac Sim PhysX
+- ``isaacsim_physx`` — force PhysX via Isaac Sim / Kit
 - ``newton_mjwarp`` — Newton with the MuJoCo-Warp solver
 - ``newton_kamino`` — Newton with the Kamino solver (beta, limited tasks)
 - ``ovphysx`` — OV PhysX (kit-less; incompatible with ``--visualizer kit``)
@@ -107,16 +114,17 @@ Then use ``renderer=rtx`` to select the RTX implementation required by the runti
 
    * - Runtime
      - Resolved renderer
-   * - Requires Isaac Sim/Kit, such as ``physics=physx``, ``--visualizer kit``,
+   * - Requires Isaac Sim/Kit, such as ``physics=isaacsim_physx``, ``--visualizer kit``,
        livestreaming, or another Kit camera
      - :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
-   * - Fully kit-less, such as ``physics=newton_mjwarp`` or ``physics=ovphysx``
-       without a Kit visualizer or camera
+   * - Fully kit-less, such as ``physics=physx`` on a task that supports OvPhysX,
+       ``physics=newton_mjwarp``, or ``physics=ovphysx`` without a Kit visualizer or camera
      - :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`
 
 For example, ``physics=newton_mjwarp renderer=rtx`` selects OVRTX for a
-fully kit-less run, but selects Isaac Sim RTX when combined with
-``--visualizer kit``.
+fully kit-less run, while ``physics=physx renderer=rtx`` selects OvPhysX
++ OVRTX when the task supports OvPhysX. Otherwise, automatic PhysX falls back
+to Isaac Sim PhysX and ``rtx`` resolves to Isaac RTX.
 
 A camera configured directly with ``renderer_cfg=IsaacRtxRendererCfg()`` does
 not participate in automatic selection and is not overridden by
@@ -132,9 +140,10 @@ Common combinations:
    physics=newton_mjwarp renderer=newton_renderer presets=rgb
    physics=newton_mjwarp renderer=newton_renderer presets=depth
    physics=newton_mjwarp renderer=rtx presets=rgb
-   physics=physx renderer=isaacsim_rtx presets=rgb
-   physics=physx renderer=isaacsim_rtx presets=depth
-   physics=physx renderer=isaacsim_rtx presets=albedo
+   physics=physx renderer=rtx presets=rgb
+   physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb
+   physics=isaacsim_physx renderer=isaacsim_rtx presets=depth
+   physics=isaacsim_physx renderer=isaacsim_rtx presets=albedo
    physics=newton_mjwarp renderer=ovrtx presets=rgb
    physics=newton_mjwarp renderer=ovrtx presets=simple_shading_diffuse_mdl
 

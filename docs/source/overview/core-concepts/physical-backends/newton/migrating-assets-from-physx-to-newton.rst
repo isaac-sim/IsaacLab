@@ -61,8 +61,8 @@ solver-specific parameters. Put common
 USD Physics properties in the solver-common classes such as ``RigidBodyBaseCfg`` and
 ``JointDriveBaseCfg``. Put backend-only properties in the matching subclasses:
 
-* Use ``MujocoRigidBodyPropertiesCfg`` and ``MujocoJointDrivePropertiesCfg`` for properties
-  implemented specifically by Newton's MJWarp solver.
+* Use ``MujocoRigidBodyPropertiesCfg``, ``MujocoJointDrivePropertiesCfg``, and
+  ``MujocoCollisionCfg`` for properties implemented specifically by Newton's MJWarp solver.
 * Use the ``Newton*PropertiesCfg`` classes for supported Newton collision, material, articulation,
   and other Newton-native properties.
 * Keep PhysX-only damping, stabilization, solver-iteration, friction-patch, and compliant-contact
@@ -128,28 +128,16 @@ not authored. ``impratio`` and ``cone`` are global MJWarp solver options; ``impr
 
 .. code-block:: python
 
-    from typing import ClassVar, Literal
-
     import isaaclab.sim as sim_utils
-    from isaaclab.utils import configclass
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-
-
-    @configclass
-    class MujocoCondimCfg(sim_utils.CollisionFragment):
-        """Task-local fragment that writes the MuJoCo contact dimension."""
-
-        _usd_namespace: ClassVar[str | None] = "mjc"
-        _usd_applied_schema: ClassVar[str | None] = None
-
-        condim: Literal[1, 3, 4, 6] | None = None
+    from isaaclab_newton.sim.schemas import MujocoCollisionCfg
 
 
     object_spawn_cfg = sim_utils.UsdFileCfg(
         usd_path="path/to/object.usd",
         collision_props=[
             sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
-            MujocoCondimCfg(condim=4),
+            MujocoCollisionCfg(condim=4),
         ],
     )
 
@@ -159,6 +147,36 @@ not authored. ``impratio`` and ``cone`` are global MJWarp solver options; ``impr
             impratio=10.0,
         ),
     )
+
+``MujocoCollisionCfg`` exposes the per-collider custom attributes registered by MJWarp:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 82
+
+   * - Field
+     - Use
+   * - ``condim``
+     - Select the friction-cone dimensions: ``1``, ``3``, ``4``, or ``6``.
+   * - ``priority``
+     - Select which collider's contact parameters take precedence when priorities differ.
+   * - ``solmix``
+     - Weight contact-parameter mixing when priorities are equal.
+   * - ``solref``
+     - Override the two contact reference parameters. Tune only with the corresponding MuJoCo
+       solver-parameter model in mind.
+   * - ``solimp``
+     - Override the five contact impedance parameters. Tune only after collision geometry,
+       margins, material properties, and contact counts are correct.
+   * - ``group``
+     - Set the MuJoCo geometry group used for visualization and inertia-inference selection. This
+       is not an Isaac Lab collision-filter group.
+
+Use :attr:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg.contact_margin` and
+:attr:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg.contact_gap` for contact spacing, and use
+:attr:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg.max_hull_vertices` for the convex-hull
+vertex limit instead of duplicating their raw ``mjc:*`` importer attributes. Author explicit mass
+and inertia rather than relying on ``mjc:shellinertia`` during migration.
 
 Assign ``object_spawn_cfg`` to the asset's ``spawn`` field and use ``newton_mjwarp_cfg`` as the
 ``newton_mjwarp`` physics preset. A file spawner applies ``collision_props`` recursively, so do not
@@ -182,8 +200,8 @@ task logic, observations, rewards, and terminations, but MJWarp does not parse i
 model and does not enforce it during stepping.
 
 ``velocity_limit_sim`` requests a solver-side hard clamp and has no direct hardware counterpart.
-Newton's importer can store the authored value in ``Model.joint_velocity_limit``, but the
-MJWarp solver drops that field instead of consuming it. Consequently, neither
+Isaac Lab always writes the value to Newton's ``Model.joint_velocity_limit``. The MJWarp solver
+drops that field instead of consuming it, while the Kamino solver honors it. Consequently, neither
 ``velocity_limit`` nor ``velocity_limit_sim`` prevents a joint from exceeding the requested speed
 under ``physics=newton_mjwarp``.
 
@@ -238,7 +256,7 @@ the grasped rigid body itself exposes an armature parameter.
 
 Apply that remedy according to the representation:
 
-* For a robot or an object represented as an articulation, set joint or free-joint armature to the
+* For a robot or an object represented as an articulation, set joint armature to the
   smallest value supported by reflected rotor inertia, identified response, or controlled impulse
   tests.
 * A plain :class:`~isaaclab.assets.RigidObject` has no actuator armature. Give it correct body mass
@@ -289,36 +307,76 @@ per-environment ``njmax`` or ``nconmax`` budgets. Start from the nearest profile
 :ref:`mjwarp-solver-tuning`, then validate the task's worst-case randomized state.
 
 For a new articulation with light contact, the common starting point is
-``integrator="implicitfast"``, ``njmax=50``, ``nconmax=20``, a pyramidal cone,
-``impratio=1``, and one substep. Maintained locomotion tasks commonly need constraint/contact
-budgets near ``100``/``40``. Dexterous hand tasks commonly start near ``200``/``70`` with two
-substeps, an elliptic cone, and ``impratio=10``. Dense manipulation can require ``300``/``200``.
-These are capacity and formulation profiles, not fidelity guarantees.
+``MJWarpSolverCfg(integrator="implicitfast", njmax=50, nconmax=20, cone="pyramidal", impratio=1)``
+with ``NewtonCfg.num_substeps=1``. These values override the :class:`~isaaclab_newton.physics.MJWarpSolverCfg`
+defaults of ``integrator="euler"``, ``njmax=300``, and ``nconmax=None``. Maintained locomotion tasks
+commonly need constraint/contact budgets near ``100``/``40``. Dexterous hand tasks commonly start
+near ``200``/``70`` with ``NewtonCfg.num_substeps=2``, an elliptic cone, and ``impratio=10``. Dense
+manipulation can require ``300``/``200``. These are capacity and formulation profiles, not fidelity
+guarantees.
 
 Keep ``iterations=100``, ``ls_iterations=50``, and ``tolerance=1e-6`` for the first explicit
-baseline. Enable ``debug_mode`` and change convergence work only after capacity is sufficient and
-the iteration report or a recorded task metric identifies a convergence problem. Some dense
+baseline. Enable ``NewtonCfg.debug_mode`` and change convergence work only after capacity is sufficient
+and the iteration report or a recorded task metric identifies a convergence problem. Some dense
 manipulation tasks reduce ``ls_iterations`` to ``15`` for measured performance; do not copy that
 optimization before validating the larger default.
 
 Use MuJoCo contacts by default. Switch to ``use_mujoco_contacts=False`` only when the task needs
 Newton's collision pipeline, such as the rough-terrain, SDF or hydroelastic, and some
-dense-manipulation patterns. Only then configure ``collision_cfg``, shape margins,
-``max_triangle_pairs``, or ``rigid_contact_max``. See :doc:`mjwarp-solver` for the complete PhysX
-mapping table, starting profiles, parameter semantics, and tuning sequence.
+dense-manipulation patterns. Only then assign a
+:class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg` to ``NewtonCfg.collision_cfg`` and set
+``max_triangle_pairs`` or ``rigid_contact_max`` on that pipeline config; tune per-shape margins on
+the corresponding shape config. See :doc:`mjwarp-solver` for the complete PhysX mapping table,
+starting profiles, parameter semantics, and tuning sequence.
 
 Run task-level smoke tests to compare behavior between PhysX and MJWarp:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   uv run python scripts/environments/zero_agent.py \
-       --task TASK --num_envs 4 --headless physics=physx
-   uv run python scripts/environments/zero_agent.py \
-       --task TASK --num_envs 4 --headless physics=newton_mjwarp
-   uv run python scripts/environments/random_agent.py \
-       --task TASK --num_envs 4 --headless physics=physx
-   uv run python scripts/environments/random_agent.py \
-       --task TASK --num_envs 4 --headless physics=newton_mjwarp
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         uv run --extra isaacsim python scripts/environments/zero_agent.py \
+             --task TASK --num_envs 4 --viz none physics=physx
+         uv run --extra isaacsim python scripts/environments/zero_agent.py \
+             --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+         uv run --extra isaacsim python scripts/environments/random_agent.py \
+             --task TASK --num_envs 4 --viz none physics=physx
+         uv run --extra isaacsim python scripts/environments/random_agent.py \
+             --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         uv run --extra isaacsim python scripts\environments\zero_agent.py ^
+             --task TASK --num_envs 4 --viz none physics=physx
+         uv run --extra isaacsim python scripts\environments\zero_agent.py ^
+             --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+         uv run --extra isaacsim python scripts\environments\random_agent.py ^
+             --task TASK --num_envs 4 --viz none physics=physx
+         uv run --extra isaacsim python scripts\environments\random_agent.py ^
+             --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+
+   .. tab-item:: DGX / multi-GPU
+
+      .. code-block:: bash
+
+         uv run --extra isaacsim python scripts/environments/zero_agent.py \
+             --task TASK --num_envs 4 --device cuda:N --viz none physics=physx
+         uv run --extra isaacsim python scripts/environments/zero_agent.py \
+             --task TASK --num_envs 4 --device cuda:N --viz none physics=newton_mjwarp
+         uv run --extra isaacsim python scripts/environments/random_agent.py \
+             --task TASK --num_envs 4 --device cuda:N --viz none physics=physx
+         uv run --extra isaacsim python scripts/environments/random_agent.py \
+             --task TASK --num_envs 4 --device cuda:N --viz none physics=newton_mjwarp
+
+      Replace ``N`` with the GPU index assigned to the process. MJWarp's ``njmax`` and ``nconmax``
+      capacities are allocated per environment, so device-memory use grows with ``num_envs``.
 
 Let each continuous agent run through multiple resets, then interrupt it. Check for non-finite
 state, first-step impulses, unexpected joint saturation, excessive angular velocity, contact loss,
@@ -352,7 +410,7 @@ behavior, or insufficient solver capacity that PhysX tolerated.
 #. For failures that appear only with dense scenes or many environments, compare the busiest
    environment against the per-environment contact and constraint capacities.
 
-Enable ``debug_mode`` to inspect iteration-cap usage. Increase capacity when contacts or
+Enable ``NewtonCfg.debug_mode`` to inspect iteration-cap usage. Increase capacity when contacts or
 constraints overflow; sweep iterations, line-search work, or tolerance only after the asset,
 reset, controller, contact model, and capacities are valid. Keep the smallest fixed-state
 reproduction and record the first non-finite quantity so later changes can be compared one at a

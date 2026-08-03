@@ -103,6 +103,7 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._particle_visual_offsets = []
     renderer._particle_visual_counts = []
     renderer._particle_workaround_applied = False
+    renderer._use_ovstage = False
     return renderer, renderer._renderer
 
 

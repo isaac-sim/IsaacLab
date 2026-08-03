@@ -1,6 +1,120 @@
 Changelog
 ---------
 
+0.12.0 (2026-08-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added LEAPP policy export support for RL-Games, skrl, and
+  Stable-Baselines3.
+* Added the ``leapp`` optional dependency group for uv-based export and
+  deployment workflows.
+
+
+0.11.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the checkpoint-free playback workflows :func:`~isaaclab_rl.zero_agent` and
+  :func:`~isaaclab_rl.random_agent`, their :class:`~isaaclab_rl.SimpleAgentRequest`
+  parameters, and the :func:`~isaaclab_rl.run_zero_agent_cli` and
+  :func:`~isaaclab_rl.run_random_agent_cli` command-line dispatchers.
+* Added a ``--max_steps`` argument to the zero and random agents, bounding the number of
+  environment steps to run. The agents run unbounded when it is omitted.
+
+Changed
+^^^^^^^
+
+* Changed ``scripts/environments/zero_agent.py`` and ``scripts/environments/random_agent.py``
+  to thin delegates of the reusable entrypoints in :mod:`isaaclab_rl.entrypoints`. Their
+  command-line interface is unchanged.
+
+
+0.10.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed reusable reinforcement learning entrypoints to restore caller Torch and
+  SKRL backend settings after in-process training and playback.
+
+
+0.10.0 (2026-07-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.get_observations` to read the
+  environment-owned observation buffer instead of private environment methods. The
+  returned observations now match the latest reset/step returns, including observation
+  noise.
+
+
+0.9.0 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--frontend {torch,warp}`` to the shared reinforcement-learning
+  training and play CLIs (all supported RL libraries) for selecting the
+  environment runtime; default ``torch`` is unchanged. The ``rlinf``
+  integration constructs environments inside the external framework and is
+  not frontend-routable.
+
+
+0.8.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added reusable unified training and playback entrypoints under :mod:`isaaclab_rl`, including the
+  :class:`~isaaclab_rl.TrainingRequest` and :class:`~isaaclab_rl.PlaybackRequest` programmatic APIs
+  and the :func:`~isaaclab_rl.train`, :func:`~isaaclab_rl.play`, :func:`~isaaclab_rl.run_train_cli`,
+  and :func:`~isaaclab_rl.run_play_cli` functions.
+* Added a ``--train_env_cfg`` flag to the play entrypoints that plays the training environment
+  configuration as-is, skipping the play-mode overrides defined by the environment configuration's
+  ``play_mode`` method.
+* Added :func:`~isaaclab_rl.entrypoints.common.resolve_play_task_name` that redirects a retired
+  ``-Play`` task id to its training task id with a deprecation warning.
+* Added agent-aware task help to the unified RL-Games, RSL-RL, skrl, and
+  Stable-Baselines3 training and playback commands.
+
+Changed
+^^^^^^^
+
+* Changed RL Games population-based training launches to stop forwarding the deprecated
+  ``--headless`` and ``--enable_cameras`` arguments. Configure visualization through the
+  selected visualizer instead.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+* Removed the deprecated per-library scripts under ``scripts/reinforcement_learning/<library>/``
+  (``train.py``, ``play.py``, and ``cli_args.py``). Use the unified
+  ``scripts/reinforcement_learning/train.py`` and ``play.py`` executables with
+  ``--rl_library <library>``, or the programmatic :func:`~isaaclab_rl.train` and
+  :func:`~isaaclab_rl.play` APIs instead.
+* Removed the ``--use_last_checkpoint`` flag from the RL-Games ``play`` entrypoint.
+  Use ``--checkpoint latest`` to select the newest checkpoint instead.
+
+Fixed
+^^^^^
+
+* Fixed the ``--deterministic`` flag not configuring PyTorch deterministic operations in the RL-Games,
+  RSL-RL, Stable-Baselines3, and skrl backends of the unified ``train`` and ``play`` entrypoints.
+
+
 0.7.0 (2026-07-03)
 ~~~~~~~~~~~~~~~~~~
 

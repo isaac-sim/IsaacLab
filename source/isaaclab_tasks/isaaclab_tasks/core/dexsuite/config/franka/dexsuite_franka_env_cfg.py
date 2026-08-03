@@ -200,6 +200,10 @@ class FrankaEventCfg(dexsuite.EventCfg):
         to_target["pose_range"] = {"x": [-0.02, 0.02], "y": [-0.02, 0.02], "z": [0.08, 0.12]}
         # every link but the ground-mounted base (a base-link ground check is unsatisfiable)
         criteria["robot_table_clearance"].body_names = ["panda_link[1-7]", "panda_hand", ".*finger"]
+        # spread the reset bank over the grasp geometry, same bodies as fingers_to_object
+        diversity_feature = self.conditional_reset.params.get("diversity_feature")
+        if diversity_feature is not None:
+            diversity_feature.body_names = ".*finger"
         # keep the generic gain randomization off the fingers: the closing-speed term owns
         # their damping, and stacking the x2 scale on top cancels the grip force entirely.
         self.joint_stiffness_and_damping.params["asset_cfg"] = SceneEntityCfg("robot", joint_names="panda_joint.*")

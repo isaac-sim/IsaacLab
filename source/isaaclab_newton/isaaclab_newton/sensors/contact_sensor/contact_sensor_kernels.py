@@ -16,10 +16,12 @@ def copy_from_newton_kernel(
     num_sensors: int,
     newton_total_force: wp.array(dtype=wp.vec3f),  # (n_envs * n_sensors)
     newton_force_matrix: wp.array2d(dtype=wp.vec3f),  # (n_envs * n_sensors, n_filter_objects) or None
+    newton_position_matrix: wp.array2d(dtype=wp.vec3f),  # (n_envs * n_sensors, n_filter_objects) or None
     timestamp: wp.array(dtype=wp.float32),
     # outputs
     net_force_total: wp.array2d(dtype=wp.vec3f),  # (n_envs, n_sensors)
     force_matrix: wp.array3d(dtype=wp.vec3f),  # (n_envs, n_sensors, n_filter_objects) or None
+    contact_pos_w: wp.array3d(dtype=wp.vec3f),  # (n_envs, n_sensors, n_filter_objects) or None
 ):
     """Copy contact force data from Newton sensor into owned buffers.
 
@@ -47,6 +49,14 @@ def copy_from_newton_kernel(
     if force_matrix:
         force_matrix[env, sensor, f_idx] = newton_force_matrix[src_idx, f_idx]
 
+    # Copy per-filter-object contact positions. Newton reports zero for pairs without
+    # contacts; report NaN instead to match the PhysX backend's no-contact convention.
+    if contact_pos_w and newton_force_matrix:
+        if wp.length_sq(newton_force_matrix[src_idx, f_idx]) > 0.0:
+            contact_pos_w[env, sensor, f_idx] = newton_position_matrix[src_idx, f_idx]
+        else:
+            contact_pos_w[env, sensor, f_idx] = wp.vec3f(wp.nan)
+
 
 @wp.kernel
 def reset_contact_sensor_kernel(
@@ -58,6 +68,7 @@ def reset_contact_sensor_kernel(
     net_forces_w: wp.array2d(dtype=wp.vec3f),
     net_forces_w_history: wp.array3d(dtype=wp.vec3f),
     force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    contact_pos_w: wp.array3d(dtype=wp.vec3f),
     # outputs
     current_air_time: wp.array2d(dtype=wp.float32),
     last_air_time: wp.array2d(dtype=wp.float32),
@@ -86,6 +97,11 @@ def reset_contact_sensor_kernel(
     if force_matrix_w:
         for f in range(num_filter_objects):
             force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
+
+    # Reset contact positions to NaN (no contact)
+    if contact_pos_w:
+        for f in range(num_filter_objects):
+            contact_pos_w[env, sensor, f] = wp.vec3f(wp.nan)
 
     # Reset air/contact time tracking
     if current_air_time:

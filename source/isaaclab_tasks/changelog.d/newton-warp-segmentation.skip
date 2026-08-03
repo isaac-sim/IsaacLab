@@ -1,6 +1,0 @@
-Test-only: extended the rendering correctness tests to cover the Newton Warp renderer's
-semantic_segmentation, instance_segmentation_fast and instance_id_segmentation_fast camera
-data types.
-
-Also updated the Newton Warp supported-data-type sets in the dexsuite and shadow_hand camera
-env configs' validate_config checks to accept the three segmentation data types.

@@ -229,7 +229,7 @@ class IsaacTeleopDevice:
         self._session_lifecycle.stop(exc_type, exc_val, exc_tb)
         return False
 
-    def reset(self) -> None:
+    def reset(self, pause: bool = False) -> None:
         """Reset the device state.
 
         Resets the XR anchor synchronizer and schedules a
@@ -237,9 +237,16 @@ class IsaacTeleopDevice:
         for the next pipeline step so that all retargeters reinitialize
         their cross-step state.  Also clears any pending haptic force so a
         pulse in progress at reset time does not persist into the next episode.
+
+        Args:
+            pause: When ``True``, also pause a running session so teleop resumes
+                from a paused state -- the behavior for an *operator* reset
+                (e.g. keyboard ``R``). Defaults to ``False`` for a *host* reset
+                (e.g. environment auto-reset after task success), which keeps the
+                session running into the next episode.
         """
         self._anchor_manager.reset()
-        self._session_lifecycle.request_reset()
+        self._session_lifecycle.request_reset(pause=pause)
         self._session_lifecycle.reset_haptics()
 
     def request_start(self) -> None:
@@ -352,6 +359,20 @@ class IsaacTeleopDevice:
                 value per finger for a glove); an all-zero vector stops feedback.
         """
         self._session_lifecycle.push_haptic(endpoint, values)
+
+    def send_client_message(self, message: dict) -> None:
+        """Queue a JSON message for delivery to the connected XR client.
+
+        Delivery is deferred until the control channel is connected, so a
+        message queued before the headset connects still reaches the client.
+        This is a no-op unless a control channel is configured.
+
+        Args:
+            message: A JSON-serializable dict carrying a ``"type"``
+                discriminator the client recognizes, e.g.
+                ``{"type": "system_notice", "message": {...}}``.
+        """
+        self._session_lifecycle.send_client_message(message)
 
     # ------------------------------------------------------------------
     # Debug visualization

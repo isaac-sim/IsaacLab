@@ -9,16 +9,17 @@ from pathlib import Path
 
 import pytest
 from rendering_test_utils import (
-    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
+    make_kitless_rendering_params_dexsuite,
     make_require_ovlibs_install_fixture,
     rendering_test_dexsuite_kuka,
 )
 
 pytestmark = pytest.mark.isaacsim_ci
 
+_RENDERING_PARAMS = make_kitless_rendering_params_dexsuite()
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -27,7 +28,13 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
-@pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
-def test_rendering_dexsuite_kuka_hetero_kitless(physics_backend, renderer, data_type):
+@pytest.mark.parametrize(
+    "ovstage_variant,physics_backend,renderer,data_type", _RENDERING_PARAMS, indirect=["ovstage_variant"]
+)
+def test_rendering_dexsuite_kuka_hetero_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Camera output must match golden images (Dexsuite KukaAllegro Lift, single camera)."""
+    if physics_backend == "ovphysx":
+        pytest.skip(
+            "The OVPhysX preset selects the homogeneous cube because heterogeneous multi-asset scenes are unsupported."
+        )
     rendering_test_dexsuite_kuka(physics_backend, renderer, data_type, False, _COMPARISON_SCORES)

@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import Any
+
+import torch
 import warp as wp
+
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 """
 Articulation-specific warp functions.
@@ -41,6 +48,120 @@ Articulation-specific warp kernels.
 
 
 @wp.kernel
+def write_joint_position_with_sim_ids(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    user_pos: wp.array2d(dtype=wp.float32),
+    backend_pos: wp.array2d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
+) -> None:
+    """Write joint positions and materialize simulator indices."""
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    value = in_data[i, j]
+    user_pos[env_id, joint_id] = value
+    if has_ordering:
+        backend_pos[env_id, user_to_backend[joint_id]] = value
+    if j == 0:
+        sim_env_ids[i] = env_id
+
+
+_WRITE_JOINT_POSITION_WITH_SIM_IDS = IndexKernelDispatcher(write_joint_position_with_sim_ids, ("env_ids", "joint_ids"))
+
+
+def write_joint_position_with_sim_ids_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-position writer for the selector dtypes."""
+    return _WRITE_JOINT_POSITION_WITH_SIM_IDS.select(env_ids, joint_ids)
+
+
+@wp.kernel
+def write_joint_velocity_with_sim_ids(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    user_vel: wp.array2d(dtype=wp.float32),
+    user_prev_vel: wp.array2d(dtype=wp.float32),
+    user_acc: wp.array2d(dtype=wp.float32),
+    backend_vel: wp.array2d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
+) -> None:
+    """Write joint velocities and materialize simulator indices."""
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    value = in_data[i, j]
+    user_vel[env_id, joint_id] = value
+    user_prev_vel[env_id, joint_id] = value
+    user_acc[env_id, joint_id] = 0.0
+    if has_ordering:
+        backend_vel[env_id, user_to_backend[joint_id]] = value
+    if j == 0:
+        sim_env_ids[i] = env_id
+
+
+_WRITE_JOINT_VELOCITY_WITH_SIM_IDS = IndexKernelDispatcher(write_joint_velocity_with_sim_ids, ("env_ids", "joint_ids"))
+
+
+def write_joint_velocity_with_sim_ids_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-velocity writer for the selector dtypes."""
+    return _WRITE_JOINT_VELOCITY_WITH_SIM_IDS.select(env_ids, joint_ids)
+
+
+@wp.kernel
+def write_joint_state_with_sim_ids(
+    position: wp.array2d(dtype=wp.float32),
+    velocity: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    user_pos: wp.array2d(dtype=wp.float32),
+    user_vel: wp.array2d(dtype=wp.float32),
+    user_prev_vel: wp.array2d(dtype=wp.float32),
+    user_acc: wp.array2d(dtype=wp.float32),
+    backend_pos: wp.array2d(dtype=wp.float32),
+    backend_vel: wp.array2d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
+) -> None:
+    """Write joint state and materialize simulator indices."""
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    pos_value = position[i, j]
+    vel_value = velocity[i, j]
+    user_pos[env_id, joint_id] = pos_value
+    user_vel[env_id, joint_id] = vel_value
+    user_prev_vel[env_id, joint_id] = vel_value
+    user_acc[env_id, joint_id] = 0.0
+    if has_ordering:
+        backend_id = user_to_backend[joint_id]
+        backend_pos[env_id, backend_id] = pos_value
+        backend_vel[env_id, backend_id] = vel_value
+    if j == 0:
+        sim_env_ids[i] = env_id
+
+
+_WRITE_JOINT_STATE_WITH_SIM_IDS = IndexKernelDispatcher(write_joint_state_with_sim_ids, ("env_ids", "joint_ids"))
+
+
+def write_joint_state_with_sim_ids_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-state writer for the selector dtypes."""
+    return _WRITE_JOINT_STATE_WITH_SIM_IDS.select(env_ids, joint_ids)
+
+
+@wp.kernel
 def _fd_joint_acc(
     cur_vel: wp.array2d(dtype=wp.float32),
     prev_vel: wp.array2d(dtype=wp.float32),
@@ -65,6 +186,57 @@ def _fd_joint_acc(
     i, j = wp.tid()
     out[i, j] = (cur_vel[i, j] - prev_vel[i, j]) * inv_dt
     prev_vel[i, j] = cur_vel[i, j]
+
+
+@wp.kernel
+def shift_jacobian_com_to_origin(
+    body_link_pose: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
+    link_offset: wp.int32,
+    src: wp.array4d(dtype=wp.float32),
+    dst: wp.array4d(dtype=wp.float32),
+):
+    """Shift the linear-velocity rows of a Jacobian from COM to link origin.
+
+    OvPhysX computed Jacobians are referenced at each link's center of mass. The public
+    :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` contract instead
+    requires the linear rows at the USD link origin. Each column is shifted with
+    ``v_origin = v_com - omega x (R * body_com_pos_b)``.
+
+    Args:
+        body_link_pose: Per-body link poses in world frame [m, -]. Shape is
+            (num_instances, num_bodies).
+        body_com_pos_b: Per-body center-of-mass offsets in link frame [m]. Shape is
+            (num_instances, num_bodies).
+        link_offset: Offset from a Jacobian body row to the full public body index.
+            This is 1 for a fixed base and 0 for a floating base.
+        src: COM-referenced Jacobian. Shape is
+            (num_instances, num_jacobian_bodies, 6, num_joints + num_base_dofs).
+        dst: Link-origin Jacobian output with the same shape and units as :paramref:`src`.
+    """
+    env_id, jacobian_body_id, dof_id = wp.tid()
+    body_id = jacobian_body_id + link_offset
+
+    link_rotation = wp.transform_get_rotation(body_link_pose[env_id, body_id])
+    com_offset_w = wp.quat_rotate(link_rotation, body_com_pos_b[env_id, body_id])
+    com_linear_velocity = wp.vec3(
+        src[env_id, jacobian_body_id, 0, dof_id],
+        src[env_id, jacobian_body_id, 1, dof_id],
+        src[env_id, jacobian_body_id, 2, dof_id],
+    )
+    angular_velocity = wp.vec3(
+        src[env_id, jacobian_body_id, 3, dof_id],
+        src[env_id, jacobian_body_id, 4, dof_id],
+        src[env_id, jacobian_body_id, 5, dof_id],
+    )
+    link_linear_velocity = com_linear_velocity - wp.cross(angular_velocity, com_offset_w)
+
+    dst[env_id, jacobian_body_id, 0, dof_id] = link_linear_velocity[0]
+    dst[env_id, jacobian_body_id, 1, dof_id] = link_linear_velocity[1]
+    dst[env_id, jacobian_body_id, 2, dof_id] = link_linear_velocity[2]
+    dst[env_id, jacobian_body_id, 3, dof_id] = angular_velocity[0]
+    dst[env_id, jacobian_body_id, 4, dof_id] = angular_velocity[1]
+    dst[env_id, jacobian_body_id, 5, dof_id] = angular_velocity[2]
 
 
 @wp.kernel
@@ -113,8 +285,8 @@ def update_soft_joint_pos_limits(
 @wp.kernel
 def clamp_default_joint_pos_and_update_soft_limits_index(
     joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     soft_limit_factor: wp.float32,
     default_joint_pos: wp.array2d(dtype=wp.float32),
     soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
@@ -147,14 +319,26 @@ def clamp_default_joint_pos_and_update_soft_limits_index(
             default joint position was clamped. Shape is (1,).
     """
     i, j = wp.tid()
-    e = env_ids[i]
-    k = joint_ids[j]
+    e = wp.int32(env_ids[i])
+    k = wp.int32(joint_ids[j])
     lo = joint_pos_limits[e, k][0]
     hi = joint_pos_limits[e, k][1]
     if (default_joint_pos[e, k] < lo) or (default_joint_pos[e, k] > hi):
         wp.atomic_add(clamped_count, 0, 1)
         default_joint_pos[e, k] = wp.clamp(default_joint_pos[e, k], lo, hi)
     soft_joint_pos_limits[e, k] = compute_soft_joint_pos_limits_func(joint_pos_limits[e, k], soft_limit_factor)
+
+
+_CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_DISPATCHER = IndexKernelDispatcher(
+    clamp_default_joint_pos_and_update_soft_limits_index, ("env_ids", "joint_ids")
+)
+
+
+def clamp_default_joint_pos_and_update_soft_limits_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select an articulation worker for the selector dtypes."""
+    return _CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel
@@ -202,9 +386,10 @@ def write_joint_friction_data_to_buffer_index(
     in_static: wp.array2d(dtype=wp.float32),
     in_dynamic: wp.array2d(dtype=wp.float32),
     in_viscous: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     out_buffer: wp.array3d(dtype=wp.float32),
+    sim_env_ids: wp.array(dtype=wp.int32),
 ):
     """Conditionally update the static / dynamic / viscous slots of the friction buffer.
 
@@ -226,12 +411,28 @@ def write_joint_friction_data_to_buffer_index(
             slots [0] static, [1] dynamic, [2] viscous.
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    if j == 0:
+        sim_env_ids[i] = env_id
     if in_static:
-        out_buffer[env_ids[i], joint_ids[j], 0] = in_static[i, j]
+        out_buffer[env_id, joint_id, 0] = in_static[i, j]
     if in_dynamic:
-        out_buffer[env_ids[i], joint_ids[j], 1] = in_dynamic[i, j]
+        out_buffer[env_id, joint_id, 1] = in_dynamic[i, j]
     if in_viscous:
-        out_buffer[env_ids[i], joint_ids[j], 2] = in_viscous[i, j]
+        out_buffer[env_id, joint_id, 2] = in_viscous[i, j]
+
+
+_WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
+    write_joint_friction_data_to_buffer_index, ("env_ids", "joint_ids")
+)
+
+
+def write_joint_friction_data_to_buffer_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select an articulation worker for the selector dtypes."""
+    return _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel

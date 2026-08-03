@@ -1,2 +1,0 @@
-Test-only: refreshed stable OVRTX goldens for ``ovrtx`` 0.4 and retained the previous baselines as expected
-failures for known deformable motion-vector and texture-readiness regressions. No user-facing API change.
