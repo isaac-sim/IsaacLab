@@ -26,64 +26,116 @@ optional arguments:
   --joint_stiffness         The stiffness of the joint drive. (default: 100.0)
   --joint_damping           The damping of the joint drive. (default: 1.0)
   --joint_target_type       The type of control to use for the joint drive. (default: "position")
-  --viz [BACKEND]           Preview the converted asset; bare --viz picks the backend that fits
-                            the runtime (kit, newton, rerun, viser). (default: no preview)
+
+The standard launcher arguments are also accepted. In particular, ``--viz`` previews the converted
+asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` (or ``rerun`` /
+``viser``) opens it kitlessly. Run with ``--help`` for the full list.
 
 """
 
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
+
 import argparse
-import os
-import sys
-import traceback
+from importlib import metadata
 
-from isaaclab.sim.converters._converter_cli import ConverterCli
+from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
 
+parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
+parser.add_argument("input", type=str, help="The path to the input URDF file.")
+parser.add_argument("output", type=str, help="The path to store the USD file.")
+parser.add_argument(
+    "--merge_joints",
+    "--merge-joints",
+    action="store_true",
+    default=False,
+    help="Consolidate links that are connected by fixed joints.",
+)
+parser.add_argument(
+    "--fix_base", "--fix-base", action="store_true", default=False, help="Fix the base to where it is imported."
+)
+parser.add_argument(
+    "--joint_stiffness",
+    "--joint-stiffness",
+    type=float,
+    default=100.0,
+    help="The stiffness of the joint drive.",
+)
+parser.add_argument(
+    "--joint_damping",
+    "--joint-damping",
+    type=float,
+    default=1.0,
+    help="The damping of the joint drive.",
+)
+parser.add_argument(
+    "--joint_target_type",
+    "--joint-target-type",
+    type=str,
+    default="position",
+    choices=["position", "velocity", "none"],
+    help="The type of control to use for the joint drive.",
+)
+add_launcher_args(parser)
+args_cli = parser.parse_args()
 
-def _create_parser() -> argparse.ArgumentParser:
-    """Create the URDF converter argument parser."""
-    parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
-    parser.add_argument("input", type=str, help="The path to the input URDF file.")
-    parser.add_argument("output", type=str, help="The path to store the USD file.")
-    parser.add_argument(
-        "--merge_joints",
-        "--merge-joints",
-        action="store_true",
-        default=False,
-        help="Consolidate links that are connected by fixed joints.",
+# The URDF importer ships as a Kit extension unless the standalone importer wheel is installed, so
+# Kit is only required when the wheel is absent. With the wheel present the conversion runs kitlessly
+# and the kitless visualizers can host the preview.
+try:
+    metadata.distribution("isaacsim-asset-isolated")
+    args_cli.require_kit = False
+except metadata.PackageNotFoundError:
+    args_cli.require_kit = True
+
+# Report the missing importer before converting anything. Without this the launcher reports only
+# that Isaac Sim is absent, which does not mention the wheel that would make this run kitlessly.
+if args_cli.require_kit and not AppLauncher.is_available():
+    raise ImportError(
+        "URDF conversion requires either the full Isaac Sim runtime or the standalone"
+        " 'isaacsim-asset-isolated' importer wheel, but neither is installed."
     )
-    parser.add_argument(
-        "--fix_base", "--fix-base", action="store_true", default=False, help="Fix the base to where it is imported."
-    )
-    parser.add_argument(
-        "--joint_stiffness",
-        "--joint-stiffness",
-        type=float,
-        default=100.0,
-        help="The stiffness of the joint drive.",
-    )
-    parser.add_argument(
-        "--joint_damping",
-        "--joint-damping",
-        type=float,
-        default=1.0,
-        help="The damping of the joint drive.",
-    )
-    parser.add_argument(
-        "--joint_target_type",
-        "--joint-target-type",
-        type=str,
-        default="position",
-        choices=["position", "velocity", "none"],
-        help="The type of control to use for the joint drive.",
-    )
-    return parser
 
+import os  # noqa: E402
 
-args_cli, simulation_app = ConverterCli.parse_args(_create_parser(), "urdf")
-
+import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.physics import PhysicsCfg  # noqa: E402
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg  # noqa: E402
 from isaaclab.utils.assets import check_file_path  # noqa: E402
 from isaaclab.utils.dict import print_dict  # noqa: E402
+
+
+def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
+    """Open the converted asset in the visualizer selected on the command line.
+
+    Args:
+        usd_path: Path of the generated USD file to display.
+        physics_cfg: Physics config resolved by :func:`~isaaclab.app.launch_simulation`.
+    """
+    visualizers = args_cli.visualizer or []
+    if not visualizers:
+        return
+
+    if "kit" in visualizers:
+        # a Kit app that resolved without a GUI has no viewport to display the asset in
+        if AppLauncher.has_gui():
+            sim_utils.show_stage_in_viewport(usd_path)
+        return
+
+    # Kitless preview: the physics backend ingests the USD stage and every visualizer renders the
+    # shared scene data, so no backend-specific code is needed here. Physics is not stepped -- the
+    # asset is shown in its imported pose until the visualizer window is closed.
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg))
+    light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    light_cfg.func("/World/Light", light_cfg)
+    asset_cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
+    asset_cfg.func("/World/ConvertedAsset", asset_cfg)
+    sim.reset()
+
+    # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:
+    # that predicate also reports True for an empty visualizer list (headless stepping), and ``render``
+    # drops visualizers once they close, so the preview would never exit.
+    while any(viz.is_running() and not viz.is_closed for viz in sim.visualizers):
+        sim.render()
 
 
 def main():
@@ -125,29 +177,17 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    # Create Urdf converter and import the file
-    urdf_converter = UrdfConverter(urdf_converter_cfg)
-    # print output
-    print("URDF importer output:")
-    print(f"Generated USD file: {urdf_converter.usd_path}")
-    print("-" * 80)
-    print("-" * 80)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # Create Urdf converter and import the file
+        urdf_converter = UrdfConverter(urdf_converter_cfg)
+        # print output
+        print("URDF importer output:")
+        print(f"Generated USD file: {urdf_converter.usd_path}")
+        print("-" * 80)
+        print("-" * 80)
 
-    # Open the converted asset in a kitless visualizer (newton / rerun / viser) when requested.
-    ConverterCli.preview(args_cli, simulation_app, urdf_converter.usd_path)
+        preview(urdf_converter.usd_path, physics_cfg)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception:
-        traceback.print_exc()
-        # Kit's shutdown hooks override the interpreter exit status, so force a failure code.
-        # os._exit skips interpreter shutdown, so flush first or the diagnostics printed
-        # above are lost whenever stdout is redirected (the CI case).
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os._exit(1)
-    # close sim app
-    if simulation_app is not None:
-        simulation_app.close()
+    main()
