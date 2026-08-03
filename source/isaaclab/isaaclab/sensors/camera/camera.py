@@ -173,6 +173,13 @@ class Camera(SensorBase):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
         queue_replication(self._source_cfg)
 
+        # Every renderer backend draws the visual-only geometry, so it must survive cloning even
+        # when the run is otherwise headless. This has to happen before the replication queue is
+        # drained, which is why it is here rather than in ``_initialize_impl``.
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.require_visual_shapes()
+
         # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
         # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
         # HDR-routing flag flipped on the RTX-bearing backends.

@@ -361,7 +361,9 @@ def main():
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         # The default newton mjwarp solver configuration needs to be tuned for this demo.
         if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
-            physics_cfg.solver_cfg.nconmax = 4096
+            # The bin holds a randomized number of decomposed YCB meshes, so the contact count
+            # varies run to run and peaks well above 4096 per world once a bin fills up.
+            physics_cfg.solver_cfg.nconmax = 16384
             physics_cfg.solver_cfg.njmax = 1024
             # MJWarp's internal convex CCD does not support the decomposed YCB collision meshes.
             physics_cfg.solver_cfg.use_mujoco_contacts = False
