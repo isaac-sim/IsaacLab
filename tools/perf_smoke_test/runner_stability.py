@@ -124,6 +124,30 @@ def _noise_floor_for_task(task: TaskConfig, gpu_model: str) -> float:
     return 0.0
 
 
+def select_backends(tasks: list[TaskConfig], backends: str) -> list[TaskConfig]:
+    """Narrow the qualification scope to an explicit backend allowlist.
+
+    Args:
+        tasks: Every task/backend bucket configured for the gate.
+        backends: Comma-separated ``backend_key`` allowlist; empty keeps all.
+
+    Returns:
+        The buckets whose backend is in the allowlist.
+
+    Raises:
+        ValueError: If a requested backend matches no configured bucket, which
+            would otherwise silently shrink the scope and weaken the verdict.
+    """
+    requested = {backend.strip() for backend in backends.split(",") if backend.strip()}
+    if not requested:
+        return tasks
+    configured = {task.backend_key for task in tasks}
+    unknown = sorted(requested - configured)
+    if unknown:
+        raise ValueError(f"Unknown backend_key(s) {unknown}; configured backends are {sorted(configured)}")
+    return [task for task in tasks if task.backend_key in requested]
+
+
 def configured_scope(
     tasks: list[TaskConfig],
     gpu_model: str,
@@ -589,6 +613,11 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--records", required=True, action="append", type=Path)
     parser.add_argument("--tasks_config", type=Path, default=Path(__file__).with_name("tasks.json"))
+    parser.add_argument(
+        "--backends",
+        default="",
+        help="Comma-separated backend_key allowlist to qualify (empty = every configured backend).",
+    )
     parser.add_argument("--gpu_model", default="l40s")
     parser.add_argument("--expected_target_branch")
     parser.add_argument("--expected_commit")
@@ -606,7 +635,8 @@ def main() -> int:
     """Run runner-pool stability qualification."""
     args = _parse_args()
     records = _load_records(args.records)
-    expected, noise_floors = configured_scope(load_tasks(args.tasks_config), args.gpu_model)
+    tasks = select_backends(load_tasks(args.tasks_config), args.backends)
+    expected, noise_floors = configured_scope(tasks, args.gpu_model)
     report, markdown = build_report(
         records,
         expected_buckets=expected,
