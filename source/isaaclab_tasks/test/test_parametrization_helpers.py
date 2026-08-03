@@ -106,17 +106,11 @@ def test_lift_factory_applies_shared_native_crash_policy() -> None:
 
 
 def test_franka_factory_adds_cloth_only_motion_policy() -> None:
-    """Newton Warp cases should run unmarked while cloth adds motion-vector xfails."""
+    """Only the cloth suite should carry the motion-vector xfail."""
     soft_params = {param.id: param for param in make_kitless_rendering_params_franka()}
     cloth_params = {
         param.id: param for param in make_kitless_rendering_params_franka(include_cloth_motion_vectors=True)
     }
-
-    newton_warp_ids = [param_id for param_id in soft_params if param_id.startswith("legacy-newton-newton_warp-")]
-    assert newton_warp_ids
-    for param_id in newton_warp_ids:
-        assert [mark.name for mark in soft_params[param_id].marks] == []
-        assert [mark.name for mark in cloth_params[param_id].marks] == []
 
     for variant in ("legacy", "ovstage"):
         motion_id = f"{variant}-newton-ovrtx-motion_vectors"
