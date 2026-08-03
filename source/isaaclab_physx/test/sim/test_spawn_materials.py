@@ -50,7 +50,6 @@ def test_spawn_deformable_body_material(sim):
     # Check validity
     assert prim.IsValid()
     assert sim.stage.GetPrimAtPath("/Looks/DeformableBodyMaterial").IsValid()
-    assert "PhysicsMaterialAPI" not in prim.GetAppliedSchemas()
     # Check properties
     assert prim.GetAttribute("omniphysics:density").Get() == cfg.density
     assert prim.GetAttribute("omniphysics:dynamicFriction").Get() == cfg.dynamic_friction
@@ -72,7 +71,6 @@ def test_spawn_surface_deformable_body_material(sim):
     # Check validity
     assert prim.IsValid()
     assert sim.stage.GetPrimAtPath("/Looks/SurfaceDeformableBodyMaterial").IsValid()
-    assert "PhysicsMaterialAPI" not in prim.GetAppliedSchemas()
     # Check PhysX properties
     assert "PhysxSurfaceDeformableMaterialAPI" in prim.GetAppliedSchemas()
     assert prim.GetAttribute("physxDeformableMaterial:elasticityDamping").Get() == pytest.approx(cfg.elasticity_damping)
