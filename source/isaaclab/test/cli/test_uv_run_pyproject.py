@@ -107,6 +107,7 @@ def test_version_single_source_matches_literal_pins():
 
     assert versions["ovphysx"] == "0.5.9"
     assert "omniverseclient==2.72.3" in dependencies
+    assert f"usd-exchange=={versions['usd_exchange']}" in dependencies
 
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
@@ -199,9 +200,12 @@ def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
     dependencies = _root_pyproject()["project"]["dependencies"]
 
     # Newton is the default physics engine and RSL-RL the default training library,
-    # so both ship as core third-party requirements (not opt-in extras). The importers
-    # extra carries the mesh-processing deps that authored collision approximations need.
-    assert any(dep.startswith("newton[sim,importers]") for dep in dependencies)
+    # so both ship as core third-party requirements (not opt-in extras). Keep the
+    # required mesh-processing packages explicit so Newton's importer extra does not
+    # select a second standalone USD provider.
+    assert any(dep.startswith("newton[sim]") for dep in dependencies)
+    assert any(dep.startswith("coacd") for dep in dependencies)
+    assert any(dep.startswith("fast-simplification") for dep in dependencies)
     assert any(dep.startswith("rsl-rl-lib") for dep in dependencies)
 
 

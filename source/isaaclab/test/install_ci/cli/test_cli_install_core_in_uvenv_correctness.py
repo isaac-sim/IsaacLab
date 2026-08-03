@@ -102,7 +102,7 @@ class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
     def test_install_core_provides_newton_importer_dependencies(self, isaaclab_root):
-        """Newton's mesh-processing deps ship with -i core (via newton[sim,importers]).
+        """Newton's required mesh-processing dependencies ship with ``-i core``.
 
         Without them, Newton warns and falls back to a single convex hull instead of
         honoring an authored ``physics:approximation`` (behavior is unit-tested in
