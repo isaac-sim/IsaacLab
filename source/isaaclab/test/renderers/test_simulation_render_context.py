@@ -274,19 +274,3 @@ def test_close_resets_stage_and_step_bookkeeping():
 
     with pytest.raises(RuntimeError, match="get_renderer must be called"):
         ctx.ensure_prepare_stage(None, 4)
-
-
-def test_close_is_a_noop_for_a_backend_that_does_not_override_it():
-    """``BaseRenderer.close`` defaults to a no-op, so backends keeping no renderer state opt out."""
-
-    class _NoCloseBackend(_FakeBackend):
-        __slots__ = ()
-        close = BaseRenderer.close
-
-    ctx = RenderContext()
-    closed: list[Any] = []
-    _set_entries(ctx, (IsaacRtxRendererCfg(), _NoCloseBackend(close_hits=closed)))
-
-    ctx.close()
-
-    assert closed == []

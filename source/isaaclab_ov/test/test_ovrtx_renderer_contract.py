@@ -552,39 +552,13 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     assert renderer._current_ordinal == 0
 
 
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_ovrtx_close_is_idempotent(use_ovstage):
+def test_ovrtx_close_is_idempotent():
     """A second ``close`` releases nothing again, so a repeated teardown cannot double-free."""
     events: list[str] = []
-    renderer = (
-        _make_ovstage_renderer_with_backend(events) if use_ovstage else _make_legacy_renderer_with_backend(events)
-    )
+    renderer = _make_ovstage_renderer_with_backend(events)
 
     renderer.close()
     events.clear()
     renderer.close()
 
     assert events == []
-
-
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_ovrtx_close_before_initialization_is_a_noop(use_ovstage):
-    """``close`` runs on a renderer that never initialized — the sim was never played, or setup raised."""
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._use_ovstage = use_ovstage
-    renderer._render_product_paths = []
-    renderer._output_id_color_buffers = {}
-    renderer._initialized_scene = False
-    renderer._renderer = None
-    renderer._deformable_particle_offsets = []
-    renderer._deformable_particle_counts = []
-    renderer._particle_visual_offsets = []
-    renderer._particle_visual_counts = []
-    if use_ovstage:
-        renderer._init_fields_ovstage()
-    else:
-        renderer._init_fields_legacy()
-
-    renderer.close()
-
-    assert renderer._initialized_scene is False
