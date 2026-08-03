@@ -21,6 +21,8 @@ import pytest
 import torch
 import warp as wp
 
+pytestmark = pytest.mark.unit
+
 # Import the kernel module directly to avoid pulling in the full isaaclab package
 # (which requires Isaac Sim / Omniverse dependencies).  The kernel file itself only
 # depends on warp.

@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -18,13 +18,16 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab.cloner import queue_replication
 from isaaclab.utils.string import resolve_matching_names
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
-from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world, resolve_view_ids
+from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world, resolve_view_ids_kernel
 from isaaclab_ovphysx.physics import OvPhysxManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .rigid_object_collection_data import RigidObjectCollectionData
 
@@ -74,7 +77,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects
-        for rigid_body_cfg in self.cfg.rigid_objects.values():
+        for rigid_body_name, rigid_body_cfg in self.cfg.rigid_objects.items():
             # spawn the asset
             if rigid_body_cfg.spawn is not None:
                 rigid_body_cfg.spawn.func(
@@ -87,10 +90,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
+            queue_replication(cfg.rigid_objects[rigid_body_name])
         # stores object names
         self._body_names_list: list[str] = []
-        # one fused TensorBinding per tensor type, populated in _initialize_impl
-        self._bindings: dict[int, Any] = {}
+        # binding manager over the fused multi-prim bindings; created in _initialize_impl
+        self._root_view: OvPhysxView | None = None
 
         # register various callback functions
         self._register_callbacks()
@@ -119,16 +123,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         return list(self._body_names_list)
 
     @property
-    def root_view(self):
+    def root_view(self) -> OvPhysxView:
         """Root view for the rigid object collection.
 
-        Dictionary keyed by TensorType constant, each value a single fused
-        :class:`~isaaclab_ovphysx.TensorBinding` spanning all bodies in the collection.
+        On OVPhysX this is an :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` over a single
+        **fused** multi-prim binding per tensor type (created with ``prim_paths=[...]``),
+        spanning all bodies in the collection. The collection's ``LINK_*``/``BODY_*``
+        data-class keys are mapped to the underlying ``RIGID_BODY_*`` types via the view's
+        ``key_aliases``.
 
         .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._bindings
+        return self._root_view
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
@@ -209,10 +216,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             # ``(N, B, 9)`` view directly; the native fused binding lays elements body-
             # major flat as ``(N * B, 9)``. Dispatch via the binding's exposed shape.
             if len(binding.shape) >= 2 and binding.shape[1] == self._num_bodies:
-                binding.write(self._wrench_buf)
+                self._root_view.set_attribute(TT.LINK_WRENCH, self._wrench_buf)
             else:
                 view = self.reshape_data_to_view_3d(self._wrench_buf, 9, device=self._device)
-                binding.write(view)
+                self._root_view.set_attribute(TT.LINK_WRENCH, view)
         inst.reset()
 
     def update(self, dt: float) -> None:
@@ -228,22 +235,28 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     """
 
     def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
         """Find bodies in the rigid body collection based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return cached proxy indices. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            Matched body indices and names.
         """
         obj_ids, obj_names = resolve_matching_names(name_keys, self.body_names, preserve_order)
-        return torch.tensor(obj_ids, device=self._device, dtype=torch.int32), obj_names
+        resolved_ids = self._resolve_finder_indices(obj_ids, domain="body", as_proxy=as_proxy, legacy_type="tensor")
+        return resolved_ids, obj_names
 
     """
     Operations - Write to simulation.
@@ -255,6 +268,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_poses: wp.array,
         body_ids: Sequence[int] | wp.array | None = None,
         env_ids: Sequence[int] | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body pose over selected environment and body indices into the simulation.
 
@@ -268,8 +282,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_body_link_pose_to_sim_index(body_poses=body_poses, body_ids=body_ids, env_ids=env_ids)
+        self.write_body_link_pose_to_sim_index(
+            body_poses=body_poses, body_ids=body_ids, env_ids=env_ids, skip_forward=skip_forward
+        )
 
     def write_body_pose_to_sim_mask(
         self,
@@ -277,6 +295,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_poses: wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body pose over selected environment and body masks into the simulation.
 
@@ -290,8 +309,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_body_link_pose_to_sim_mask(body_poses=body_poses, body_mask=body_mask, env_mask=env_mask)
+        self.write_body_link_pose_to_sim_mask(
+            body_poses=body_poses, body_mask=body_mask, env_mask=env_mask, skip_forward=skip_forward
+        )
 
     def write_body_velocity_to_sim_index(
         self,
@@ -299,6 +322,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_velocities: wp.array,
         body_ids: Sequence[int] | wp.array | None = None,
         env_ids: Sequence[int] | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body velocity over selected environment and body indices into the simulation.
 
@@ -315,8 +339,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_body_com_velocity_to_sim_index(body_velocities=body_velocities, body_ids=body_ids, env_ids=env_ids)
+        self.write_body_com_velocity_to_sim_index(
+            body_velocities=body_velocities, body_ids=body_ids, env_ids=env_ids, skip_forward=skip_forward
+        )
 
     def write_body_velocity_to_sim_mask(
         self,
@@ -324,6 +352,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_velocities: wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body velocity over selected environment and body masks into the simulation.
 
@@ -340,9 +369,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         self.write_body_com_velocity_to_sim_mask(
-            body_velocities=body_velocities, body_mask=body_mask, env_mask=env_mask
+            body_velocities=body_velocities, body_mask=body_mask, env_mask=env_mask, skip_forward=skip_forward
         )
 
     def write_body_link_pose_to_sim_index(
@@ -351,6 +382,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_poses: wp.array,
         body_ids: Sequence[int] | wp.array | None = None,
         env_ids: Sequence[int] | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link pose over selected environment and body indices into the simulation.
 
@@ -364,12 +396,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
         wp.launch(
-            shared_kernels.set_body_link_pose_to_sim,
+            shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_poses, env_ids, body_ids, False],
             outputs=[
@@ -382,10 +416,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Mark the link pose fresh so reads within the same step return the
         # kernel-written value rather than re-fetching the pre-step OVPhysX state.
         self.data._body_link_pose_w.timestamp = self.data._sim_timestamp
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
+        if not skip_forward:
+            self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
 
@@ -395,6 +427,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_poses: wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link pose over selected environment and body masks into the simulation.
 
@@ -408,20 +441,22 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0].to(torch.int32))
+            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
         else:
             env_ids = self._ALL_ENV_INDICES
         if body_mask is not None:
             body_mask_t = wp.to_torch(body_mask) if isinstance(body_mask, wp.array) else body_mask
-            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0].to(torch.int32))
+            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0])
         else:
             body_ids = self._ALL_BODY_INDICES
         self.assert_shape_and_dtype(body_poses, (self._num_instances, self._num_bodies), wp.transformf, "body_poses")
         wp.launch(
-            shared_kernels.set_body_link_pose_to_sim,
+            shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_poses, env_ids, body_ids, True],
             outputs=[
@@ -432,10 +467,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         # Invalidate dependent timestamps
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
+        if not skip_forward:
+            self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
 
@@ -445,6 +478,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_poses: wp.array,
         body_ids: Sequence[int] | wp.array | None = None,
         env_ids: Sequence[int] | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass pose over selected environment and body indices into the simulation.
 
@@ -459,12 +493,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (len(env_ids), len(body_ids), 7) or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
         wp.launch(
-            shared_kernels.set_body_com_pose_to_sim,
+            shared_kernels.set_body_com_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_poses, self.data.body_com_pose_b, env_ids, body_ids, False],
             outputs=[
@@ -477,9 +513,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         # Invalidate dependent timestamps
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        if not skip_forward:
+            self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
 
@@ -489,6 +524,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_poses: wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass pose over selected environment and body masks into the simulation.
 
@@ -503,20 +539,22 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (num_instances, num_bodies, 7) or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0].to(torch.int32))
+            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
         else:
             env_ids = self._ALL_ENV_INDICES
         if body_mask is not None:
             body_mask_t = wp.to_torch(body_mask) if isinstance(body_mask, wp.array) else body_mask
-            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0].to(torch.int32))
+            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0])
         else:
             body_ids = self._ALL_BODY_INDICES
         self.assert_shape_and_dtype(body_poses, (self._num_instances, self._num_bodies), wp.transformf, "body_poses")
         wp.launch(
-            shared_kernels.set_body_com_pose_to_sim,
+            shared_kernels.set_body_com_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_poses, self.data.body_com_pose_b, env_ids, body_ids, True],
             outputs=[
@@ -529,9 +567,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         # Invalidate dependent timestamps
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        if not skip_forward:
+            self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
 
@@ -541,6 +578,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_velocities: wp.array,
         body_ids: Sequence[int] | wp.array | None = None,
         env_ids: Sequence[int] | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass velocity over selected environment and body indices into the simulation.
 
@@ -557,6 +595,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
@@ -564,7 +604,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities"
         )
         wp.launch(
-            shared_kernels.set_body_com_velocity_to_sim,
+            shared_kernels.set_body_com_velocity_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_velocities, env_ids, body_ids, False],
             outputs=[
@@ -578,10 +618,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Mark the COM velocity fresh so reads within the same step return the
         # kernel-written value rather than re-fetching the pre-step OVPhysX state.
         self.data._body_com_vel_w.timestamp = self.data._sim_timestamp
-        self.data._body_link_vel_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
+        if not skip_forward:
+            self.data._reset_velocity()
         # set into simulation
         self._binding_write(TT.LINK_VELOCITY, self.data._body_com_vel_w.data, env_ids=env_ids)
 
@@ -591,6 +629,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_velocities: wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass velocity over selected environment and body masks into the simulation.
 
@@ -607,22 +646,24 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0].to(torch.int32))
+            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
         else:
             env_ids = self._ALL_ENV_INDICES
         if body_mask is not None:
             body_mask_t = wp.to_torch(body_mask) if isinstance(body_mask, wp.array) else body_mask
-            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0].to(torch.int32))
+            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0])
         else:
             body_ids = self._ALL_BODY_INDICES
         self.assert_shape_and_dtype(
             body_velocities, (self._num_instances, self._num_bodies), wp.spatial_vectorf, "body_velocities"
         )
         wp.launch(
-            shared_kernels.set_body_com_velocity_to_sim,
+            shared_kernels.set_body_com_velocity_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_velocities, env_ids, body_ids, True],
             outputs=[
@@ -634,10 +675,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         # Invalidate dependent timestamps
-        self.data._body_link_vel_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
+        if not skip_forward:
+            self.data._reset_velocity()
         # set into simulation
         self._binding_write(TT.LINK_VELOCITY, self.data._body_com_vel_w.data, env_ids=env_ids)
 
@@ -647,6 +686,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_velocities: wp.array,
         body_ids: Sequence[int] | wp.array | None = None,
         env_ids: Sequence[int] | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link velocity over selected environment and body indices into the simulation.
 
@@ -663,6 +703,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
@@ -670,7 +712,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities"
         )
         wp.launch(
-            shared_kernels.set_body_link_velocity_to_sim,
+            shared_kernels.set_body_link_velocity_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_velocities,
@@ -691,9 +733,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         # Invalidate dependent timestamps
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        if not skip_forward:
+            self.data._reset_velocity(from_com=False)
         # set into simulation
         self._binding_write(TT.LINK_VELOCITY, self.data._body_com_vel_w.data, env_ids=env_ids)
 
@@ -703,6 +744,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_velocities: wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link velocity over selected environment and body masks into the simulation.
 
@@ -719,22 +761,24 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0].to(torch.int32))
+            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
         else:
             env_ids = self._ALL_ENV_INDICES
         if body_mask is not None:
             body_mask_t = wp.to_torch(body_mask) if isinstance(body_mask, wp.array) else body_mask
-            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0].to(torch.int32))
+            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0])
         else:
             body_ids = self._ALL_BODY_INDICES
         self.assert_shape_and_dtype(
             body_velocities, (self._num_instances, self._num_bodies), wp.spatial_vectorf, "body_velocities"
         )
         wp.launch(
-            shared_kernels.set_body_link_velocity_to_sim,
+            shared_kernels.set_body_link_velocity_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_velocities,
@@ -755,9 +799,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         # Invalidate dependent timestamps
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        if not skip_forward:
+            self.data._reset_velocity(from_com=False)
         # set into simulation
         self._binding_write(TT.LINK_VELOCITY, self.data._body_com_vel_w.data, env_ids=env_ids)
 
@@ -789,16 +832,23 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[masses, env_ids, body_ids],
-            outputs=[self.data._body_mass.data],
+            outputs=[self.data._body_mass.data, sim_env_ids],
             device=self._device,
         )
         wp.copy(self.data._cpu_body_mass, self.data._body_mass.data)
         self._binding_write(
-            TT.BODY_MASS, self.data._cpu_body_mass, env_ids=self._get_cpu_env_ids(env_ids), device="cpu"
+            TT.BODY_MASS,
+            self.data._cpu_body_mass,
+            env_ids=env_ids,
+            sim_env_ids=sim_env_ids,
+            device="cpu",
         )
 
     def set_masses_mask(
@@ -826,7 +876,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0].to(torch.int32))
+            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
         else:
             env_ids = self._ALL_ENV_INDICES
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
@@ -838,9 +888,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_mass, self.data._body_mass.data)
-        self._binding_write(
-            TT.BODY_MASS, self.data._cpu_body_mass, env_ids=self._get_cpu_env_ids(env_ids), device="cpu"
-        )
+        self._binding_write(TT.BODY_MASS, self.data._cpu_body_mass, env_ids=env_ids, device="cpu")
 
     def set_coms_index(
         self,
@@ -866,20 +914,23 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer_index,
+            shared_kernels.write_body_com_pose_to_buffer_index_with_sim_ids_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[coms, env_ids, body_ids],
-            outputs=[self.data._body_com_pose_b.data],
+            outputs=[self.data._body_com_pose_b.data, sim_env_ids],
             device=self._device,
         )
-        # Invalidate derived buffers that depend on body_com_pose_b.
-        self.data._body_com_pose_w.timestamp = -1.0
-        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data)
+        self.data._reset_body_com_pose_b_dependents()
+        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
-            env_ids=self._get_cpu_env_ids(env_ids),
+            env_ids=env_ids,
+            sim_env_ids=sim_env_ids,
             device="cpu",
             data_dim=7,
         )
@@ -909,7 +960,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0].to(torch.int32))
+            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
         else:
             env_ids = self._ALL_ENV_INDICES
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
@@ -920,13 +971,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             outputs=[self.data._body_com_pose_b.data],
             device=self._device,
         )
-        # Invalidate derived buffers that depend on body_com_pose_b.
-        self.data._body_com_pose_w.timestamp = -1.0
-        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data)
+        self.data._reset_body_com_pose_b_dependents()
+        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
-            env_ids=self._get_cpu_env_ids(env_ids),
+            env_ids=env_ids,
             device="cpu",
             data_dim=7,
         )
@@ -957,18 +1007,22 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
+        if env_ids.shape[0] == 0 or body_ids.shape[0] == 0:
+            return
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_index,
+            shared_kernels.write_body_inertia_to_buffer_index_with_sim_ids_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[inertias, env_ids, body_ids],
-            outputs=[self.data._body_inertia.data],
+            outputs=[self.data._body_inertia.data, sim_env_ids],
             device=self._device,
         )
         wp.copy(self.data._cpu_body_inertia, self.data._body_inertia.data)
         self._binding_write(
             TT.BODY_INERTIA,
             self.data._cpu_body_inertia,
-            env_ids=self._get_cpu_env_ids(env_ids),
+            env_ids=env_ids,
+            sim_env_ids=sim_env_ids,
             device="cpu",
             data_dim=9,
         )
@@ -1000,7 +1054,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0].to(torch.int32))
+            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
         else:
             env_ids = self._ALL_ENV_INDICES
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
@@ -1015,7 +1069,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._binding_write(
             TT.BODY_INERTIA,
             self.data._cpu_body_inertia,
-            env_ids=self._get_cpu_env_ids(env_ids),
+            env_ids=env_ids,
             device="cpu",
             data_dim=9,
         )
@@ -1040,60 +1094,18 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._prim_paths: list[str] = []
         self._body_names_list: list[str] = []
 
+        def has_rigid_body_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+
+        resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
         for name, obj_cfg in self.cfg.rigid_objects.items():
-            # Convert IsaacLab prim-path notation to the fnmatch-style glob that
-            # OVPhysX create_tensor_binding expects.  Two conventions are in use:
-            #   /World/envs/env_.*/object   -- regex dot-star for any env index
-            #   /World/envs/{ENV_REGEX_NS}/object -- explicit placeholder
-            pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", obj_cfg.prim_path)
+            # Resolve the rigid body root expression.
+            root_matches = sim_utils.resolve_matching_prims_from_source(obj_cfg.prim_path, **resolve_kwargs)
+            _, root_prim_path_expr = root_matches[0]
+            # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
+            # ``create_tensor_binding`` expects fnmatch globs.
+            pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
             pattern = re.sub(r"\.\*", "*", pattern)
-
-            # Validate the prim tree before creating tensor bindings.
-            # OVPhysX silently returns a zero-count binding when the pattern
-            # matches nothing; fail fast here with a clear message instead.
-            template_prim = sim_utils.find_first_matching_prim(obj_cfg.prim_path)
-            if template_prim is None:
-                raise RuntimeError(f"Failed to find prim for expression: '{obj_cfg.prim_path}' (body '{name}').")
-            template_prim_path = template_prim.GetPath().pathString
-
-            root_prims = sim_utils.get_all_matching_child_prims(
-                template_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
-                traverse_instance_prims=False,
-            )
-            if len(root_prims) == 0:
-                raise RuntimeError(
-                    f"Failed to find a rigid body when resolving '{obj_cfg.prim_path}' (body '{name}')."
-                    " Please ensure that the prim has 'USD RigidBodyAPI' applied."
-                )
-            if len(root_prims) > 1:
-                raise RuntimeError(
-                    f"Failed to find a single rigid body when resolving '{obj_cfg.prim_path}' (body '{name}')."
-                    f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                    " Please ensure that there is only one rigid body in the prim path tree."
-                )
-
-            articulation_prims = sim_utils.get_all_matching_child_prims(
-                template_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-                traverse_instance_prims=False,
-            )
-            if len(articulation_prims) != 0:
-                if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
-                    raise RuntimeError(
-                        f"Found an articulation root when resolving '{obj_cfg.prim_path}' (body '{name}') in the"
-                        f" rigid object collection. These are located at: '{articulation_prims}' under"
-                        f" '{template_prim_path}'. Please disable the articulation root in the USD or from code by"
-                        " setting the parameter 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the"
-                        " spawn configuration."
-                    )
-
-            # resolve root prim back into the regex expression
-            root_prim_path = root_prims[0].GetPath().pathString
-            suffix = root_prim_path[len(template_prim_path) :]
-            if suffix:
-                pattern = pattern + suffix
-
             self._prim_paths.append(pattern)
             self._body_names_list.append(name)
 
@@ -1104,29 +1116,33 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # ``(body0_env0, body0_env1, ..., body1_env0, ...)``. Bindings are stored under
         # the ``LINK_*``/``BODY_*`` data-class keys so the same key works with the
         # articulation-mode mock used by iface tests.
-        _TT_MAP = (
-            (TT.LINK_POSE, TT.RIGID_BODY_POSE),
-            (TT.LINK_VELOCITY, TT.RIGID_BODY_VELOCITY),
-            (TT.LINK_WRENCH, TT.RIGID_BODY_WRENCH),
-            (TT.BODY_MASS, TT.RIGID_BODY_MASS),
-            (TT.BODY_COM_POSE, TT.RIGID_BODY_COM_POSE),
-            (TT.BODY_INERTIA, TT.RIGID_BODY_INERTIA),
+        # The view creates each fused binding from the underlying RIGID_BODY_* type but stores
+        # it under the collection's LINK_*/BODY_* data-class key via key_aliases (every alias
+        # stays within its CPU/GPU residency class, which the view requires).
+        key_aliases = {
+            TT.LINK_POSE: TT.RIGID_BODY_POSE,
+            TT.LINK_VELOCITY: TT.RIGID_BODY_VELOCITY,
+            TT.LINK_WRENCH: TT.RIGID_BODY_WRENCH,
+            TT.BODY_MASS: TT.RIGID_BODY_MASS,
+            TT.BODY_COM_POSE: TT.RIGID_BODY_COM_POSE,
+            TT.BODY_INERTIA: TT.RIGID_BODY_INERTIA,
+        }
+        self._root_view = OvPhysxView(
+            self._ovphysx, prim_paths=self._prim_paths, device=self._device, key_aliases=key_aliases
         )
-        for store_key, rb_tt in _TT_MAP:
+        for store_key in key_aliases:
             try:
-                self._bindings[store_key] = self._ovphysx.create_tensor_binding(
-                    prim_paths=self._prim_paths, tensor_type=rb_tt
-                )
+                self._root_view.binding_for(store_key)
             except Exception as e:
                 raise RuntimeError(
-                    f"OVPhysX could not create fused RIGID_BODY binding {rb_tt!r} for"
+                    f"OVPhysX could not create the fused RIGID_BODY binding for {store_key!r} with"
                     f" prim_paths={self._prim_paths!r}."
                     f" Check that each prim path matches at least one"
                     f" UsdPhysics.RigidBodyAPI prim."
                 ) from e
 
         # Native fused binding has ``count == N * num_bodies`` (body-major flat).
-        pose_count = self._bindings[TT.LINK_POSE].count
+        pose_count = self._root_view.binding_for(TT.LINK_POSE).count
         if pose_count % self._num_bodies != 0:
             raise RuntimeError(
                 f"Fused LINK_POSE binding count {pose_count} is not divisible by"
@@ -1135,7 +1151,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._num_instances = pose_count // self._num_bodies
 
         self._data = RigidObjectCollectionData(
-            root_view=self._bindings,
+            root_view=self._root_view,
             num_bodies=self._num_bodies,
             device=self._device,
         )
@@ -1152,10 +1168,16 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         self._ALL_ENV_INDICES = wp.array(np.arange(N), dtype=wp.int32, device=self._device)
         self._ALL_BODY_INDICES = wp.array(np.arange(B), dtype=wp.int32, device=self._device)
-
-        # CPU copy of all-env indices used when calling CPU-only binding.write().
-        self._cpu_all_env_ids = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
-        wp.copy(self._cpu_all_env_ids, self._ALL_ENV_INDICES)
+        self._sim_env_ids = wp.empty(N, dtype=wp.int32, device=self._device)
+        self._sim_env_ids_views: dict[int, wp.array] = {}
+        num_view_ids = N * B
+        self._ALL_VIEW_INDICES = wp.array(np.arange(num_view_ids), dtype=wp.int32, device=self._device)
+        self._sim_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device=self._device)
+        self._sim_view_ids_views: dict[int, wp.array] = {}
+        self._cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+        wp.copy(self._cpu_all_view_ids, self._ALL_VIEW_INDICES)
+        self._cpu_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+        self._cpu_view_ids_views: dict[int, wp.array] = {}
 
         # All-true boolean masks used as defaults in mask-based kernel calls.
         self._ALL_TRUE_ENV_MASK = wp.array(np.ones(N, dtype=bool), dtype=wp.bool, device=self._device)
@@ -1204,6 +1226,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
+        # Drop the fused view (and the bindings it caches) on stop so a destroyed/stale binding
+        # is not held across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
 
     """
     Helper functions.
@@ -1223,7 +1248,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             The cached :class:`TensorBinding`, or ``None`` if not found.
         """
-        return self._bindings.get(tensor_type)
+        return self._root_view.try_binding_for(tensor_type)
 
     def reshape_data_to_view_2d(self, data: wp.array, device: str | None = None) -> wp.array:
         """Reshape instance-major ``(num_instances, num_bodies)`` data to body-major view order.
@@ -1253,7 +1278,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         return wp.clone(strided_view, device=device).reshape((self.num_bodies * self.num_instances,))
 
-    def reshape_data_to_view_3d(self, data: wp.array, data_dim: int, device: str | None = None) -> wp.array:
+    def reshape_data_to_view_3d(
+        self, data: wp.array | torch.Tensor, data_dim: int, device: str | None = None
+    ) -> wp.array | torch.Tensor:
         """Reshape instance-major ``(num_instances, num_bodies, data_dim)`` data to body-major view order.
 
         Companion of :meth:`reshape_data_to_view_2d` for 3D buffers (e.g. inertia
@@ -1261,12 +1288,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             data: Source buffer with shape ``(num_instances, num_bodies, data_dim)``.
+                Supports Warp arrays and torch tensors.
             data_dim: Trailing per-element dimension size.
-            device: Optional target device for the cloned output.  Defaults to ``data.device``.
+            device: Optional target device for the output. Defaults to ``data.device``.
 
         Returns:
             Contiguous body-major buffer with shape ``(num_bodies * num_instances, data_dim)``.
+            Torch inputs return torch tensors, and Warp inputs return Warp arrays.
         """
+        if isinstance(data, torch.Tensor):
+            if device is None:
+                device = data.device
+            return data.transpose(0, 1).reshape(self.num_bodies * self.num_instances, data_dim).to(device).contiguous()
+
         if device is None:
             device = str(data.device)
         element_size = wp.types.type_size_in_bytes(data.dtype)
@@ -1285,6 +1319,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         tensor_type: int,
         instance_major_data: wp.array,
         env_ids: wp.array,
+        sim_env_ids: wp.array | None = None,
         device: str | None = None,
         data_dim: int | None = None,
     ) -> None:
@@ -1307,6 +1342,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 ``(N, B, data_dim)``.  May use ``wp.float32`` or a structured dtype.
             env_ids: Environment indices (1D ``wp.int32`` on ``self._device`` or
                 ``"cpu"`` for CPU-only bindings).
+            sim_env_ids: Optional int32 environment-index scratch.
             device: Destination device for the body-major clone (only used on the
                 fused-binding path).  Defaults to ``self._device``.
             data_dim: When provided, treat the buffer as 3D and use
@@ -1327,7 +1363,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             float32_data = (
                 instance_major_data if instance_major_data.dtype == wp.float32 else instance_major_data.view(wp.float32)
             )
-            binding.write(float32_data, indices=env_ids)
+            self._root_view.set_attribute(
+                tensor_type, float32_data, indices=self._get_sim_env_ids(env_ids, sim_env_ids)
+            )
             return
         # Native fused path: body-major flat (N*B[, D]); reshape and use view_ids.
         if data_dim is None:
@@ -1335,14 +1373,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             view = self.reshape_data_to_view_3d(instance_major_data, data_dim, device=device)
         view_ids = self._env_body_ids_to_view_ids(env_ids, self._ALL_BODY_INDICES, device=device)
-        binding.write(view, indices=view_ids)
+        self._root_view.set_attribute(tensor_type, view, indices=view_ids)
 
     """
     Internal helper.
     """
 
-    def _resolve_env_ids(self, env_ids) -> wp.array:
-        """Resolve environment indices to a warp int32 array on ``self._device``.
+    def _resolve_env_ids(self, env_ids) -> wp.array | torch.Tensor:
+        """Resolve environment indices on ``self._device``.
 
         Tests sometimes hand us indices on CPU even when the sim runs on GPU; we move the
         resolved array onto ``self._device`` so kernel launches don't fail on a device
@@ -1353,13 +1391,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            return env_ids.to(device=self._device)
         if isinstance(env_ids, wp.array) and str(env_ids.device) != self._device:
             env_ids = wp.clone(env_ids, device=self._device)
         return env_ids
 
-    def _resolve_body_ids(self, body_ids) -> wp.array:
-        """Resolve body indices to a warp int32 array on ``self._device``."""
+    def _resolve_body_ids(self, body_ids) -> wp.array | torch.Tensor:
+        """Resolve body indices on ``self._device``."""
+        if isinstance(body_ids, ProxyArray):
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if body_ids is None or body_ids == slice(None):
             return self._ALL_BODY_INDICES
         if isinstance(body_ids, list):
@@ -1384,24 +1424,32 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             A :class:`wp.array` of shape ``(len(env_ids) * len(body_ids),)`` with
             flat view indices on *device*.
         """
+        if env_ids is self._ALL_ENV_INDICES and body_ids is self._ALL_BODY_INDICES:
+            return self._cpu_all_view_ids if device == "cpu" else self._ALL_VIEW_INDICES
         if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            env_ids = env_ids.to(device=self._device)
+        elif str(env_ids.device) != self._device:
+            env_ids = wp.clone(env_ids, device=self._device)
         if isinstance(body_ids, torch.Tensor):
-            body_ids = wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
-        if str(env_ids.device) != device:
-            env_ids = wp.clone(env_ids, device=device)
-        if str(body_ids.device) != device:
-            body_ids = wp.clone(body_ids, device=device)
+            body_ids = body_ids.to(device=self._device)
+        elif str(body_ids.device) != self._device:
+            body_ids = wp.clone(body_ids, device=self._device)
         num_query_envs = env_ids.shape[0]
-        view_ids = wp.zeros(num_query_envs * body_ids.shape[0], dtype=wp.int32, device=device)
+        count = num_query_envs * body_ids.shape[0]
+        view_ids = self._sim_view_ids_view(count)
         wp.launch(
-            resolve_view_ids,
+            resolve_view_ids_kernel(env_ids, body_ids),
             dim=(num_query_envs, body_ids.shape[0]),
             inputs=[env_ids, body_ids, num_query_envs, self.num_instances],
             outputs=[view_ids],
-            device=device,
+            device=self._device,
         )
-        return view_ids
+        if device != "cpu" or self._device == "cpu":
+            return view_ids
+        cpu_view_ids = self._cpu_view_ids_view(count)
+        wp.copy(cpu_view_ids, view_ids)
+        wp.synchronize_stream(self._device)
+        return cpu_view_ids
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
         """Resolve an environment mask to a ``wp.bool`` array on ``self._device``.
@@ -1441,21 +1489,55 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_mask = wp.clone(body_mask, device=self._device)
         return body_mask
 
-    def _get_cpu_env_ids(self, env_ids: wp.array) -> wp.array:
-        """Return CPU int32 env indices for CPU-only binding writes.
+    def _sim_env_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the simulator-index scratch buffer."""
+        if count not in self._sim_env_ids_views:
+            self._sim_env_ids_views[count] = wp.array(
+                ptr=self._sim_env_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device=self._device,
+                copy=False,
+            )
+        return self._sim_env_ids_views[count]
 
-        Uses the pre-allocated pinned ``_cpu_all_env_ids`` fast path when
-        *env_ids* covers all instances, otherwise clones to CPU.
+    def _sim_view_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the device view-index scratch."""
+        if count not in self._sim_view_ids_views:
+            self._sim_view_ids_views[count] = wp.array(
+                ptr=self._sim_view_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device=self._device,
+                copy=False,
+            )
+        return self._sim_view_ids_views[count]
 
-        Args:
-            env_ids: A warp int32 array of environment indices on any device.
+    def _cpu_view_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the CPU view-index scratch."""
+        if count not in self._cpu_view_ids_views:
+            self._cpu_view_ids_views[count] = wp.array(
+                ptr=self._cpu_view_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device="cpu",
+                copy=False,
+            )
+        return self._cpu_view_ids_views[count]
 
-        Returns:
-            A warp int32 array guaranteed to live on ``"cpu"``.
-        """
-        if env_ids.ptr == self._ALL_ENV_INDICES.ptr:
-            return self._cpu_all_env_ids
-        return wp.clone(env_ids, device="cpu")
+    def _get_sim_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
+        """Return int32 environment indices for OVPhysX."""
+        if isinstance(env_ids, torch.Tensor):
+            if env_ids.dtype == torch.int64 and sim_env_ids is None:
+                return wp.from_torch(env_ids.to(device=self._device, dtype=torch.int32), dtype=wp.int32)
+            env_ids = wp.from_torch(env_ids)
+        if env_ids.dtype == wp.int64:
+            if sim_env_ids is None:
+                return wp.from_torch(wp.to_torch(env_ids).to(device=self._device, dtype=torch.int32), dtype=wp.int32)
+            return sim_env_ids
+        if str(env_ids.device) != self._device:
+            return wp.clone(env_ids, device=self._device)
+        return env_ids
 
     """
     Deprecated properties and methods.

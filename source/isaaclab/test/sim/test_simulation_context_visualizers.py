@@ -22,6 +22,8 @@ from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 
 def test_web_visualizer_cfgs_do_not_open_browser_by_default():
     assert RerunVisualizerCfg().open_browser is False
@@ -192,6 +194,35 @@ def test_update_visualizers_handles_training_pause_loop():
     ctx.update_visualizers(0.2)
 
     assert viz.step_calls == [0.0, 0.2]
+
+
+def test_reset_initializes_visualizers_before_playing_timeline():
+    """Initial visualizers must see the PhysX views created by reset before play() pumps timeline events."""
+    events: list[str] = []
+    ctx = object.__new__(SimulationContext)
+    ctx._visualizers = []
+
+    class _PhysicsManager:
+        @staticmethod
+        def reset(soft=False):
+            events.append(f"reset:{soft}")
+
+        @staticmethod
+        def play():
+            events.append("play")
+
+    def _initialize_visualizers():
+        events.append("initialize_visualizers")
+        ctx._visualizers = [_FakeVisualizer()]
+
+    ctx.physics_manager = _PhysicsManager()
+    ctx.initialize_visualizers = _initialize_visualizers
+
+    ctx.reset()
+
+    assert events == ["reset:False", "initialize_visualizers", "play"]
+    assert ctx.is_playing()
+    assert not ctx.is_stopped()
 
 
 class _DummyViserSceneDataProvider:

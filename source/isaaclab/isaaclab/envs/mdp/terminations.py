@@ -15,13 +15,15 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers.command_manager import CommandTerm
     from isaaclab.sensors import ContactSensor
+
+    from .commands.pose_command import UniformPoseCommand
 
 """
 MDP terminations.
@@ -41,6 +43,20 @@ def command_resample(env: ManagerBasedRLEnv, command_name: str, num_resamples: i
     """
     command: CommandTerm = env.command_manager.get_term(command_name)
     return torch.logical_and((command.time_left <= env.step_dt), (command.command_counter == num_resamples))
+
+
+def pose_command_success(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Terminate environments whose pose command satisfies all configured success thresholds.
+
+    Args:
+        env: The environment instance.
+        command_name: Name of the uniform pose command term.
+
+    Returns:
+        A boolean tensor indicating which environments satisfy the pose command.
+    """
+    command: UniformPoseCommand = env.command_manager.get_term(command_name)
+    return command.compute_success()
 
 
 """
@@ -109,15 +125,25 @@ def joint_pos_out_of_manual_limit(
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
-def joint_vel_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Terminate when the asset's joint velocities are outside of the soft joint limits."""
-    # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
-    # compute any violations
-    limits = asset.data.soft_joint_vel_limits.torch
-    return torch.any(
-        torch.abs(asset.data.joint_vel.torch[:, asset_cfg.joint_ids]) > limits[:, asset_cfg.joint_ids], dim=1
-    )
+class joint_vel_out_of_limit(ManagerTermBase):
+    """Terminate when the asset's joint velocities are outside of the soft joint limits.
+
+    The joint indices are materialized as a device tensor once at construction.
+    """
+
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        joint_ids = asset_cfg.joint_ids
+        if isinstance(joint_ids, list):
+            joint_ids = torch.tensor(joint_ids, dtype=torch.long, device=env.device)
+        self._joint_ids = joint_ids
+
+    def __call__(self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+        # compute any violations
+        limits = self._asset.data.soft_joint_vel_limits.torch[:, self._joint_ids]
+        return torch.any(torch.abs(self._asset.data.joint_vel.torch[:, self._joint_ids]) > limits, dim=1)
 
 
 def joint_vel_out_of_manual_limit(

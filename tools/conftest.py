@@ -4,19 +4,28 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import contextlib
+import logging
 import os
 import select
 import signal
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 
 import pytest
+import tomllib
 from junitparser import Error, JUnitXml, TestCase, TestSuite
 from prettytable import PrettyTable
 
+from isaaclab.test.utils import resolve_test_sim_device
+
 # Local imports
 import test_settings as test_settings  # isort: skip
+from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 
 def pytest_ignore_collect(collection_path, config):
@@ -50,6 +59,14 @@ STARTUP_HANG_RETRIES = 2
 
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
+
+PROCESS_FAILURE_RETRIES_BY_FILE = {
+    "test_visualizer_integration_physx.py": 4,
+    "test_visualizer_integration_newton.py": 4,
+    "test_visualizer_tiled_integration_physx.py": 4,
+    "test_visualizer_tiled_integration_newton.py": 4,
+}
+"""Extra fresh-process attempts for visualizer tests that can enter stale render states."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
@@ -304,22 +321,678 @@ def _capture_system_diagnostics():
     return "\n\n".join(sections)
 
 
-def run_individual_tests(test_files, workspace_root, isaacsim_ci):
-    """Run each test file separately, ensuring one finishes before starting the next."""
+def _slugify_test_path(test_path):
+    """Encode a test path as a flat queue entry name.
+
+    The queue uses one file per pending test. Slashes are not legal inside a
+    filename, so we encode the relative path by replacing ``/`` with ``__``.
+    The decoder is :func:`_unslugify_queue_entry`.
+    """
+    return test_path.replace("/", "__")
+
+
+def _unslugify_queue_entry(entry_name):
+    """Reverse of :func:`_slugify_test_path`."""
+    return entry_name.replace("__", "/")
+
+
+def _claim_queued_file(queue_dir):
+    """Atomically claim one pending test from the work-queue directory.
+
+    The queue is a directory of files (one per pending test); the shard claims
+    one by renaming it from ``queue/`` into its private ``inflight/cuda-N/``.
+    POSIX rename is atomic on the same filesystem, so two shards racing on the
+    same source file are serialized by the kernel: exactly one rename succeeds,
+    the other gets ``FileNotFoundError`` and tries the next entry.
+
+    On success, the test's queue entry is now sitting in ``inflight/cuda-N/``;
+    the caller is expected to move it to ``done/cuda-N/`` after the per-test
+    pytest invocation exits with a clean result, leaving anything still in
+    ``inflight/`` at job-end as recoverable evidence of a crashed test.
+
+    Args:
+        queue_dir: Path to the shared work-queue root. Must contain a
+            ``queue/`` subdir (pending entries) and an ``inflight/<shard>/``
+            subdir for this shard (claim destination).
+
+    Returns:
+        The decoded test path for the claimed file, or ``None`` when the
+        queue is empty.
+    """
+    shard = resolve_test_sim_device().replace(":", "-")
+    pending_dir = os.path.join(queue_dir, "queue")
+    inflight_dir = os.path.join(queue_dir, "inflight", shard)
+    os.makedirs(inflight_dir, exist_ok=True)
+
+    # Listdir is intentionally not cached: another shard may have just removed
+    # an entry we'd otherwise try. We pay one listdir per claim attempt; with
+    # N≤20 entries this is microseconds.
+    try:
+        entries = sorted(os.listdir(pending_dir))
+    except FileNotFoundError:
+        return None
+
+    for entry in entries:
+        src = os.path.join(pending_dir, entry)
+        dst = os.path.join(inflight_dir, entry)
+        try:
+            os.rename(src, dst)
+        except FileNotFoundError:
+            # Lost the race for this entry; another shard claimed it first.
+            # Continue to the next entry in our (potentially stale) listing.
+            continue
+        except OSError:
+            # Any other rename failure (e.g. permission) is a hard error.
+            raise
+        return _unslugify_queue_entry(entry)
+
+    return None
+
+
+def _mark_queued_file_done(queue_dir, test_path):
+    """Move a successfully-completed claim from ``inflight/cuda-N/`` to ``done/cuda-N/``.
+
+    Called by the test runner after a per-file pytest invocation exits cleanly.
+    The inflight residual is what the post-run reconciler uses to detect
+    crashed shards: anything still in ``inflight/`` at job-end is an orphan.
+    """
+    shard = resolve_test_sim_device().replace(":", "-")
+    entry = _slugify_test_path(test_path)
+    src = os.path.join(queue_dir, "inflight", shard, entry)
+    dst_dir = os.path.join(queue_dir, "done", shard)
+    os.makedirs(dst_dir, exist_ok=True)
+    dst = os.path.join(dst_dir, entry)
+    # Suppress: already moved (idempotent) or the runner crashed before we
+    # could mark done — the reconciler catches the second case.
+    with contextlib.suppress(FileNotFoundError):
+        os.rename(src, dst)
+
+
+def _queued_files(queue_dir):
+    """Yield files claimed from the shared work queue until it is empty."""
+    while True:
+        claimed = _claim_queued_file(queue_dir)
+        if claimed is None:
+            return
+        yield claimed
+
+
+def _read_test_report(report_file, file_name):
+    """Read a pytest JUnit report and return its summary fields."""
+    report = JUnitXml.fromfile(report_file)
+    for suite in report:
+        if suite.name == "pytest":
+            suite.name = os.path.splitext(file_name)[0]
+    report.write(report_file)
+
+    errors = int(report.errors) if report.errors is not None else 0
+    failures = int(report.failures) if report.failures is not None else 0
+    skipped = int(report.skipped) if report.skipped is not None else 0
+    tests = int(report.tests) if report.tests is not None else 0
+    time_elapsed = float(report.time) if report.time is not None else 0.0
+    return report, errors, failures, skipped, tests, time_elapsed
+
+
+def _retry_failed_test_in_fresh_process(
+    *,
+    test_file,
+    file_name,
+    cmd,
+    timeout,
+    env,
+    startup_deadline,
+    report_file,
+    report,
+    errors,
+    failures,
+    skipped,
+    tests,
+    time_elapsed,
+    returncode,
+    stdout_data,
+    stderr_data,
+    kill_reason,
+    wall_time,
+    pre_kill_diag,
+):
+    """Retry selected failed test files in a fresh subprocess."""
+    has_test_failures = errors > 0 or failures > 0
+    process_failure_attempts = 0
+    max_process_failure_retries = PROCESS_FAILURE_RETRIES_BY_FILE.get(file_name, 0)
+
+    while has_test_failures and process_failure_attempts < max_process_failure_retries:
+        process_failure_attempts += 1
+        logger.warning(
+            f"⚠️  {test_file}: failed in subprocess"
+            f" (attempt {process_failure_attempts}/{max_process_failure_retries + 1}), retrying in fresh process..."
+        )
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(report_file)
+
+        returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
+            cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
+        )
+        if not os.path.exists(report_file):
+            break
+
+        try:
+            report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, file_name)
+            has_test_failures = errors > 0 or failures > 0
+        except Exception as e:
+            logger.error(f"Error reading retry test report {report_file}: {e}")
+            has_test_failures = True
+            errors = 1
+            failures = 0
+            skipped = 0
+            tests = 0
+            time_elapsed = 0.0
+            break
+
+    return (
+        report,
+        errors,
+        failures,
+        skipped,
+        tests,
+        time_elapsed,
+        returncode,
+        stdout_data,
+        stderr_data,
+        kill_reason,
+        wall_time,
+        pre_kill_diag,
+        has_test_failures,
+    )
+
+
+@dataclass
+class _PassContext:
+    """Inputs shared across all pytest invocations for a single test file.
+
+    Attributes:
+        test_file: Absolute path to the test file being driven.
+        file_name: Basename of ``test_file`` (used for JUnit naming).
+        workspace_root: Repository root; passed to pytest's ``--config-file``.
+        ci_marker: Optional pytest marker expression. When set, adds the
+            ``-m <ci_marker>`` selector (e.g. ``isaacsim_ci``, ``windows_ci``,
+            ``arm_ci``); when falsy, no marker filter is applied.
+        timeout: Per-pass hard timeout in seconds.
+        startup_deadline: Per-pass startup-hang deadline in seconds.
+        env: Environment passed to the pytest subprocess.
+        inject_shard_select: Whether to load the multi-GPU ``mgpu_shard_select``
+            plugin in the pytest subprocess; true only on a non-default-GPU shard.
+        pytest_targets: Test file or node IDs passed to the pytest subprocess.
+    """
+
+    test_file: str
+    file_name: str
+    workspace_root: str
+    ci_marker: str | None
+    timeout: int
+    startup_deadline: int
+    env: dict
+    inject_shard_select: bool
+    pytest_targets: list[str]
+
+
+_RESULT_PRIORITY = {
+    "STARTUP_HANG": 5,
+    "CRASHED": 4,
+    "TIMEOUT": 3,
+    "FAILED": 2,
+    "passed (shutdown hanged)": 1,
+    "passed (module skipped)": 0,
+    "passed (no tests selected)": 0,
+    "passed": 0,
+}
+
+
+def _merge_pass_status(prev: dict | None, new: dict) -> dict:
+    """Merge per-pass status dicts into a single per-file entry.
+
+    Counters (``errors``, ``failures``, ``skipped``, ``tests``,
+    ``time_elapsed``, ``wall_time``) are summed. ``result`` becomes the more
+    severe of the two via :data:`_RESULT_PRIORITY`.
+    """
+    if prev is None:
+        return new
+    return {
+        "errors": prev["errors"] + new["errors"],
+        "failures": prev["failures"] + new["failures"],
+        "skipped": prev["skipped"] + new["skipped"],
+        "tests": prev["tests"] + new["tests"],
+        "time_elapsed": prev["time_elapsed"] + new["time_elapsed"],
+        "wall_time": prev["wall_time"] + new["wall_time"],
+        "result": prev["result"]
+        if _RESULT_PRIORITY.get(prev["result"], 0) >= _RESULT_PRIORITY.get(new["result"], 0)
+        else new["result"],
+    }
+
+
+def _make_failed_pass_result(
+    prefix: str,
+    pass_file_label: str,
+    message: str,
+    report_file: str,
+    stdout_data: bytes,
+    stderr_data: bytes,
+    time_elapsed: float,
+    wall_time: float,
+    report: JUnitXml | None = None,
+    tests: int = 0,
+    skipped: int = 0,
+) -> tuple[JUnitXml, dict, bool]:
+    """Append and persist a synthetic failure without discarding existing results."""
+    details = message + "\n\n"
+    if stdout_data:
+        details += "=== STDOUT (last 5000 chars) ===\n"
+        details += stdout_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+    if stderr_data:
+        details += "=== STDERR (last 5000 chars) ===\n"
+        details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+    if report is None:
+        report = JUnitXml()
+    report += _create_error_report(prefix, pass_file_label, message, details)
+    report.write(report_file)
+    return (
+        report,
+        {
+            "errors": 1,
+            "failures": 0,
+            "skipped": skipped,
+            "tests": tests + 1,
+            "result": "FAILED",
+            "time_elapsed": time_elapsed,
+            "wall_time": wall_time,
+        },
+        True,
+    )
+
+
+def _run_one_pass(
+    ctx: _PassContext,
+    k_expr: str | None,
+    suffix: str,
+) -> tuple[JUnitXml | None, dict, bool]:
+    """Drive one pytest subprocess for ``ctx.test_file`` and return its results.
+
+    Args:
+        ctx: Static per-file context (paths, timeouts, env).
+        k_expr: Optional ``-k`` selector. ``None`` means no selector (default
+            single-pass invocation).
+        suffix: Suffix appended to the JUnit report filename, e.g. ``"-cpu"``
+            or ``""`` for the unsplit default.
+
+    Returns:
+        A 3-tuple ``(xml_report, status_dict, was_failure)``:
+            * ``xml_report``: parsed JUnit XML, or ``None`` if the pass produced
+              no report (e.g. startup hang).
+            * ``status_dict``: per-pass counters compatible with the entries
+              currently appended to ``test_status``.
+            * ``was_failure``: whether the pass should add ``ctx.test_file`` to
+              the ``failed_tests`` list.
+    """
+    pass_file_label = f"{ctx.file_name}{suffix}"
+    # Slug the full test path (not just the basename) into the report filename so
+    # two concurrent shards running same-basename files (e.g.
+    # ``isaaclab_newton/.../test_articulation.py`` vs
+    # ``isaaclab_physx/.../test_articulation.py``) don't write to the same path
+    # inside the shared ``/workspace/isaaclab`` mount and trigger false
+    # shutdown_hang detections in sibling shards via the report-file existence check.
+    report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")
+    report_file = f"tests/test-reports-{report_slug}{suffix}.xml"
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        # Keep pytest capture enabled so Kit startup logs are only shown for failed tests.
+        "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
+        "--no-header",
+        "--show-capture=all",
+        f"--config-file={ctx.workspace_root}/pyproject.toml",
+        f"--junitxml={report_file}",
+        "--tb=short",
+    ]
+    if ctx.inject_shard_select:
+        # multi-GPU lane test-selection plugin (importable via the PYTHONPATH set in
+        # run_individual_tests); deselects out-of-scope device variants on a shard.
+        cmd += ["-p", "mgpu_shard_select"]
+    if ctx.ci_marker:
+        cmd += ["-m", ctx.ci_marker]
+    if k_expr is not None:
+        cmd += ["-k", k_expr]
+    cmd += ctx.pytest_targets
+
+    # -- Run with retry on startup hang or hard timeout -----------------
+    returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
+    wall_time, pre_kill_diag = 0.0, ""
+    startup_hang_attempts = 0
+    timeout_attempts = 0
+    while True:
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(report_file)
+
+        returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
+            cmd, ctx.timeout, ctx.env, startup_deadline=ctx.startup_deadline, report_file=report_file
+        )
+
+        has_report = os.path.exists(report_file)
+
+        if kill_reason == "startup_hang" and startup_hang_attempts < STARTUP_HANG_RETRIES:
+            startup_hang_attempts += 1
+            logger.warning(
+                f"⚠️  {ctx.test_file}{suffix}: startup hang detected after {ctx.startup_deadline}s"
+                f" (attempt {startup_hang_attempts}/{STARTUP_HANG_RETRIES + 1}), retrying..."
+            )
+            if stderr_data:
+                logger.info(
+                    f"=== STDERR (last 5000 chars) ===\n{stderr_data.decode('utf-8', errors='replace')[-5000:]}"
+                )
+            diag = pre_kill_diag or _capture_system_diagnostics()
+            if len(diag) > 10000:
+                diag = diag[:10000] + "\n... (truncated)"
+            logger.info(diag)
+            continue
+
+        if kill_reason == "timeout" and not has_report and timeout_attempts < TIMEOUT_RETRIES:
+            timeout_attempts += 1
+            logger.warning(
+                f"⚠️  {ctx.test_file}{suffix}: timeout detected after {ctx.timeout}s"
+                f" (attempt {timeout_attempts}/{TIMEOUT_RETRIES + 1}), retrying..."
+            )
+            if stdout_data:
+                logger.info(
+                    f"=== STDOUT (last 5000 chars) ===\n{stdout_data.decode('utf-8', errors='replace')[-5000:]}"
+                )
+            if stderr_data:
+                logger.info(
+                    f"=== STDERR (last 5000 chars) ===\n{stderr_data.decode('utf-8', errors='replace')[-5000:]}"
+                )
+            diag = pre_kill_diag or _capture_system_diagnostics()
+            if len(diag) > 10000:
+                diag = diag[:10000] + "\n... (truncated)"
+            logger.info(diag)
+            continue
+        break
+
+    # -- Resolve result from kill_reason and report file ----------------
+    has_report = os.path.exists(report_file)
+
+    if kill_reason == "startup_hang":
+        diag = _get_diagnostics(pre_kill_diag)
+        logger.warning(f"⚠️  {ctx.test_file}{suffix}: startup hang after {STARTUP_HANG_RETRIES + 1} attempt(s)")
+        logger.info(diag)
+
+        msg = f"Startup hang after {ctx.startup_deadline}s (retried {STARTUP_HANG_RETRIES} time(s))"
+        details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+        if stderr_data:
+            details += "=== STDERR (last 5000 chars) ===\n"
+            details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+        if stdout_data:
+            details += "=== STDOUT (last 2000 chars) ===\n"
+            details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+
+        error_report = _create_error_report("startup_hang", pass_file_label, msg, details)
+        error_report.write(report_file)
+        return (
+            error_report,
+            {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 1,
+                "result": "STARTUP_HANG",
+                "time_elapsed": 0.0,
+                "wall_time": wall_time,
+            },
+            True,
+        )
+
+    if kill_reason == "timeout" and not has_report:
+        diag = _get_diagnostics(pre_kill_diag)
+        logger.warning(f"Test {ctx.test_file}{suffix} timed out after {ctx.timeout} seconds...")
+        logger.info(diag)
+
+        msg = f"Timeout after {ctx.timeout} seconds (retried {timeout_attempts} time(s))"
+        details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+        if stdout_data:
+            details += "=== STDOUT (last 5000 chars) ===\n"
+            details += stdout_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+        if stderr_data:
+            details += "=== STDERR (last 5000 chars) ===\n"
+            details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+
+        error_report = _create_error_report("timeout", pass_file_label, msg, details)
+        error_report.write(report_file)
+        return (
+            error_report,
+            {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 1,
+                "result": "TIMEOUT",
+                "time_elapsed": ctx.timeout,
+                "wall_time": wall_time,
+            },
+            True,
+        )
+
+    if not has_report:
+        reason = (
+            _signal_description(-returncode)
+            if returncode < 0
+            else f"Process exited with code {returncode} but produced no report"
+        )
+        diag = _get_diagnostics()
+        logger.warning(f"⚠️  {ctx.test_file}{suffix}: {reason}")
+        logger.info(diag)
+
+        details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+        if stdout_data:
+            details += "=== STDOUT (last 2000 chars) ===\n"
+            details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+        if stderr_data:
+            details += "=== STDERR (last 2000 chars) ===\n"
+            details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+
+        error_report = _create_error_report("crash", pass_file_label, reason, details)
+        error_report.write(report_file)
+        return (
+            error_report,
+            {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 1,
+                "result": "CRASHED",
+                "time_elapsed": 0.0,
+                "wall_time": wall_time,
+            },
+            True,
+        )
+
+    # -- Report file exists: parse actual test results -----------------
+    if kill_reason in ("shutdown_hang", "timeout"):
+        logger.warning(
+            f"⚠️  {ctx.test_file}{suffix}: shutdown hanged (killed after {wall_time:.0f}s, test had completed)"
+        )
+
+    try:
+        report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, pass_file_label)
+    except Exception as e:
+        logger.error(f"Error reading test report {report_file}: {e}")
+        return (
+            None,
+            {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 0,
+                "result": "FAILED",
+                "time_elapsed": 0.0,
+                "wall_time": wall_time,
+            },
+            True,
+        )
+
+    exact_node_selection = any("::" in target for target in ctx.pytest_targets)
+    if exact_node_selection and tests == 0:
+        msg = f"Configured test node IDs selected zero tests: {', '.join(ctx.pytest_targets)}"
+        logger.error(msg)
+        return _make_failed_pass_result(
+            "selection",
+            pass_file_label,
+            msg,
+            report_file,
+            stdout_data,
+            stderr_data,
+            time_elapsed,
+            wall_time,
+            report=report,
+            tests=tests,
+            skipped=skipped,
+        )
+
+    (
+        report,
+        errors,
+        failures,
+        skipped,
+        tests,
+        time_elapsed,
+        returncode,
+        stdout_data,
+        stderr_data,
+        kill_reason,
+        wall_time,
+        pre_kill_diag,
+        has_test_failures,
+    ) = _retry_failed_test_in_fresh_process(
+        test_file=ctx.test_file,
+        file_name=ctx.file_name,
+        cmd=cmd,
+        timeout=ctx.timeout,
+        env=ctx.env,
+        startup_deadline=ctx.startup_deadline,
+        report_file=report_file,
+        report=report,
+        errors=errors,
+        failures=failures,
+        skipped=skipped,
+        tests=tests,
+        time_elapsed=time_elapsed,
+        returncode=returncode,
+        stdout_data=stdout_data,
+        stderr_data=stderr_data,
+        kill_reason=kill_reason,
+        wall_time=wall_time,
+        pre_kill_diag=pre_kill_diag,
+    )
+
+    shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
+    no_tests_collected = returncode == pytest.ExitCode.NO_TESTS_COLLECTED
+    expected_empty_selection = k_expr is not None or ctx.ci_marker or skipped > 0
+    if no_tests_collected and expected_empty_selection:
+        result = "passed (module skipped)" if skipped else "passed (no tests selected)"
+        logger.warning(f"⚠️  {ctx.test_file}{suffix}: no tests collected — {result}")
+        return (
+            report,
+            {
+                "errors": errors,
+                "failures": failures,
+                "skipped": skipped,
+                "tests": tests,
+                "result": result,
+                "time_elapsed": time_elapsed,
+                "wall_time": wall_time,
+            },
+            False,
+        )
+
+    if returncode != 0 and not shutdown_hanged and not has_test_failures:
+        msg = f"pytest exited with code {returncode} without reporting a test failure"
+        logger.error(f"{ctx.test_file}{suffix}: {msg}")
+        return _make_failed_pass_result(
+            "pytest_exit",
+            pass_file_label,
+            msg,
+            report_file,
+            stdout_data,
+            stderr_data,
+            time_elapsed,
+            wall_time,
+            report=report,
+            tests=tests,
+            skipped=skipped,
+        )
+
+    was_failure = has_test_failures or (returncode != 0 and not shutdown_hanged)
+
+    if shutdown_hanged:
+        result = "passed (shutdown hanged)"
+    elif has_test_failures:
+        result = "FAILED"
+    else:
+        result = "passed"
+
+    return (
+        report,
+        {
+            "errors": errors,
+            "failures": failures,
+            "skipped": skipped,
+            "tests": tests,
+            "result": result,
+            "time_elapsed": time_elapsed,
+            "wall_time": wall_time,
+        },
+        was_failure,
+    )
+
+
+def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by_file=None):
+    """Run each test file separately, ensuring one finishes before starting the next.
+
+    When ``ISAACLAB_TEST_QUEUE`` names a shared work-queue file, files are claimed
+    from it (work-stealing across sibling shard containers) instead of iterating
+    ``test_files``; each file still runs once, on this container's pinned GPU.
+    """
     failed_tests = []
     test_status = {}
     xml_reports = []
     cold_cache_applied = False
+    test_node_ids_by_file = test_node_ids_by_file or {}
+    global_k_expr = os.environ.get("TEST_K_EXPR", "").strip() or None
+    if global_k_expr is not None:
+        logger.info(f"Applying global pytest -k expression to every test file: '{global_k_expr}'")
 
-    for test_file in test_files:
-        print(f"\n\n🚀 Running {test_file} independently...\n")
+    queue_path = os.environ.get("ISAACLAB_TEST_QUEUE", "")
+    file_source = _queued_files(queue_path) if queue_path else test_files
+
+    for test_file in file_source:
+        logger.info(f"\n\n🚀 Running {test_file} independently...\n")
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
         env["PYTHONFAULTHANDLER"] = "1"
 
+        # Multi-GPU lane only: make the device-selection plugin importable in this
+        # per-file subprocess (injected via ``-p`` in _run_one_pass, not as a
+        # repo-root conftest). Detect a shard by the runtime device mask excluding cpu
+        # (position 0) and cuda:0 (position 1) -- the same ISAACLAB_TEST_DEVICES the
+        # plugin and test_devices() read. The plugin re-checks this; the cheap
+        # prefix test here leaves single-GPU CI's command (mask unset or "11...")
+        # unchanged.
+        _mask = os.environ.get("ISAACLAB_TEST_DEVICES", "")
+        _inject_shard_select = _mask[:2] == "00"
+        if _inject_shard_select:
+            _plugin_dir = os.path.join(workspace_root, ".github", "actions", "multi-gpu")
+            env["PYTHONPATH"] = _plugin_dir + os.pathsep + env.get("PYTHONPATH", "")
+
         timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
-        # Read the test file once for cold-cache check.
+        # Read the test file once for cold-cache and device-split detection.
         try:
             with open(test_file) as fh:
                 test_content = fh.read()
@@ -332,230 +1005,61 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         if is_cold_cache_test:
             timeout += COLD_CACHE_BUFFER
             cold_cache_applied = True
-            print(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
+            logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
 
         extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
         startup_deadline = min(timeout, STARTUP_DEADLINE + extra)
 
-        cmd = [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-s",
-            "--no-header",
-            f"--config-file={workspace_root}/pyproject.toml",
-            f"--junitxml=tests/test-reports-{str(file_name)}.xml",
-            "--tb=short",
-        ]
+        pytest_targets = test_node_ids_by_file.get(os.path.normpath(test_file), [str(test_file)])
 
-        if isaacsim_ci:
-            cmd.append("-m")
-            cmd.append("isaacsim_ci")
+        ctx = _PassContext(
+            test_file=test_file,
+            file_name=file_name,
+            workspace_root=workspace_root,
+            ci_marker=ci_marker,
+            timeout=timeout,
+            startup_deadline=startup_deadline,
+            env=env,
+            inject_shard_select=_inject_shard_select,
+            pytest_targets=pytest_targets,
+        )
 
-        cmd.append(str(test_file))
-
-        report_file = f"tests/test-reports-{str(file_name)}.xml"
-
-        # -- Run with retry on startup hang or hard timeout -----------------
-        returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
-        wall_time, pre_kill_diag = 0.0, ""
-        startup_hang_attempts = 0
-        timeout_attempts = 0
-        while True:
-            with contextlib.suppress(FileNotFoundError):
-                os.remove(report_file)
-
-            returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = (
-                capture_test_output_with_timeout(
-                    cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
-                )
-            )
-
-            has_report = os.path.exists(report_file)
-
-            if kill_reason == "startup_hang" and startup_hang_attempts < STARTUP_HANG_RETRIES:
-                startup_hang_attempts += 1
-                print(
-                    f"⚠️  {test_file}: startup hang detected after {startup_deadline}s"
-                    f" (attempt {startup_hang_attempts}/{STARTUP_HANG_RETRIES + 1}), retrying..."
-                )
-                if stderr_data:
-                    print("=== STDERR (last 5000 chars) ===")
-                    print(stderr_data.decode("utf-8", errors="replace")[-5000:])
-                diag = pre_kill_diag or _capture_system_diagnostics()
-                if len(diag) > 10000:
-                    diag = diag[:10000] + "\n... (truncated)"
-                print(diag)
-                continue
-
-            if kill_reason == "timeout" and not has_report and timeout_attempts < TIMEOUT_RETRIES:
-                timeout_attempts += 1
-                print(
-                    f"⚠️  {test_file}: timeout detected after {timeout}s"
-                    f" (attempt {timeout_attempts}/{TIMEOUT_RETRIES + 1}), retrying..."
-                )
-                if stdout_data:
-                    print("=== STDOUT (last 5000 chars) ===")
-                    print(stdout_data.decode("utf-8", errors="replace")[-5000:])
-                if stderr_data:
-                    print("=== STDERR (last 5000 chars) ===")
-                    print(stderr_data.decode("utf-8", errors="replace")[-5000:])
-                diag = pre_kill_diag or _capture_system_diagnostics()
-                if len(diag) > 10000:
-                    diag = diag[:10000] + "\n... (truncated)"
-                print(diag)
-                continue
-            break
-
-        # -- Resolve result from kill_reason and report file ----------------
-        has_report = os.path.exists(report_file)
-
-        if kill_reason == "startup_hang":
-            diag = _get_diagnostics(pre_kill_diag)
-            print(f"⚠️  {test_file}: startup hang after {STARTUP_HANG_RETRIES + 1} attempt(s)")
-            print(diag)
-
-            msg = f"Startup hang after {startup_deadline}s (retried {STARTUP_HANG_RETRIES} time(s))"
-            details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-            if stderr_data:
-                details += "=== STDERR (last 5000 chars) ===\n"
-                details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
-            if stdout_data:
-                details += "=== STDOUT (last 2000 chars) ===\n"
-                details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
-
-            error_report = _create_error_report("startup_hang", file_name, msg, details)
-            error_report.write(report_file)
-            xml_reports.append(error_report)
-            failed_tests.append(test_file)
-            test_status[test_file] = {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "STARTUP_HANG",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            }
-            continue
-
-        if kill_reason == "timeout" and not has_report:
-            diag = _get_diagnostics(pre_kill_diag)
-            print(f"Test {test_file} timed out after {timeout} seconds...")
-            print(diag)
-
-            msg = f"Timeout after {timeout} seconds (retried {timeout_attempts} time(s))"
-            details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-            if stdout_data:
-                details += "=== STDOUT (last 5000 chars) ===\n"
-                details += stdout_data.decode("utf-8", errors="replace")[-5000:] + "\n"
-            if stderr_data:
-                details += "=== STDERR (last 5000 chars) ===\n"
-                details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
-
-            error_report = _create_error_report("timeout", file_name, msg, details)
-            error_report.write(report_file)
-            xml_reports.append(error_report)
-            failed_tests.append(test_file)
-            test_status[test_file] = {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "TIMEOUT",
-                "time_elapsed": timeout,
-                "wall_time": wall_time,
-            }
-            continue
-
-        if not has_report:
-            reason = (
-                _signal_description(-returncode)
-                if returncode < 0
-                else f"Process exited with code {returncode} but produced no report"
-            )
-            diag = _get_diagnostics()
-            print(f"⚠️  {test_file}: {reason}")
-            print(diag)
-
-            details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-            if stdout_data:
-                details += "=== STDOUT (last 2000 chars) ===\n"
-                details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
-            if stderr_data:
-                details += "=== STDERR (last 2000 chars) ===\n"
-                details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
-
-            error_report = _create_error_report("crash", file_name, reason, details)
-            error_report.write(report_file)
-            xml_reports.append(error_report)
-            failed_tests.append(test_file)
-            test_status[test_file] = {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "CRASHED",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            }
-            continue
-
-        # -- Report file exists: parse actual test results -----------------
-        if kill_reason in ("shutdown_hang", "timeout"):
-            print(f"⚠️  {test_file}: shutdown hanged (killed after {wall_time:.0f}s, test had completed)")
-
-        try:
-            report = JUnitXml.fromfile(report_file)
-            for suite in report:
-                if suite.name == "pytest":
-                    suite.name = os.path.splitext(file_name)[0]
-            report.write(report_file)
-            xml_reports.append(report)
-
-            errors = int(report.errors) if report.errors is not None else 0
-            failures = int(report.failures) if report.failures is not None else 0
-            skipped = int(report.skipped) if report.skipped is not None else 0
-            tests = int(report.tests) if report.tests is not None else 0
-            time_elapsed = float(report.time) if report.time is not None else 0.0
-        except Exception as e:
-            print(f"Error reading test report {report_file}: {e}")
-            failed_tests.append(test_file)
-            test_status[test_file] = {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 0,
-                "result": "FAILED",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            }
-            continue
-
-        has_test_failures = errors > 0 or failures > 0
-        shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
-
-        if has_test_failures or (returncode != 0 and not shutdown_hanged):
-            failed_tests.append(test_file)
-
-        if shutdown_hanged:
-            result = "passed (shutdown hanged)"
-        elif has_test_failures:
-            result = "FAILED"
+        # On a multi-GPU shard, test_devices() already resolves to this shard's single
+        # GPU and mgpu_shard_select drops every other variant, so the device_split
+        # CPU/GPU two-pass (which exists to dodge the process-global device lock when
+        # CPU and GPU share one container) is unnecessary here — the CPU pass would
+        # collect zero tests yet still pay full Kit-startup cost. Run once on a shard.
+        if _inject_shard_select:
+            passes = [("", None)]
+        elif is_device_split_file(test_file, source=test_content):
+            logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
+            passes = DEVICE_SPLIT_PASSES
         else:
-            result = "passed"
+            passes = [("", None)]
 
-        test_status[test_file] = {
-            "errors": errors,
-            "failures": failures,
-            "skipped": skipped,
-            "tests": tests,
-            "result": result,
-            "time_elapsed": time_elapsed,
-            "wall_time": wall_time,
-        }
+        merged_status: dict | None = None
+        for suffix, k_expr in passes:
+            if global_k_expr is not None:
+                k_expr = f"({k_expr}) and ({global_k_expr})" if k_expr else global_k_expr
+            report, status, was_failure = _run_one_pass(ctx, k_expr=k_expr, suffix=suffix)
+            if report is not None:
+                xml_reports.append(report)
+            if was_failure and test_file not in failed_tests:
+                failed_tests.append(test_file)
+            merged_status = _merge_pass_status(merged_status, status)
 
-    print("~~~~~~~~~~~~ Finished running all tests")
+        assert merged_status is not None  # the pass list is never empty
+        test_status[test_file] = merged_status
+
+        # When running under the directory-based work queue (option 2), move the
+        # claim entry from inflight/<shard>/ to done/<shard>/ so the post-run
+        # reconciler can distinguish "ran to completion" from "claimed but
+        # crashed mid-test". A claim that stays in inflight at job-end is a
+        # silent drop signal.
+        if queue_path:
+            _mark_queued_file_done(queue_path, test_file)
+
+    logger.info("~~~~~~~~~~~~ Finished running all tests")
 
     return failed_tests, test_status, xml_reports
 
@@ -572,10 +1076,16 @@ def _collect_test_files(
     test_files = []
     for source_dir in source_dirs:
         if not os.path.exists(source_dir):
-            print(f"Error: source directory not found at {source_dir}")
+            logger.error(f"Error: source directory not found at {source_dir}")
             pytest.exit("Source directory not found", returncode=1)
 
         for root, _, files in os.walk(source_dir):
+            # source/isaaclab/test/install_ci/ has its own pytest config and conftest.
+            # It is run via .github/actions/install-ci-run, never via this collector,
+            # so skip the whole subtree to keep install_ci tests out of build.yaml jobs.
+            if "install_ci" in root.replace("\\", "/").split("/"):
+                continue
+
             for file in files:
                 if not (file.startswith("test_") and file.endswith(".py")):
                     continue
@@ -592,24 +1102,27 @@ def _collect_test_files(
                     # dedicated jobs (e.g. test-environments-training) to run tests that
                     # are otherwise excluded from general CI runs.
                     if file in test_settings.TESTS_TO_SKIP and file not in include_files:
-                        print(f"Skipping {file} as it's in the skip list")
+                        logger.debug(f"Skipping {file} as it's in the skip list")
                         continue
 
                 full_path = os.path.join(root, file)
 
                 if filter_pattern and filter_pattern not in full_path:
-                    print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
+                    logger.debug(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
                     continue
                 if exclude_pattern and any(p.strip() in full_path for p in exclude_pattern.split(",")):
-                    print(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
+                    logger.debug(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
                     continue
                 if include_files and file not in include_files:
-                    print(f"Skipping {full_path} (not in include files list)")
+                    logger.debug(f"Skipping {full_path} (not in include files list)")
                     continue
 
                 test_files.append(full_path)
 
-    # Apply file-level sharding: sort deterministically, then select every Nth file.
+    # Sort test files deterministically to ensure consistent test ordering.
+    test_files.sort()
+
+    # Apply file-level sharding: select every Nth file from the deterministic order.
     # Skip when include_files is set — in that case the test's own conftest handles
     # sharding at the test-item level (e.g. parametrized test cases).
     shard_index = os.environ.get("TEST_SHARD_INDEX", "")
@@ -617,11 +1130,64 @@ def _collect_test_files(
     if shard_index and shard_count and not include_files:
         shard_index = int(shard_index)
         shard_count = int(shard_count)
-        test_files.sort()
         test_files = [f for i, f in enumerate(test_files) if i % shard_count == shard_index]
-        print(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
+        logger.info(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
 
     return test_files
+
+
+def _load_test_node_ids_from_toml(workspace_root: str) -> list[str]:
+    """Load exact pytest node IDs from a TOML file configured in the environment."""
+    node_ids_file = os.environ.get("TEST_NODE_IDS_FILE")
+    node_ids_key = os.environ.get("TEST_NODE_IDS_KEY")
+    if not (node_ids_file or node_ids_key):
+        return []
+    if not (node_ids_file and node_ids_key):
+        pytest.exit("Both TEST_NODE_IDS_FILE and TEST_NODE_IDS_KEY must be set together", returncode=1)
+
+    path = node_ids_file if os.path.isabs(node_ids_file) else os.path.join(workspace_root, node_ids_file)
+
+    try:
+        with open(os.path.normpath(path), "rb") as stream:
+            node_ids = tomllib.load(stream).get(node_ids_key)
+    except OSError as exc:
+        pytest.exit(f"Could not read TEST_NODE_IDS_FILE {node_ids_file!r}: {exc}", returncode=1)
+    except tomllib.TOMLDecodeError as exc:
+        pytest.exit(f"{node_ids_file}: invalid TOML: {exc}", returncode=1)
+
+    if not node_ids:
+        pytest.exit(f"{node_ids_key!r} not found or empty in {node_ids_file}", returncode=1)
+    if not isinstance(node_ids, list) or not all(isinstance(node_id, str) for node_id in node_ids):
+        pytest.exit(f"{node_ids_key!r} must be a TOML array of strings in {node_ids_file}", returncode=1)
+
+    return node_ids
+
+
+def _collect_test_node_ids_by_file(workspace_root: str) -> dict[str, list[str]]:
+    """Group exact pytest node IDs by absolute test file path."""
+    node_ids = [line.strip() for line in os.environ.get("TEST_NODE_IDS", "").splitlines() if line.strip()]
+    node_ids.extend(_load_test_node_ids_from_toml(workspace_root))
+    if len(node_ids) != len(set(node_ids)):
+        pytest.exit("Configured test node IDs contain duplicates", returncode=1)
+
+    grouped: dict[str, list[str]] = {}
+    for node_id in node_ids:
+        normalized_node_id = node_id.replace("\\", "/")
+        if "::" not in normalized_node_id:
+            pytest.exit(f"Configured test node ID must include '::': {node_id}", returncode=1)
+
+        file_part, test_part = normalized_node_id.split("::", 1)
+        if os.path.isabs(file_part):
+            abs_file = os.path.normpath(file_part)
+        else:
+            abs_file = os.path.normpath(os.path.join(workspace_root, file_part))
+
+        if not os.path.exists(abs_file):
+            pytest.exit(f"Configured test node ID file does not exist: {node_id}", returncode=1)
+
+        grouped.setdefault(abs_file, []).append(f"{normalized_node_id.split('::', 1)[0]}::{test_part}")
+
+    return grouped
 
 
 def _write_empty_report():
@@ -630,7 +1196,35 @@ def _write_empty_report():
     result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
     report = JUnitXml()
     report.write(f"tests/{result_file}")
-    print(f"Wrote empty report to tests/{result_file}")
+    logger.info(f"Wrote empty report to tests/{result_file}")
+
+
+def _format_test_file_results(test_files: list[str], test_status: dict[str, dict], run_device: str) -> str:
+    """Format all per-file test results as a table."""
+    summary = "\n\n=====================\n"
+    summary += "All Test File Results\n"
+    summary += "=====================\n"
+
+    table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
+    table.align["Test Path"] = "l"
+    table.align["Test (s)"] = "r"
+    table.align["Wall (s)"] = "r"
+    sorted_test_files = sorted(test_files, key=lambda path: test_status[path]["wall_time"], reverse=True)
+    for test_path in sorted_test_files:
+        status = test_status[test_path]
+        num_tests_passed = status["tests"] - status["failures"] - status["errors"] - status["skipped"]
+        table.add_row(
+            [
+                test_path,
+                run_device,
+                status["result"],
+                f"{status['time_elapsed']:0.2f}",
+                f"{status['wall_time']:0.2f}",
+                f"{num_tests_passed}/{status['tests']}",
+            ]
+        )
+
+    return summary + table.get_string()
 
 
 def pytest_sessionstart(session):
@@ -651,6 +1245,14 @@ def pytest_sessionstart(session):
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
 
+    # CI_MARKER env var is a separate, parallel mechanism for cross-platform
+    # jobs (arm-ci, windows-ci, ...) to reuse this orchestrator with their own
+    # markers. Deliberately NOT aliased to ISAACSIM_CI_SHORT: the isaacsim_ci
+    # filter is owned by Isaac Sim's external CI pipeline; the CI_MARKER path
+    # leaves that contract untouched.
+    ci_marker = os.environ.get("CI_MARKER", "")
+    test_node_ids_by_file = _collect_test_node_ids_by_file(workspace_root)
+
     # Parse include files list (comma-separated paths)
     include_files = set()
     if include_files_str:
@@ -658,6 +1260,7 @@ def pytest_sessionstart(session):
             f = f.strip()
             if f:
                 include_files.add(os.path.basename(f))
+    include_files.update(os.path.basename(path) for path in test_node_ids_by_file)
 
     # Also try to get from pytest config
     if hasattr(session.config, "option") and hasattr(session.config.option, "filter_pattern"):
@@ -665,20 +1268,24 @@ def pytest_sessionstart(session):
     if hasattr(session.config, "option") and hasattr(session.config.option, "exclude_pattern"):
         exclude_pattern = exclude_pattern or getattr(session.config.option, "exclude_pattern", "")
 
-    print("=" * 50)
-    print("CONFTEST.PY DEBUG INFO")
-    print("=" * 50)
-    print(f"Filter pattern: '{filter_pattern}'")
-    print(f"Exclude pattern: '{exclude_pattern}'")
-    print(f"Include files: {include_files if include_files else 'none'}")
-    print(f"Quarantined-only mode: {quarantined_only}")
-    print(f"Curobo-only mode: {curobo_only}")
-    print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
-    print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
-    print(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
-    print(f"TEST_QUARANTINED_ONLY env var: '{os.environ.get('TEST_QUARANTINED_ONLY', 'NOT_SET')}'")
-    print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
-    print("=" * 50)
+    logger.debug("=" * 50)
+    logger.debug("CONFTEST.PY DEBUG INFO")
+    logger.debug("=" * 50)
+    logger.debug(f"Filter pattern: '{filter_pattern}'")
+    logger.debug(f"Exclude pattern: '{exclude_pattern}'")
+    logger.debug(f"Include files: {include_files if include_files else 'none'}")
+    logger.debug(f"Test node IDs: {sum(len(node_ids) for node_ids in test_node_ids_by_file.values())}")
+    logger.debug(f"Quarantined-only mode: {quarantined_only}")
+    logger.debug(f"Curobo-only mode: {curobo_only}")
+    logger.debug(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
+    logger.debug(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
+    logger.debug(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
+    logger.debug(f"TEST_NODE_IDS env var: '{'SET' if os.environ.get('TEST_NODE_IDS') else 'NOT_SET'}'")
+    logger.debug(f"TEST_NODE_IDS_FILE env var: '{os.environ.get('TEST_NODE_IDS_FILE', 'NOT_SET')}'")
+    logger.debug(f"TEST_NODE_IDS_KEY env var: '{os.environ.get('TEST_NODE_IDS_KEY', 'NOT_SET')}'")
+    logger.debug(f"TEST_QUARANTINED_ONLY env var: '{os.environ.get('TEST_QUARANTINED_ONLY', 'NOT_SET')}'")
+    logger.debug(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
+    logger.debug("=" * 50)
 
     # Get all test files in the source directories
     test_files = _collect_test_files(
@@ -698,44 +1305,84 @@ def pytest_sessionstart(session):
                     new_test_files.append(test_file)
         test_files = new_test_files
 
+    if ci_marker:
+        # Match both `@pytest.mark.<marker>` (per-function) and
+        # `pytestmark = pytest.mark.<marker>` / `pytestmark = [..., pytest.mark.<marker>, ...]`
+        # (module-level) by looking for the common `pytest.mark.<marker>` substring.
+        marker_token = f"pytest.mark.{ci_marker}"
+        new_test_files = []
+        for test_file in test_files:
+            try:
+                with open(test_file) as f:
+                    if marker_token in f.read():
+                        new_test_files.append(test_file)
+            except OSError as exc:
+                raise RuntimeError(
+                    f"ci_marker post-scan could not read {test_file}; refusing to"
+                    f" silently drop a potentially marker-tagged file"
+                ) from exc
+        test_files = new_test_files
+
+    if test_node_ids_by_file:
+        configured_files = set(test_node_ids_by_file)
+        test_files = [test_file for test_file in test_files if os.path.normpath(test_file) in configured_files]
+        missing_files = sorted(configured_files - {os.path.normpath(test_file) for test_file in test_files})
+        if missing_files:
+            pytest.exit(f"Configured test node ID files were not collected: {missing_files}", returncode=1)
+
     if not test_files:
         if quarantined_only:
-            print("No quarantined tests configured — nothing to run.")
+            logger.info("No quarantined tests configured — nothing to run.")
             _write_empty_report()
             pytest.exit("No quarantined tests configured", returncode=0)
         if filter_pattern:
-            print(f"No test files found matching filter pattern '{filter_pattern}' — nothing to run.")
+            logger.info(f"No test files found matching filter pattern '{filter_pattern}' — nothing to run.")
             _write_empty_report()
             pytest.exit("No test files found for filter", returncode=0)
-        print("No test files found in source directory")
+        logger.warning("No test files found in source directory")
         pytest.exit("No test files found", returncode=1)
 
-    print(f"Found {len(test_files)} test files after filtering:")
+    logger.info(f"Found {len(test_files)} test files after filtering")
     for test_file in test_files:
-        print(f"  - {test_file}")
+        node_ids = test_node_ids_by_file.get(os.path.normpath(test_file), []) if test_node_ids_by_file else []
+        suffix = f" ({', '.join(node_ids)})" if node_ids else ""
+        logger.info(f"  - {test_file}{suffix}")
 
-    # Run all tests individually
-    failed_tests, test_status, xml_reports = run_individual_tests(test_files, workspace_root, isaacsim_ci)
+    # Run all tests individually. CI_MARKER takes precedence when both env
+    # vars are set; falls back to "isaacsim_ci" when only ISAACSIM_CI_SHORT
+    # is set. The pytest -m flag only accepts one expression.
+    effective_marker = ci_marker or ("isaacsim_ci" if isaacsim_ci else "")
+    failed_tests, test_status, xml_reports = run_individual_tests(
+        test_files, workspace_root, effective_marker, test_node_ids_by_file
+    )
 
-    print("failed tests:", failed_tests)
+    # In work-queue mode this container ran only the files it claimed; report on those.
+    if os.environ.get("ISAACLAB_TEST_QUEUE"):
+        test_files = list(test_status)
+
+    logger.info(f"failed tests: {failed_tests}")
 
     # Collect reports
-    print("~~~~~~~~~ Collecting final report...")
+    logger.info("~~~~~~~~~ Collecting final report...")
 
     # Merge in-memory report objects collected during the test run.  Reading the
     # on-disk files again risks losing <failure> elements if the junitparser
     # read/write round-trip does not preserve them faithfully.
     full_report = JUnitXml()
     for xml_report in xml_reports:
-        print(xml_report)
+        logger.debug(xml_report)
         full_report += xml_report
-    print("~~~~~~~~~~~~ Writing final report...")
+    logger.info("~~~~~~~~~~~~ Writing final report...")
     # write content to full report
     result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
     full_report_path = f"tests/{result_file}"
-    print(f"Using result file: {result_file}")
+    # Ensure the directory exists even when this shard claimed zero files
+    # from the work queue (per-test JUnit XMLs are what normally create
+    # ``tests/``; with no tests run there is nothing to create it).
+    os.makedirs("tests", exist_ok=True)
+    logger.info(f"Using result file: {result_file}")
     full_report.write(full_report_path)
-    print("~~~~~~~~~~~~ Report written to", full_report_path)
+    logger.info(f"~~~~~~~~~~~~ Report written to {full_report_path}")
 
     # print test status in a nice table
     # Calculate the number and percentage of passing tests
@@ -771,35 +1418,14 @@ def pytest_sessionstart(session):
     summary_str += f"Total Wall Time: {total_wall // 3600:.0f}h{total_wall // 60 % 60:.0f}m{total_wall % 60:.2f}s\n"
     summary_str += f"Total Test Time: {total_test // 3600:.0f}h{total_test // 60 % 60:.0f}m{total_test % 60:.2f}s"
 
-    summary_str += "\n\n=======================\n"
-    summary_str += "Per Test Result Summary\n"
-    summary_str += "=======================\n"
+    # GPU this run used (the shard's boot device); ``cuda:0`` when the runtime
+    # device mask is unset.
+    run_device = resolve_test_sim_device()
 
-    per_test_result_table = PrettyTable(field_names=["Test Path", "Result", "Test (s)", "Wall (s)", "# Tests"])
-    per_test_result_table.align["Test Path"] = "l"
-    per_test_result_table.align["Test (s)"] = "r"
-    per_test_result_table.align["Wall (s)"] = "r"
-    for test_path in test_files:
-        num_tests_passed = (
-            test_status[test_path]["tests"]
-            - test_status[test_path]["failures"]
-            - test_status[test_path]["errors"]
-            - test_status[test_path]["skipped"]
-        )
-        per_test_result_table.add_row(
-            [
-                test_path,
-                test_status[test_path]["result"],
-                f"{test_status[test_path]['time_elapsed']:0.2f}",
-                f"{test_status[test_path]['wall_time']:0.2f}",
-                f"{num_tests_passed}/{test_status[test_path]['tests']}",
-            ]
-        )
-
-    summary_str += per_test_result_table.get_string()
+    summary_str += _format_test_file_results(test_files, test_status, run_device)
 
     # Print summary to console and log file
-    print(summary_str)
+    logger.info(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
     pytest.exit(

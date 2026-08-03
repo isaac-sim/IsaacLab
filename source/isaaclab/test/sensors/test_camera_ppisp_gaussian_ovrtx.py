@@ -33,7 +33,7 @@ Notes:
     same RTX hydra libraries (``librtx.hydra.so``, ``liblegacy.hydra.so``)
     under conflicting USD namespaces; loading both into the same process
     causes a dynamic-linker crash. See
-    :func:`isaaclab_tasks.utils.sim_launcher.launch_simulation` for the
+    :func:`isaaclab.app.sim_launcher.launch_simulation` for the
     documented incompatibility.
   * Uses Newton physics because ``ovrtx`` is incompatible with Kit/Isaac Sim
     and the PhysX backend requires Kit (``carb``) to bootstrap.
@@ -49,17 +49,25 @@ import tempfile
 import pytest
 from generate_synthetic_gaussian_asset import (
     SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
+    assert_images_meaningfully_different,
+    assert_ppisp_controller_matches_static,
     assert_ppisp_invariants,
     assert_ppisp_lifts_exposure,
+    assert_tiled_views_match,
+    make_aggressive_ppisp_cfg,
+    make_neutral_ppisp_cfg,
     make_synthetic_gaussian_usd,
     render_synthetic_gaussian_scene,
+    render_synthetic_gaussian_scene_with_controller_ppisp_attrs,
+    render_synthetic_gaussian_scene_with_static_ppisp_attrs,
 )
 
 from isaaclab.sim import SimulationCfg
 
-# OVRTX renderer + Newton physics are required (kit-less + non-PhysX). Use a
-# collection-time skip marker instead of module-level ``importorskip`` so CI's
-# per-file runner does not see pytest's "no tests collected" exit code.
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
+# Use collection-time skip markers so unavailable optional modules remain
+# visible per test in reports.
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "isaaclab_newton")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 _SKIP_MISSING_OVRTX = pytest.mark.skipif(
@@ -125,9 +133,73 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
             renderer_cfg=OVRTXRendererCfg(),
             data_types=["rgb", "rgb_hdr"],
             sim_dt=SIM_DT,
+            stabilisation_steps=15,
         )
     assert_ppisp_lifts_exposure(output["rgb_hdr"][0], output["rgb"][0], label="ovrtx")
     assert_ppisp_invariants(output["rgb"][0], label="ovrtx")
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.isaacsim_ci
+@_SKIP_MISSING_OVRTX
+@_XFAIL_OVRTX_GAUSSIAN_PPISP
+def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_ovrtx(device):
+    """OVRTX must apply camera-authored static PPISP attributes."""
+    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
+        aggressive_cfg = make_aggressive_ppisp_cfg()
+
+        neutral = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+            asset_path,
+            sim_cfg=_ovrtx_sim_cfg(device),
+            renderer_cfg=OVRTXRendererCfg(),
+            ppisp_cfg=make_neutral_ppisp_cfg(),
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+        aggressive = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+            asset_path,
+            sim_cfg=_ovrtx_sim_cfg(device),
+            renderer_cfg=OVRTXRendererCfg(),
+            ppisp_cfg=aggressive_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+
+    assert_images_meaningfully_different(neutral["rgb"][0], aggressive["rgb"][0], label="ovrtx authored PPISP")
+    assert_ppisp_lifts_exposure(aggressive["rgb_hdr"][0], aggressive["rgb"][0], label="ovrtx authored PPISP")
+    assert_ppisp_invariants(aggressive["rgb"][0], label="ovrtx authored PPISP")
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.isaacsim_ci
+@_SKIP_MISSING_OVRTX
+@_XFAIL_OVRTX_GAUSSIAN_PPISP
+def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovrtx(device):
+    """OVRTX controller output must match the equivalent static PPISP cfg."""
+    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
+        ppisp_cfg = make_aggressive_ppisp_cfg()
+
+        static = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+            asset_path,
+            sim_cfg=_ovrtx_sim_cfg(device),
+            renderer_cfg=OVRTXRendererCfg(),
+            ppisp_cfg=ppisp_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+        controller = render_synthetic_gaussian_scene_with_controller_ppisp_attrs(
+            asset_path,
+            sim_cfg=_ovrtx_sim_cfg(device),
+            renderer_cfg=OVRTXRendererCfg(),
+            ppisp_cfg=ppisp_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+
+    assert_ppisp_controller_matches_static(static["rgb"][0], controller["rgb"][0], label="ovrtx controller")
+    assert_ppisp_invariants(controller["rgb"][0], label="ovrtx controller")
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -161,6 +233,8 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(
         f"Expected {MULTI_TILE_COUNT} tiles, got shape={tuple(rgb.shape)}. "
         f"Check that the camera regex {SYNTHETIC_GAUSSIAN_CAMERA_REGEX} resolves to one camera per env."
     )
+    assert_tiled_views_match(rgb, label="ovrtx rgb")
+    assert_tiled_views_match(rgb_hdr, max_relative_mean_abs_diff=0.05, label="ovrtx rgb_hdr")
     for i in range(MULTI_TILE_COUNT):
         assert_ppisp_lifts_exposure(rgb_hdr[i], rgb[i], label=f"ovrtx tile {i}")
         assert_ppisp_invariants(rgb[i], label=f"ovrtx tile {i}")

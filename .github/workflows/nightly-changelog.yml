@@ -173,6 +173,13 @@ jobs:
           python-version: "3.12"
 
       - name: Compile fragments
+        # Capture the compile exit code so the next step can commit/push
+        # whatever compiled successfully, then re-propagate the failure at
+        # the end. Without ``continue-on-error: true`` the workflow would
+        # short-circuit and discard the successful packages' on-disk state,
+        # which is exactly the wedge mode that motivated this design.
+        id: compile
+        continue-on-error: true
         run: |
           ARGS="--all"
           if [ "${{ inputs.dry_run }}" = "true" ]; then
@@ -182,7 +189,12 @@ jobs:
           python3 tools/changelog/cli.py compile $ARGS
 
       - name: Commit and push if fragments were compiled
-        if: ${{ !inputs.dry_run }}
+        # ``always()`` lets this step run even when the compile step above
+        # reported partial failure (one package's malformed file fails, the
+        # rest still wrote their CHANGELOG.rst / deleted fragments / bumped
+        # extension.toml). The staged-diff check below short-circuits cleanly
+        # if the failed package was the only one with pending work.
+        if: ${{ always() && !inputs.dry_run }}
         env:
           # Pass the matrix branch through an env var rather than
           # interpolating ``${{ matrix.branch }}`` directly into ``run:``.
@@ -198,7 +210,7 @@ jobs:
           git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
           git add source/*/changelog.d/ \
                   source/*/docs/CHANGELOG.rst \
-                  source/*/config/extension.toml
+                  source/*/pyproject.toml
           if git diff --staged --quiet; then
             echo "No changelog fragments found — nothing to commit."
           else
@@ -212,7 +224,7 @@ jobs:
             # ``workflow_dispatch``) is preserved for traceability.
             #
             # The body lists every package that bumped, derived from the
-            # staged ``extension.toml`` diff so the entries are accurate
+            # staged pyproject.toml diff so the entries are accurate
             # regardless of which packages happen to have pending
             # fragments this run.
             MSG_FILE=$(mktemp)
@@ -220,8 +232,8 @@ jobs:
               echo "[CI][Auto Version Bump] Compile changelog fragments (${{ github.event_name }})"
               echo
               echo "Bumped packages:"
-              for tom in $(git diff --staged --name-only -- 'source/*/config/extension.toml'); do
-                pkg=$(echo "$tom" | sed -E 's|source/([^/]+)/config/extension.toml|\1|')
+              for tom in $(git diff --staged --name-only -- 'source/*/pyproject.toml'); do
+                pkg=$(echo "$tom" | sed -E 's|source/([^/]+)/pyproject.toml|\1|')
                 old=$(git diff --staged "$tom" | awk -F'"' '/^-version/{print $2; exit}')
                 new=$(git diff --staged "$tom" | awk -F'"' '/^\+version/{print $2; exit}')
                 echo "- $pkg: $old → $new"
@@ -239,3 +251,13 @@ jobs:
             # write to the source ref of a workflow_dispatch run.
             git push origin "HEAD:refs/heads/$TARGET_BRANCH"
           fi
+
+      - name: Re-propagate compile failure
+        # ``continue-on-error: true`` above lets the commit/push step run on
+        # partial success, but the job tile must still stay red so the
+        # maintainer notices the failed package. This step re-asserts the
+        # original exit code AFTER successful packages have shipped.
+        if: ${{ steps.compile.outcome == 'failure' }}
+        run: |
+          echo "::error::One or more packages failed to compile (see the Compile fragments step above)."
+          exit 1

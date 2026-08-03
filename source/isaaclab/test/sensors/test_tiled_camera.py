@@ -36,6 +36,8 @@ from pxr import Gf, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 
 @pytest.fixture(scope="function")
 def setup_camera(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float]:

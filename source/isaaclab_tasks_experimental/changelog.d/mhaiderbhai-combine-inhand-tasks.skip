@@ -1,0 +1,3 @@
+Internal: updated the experimental Allegro warp task's ID to ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0``
+and repointed its agent-config references to the consolidated
+``isaaclab_tasks.core.reorient.allegro_hand.agents`` location with infixed filenames.

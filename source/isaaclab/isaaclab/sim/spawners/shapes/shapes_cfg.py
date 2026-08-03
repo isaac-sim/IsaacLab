@@ -37,8 +37,17 @@ class ShapeCfg(RigidObjectSpawnerCfg):
     If the path is relative, then it will be relative to the prim's path.
     This parameter is ignored if `physics_material` is not None.
     """
-    physics_material: materials.PhysicsMaterialCfg | None = None
+    physics_material: (
+        materials.RigidBodyMaterialBaseCfg
+        | materials.RigidBodyMaterialFragment
+        | list[materials.RigidBodyMaterialFragment]
+        | None
+    ) = None
     """Physics material properties.
+
+    Since shapes are rigid-only spawners, this slot accepts the rigid material base class or
+    rigid-material fragments (single-namespace :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`
+    instances or lists thereof).
 
     Note:
         If None, then no physics material will be added.

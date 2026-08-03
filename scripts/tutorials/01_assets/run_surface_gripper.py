@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/01_assets/run_surface_gripper.py --device=cpu
+    uv run python scripts/tutorials/01_assets/run_surface_gripper.py --device=cpu
 
 When running this script make sure the --device flag is set to cpu. This is because the surface gripper is
 currently only supported on the CPU.
@@ -24,6 +24,8 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Tutorial on spawning and interacting with a Surface Gripper.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# tutorials should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 

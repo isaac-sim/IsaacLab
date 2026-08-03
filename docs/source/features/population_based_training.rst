@@ -106,28 +106,51 @@ Training Example
 ----------------
 
 We provide a reference PPO config here for task:
-`Isaac-Repose-Cube-Shadow-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/shadow_hand/agents/rl_games_ppo_cfg.yaml>`_.
+`Isaac-Reorient-Cube-Shadow-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/agents/rl_games_ppo_cfg.yaml>`_.
 For the best logging experience, we recommend using wandb for the logging in the script.
 
 Launch *N* workers, where *n* indicates each worker index:
 
-.. code-block:: bash
+.. tab-set::
 
-   # Run this once per worker (n = 0..N-1), all pointing to the same directory/workspace
-   ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
-     --seed=<n> \
-     --task=Isaac-Repose-Cube-Shadow-Direct-v0 \
-     --num_envs=8192 \
-     --headless \
-     --track \
-     --wandb-name=idx<n> \
-     --wandb-entity=<**entity**> \
-     --wandb-project-name=<**project**> \
-     agent.pbt.enabled=True \
-     agent.pbt.num_policies=<N> \
-     agent.pbt.policy_idx=<n> \
-     agent.pbt.workspace=<**pbt_workspace_name**> \
-     agent.pbt.directory=<**/path/to/shared_folder**>
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         # Run this once per worker (n = 0..N-1), all pointing to the same directory/workspace
+         uv run isaaclab train --rl_library rl_games \
+           --seed=<n> \
+           --task=Isaac-Reorient-Cube-Shadow-Direct \
+           --num_envs=8192 \
+           --track \
+           --wandb-name=idx<n> \
+           --wandb-entity=<**entity**> \
+           --wandb-project-name=<**project**> \
+           agent.pbt.enabled=True \
+           agent.pbt.num_policies=<N> \
+           agent.pbt.policy_idx=<n> \
+           agent.pbt.workspace=<**pbt_workspace_name**> \
+           agent.pbt.directory=<**/path/to/shared_folder**>
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         # Run this once per worker (n = 0..N-1), all pointing to the same directory/workspace
+         ./isaaclab.sh train --rl_library rl_games \
+           --seed=<n> \
+           --task=Isaac-Reorient-Cube-Shadow-Direct \
+           --num_envs=8192 \
+           --track \
+           --wandb-name=idx<n> \
+           --wandb-entity=<**entity**> \
+           --wandb-project-name=<**project**> \
+           agent.pbt.enabled=True \
+           agent.pbt.num_policies=<N> \
+           agent.pbt.policy_idx=<n> \
+           agent.pbt.workspace=<**pbt_workspace_name**> \
+           agent.pbt.directory=<**/path/to/shared_folder**>
 
 
 References

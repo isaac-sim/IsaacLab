@@ -72,8 +72,12 @@ From the Isaac Lab root directory:
    # (interactive sessions prompt automatically; headless mode requires this)
    export OMNI_KIT_ACCEPT_EULA=yes
 
-   # Step 1: Install safe dependencies via the isaaclab_contrib[rlinf] extra
-   uv pip install -e "source/isaaclab_contrib[rlinf]"
+   # Step 1: Install safe dependencies via the rlinf extra
+   # NOTE: On DGX Spark / aarch64 systems, build decord from source first
+   # (see "Building decord on DGX Spark / aarch64" below), then run this step.
+   # --inexact keeps the existing environment (e.g. Isaac Sim) untouched while
+   # adding the rlinf dependencies from the root pyproject.
+   uv sync --inexact --extra rlinf
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
    uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
@@ -100,33 +104,142 @@ If Step 4 fails, skip installation of flash-attn and apply this patch instead:
    cd Isaac-GR00T
    git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
 
+.. note::
+
+   **Windows 11**: If ``git apply`` fails with ``error: corrupt patch at line 41``,
+   use ``patch.exe`` (bundled with Git for Windows) instead:
+
+   .. code-block:: bash
+
+      cd Isaac-GR00T
+      "C:\Program Files\Git\usr\bin\patch.exe" -p1 < \path\to\IsaacLab\scripts\imitation_learning\locomanipulation_sdg\gr00t\no_flash_attn.patch
+
 The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
 The training and evaluation commands below work unchanged.
+
+.. _rlinf-decord-aarch64:
+
+Then preload the OpenMP library so it can be loaded into the Python process
+(see :ref:`installation-method-python-env`):
+
+.. code-block:: bash
+
+   unset LD_PRELOAD
+   export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
+
 
 Quick Start
 -----------
 
 **Training** — RL fine-tuning of a pretrained VLA model:
 
-.. code-block:: bash
+.. tab-set::
 
-   python scripts/reinforcement_learning/rlinf/train.py \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/checkpoint
+   .. tab-item:: uv (Recommended)
 
-**Evaluation** — Evaluate a trained checkpoint with video recording:
+      .. code-block:: bash
 
-.. code-block:: bash
+         uv run isaaclab train --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/checkpoint
 
-   python scripts/reinforcement_learning/rlinf/play.py \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/checkpoint \
-       --video
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh train --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/checkpoint
+
+**Evaluation** — Evaluate a pretrained (base) model with video recording:
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run --extra video isaaclab play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --video
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --video
+
+**Evaluation** — Evaluate an RL-finetuned checkpoint with video recording:
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run --extra video isaaclab play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --rl_model_path /path/to/checkpoints/global_step_N \
+             --video
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --rl_model_path /path/to/checkpoints/global_step_N \
+             --video
+
+Here ``--model_path`` points to the HuggingFace-format base model (with
+``config.json``), and ``--rl_model_path`` points to the RLinf checkpoint
+directory (the ``global_step_<N>`` folder). The script loads the model
+architecture from the base model and overlays the RL-finetuned weights
+(``full_weights.pt``) from the checkpoint.
 
 .. note::
 
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
+
+.. note::
+
+   **Windows support is still being optimized.** For now, Linux is recommended for
+   RLinf training and evaluation.
+
+Checkpoints
+-----------
+
+Checkpoints are saved every ``save_interval`` epochs (default: ``2``) to::
+
+   logs/rlinf/<timestamp>-IsaacContrib-Assemble-Trocar-G129-Dex3/<experiment_name>/checkpoints/global_step_<N>/
+
+The placeholders are configurable in the task YAML
+(``source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/config/isaaclab_ppo_gr00t_assemble_trocar.yaml``):
+
+- ``<experiment_name>`` — ``runner.logger.experiment_name`` (default: ``test_gr00t``)
+- ``<N>`` — increments every ``runner.save_interval`` epochs
+
+The exact path is printed at startup as ``[INFO] Logging to: ...``. To resume,
+pass the ``global_step_<N>`` directory via ``--resume_dir``.
+
+.. tip::
+
+   Training throughput scales with the number of parallel environments. If your
+   GPU has spare memory, increase ``env.train.total_num_envs`` (default: ``4``)
+   in the task YAML.
+
+.. tip::
+
+   Each checkpoint can be several gigabytes. To avoid filling up disk space,
+   increase ``save_interval`` in the task YAML so that fewer
+   intermediate checkpoints are saved during training.
 
 Configuration
 -------------
@@ -160,15 +273,14 @@ Key Files
 
 .. code-block:: text
 
-   scripts/reinforcement_learning/rlinf/
-   ├── README.md          # Detailed documentation
-   ├── train.py           # Training entry point
-   ├── play.py            # Evaluation entry point
-   └── cli_args.py        # Shared CLI argument definitions
+   source/isaaclab_rl/isaaclab_rl/entrypoints/backends/
+   ├── train_rlinf.py      # Training entry point
+   ├── play_rlinf.py       # Evaluation entry point
+   └── cli_args_rlinf.py   # Shared CLI argument definitions
 
    source/isaaclab_contrib/isaaclab_contrib/rl/rlinf/
    ├── __init__.py
    └── extension.py       # Task registration, obs/action conversion
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
-see ``scripts/reinforcement_learning/rlinf/README.md``.
+use the unified ``./isaaclab.sh train --rl_library rlinf`` and ``./isaaclab.sh play --rl_library rlinf`` commands.

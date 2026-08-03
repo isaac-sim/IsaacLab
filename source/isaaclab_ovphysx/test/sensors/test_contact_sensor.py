@@ -8,13 +8,13 @@
 
 """Real-backend tests for the OVPhysX ContactSensor.
 
-Run via ``./isaaclab.sh -p -m pytest``; the ovphysx wheel is now invocable
+Run via ``uv run python -m pytest``; the ovphysx wheel is now invocable
 through the standard Kit Python entrypoint, so the older kitless
 ``./scripts/run_ovphysx.sh`` wrapper is no longer required.
 
-``ovphysx<=0.3.7`` binds device mode (CPU vs GPU) at the C++ layer on the
-first ``ovphysx.PhysX(device=...)`` construction and cannot swap it without a
-process restart.  Full coverage therefore requires two separate pytest
+The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
+its first ``ovphysx.PhysX`` instance and cannot switch it without a process
+restart. Full coverage therefore requires two separate pytest
 invocations -- once with ``-k 'cpu'`` and once with ``-k 'cuda:0'``.  The
 ``_ovphysx_skip_other_device`` autouse fixture below preempts the manager's
 :exc:`RuntimeError` by ``pytest.skip``-ing on the unlocked device so
@@ -45,16 +45,20 @@ import torch
 import warp as wp
 from flaky import flaky
 
-# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
-# but the ovphysx wheel is not installed in that environment. Skip gracefully
-# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+# The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
+# CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ovphysx.assets import RigidObject  # noqa: E402
+from isaaclab_ovphysx.cloner import ovphysx_replicate  # noqa: E402
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ovphysx.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
 
+from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
+
 import isaaclab.sim as sim_utils  # noqa: E402
+import isaaclab.sim.schemas as schemas  # noqa: E402
+from isaaclab import cloner  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
@@ -63,6 +67,8 @@ from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, Te
 from isaaclab.utils.configclass import configclass  # noqa: E402
 
 wp.init()
+
+pytestmark = pytest.mark.device_split
 
 # ---------------------------------------------------------------------------
 # Device-lock autouse fixture
@@ -318,7 +324,6 @@ _TERRAINS = [FLAT_TERRAIN_CFG, COBBLESTONE_TERRAIN_CFG]
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @flaky(max_runs=5, min_passes=1)
-@pytest.mark.isaacsim_ci
 def test_cube_contact_time(device):
     """Checks contact sensor values for contact time and air time for a cube collision primitive."""
     _run_contact_sensor_test(CUBE_CFG, _SIM_DT, device, _TERRAINS, _DURATIONS)
@@ -326,7 +331,6 @@ def test_cube_contact_time(device):
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @flaky(max_runs=5, min_passes=1)
-@pytest.mark.isaacsim_ci
 def test_sphere_contact_time(device):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     _run_contact_sensor_test(SPHERE_CFG, _SIM_DT, device, _TERRAINS, _DURATIONS)
@@ -334,7 +338,6 @@ def test_sphere_contact_time(device):
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 6, 24])
-@pytest.mark.isaacsim_ci
 def test_cube_stack_contact_filtering(device, num_envs):
     """Checks contact sensor reporting for filtering stacked cube prims."""
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=True) as sim:
@@ -396,7 +399,6 @@ def test_cube_stack_contact_filtering(device, num_envs):
         assert contact_sensor.data.net_forces_w.torch.sum().item() > 0.0
 
 
-@pytest.mark.isaacsim_ci
 def test_no_contact_reporting():
     """Test that OVPhysX contact sensor returns zero forces when no filter is configured.
 
@@ -462,7 +464,6 @@ def test_no_contact_reporting():
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 3])
-@pytest.mark.isaacsim_ci
 def test_multi_body_per_sensor_indexing(device, num_envs):
     """Ground-truth body-index check for a single sensor that resolves to two bodies.
 
@@ -524,8 +525,95 @@ def test_multi_body_per_sensor_indexing(device, num_envs):
         )
 
 
+def _author_nested_chain(prim_path: str) -> None:
+    """Author a chain of kinematic rigid bodies whose link prims are nested under each other.
+
+    Mirrors the layout produced by the URDF importer in Isaac Sim 6.0+, where each child
+    link prim is authored under its parent link prim instead of as a flat sibling. The
+    bodies are kinematic so their poses stay at the authored values without joints.
+    """
+    stage = get_current_stage()
+    UsdGeom.Xform.Define(stage, prim_path)
+    link_specs = [
+        ("pelvis", (0.0, 0.0, 1.25)),
+        ("pelvis/left_hip", (0.0, 0.0, -0.5)),
+        ("pelvis/left_hip/left_knee", (0.0, 0.0, -0.5)),
+    ]
+    for rel_path, offset in link_specs:
+        link_path = f"{prim_path}/{rel_path}"
+        link = UsdGeom.Xform.Define(stage, link_path)
+        link.AddTranslateOp().Set(Gf.Vec3d(*offset))
+        body_api = UsdPhysics.RigidBodyAPI.Apply(link.GetPrim())
+        body_api.CreateKinematicEnabledAttr(True)
+        geom = UsdGeom.Cube.Define(stage, f"{link_path}/geom")
+        geom.GetSizeAttr().Set(0.5)
+        UsdPhysics.CollisionAPI.Apply(geom.GetPrim())
+    # add the contact-report schema to every nested link
+    schemas.activate_contact_sensors(prim_path)
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("num_envs", [1, 3])
+def test_nested_rigid_body_hierarchy(device, num_envs):
+    """Checks contact binding creation and body resolution on nested rigid-body hierarchies.
+
+    Regression test for the sensor-pattern construction: patterns were built from the
+    first matched body's parent plus leaf names, which cannot address bodies nested
+    under other bodies, so the contact binding bound only the first-level links and
+    initialization failed on URDF-importer-style assets.
+
+    The source chain is authored under ``env_0`` and replicated through the OVPhysX
+    clone path so the test covers both nested body resolution and multi-environment
+    contact binding behavior.
+    """
+    with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
+        stage = get_current_stage()
+        env_positions, _ = cloner.grid_transforms(num_envs, spacing=3.0, device=device)
+        env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+        env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
+        _author_nested_chain("/World/envs/env_0/Robot")
+
+        clone_plan = cloner.clone_plan_from_env_0(
+            source="/World/envs/env_0",
+            destination="/World/envs/env_{}",
+            num_clones=num_envs,
+            device=device,
+            positions=env_positions,
+        )
+        assert clone_plan.env_ids is not None
+        ovphysx_replicate(
+            stage,
+            clone_plan.sources,
+            clone_plan.destinations,
+            clone_plan.env_ids,
+            clone_plan.clone_mask,
+            positions=clone_plan.positions,
+        )
+        sim.set_clone_plan(clone_plan)
+
+        contact_sensor = ContactSensor(
+            ContactSensorCfg(
+                prim_path="/World/envs/env_.*/Robot/.*",
+                track_pose=False,
+                debug_vis=False,
+                update_period=0.0,
+            )
+        )
+        sim.reset()
+
+        # all three nested bodies must be resolved into the binding (pre-fix: init raised)
+        assert contact_sensor.num_sensors == 3
+        assert contact_sensor.body_names == ["pelvis", "left_hip", "left_knee"]
+
+        # step to fill the sensor buffers; kinematic bodies generate no contact forces
+        for _ in range(2):
+            sim.step()
+            contact_sensor.update(_SIM_DT, force_recompute=True)
+        net_forces = contact_sensor.data.net_forces_w.torch
+        assert net_forces.shape == (num_envs, 3, 3)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_sensor_print(device):
     """Test sensor print is working correctly."""
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
@@ -548,7 +636,6 @@ def test_sensor_print(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_contact_sensor_threshold(device):
     """Test that the contact sensor USD threshold attribute is set to 0.0."""
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
@@ -593,7 +680,6 @@ def test_contact_sensor_threshold(device):
 )
 @pytest.mark.parametrize("grav_dir", [(-10.0, 0.0, -0.1), (0.0, -10.0, -0.1)])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_friction_reporting(device, grav_dir):
     """Test friction force reporting for contact sensors.
 
@@ -654,7 +740,6 @@ def test_friction_reporting(device, grav_dir):
     )
 )
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_invalid_prim_paths_config(device):
     """Test that a ValueError is raised when track_friction_forces=True and filter_prim_paths_expr is empty."""
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), dt=_SIM_DT, device=device)
@@ -689,7 +774,6 @@ def test_invalid_prim_paths_config(device):
     )
 )
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_invalid_max_contact_points_config(device):
     """Test that a ValueError is raised when track_friction_forces=True and max_contact_data_count_per_prim=0."""
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), dt=_SIM_DT, device=device)

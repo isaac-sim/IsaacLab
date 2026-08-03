@@ -9,7 +9,7 @@ scene, action, observation and event managers to create an environment.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
+    uv run python scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
 
 """
 
@@ -47,7 +47,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleSceneCfg
 
 
 @configclass

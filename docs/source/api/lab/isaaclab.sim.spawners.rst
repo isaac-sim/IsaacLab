@@ -211,6 +211,9 @@ Sensors
 
     PinholeCameraCfg
     FisheyeCameraCfg
+    OpenCvDistortionCfg
+    OpenCvPinholeDistortionCfg
+    OpenCvFisheyeDistortionCfg
 
 .. autofunction:: spawn_camera
 
@@ -219,6 +222,18 @@ Sensors
     :exclude-members: __init__, func
 
 .. autoclass:: FisheyeCameraCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvDistortionCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvPinholeDistortionCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvFisheyeDistortionCfg
     :members:
     :exclude-members: __init__, func
 
@@ -267,6 +282,9 @@ Materials
     MdlFileCfg
     GlassMdlCfg
     PhysicsMaterialCfg
+    RigidBodyMaterialBaseCfg
+    RigidBodyMaterialFragment
+    UsdPhysicsRigidBodyMaterialCfg
     RigidBodyMaterialCfg
     DeformableBodyMaterialBaseCfg
     SurfaceDeformableBodyMaterialBaseCfg
@@ -303,7 +321,26 @@ Physical Materials
     :members:
     :exclude-members: __init__, func
 
+.. autofunction:: spawn_physics_material
+
 .. autofunction:: spawn_rigid_body_material
+
+.. autoclass:: RigidBodyMaterialBaseCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_rigid_body_material_from_fragments
+
+.. autoclass:: RigidBodyMaterialFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: UsdPhysicsRigidBodyMaterialCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
 
 .. autoclass:: RigidBodyMaterialCfg
     :members:

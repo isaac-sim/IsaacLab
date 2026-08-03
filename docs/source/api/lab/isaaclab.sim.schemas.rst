@@ -95,7 +95,9 @@ Collision
 For PhysX torsional patch friction, see
 :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg`. For Newton-native
 contact margin/gap, see
-:class:`~isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg`.
+:class:`~isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg`. For Newton SDF
+and hydroelastic collision configuration, see
+:class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionPropertiesCfg`.
 
 Mass
 ----

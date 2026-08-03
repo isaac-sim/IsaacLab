@@ -10,7 +10,7 @@ This script shows how to use the multi-mesh ray caster from the Isaac Lab framew
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/sensors/check_multi_mesh_ray_caster.py --headless
+    uv run python source/isaaclab/test/sensors/check_multi_mesh_ray_caster.py
 
 """
 

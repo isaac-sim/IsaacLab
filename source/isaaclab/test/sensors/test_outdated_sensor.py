@@ -25,6 +25,8 @@ from isaaclab.app.settings_manager import get_settings_manager
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture()
 def temp_dir():
@@ -39,7 +41,7 @@ def temp_dir():
     shutil.rmtree(temp_dir)
 
 
-@pytest.mark.parametrize("task_name", ["Isaac-Stack-Cube-Franka-IK-Rel-v0"])
+@pytest.mark.parametrize("task_name", ["IsaacContrib-Stack-Cube-Franka-IK-Rel"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.isaacsim_ci

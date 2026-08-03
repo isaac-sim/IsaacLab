@@ -14,6 +14,8 @@ import pytest
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
 from isaaclab.controllers.pink_ik.pink_tasks import LocalFrameTask
 
+pytestmark = pytest.mark.integration
+
 # class TestLocalFrameTask:
 #     """Test suite for LocalFrameTask class."""
 

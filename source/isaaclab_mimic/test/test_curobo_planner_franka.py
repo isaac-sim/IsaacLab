@@ -35,7 +35,7 @@ ISAAC_NUCLEUS_DIR: str = getattr(_al_assets, "ISAAC_NUCLEUS_DIR", "/Isaac")
 from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
 from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
 
-from isaaclab_tasks.manager_based.manipulation.stack.config.franka.stack_joint_pos_env_cfg import FrankaCubeStackEnvCfg
+from isaaclab_tasks.contrib.stack.config.franka.stack_joint_pos_env_cfg import FrankaCubeStackEnvCfg
 
 # Predefined EE goals for the test
 # Each entry is a tuple of: (goal specification, goal ID)
@@ -70,7 +70,7 @@ def curobo_test_env() -> Generator[dict[str, Any], None, None]:
     )
     setattr(env_cfg.scene, "moving_wall", wall_cfg)
 
-    env: ManagerBasedEnv = gym.make("Isaac-Stack-Cube-Franka-v0", cfg=env_cfg, headless=headless).unwrapped
+    env: ManagerBasedEnv = gym.make("IsaacContrib-Stack-Cube-Franka", cfg=env_cfg, headless=headless).unwrapped
     env.reset()
 
     robot = env.scene["robot"]

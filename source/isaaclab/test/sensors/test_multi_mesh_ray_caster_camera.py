@@ -25,8 +25,8 @@ import torch
 import omni.replicator.core as rep
 from pxr import Gf
 
-import isaaclab.cloner as lab_cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner as lab_cloner
 from isaaclab.cloner import ClonePlan
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCasterCameraCfg, patterns
@@ -36,6 +36,8 @@ from isaaclab.terrains.utils import create_prim_from_mesh
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 from isaaclab_assets.robots.spot import SPOT_CFG
+
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 # sample camera poses (quaternions in xyzw format)
 POSITION = [2.5, 2.5, 2.5]
@@ -465,6 +467,7 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
     sim_utils.create_prim("/World/envs", "Xform", stage=stage)
     for env_id, origin in enumerate(env_origins.cpu().tolist()):
         sim_utils.create_prim(env_fmt.format(env_id), "Xform", translation=tuple(origin), stage=stage)
+        sim_utils.create_prim(env_fmt.format(env_id) + "/RayCasterCamera", "Xform", stage=stage)
 
     robot_mask = torch.zeros((2, num_envs), dtype=torch.bool, device=sim.device)
     robot_mask[0, 0::2] = True
@@ -514,6 +517,9 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
                 env_fmt + "/Object",
             ),
             clone_mask=torch.cat([robot_mask, object_mask], dim=0),
+            env_ids=env_ids,
+            positions=None,
+            cfg_rows={},
         )
     )
     sim_utils.update_stage()

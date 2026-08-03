@@ -21,6 +21,7 @@ PER_TEST_TIMEOUTS = {
     "test_stage_in_memory.py": 1000,
     "test_imu.py": 1000,
     "test_environments.py": 10000,  # This test runs through all the environments for 100 steps each
+    "test_contrib_environments_smoke.py": 10000,  # Smoke test running through contributed environments
     "test_environments_with_stage_in_memory.py": (
         10000
     ),  # Like the above, with stage in memory and with and without fabric cloning
@@ -46,27 +47,35 @@ PER_TEST_TIMEOUTS = {
     "test_simulation_render_config.py": 1000,
     "test_operational_space.py": 1000,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
+    "test_standalone_scripts.py": 3600,  # Runs every supported standalone launch in the selected CI runtime group
     "test_rl_games_wrapper.py": 1000,
-    "test_rsl_rl_export_flow.py": 4000,
+    "test_leapp_export_flow.py": 4000,
     "test_rsl_rl_wrapper.py": 1000,
     "test_sb3_wrapper.py": 1000,
     "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 1000,
-    "test_manager_based_rl_env_obs_spaces.py": 1000,
+    "test_manager_based_rl_env_obs_spaces_task_integration.py": 1000,
+    # Newton cloth warmup can reach ~2750 s under GPU throttling (50 frames × ~55 s each).
+    # cold-cache buffer (+700 s) is added automatically for the first camera-enabled test.
+    "test_visualizer_golden_newton.py": 6000,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
     "test_rigid_object_collection.py": 1500,
     "test_outdated_sensor.py": 1000,
     "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,
-    "test_shadow_hand_vision_presets.py": 5000,
+    "test_shadow_hand_camera_presets.py": 5000,
     "test_environments_newton.py": 5000,
     "test_surface_gripper.py": 3000,
-    # For some reason kitless rendering tests take much longer on CI than local machines.
-    # After we pin OVRTX to 0.3 we need to test whether it is still reproducible.
+    # The first test in the kitless rendering test job will take longer to run due to RTX shader compilation.
     "test_rendering_cartpole_kitless.py": 2000,
-    "test_rendering_dexsuite_kuka_kitless.py": 2000,
-    "test_rendering_shadow_hand_kitless.py": 2000,
+    # Every kitless rendering file runs each AOV twice (the ``ovstage_variant`` fixture covers the
+    # legacy and ovstage OVRTX code paths). At 76 cases the Kuka Allegro scene overruns the default
+    # budget; the remaining kitless files still fit but have little headroom.
+    "test_rendering_dexsuite_kuka_homo_kitless.py": 2000,
+    # Budgets ~45s per AOV: one full RTX env is built and torn down per parametrized data type.
+    # Bump this when renderer cases are added to _DEFAULT_SENSOR_DATA_TYPES in rendering_test_utils.py.
+    "test_rendering_shadow_hand.py": 1500,
     "test_contact_sensor.py": 2000,
 }
 """A dictionary of tests and their timeouts in seconds.
@@ -137,16 +146,16 @@ TESTS_TO_SKIP = [
 
 TEST_RL_ENVS = [
     # classic control
-    "Isaac-Ant-v0",
-    "Isaac-Cartpole-v0",
+    "Isaac-Ant",
+    "Isaac-Cartpole",
     # manipulation
-    "Isaac-Lift-Cube-Franka-v0",
-    "Isaac-Open-Drawer-Franka-v0",
+    "Isaac-Lift-Cube-Franka",
+    "Isaac-Open-Drawer-Franka",
     # dexterous manipulation
-    "Isaac-Repose-Cube-Allegro-v0",
+    "Isaac-Reorient-Cube-Allegro",
     # locomotion
-    "Isaac-Velocity-Flat-Unitree-Go2-v0",
-    "Isaac-Velocity-Rough-Anymal-D-v0",
-    "Isaac-Velocity-Rough-G1-v0",
+    "Isaac-Velocity-Flat-UnitreeGo2",
+    "Isaac-Velocity-Rough-AnymalD",
+    "Isaac-Velocity-Rough-G1",
 ]
 """A list of RL environments to test training on by run_train_envs.py"""

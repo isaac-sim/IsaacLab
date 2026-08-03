@@ -5,6 +5,13 @@ From IsaacGymEnvs
 
 .. currentmodule:: isaaclab
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-migrating-from-isaac-gym`` agent skill
+   (`skills/user/migrate-from-isaac-gym/ <../../../skills/user/migrate-from-isaac-gym/SKILL.md>`__).
+   When you change this page, update the skill so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 
 `IsaacGymEnvs`_ was a reinforcement learning framework designed for the `Isaac Gym Preview Release`_.
 As both IsaacGymEnvs and the Isaac Gym Preview Release are now deprecated, the following guide walks through
@@ -194,7 +201,7 @@ adding any other optional objects into the scene, such as lights.
 |     self.up_axis = self.cfg["sim"]["up_axis"]                                |     # add ground plane                                                 |
 |                                                                              |     spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg() |
 |     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |     # clone, filter, and replicate                                     |
-|                                     self.physics_engine, self.sim_params)    |     self.scene.clone_environments(copy_from_source=False)              |
+|                                     self.physics_engine, self.sim_params)    |     # assets are built inside ReplicateSession                         |
 |     self._create_ground_plane()                                              |     self.scene.filter_collisions(global_prim_paths=[])                 |
 |     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     # add articulation to scene                                        |
 |                         int(np.sqrt(self.num_envs)))                         |     self.scene.articulations["cartpole"] = self.cartpole               |
@@ -369,16 +376,15 @@ Isaac Lab eliminates the need for looping through the environments by using the 
 The scene creation process is as follow:
 
 #. Construct a single environment (what the scene would look like if number of environments = 1)
-#. Call ``clone_environments()`` to replicate the single environment
+#. Use ``cloner.ReplicateSession`` to replicate the single environment
 #. Call ``filter_collisions()`` to filter out collision between environments (if required)
 
 
 .. code-block:: python
 
-   # construct a single environment with the Cartpole robot
-   self.cartpole = Articulation(self.cfg.robot_cfg)
-   # clone the environment
-   self.scene.clone_environments(copy_from_source=False)
+   # construct and replicate a single environment with the Cartpole robot
+   with cloner.ReplicateSession():
+       self.cartpole = Articulation(self.cfg.robot_cfg)
    # filter collisions
    self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
 
@@ -439,10 +445,34 @@ should match with the dimension of the ``indices`` list.
 Quaternion Convention
 ---------------------
 
-Isaac Lab and Isaac Sim both adopt ``wxyz`` as the quaternion convention. However, the quaternion
-convention used in Isaac Gym Preview Release was ``xyzw``.
-Remember to switch all quaternions to use the ``xyzw`` convention when working indexing rotation data.
-Similarly, please ensure all quaternions are in ``wxyz`` before passing them to Isaac Lab APIs.
+.. warning::
+
+  Double-check quaternion order during migration. IsaacGymEnvs and Isaac Gym Preview Release tensor APIs commonly used
+  ``xyzw`` ordering, while older Isaac Lab examples and some Isaac Sim or USD APIs may use ``wxyz`` ordering. Current
+  Isaac Lab task configs, task tensors, and :mod:`isaaclab.utils.math` utilities use ``xyzw`` ordering.
+
+  This is easy to miss because both conventions have the same shape and both can contain normalized unit quaternions.
+  A copied quaternion may therefore pass shape checks while representing a different orientation.
+
+Use the following identities as a quick sanity check:
+
+* ``xyzw`` identity: ``(0.0, 0.0, 0.0, 1.0)``
+* ``wxyz`` identity: ``(1.0, 0.0, 0.0, 0.0)``
+
+When moving data across a boundary that uses a different convention, reorder the components explicitly:
+
+.. code-block:: python
+
+   # wxyz -> xyzw, for Isaac Lab task configs and math utilities
+   quat_xyzw = quat_wxyz[..., [1, 2, 3, 0]]
+
+   # xyzw -> wxyz, for APIs that explicitly require wxyz
+   quat_wxyz = quat_xyzw[..., [3, 0, 1, 2]]
+
+Audit every migrated rotation in initial states, root-state resets, goal or command orientations, observations,
+policy inputs, datasets, reward helpers, camera poses, and sensor offsets. Do not copy quaternion literals from
+IsaacGymEnvs, older Isaac Lab snippets, or USD examples without first confirming the expected convention at the API
+boundary.
 
 
 Articulation Joint Order
@@ -487,7 +517,7 @@ Each environment in Isaac Lab should be in its own directory following this stru
    ##
 
    gym.register(
-       id="Isaac-Cartpole-Direct-v0",
+       id="Isaac-Cartpole-Direct",
        entry_point="isaaclab_tasks.direct_workflow.cartpole:CartpoleEnv",
        disable_env_checker=True,
        kwargs={
@@ -660,8 +690,8 @@ the need to set simulation parameters for actors in the task implementation.
 |                                                                        |     spawn_ground_plane(prim_path="/World/ground",                   |
 |     self.sim = super().create_sim(self.device_id,                      |         cfg=GroundPlaneCfg())                                       |
 |         self.graphics_device_id, self.physics_engine,                  |     # clone, filter, and replicate                                  |
-|         self.sim_params)                                               |     self.scene.clone_environments(                                  |
-|     self._create_ground_plane()                                        |         copy_from_source=False)                                     |
+|         self.sim_params)                                               |     # assets are built inside ReplicateSession                      |
+|     self._create_ground_plane()                                        |                                                                     |
 |     self._create_envs(self.num_envs,                                   |     self.scene.filter_collisions(                                   |
 |         self.cfg["env"]['envSpacing'],                                 |         global_prim_paths=[])                                       |
 |         int(np.sqrt(self.num_envs)))                                   |     # add articulation to scene                                     |
@@ -914,18 +944,39 @@ Launching Training
 
 To launch a training in Isaac Lab, use the command:
 
-.. code-block:: bash
+.. tab-set::
 
-   python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-Direct-v0 --headless
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole-Direct
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct
 
 Launching Inferencing
 ~~~~~~~~~~~~~~~~~~~~~
 
 To launch inferencing in Isaac Lab, use the command:
 
-.. code-block:: bash
+.. tab-set::
 
-   python scripts/reinforcement_learning/rl_games/play.py --task=Isaac-Cartpole-Direct-v0 --num_envs=25 --checkpoint=<path/to/checkpoint>
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
 
 
 Additional Resources

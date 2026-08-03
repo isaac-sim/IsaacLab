@@ -14,7 +14,7 @@ env_creation:
   - "isaaclab_physx.cloner.*:attach_end_fn"
   - "isaaclab.scene.*:_init_scene"
   - "isaaclab.envs.mdp.observations:*"
-  - "isaaclab.utils.assets:_find_usd_dependencies"
+  - "isaaclab.utils.assets:_find_asset_dependencies"
 
 first_step:
   - "isaaclab.envs.mdp.rewards:*"

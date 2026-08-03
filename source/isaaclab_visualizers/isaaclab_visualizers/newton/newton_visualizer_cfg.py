@@ -28,6 +28,12 @@ class NewtonVisualizerCfg(VisualizerCfg):
     update_frequency: int = 1
     """Visualizer update frequency (updates every N frames)."""
 
+    world_spacing: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Visual spacing between simulation worlds along each axis [m].
+
+    Non-zero axes arrange visible worlds in a compact grid without changing their simulated poses.
+    """
+
     show_joints: bool = False
     """Show joint visualization."""
 
@@ -45,6 +51,15 @@ class NewtonVisualizerCfg(VisualizerCfg):
 
     show_com: bool = False
     """Show center of mass visualization."""
+
+    show_particles: bool = False
+    """Show particle visualization."""
+
+    particle_color: tuple[float, float, float] | None = None
+    """Optional particle color RGB [0, 1]. If None, use Newton viewer defaults.
+
+    Values are passed through to the Newton viewer unchanged.
+    """
 
     enable_shadows: bool = True
     """Enable shadow rendering."""

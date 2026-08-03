@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import ClassVar
 
+from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
 from isaaclab.utils.configclass import configclass
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``.
@@ -60,9 +61,10 @@ class PhysicsMaterialCfg:
 class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     """Solver-common physics-material parameters for rigid bodies.
 
-    Contains the friction and restitution fields from the `UsdPhysics.MaterialAPI`_ that are common
-    across all simulation backends. For PhysX-only material properties (compliant-contact spring,
-    combine modes), use :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+    Contains the friction, restitution, and density fields from the `UsdPhysics.MaterialAPI`_ that
+    are common across all simulation backends. For properties in the ``physxMaterial`` namespace
+    (compliant-contact spring and combine modes), use
+    :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
 
     See :meth:`spawn_rigid_body_material` for more information.
 
@@ -87,6 +89,60 @@ class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
 
     restitution: float = 0.0
     """The restitution coefficient. Defaults to 0.0."""
+
+    density: float | None = None
+    """The material density [kg/m^3]. Defaults to None, in which case it is not authored.
+
+    Writes ``physics:density``. It is a fallback for collision shapes bound to this material;
+    explicitly authored rigid-body mass or density takes precedence.
+    """
+
+
+@configclass
+class RigidBodyMaterialFragment(SchemaFragment):
+    """Marker base for rigid-body physics-material fragments; types the ``physics_material`` slot.
+
+    A rigid-body physics material is a single ``UsdShade.Material`` prim that carries one or more
+    physics-material schemas. The fragments author single namespaces onto that prim: the
+    solver-common ``physics:*`` friction/restitution/density
+    (:class:`UsdPhysicsRigidBodyMaterialCfg`) and any backend-specific namespace (e.g. PhysX
+    ``physxMaterial:*`` via :class:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg`).
+    The defining ``UsdPhysics.MaterialAPI`` anchor is applied by the family writer
+    (:func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments`).
+    """
+
+    pass
+
+
+@configclass
+class UsdPhysicsRigidBodyMaterialCfg(RigidBodyMaterialFragment):
+    """``physics:*`` rigid-body material attributes from `UsdPhysics.MaterialAPI`_.
+
+    The ``UsdPhysics.MaterialAPI`` schema is applied as the implicit anchor by the rigid-body material
+    family writer, so this fragment owns no applied schema of its own. ``None`` fields are left
+    unchanged on the material prim.
+
+    .. _UsdPhysics.MaterialAPI: https://openusd.org/dev/api/class_usd_physics_material_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None  # MaterialAPI applied by the family writer
+
+    static_friction: float | None = None
+    """The static friction coefficient. Writes ``physics:staticFriction``."""
+
+    dynamic_friction: float | None = None
+    """The dynamic friction coefficient. Writes ``physics:dynamicFriction``."""
+
+    restitution: float | None = None
+    """The restitution coefficient. Writes ``physics:restitution``."""
+
+    density: float | None = None
+    """The material density [kg/m^3]. Writes ``physics:density``.
+
+    Participates in mass computation via material binding when no explicit rigid-body mass or
+    density takes precedence.
+    """
 
 
 @configclass

@@ -218,8 +218,10 @@ class MockArticulationData:
         vel_np[:, 3:] = ang_vel_w_np
         self.root_com_vel_w = proxy_array(vel_np, dtype=wp.spatial_vectorf, device=device)
 
-        # Gravity direction constant (1D array to match kernel signatures)
-        self.GRAVITY_VEC_W = proxy_array([0.0, 0.0, -1.0], dtype=wp.vec3f, device=device)
+        # Gravity in world frame (m/s^2), per-env to mirror Newton's ``model.gravity``.
+        # Kernels and the torch path normalize before projecting, so magnitude is kept.
+        gravity_vec_w = np.full((num_envs, 3), (0.0, 0.0, -9.81), dtype=np.float32)
+        self.GRAVITY_VEC_W = ProxyArray(wp.array(gravity_vec_w, dtype=wp.vec3f, device=device))
 
         # Derived body-frame quantities (consistent with Tier 1 compounds)
         self.root_lin_vel_b = proxy_array(quat_rotate_inv_np(quat_np, lin_vel_w_np), dtype=wp.vec3f, device=device)

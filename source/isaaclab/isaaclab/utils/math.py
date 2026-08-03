@@ -812,7 +812,7 @@ def combine_frame_transforms(
     r"""Combine transformations between two reference frames into a stationary frame.
 
     It performs the following transformation operation: :math:`T_{02} = T_{01} \times T_{12}`,
-    where :math:`T_{AB}` is the homogeneous transformation matrix from frame A to B.
+    where :math:`T_{AB}` is the homogeneous transformation matrix from frame B to A.
 
     Args:
         t01: Position of frame 1 w.r.t. frame 0. Shape is (N, 3).
@@ -884,7 +884,7 @@ def subtract_frame_transforms(
     r"""Subtract transformations between two reference frames into a stationary frame.
 
     It performs the following transformation operation: :math:`T_{12} = T_{01}^{-1} \times T_{02}`,
-    where :math:`T_{AB}` is the homogeneous transformation matrix from frame A to B.
+    where :math:`T_{AB}` is the homogeneous transformation matrix from frame B to A.
 
     Args:
         t01: Position of frame 1 w.r.t. frame 0. Shape is (N, 3).

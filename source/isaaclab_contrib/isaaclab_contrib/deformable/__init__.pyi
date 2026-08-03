@@ -4,19 +4,19 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "CoupledFeatherstoneVBDSolverCfg",
     "CoupledMJWarpVBDSolverCfg",
     "DeformableObject",
     "DeformableObjectData",
     "NewtonModelCfg",
+    "NewtonModelSolverCfg",
     "VBDSolverCfg",
 ]
 
 from .deformable_object import DeformableObject
 from .deformable_object_data import DeformableObjectData
 from .newton_manager_cfg import (
-    CoupledFeatherstoneVBDSolverCfg,
     CoupledMJWarpVBDSolverCfg,
     NewtonModelCfg,
+    NewtonModelSolverCfg,
     VBDSolverCfg,
 )

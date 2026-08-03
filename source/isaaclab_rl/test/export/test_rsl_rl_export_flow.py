@@ -16,9 +16,12 @@ import os
 import shutil
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
+
+torch = pytest.importorskip("torch")
 
 # Root of the repository (three levels up from this file).
 _REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -28,78 +31,57 @@ _THIS_SCRIPT = Path(__file__).resolve()
 _EXPORT_BATCH_SIZE = 8
 _EXPORT_BATCH_TIMEOUT = 600
 _OUTPUT_TAIL_CHARS = 5000
+_PROCESS_FAILURE_PATTERNS = (
+    "Traceback (most recent call last):",
+    "FileNotFoundError:",
+    "[ERROR]",
+    "Segmentation fault",
+)
 
 
 # Tasks with confirmed pretrained checkpoints (Direct and no-checkpoint tasks excluded).
 TASKS = [
     # Classic
-    "Isaac-Ant-v0",
-    "Isaac-Cartpole-v0",
+    "Isaac-Ant",
+    "Isaac-Cartpole",
     # Navigation
-    "Isaac-Navigation-Flat-Anymal-C-v0",
-    "Isaac-Navigation-Flat-Anymal-C-Play-v0",
+    "IsaacContrib-Navigation-Flat-AnymalC",
     # Locomotion Velocity
-    "Isaac-Velocity-Flat-Anymal-B-v0",
-    "Isaac-Velocity-Flat-Anymal-B-Play-v0",
-    "Isaac-Velocity-Rough-Anymal-B-v0",
-    "Isaac-Velocity-Rough-Anymal-B-Play-v0",
-    "Isaac-Velocity-Flat-Anymal-C-v0",
-    "Isaac-Velocity-Flat-Anymal-C-Play-v0",
-    "Isaac-Velocity-Rough-Anymal-C-v0",
-    "Isaac-Velocity-Rough-Anymal-C-Play-v0",
-    "Isaac-Velocity-Flat-Anymal-D-v0",
-    "Isaac-Velocity-Flat-Anymal-D-Play-v0",
-    "Isaac-Velocity-Rough-Anymal-D-v0",
-    "Isaac-Velocity-Rough-Anymal-D-Play-v0",
-    "Isaac-Velocity-Flat-Cassie-v0",
-    "Isaac-Velocity-Flat-Cassie-Play-v0",
-    "Isaac-Velocity-Rough-Cassie-v0",
-    "Isaac-Velocity-Rough-Cassie-Play-v0",
-    "Isaac-Velocity-Flat-G1-v0",
-    "Isaac-Velocity-Flat-G1-Play-v0",
-    "Isaac-Velocity-Rough-G1-v0",
-    "Isaac-Velocity-Rough-G1-Play-v0",
-    "Isaac-Velocity-Flat-H1-v0",
-    "Isaac-Velocity-Flat-H1-Play-v0",
-    "Isaac-Velocity-Rough-H1-v0",
-    "Isaac-Velocity-Rough-H1-Play-v0",
-    "Isaac-Velocity-Flat-Spot-v0",
-    "Isaac-Velocity-Flat-Spot-Play-v0",
-    "Isaac-Velocity-Flat-Unitree-A1-v0",
-    "Isaac-Velocity-Flat-Unitree-A1-Play-v0",
-    "Isaac-Velocity-Rough-Unitree-A1-v0",
-    "Isaac-Velocity-Rough-Unitree-A1-Play-v0",
-    "Isaac-Velocity-Flat-Unitree-Go1-v0",
-    "Isaac-Velocity-Flat-Unitree-Go1-Play-v0",
-    "Isaac-Velocity-Rough-Unitree-Go1-v0",
-    "Isaac-Velocity-Rough-Unitree-Go1-Play-v0",
-    "Isaac-Velocity-Flat-Unitree-Go2-v0",
-    "Isaac-Velocity-Flat-Unitree-Go2-Play-v0",
-    "Isaac-Velocity-Rough-Unitree-Go2-v0",
-    "Isaac-Velocity-Rough-Unitree-Go2-Play-v0",
+    "IsaacContrib-Velocity-Flat-AnymalB",
+    "IsaacContrib-Velocity-Rough-AnymalB",
+    "IsaacContrib-Velocity-Flat-AnymalC",
+    "IsaacContrib-Velocity-Rough-AnymalC",
+    "Isaac-Velocity-Flat-AnymalD",
+    "Isaac-Velocity-Rough-AnymalD",
+    "Isaac-Velocity-Flat-Cassie",
+    "Isaac-Velocity-Rough-Cassie",
+    "Isaac-Velocity-Flat-G1",
+    "Isaac-Velocity-Rough-G1",
+    "Isaac-Velocity-Flat-H1",
+    "Isaac-Velocity-Rough-H1",
+    "IsaacContrib-Velocity-Flat-Spot",
+    "IsaacContrib-Velocity-Flat-UnitreeA1",
+    "IsaacContrib-Velocity-Rough-UnitreeA1",
+    "IsaacContrib-Velocity-Flat-UnitreeGo1",
+    "IsaacContrib-Velocity-Rough-UnitreeGo1",
+    "Isaac-Velocity-Flat-UnitreeGo2",
+    "Isaac-Velocity-Rough-UnitreeGo2",
     # Manipulation Reach
-    "Isaac-Reach-Franka-v0",
-    "Isaac-Reach-Franka-Play-v0",
-    "Isaac-Reach-UR10-v0",
-    "Isaac-Reach-UR10-Play-v0",
+    "Isaac-Reach-Franka",
+    "Isaac-Reach-UR10",
     # Manipulation Lift
-    "Isaac-Lift-Cube-Franka-v0",
-    "Isaac-Lift-Cube-Franka-Play-v0",
+    "Isaac-Lift-Cube-Franka",
     # Manipulation Cabinet
-    "Isaac-Open-Drawer-Franka-v0",
-    "Isaac-Open-Drawer-Franka-Play-v0",
+    "Isaac-Open-Drawer-Franka",
     # Dexsuite
-    "Isaac-Dexsuite-Kuka-Allegro-Reorient-v0",
-    "Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0",
-    "Isaac-Dexsuite-Kuka-Allegro-Lift-v0",
-    "Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0",
+    "Isaac-Reorient-KukaAllegro",
+    "Isaac-Lift-KukaAllegro",
 ]
 
 
 def _export_dir(task_name: str) -> str:
     """Return the directory where export.py writes artifacts for *task_name*."""
-    train_task = task_name.replace("-Play", "")
-    return os.path.join(_REPO_ROOT, ".pretrained_checkpoints", "rsl_rl", train_task, task_name)
+    return os.path.join(_REPO_ROOT, ".pretrained_checkpoints", "rsl_rl", task_name, task_name)
 
 
 def _task_batches(tasks: list[str]) -> list[list[str]]:
@@ -133,20 +115,83 @@ def _leapp_log_tail(export_dir: str) -> str:
     return f"\n--- leapp log.txt (last 50 lines) ---\n{''.join(last_lines)}"
 
 
+def _fail_on_process_error(result: subprocess.CompletedProcess[str], task_names: list[str]) -> None:
+    """Fail when Isaac Sim reports an error but exits with a successful status."""
+    output = f"{result.stdout}\n{result.stderr}"
+    for pattern in _PROCESS_FAILURE_PATTERNS:
+        if pattern in output:
+            pytest.fail(
+                f"export batch reported {pattern!r} for {task_names}.\n"
+                f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
+                f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
+            )
+
+
 def _load_export_module():
     """Load the LEAPP RSL-RL export script as an importable module."""
     module = sys.modules.get(_EXPORT_MODULE_NAME)
-    if module is not None:
+    if module is not None and hasattr(module, "ensure_actor_hidden_state_initialized"):
         return module
 
+    sys.modules.pop(_EXPORT_MODULE_NAME, None)
     spec = importlib.util.spec_from_file_location(_EXPORT_MODULE_NAME, _EXPORT_SCRIPT)
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not create module spec for {_EXPORT_SCRIPT}")
 
     module = importlib.util.module_from_spec(spec)
     sys.modules[_EXPORT_MODULE_NAME] = module
-    spec.loader.exec_module(module)
+    original_modules = {
+        name: sys.modules.get(name) for name in ("isaaclab", "isaaclab.app", "isaaclab_tasks", "isaaclab_tasks.utils")
+    }
+    isaaclab_module = types.ModuleType("isaaclab")
+    isaaclab_app_module = types.ModuleType("isaaclab.app")
+    isaaclab_tasks_module = types.ModuleType("isaaclab_tasks")
+    isaaclab_tasks_utils_module = types.ModuleType("isaaclab_tasks.utils")
+
+    class _AppLauncher:
+        @staticmethod
+        def add_app_launcher_args(parser):
+            return None
+
+    setattr(isaaclab_app_module, "AppLauncher", _AppLauncher)
+    setattr(isaaclab_tasks_utils_module, "fold_preset_tokens", lambda args: args)
+    setattr(isaaclab_tasks_utils_module, "setup_preset_cli", lambda parser, argv=None: parser.parse_known_args(argv))
+    sys.modules["isaaclab"] = isaaclab_module
+    sys.modules["isaaclab.app"] = isaaclab_app_module
+    sys.modules["isaaclab_tasks"] = isaaclab_tasks_module
+    sys.modules["isaaclab_tasks.utils"] = isaaclab_tasks_utils_module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        for name, original_module in original_modules.items():
+            if original_module is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = original_module
+    setattr(module, "torch", torch)
     return module
+
+
+class _ModularRNN(torch.nn.Module):
+    """Minimal RSL-RL 5.x RNN wrapper shape."""
+
+    def __init__(self):
+        super().__init__()
+        self.rnn = torch.nn.LSTM(input_size=2, hidden_size=4, num_layers=2)
+        self.hidden_state = None
+
+
+class _ModularRecurrentPolicy(torch.nn.Module):
+    """Minimal RSL-RL 5.x RNNModel shape."""
+
+    is_recurrent = True
+
+    def __init__(self):
+        super().__init__()
+        self.rnn = _ModularRNN()
+
+    def get_hidden_state(self):
+        return self.rnn.hidden_state
 
 
 @contextlib.contextmanager
@@ -169,7 +214,6 @@ def _export_args(task_name: str):
             task_name,
             "--use_pretrained_checkpoint",
             "--disable_graph_visualization",
-            "--headless",
         ]
     )
     return args_cli
@@ -242,6 +286,39 @@ def _run_export_batch_entrypoint() -> None:
     _run_export_batch(tasks)
 
 
+def test_recurrent_state_helpers_support_modular_rnn_model_lstm():
+    """Verify LSTM state registration helpers support RSL-RL 5.x RNNModel."""
+    export_module = _load_export_module()
+    policy = _ModularRecurrentPolicy()
+
+    actor_state = export_module.ensure_actor_hidden_state_initialized(
+        policy, batch_size=1, device=torch.device("cpu"), dtype=torch.float32
+    )
+    registered_state = tuple(tensor + 1.0 for tensor in actor_state)
+    export_module.set_actor_hidden_state(
+        policy,
+        export_module.actor_hidden_from_registered(registered_state, actor_state),
+    )
+
+    assert export_module.is_actor_recurrent_policy(policy)
+    assert export_module.get_actor_memory_module(policy) is policy.rnn
+    assert export_module.get_actor_hidden_state(policy) is registered_state
+    assert policy.rnn.hidden_state is registered_state
+
+
+def test_export_flow_fails_on_sim_traceback():
+    """Catch simulator failures even when the process reports success."""
+    result = subprocess.CompletedProcess(
+        args=["export-flow"],
+        returncode=0,
+        stdout="Traceback (most recent call last):\nFileNotFoundError: missing asset",
+        stderr="",
+    )
+
+    with pytest.raises(pytest.fail.Exception):
+        _fail_on_process_error(result, ["Isaac-Reach-Franka"])
+
+
 @pytest.mark.parametrize("task_names", _task_batches(TASKS), ids=_batch_id)
 def test_export_flow(task_names: list[str]):
     """Run export.py for a task batch and assert the expected artifacts are created."""
@@ -268,6 +345,8 @@ def test_export_flow(task_names: list[str]):
             f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
             f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
         )
+
+    _fail_on_process_error(result, task_names)
 
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "--export-flow-batch":

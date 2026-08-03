@@ -11,7 +11,11 @@ from __future__ import annotations
 import os
 import time
 
+import pytest
+
 from isaaclab.app import AppLauncher
+
+pytestmark = pytest.mark.integration
 
 _LOCAL_STARTUP_TIME_LIMIT = 15.0
 _CI_STARTUP_TIME_LIMIT = 20.0

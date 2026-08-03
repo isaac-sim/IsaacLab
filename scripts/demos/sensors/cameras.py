@@ -9,10 +9,10 @@ This script demonstrates the different camera sensors that can be attached to a 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/demos/sensors/cameras.py --enable_cameras
+    uv run python scripts/demos/sensors/cameras.py
 
     # Usage in headless mode
-    ./isaaclab.sh -p scripts/demos/sensors/cameras.py --headless --enable_cameras
+    uv run python scripts/demos/sensors/cameras.py
 
 """
 
@@ -26,12 +26,20 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Example on using the different camera sensor implementations.")
 parser.add_argument("--num_envs", type=int, default=4, help="Number of environments to spawn.")
 parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabric API and use USD instead.")
+parser.add_argument(
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx"],
+    help="Physics backend.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # demos should open Kit visualizer by default
 parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
+# Camera sensors require the rendering extensions in headless and viewport-free launches.
+args_cli.enable_cameras = True
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -243,7 +251,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             rgb_images = [scene["camera"].data.output["rgb"][0, ..., :3], scene["tiled_camera"].data.output["rgb"][0]]
             save_images_grid(
                 rgb_images,
-                subtitles=["Camera"],
+                subtitles=["Camera", "TiledCamera"],
                 title="RGB Image: Cam0",
                 filename=os.path.join(output_dir, "rgb", f"{count:04d}.jpg"),
             )
@@ -257,7 +265,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             save_images_grid(
                 depth_images,
                 cmap="turbo",
-                subtitles=["Camera", "RaycasterCamera"],
+                subtitles=["Camera", "TiledCamera", "RaycasterCamera"],
                 title="Depth Image: Cam0",
                 filename=os.path.join(output_dir, "distance_to_camera", f"{count:04d}.jpg"),
             )

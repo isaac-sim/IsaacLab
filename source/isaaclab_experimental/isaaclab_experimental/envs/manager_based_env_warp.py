@@ -32,9 +32,9 @@ from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.io_descriptors import export_articulations_data, export_scene_data
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
-from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import has_kit
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
@@ -161,9 +161,9 @@ class ManagerBasedEnvWarp:
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        viz_str = self.sim.get_setting("/isaaclab/visualizer") or ""
-        available_visualizers = [v.strip() for v in viz_str.split(",") if v.strip()]
-        if "kit" in available_visualizers and bool(viz_str):
+        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
+        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
+        if (self.sim.has_gui or self.sim.has_active_visualizers()) and has_kit():
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -201,12 +201,13 @@ class ManagerBasedEnvWarp:
         # add timeline event to load managers
         self.load_managers()
 
+        # Wire live plots into all active visualizers and build Kit omni.ui panels when present.
+        self.setup_manager_visualizers()
+
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
-            # setup live visualizers
-            self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -383,11 +384,15 @@ class ManagerBasedEnvWarp:
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms."""
-
+        """Wire manager terms into live plots for all active visualizer backends."""
+        managers = {
+            "action_manager": self.action_manager,
+            "observation_manager": self.observation_manager,
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots(managers)
         self.manager_visualizers = {
-            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
         }
 
     """
@@ -537,10 +542,8 @@ class ManagerBasedEnvWarp:
         self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
-        # note: checked here once to avoid multiple checks within the loop
-        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or self.sim.settings.get(
-            "/isaaclab/render/rtx_sensors"
-        )
+        # note: hoisted out of the decimation loop; is_rendering does live settings lookups
+        is_rendering = self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):

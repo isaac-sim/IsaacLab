@@ -5,6 +5,8 @@
 
 """USD manipulation for OVRTX: Render scope building, camera injection, and stage prim activation."""
 
+from __future__ import annotations
+
 import logging
 import math
 
@@ -16,17 +18,42 @@ logger = logging.getLogger(__name__)
 def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
     """Return (render_var_path, render_var_name, source_name) from data_types."""
     use_depth = any(dt in ["depth", "distance_to_image_plane", "distance_to_camera"] for dt in data_types)
+    use_distance_to_camera = "distance_to_camera" in data_types and not any(
+        dt in ["depth", "distance_to_image_plane"] for dt in data_types
+    )
     use_albedo = "albedo" in data_types
     use_semantic = "semantic_segmentation" in data_types
+    use_instance_seg = "instance_segmentation" in data_types
+    use_normals = "normals" in data_types
+    use_motion_vectors = "motion_vectors" in data_types
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
     use_hdr = "rgb_hdr" in data_types
 
-    if use_depth and not (use_rgb or use_albedo or use_semantic):
-        return "/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"
-    if use_albedo and not (use_rgb or use_semantic):
+    if use_depth and not (
+        use_rgb or use_albedo or use_semantic or use_instance_seg or use_normals or use_motion_vectors
+    ):
+        source = "DistanceToCameraSD" if use_distance_to_camera else "DistanceToImagePlaneSD"
+        return "/Render/Vars/depth", "depth", source
+    if use_albedo and not (use_rgb or use_semantic or use_instance_seg or use_normals or use_motion_vectors):
         return "/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"
-    if use_semantic and not (use_rgb or use_albedo):
+    if use_semantic and not (use_rgb or use_albedo or use_normals or use_motion_vectors):
         return "/Render/Vars/semantic", "semantic", "SemanticSegmentation"
+    if use_instance_seg and not (
+        use_rgb or use_albedo or use_semantic or use_normals or use_depth or use_hdr or use_motion_vectors
+    ):
+        return (
+            "/Render/Vars/NonStableInstanceSegmentation",
+            "NonStableInstanceSegmentation",
+            "NonStableInstanceSegmentation",
+        )
+    if use_normals and not (
+        use_rgb or use_albedo or use_semantic or use_instance_seg or use_depth or use_motion_vectors
+    ):
+        return "/Render/Vars/NormalSD", "NormalSD", "NormalSD"
+    if use_motion_vectors and not (
+        use_rgb or use_albedo or use_semantic or use_instance_seg or use_depth or use_normals
+    ):
+        return "/Render/Vars/TargetMotionSD", "TargetMotionSD", "TargetMotionSD"
     if use_hdr and not use_rgb:
         return "/Render/Vars/HdrColor", "HdrColor", "HdrColor"
     return "/Render/Vars/LdrColor", "LdrColor", "LdrColor"
@@ -35,17 +62,36 @@ def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
 def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     """Return render var configs needed for the requested data types.
 
-    Returns the single render var resolved by :func:`get_render_var_config`,
-    plus ``HdrColor`` when both ``"rgb"`` (or ``"rgba"``) and ``"rgb_hdr"`` are
-    in ``data_types`` so PPISP can consume the HDR AOV alongside the LDR
-    destination on the same render product. Other multi-AOV combinations are
-    not supported.
+    Each config is a ``(render_var_path, render_var_name, source_name)`` tuple as defined by
+    :func:`get_render_var_config`. Always includes the single render var resolved by
+    :func:`get_render_var_config`, plus the following extras when applicable:
+
+    * ``HdrColor`` — when both ``"rgb"`` (or ``"rgba"``) and ``"rgb_hdr"`` are requested, so
+      PPISP can consume the HDR AOV alongside the LDR destination on the same render product.
+    * ``SemanticIdMap`` — when ``"semantic_segmentation"`` is requested, so the
+      semantic-ID-to-label mapping can be decoded for ``camera.data.info``.
+    * ``StableIdSemanticIdMap``, ``StableIdMap``, ``SemanticIdMap`` — when
+      ``"instance_segmentation"`` is requested, so the instance-ID-to-prim-path
+      (``idToLabels``) and instance-ID-to-semantic (``idToSemantics``) mappings can be decoded.
+
+    Other multi-AOV combinations are not supported.
     """
     data_types = data_types if data_types else ["rgb"]
     render_vars: list[tuple[str, str, str]] = [get_render_var_config(data_types)]
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
     if use_rgb and "rgb_hdr" in data_types:
         render_vars.append(("/Render/Vars/HdrColor", "HdrColor", "HdrColor"))
+    # Author the ID-to-label map render vars needed to decode the segmentation info dicts. These are keyed off
+    # the requested data types (not the single AOV resolved by get_render_var_config) so they are still authored
+    # when segmentation is combined with other outputs. instance_segmentation needs StableIdSemanticIdMap +
+    # StableIdMap to resolve each pixel to a prim path.
+    if "instance_segmentation" in data_types:
+        render_vars.append(("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"))
+        render_vars.append(("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"))
+    # SemanticIdMap resolves the semantic-ID-to-label mapping and is shared by both semantic_segmentation and
+    # instance_segmentation, so it is authored once when either output is requested.
+    if "semantic_segmentation" in data_types or "instance_segmentation" in data_types:
+        render_vars.append(("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"))
     return render_vars
 
 
@@ -59,6 +105,7 @@ def build_render_scope_usd(
     tiled_height: int,
     minimal_mode: int | None = None,
     render_var_configs: list[tuple[str, str, str]] | None = None,
+    background_color: tuple[float, float, float] | None = None,
 ) -> str:
     """Build the Render scope USD string (def Scope Render, RenderProduct, Vars).
 
@@ -72,11 +119,23 @@ def build_render_scope_usd(
         tiled_height: Height of the tiled image.
         minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
         render_var_configs: Render variables to author. Uses the single render var arguments if not provided.
+        background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
+            When set, the render product uses a solid color background instead of the dome light.
+            When ``None``, the default dome-light background is used.
 
     Returns:
         The USD string for the render scope.
     """
     camera_rel_list = ", ".join([f"<{p}>" for p in camera_paths])
+
+    if background_color is None:
+        bg_type_line = 'token omni:rtx:background:source:type = "domeLight"'
+    else:
+        r, g, b = background_color
+        bg_type_line = (
+            f'token omni:rtx:background:source:type = "color"\n'
+            f"        color3f omni:rtx:background:source:color = ({r}, {g}, {b})"
+        )
 
     if minimal_mode is None:
         render_mode_lines = ['token omni:rtx:rendermode = "RealTimePathTracing"']
@@ -105,7 +164,7 @@ def Scope "Render"
         prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
     ) {{
         rel camera = [{camera_rel_list}]
-        token omni:rtx:background:source:type = "domeLight"
+        {bg_type_line}
         float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
@@ -135,10 +194,14 @@ def build_render_product_as_string(
     data_types: list[str],
     minimal_mode: int | None = None,
     camera_rel_path: str = "Camera",
+    background_color: tuple[float, float, float] | None = None,
 ) -> tuple[str, str]:
     """Build the render product USD snippet as a string.
 
     This string is meant to be appended to an exported stage (ASCII) before loading into OVRTX.
+    The initial camera relationship targets only environment zero, whose camera is guaranteed to
+    exist in the trimmed stage. Multi-environment rendering rewrites the relationship with every
+    resolved camera path after runtime cloning.
 
     Args:
         width: Tile width from sensor config [px].
@@ -147,6 +210,9 @@ def build_render_product_as_string(
         data_types: Data types from sensor config.
         minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
         camera_rel_path: Camera prim path relative to the env root (e.g. ``"Camera"`` or ``"Robot/head_cam"``).
+        background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
+            When set, the render product uses a solid color background instead of the dome light.
+            When ``None``, the default dome-light background is used.
 
     Returns:
         Tuple of (render product USD snippet as a string, absolute render product prim path).
@@ -154,7 +220,7 @@ def build_render_product_as_string(
     data_types = data_types if data_types else ["rgb"]
     tiled_width, tiled_height = _tiled_resolution(num_envs, width, height)
 
-    camera_paths = [f"/World/envs/env_{i}/{camera_rel_path}" for i in range(num_envs)]
+    camera_paths = [f"/World/envs/env_0/{camera_rel_path}"]
     render_product_name = "RenderProduct"
     render_product_path = f"/Render/{render_product_name}"
 
@@ -171,6 +237,7 @@ def build_render_product_as_string(
         tiled_height,
         minimal_mode,
         render_var_configs,
+        background_color,
     )
     return camera_content, render_product_path
 
@@ -178,13 +245,8 @@ def build_render_product_as_string(
 def create_scene_partition_attributes(
     stage,
     num_envs: int = 1,
-    use_ovrtx_cloning: bool = True,
 ) -> None:
     """Create scene partition attributes for env roots and cameras.
-
-    If use_ovrtx_cloning is True, only env_0 is exported for OVRTX; env_1..env_{n-1} are deactivated before export.
-    OVRTX clones env_0 internally and _update_scene_partitions_after_clone sets partition attributes on the clones.
-    So we only need to set attributes on env_0 here.
 
     Camera prims are discovered by USD type (``UsdGeom.Camera``) rather than by name, so this works regardless of
     where the camera is placed in the hierarchy.
@@ -192,10 +254,10 @@ def create_scene_partition_attributes(
     Args:
         stage: USD stage to modify.
         num_envs: Number of environments.
-        use_ovrtx_cloning: Whether OVRTX cloning is enabled.
     """
-    env_indices = [0] if use_ovrtx_cloning else range(num_envs)
-    for env_idx in env_indices:
+    # Collect the attribute paths and scene partition tokens to update.
+    attr_updates: list[tuple[Sdf.Path, str]] = []
+    for env_idx in range(num_envs):
         env_path = f"/World/envs/env_{env_idx}"
         env_prim = stage.GetPrimAtPath(env_path)
         if not env_prim.IsValid():
@@ -203,52 +265,139 @@ def create_scene_partition_attributes(
             continue
 
         scene_partition = f"env_{env_idx}"
-        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-        logger.debug("Set scene partition '%s' on env root '%s'", scene_partition, env_prim.GetPath())
 
         for prim in Usd.PrimRange(env_prim):
             if prim.GetPath() == env_prim.GetPath():
+                attr_path = prim.GetPath().AppendProperty("primvars:omni:scenePartition")
+            elif prim.IsA(UsdGeom.Camera):
+                attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
+            else:
                 continue
+            attr_updates.append((attr_path, scene_partition))
 
-            if not prim.IsA(UsdGeom.Camera):
-                continue
+    root_layer = stage.GetRootLayer()
+    type_name = Sdf.ValueTypeNames.Token
+    variability = Sdf.VariabilityUniform
+    is_custom = True
 
-            prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-            logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
+    # Create the attributes and set the default values.
+    with Sdf.ChangeBlock():
+        for attr_path, scene_partition in attr_updates:
+            Sdf.JustCreatePrimAttributeInLayer(root_layer, attr_path, type_name, variability, is_custom)
+            root_layer.GetAttributeAtPath(attr_path).default = scene_partition
+            logger.debug("Set scene partition '%s' on '%s'", scene_partition, attr_path.GetPrimPath())
 
 
-def export_stage_to_string(stage, num_envs: int, use_ovrtx_cloning: bool = True) -> str:
-    """Export the stage to a string; when num_envs > 1, only env_0 is exported for OVRTX cloning.
+def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[Sdf.Path]) -> list[Sdf.Path]:
+    """Collect child prims under ``parent_prim`` for deactivation.
 
-    When num_envs > 1, deactivates env_1..env_{num_envs-1} before export and reactivates
-    them after, so the exported content contains only env_0. The stage is modified in place.
+    For each child:
+
+    * If the child is a source, keep the full subtree and stop descending.
+    * If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
+    * Otherwise, deactivate the child prim (including descendants).
+
+    Args:
+        parent_prim: Parent prim whose children are considered.
+        source_paths: The paths to the cloning sources.
+
+    Returns:
+        Paths of prims to deactivate on the root layer.
+    """
+    prim_paths: list[Sdf.Path] = []
+
+    for child in parent_prim.GetChildren():
+        child_path = child.GetPath()
+
+        # If the child is a source, keep it and stop walking down the tree.
+        if child_path in source_paths:
+            continue
+
+        # If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
+        if any(source.HasPrefix(child_path) for source in source_paths):
+            prim_paths.extend(_collect_prims_to_deactivate(child, source_paths))
+            continue
+
+        # Otherwise, deactivate the child prim (including descendants).
+        if child.IsActive():
+            prim_paths.append(child_path)
+
+    return prim_paths
+
+
+def _set_prims_active_on_layer(layer: Sdf.Layer, prim_paths: list[Sdf.Path], active: bool) -> None:
+    """Activate or deactivate prims on the given layer.
+
+    Args:
+        layer: Layer to modify the prims on.
+        prim_paths: Paths of prims to activate or deactivate.
+        active: Whether to activate or deactivate the prims.
+    """
+    action_str = "Activated" if active else "Deactivated"
+
+    with Sdf.ChangeBlock():
+        for prim_path in prim_paths:
+            # If a prim already exists at the given path it will be returned unmodified.
+            prim_spec = Sdf.CreatePrimInLayer(layer, prim_path)
+            prim_spec.active = active
+            logger.debug("%s prim: %s", action_str, prim_path)
+
+    logger.info("%s %d prims in total", action_str, len(prim_paths))
+
+
+def export_stage_to_string(
+    stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...], keep_env_roots: bool = True
+) -> str:
+    """Export the USD stage as a USDA string for OVRTX loading.
+
+    When ``num_envs`` is 1, the full stage is exported unchanged. Otherwise the stage is trimmed so OVRTX receives
+    only the prototype geometry it replicates at clone time. Non-source env descendants are temporarily deactivated
+    on the root layer during export and restored afterwards; ``stage.ExportToString`` re-composes the stage, so
+    deactivated prims drop out of the exported text and their paths are absent when the clone path repopulates them.
+
+    When ``keep_env_roots`` is True (the legacy ``renderer.clone_usd`` path) the non-source env root prims stay
+    active so the exported stage retains a slot for every env. The ovstage ``stage.clone`` path passes False, which
+    additionally trims the non-source env roots themselves; ``stage.clone`` recreates them and the RenderProduct's
+    camera relationship is re-authored after clone.
 
     Args:
         stage: USD stage to export.
-        num_envs: Number of environments.
-        use_ovrtx_cloning: Whether OVRTX cloning is enabled.
+        num_envs: Number of parallel environments on the stage.
+        source_paths: The paths to source prims to keep in the exported stage.
+        keep_env_roots: Whether to keep the non-source env root prims active in the exported stage. Pass False for
+            the ovstage clone path, which repopulates env roots itself.
 
     Returns:
-        The exported stage as a string.
+        USDA text of the (possibly trimmed) stage.
     """
-    deactivated_prims = []
-    if use_ovrtx_cloning and num_envs > 1:
-        logger.info("Deactivating %d environment roots...", num_envs - 1)
-        for env_idx in range(1, num_envs):
-            env_path = f"/World/envs/env_{env_idx}"
-            prim = stage.GetPrimAtPath(env_path)
-            if prim.IsValid() and prim.IsActive():
-                prim.SetActive(False)
-                deactivated_prims.append(prim)
-                logger.debug("Deactivated environment root: %s", env_path)
+    if num_envs <= 1:
+        return stage.ExportToString()
 
-        logger.info("Deactivated %d environment roots in total", len(deactivated_prims))
+    envs_path = Sdf.Path("/World/envs")
+    envs_prim = stage.GetPrimAtPath(envs_path)
+    if not envs_prim.IsValid():
+        raise RuntimeError(f"Failed to get prim at path: {envs_path}")
+
+    source_path_set = frozenset(map(Sdf.Path, source_paths))
+    prim_paths: list[Sdf.Path] = []
+
+    if keep_env_roots:
+        for child in envs_prim.GetChildren():
+            # Legacy code path: keep env roots so we can query their xforms after opening stage
+            child_path = child.GetPath()
+            if child_path not in source_path_set:
+                prim_paths.extend(_collect_prims_to_deactivate(child, source_path_set))
+    else:
+        # Ovstage code path: strip env roots, their xforms are queried beforehand.
+        prim_paths = _collect_prims_to_deactivate(envs_prim, source_path_set)
+
+    root_layer = stage.GetRootLayer()
+
+    # Temporarily deactivate the prims so that the stage is exported without them.
+    _set_prims_active_on_layer(root_layer, prim_paths, active=False)
 
     try:
         return stage.ExportToString()
     finally:
-        if deactivated_prims:
-            logger.info("Reactivating %d environment roots...", len(deactivated_prims))
-            for prim in deactivated_prims:
-                if prim.IsValid():
-                    prim.SetActive(True)
+        # Restore the active state of the prims.
+        _set_prims_active_on_layer(root_layer, prim_paths, active=True)

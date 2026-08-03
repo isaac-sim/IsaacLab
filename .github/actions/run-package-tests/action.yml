@@ -41,6 +41,12 @@ inputs:
       skipped. Combines with filter-pattern (include + exclude).
     default: ''
     required: false
+  test-k-expr:
+    description: >-
+      Global pytest -k expression applied inside every per-file pytest run
+      spawned by tools/conftest.py (combined with device-split selectors).
+    default: ''
+    required: false
   shard-index:
     description: 'Zero-based shard index'
     default: ''
@@ -61,12 +67,60 @@ inputs:
     description: 'Comma-separated list of specific test files to include'
     default: ''
     required: false
+  test-node-ids-file:
+    description: 'TOML file containing exact pytest node IDs to run'
+    default: ''
+    required: false
+  test-node-ids-key:
+    description: 'Top-level key in test-node-ids-file containing the node IDs for this job'
+    default: ''
+    required: false
   pytest-options:
     description: 'Additional pytest options'
     default: ''
     required: false
   extra-pip-packages:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
+    default: ''
+    required: false
+  extra-uv-packages:
+    description: 'Space-separated packages to install with uv inside the Docker container before pytest starts'
+    default: ''
+    required: false
+  wheelhouse-image:
+    description: 'Optional digest-pinned Docker image containing /wheelhouse and /manifest.json'
+    default: ''
+    required: false
+  wheelhouse-packages:
+    description: 'Space-separated packages to install from the wheelhouse with pip --no-index'
+    default: ''
+  omni-github-test-type:
+    description: 'Test type stored on each uploaded omni-github test row'
+    default: 'pytest'
+    required: false
+  warp-cache:
+    description: >-
+      Warp kernel cache mode. Empty disables the cache. 'restore' reads the
+      newest compatible snapshot and never writes; every test job uses this, so
+      a pull request can never publish kernels built from unmerged code. 'save'
+      restores the same way and writes the result back as a new snapshot, making
+      post-merge a cumulative writeback; only warm-warp-cache uses it.
+    default: ''
+    required: false
+  standalone-script-scope:
+    description: 'Enable standalone script smoke tests for this scripts/ subdirectory'
+    default: ''
+    required: false
+  standalone-script-visualizer:
+    description: 'Visualizer slice used when standalone-script-scope is set'
+    default: 'none'
+    required: false
+  standalone-script-runtime-group:
+    description: 'Run Kit-dependent or non-Kit standalone script cases'
+    default: ''
+    required: false
+  result-file:
+    description: 'Optional JUnit result filename; defaults to the workflow job identifier'
     default: ''
     required: false
   container-name:
@@ -133,30 +187,144 @@ runs:
         printf "🔵 Image pull took %dm %ds\n" $((elapsed/60)) $((elapsed%60))
         echo "🔵 Docker Image Pulled in ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
 
+    - name: Resolve Warp cache key
+      if: inputs.warp-cache != ''
+      id: warp-cache-key
+      uses: ./.github/actions/warp-cache-key
+
+    # Both modes restore. 'save' additionally writes the result back, so a
+    # post-merge run gets the same speedup as a pull request and the collection
+    # accumulates whatever was missing instead of restarting from empty.
+    - name: Restore Warp kernel cache
+      if: inputs.warp-cache != ''
+      id: warp-cache-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.warp-cache-key.outputs.host-dir }}
+        key: ${{ steps.warp-cache-key.outputs.key }}
+        restore-keys: ${{ steps.warp-cache-key.outputs.restore-keys }}
+
+    - name: Report restored Warp cache
+      if: inputs.warp-cache != ''
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
+        MATCHED_KEY: ${{ steps.warp-cache-restore.outputs.cache-matched-key }}
+        COLLECTION: ${{ steps.warp-cache-key.outputs.collection }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOST_DIR"
+        if [ ! -w "$HOST_DIR" ]; then
+          echo "::error::Warp cache directory is not writable: $HOST_DIR"
+          exit 1
+        fi
+
+        # cache-matched-key is authoritative. Inferring a hit from directory size
+        # is not: an empty directory still measures as ~1 MB.
+        if [ -z "$MATCHED_KEY" ]; then
+          echo "::warning::Warp cache miss - no entry in collection ${COLLECTION}"
+          echo "WARP_CACHE_HIT=miss" >> "$GITHUB_ENV"
+        else
+          echo "Warp cache hit: ${MATCHED_KEY}"
+          echo "WARP_CACHE_HIT=${MATCHED_KEY}" >> "$GITHUB_ENV"
+        fi
+        echo "WARP_CACHE_MB_BEFORE=$(du -sm "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
+
+        python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" "Warp cache restored"
+
+    - name: Setup wheelhouse registry authentication
+      if: inputs.wheelhouse-image != ''
+      uses: ./.github/actions/_lib/setup-docker-config
+
+    - name: Extract ovphysx wheelhouse
+      id: extract-wheelhouse
+      if: inputs.wheelhouse-image != ''
+      shell: bash
+      env:
+        WHEELHOUSE_IMAGE: ${{ inputs.wheelhouse-image }}
+      run: |
+        set -euo pipefail
+
+        if [[ "$WHEELHOUSE_IMAGE" != *@sha256:* ]]; then
+          echo "::error::wheelhouse-image must be pinned by digest"
+          exit 1
+        fi
+
+        wheelhouse_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ovphysx-wheelhouse.XXXXXX")"
+        container_id=""
+        image_pulled=false
+        preserve_root=false
+        cleanup() {
+          if [ -n "$container_id" ]; then
+            docker rm -f "$container_id" >/dev/null 2>&1 || true
+          fi
+          if [ "$image_pulled" = "true" ]; then
+            docker image rm "$WHEELHOUSE_IMAGE" >/dev/null 2>&1 || true
+          fi
+          if [ "$preserve_root" != "true" ]; then
+            rm -rf "$wheelhouse_root"
+          fi
+        }
+        trap cleanup EXIT
+
+        docker pull "$WHEELHOUSE_IMAGE"
+        image_pulled=true
+        container_id="$(docker create "$WHEELHOUSE_IMAGE")"
+        docker cp "${container_id}:/wheelhouse" "$wheelhouse_root/wheelhouse"
+        docker cp "${container_id}:/manifest.json" "$wheelhouse_root/manifest.json"
+        docker rm "$container_id"
+        container_id=""
+        docker image rm "$WHEELHOUSE_IMAGE" >/dev/null 2>&1 || true
+        image_pulled=false
+
+        echo "wheelhouse_host_dir=$wheelhouse_root" >> "$GITHUB_OUTPUT"
+        preserve_root=true
+
+    - name: Cleanup wheelhouse registry authentication
+      if: always() && inputs.wheelhouse-image != ''
+      shell: bash
+      run: |
+        if [ -n "${DOCKER_CONFIG:-}" ] && [ -d "$DOCKER_CONFIG" ]; then
+          rm -rf "$DOCKER_CONFIG"
+        fi
+
     - name: Run Tests
       uses: ./.github/actions/run-tests
       with:
         test-path: "tools"
-        result-file: "${{ github.job }}-report.xml"
+        result-file: "${{ inputs.result-file != '' && inputs.result-file || format('{0}-report.xml', github.job) }}"
         container-name: "${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ inputs.image-tag }}
         pytest-options: ${{ inputs.pytest-options }}
         filter-pattern: ${{ inputs.filter-pattern }}
         exclude-pattern: ${{ inputs.exclude-pattern }}
+        test-k-expr: ${{ inputs.test-k-expr }}
         shard-index: ${{ inputs.shard-index }}
         shard-count: ${{ inputs.shard-count }}
         curobo-only: ${{ inputs.curobo-only }}
         quarantined-only: ${{ inputs.quarantined-only }}
         include-files: ${{ inputs.include-files }}
+        test-node-ids-file: ${{ inputs.test-node-ids-file }}
+        test-node-ids-key: ${{ inputs.test-node-ids-key }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
+        extra-uv-packages: ${{ inputs.extra-uv-packages }}
+        wheelhouse-host-dir: ${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}
+        wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
+        omni-github-test-type: ${{ inputs.omni-github-test-type }}
+        warp-cache-host-dir: ${{ steps.warp-cache-key.outputs.host-dir }}
+        standalone-script-scope: ${{ inputs.standalone-script-scope }}
+        standalone-script-visualizer: ${{ inputs.standalone-script-visualizer }}
+        standalone-script-runtime-group: ${{ inputs.standalone-script-runtime-group }}
 
     - name: Check Test Results
       if: always()
       shell: bash
+      env:
+        RESULT_FILE: "${{ inputs.result-file != '' && inputs.result-file || format('{0}-report.xml', github.job) }}"
       run: |
-        if [ -f "reports/${{ github.job }}-report.xml" ]; then
-          if grep -qE 'failures="[1-9][0-9]*"' reports/${{ github.job }}-report.xml || grep -qE 'errors="[1-9][0-9]*"' reports/${{ github.job }}-report.xml; then
+        if [ -f "reports/$RESULT_FILE" ]; then
+          if grep -qE 'failures="[1-9][0-9]*"' "reports/$RESULT_FILE" || grep -qE 'errors="[1-9][0-9]*"' "reports/$RESULT_FILE"; then
             echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
             exit 1
           fi
@@ -164,6 +332,59 @@ runs:
           echo "No test results file found. This might indicate test execution failed."
           exit 1
         fi
+
+    # Growth is the coverage signal: it is exactly the kernels this job needed
+    # that the collection did not already hold. Reporting only - no thresholds,
+    # since we have no measured basis for one yet.
+    - name: Report Warp cache growth
+      if: always() && inputs.warp-cache != ''
+      id: warp-cache-growth
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
+      run: |
+        set -euo pipefail
+
+        if [ ! -d "$HOST_DIR" ]; then
+          echo "Warp cache directory is missing; nothing to report"
+          echo "empty=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        before="${WARP_CACHE_MB_BEFORE:-0}"
+        after="$(du -sm "$HOST_DIR" | cut -f1)"
+        grew=$(( after - before ))
+
+        if [ "${WARP_CACHE_HIT:-miss}" = "miss" ]; then
+          verdict="cold run, nothing restored"
+        elif [ "$grew" -le 0 ]; then
+          verdict="fully covered"
+        else
+          verdict="compiled $(( grew * 100 / (before > 0 ? before : 1) ))% beyond the restored cache"
+        fi
+
+        echo "Warp cache: restored ${before} MB, ended at ${after} MB (+${grew} MB) - ${verdict}"
+        echo "🔵 Warp cache: ${before} -> ${after} MB (+${grew}) - ${verdict}" >> "$GITHUB_STEP_SUMMARY"
+        python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" "Warp cache final"
+
+        # Publishing an empty tree would replace a good snapshot with nothing.
+        [ "$after" -lt 1 ] && echo "empty=true" >> "$GITHUB_OUTPUT" || echo "empty=false" >> "$GITHUB_OUTPUT"
+
+    # Not success(): the product is compiled kernels, and those stay valid when a
+    # test assertion fails. Gating on success() let one failing env silently
+    # discard the whole cache. Cancellation still skips, so a tree Warp was
+    # mid-write on is never published.
+    - name: Save Warp kernel cache
+      if: '!cancelled() && inputs.warp-cache == ''save'' && steps.warp-cache-growth.outputs.empty != ''true'''
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.warp-cache-key.outputs.host-dir }}
+        key: ${{ steps.warp-cache-key.outputs.key }}
+
+    - name: Cleanup wheelhouse artifacts
+      if: always() && steps.extract-wheelhouse.outputs.wheelhouse_host_dir != ''
+      shell: bash
+      run: rm -rf "${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}"
 
     - name: Kill container on cancellation
       if: cancelled()

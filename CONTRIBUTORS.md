@@ -33,6 +33,7 @@ Guidelines for modifications:
 * James Tigue
 * Kelly (Yunrong) Guo
 * Matthew Trepte
+* Maximilian Krause
 * Mayank Mittal
 * Mike Yan Michelis
 * Mikhail Yurasov
@@ -44,17 +45,21 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Advait Jayant
+* Agon Serifi
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane
 * Alice Zhou
 * Amr Mousa
+* Andrei Aristarkhov
 * Andrej Orsula
 * Anke Zhao
 * Anton Bjørndahl Mortensen
 * Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
+* Asier Arranz
 * Bikram Pandit
 * Bingjie Tang
 * Bocheng Zou
@@ -67,11 +72,14 @@ Guidelines for modifications:
 * Cameron Upright
 * Cathy Y. Li
 * Cheng-Rong Lai
+* Chenyu Cao
 * Chenyu Yang
 * Connor Smith
 * CY (Chien-Ying) Chen
+* David Cao-Mueller
 * David Leon
 * David Yang
+* Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar
 * Dongxuan Fan
@@ -109,6 +117,7 @@ Guidelines for modifications:
 * Jingzhou Liu
 * Jinqi Wei
 * Jinyeob Kim
+* Jiwen Cai
 * Johnson Sun
 * Juana Du
 * Kaixi Bao
@@ -116,7 +125,9 @@ Guidelines for modifications:
 * Kousheek Chakraborty
 * Kris Wilson
 * Krishna Lakhi
+* Lin He
 * Lionel Gulich
+* Lior Ben Horin
 * Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay
@@ -125,10 +136,12 @@ Guidelines for modifications:
 * Marco Alesiani
 * Masoud Moghani
 * Mateo Guaman Castro
+* Matthew Taylor
 * Maurice Rahme
 * Michael Gussert
 * Michael Lin
 * Michael Noseworthy
+* Michal Hapala
 * Miguel Alonso Jr
 * Mihir Kulkarni
 * Mingxue Gu
@@ -156,13 +169,16 @@ Guidelines for modifications:
 * Qingyang Jiang
 * Qinxi Yu
 * Rafael Wiltz
+* Rebecca (Rui) Zhang
 * Renaud Poncelet
 * René Zurbrügg
+* Richard Lei
 * Richard Schmitt
 * RinZ27
 * Ritvik Singh
 * Rosario Scalise
 * Ruben D'Sa
+* Ruben Grandia
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
@@ -181,6 +197,7 @@ Guidelines for modifications:
 * Tsz Ki GAO
 * Tyler Lum
 * Victor Khaustov
+* Vidur Vij
 * Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wei Yang
@@ -194,6 +211,7 @@ Guidelines for modifications:
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
+* Yize Wang
 * Yohan Choi
 * Yujian Zhang
 * Yun Liu

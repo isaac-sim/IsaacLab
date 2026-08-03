@@ -506,7 +506,7 @@ Mimic and Teleoperation
 * Adds dgx spark limitations link to teleop docs by @lotusl-code in https://github.com/isaac-sim/IsaacLab/pull/3805
 * Adds Cosmos Transfer1 limitation for DGX spark by @shauryadNv in https://github.com/isaac-sim/IsaacLab/pull/3817
 * Updates DGX spark limitations for SkillGen in the documentation by @njawale42 in https://github.com/isaac-sim/IsaacLab/pull/3748
-* Adds the Isaac-PickPlace-G1-InspireFTP-Abs-v0 Task into Envs Docs by @yami007007 in https://github.com/isaac-sim/IsaacLab/pull/3479
+* Adds the IsaacContrib-PickPlace-G1-InspireFTP-Abs Task into Envs Docs by @yami007007 in https://github.com/isaac-sim/IsaacLab/pull/3479
 
 Infrastructure
 ~~~~~~~~~~~~~~
@@ -1658,7 +1658,7 @@ New Features
 * Adds the direct workflow multi-agent environments ``Isaac-Cart-Double-Pendulum-Direct-v0`` and ``Isaac-Shadow-Hand-Over-Direct-v0`` by @Toni-SM
 * Adds throughput benchmarking scripts for the different learning workflows by @kellyguo11
 * Adds results for the benchmarks in the documentation
-  `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/performance_benchmarks.html>`__
+  :ref:`here <testing_benchmarks>`
   for different types of hardware by @kellyguo11
 * Adds the direct workflow Allegro hand environment by @kellyguo11
 * Adds video recording to the play scripts in RL workflows by @j3soon
@@ -1760,15 +1760,35 @@ Due to the above change, the command line interaction with some of the scripts h
 
 Before:
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --cpu
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --cpu
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --cpu
 
 Now:
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --device cpu
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --device cpu
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --device cpu
 
 Renaming of teleoperation device CLI in standalone scripts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1779,15 +1799,36 @@ this conflict, the teleoperation-device now needs to be specified through ``--te
 
 Before:
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --device keyboard
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python source/standalone/environments/teleoperation/teleop_se3_agent.py --task IsaacContrib-Lift-Cube-Franka-IK-Rel --num_envs 1 --device keyboard
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task IsaacContrib-Lift-Cube-Franka-IK-Rel --num_envs 1 --device keyboard
 
 Now:
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python source/standalone/environments/teleoperation/teleop_se3_agent.py --task IsaacContrib-Lift-Cube-Franka-IK-Rel --num_envs 1 --teleop_device keyboard
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task IsaacContrib-Lift-Cube-Franka-IK-Rel --num_envs 1 --teleop_device keyboard
 
 
 Using Python-version of container utility script

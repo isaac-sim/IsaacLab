@@ -13,7 +13,7 @@ the terrain.
 .. code-block:: bash
 
     # Run the script
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
+    uv run python scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
 
 """
 
@@ -54,7 +54,7 @@ from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, check_file_path, read_file
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 ##
 # Pre-defined configs

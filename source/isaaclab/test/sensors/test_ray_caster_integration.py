@@ -45,6 +45,8 @@ from isaaclab.sensors.ray_caster import (
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 
+pytestmark = pytest.mark.integration
+
 _GROUND_PATH = "/World/Ground"
 _DT = 0.01
 
@@ -358,6 +360,9 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
             sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
             destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
             clone_mask=torch.tensor([[True, False, True], [False, True, False]], dtype=torch.bool, device=sim.device),
+            env_ids=torch.arange(3, dtype=torch.long, device=sim.device),
+            positions=None,
+            cfg_rows={},
         )
     )
     sim_utils.update_stage()
@@ -387,7 +392,7 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
     env2_part = stage.GetPrimAtPath("/World/envs/env_2/Object/part_0")
     assert env2_part is None or not env2_part.IsValid()
 
-    # Geometry is selected from ClonePlan rows, but poses come from the batched object view.
+    # Geometry is selected from ClonePlan entries, but poses come from the batched object view.
     mesh_ids = wp.to_torch(sensor._mesh_ids_wp).cpu()
     mesh_positions = wp.to_torch(sensor._mesh_positions_w).cpu()
     assert sensor._mesh_ids_wp.shape == (num_envs, 1)

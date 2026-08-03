@@ -8,9 +8,13 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.sim.spawners import SpawnerCfg
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from isaaclab.markers import VisualizationMarkers
 
 
 @configclass
@@ -25,4 +29,10 @@ class VisualizationMarkersCfg:
 
     The key is the name of the marker, and the value is the configuration of the marker.
     The key is used to identify the marker in the class.
+    """
+
+    class_type: type[VisualizationMarkers] | str = "{DIR}.visualization_markers:VisualizationMarkers"
+    """The class to use for the visualization markers.
+
+    Defaults to :class:`isaaclab.markers.VisualizationMarkers`.
     """

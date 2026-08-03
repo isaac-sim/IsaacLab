@@ -36,12 +36,15 @@ class VideoRecorderCfg:
     """Perspective camera position in world space (metres).
 
     Direct RL / MARL and manager-based RL environments overwrite this from
-    :attr:`~isaaclab.envs.common.ViewerCfg.eye` before recording so ``--video`` matches the
-    task viewport for both Kit (PhysX / Isaac RTX) and Newton GL (Newton / OVRTX / etc.).
+    :attr:`~isaaclab.envs.common.ViewerCfg.eye`. Kit and renderer-selected Newton capture use this
+    value. Visualizer-selected Newton capture uses the active visualizer camera instead.
     """
 
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Perspective camera look-at target in world space (metres). Set from ``ViewerCfg.lookat`` at env init."""
+    """Perspective camera look-at target in world space (metres).
+
+    Visualizer-selected Newton capture uses the active visualizer camera instead.
+    """
 
     backend_source: Literal["visualizer", "renderer"] = "visualizer"
     """Source used to resolve the video capture backend.
@@ -52,7 +55,13 @@ class VideoRecorderCfg:
     """
 
     window_width: int = 1280
-    """Width in pixels of the recorded frame."""
+    """Width of the recorded frame in pixels.
+
+    Visualizer-selected Newton capture uses the active visualizer width instead.
+    """
 
     window_height: int = 720
-    """Height in pixels of the recorded frame."""
+    """Height of the recorded frame in pixels.
+
+    Visualizer-selected Newton capture uses the active visualizer height instead.
+    """

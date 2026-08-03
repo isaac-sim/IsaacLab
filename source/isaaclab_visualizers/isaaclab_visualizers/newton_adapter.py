@@ -7,6 +7,52 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
+VISUALIZER_INFINITE_PLANE_SIZE = 1000.0
+"""Finite render size used for Newton planes encoded as infinite."""
+
+
+def expand_infinite_plane_scale(
+    geo_scale: tuple[float, ...], plane_size: float = VISUALIZER_INFINITE_PLANE_SIZE
+) -> tuple[float, ...]:
+    """Return a finite visual scale for Newton planes encoded with non-positive extents.
+
+    Newton uses non-positive X/Y plane scale values to represent an effectively
+    infinite plane. Newton GL renders those with a large finite mesh; web viewers
+    also need a finite size, otherwise their world-extents heuristic can shrink
+    the floor to just the actor bounds.
+    """
+    scale = tuple(float(value) for value in geo_scale)
+    width = scale[0] if len(scale) > 0 else 0.0
+    length = scale[1] if len(scale) > 1 else 0.0
+    if width > 0.0 and length > 0.0:
+        return scale
+    tail = scale[2:] if len(scale) > 2 else ()
+    return (
+        width if width > 0.0 else float(plane_size),
+        length if length > 0.0 else float(plane_size),
+        *tail,
+    )
+
+
+def log_geo_with_expanded_plane_scale(
+    super_log_geo: Callable[..., Any],
+    plane_geo_type: int,
+    name: str,
+    geo_type: int,
+    geo_scale: tuple[float, ...],
+    geo_thickness: float,
+    geo_is_solid: bool,
+    geo_src=None,
+    hidden: bool = False,
+):
+    """Log geometry after expanding Newton infinite-plane extents for web viewers."""
+    if geo_type == plane_geo_type:
+        geo_scale = expand_infinite_plane_scale(geo_scale)
+    return super_log_geo(name, geo_type, geo_scale, geo_thickness, geo_is_solid, geo_src, hidden)
+
 
 def resolve_visible_env_indices(
     env_ids: list[int] | None,
@@ -18,14 +64,14 @@ def resolve_visible_env_indices(
     * Cap-only path (``env_ids`` is ``None``): contiguous ``0 .. min(cap, num_envs) - 1`` when ``max_visible_envs``
       is set; otherwise ``None`` (viewer shows all worlds). (Random cap-only selection is applied earlier by
       turning it into explicit ``env_ids``.)
-    * Explicit path (``env_ids`` is a list): if ``max_visible_envs`` is set, keep only the first *cap* indices
-      (truncate from the end); if ``None``, use the full list.
+    * Explicit path (``env_ids`` is a list): remove duplicate indices while preserving order, then keep only the
+      first *cap* indices when ``max_visible_envs`` is set.
 
     Returns:
         Selected indices, or ``None`` when all environments should be visible (cap-only, no limit).
     """
     if env_ids is not None:
-        out = list(env_ids)
+        out = list(dict.fromkeys(env_ids))
         if max_visible_envs is not None:
             out = out[: max(0, int(max_visible_envs))]
         return out

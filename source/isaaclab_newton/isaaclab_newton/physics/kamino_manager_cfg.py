@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils.configclass import configclass
 
@@ -48,12 +48,32 @@ class KaminoSolverCfg(NewtonSolverCfg):
     use_collision_detector: bool = False
     """Whether to use Kamino's internal collision detector instead of Newton's pipeline."""
 
-    use_fk_solver: bool = True
+    use_fk_solver: bool | None = None
     """Whether to enable the forward kinematics solver for state resets.
 
-    Required for proper environment resets. The FK solver computes consistent body poses
-    from joint angles after state writes, which is essential for maximal-coordinate solvers.
+    When ``None``, Kamino will automatically determine whether to use the FK solver based on the model's
+    articulation structure. If the model has loop-closing joints, the FK solver will be used.
+
+    When ``True``, :meth:`NewtonKaminoManager._eval_fk_impl` reconciles body state via
+    :meth:`SolverKamino.reset` with :class:`SolverKamino.ResetConfig.from_joints`. Kamino's FK
+    solver computes consistent body poses/velocities from the joint coordinates (including the
+    base joint for floating bases), resolves passive / loop-closure joints, and writes back a
+    consistent full joint state. Environment resets only need to write actuated DOFs in
+    ``joint_q``; passive values are filled in by FK. This is required for closed-loop systems.
+
+    When ``False``, Newton's articulated ``eval_fk`` is used instead over the full
+    ``joint_q`` / ``joint_qd``. It is then up to the user to specify constraint-consistent
+    values. This is the faster option for purely articulated (tree-structured) systems.
     """
+
+    fk_use_regularization: bool = True
+    """Whether to regularize the FK reset solve (Tikhonov term on body poses)."""
+
+    fk_regularization_weight: float = 1e-5
+    """Weight of the FK reset regularizer, used when :attr:`fk_use_regularization` is ``True``."""
+
+    fk_tolerance: float = 1e-5
+    """Convergence tolerance of the FK reset solve."""
 
     sparse_jacobian: bool = False
     """Whether to use sparse Jacobian computation."""
@@ -145,11 +165,36 @@ class KaminoSolverCfg(NewtonSolverCfg):
     Only used when :attr:`use_collision_detector` is ``True``. If ``None``, Newton's default is used.
     """
 
+    max_contacts_per_world: int | None = None
+    """Cap the per-world contact pre-allocation handed to Kamino.
+
+    When ``None``, Kamino falls back to ``geoms.world_minimum_contacts`` derived from the
+    collision pipeline, which over-allocates dramatically for contact-rich assets. Set this
+    to bound GPU memory for multi-env training of contact-heavy tasks (e.g. legged
+    locomotion or manipulation). The total ``model.rigid_contact_max`` is computed as
+    ``max_contacts_per_world * model.world_count`` before solver construction.
+    """
+
     dynamics_preconditioning: bool = True
     """Whether to use preconditioning in the constrained dynamics solver.
 
     Preconditioning improves convergence of the PADMM solver by rescaling the
     problem. Disabling may be useful for debugging or profiling solver behavior.
+    """
+
+    material_friction_mix_mode: Literal["average", "multiply", "max", "min"] = "average"
+    """How the friction coefficients of two contacting shapes are mixed into a contact-pair value.
+
+    Applied by Kamino for both contact-generation paths (Newton's collision pipeline and
+    Kamino's internal collision detector). Note that per-material combine modes (e.g. PhysX's
+    ``physxMaterial:frictionCombineMode``) are not supported by Newton; this solver-wide mode
+    governs all contact pairs.
+    """
+
+    material_restitution_mix_mode: Literal["average", "multiply", "max", "min"] = "min"
+    """How the restitution coefficients of two contacting shapes are mixed into a contact-pair value.
+
+    See :attr:`material_friction_mix_mode` for details on scope and limitations.
     """
 
     def to_solver_config(self) -> SolverKamino.Config:
@@ -165,9 +210,15 @@ class KaminoSolverCfg(NewtonSolverCfg):
             CollisionDetectorConfig,
             ConstrainedDynamicsConfig,
             ConstraintStabilizationConfig,
+            ForwardKinematicsSolverConfig,
+            MaterialManagerConfig,
             PADMMSolverConfig,
         )
         from newton.solvers import SolverKamino
+
+        # Kamino Manager will set the automatic value before. This is a fallback to true if that mechanism was bypassed.
+        if self.use_fk_solver is None:
+            self.use_fk_solver = True
 
         # Build collision detector config if using Kamino's internal detector
         collision_detector = None
@@ -190,6 +241,11 @@ class KaminoSolverCfg(NewtonSolverCfg):
             collect_solver_info=self.collect_solver_info,
             compute_solution_metrics=self.compute_solution_metrics,
             collision_detector=collision_detector,
+            fk=ForwardKinematicsSolverConfig(
+                use_regularization=self.fk_use_regularization,
+                regularization_weight=self.fk_regularization_weight,
+                tolerance=self.fk_tolerance,
+            ),
             constraints=ConstraintStabilizationConfig(
                 alpha=self.constraints_alpha,
                 beta=self.constraints_beta,
@@ -198,6 +254,10 @@ class KaminoSolverCfg(NewtonSolverCfg):
             ),
             dynamics=ConstrainedDynamicsConfig(
                 preconditioning=self.dynamics_preconditioning,
+            ),
+            materials=MaterialManagerConfig(
+                friction_mix_mode=self.material_friction_mix_mode,
+                restitution_mix_mode=self.material_restitution_mix_mode,
             ),
             padmm=PADMMSolverConfig(
                 max_iterations=self.padmm_max_iterations,

@@ -60,6 +60,8 @@ extension package:
    ├── CollisionBaseCfg
    │   ├── isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg
    │   └── isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg
+   │       ├── isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg
+   │       └── isaaclab_newton.sim.schemas.NewtonSDFCollisionPropertiesCfg
    │
    ├── ArticulationRootBaseCfg
    │   ├── isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg
@@ -83,6 +85,9 @@ multiple inheritance: it extends both
 ``mesh_approximation_name``). This is the textbook case for the per-declaring-
 class MRO routing described under :ref:`schema-cfgs-mixed` — each inherited
 field is written under the namespace of the class that declared it.
+:class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionPropertiesCfg` is
+collision-rooted, so it authors ``NewtonSDFCollisionAPI`` without also applying
+``UsdPhysics.MeshCollisionAPI`` or setting ``physics:approximation``.
 
 The hierarchy is **single-rooted per spawner slot**: every spawner has a single
 field for each property group (``rigid_props``, ``joint_drive_props``,
@@ -246,6 +251,9 @@ Lives on the Newton subclass. Authored only when the user opts in.
    * - ``NewtonMeshCollisionPropertiesCfg``
      - ``max_hull_vertices``
      - ``newton:*`` / ``NewtonMeshCollisionAPI``
+   * - ``NewtonSDFCollisionPropertiesCfg``
+     - ``sdf_max_resolution``, ``sdf_target_voxel_size``, ``sdf_texture_format``, ``hydroelastic_enabled``, ...
+     - ``newton:*`` / ``NewtonSDFCollisionAPI``
    * - ``NewtonMaterialPropertiesCfg``
      - ``torsional_friction``, ``rolling_friction``
      - ``newton:*`` / ``NewtonMaterialAPI``

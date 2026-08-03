@@ -17,9 +17,13 @@ module with a one-line import.
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import logging
 import threading
+from collections.abc import Iterator
+
+from pxr import Usd, UsdUtils
 
 logger = logging.getLogger(__name__)
 
@@ -149,3 +153,63 @@ def get_bindings() -> FabricNoticeBindings | None:
             return None
         _BINDINGS = b
         return _BINDINGS
+
+
+@contextlib.contextmanager
+def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -> Iterator[None]:
+    """Suspend Fabric's USD notice listener for the body of the ``with`` block.
+
+    The listener is a global ``TfNotice`` that fires on every ``Sdf.CopySpec`` during
+    cloning; toggling it off via ``IFabricUsd::setEnableChangeNotifies`` skips the
+    per-spec Fabric sync that dominates cloning time for large PhysX rigid-body scenes.
+    Same toggle that :meth:`isaacsim.core.cloner.Cloner.disable_change_listener` flips,
+    called directly through Carbonite so we don't take an
+    ``isaacsim.core.simulation_manager`` dependency.
+
+    Falls through to a no-op if the Carbonite interface can't be acquired (e.g. outside
+    a live Kit application).
+
+    Args:
+        stage: USD stage whose Fabric notice handler should be suspended.
+        restore: When ``True`` (default), re-enable the handler on exit. Set to
+            ``False`` if a downstream Fabric resync is about to happen anyway (e.g.
+            right before ``sim.reset()``), to avoid a redundant re-enable.
+
+    Yields:
+        None.
+    """
+    bindings = get_bindings()
+    if bindings is None:
+        yield
+        return
+
+    # usdrt only works with a live Kit app — defer import so module load stays cheap.
+    try:
+        import usdrt
+    except ModuleNotFoundError as exc:
+        if exc.name != "usdrt":
+            raise
+        yield
+        return
+
+    # Avoid leaking a strong reference into the global ``StageCache`` for stages we did not
+    # author into the cache: ``Insert`` keeps the stage alive for the rest of the process.
+    cache = UsdUtils.StageCache.Get()
+    cached_id = cache.GetId(stage)
+    stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
+    # ``FabricId`` wraps a uint64; the C ABI needs the raw integer.
+    fabric_id = usdrt.Usd.Stage.Attach(stage_id).GetFabricId().id
+    # First-call ABI sanity check — if the toggle doesn't actually round-trip the flag
+    # (e.g. Kit's vtable shifted), fall through to a no-op rather than corrupting state.
+    if not bindings.validate_with(fabric_id):
+        logger.warning("Fabric notice toggle failed round-trip check — suspension disabled")
+        yield
+        return
+    was_enabled = bindings.is_enabled(fabric_id)
+    if was_enabled:
+        bindings.set_enable(fabric_id, False)
+    try:
+        yield
+    finally:
+        if restore and was_enabled:
+            bindings.set_enable(fabric_id, True)

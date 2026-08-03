@@ -15,6 +15,13 @@ if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
 
 
+_VISUALIZER_EXTRAS = {
+    "kit": "isaacsim",
+    "rerun": "rerun",
+    "viser": "viser",
+}
+
+
 @configclass
 class VisualizerCfg:
     """Base configuration for all visualizer backends.
@@ -91,7 +98,14 @@ class VisualizerCfg:
 
     # Live Plots
     enable_live_plots: bool = True
-    """Enable live plotting of data."""
+    """Stream per-step scalar data (manager terms, episode reward, episode length) into the visualizer.
+
+    Plot windows start hidden or collapsed by default and can be toggled open at runtime.
+    Set to ``False`` to disable live plots entirely and avoid any collection overhead.
+    """
+
+    live_plots_update_interval: int = 5
+    """Collect and push live plot data every ``N`` simulation steps (default: every 5 steps)."""
 
     # Internal
     visualizer_type: str | None = None
@@ -127,8 +141,13 @@ class VisualizerCfg:
             return Visualizer(self)
         except (ValueError, ImportError, ModuleNotFoundError) as exc:
             if self.visualizer_type in ("newton", "rerun", "viser", "kit"):
+                extra = _VISUALIZER_EXTRAS.get(self.visualizer_type)
+                if extra is None:
+                    install_hint = "Synchronize the project environment with: uv sync."
+                else:
+                    install_hint = f"Run your command with: uv run --extra {extra} <command>."
                 raise ImportError(
-                    f"Visualizer '{self.visualizer_type}' requires the isaaclab_visualizers package. "
-                    f"Install with: pip install isaaclab_visualizers[{self.visualizer_type}]"
+                    f"Could not import visualizer '{self.visualizer_type}' from isaaclab_visualizers. "
+                    f"{install_hint}\nOriginal error: {exc}"
                 ) from exc
             raise

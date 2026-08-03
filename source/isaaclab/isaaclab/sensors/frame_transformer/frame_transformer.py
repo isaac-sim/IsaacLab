@@ -14,6 +14,7 @@ from .base_frame_transformer_data import BaseFrameTransformerData
 
 if TYPE_CHECKING:
     from isaaclab_newton.sensors.frame_transformer import FrameTransformer as NewtonFrameTransformer
+    from isaaclab_ovphysx.sensors.frame_transformer import FrameTransformer as OvPhysxFrameTransformer
     from isaaclab_physx.sensors.frame_transformer import FrameTransformer as PhysXFrameTransformer
     from isaaclab_physx.sensors.frame_transformer import FrameTransformerData as PhysXFrameTransformerData
 
@@ -23,6 +24,8 @@ class FrameTransformer(FactoryBase, BaseFrameTransformer):
 
     data: BaseFrameTransformerData | PhysXFrameTransformerData
 
-    def __new__(cls, *args, **kwargs) -> BaseFrameTransformer | NewtonFrameTransformer | PhysXFrameTransformer:
+    def __new__(
+        cls, *args, **kwargs
+    ) -> BaseFrameTransformer | NewtonFrameTransformer | OvPhysxFrameTransformer | PhysXFrameTransformer:
         """Create a new instance of a frame transformer based on the backend."""
         return super().__new__(cls, *args, **kwargs)

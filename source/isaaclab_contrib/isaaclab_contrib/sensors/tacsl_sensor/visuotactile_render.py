@@ -57,10 +57,11 @@ def compute_tactile_shear_image(
             loc0_y = col * resolution + resolution // 2
             loc1_x = loc0_x + tactile_shear_force[row, col][0] / shear_force_threshold * resolution
             loc1_y = loc0_y + tactile_shear_force[row, col][1] / shear_force_threshold * resolution
+            normalized_normal_force = float(tactile_normal_force[row][col]) / normal_force_threshold
             color = (
                 0.0,
-                max(0.0, 1.0 - tactile_normal_force[row][col] / normal_force_threshold),
-                min(1.0, tactile_normal_force[row][col] / normal_force_threshold),
+                max(0.0, 1.0 - normalized_normal_force),
+                min(1.0, normalized_normal_force),
             )
 
             cv2.arrowedLine(

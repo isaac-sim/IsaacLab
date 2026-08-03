@@ -14,330 +14,13 @@ collection interfaces need to comply with the same interface contract.
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
-"""Launch Isaac Sim Simulator first (when available)."""
-
-import os
-import sys
-from unittest.mock import MagicMock
-
-# When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
-# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
-# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
-# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
-# set (bare Python, no Kit at all).
-_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
-    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
-)
-
-if not _kitless:
-    from isaaclab.app import AppLauncher
-
-    simulation_app = AppLauncher(headless=True).app
-else:
-    simulation_app = None
-    # Stub out the Kit/Omniverse modules that are not present under
-    # run_ovphysx.sh (pxr, carb, omni, omni.kit[.app] are real on PYTHONPATH).
-    # ``omni`` is a real namespace package, so missing submodules also need
-    # to be installed as attributes on it -- ``sys.modules`` alone is not
-    # enough because attribute access on the real ``omni`` won't fall
-    # through to ``sys.modules``.
-    import omni as _omni
-
-    for _mod in ("physics", "physics.tensors", "physx", "timeline", "usd"):
-        _stub = MagicMock()
-        sys.modules[f"omni.{_mod}"] = _stub
-        # Bind the leaf attribute so that ``omni.<leaf>`` resolves.
-        setattr(_omni, _mod.split(".", 1)[0], _stub)
-    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
-        sys.modules.setdefault(_mod, MagicMock())
-
 import numpy as np
 import pytest
 import torch
 import warp as wp
+from _rigid_object_collection_iface_test_utils import BACKENDS, get_rigid_object_collection
 
-from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
-from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
-
-# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity
-_mock_physics_sim_view = MagicMock()
-_mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
-SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
-
-"""
-Check which backends are available.
-"""
-
-BACKENDS = ["Mock"]  # Mock backend is always available.
-
-try:
-    from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import (
-        RigidObjectCollection as PhysXRigidObjectCollection,
-    )
-    from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import (
-        RigidObjectCollectionData as PhysXRigidObjectCollectionData,
-    )
-    from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
-
-    BACKENDS.append("physx")
-except ImportError:
-    pass
-
-try:
-    from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection import (
-        RigidObjectCollection as NewtonRigidObjectCollection,
-    )
-    from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data import (
-        RigidObjectCollectionData as NewtonRigidObjectCollectionData,
-    )
-    from isaaclab_newton.test.mock_interfaces.mock_newton import MockWrenchComposer as NewtonMockWrenchComposer
-    from isaaclab_newton.test.mock_interfaces.views import MockNewtonCollectionView as NewtonMockCollectionView
-
-    BACKENDS.append("newton")
-except ImportError:
-    pass
-
-try:
-    from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection import (
-        RigidObjectCollection as OvPhysxRigidObjectCollection,
-    )
-    from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection_data import (
-        RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
-    )
-    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
-
-    # Guard against stub implementations (not yet functional).
-    if not hasattr(OvPhysxRigidObjectCollection, "_create_buffers"):
-        raise AttributeError("OvPhysxRigidObjectCollection is a stub; skipping ovphysx backend")
-
-    BACKENDS.append("ovphysx")
-except (ImportError, AttributeError):
-    pass
-
-
-def create_physx_rigid_object_collection(
-    num_instances: int = 2,
-    num_bodies: int = 3,
-    device: str = "cuda:0",
-):
-    """Create a test RigidObjectCollection instance with mocked dependencies."""
-    collection = object.__new__(PhysXRigidObjectCollection)
-
-    rigid_objects = {f"object_{i}": RigidObjectCfg(prim_path=f"/World/Object_{i}") for i in range(num_bodies)}
-    collection.cfg = RigidObjectCollectionCfg(rigid_objects=rigid_objects)
-
-    # View count = num_instances * num_bodies (body-major view order)
-    mock_view = PhysXMockRigidBodyViewWarp(
-        count=num_instances * num_bodies,
-        device=device,
-    )
-    mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
-
-    object.__setattr__(collection, "_root_view", mock_view)
-    object.__setattr__(collection, "_device", device)
-    object.__setattr__(collection, "_num_bodies", num_bodies)
-    object.__setattr__(collection, "_num_instances", num_instances)
-    object.__setattr__(collection, "_body_names_list", [f"object_{i}" for i in range(num_bodies)])
-
-    # Create RigidObjectCollectionData instance
-    data = PhysXRigidObjectCollectionData(mock_view, num_bodies, device)
-    object.__setattr__(collection, "_data", data)
-    data.body_names = [f"object_{i}" for i in range(num_bodies)]
-
-    # Create mock wrench composers
-    mock_inst_wrench = MockWrenchComposer(collection)
-    mock_perm_wrench = MockWrenchComposer(collection)
-    object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
-
-    # Prevent __del__ / _clear_callbacks from raising AttributeError
-    object.__setattr__(collection, "_initialize_handle", None)
-    object.__setattr__(collection, "_invalidate_initialize_handle", None)
-    object.__setattr__(collection, "_prim_deletion_handle", None)
-    object.__setattr__(collection, "_debug_vis_handle", None)
-
-    # Set up index arrays
-    object.__setattr__(
-        collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
-    )
-    object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
-
-    return collection, mock_view
-
-
-def create_newton_rigid_object_collection(
-    num_instances: int = 2,
-    num_bodies: int = 3,
-    device: str = "cuda:0",
-):
-    """Create a test Newton RigidObjectCollection instance with mocked dependencies."""
-    import isaaclab_newton.assets.rigid_object_collection.rigid_object_collection as newton_coll_module
-    import isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data as newton_data_module
-
-    body_names = [f"object_{i}" for i in range(num_bodies)]
-
-    # Create collection-specific mock view with (N, B) root shapes
-    mock_view = NewtonMockCollectionView(
-        num_envs=num_instances,
-        num_bodies=num_bodies,
-        device=device,
-        body_names=body_names,
-    )
-    mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
-
-    # Mock NewtonManager (aliased as SimulationManager in Newton modules)
-    mock_model = MagicMock()
-    mock_model.gravity = wp.array(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), dtype=wp.vec3f, device=device)
-    mock_state = MagicMock()
-    mock_control = MagicMock()
-
-    mock_manager = MagicMock()
-    mock_manager.get_model.return_value = mock_model
-    mock_manager.get_state_0.return_value = mock_state
-    mock_manager.get_state_1.return_value = mock_state
-    mock_manager.get_control.return_value = mock_control
-
-    # Patch SimulationManager in both data and collection modules
-    original_data_manager = newton_data_module.SimulationManager
-    original_coll_manager = newton_coll_module.SimulationManager
-    newton_data_module.SimulationManager = mock_manager
-    newton_coll_module.SimulationManager = mock_manager
-
-    try:
-        data = NewtonRigidObjectCollectionData(mock_view, num_bodies, device)
-    finally:
-        newton_data_module.SimulationManager = original_data_manager
-        newton_coll_module.SimulationManager = original_coll_manager
-
-    # Create collection shell (bypass __init__)
-    collection = object.__new__(NewtonRigidObjectCollection)
-
-    rigid_objects = {f"object_{i}": RigidObjectCfg(prim_path=f"/World/Object_{i}") for i in range(num_bodies)}
-    collection.cfg = RigidObjectCollectionCfg(rigid_objects=rigid_objects)
-
-    object.__setattr__(collection, "_root_view", mock_view)
-    object.__setattr__(collection, "_device", device)
-    object.__setattr__(collection, "_num_bodies", num_bodies)
-    object.__setattr__(collection, "_num_instances", num_instances)
-    object.__setattr__(collection, "_body_names_list", body_names)
-    object.__setattr__(collection, "_data", data)
-    data.body_names = body_names
-
-    # Mock wrench composers (Newton-specific)
-    mock_inst_wrench = NewtonMockWrenchComposer(collection)
-    mock_perm_wrench = NewtonMockWrenchComposer(collection)
-    object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
-
-    # Prevent __del__ / _clear_callbacks from raising AttributeError
-    object.__setattr__(collection, "_initialize_handle", None)
-    object.__setattr__(collection, "_invalidate_initialize_handle", None)
-    object.__setattr__(collection, "_prim_deletion_handle", None)
-    object.__setattr__(collection, "_debug_vis_handle", None)
-
-    # Index arrays (warp)
-    object.__setattr__(
-        collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
-    )
-    object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
-    object.__setattr__(collection, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
-    object.__setattr__(collection, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
-
-    return collection, mock_view
-
-
-def create_ovphysx_rigid_object_collection(
-    num_instances: int = 2,
-    num_bodies: int = 3,
-    device: str = "cuda:0",
-):
-    """Create a test OVPhysX RigidObjectCollection instance with mocked tensor bindings."""
-    body_names = [f"object_{i}" for i in range(num_bodies)]
-
-    collection = object.__new__(OvPhysxRigidObjectCollection)
-
-    rigid_objects = {f"object_{i}": RigidObjectCfg(prim_path=f"/World/Object_{i}") for i in range(num_bodies)}
-    collection.cfg = RigidObjectCollectionCfg(rigid_objects=rigid_objects)
-
-    # Use articulation-mode bindings with num_joints=0 to get (N, B, ...) shaped tensors.
-    mock_bindings = MockOvPhysxBindingSet(
-        num_instances=num_instances,
-        num_joints=0,
-        num_bodies=num_bodies,
-        body_names=body_names,
-        asset_kind="articulation",
-    )
-    mock_bindings.set_random_data()
-
-    object.__setattr__(collection, "_device", device)
-    object.__setattr__(collection, "_ovphysx", MagicMock())
-    object.__setattr__(collection, "_bindings", mock_bindings.bindings)
-    object.__setattr__(collection, "_num_instances", num_instances)
-    object.__setattr__(collection, "_num_bodies", num_bodies)
-    object.__setattr__(collection, "_body_names_list", body_names)
-
-    # Create RigidObjectCollectionData
-    data = OvPhysxRigidObjectCollectionData(mock_bindings.bindings, num_bodies, device)
-    data.num_instances = num_instances
-    data.num_bodies = num_bodies
-    data._is_primed = True
-    object.__setattr__(collection, "_data", data)
-
-    # Allocate the buffers that RigidObjectCollection normally allocates in _initialize_impl.
-    collection._create_buffers()
-
-    # Replace the real wrench composers with mocks for iface coverage.
-    mock_inst_wrench = MockWrenchComposer(collection)
-    mock_perm_wrench = MockWrenchComposer(collection)
-    object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
-
-    # Prevent __del__ / _clear_callbacks from raising
-    object.__setattr__(collection, "_initialize_handle", None)
-    object.__setattr__(collection, "_invalidate_initialize_handle", None)
-    object.__setattr__(collection, "_prim_deletion_handle", None)
-    object.__setattr__(collection, "_debug_vis_handle", None)
-
-    return collection, mock_bindings
-
-
-def create_mock_rigid_object_collection(
-    num_instances: int = 2,
-    num_bodies: int = 3,
-    device: str = "cuda:0",
-):
-    from isaaclab.test.mock_interfaces.assets.mock_rigid_object_collection import MockRigidObjectCollection
-
-    obj = MockRigidObjectCollection(
-        num_instances=num_instances,
-        num_bodies=num_bodies,
-        device=device,
-    )
-    return obj, None
-
-
-def get_rigid_object_collection(
-    backend: str,
-    num_instances: int = 2,
-    num_bodies: int = 3,
-    device: str = "cuda:0",
-):
-    if backend == "physx":
-        return create_physx_rigid_object_collection(num_instances, num_bodies, device)
-    elif backend == "ovphysx":
-        return create_ovphysx_rigid_object_collection(num_instances, num_bodies, device)
-    elif backend == "newton":
-        return create_newton_rigid_object_collection(num_instances, num_bodies, device)
-    elif backend.lower() == "mock":
-        return create_mock_rigid_object_collection(num_instances, num_bodies, device)
-    else:
-        raise ValueError(f"Invalid backend: {backend}")
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
@@ -346,7 +29,20 @@ def collection_iface(request):
     num_instances = request.getfixturevalue("num_instances")
     num_bodies = request.getfixturevalue("num_bodies")
     device = request.getfixturevalue("device")
-    return get_rigid_object_collection(backend, num_instances, num_bodies, device)
+    result = get_rigid_object_collection(backend, num_instances, num_bodies, device)
+    if backend != "newton":
+        yield result
+        return
+    # The Newton collection's ``body_link_pose_w`` triggers ``_ensure_fk_fresh()`` ->
+    # ``NewtonManager.forward()``, which runs ``eval_fk`` against a live simulation state. The mocked
+    # interface has no such state (``_state_0`` is ``None``), so stub ``forward()`` to a no-op for the
+    # test body; the mock view supplies the cached pose data directly.
+    from unittest.mock import patch
+
+    from isaaclab_newton.physics import NewtonManager
+
+    with patch.object(NewtonManager, "forward"):
+        yield result
 
 
 # ---------------------------------------------------------------------------
@@ -365,7 +61,6 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorators
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
-
 _default_dims = pytest.mark.parametrize("num_instances", [1, 2, 100])
 
 _default_bodies = pytest.mark.parametrize("num_bodies", [1, 3])
@@ -373,6 +68,12 @@ _default_bodies = pytest.mark.parametrize("num_bodies", [1, 3])
 _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 _index_resolution_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+)
+_reshape_3d_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
+)
+_production_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
 )
 
 
@@ -409,6 +110,30 @@ def _make_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
     if wp_dtype == wp.float32:
         return wp.from_torch(t, dtype=wp.float32)
     return wp.from_torch(t.contiguous(), dtype=wp_dtype)
+
+
+def _make_com_data(backend: str, shape: tuple[int, ...], device: str) -> wp.array:
+    """Create backend-compatible center-of-mass test data."""
+    if backend == "newton":
+        return wp.zeros(shape, dtype=wp.vec3f, device=device)
+    return _make_data_warp(shape, device, wp.transformf)
+
+
+def _prime_timestamped_properties(data, property_buffer_pairs: list[tuple[str, str]]):
+    """Prime public lazy properties and return their concrete timestamped buffers."""
+    buffers = []
+    for property_name, buffer_name in property_buffer_pairs:
+        getattr(data, property_name)
+        buffer = getattr(data, buffer_name)
+        assert buffer is not None, buffer_name
+        buffer.timestamp = data._sim_timestamp
+        buffers.append((buffer_name, buffer))
+    return buffers
+
+
+def _assert_buffers_stale(data, buffers) -> None:
+    for name, buffer in buffers:
+        assert buffer.timestamp < data._sim_timestamp, name
 
 
 def _make_bad_data_torch(shape: tuple, device: str, wp_dtype=wp.float32) -> torch.Tensor:
@@ -483,6 +208,79 @@ class TestCollectionIndexResolution:
 
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests: View reshape helpers
+# ---------------------------------------------------------------------------
+
+
+class TestCollectionViewReshape:
+    """Test backend-specific view reshape helpers."""
+
+    @_reshape_3d_backends
+    @_default_devices
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+    def test_reshape_data_to_view_3d_accepts_torch_tensor(self, backend, device, dtype):
+        if device.startswith("cuda") and not torch.cuda.is_available():
+            pytest.skip("CUDA is not available")
+
+        num_instances = 2
+        num_bodies = 3
+        data_dim = 4
+        obj, _ = get_rigid_object_collection(backend, num_instances=num_instances, num_bodies=num_bodies, device=device)
+        data = torch.arange(num_instances * num_bodies * data_dim, dtype=dtype, device=device).reshape(
+            num_instances, num_bodies, data_dim
+        )
+
+        view = obj.reshape_data_to_view_3d(data, data_dim, device=device)
+
+        assert isinstance(view, torch.Tensor)
+        assert view.dtype == dtype
+        assert view.device == data.device
+        assert view.is_contiguous()
+        torch.testing.assert_close(view, data.permute(1, 0, 2).reshape(num_bodies * num_instances, data_dim))
+
+    @_reshape_3d_backends
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+    def test_reshape_data_to_view_3d_moves_torch_tensor_to_requested_device(self, backend):
+        num_instances = 2
+        num_bodies = 3
+        data_dim = 4
+        obj, _ = get_rigid_object_collection(
+            backend, num_instances=num_instances, num_bodies=num_bodies, device="cuda:0"
+        )
+        data = torch.arange(num_instances * num_bodies * data_dim, dtype=torch.float32, device="cuda:0").reshape(
+            num_instances, num_bodies, data_dim
+        )
+
+        view = obj.reshape_data_to_view_3d(data, data_dim, device="cpu")
+
+        assert view.device.type == "cpu"
+        torch.testing.assert_close(view, data.permute(1, 0, 2).reshape(num_bodies * num_instances, data_dim).cpu())
+
+    @_reshape_3d_backends
+    @_default_devices
+    def test_reshape_data_to_view_3d_keeps_warp_array_behavior(self, backend, device):
+        if device.startswith("cuda") and not torch.cuda.is_available():
+            pytest.skip("CUDA is not available")
+
+        num_instances = 2
+        num_bodies = 3
+        data_dim = 4
+        obj, _ = get_rigid_object_collection(backend, num_instances=num_instances, num_bodies=num_bodies, device=device)
+        data = torch.arange(num_instances * num_bodies * data_dim, dtype=torch.float32, device=device).reshape(
+            num_instances, num_bodies, data_dim
+        )
+
+        torch_view = obj.reshape_data_to_view_3d(data, data_dim, device=device)
+        warp_view = obj.reshape_data_to_view_3d(wp.from_torch(data, dtype=wp.float32), data_dim, device=device)
+
+        assert isinstance(warp_view, wp.array)
+        assert warp_view.shape == (num_bodies * num_instances, data_dim)
+        assert warp_view.dtype == wp.float32
+        assert str(warp_view.device) == device
+        torch.testing.assert_close(wp.to_torch(warp_view), torch_view)
 
 
 # ---------------------------------------------------------------------------
@@ -562,6 +360,34 @@ class TestCollectionFinders:
         mask, names = obj.find_bodies(first_body)
         assert len(names) == 1
         assert names == [first_body]
+
+
+class TestCollectionFinderReturnModes:
+    """Test finder return modes on production collection backends."""
+
+    @_production_backends
+    def test_find_bodies_returns_legacy_tensor_or_cached_proxy(self, backend):
+        collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+
+        indices, names = collection.find_bodies(".*")
+        proxy, proxy_names = collection.find_bodies(".*", as_proxy=True)
+
+        assert isinstance(indices, torch.Tensor)
+        assert indices.dtype == torch.int32
+        assert indices.tolist() == proxy.torch.tolist()
+        assert names == proxy_names
+        assert proxy is collection.find_bodies(".*", as_proxy=True)[0]
+        assert proxy.dtype == wp.int32
+        assert str(proxy.device) == collection.device
+
+    @_production_backends
+    def test_find_objects_forwards_return_mode_with_alias_warning(self, backend):
+        collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+
+        with pytest.warns(DeprecationWarning):
+            proxy, _ = collection.find_objects(".*", as_proxy=True)
+
+        assert proxy is collection.find_bodies(".*", as_proxy=True)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -1001,6 +827,86 @@ class TestCollectionDataDefaults:
 
 _BODY_POSE_METHODS = ["body_pose", "body_link_pose", "body_com_pose"]
 _BODY_VEL_METHODS = ["body_velocity", "body_com_velocity", "body_link_velocity"]
+
+
+class TestCollectionCacheInvalidation:
+    @_production_backends
+    def test_pose_write_invalidates_pose_dependent_caches(self, backend):
+        obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+        obj.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            obj.data,
+            [
+                ("body_link_vel_w", "_body_link_vel_w"),
+                ("projected_gravity_b", "_projected_gravity_b"),
+                ("heading_w", "_heading_w"),
+                ("body_link_lin_vel_b", "_body_link_lin_vel_b"),
+                ("body_link_ang_vel_b", "_body_link_ang_vel_b"),
+                ("body_com_lin_vel_b", "_body_com_lin_vel_b"),
+                ("body_com_ang_vel_b", "_body_com_ang_vel_b"),
+            ],
+        )
+        body_pose = _make_data_warp((obj.num_instances, obj.num_bodies), "cpu", wp.transformf)
+        obj.write_body_link_pose_to_sim_index(body_poses=body_pose)
+        _assert_buffers_stale(obj.data, buffers)
+
+    @_production_backends
+    def test_velocity_write_invalidates_body_frame_caches(self, backend):
+        obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+        obj.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            obj.data,
+            [
+                ("body_link_lin_vel_b", "_body_link_lin_vel_b"),
+                ("body_link_ang_vel_b", "_body_link_ang_vel_b"),
+                ("body_com_lin_vel_b", "_body_com_lin_vel_b"),
+                ("body_com_ang_vel_b", "_body_com_ang_vel_b"),
+            ],
+        )
+        body_velocity = _make_data_warp((obj.num_instances, obj.num_bodies), "cpu", wp.spatial_vectorf)
+        obj.write_body_com_velocity_to_sim_index(body_velocities=body_velocity)
+        _assert_buffers_stale(obj.data, buffers)
+
+    @_production_backends
+    @pytest.mark.parametrize("setter_kind", ["index", "mask"])
+    def test_set_coms_invalidates_same_timestamp_dependents(self, backend, setter_kind):
+        obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
+        obj.data.update(dt=0.01)
+        common_pairs = [
+            ("body_com_pose_w", "_body_com_pose_w"),
+            ("body_link_vel_w", "_body_link_vel_w"),
+            ("body_link_lin_vel_b", "_body_link_lin_vel_b"),
+            ("body_link_ang_vel_b", "_body_link_ang_vel_b"),
+            ("body_com_lin_vel_b", "_body_com_lin_vel_b"),
+            ("body_com_ang_vel_b", "_body_com_ang_vel_b"),
+            ("body_state_w", "_body_state_w"),
+            ("body_link_state_w", "_body_link_state_w"),
+            ("body_com_state_w", "_body_com_state_w"),
+        ]
+        if backend != "newton":
+            common_pairs.append(("body_com_vel_w", "_body_com_vel_w"))
+        # Prime public properties before resolving private buffers so Newton allocates lazy caches.
+        buffers = _prime_timestamped_properties(obj.data, common_pairs)
+        if backend == "newton":
+            buffers += _prime_timestamped_properties(obj.data, [("body_com_pose_b", "_body_com_pose_b")])
+        coms = _make_com_data(backend, (obj.num_instances, obj.num_bodies), "cpu")
+
+        def set_coms() -> None:
+            if setter_kind == "index":
+                obj.set_coms_index(coms=coms)
+            else:
+                obj.set_coms_mask(coms=coms)
+
+        if backend == "newton":
+            from unittest.mock import patch
+
+            from isaaclab_newton.physics import NewtonManager
+
+            with patch.object(NewtonManager, "add_model_change"):
+                set_coms()
+        else:
+            set_coms()
+        _assert_buffers_stale(obj.data, buffers)
 
 
 class TestCollectionWritersPose:

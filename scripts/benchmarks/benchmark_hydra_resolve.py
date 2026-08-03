@@ -10,17 +10,17 @@ resolve ``PresetCfg`` selections, register the plain Hydra config, run Hydra
 scalar overrides, and return the resolved env/agent cfg objects.
 
 The benchmark prints a local summary table and writes per-case measurements to
-the standard Isaac Lab benchmark backend. It does not create environments and
+the standard Isaac Lab benchmark formatter. It does not create environments and
 does not require a GPU.
 
 Usage::
 
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --suite broad
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --iterations 100
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py \
-        --case cartpole:Isaac-Cartpole-v0:: \
-        --case anymal:Isaac-Velocity-Rough-Anymal-C-v0::env.scene.num_envs=256
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py --suite broad
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py --iterations 100
+    uv run python scripts/benchmarks/benchmark_hydra_resolve.py \
+        --case cartpole:Isaac-Cartpole:: \
+        --case anymal:IsaacContrib-Velocity-Rough-AnymalC::env.scene.num_envs=256
 
 Case format is ``name:task:agent_entry:arg[,arg...]``. Leave ``agent_entry`` or
 ``arg`` empty when not needed.
@@ -40,7 +40,7 @@ from dataclasses import dataclass
 
 import gymnasium
 
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
+from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
@@ -49,8 +49,6 @@ with warnings.catch_warnings():
     import isaaclab_tasks  # noqa: F401
 
 from isaaclab_tasks.utils.hydra import resolve_task_config
-
-from scripts.benchmarks.utils import get_backend_type
 
 
 @dataclass(frozen=True)
@@ -62,50 +60,50 @@ class Case:
 
 
 QUICK_CASES = (
-    Case("cartpole_manager", "Isaac-Cartpole-v0"),
-    Case("cartpole_camera_presets", "Isaac-Cartpole-Camera-Presets-Direct-v0", "rl_games_cfg_entry_point"),
-    Case("anymal_rough", "Isaac-Velocity-Rough-Anymal-C-v0"),
-    Case("franka_lift_cube", "Isaac-Lift-Cube-Franka-v0"),
+    Case("cartpole_manager", "Isaac-Cartpole"),
+    Case("cartpole_camera_presets", "Isaac-Cartpole-Camera-Direct", "rl_games_cfg_entry_point"),
+    Case("anymal_rough", "IsaacContrib-Velocity-Rough-AnymalC"),
+    Case("franka_lift_cube", "Isaac-Lift-Cube-Franka"),
     Case(
         "cartpole_camera_newton_ovrtx",
-        "Isaac-Cartpole-Camera-Presets-Direct-v0",
+        "Isaac-Cartpole-Camera-Direct",
         "rl_games_cfg_entry_point",
-        ("presets=newton_mjwarp,ovrtx_renderer",),
+        ("presets=newton_mjwarp,ovrtx",),
     ),
-    Case("anymal_rough_scalar", "Isaac-Velocity-Rough-Anymal-C-v0", None, ("env.scene.num_envs=256",)),
+    Case("anymal_rough_scalar", "IsaacContrib-Velocity-Rough-AnymalC", None, ("env.scene.num_envs=256",)),
 )
 
 
 BROAD_CASES = (
     *QUICK_CASES,
-    Case("cartpole_direct", "Isaac-Cartpole-Direct-v0"),
-    Case("cartpole_rgb_direct", "Isaac-Cartpole-RGB-Camera-Direct-v0"),
-    Case("ant_manager", "Isaac-Ant-v0"),
-    Case("humanoid_manager", "Isaac-Humanoid-v0", "rsl_rl_cfg_entry_point"),
-    Case("franka_reach", "Isaac-Reach-Franka-v0"),
-    Case("franka_lift_cube_agent", "Isaac-Lift-Cube-Franka-v0", "sb3_cfg_entry_point"),
-    Case("kuka_allegro_lift", "Isaac-Dexsuite-Kuka-Allegro-Lift-v0", "rsl_rl_cfg_entry_point"),
+    Case("cartpole_direct", "Isaac-Cartpole-Direct"),
+    Case("cartpole_rgb_direct", "Isaac-Cartpole-Camera-Direct", None, ("presets=rgb",)),
+    Case("ant_manager", "Isaac-Ant"),
+    Case("humanoid_manager", "Isaac-Humanoid", "rsl_rl_cfg_entry_point"),
+    Case("franka_reach", "Isaac-Reach-Franka"),
+    Case("franka_lift_cube_agent", "Isaac-Lift-Cube-Franka", "sb3_cfg_entry_point"),
+    Case("kuka_allegro_lift", "Isaac-Lift-KukaAllegro", "rsl_rl_cfg_entry_point"),
     Case(
         "kuka_allegro_lift_single_camera",
-        "Isaac-Dexsuite-Kuka-Allegro-Lift-v0",
+        "Isaac-Lift-KukaAllegro-Camera",
         "rsl_rl_cfg_entry_point",
         ("presets=single_camera,rgb128",),
     ),
     Case(
         "kuka_allegro_lift_duo_camera",
-        "Isaac-Dexsuite-Kuka-Allegro-Lift-v0",
+        "Isaac-Lift-KukaAllegro-Camera",
         "rsl_rl_cfg_entry_point",
         ("presets=duo_camera,rgb128",),
     ),
     Case(
         "kuka_allegro_lift_scalar",
-        "Isaac-Dexsuite-Kuka-Allegro-Lift-v0",
+        "Isaac-Lift-KukaAllegro",
         "rsl_rl_cfg_entry_point",
         ("env.scene.num_envs=256",),
     ),
     Case(
         "cartpole_camera_hydra_force",
-        "Isaac-Cartpole-Camera-Presets-Direct-v0",
+        "Isaac-Cartpole-Camera-Direct",
         "rl_games_cfg_entry_point",
         ("++env.scene.num_envs=256",),
     ),
@@ -183,7 +181,7 @@ def _log_results(benchmark: BaseIsaacLabBenchmark, results: dict[Case, list[floa
             )
 
     benchmark.update_manual_recorders()
-    benchmark._finalize_impl()
+    benchmark.finalize()
 
 
 def main() -> int:
@@ -204,20 +202,11 @@ def main() -> int:
         help="Benchmark case in format name:task:agent_entry:arg[,arg...]. May be repeated.",
     )
     parser.add_argument(
-        "--benchmark_backend",
+        "--benchmark_formatter",
         type=str,
         default="summary",
-        choices=[
-            "json",
-            "osmo",
-            "omniperf",
-            "summary",
-            "LocalLogMetrics",
-            "JSONFileMetrics",
-            "OsmoKPIFile",
-            "OmniPerfKPIFile",
-        ],
-        help="Benchmarking backend options, defaults summary.",
+        choices=["json", "osmo", "omniperf", "summary"],
+        help="Benchmark output formatter, defaults summary.",
     )
     parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
     parser.add_argument("--verbose", action="store_true", help="Keep per-iteration resolver output.")
@@ -240,7 +229,7 @@ def main() -> int:
 
     benchmark = BaseIsaacLabBenchmark(
         benchmark_name="benchmark_hydra_resolve",
-        backend_type=get_backend_type(args.benchmark_backend),
+        formatter_type=args.benchmark_formatter,
         output_path=args.output_path,
         use_recorders=True,
         output_prefix="benchmark_hydra_resolve",

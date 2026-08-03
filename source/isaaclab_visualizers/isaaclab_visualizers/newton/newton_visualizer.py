@@ -7,13 +7,29 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import os
 import sys
 from typing import TYPE_CHECKING
 
+import numpy as np
+import torch
 import warp as wp
+
+# pyglet.options["headless"] must be set before the first import of pyglet.window.
+# newton.viewer.ViewerGL triggers that import at class-definition time, so we must
+# set the option here — before the ViewerGL import below — not in initialize().
+# Without this, importing NewtonViewerGL in a headless environment (e.g. a pytest
+# session on a CI runner with no DISPLAY) causes ViewerGL to open an X11 connection
+# that blocks indefinitely.
+if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY"):
+    import pyglet as _pyglet_headless_init
+
+    _pyglet_headless_init.options["headless"] = True
+    del _pyglet_headless_init
+
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
@@ -31,11 +47,36 @@ from isaaclab.envs.utils.camera_view import (
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
+
+
+def _newton_scalar_base_name(name: str) -> str:
+    """Strip a trailing ``[N]`` component index from a scalar name to get the term base name."""
+    if name.endswith("]") and "[" in name:
+        bracket = name.rfind("[")
+        if name[bracket + 1 : -1].isdigit():
+            return name[:bracket]
+    return name
+
+
+_BACKEND_DISPLAY_NAMES = {
+    "physx": "PhysX",
+    "ovphysx": "OVPhysX",
+    "newton": "Newton MJWarp",
+}
+
+CONTACT_ARROW_PATH = "/contacts"
+"""Viewer path used for native and synthesized contact arrows."""
+
+CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
+"""Color used by Newton's native contact visualization."""
+
+CONTACT_ARROW_LENGTH = 0.1
+"""Length of synthesized contact arrows in meters."""
 
 if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
@@ -62,15 +103,55 @@ class NewtonViewerGL(ViewerGL):
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
+        self._reset_requested = False
         self._metadata = metadata or {}
         self._fallback_draw_controls = False
         self._update_frequency = update_frequency
         self._color_edit3_prefers_sequence: bool | None = None
+        self.particle_color: tuple[float, float, float] | None = None
+        self._particle_color_buffer: wp.array | None = None
+        self._particle_color_buffer_count = 0
+        self._particle_color_buffer_value: tuple[float, float, float] | None = None
+        self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
+        self._mpm_particles_all_active = False
+        self._live_plots_callback = None
+
+        from isaaclab.utils.backend_utils import FactoryBase
+
+        backend = FactoryBase._get_backend()
+        self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
+
+        with contextlib.suppress(AttributeError):
+            self._patch_scalar_plot_width()
+            self._patch_viewer_panel()
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
         except AttributeError:
             self._fallback_draw_controls = True
+
+    def _patch_scalar_plot_width(self) -> None:
+        """Set up ImPlot and suppress Newton's built-in floating Plots window.
+
+        Plots are rendered inline in the left panel by
+        :meth:`~NewtonVisualizer._live_plots_panel_imgui` instead.
+        """
+        gui = self.gui
+
+        # Initialise ImPlot context once.  Newton does not use ImPlot itself, so we create
+        # and own the context here.  set_imgui_context links it to the active imgui context.
+        try:
+            from imgui_bundle import implot as _implot
+
+            self._implot_ctx = _implot.create_context()
+            _implot.set_imgui_context(gui.ui.imgui.get_current_context())
+            self._implot = _implot
+        except Exception:
+            self._implot = None
+            self._implot_ctx = None
+
+        # Replace Newton's floating plots window with a no-op; rendering is in the panel.
+        gui._render_scalar_plots = lambda: None
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
@@ -80,11 +161,182 @@ class NewtonViewerGL(ViewerGL):
         """Return whether rendering is paused by viewer controls."""
         return self._paused_rendering
 
-    def _render_training_controls(self, imgui):
-        """Render Isaac Lab-specific control widgets in the Newton viewer UI."""
-        imgui.separator()
-        imgui.text("IsaacLab Controls")
+    def is_reset_requested(self) -> bool:
+        """Return whether an episode reset was requested without clearing the flag."""
+        return self._reset_requested
 
+    def consume_reset_request(self) -> bool:
+        """Return whether an episode reset was requested and clear the flag."""
+        requested = self._reset_requested
+        self._reset_requested = False
+        return requested
+
+    def _patch_viewer_panel(self) -> None:
+        """Replace Newton's left panel with an IsaacLab-oriented layout.
+
+        New section order:
+
+        1. **Isaac Lab** (open) — physics backend, model info, training controls.
+        2. **Live Plots** (closed) — injected when :meth:`~NewtonVisualizer.add_live_plots`
+           is called.
+        3. **Visualization Markers** (open) — Newton's debug overlays, renamed.
+        4. **Rendering Options** (open) — VSync and renderer-specific options.
+        5. **Wind** (closed) — only shown when ``viewer.wind`` is set.
+        6. **Controls** (closed) — camera keyboard reference.
+        7. **Selection API** (closed) — Newton's selection panel.
+
+        The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is
+        handled by the IsaacLab training controls inside **Isaac Lab**.
+        """
+        import newton as nt
+
+        gui = self.gui
+
+        def _render_left_panel(_g=gui):
+            if not _g.is_available:
+                return
+
+            viewer = _g._viewer
+            imgui = _g.ui.imgui
+            io = _g.ui.io
+            s = _g.ui.dpi_scale
+            nav_highlight_color = _g.ui.get_theme_color(imgui.Col_.nav_cursor, (1.0, 1.0, 1.0, 1.0))
+
+            imgui.set_next_window_pos(imgui.ImVec2(10 * s, 10 * s), imgui.Cond_.first_use_ever)
+            imgui.set_next_window_size(
+                imgui.ImVec2(363 * s, io.display_size[1] - 20 * s),
+                imgui.Cond_.first_use_ever,
+            )
+            panel_h = io.display_size[1] - 20 * s
+            imgui.set_next_window_size_constraints(
+                imgui.ImVec2(160 * s, panel_h),
+                imgui.ImVec2(io.display_size[0], panel_h),
+            )
+
+            if not imgui.begin(f"Newton Viewer v{nt.__version__}"):
+                imgui.end()
+                return
+
+            imgui.separator()
+
+            # Layers panel callback (ViewerGL built-in, only shown with >1 layer).
+            for callback in _g._ui_callbacks.get("panel", []):
+                callback(imgui)
+
+            # --- Isaac Lab --------------------------------------------------
+            imgui.set_next_item_open(True, imgui.Cond_.appearing)
+            if imgui.collapsing_header("Isaac Lab"):
+                imgui.separator()
+                imgui.text(f"Physics: {getattr(viewer, '_backend_display', 'Unknown')}")
+                if viewer.model is not None:
+                    axis_names = ["X", "Y", "Z"]
+                    imgui.text(f"Up Axis: {axis_names[viewer.model.up_axis]}")
+                    gravity = viewer.model.gravity.numpy()[0]
+                    imgui.text(f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})")
+                imgui.separator()
+                for callback in _g._ui_callbacks.get("side", []):
+                    callback(imgui)
+
+            # --- Live Plots -------------------------------------------------
+            live_plots_cb = getattr(viewer, "_live_plots_callback", None)
+            if live_plots_cb is not None:
+                live_plots_cb(imgui)
+
+            # --- Visualization Markers --------------------------------------
+            if viewer.model is not None:
+                imgui.set_next_item_open(False, imgui.Cond_.appearing)
+                if imgui.collapsing_header("Visualization Markers"):
+                    imgui.separator()
+                    renderer = getattr(viewer, "renderer", None)
+                    _c, viewer.show_joints = imgui.checkbox("Show Joints", viewer.show_joints)
+                    if viewer.show_joints and renderer is not None and hasattr(renderer, "joint_scale"):
+                        _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
+                    _c, viewer.show_contacts = imgui.checkbox("Show Contacts", viewer.show_contacts)
+                    if viewer.show_contacts and renderer is not None:
+                        if hasattr(renderer, "arrow_length_scale"):
+                            _, renderer.arrow_length_scale = imgui.slider_float(
+                                "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
+                            )
+                        if hasattr(renderer, "arrow_scale"):
+                            _, renderer.arrow_scale = imgui.slider_float(
+                                "Contact Width", renderer.arrow_scale, 0.25, 5.0
+                            )
+                    _c, viewer.show_particles = imgui.checkbox("Show Particles", viewer.show_particles)
+                    _c, viewer.show_springs = imgui.checkbox("Show Springs", viewer.show_springs)
+                    _c, viewer.show_com = imgui.checkbox("Show Center of Mass", viewer.show_com)
+                    if viewer.show_com and renderer is not None and hasattr(renderer, "com_scale"):
+                        _, renderer.com_scale = imgui.slider_float("COM Scale", renderer.com_scale, 0.25, 5.0)
+                    _c, viewer.show_triangles = imgui.checkbox("Show Cloth", viewer.show_triangles)
+                    _c, viewer.show_collision = imgui.checkbox("Show Collision", viewer.show_collision)
+                    if renderer is not None and hasattr(renderer, "draw_edges"):
+                        _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
+                    sdf_margin_mode = getattr(viewer, "sdf_margin_mode", None)
+                    SDFMarginMode = getattr(type(viewer), "SDFMarginMode", None)
+                    if sdf_margin_mode is not None and SDFMarginMode is not None:
+                        _sdf_labels = ["Off", "Margin", "Margin + Gap"]
+                        _, new_sdf_idx = imgui.combo("Gap + Margin", int(sdf_margin_mode), _sdf_labels)
+                        viewer.sdf_margin_mode = SDFMarginMode(new_sdf_idx)
+                        if viewer.sdf_margin_mode != SDFMarginMode.OFF and renderer is not None:
+                            _, renderer.wireframe_line_width = imgui.slider_float(
+                                "Wireframe Width (px)", renderer.wireframe_line_width, 0.5, 5.0
+                            )
+                    _c, viewer.show_visual = imgui.checkbox("Show Visual", viewer.show_visual)
+                    _c, viewer.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", viewer.show_inertia_boxes)
+
+            # --- Rendering Options ------------------------------------------
+            imgui.set_next_item_open(True, imgui.Cond_.appearing)
+            if imgui.collapsing_header("Rendering Options"):
+                imgui.separator()
+                _c, viewer.vsync = imgui.checkbox("VSync", viewer.vsync)
+                for callback in _g._ui_callbacks.get("rendering", []):
+                    callback(imgui)
+
+            # --- Wind -------------------------------------------------------
+            wind = getattr(viewer, "wind", None)
+            if wind is not None:
+                imgui.set_next_item_open(False, imgui.Cond_.once)
+                if imgui.collapsing_header("Wind"):
+                    imgui.separator()
+                    changed, wind.amplitude = imgui.slider_float("Wind Amplitude", wind.amplitude, -2.0, 2.0, "%.2f")
+                    changed, wind.period = imgui.slider_float("Wind Period", wind.period, 1.0, 30.0, "%.2f")
+                    changed, wind.frequency = imgui.slider_float("Wind Frequency", wind.frequency, 0.1, 5.0, "%.2f")
+                    direction = [wind.direction[0], wind.direction[1], wind.direction[2]]
+                    changed, direction = imgui.slider_float3("Wind Direction", direction, -1.0, 1.0, "%.2f")
+                    if changed:
+                        wind.direction = direction
+
+            # --- Controls ---------------------------------------------------
+            imgui.set_next_item_open(False, imgui.Cond_.appearing)
+            if imgui.collapsing_header("Controls"):
+                imgui.separator()
+                _g._render_camera_info()
+                imgui.separator()
+                imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(*nav_highlight_color))
+                imgui.text("Controls:")
+                imgui.pop_style_color()
+                imgui.text("WASD - Move camera")
+                imgui.text("QE - Pan up/down")
+                imgui.text("Left Click - Look around")
+                imgui.text("Right Click - Pick objects")
+                imgui.text("Middle Click - Orbit")
+                imgui.text("Shift + Middle Click - Pan")
+                imgui.text("Ctrl + Middle Click - Dolly")
+                imgui.text("Scroll - Dolly")
+                imgui.text("Ctrl + Scroll - FOV zoom")
+                imgui.text("Space - Pause/Resume")
+                imgui.text(". - Step one frame (when paused)")
+                imgui.text("H - Toggle UI")
+                imgui.text("F - Frame camera around model")
+
+            # --- Selection API ----------------------------------------------
+            _g._render_selection_panel()
+
+            imgui.end()
+
+        gui._render_left_panel = _render_left_panel
+
+    def _render_training_controls(self, imgui):
+        """Render Isaac Lab training control widgets inside the Isaac Lab panel section."""
         pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
@@ -93,6 +345,9 @@ class NewtonViewerGL(ViewerGL):
         if imgui.button(rendering_label):
             self._paused_rendering = not self._paused_rendering
             self._paused = self._paused_rendering
+
+        if imgui.button("Reset Episode"):
+            self._reset_requested = True
 
         imgui.text("Visualizer Update Frequency")
         current_frequency = self._update_frequency
@@ -138,6 +393,90 @@ class NewtonViewerGL(ViewerGL):
             return (float(color.x), float(color.y), float(color.z))
         return (float(color[0]), float(color[1]), float(color[2]))
 
+    def _particle_color_array(self, count: int) -> wp.array:
+        """Return a cached Warp color array for Newton's particle point batch."""
+        color = self._coerce_color3(self.particle_color)
+        if (
+            self._particle_color_buffer is None
+            or self._particle_color_buffer_count != count
+            or self._particle_color_buffer_value != color
+        ):
+            self._particle_color_buffer = wp.full(
+                shape=count,
+                value=wp.vec3(*color),
+                dtype=wp.vec3,
+                device=self.device,
+            )
+            self._particle_color_buffer_count = count
+            self._particle_color_buffer_value = color
+        return self._particle_color_buffer
+
+    def _particle_color_update_array(self, name: str, count: int) -> wp.array | None:
+        """Return particle colors only when Newton needs the GL color buffer refreshed."""
+        obj = self.objects.get(name)
+        capacity = obj.num_instances if obj is not None else 0
+        if (
+            obj is None
+            or count > capacity
+            or self._particle_color_buffer_value != self._coerce_color3(self.particle_color)
+        ):
+            return self._particle_color_array(max(count, capacity))
+        return None
+
+    def log_points(self, name, points, radii=None, colors=None, hidden=False):
+        """Apply configured model-particle appearance while preserving Newton's point logging.
+
+        The configured particle color only applies to Newton's canonical
+        ``/model/particles`` point batch. User-defined point clouds retain the
+        colors provided by their own ``log_points`` calls.
+        """
+        if name != "/model/particles" or points is None or self.particle_color is None:
+            return super().log_points(name, points, radii, colors, hidden)
+
+        colors = self._particle_color_update_array(name, len(points))
+        return super().log_points(name, points, radii, colors, hidden)
+
+    def _all_mpm_particles_active(self) -> bool:
+        """Return whether an MPM model's static particle flags are all active."""
+        model = self.model
+        if model is None or getattr(model, "mpm", None) is None or not model.particle_count:
+            return False
+        if model.particle_flags is None:
+            return False
+
+        cache_key = (id(model), id(model.particle_flags), int(model.particle_count))
+        if self._mpm_particle_flags_cache_key != cache_key:
+            import newton as nt
+
+            flags = model.particle_flags.numpy()[: model.particle_count]
+            self._mpm_particles_all_active = bool(((flags & int(nt.ParticleFlags.ACTIVE)) != 0).all())
+            self._mpm_particle_flags_cache_key = cache_key
+        return self._mpm_particles_all_active
+
+    def _log_particles(self, state):
+        """Log MPM particles without per-frame active-flag compaction when all particles are active.
+
+        Newton's base implementation stream-compacts active particles every
+        frame, which costs two device-to-host reads per render. MPM particle
+        flags are static, so when they are all active the compaction is skipped
+        and ``state.particle_q`` is logged directly.
+        """
+        if not self._all_mpm_particles_active():
+            super()._log_particles(state)
+            return
+
+        colors = None
+        if self.model_changed and self.particle_color is None:
+            colors = wp.full(shape=len(state.particle_q), value=wp.vec3(0.7, 0.6, 0.4), device=self.device)
+
+        self.log_points(
+            name="/model/particles",
+            points=state.particle_q,
+            radii=self.model.particle_radius,
+            colors=colors,
+            hidden=not self.show_particles,
+        )
+
     def _color_edit3_compat(self, imgui, label: str, color):
         """
         # Handle imgui.color_edit3 API differences between bindings.
@@ -162,113 +501,6 @@ class NewtonViewerGL(ViewerGL):
         except Exception as exc:
             logger.debug("[NewtonVisualizer] color_edit3 failed for '%s': %s", label, exc)
             return False, color_tuple
-
-    def _render_left_panel(self):
-        """Override the left panel to remove the base pause checkbox."""
-        import newton as nt
-
-        imgui = self.ui.imgui
-
-        io = self.ui.io
-        imgui.set_next_window_pos(imgui.ImVec2(10, 10))
-        imgui.set_next_window_size(imgui.ImVec2(300, io.display_size[1] - 20))
-
-        flags = imgui.WindowFlags_.no_resize.value
-
-        if imgui.begin(f"Newton Viewer v{nt.__version__}", flags=flags):
-            imgui.separator()
-
-            header_flags = 0
-
-            imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("IsaacLab Options"):
-                for callback in self._ui_callbacks["side"]:
-                    callback(self.ui.imgui)
-
-            if self.model is not None:
-                imgui.set_next_item_open(True, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Model Information", flags=header_flags):
-                    imgui.separator()
-                    num_envs = self._metadata.get("num_envs", 0)
-                    imgui.text(f"Environments: {num_envs}")
-                    axis_names = ["X", "Y", "Z"]
-                    imgui.text(f"Up Axis: {axis_names[self.model.up_axis]}")
-                    gravity = wp.to_torch(self.model.gravity)[0]
-                    gravity_text = f"Gravity: ({gravity[0]:.2f}, {gravity[1]:.2f}, {gravity[2]:.2f})"
-                    imgui.text(gravity_text)
-
-                imgui.set_next_item_open(True, imgui.Cond_.appearing)
-                if imgui.collapsing_header("Visualization", flags=header_flags):
-                    imgui.separator()
-
-                    show_joints = self.show_joints
-                    changed, self.show_joints = imgui.checkbox("Show Joints", show_joints)
-
-                    show_contacts = self.show_contacts
-                    changed, self.show_contacts = imgui.checkbox("Show Contacts", show_contacts)
-
-                    show_collision = self.show_collision
-                    changed, self.show_collision = imgui.checkbox("Show Collision", show_collision)
-
-                    show_springs = self.show_springs
-                    changed, self.show_springs = imgui.checkbox("Show Springs", show_springs)
-
-                    show_inertia_boxes = self.show_inertia_boxes
-                    changed, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", show_inertia_boxes)
-
-                    show_com = self.show_com
-                    changed, self.show_com = imgui.checkbox("Show Center of Mass", show_com)
-
-            imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Rendering Options"):
-                imgui.separator()
-
-                changed, self.renderer.draw_sky = imgui.checkbox("Sky", self.renderer.draw_sky)
-                changed, self.renderer.draw_shadows = imgui.checkbox("Shadows", self.renderer.draw_shadows)
-                changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
-
-                try:
-                    changed, self.renderer._light_color = self._color_edit3_compat(
-                        imgui, "Light Color", self.renderer._light_color
-                    )
-                    changed, self.renderer.sky_upper = self._color_edit3_compat(
-                        imgui, "Upper Sky Color", self.renderer.sky_upper
-                    )
-                    changed, self.renderer.sky_lower = self._color_edit3_compat(
-                        imgui, "Lower Sky Color", self.renderer.sky_lower
-                    )
-                except Exception as exc:
-                    logger.debug("[NewtonVisualizer] Rendering color controls failed: %s", exc)
-
-            # Newton's ImageLogger owns camera-output image windows. Since Isaac Lab overrides
-            # ViewerGL's left panel, explicitly keep the logged-image selector and draw path.
-            if self._image_logger is not None:
-                self._draw_tiled_camera_view_controls()
-
-            imgui.set_next_item_open(True, imgui.Cond_.appearing)
-            if imgui.collapsing_header("Camera"):
-                imgui.separator()
-
-                pos = self.camera.pos
-                pos_text = f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})"
-                imgui.text(pos_text)
-                imgui.text(f"FOV: {self.camera.fov:.1f}°")
-                imgui.text(f"Yaw: {self.camera.yaw:.1f}°")
-                imgui.text(f"Pitch: {self.camera.pitch:.1f}°")
-
-                imgui.separator()
-                imgui.text("WASD - Forward/Left/Back/Right")
-                imgui.text("QE - Down/Up")
-                imgui.text("Left Click - Look around")
-                imgui.text("Scroll - Zoom")
-                imgui.text("H - Toggle UI")
-                imgui.text("ESC - Exit")
-
-        imgui.end()
-        if self._image_logger is not None:
-            self._prime_image_logger_window_layout()
-            self._image_logger.draw()
-        return
 
     def _draw_tiled_camera_view_controls(self) -> None:
         """Render Newton ImageLogger controls with Isaac Lab-specific naming."""
@@ -357,6 +589,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._camera_env_indices: list[int] = []
         self._camera_is_owned = False
         self._generated_camera_prim_paths: list[str] = []
+        self._live_plots_manager_visible: dict[str, bool] = {}
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -374,12 +607,22 @@ class NewtonVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         self._model = NewtonManager.get_model()
         self._state = NewtonManager.get_state(self._scene_data_provider)
 
         runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
+        if runtime_headless and not self.cfg.headless:
+            # print() instead of logger.warning(): the kitless launch path does not
+            # install a logging handler, so this user-facing notice would be swallowed.
+            print(
+                "[WARNING] [NewtonVisualizer] No display found (DISPLAY is unset); the Newton viewer runs"
+                " headless via EGL and no window will open. Run from a session with a display (or set"
+                " DISPLAY, e.g. 'export DISPLAY=:0') to see the viewer."
+            )
+        self._runtime_headless = runtime_headless
 
         # Use pyglet's EGL headless backend when requested or when no Linux X display is available.
         # This must run before the first ``pyglet.window`` import so ``Window`` resolves to
@@ -399,13 +642,8 @@ class NewtonVisualizer(BaseVisualizer):
 
         if self._viewer is not None:
             self._viewer.set_model(self._model)
-            apply_viewer_visible_worlds(
-                self._viewer,
-                env_ids=self._env_ids,
-                max_visible_envs=self.cfg.max_visible_envs,
-                num_envs=num_envs,
-            )
-            self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+            self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+            self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_camera_focal_length()
             initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
@@ -420,6 +658,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.show_springs = self.cfg.show_springs
             self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
             self._viewer.show_com = self.cfg.show_com
+            self._viewer.show_particles = self.cfg.show_particles
+            self._viewer.particle_color = self.cfg.particle_color
 
             self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
             self._viewer.renderer.draw_sky = self.cfg.enable_sky
@@ -430,7 +670,6 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.renderer.sky_lower = self._viewer._coerce_color3(self.cfg.sky_lower_color)
             self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         self._setup_camera_sensor_view(num_envs)
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
@@ -449,6 +688,8 @@ class NewtonVisualizer(BaseVisualizer):
                 ("tiled_cam_num", self.cfg.tiled_cam_num),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
+                ("show_particles", self.cfg.show_particles),
+                ("particle_color", self.cfg.particle_color),
             ],
         )
         self._is_initialized = True
@@ -471,8 +712,6 @@ class NewtonVisualizer(BaseVisualizer):
             self._state = NewtonManager.get_state(self._scene_data_provider)
             return
 
-        self._state = NewtonManager.get_state(self._scene_data_provider)
-
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
         if self._step_counter % update_frequency != 0:
             return
@@ -481,6 +720,7 @@ class NewtonVisualizer(BaseVisualizer):
 
         try:
             if not self._viewer.is_paused():
+                self._state = NewtonManager.get_state(self._scene_data_provider)
                 self._viewer.begin_frame(self._sim_time)
                 try:
                     if self._state is not None:
@@ -488,11 +728,17 @@ class NewtonVisualizer(BaseVisualizer):
                         if hasattr(body_q, "shape") and body_q.shape[0] == 0:
                             return
                         self._viewer.log_state(self._state)
+                        contacts = NewtonManager.get_contacts()
+                        if contacts is not None:
+                            self._viewer.log_contacts(contacts, self._state)
+                        else:
+                            self._log_scene_contact_sensor_arrows(num_envs)
                         if self.cfg.enable_markers:
                             render_newton_visualization_markers(
                                 self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
                             )
                         self._log_camera_sensor_image()
+                        self._render_live_plots()
                 finally:
                     self._viewer.end_frame()
             else:
@@ -510,6 +756,117 @@ class NewtonVisualizer(BaseVisualizer):
             remove_generated_prims(self._generated_camera_prim_paths)
         self._camera_sensor = None
         self._is_closed = True
+
+    def _log_scene_contact_sensor_arrows(self, num_envs: int) -> None:
+        """Render contact sensor data as Newton-style arrows when native contacts are unavailable."""
+        if self._viewer is None:
+            return
+        if not self._viewer.show_contacts:
+            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
+            return
+        contact_sensors = (
+            self._scene_data_provider.get_contact_sensors() if self._scene_data_provider is not None else {}
+        )
+        if not contact_sensors:
+            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
+            return
+
+        starts: list[torch.Tensor] = []
+        ends: list[torch.Tensor] = []
+        for sensor in contact_sensors.values():
+            sensor_starts, sensor_ends = self._contact_sensor_arrow_tensors(sensor, num_envs)
+            if sensor_starts is not None and sensor_ends is not None:
+                starts.append(sensor_starts)
+                ends.append(sensor_ends)
+
+        if not starts:
+            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
+            return
+
+        starts_t = torch.cat(starts, dim=0).detach().to(dtype=torch.float32, device="cpu").contiguous()
+        ends_t = torch.cat(ends, dim=0).detach().to(dtype=torch.float32, device="cpu").contiguous()
+        self._viewer.log_arrows(
+            CONTACT_ARROW_PATH,
+            wp.array(starts_t.numpy(), dtype=wp.vec3, device=self._viewer.device),
+            wp.array(ends_t.numpy(), dtype=wp.vec3, device=self._viewer.device),
+            CONTACT_ARROW_COLOR,
+        )
+
+    def _contact_sensor_arrow_tensors(self, sensor, num_envs: int) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+        """Build Newton-style arrow starts/ends from an Isaac Lab contact sensor."""
+        try:
+            data = sensor.data
+            net_forces_proxy = data.net_forces_w
+            net_forces = net_forces_proxy.torch if net_forces_proxy is not None else None
+        except (AttributeError, NotImplementedError, RuntimeError):
+            return None, None
+
+        if net_forces is None or net_forces.numel() == 0:
+            return None, None
+        net_forces = self._filter_visible_env_tensor(net_forces, num_envs)
+
+        force_threshold = getattr(getattr(sensor, "cfg", None), "force_threshold", None)
+        if force_threshold is None:
+            force_threshold = 0.0
+
+        try:
+            contact_pos = getattr(data, "contact_pos_w", None)
+            force_matrix = getattr(data, "force_matrix_w", None)
+        except NotImplementedError:
+            contact_pos = None
+            force_matrix = None
+        if contact_pos is not None and force_matrix is not None:
+            contact_pos_t = self._filter_visible_env_tensor(contact_pos.torch, num_envs)
+            force_matrix_t = self._filter_visible_env_tensor(force_matrix.torch, num_envs)
+            if contact_pos_t.numel() != 0 and force_matrix_t.numel() != 0:
+                force_norm = torch.linalg.norm(force_matrix_t, dim=-1)
+                finite_pos = torch.isfinite(contact_pos_t).all(dim=-1)
+                active = (force_norm > force_threshold) & finite_pos
+                if torch.any(active):
+                    starts = contact_pos_t[active]
+                    directions = torch.nn.functional.normalize(force_matrix_t[active], dim=-1)
+                    return starts, starts + directions * CONTACT_ARROW_LENGTH
+
+        origins = self._contact_sensor_origin_positions(sensor, data, net_forces)
+        if origins is None:
+            return None, None
+        origins = self._filter_visible_env_tensor(origins, num_envs)
+
+        force_norm = torch.linalg.norm(net_forces, dim=-1)
+        active = force_norm > force_threshold
+        if not torch.any(active):
+            return None, None
+
+        starts = origins[active]
+        directions = torch.nn.functional.normalize(net_forces[active], dim=-1)
+        return starts, starts + directions * CONTACT_ARROW_LENGTH
+
+    def _contact_sensor_origin_positions(self, sensor, data, net_forces: torch.Tensor) -> torch.Tensor | None:
+        """Return per-sensor origins for contact arrow starts."""
+        try:
+            pos_w = getattr(data, "pos_w", None)
+        except NotImplementedError:
+            pos_w = None
+        if pos_w is not None:
+            return pos_w.torch
+
+        body_physx_view = getattr(sensor, "body_physx_view", None)
+        if body_physx_view is None:
+            return None
+        try:
+            pose = body_physx_view.get_transforms()
+        except RuntimeError:
+            return None
+        # the flat view data is body-major (one view pattern per body); net_forces is (N, B, 3)
+        num_envs, num_bodies = net_forces.shape[0], net_forces.shape[1]
+        return wp.to_torch(pose).view(num_bodies, num_envs, 7).transpose(0, 1)[..., :3]
+
+    def _filter_visible_env_tensor(self, tensor: torch.Tensor, num_envs: int) -> torch.Tensor:
+        """Apply Newton visualizer visible-world filtering to a sensor tensor."""
+        if self._resolved_visible_env_ids is None or tensor.ndim == 0 or tensor.shape[0] != num_envs:
+            return tensor
+        ids = torch.as_tensor(self._resolved_visible_env_ids, dtype=torch.long, device=tensor.device)
+        return tensor.index_select(0, ids)
 
     def is_running(self) -> bool:
         """Return whether the visualizer should continue stepping.
@@ -618,13 +975,165 @@ class NewtonVisualizer(BaseVisualizer):
             return
         self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
 
+    def set_camera_view(
+        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
+    ) -> None:
+        """Set active viewer camera eye/target.
+
+        Args:
+            eye: Camera eye position.
+            target: Camera look-at target.
+        """
+        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
+        target_t = (float(target[0]), float(target[1]), float(target[2]))
+        self.cfg.eye = eye_t
+        self.cfg.lookat = target_t
+        self._apply_camera_pose((eye_t, target_t))
+
+    def render_rgb_array(self) -> np.ndarray:
+        """Return the latest RGB frame rendered by the Newton viewer.
+
+        Returns:
+            The latest viewer framebuffer as a uint8 array with shape ``(height, width, 3)``.
+
+        Raises:
+            RuntimeError: If the visualizer has not been initialized.
+        """
+        if self._viewer is None:
+            raise RuntimeError("NewtonVisualizer must be initialized before capturing an RGB frame.")
+        return self._viewer.get_frame().numpy()
+
     def supports_markers(self) -> bool:
         """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""
         return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
-        """Newton OpenGL viewer does not provide live-plot panels."""
-        return False
+        """Newton OpenGL viewer supports live plots via :meth:`newton.Viewer.log_scalar`."""
+        return True
+
+    def add_live_plots(
+        self,
+        managers: dict,
+        scalars: dict | None = None,
+        term_names: dict[str, list[str]] | None = None,
+        env_idx: int = 0,
+    ) -> None:
+        """Register managers for live plotting and add per-manager sidebar toggles.
+
+        Calls the base implementation to populate :attr:`_live_plot_sources`, then registers
+        one checkbox per manager in the Newton viewer sidebar under a ``Live Plots`` heading.
+        Each manager's plots are shown by default and can be hidden by unchecking the
+        corresponding box.
+
+        Args:
+            managers: Mapping of manager name to manager instance.
+            scalars: Optional mapping of group name to a dict of ``{term_name: callable}``.
+                Each callable must take no arguments and return a numeric value.
+            term_names: Optional per-manager allowlists of term names to include.
+            env_idx: Environment index to sample each step.  Defaults to ``0``.
+        """
+        super().add_live_plots(managers, scalars=scalars, term_names=term_names, env_idx=env_idx)
+        if not self._live_plot_sources or self._viewer is None:
+            return
+        self._live_plots_manager_visible = {source.manager_name: True for source in self._live_plot_sources}
+        self._viewer._live_plots_callback = self._live_plots_panel_imgui
+
+    def _live_plots_panel_imgui(self, imgui) -> None:
+        """Render a Live Plots collapsing section at the bottom of the Newton panel.
+
+        The top-level section header starts open; individual per-term plot headers start
+        closed and can be expanded on demand.
+        """
+        if not self._live_plot_sources or self._viewer is None:
+            return
+        viewer = self._viewer
+        scalar_buffers = getattr(viewer, "_scalar_buffers", None)
+        array_buffers = getattr(viewer, "_array_buffers", None)
+        if not scalar_buffers and not array_buffers:
+            return
+
+        _ip = getattr(viewer, "_implot", None)
+        if not hasattr(viewer, "_scalar_arrays"):
+            viewer._scalar_arrays = {}
+        scalar_arrays = viewer._scalar_arrays
+        n = getattr(viewer, "_plot_history_size", 250)
+        s = viewer.gui.ui.dpi_scale
+        plot_h = 180 * s
+
+        # Group scalar names by base term name (strip trailing [N] index).
+        groups: dict[str, list[str]] = {}
+        for name in scalar_buffers or {}:
+            base = _newton_scalar_base_name(name)
+            groups.setdefault(base, []).append(name)
+
+        # Promote episode metrics (mean_reward, episode_length) to the top.
+        episode_keys = [k for k in groups if k.startswith("episode/")]
+        other_keys = [k for k in groups if not k.startswith("episode/")]
+        groups = {k: groups[k] for k in episode_keys + other_keys}
+
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
+        if not imgui.collapsing_header("Live Plots"):
+            return
+        imgui.separator()
+
+        for base_name, names in groups.items():
+            term_label = base_name.rsplit("/", 1)[-1]
+            if not imgui.collapsing_header(term_label):
+                continue
+            for name in names:
+                buf = scalar_buffers.get(name, [])
+                arr = scalar_arrays.get(name)
+                if arr is None:
+                    arr = np.full(n, np.nan, dtype=np.float32)
+                    arr[n - len(buf) :] = np.array(buf, dtype=np.float32)
+                    scalar_arrays[name] = arr
+            if _ip is not None and _ip.begin_plot(f"##{base_name}", imgui.ImVec2(-1, plot_h)):
+                _auto = _ip.AxisFlags_.auto_fit.value
+                _ip.setup_axes("", "", _auto, _auto)
+                _ip.setup_finish()
+                for name in names:
+                    arr = scalar_arrays.get(name)
+                    if arr is not None:
+                        suffix = name[len(base_name) :]
+                        label = suffix if suffix else term_label
+                        _ip.plot_line(label, arr)
+                _ip.end_plot()
+            else:
+                # Fallback: stacked imgui.plot_lines if ImPlot unavailable.
+                graph_size = imgui.ImVec2(-1, 80 * s)
+                for name in names:
+                    arr = scalar_arrays.get(name)
+                    if arr is not None:
+                        buf = scalar_buffers.get(name, [])
+                        overlay = f"{buf[-1]:.4g}" if buf else ""
+                        imgui.plot_lines(f"##{name}", arr, graph_size=graph_size, overlay_text=overlay)
+
+        render_heatmap = getattr(viewer, "_render_array_heatmap", None)
+        if render_heatmap is not None:
+            panel_width = imgui.get_content_region_avail().x
+            for name, array in (array_buffers or {}).items():
+                if imgui.collapsing_header(name):
+                    render_heatmap(name, array, panel_width - 20.0 * s, dpi_scale=s)
+
+    def _render_live_plots(self) -> None:
+        """Push manager-term scalars to the Newton viewer's built-in plot panel."""
+        if self._viewer is None or not self._live_plot_sources:
+            return
+        # In headless mode the panel is never visible — skip collection entirely.
+        if getattr(self, "_runtime_headless", False):
+            return
+        self._live_plots_step_counter += 1
+        if self._live_plots_step_counter % max(1, getattr(self.cfg, "live_plots_update_interval", 10)) != 0:
+            return
+        for source in self._live_plot_sources:
+            if not self._live_plots_manager_visible.get(source.manager_name, True):
+                continue
+            for term_name, values in source.collect(self._live_plot_env_idx).items():
+                if len(values) == 1:
+                    self._viewer.log_scalar(f"{source.manager_name}/{term_name}", values[0])
+                else:
+                    for i, v in enumerate(values):
+                        self._viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
 
     def is_training_paused(self) -> bool:
         """Return whether training is paused from viewer controls."""
@@ -637,3 +1146,15 @@ class NewtonVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()
+
+    def is_reset_requested(self) -> bool:
+        """Return whether an episode reset was requested from viewer controls without clearing the flag."""
+        if not self._is_initialized or self._viewer is None:
+            return False
+        return self._viewer.is_reset_requested()
+
+    def consume_reset_request(self) -> bool:
+        """Return whether an episode reset was requested from viewer controls and clear the flag."""
+        if not self._is_initialized or self._viewer is None:
+            return False
+        return self._viewer.consume_reset_request()

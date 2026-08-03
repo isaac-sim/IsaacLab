@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import importlib.util
 import re
 from pathlib import Path
 
@@ -10,6 +11,16 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKER_DIR = REPO_ROOT / "docker"
+
+
+def _load_module(name: str, path: Path):
+    """Import a module by file path (``docker`` is not an importable package here)."""
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None, f"cannot load module at {path}"
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 
 # Collect every Dockerfile.* from the entire repository tree.
 DOCKERFILES = sorted(REPO_ROOT.glob("**/Dockerfile.*"))
@@ -24,12 +35,18 @@ DOCKERFILE_RUNTIME_USERS = {
     "Dockerfile.base": "isaaclab",
     "Dockerfile.curobo": "isaaclab",
     "Dockerfile.installci": "isaaclab",
+    "Dockerfile.kitless": "isaaclab",
     "Dockerfile.ros2": "isaaclab",
 }
 
 # Dockerfiles that are expected to *create* the non-root runtime user
 # (i.e. contain groupadd/useradd/USER isaaclab).
-DOCKERFILES_CREATING_RUNTIME_USER = {"Dockerfile.base", "Dockerfile.curobo", "Dockerfile.installci"}
+DOCKERFILES_CREATING_RUNTIME_USER = {
+    "Dockerfile.base",
+    "Dockerfile.curobo",
+    "Dockerfile.installci",
+    "Dockerfile.kitless",
+}
 
 USER_DIRECTIVE_RE = re.compile(r"^USER\s+(\S+)\s*$")
 
@@ -90,3 +107,102 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
     dockerfile_text = (DOCKER_DIR / "Dockerfile.ros2").read_text(encoding="utf-8")
 
     assert _user_directives(dockerfile_text) == ["root", "isaaclab"]
+
+
+def test_kitless_dockerfile_installs_newton_rl_and_ovrtx_without_isaac_sim_or_ovphysx():
+    """The kit-less image installs Newton, OVRTX, and all core RL frameworks."""
+    dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
+
+    assert (
+        "FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv"
+        in dockerfile_text
+    )
+    # Installed through the same entry point as Dockerfile.base/Dockerfile.curobo.
+    assert '"${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[ovrtx]' in dockerfile_text
+    assert "COPY isaaclab.sh ./" in dockerfile_text
+    assert "ov[ovphysx]" not in dockerfile_text
+    assert "'isaacsim' not in names" in dockerfile_text
+    assert "'ovphysx' not in names" in dockerfile_text
+    assert "'ovrtx' in names" in dockerfile_text
+    assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
+    assert "COPY docker/docker-compose.yaml docker/docker-compose.yaml" in dockerfile_text
+    assert "COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py" in dockerfile_text
+
+
+# --------------------------------------------------------------------------- #
+# Volume mount-point writability
+#
+# A fresh Docker named volume inherits ownership from the image directory at its
+# mount path on first mount. If that directory is missing or root-owned, the
+# volume comes up root-owned and the non-root ``isaaclab`` runtime user cannot
+# write it (e.g. ``PermissionError`` creating ``logs/`` or ``omni.datastore``
+# lock failures under ``kit/cache``). The image build therefore pre-creates and
+# chowns every named-volume mount point, driven by a single source of truth:
+# docker-compose.yaml, parsed by docker/utils/volume_mounts.py. These tests
+# validate the parser and that each non-root Dockerfile wires it in.
+# --------------------------------------------------------------------------- #
+
+NONROOT_VOLUME_DOCKERFILES = {
+    "Dockerfile.base": "x-default-isaac-lab-volumes",
+    "Dockerfile.curobo": "x-default-isaac-lab-volumes",
+    "Dockerfile.kitless": "x-kitless-isaac-lab-volumes",
+}
+
+
+def _volume_mounts_module():
+    """Load the parser the image build uses; skip the test if PyYAML is unavailable.
+
+    The Docker image build exercises this parser for real, so a test environment
+    without PyYAML simply skips the parser unit tests rather than failing.
+    """
+    pytest.importorskip("yaml")
+    return _load_module("volume_mounts", DOCKER_DIR / "utils" / "volume_mounts.py")
+
+
+def test_compose_volume_targets_parse():
+    """The parser returns every ``type: volume`` mount point from docker-compose.yaml.
+
+    Includes the directories that triggered the original regression so a compose
+    edit that drops them is caught here.
+    """
+    targets = _volume_mounts_module().named_volume_targets(DOCKER_DIR / "docker-compose.yaml")
+
+    assert targets, "no named-volume targets parsed from docker-compose.yaml"
+    for required in (
+        "${DOCKER_ISAACSIM_ROOT_PATH:-/isaac-sim}/kit/cache",
+        "${DOCKER_ISAACLAB_PATH}/logs",
+        "${DOCKER_ISAACLAB_PATH}/data_storage",
+        "${DOCKER_ISAACLAB_PATH}/docs/_build",
+    ):
+        assert required in targets, f"{required} missing from parsed volume targets: {targets}"
+
+
+def test_resolved_targets_are_absolute_paths(monkeypatch):
+    """With the build's environment, every target resolves to an absolute path."""
+    monkeypatch.setenv("DOCKER_ISAACSIM_ROOT_PATH", "/isaac-sim")
+    monkeypatch.setenv("DOCKER_ISAACLAB_PATH", "/workspace/isaaclab")
+    monkeypatch.setenv("DOCKER_USER_HOME", "/root")
+
+    resolved = _volume_mounts_module().resolved_targets(DOCKER_DIR / "docker-compose.yaml")
+
+    assert resolved, "no resolved targets"
+    assert all(p.startswith("/") and "$" not in p for p in resolved), resolved
+    assert "/isaac-sim/kit/cache" in resolved
+    assert "/workspace/isaaclab/logs" in resolved
+
+
+@pytest.mark.parametrize(("dockerfile_name", "volumes_key"), NONROOT_VOLUME_DOCKERFILES.items())
+def test_dockerfile_prepares_volume_mounts_from_compose(dockerfile_name: str, volumes_key: str):
+    """Each non-root Dockerfile derives its mount points from the parser, with a guard.
+
+    Guards the wiring: the build must call ``volume_mounts.py`` under
+    ``set -o pipefail`` (so a parse failure aborts the build) rather than
+    re-hardcoding the list or silently skipping preparation.
+    """
+    text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
+
+    assert "set -o pipefail" in text
+    assert "docker/utils/volume_mounts.py" in text
+    assert "chown -R isaaclab:isaaclab ${dirs}" in text
+    if volumes_key != "x-default-isaac-lab-volumes":
+        assert f"--volumes_key {volumes_key}" in text

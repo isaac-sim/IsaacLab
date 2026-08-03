@@ -83,7 +83,6 @@ def sim():
                 ls_iterations=40,
                 cone="elliptic",
                 impratio=100,
-                ls_parallel=False,
                 integrator="implicitfast",
             ),
             num_substeps=2,

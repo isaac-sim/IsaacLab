@@ -28,11 +28,10 @@ only the dependencies needed for the features you use:
 
 .. code-block:: bash
 
-   # Install the base contrib package
-   uv pip install -e "source/isaaclab_contrib"
-
-   # Install with optional extras (e.g., for RLinf VLA post-training)
-   uv pip install -e "source/isaaclab_contrib[rlinf]"
+   # The base contrib package is installed with the core Isaac Lab packages.
+   # Install optional dependencies (e.g., for RLinf VLA post-training) via the
+   # matching root extra. --inexact keeps the existing environment untouched.
+   uv sync --inexact --extra rlinf
 
 Current Contributions
 ---------------------
@@ -65,8 +64,8 @@ The following features are currently available in ``isaaclab_contrib``:
      - API reference: :mod:`~isaaclab_contrib.controllers`
    * - **Newton VBD Deformable Objects**
      - Extended deformable object support using the Newton physics backend with Vertex Block Descent (VBD),
-       including Featherstone and MjWarp coupling managers.
-     - API reference: :mod:`~isaaclab_contrib.deformable`
+       including proxy coupling between MJWarp and VBD.
+     - API reference: :mod:`~isaaclab_contrib.deformable`, :mod:`~isaaclab_contrib.coupling`
 
 Contributing
 ------------

@@ -9,21 +9,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_ovphysx"
-version = "3.0.0"
+version = "8.2.2"
 description = "Extension providing IsaacLab with ovphysx/TensorBindingsAPI specific abstractions."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "ovphysx", "tensorbindingsapi"]
 requires-python = ">=3.12"
-dependencies = []
+# Only interpackage dependencies should go here.
+dependencies = [
+    "isaaclab",
+    "ovstage>=0.1.0,<0.2.0",
+]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
-
-[project.optional-dependencies]
-ovphysx = ["ovphysx"]
 
 [tool.setuptools]
 include-package-data = true

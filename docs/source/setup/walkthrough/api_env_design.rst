@@ -96,13 +96,12 @@ Next, let's take a look at the contents of the other python file in our task dir
           . . .
 
       def _setup_scene(self):
-          self.robot = Articulation(self.cfg.robot_cfg)
-          # add ground plane
-          spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
+          with cloner.ReplicateSession():
+              self.robot = Articulation(self.cfg.robot_cfg)
+              # add ground plane
+              spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
           # add articulation to scene
           self.scene.articulations["robot"] = self.robot
-          # clone and replicate
-          self.scene.clone_environments(copy_from_source=False)
           # add lights
           light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
           light_cfg.func("/World/Light", light_cfg)
@@ -143,7 +142,7 @@ When the environment is initialized, it receives its own config as an argument, 
 to initialize the ``DirectRLEnv``.  This super call also calls ``_setup_scene``, which actually constructs the scene and clones
 it appropriately. Notably is how the robot is created and registered to the scene in ``_setup_scene``.  First, the robot articulation
 is created by using the ``robot_config`` we defined in ``IsaacLabTutorialEnvCfg``: it doesn't exist before this point! When the
-articulation is created, the robot exists on the stage at ``/World/envs/env_0/Robot``.  The call to ``scene.clone_environments`` then
+articulation is created, the robot exists on the stage at ``/World/envs/env_0/Robot``.  The call to ``cloner.ReplicateSession`` then
 copies ``env_0`` appropriately.  At this point the robot exists as many copies on the stage, so all that's left is to notify the ``scene``
 object of the existence of this articulation to be tracked.  The articulations of the scene are kept as a dictionary, so ``scene.articulations["robot"] = self.robot``
 creates a new ``robot`` element of the ``articulations`` dictionary and sets the value to be ``self.robot``.

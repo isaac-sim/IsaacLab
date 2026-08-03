@@ -108,8 +108,14 @@ class MockTensorBinding:
             import warp as wp
 
             if isinstance(tensor, wp.array):
+                scalar = getattr(tensor.dtype, "_wp_scalar_type_", tensor.dtype)
+                if scalar is not wp.float32:
+                    raise RuntimeError(
+                        f"incompatible destination dtype: expected float32 scalar elements, got {tensor.dtype}"
+                    )
+                destination = tensor if tensor.dtype == wp.float32 else tensor.view(wp.float32)
                 tmp = wp.from_numpy(self._data, dtype=wp.float32, device=tensor.device)
-                wp.copy(tensor, tmp)
+                wp.copy(destination, tmp)
                 return
         except ImportError:
             pass
@@ -156,6 +162,148 @@ class MockTensorBinding:
     def set_random_data(self, low: float = -1.0, high: float = 1.0) -> None:
         """Fill internal buffer with random data."""
         self._data = np.random.uniform(low, high, self._shape).astype(np.float32)
+
+
+class MockOvPhysxView:
+    """Mock of :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` over a dict of
+    :class:`MockTensorBinding`.
+
+    Lets a unit test inject a working ``_root_view`` into an OVPhysX asset/data class
+    without standing up the real view, a real ``PhysX``, or a USD stage. It mirrors the
+    consumed surface of ``OvPhysxView`` -- ``binding_for`` / ``try_binding_for``,
+    ``get_attribute`` / ``read_into`` / ``set_attribute``, the discoverability helpers,
+    and the metadata passthrough -- delegating reads/writes to the mock bindings, which
+    already implement ``read``/``write`` against numpy buffers.
+
+    Names resolve like the real view: pass either a :class:`TensorType` member or its
+    lowercased name (e.g. ``"articulation_dof_stiffness"``). Unlike the real view this
+    keeps everything on CPU and applies no device/dtype/read-only guards, but it preserves
+    the real view's zero-copy ``float32`` reinterpretation for structured Warp buffers.
+    """
+
+    def __init__(self, bindings: dict[int, MockTensorBinding]):
+        self._bindings = bindings
+
+    def _resolve(self, name):
+        """Resolve a TensorType member or its lowercased name to the member."""
+        if isinstance(name, str):
+            enum_cls = type(next(iter(self._bindings)))
+            try:
+                return enum_cls[name.upper()]
+            except KeyError:
+                raise KeyError(f"Unknown attribute {name!r}") from None
+        return name
+
+    def _sample(self) -> MockTensorBinding:
+        """A representative binding to read shared metadata from."""
+        return next(iter(self._bindings.values()))
+
+    # -- core read / write -----------------------------------------------------
+
+    def get_attribute(self, name, *, out=None):
+        """Read the full attribute tensor; fill ``out`` if given, else allocate float32."""
+        binding = self._bindings[self._resolve(name)]
+        if out is not None:
+            binding.read(self._as_binding_view(out, binding))
+            return out
+        import warp as wp
+
+        buf = wp.zeros(tuple(binding.shape), dtype=wp.float32, device="cpu")
+        binding.read(buf)
+        return buf
+
+    def read_into(self, name, dst) -> None:
+        """Fill ``dst`` in place from the attribute binding."""
+        binding = self._bindings[self._resolve(name)]
+        binding.read(self._as_binding_view(dst, binding))
+
+    def set_attribute(self, name, values, *, indices=None, mask=None) -> None:
+        """Write a full attribute tensor; ``indices``/``mask`` select which rows apply."""
+        binding = self._bindings[self._resolve(name)]
+        binding.write(self._as_binding_view(values, binding), indices=indices, mask=mask)
+
+    @staticmethod
+    def _as_binding_view(array, binding):
+        """Return a flat ``float32`` Warp view matching the binding shape."""
+        import warp as wp
+
+        if not isinstance(array, wp.array) or (
+            array.dtype == wp.float32 and tuple(array.shape) == tuple(binding.shape)
+        ):
+            return array
+        return wp.array(
+            ptr=array.ptr,
+            shape=tuple(binding.shape),
+            dtype=wp.float32,
+            device=str(array.device),
+            copy=False,
+        )
+
+    # -- raw binding access ----------------------------------------------------
+
+    def binding_for(self, name) -> MockTensorBinding:
+        """Return the underlying binding, raising ``KeyError`` if absent for these prims."""
+        return self._bindings[self._resolve(name)]
+
+    def try_binding_for(self, name) -> MockTensorBinding | None:
+        """Like :meth:`binding_for`, but return ``None`` when the attribute is absent."""
+        return self._bindings.get(self._resolve(name))
+
+    # -- discoverability -------------------------------------------------------
+
+    def has_attribute(self, name) -> bool:
+        """Return whether a binding is instantiated for ``name`` on these prims."""
+        return self._resolve(name) in self._bindings
+
+    def __contains__(self, name) -> bool:
+        return self.has_attribute(name)
+
+    @property
+    def available_attributes(self) -> list[str]:
+        """Names with a live binding (lowercased ``TensorType`` members)."""
+        return sorted(tt.name.lower() for tt in self._bindings)
+
+    # -- metadata passthrough (from a sample binding) --------------------------
+
+    @property
+    def count(self) -> int:
+        return self._sample().count
+
+    @property
+    def dof_count(self) -> int:
+        return self._sample().dof_count
+
+    @property
+    def body_count(self) -> int:
+        return self._sample().body_count
+
+    @property
+    def joint_count(self) -> int:
+        return self._sample().joint_count
+
+    @property
+    def is_fixed_base(self) -> bool:
+        return self._sample().is_fixed_base
+
+    @property
+    def dof_names(self) -> list[str]:
+        return list(self._sample().dof_names)
+
+    @property
+    def body_names(self) -> list[str]:
+        return list(self._sample().body_names)
+
+    @property
+    def joint_names(self) -> list[str]:
+        return list(self._sample().joint_names)
+
+    @property
+    def fixed_tendon_count(self) -> int:
+        return self._sample().fixed_tendon_count
+
+    @property
+    def spatial_tendon_count(self) -> int:
+        return self._sample().spatial_tendon_count
 
 
 class MockOvPhysxBindingSet:
@@ -232,6 +380,8 @@ class MockOvPhysxBindingSet:
         L = num_bodies
         T_fix = num_fixed_tendons
         T_spa = num_spatial_tendons
+        num_jacobian_bodies = L - int(is_fixed_base)
+        num_generalized_dofs = D + (0 if is_fixed_base else 6)
 
         if joint_names is None:
             joint_names = [f"joint_{i}" for i in range(D)]
@@ -257,6 +407,11 @@ class MockOvPhysxBindingSet:
             TT.LINK_POSE: MockTensorBinding(TT.LINK_POSE, (N, L, 7), **common),
             TT.LINK_VELOCITY: MockTensorBinding(TT.LINK_VELOCITY, (N, L, 6), **common),
             TT.LINK_ACCELERATION: MockTensorBinding(TT.LINK_ACCELERATION, (N, L, 6), **common),
+            TT.JACOBIAN: MockTensorBinding(TT.JACOBIAN, (N, num_jacobian_bodies, 6, num_generalized_dofs), **common),
+            TT.MASS_MATRIX: MockTensorBinding(
+                TT.MASS_MATRIX, (N, num_generalized_dofs, num_generalized_dofs), **common
+            ),
+            TT.GRAVITY_FORCE: MockTensorBinding(TT.GRAVITY_FORCE, (N, num_generalized_dofs), **common),
             TT.DOF_POSITION: MockTensorBinding(TT.DOF_POSITION, (N, D), **common),
             TT.DOF_VELOCITY: MockTensorBinding(TT.DOF_VELOCITY, (N, D), **common),
             TT.DOF_POSITION_TARGET: MockTensorBinding(TT.DOF_POSITION_TARGET, (N, D), **common),
@@ -306,6 +461,20 @@ class MockOvPhysxBindingSet:
                     TT.SPATIAL_TENDON_OFFSET: MockTensorBinding(TT.SPATIAL_TENDON_OFFSET, (N, T_spa), **common),
                 }
             )
+
+    @property
+    def view(self) -> MockOvPhysxView:
+        """A mock :class:`OvPhysxView` over this set's bindings.
+
+        Inject as an asset's ``_root_view`` to exercise the migrated binding-routing
+        code paths without a real view or ``PhysX``. Cached so repeated access returns
+        the same object, like the single view an asset holds.
+        """
+        v = getattr(self, "_view", None)
+        if v is None:
+            v = MockOvPhysxView(self.bindings)
+            self._view = v
+        return v
 
     def set_random_data(self) -> None:
         """Fill all bindings with random data."""

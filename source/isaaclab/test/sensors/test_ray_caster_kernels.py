@@ -24,6 +24,8 @@ import numpy as np
 import pytest
 import warp as wp
 
+pytestmark = pytest.mark.unit
+
 # ---------------------------------------------------------------------------
 # Import kernel modules directly (avoids Isaac Sim / Omniverse dependencies)
 # ---------------------------------------------------------------------------

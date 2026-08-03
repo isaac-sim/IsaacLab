@@ -15,8 +15,6 @@ Corresponding camera implementations are also provided for each of the sensor im
 the same ray-casting operations as the sensor implementations, but return the results as images.
 """
 
-from . import patterns
-
 from isaaclab.utils.module import lazy_export
 
 lazy_export()

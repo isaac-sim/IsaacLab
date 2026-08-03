@@ -14,6 +14,7 @@
     XPBDSolverCfg
     FeatherstoneSolverCfg
     KaminoSolverCfg
+    MPMSolverCfg
     NewtonCollisionPipelineCfg
     HydroelasticSDFCfg
     NewtonShapeCfg
@@ -21,6 +22,7 @@
     NewtonXPBDManager
     NewtonFeatherstoneManager
     NewtonKaminoManager
+    NewtonMPMManager
 
 .. currentmodule:: isaaclab_newton.physics
 
@@ -65,6 +67,11 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
+.. autoclass:: MPMSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
 .. autoclass:: NewtonCollisionPipelineCfg
   :members:
   :show-inheritance:
@@ -99,6 +106,11 @@ Solver Managers
   :show-inheritance:
 
 .. autoclass:: NewtonKaminoManager
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: NewtonMPMManager
   :members:
   :inherited-members:
   :show-inheritance:

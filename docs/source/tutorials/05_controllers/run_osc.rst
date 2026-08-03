@@ -52,7 +52,7 @@ the arguments to the :class:`~controllers.OperationalSpaceControllerCfg` should 
 in mind.
 
 For the motion control, the task space targets could be given as absolute (i.e., defined w.r.t. the robot base,
-``target_types: "pose_abs"``) or relative the the end-effector's current pose (i.e., ``target_types: "pose_rel"``).
+``target_types: "pose_abs"``) or relative to the end-effector's current pose (i.e., ``target_types: "pose_rel"``).
 For the force control, the task space targets could be given as absolute (i.e., defined w.r.t. the robot base,
 ``target_types: "force_abs"``). If it is desired to apply pose and force control simultaneously, the ``target_types``
 should be a list such as ``["pose_abs", "wrench_abs"]`` or ``["pose_rel", "wrench_abs"]``.
@@ -174,9 +174,19 @@ The Code Execution
 
 You can now run the script and see the result:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tutorials/05_controllers/run_osc.py --num_envs 128
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128
 
 The script will start a simulation with 128 robots. The robots will be controlled using the OSC.
 The current and desired end-effector poses should be displayed using frame markers in addition to the red tilted wall.

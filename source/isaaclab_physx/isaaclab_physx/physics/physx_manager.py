@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import time
+import warnings
 from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
@@ -34,6 +35,14 @@ from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
+from isaaclab.scene_data.deformable_discovery import (
+    build_deformable_root_path_lookup,
+    build_deformable_vertex_count_lookup,
+    discover_deformables_on_stage,
+    group_deformable_root_paths_for_views,
+    resolve_deformable_root_path,
+    resolve_deformable_vertex_count,
+)
 from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
@@ -159,7 +168,14 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def __init__(self):
         self._simulation_view: omni.physics.tensors.SimulationView | None = None
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
+        self._volume_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
+        self._surface_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
         self._scene_data = SceneDataFormat.Transform()
+        self._points_data = SceneDataFormat.Points()
+        self._geometry_paths: list[str] = []
+        self._geometry_counts: list[int] = []
+        self._merged_points: wp.array | None = None
+        self._geometry_discovered: bool = False
 
     @property
     def simulation_view(self) -> omni.physics.tensors.SimulationView | None:
@@ -169,13 +185,20 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def simulation_view(self, simulation_view: omni.physics.tensors.SimulationView | None):
         self._simulation_view = simulation_view
         self._rigid_body_view = None
+        self._volume_deformable_view = None
+        self._surface_deformable_view = None
+        self._geometry_discovered = False
+        self._geometry_paths = []
+        self._geometry_counts = []
+        self._merged_points = None
 
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
         """Lazily create a rigid body view covering all rigid bodies in the scene.
 
-        Discovers rigid body prims by traversing the USD stage and converts
-        per-environment paths (``/World/envs/env_N/...``) into wildcard
-        patterns so a single PhysX view covers every environment instance.
+        Discovers exact rigid body prims by traversing USD, then compacts cloned
+        environment paths into wildcard patterns. If a rigid body name is also
+        used by a non-rigid prim, the exact path is kept to avoid PhysX resolving
+        the wildcard to the non-rigid prim.
         """
         if self._rigid_body_view is not None:
             return self._rigid_body_view
@@ -187,16 +210,143 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if stage is None:
             return None
 
-        patterns: set[str] = set()
+        rigid_body_paths: list[str] = []
+        non_rigid_body_names: set[str] = set()
         for prim in stage.Traverse():
+            if prim.IsA(UsdPhysics.Joint):
+                continue
+            prim_path = prim.GetPath().pathString
             if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
+                rigid_body_paths.append(prim_path)
+            elif re.search(r"/World/envs/env_\d+/", prim_path):
+                non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
 
-        if not patterns:
+        patterns: set[str] = set()
+        exact_paths: list[str] = []
+        for prim_path in rigid_body_paths:
+            body_name = prim_path.rsplit("/", 1)[-1]
+            if body_name in non_rigid_body_names:
+                exact_paths.append(prim_path)
+            else:
+                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim_path))
+
+        body_paths = [*sorted(patterns), *exact_paths]
+        if not body_paths:
             return None
 
-        self._rigid_body_view = self._simulation_view.create_rigid_body_view(list(patterns))
+        self._rigid_body_view = self._simulation_view.create_rigid_body_view(body_paths)
         return self._rigid_body_view
+
+    def _discover_deformable_geometry(self) -> None:
+        """Discover stage deformables and create PhysX volume/surface views once."""
+        if self._geometry_discovered:
+            return
+        self._geometry_discovered = True
+        stage: Usd.Stage | None = omni.usd.get_context().get_stage()
+        if stage is None or self._simulation_view is None:
+            return
+
+        entries = discover_deformables_on_stage(stage)
+        if not entries:
+            return
+
+        path_to_count = build_deformable_vertex_count_lookup(entries)
+        path_to_root = build_deformable_root_path_lookup(entries)
+        path_to_type = {entry.root_path: entry.deformable_type for entry in entries}
+        grouped_paths = group_deformable_root_paths_for_views(list(path_to_type.keys()), path_to_type)
+
+        volume_patterns, exact_volume = grouped_paths["volume"]
+        surface_patterns, exact_surface = grouped_paths["surface"]
+
+        if volume_patterns or exact_volume:
+            self._volume_deformable_view = self._simulation_view.create_volume_deformable_body_view(
+                [*volume_patterns, *exact_volume]
+            )
+        if surface_patterns or exact_surface:
+            self._surface_deformable_view = self._simulation_view.create_surface_deformable_body_view(
+                [*surface_patterns, *exact_surface]
+            )
+
+        device = PhysicsManager._device or "cpu"
+        self._geometry_paths = []
+        self._geometry_counts = []
+        for view in (self._volume_deformable_view, self._surface_deformable_view):
+            if view is None or view._backend is None:
+                continue
+            max_nodes = int(view.max_simulation_nodes_per_body)
+            for path in view.prim_paths:
+                # Prefer USD-discovered unpadded counts over padded max_nodes so
+                # SceneData ↔ shadow particle_q slices stay size-aligned.
+                resolved = resolve_deformable_vertex_count(path, path_to_count, fallback=-1)
+                if resolved < 0:
+                    logger.warning(
+                        "No USD vertex count for deformable path '%s'; using padded max_simulation_nodes_per_body=%d.",
+                        path,
+                        max_nodes,
+                    )
+                    count = max_nodes
+                else:
+                    count = min(int(resolved), max_nodes)
+                # Views may report a child mesh; publish the discovered root so
+                # create_geometry_mapping matches shadow entity root_path exactly.
+                self._geometry_paths.append(resolve_deformable_root_path(path, path_to_root))
+                self._geometry_counts.append(count)
+
+        total_points = sum(self._geometry_counts)
+        if total_points > 0:
+            self._merged_points = wp.empty(total_points, dtype=wp.vec3f, device=device)
+
+    def _refresh_merged_points(self) -> None:
+        """Merge volume and surface deformable nodal positions into :attr:`points`."""
+        from isaaclab.scene_data.geometry_points import pack_body_nodal_slices
+
+        self._discover_deformable_geometry()
+        if self._merged_points is None:
+            self._points_data.points = None
+            return
+
+        write_offset = 0
+        path_index = 0
+        device = str(self._merged_points.device)
+        for view in (self._volume_deformable_view, self._surface_deformable_view):
+            if view is None or view._backend is None:
+                continue
+            nodal = view.get_simulation_nodal_positions().view(wp.vec3f).reshape((view.count, -1))
+            view_counts = [self._geometry_counts[path_index + body_idx] for body_idx in range(view.count)]
+            pack_body_nodal_slices(
+                nodal,
+                self._merged_points,
+                view_counts,
+                device=device,
+                dest_base_offset=write_offset,
+            )
+            write_offset += sum(int(count) for count in view_counts)
+            path_index += view.count
+        self._points_data.points = self._merged_points
+
+    @property
+    def points(self) -> SceneDataFormat.Points:
+        """Return flattened PhysX deformable nodal positions."""
+        self._refresh_merged_points()
+        return self._points_data
+
+    @property
+    def point_count(self) -> int:
+        """Return the total unpadded PhysX deformable nodal count."""
+        self._discover_deformable_geometry()
+        return sum(self._geometry_counts)
+
+    @property
+    def geometry_paths(self) -> list[str]:
+        """Return one USD prim path per PhysX deformable body instance."""
+        self._discover_deformable_geometry()
+        return self._geometry_paths
+
+    @property
+    def geometry_counts(self) -> list[int]:
+        """Return the unpadded nodal count for each PhysX deformable body."""
+        self._discover_deformable_geometry()
+        return self._geometry_counts
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
@@ -230,8 +380,6 @@ class PhysxManager(PhysicsManager):
 
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
-    _physx: ClassVar[omni.physx.IPhysx] = omni.physx.get_physx_interface()
-    _physx_sim: ClassVar[omni.physx.IPhysxSimulation] = omni.physx.get_physx_simulation_interface()
     _scene_data_backend: ClassVar[PhysxSceneDataBackend | None] = None
 
     _view: ClassVar[omni.physics.tensors.SimulationView | None] = None
@@ -269,6 +417,11 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager."""
+        from isaaclab_physx import _patch_isaacsim_simulation_manager, _subscribe_to_simulation_manager_enable
+
+        _subscribe_to_simulation_manager_enable()
+        _patch_isaacsim_simulation_manager()
+
         from isaaclab.sim.utils.stage import get_current_stage_id
 
         super().initialize(sim_context)
@@ -285,6 +438,18 @@ class PhysxManager(PhysicsManager):
         sim.set_setting("/app/player/playSimulations", False)  # type: ignore[union-attr]
         omni.kit.app.get_app().update()
         sim.set_setting("/app/player/playSimulations", True)  # type: ignore[union-attr]
+
+    @classmethod
+    def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
+        """Fix and normalize an articulation root for the PhysX parser."""
+        root = super().fix_articulation_root(articulation_prim, stage)
+        if root.HasAPI(UsdPhysics.RigidBodyAPI):
+            return cls._relocate_articulation_root(
+                root,
+                companion_schema="PhysxArticulationAPI",
+                companion_namespace="physxArticulation",
+            )
+        return root
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -334,8 +499,9 @@ class PhysxManager(PhysicsManager):
             omni.kit.app.get_app().shutdown()
             return
 
-        cls._physx_sim.simulate(sim.cfg.dt, 0.0)
-        cls._physx_sim.fetch_results()
+        physx_sim = omni.physx.get_physx_simulation_interface()
+        physx_sim.simulate(sim.cfg.dt, 0.0)
+        physx_sim.fetch_results()
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)
@@ -398,8 +564,8 @@ class PhysxManager(PhysicsManager):
         """Clean up physics resources."""
         # Detach PhysX from the stage FIRST to prevent shape/actor cleanup errors
         # This disconnects PhysX from USD before any deletion events are fired
-        if cls._physx_sim is not None:
-            cls._physx_sim.detach_stage()
+        if physx_sim := omni.physx.get_physx_simulation_interface():
+            physx_sim.detach_stage()
             # Pump the app to flush pending PhysX cleanup operations
             omni.kit.app.get_app().update()
 
@@ -509,9 +675,13 @@ class PhysxManager(PhysicsManager):
         ):
             return cls._event_bus.observe_event(event_name=event.value, order=order, on_event=callback)
         elif event == IsaacEvents.POST_PHYSICS_STEP:
-            return cls._physx.subscribe_physics_on_step_events(guarded(callback), pre_step=False, order=order)
+            return omni.physx.get_physx_interface().subscribe_physics_on_step_events(
+                guarded(callback), pre_step=False, order=order
+            )
         elif event == IsaacEvents.PRE_PHYSICS_STEP:
-            return cls._physx.subscribe_physics_on_step_events(guarded(callback), pre_step=True, order=order)
+            return omni.physx.get_physx_interface().subscribe_physics_on_step_events(
+                guarded(callback), pre_step=True, order=order
+            )
         elif event == IsaacEvents.TIMELINE_STOP:
             return cls._timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
                 int(omni.timeline.TimelineEventType.STOP), callback, order=order, name=name
@@ -638,16 +808,26 @@ class PhysxManager(PhysicsManager):
         # default physics material (from SimulationCfg, or create default if None)
         physics_material = sim_cfg.physics_material
         if physics_material is None:
-            from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
+            from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 
-            physics_material = RigidBodyMaterialCfg()
+            physics_material = RigidBodyMaterialBaseCfg()
         mat_path = f"{sim_cfg.physics_prim_path}/defaultMaterial"
         physics_material.func(mat_path, physics_material)
         sim_utils.bind_physics_material(sim_cfg.physics_prim_path, mat_path)
 
         # warnings
-        if cfg.solver_type == 1 and not cfg.enable_external_forces_every_iteration:
-            logger.warning("TGS solver with enable_external_forces_every_iteration=False may cause noisy velocities.")
+        if not cfg.enable_external_forces_every_iteration:
+            warning_message = (
+                "PhysxCfg.enable_external_forces_every_iteration is deprecated and will be removed in a future "
+                "PhysX release. External forces are applied every iteration by default; remove this override."
+            )
+            if cfg.solver_type == 1:
+                warning_message += " Disabling this behavior with the TGS solver may cause noisy velocities."
+            warnings.warn(
+                warning_message,
+                DeprecationWarning,
+                stacklevel=2,
+            )
         if not cfg.enable_stabilization and sim_cfg.dt > 0.0333:
             logger.warning("Large timestep without stabilization may cause physics issues.")
 
@@ -737,19 +917,22 @@ class PhysxManager(PhysicsManager):
 
         is_gpu = "cuda" in PhysicsManager.get_device()
 
+        physx = omni.physx.get_physx_interface()
+        physx_sim = omni.physx.get_physx_simulation_interface()
+
         # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
         # For CPU, the old SimulationManager never called attach_stage() explicitly.
         # Calling attach_stage() + force_load_physics_from_usd() together causes a
         # double-initialization that corrupts the CPU broadphase (MBP) collision setup,
         # causing objects to fall through surfaces non-deterministically.
         if is_gpu:
-            cls._physx_sim.attach_stage(stage_id)
+            physx_sim.attach_stage(stage_id)
 
         # warmup physx
-        cls._physx.force_load_physics_from_usd()
-        cls._physx.start_simulation()
-        cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
-        cls._physx_sim.fetch_results()
+        physx.force_load_physics_from_usd()
+        physx.start_simulation()
+        physx.update_simulation(cls.get_physics_dt(), 0.0)
+        physx_sim.fetch_results()
         cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
         cls._warmup_needed = False
 
@@ -766,7 +949,7 @@ class PhysxManager(PhysicsManager):
             cls._view_warp.set_subspace_roots("/")
 
         # Final update after view creation
-        cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
+        physx.update_simulation(cls.get_physics_dt(), 0.0)
         cls._view_created = True
         cls._scene_data_backend.simulation_view = cls._view
 

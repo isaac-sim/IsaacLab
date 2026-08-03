@@ -212,7 +212,7 @@ A complete demonstration of multirotor simulation is available:
 
 ```bash
 # Run multirotor demo
-./isaaclab.sh -p scripts/demos/arl_robot_1.py
+uv run python scripts/demos/arl_robot_1.py
 ```
 
 ## TacSL Tactile Sensor (Detailed)
@@ -424,9 +424,11 @@ The RGB tactile rendering follows this pipeline:
 For accurate tactile sensing, configure PhysX parameters:
 
 ```python
+from isaaclab_physx.physics import PhysxCfg
+
 sim_cfg = sim_utils.SimulationCfg(
     dt=0.005,  # 5ms timestep for stable contact simulation
-    physx=sim_utils.PhysxCfg(
+    physics=PhysxCfg(
         gpu_collision_stack_size=2**30,  # Increase for contact-rich scenarios
     ),
 )
@@ -454,14 +456,14 @@ A complete demonstration of TacSL tactile sensor is available:
 
 ```bash
 # Run TacSL tactile sensor demo with RGB and force field sensing
-./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py \
+uv run python scripts/demos/sensors/tacsl_sensor.py \
     --use_tactile_rgb \
     --use_tactile_ff \
     --num_envs 16 \
     --contact_object_type nut
 
 # Save visualization data
-./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py \
+uv run python scripts/demos/sensors/tacsl_sensor.py \
     --use_tactile_rgb \
     --use_tactile_ff \
     --save_viz \

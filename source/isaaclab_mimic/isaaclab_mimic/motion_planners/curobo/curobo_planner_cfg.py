@@ -29,7 +29,7 @@ class CuroboPlannerCfg:
         >>> config = CuroboPlannerCfg.franka_config()
         >>>
         >>> # Or create from task name
-        >>> config = CuroboPlannerCfg.from_task_name("Isaac-Stack-Cube-Franka-v0")
+        >>> config = CuroboPlannerCfg.from_task_name("IsaacContrib-Stack-Cube-Franka")
         >>>
         >>> # Initialize planner with config
         >>> planner = CuroboPlanner(env, robot, config)

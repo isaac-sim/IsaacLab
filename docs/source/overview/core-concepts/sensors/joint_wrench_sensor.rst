@@ -15,14 +15,14 @@ The sensor is configured on an articulation prim and can then be used directly
 or through manager terms such as :func:`~isaaclab.envs.mdp.body_incoming_wrench`.
 For example, the Ant environment adds a joint wrench sensor to the scene:
 
-.. literalinclude:: ../../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/ant/ant_env_cfg.py
+.. literalinclude:: ../../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py
   :language: python
   :lines: 91-95
 
 The same environment uses :class:`~isaaclab.managers.SceneEntityCfg` to select
 the reported foot bodies for an observation term:
 
-.. literalinclude:: ../../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/ant/ant_env_cfg.py
+.. literalinclude:: ../../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py
   :language: python
   :lines: 133-142
 

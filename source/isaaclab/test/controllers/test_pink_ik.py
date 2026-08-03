@@ -30,7 +30,7 @@ from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_fro
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
 def load_test_config(env_name):
@@ -82,10 +82,10 @@ def create_test_env(env_name, num_envs):
 @pytest.fixture(
     scope="module",
     params=[
-        "Isaac-PickPlace-GR1T2-Abs-v0",
-        "Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0",
-        "Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0",
-        "Isaac-PickPlace-Locomanipulation-G1-Abs-v0",
+        "IsaacContrib-PickPlace-GR1T2-Abs",
+        "IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs",
+        "IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs",
+        "IsaacContrib-PickPlace-Locomanipulation-G1-Abs",
     ],
 )
 def env_and_cfg(request):

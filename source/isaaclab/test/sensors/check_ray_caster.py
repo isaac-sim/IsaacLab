@@ -9,7 +9,7 @@ This script shows how to use the ray caster from the Isaac Lab framework.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/sensors/test_ray_caster.py --headless
+    uv run python source/isaaclab/test/sensors/test_ray_caster.py
 """
 
 """Launch Isaac Sim Simulator first."""

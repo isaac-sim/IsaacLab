@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import omni.ext
+import omni.ui  # used by ExampleExtension.on_startup
 
 
 # Functions and vars are available to other extension as usual in python: `example.python_ext.some_public_function(x)`

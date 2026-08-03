@@ -92,6 +92,8 @@ def SkrlVecEnvWrapper(
     if ml_framework.startswith("torch"):
         from skrl.envs.wrappers.torch import wrap_env
     elif ml_framework.startswith("jax"):
+        # preload submodule that skrl's distributed models use without importing (broken on recent JAX)
+        import jax.experimental.multihost_utils  # noqa: F401
         from skrl.envs.wrappers.jax import wrap_env
     elif ml_framework.startswith("warp"):
         from skrl.envs.wrappers.warp import wrap_env

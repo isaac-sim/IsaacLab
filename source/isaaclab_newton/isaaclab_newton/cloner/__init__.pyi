@@ -4,8 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "NewtonReplicateContext",
+    "PHYSICS_CONTEXT",
     "newton_physics_replicate",
-    "newton_visualizer_prebuild",
 ]
 
-from .newton_replicate import newton_physics_replicate, newton_visualizer_prebuild
+from .replicate import (
+    NewtonReplicateContext,
+    PHYSICS_CONTEXT,
+    newton_physics_replicate,
+)

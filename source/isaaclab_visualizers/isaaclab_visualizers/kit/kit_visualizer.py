@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 
-from pxr import Gf, Usd, UsdGeom, Vt
+from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.utils.camera_view import (
@@ -30,6 +30,7 @@ from isaaclab.envs.utils.camera_view import (
     resolve_tiled_env_indices,
 )
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
+from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
@@ -42,6 +43,13 @@ if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
+_DEFAULT_VIEWPORT_CAMERA_PATH = "/OmniverseKit_Persp"
+
+_BACKEND_DISPLAY_NAMES = {
+    "physx": "PhysX",
+    "ovphysx": "OVPhysX",
+    "newton": "Newton MJWarp",
+}
 
 
 class KitVisualizer(BaseVisualizer):
@@ -82,6 +90,8 @@ class KitVisualizer(BaseVisualizer):
         self._camera_image_window = None
         self._camera_gpu_upload_tensor = None
         self._warned_gpu_upload_failure = False
+        self._backend_menubar_label = None
+        self._hid_simulation_menu = False
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -111,6 +121,7 @@ class KitVisualizer(BaseVisualizer):
                 "[KitVisualizer] Partial visualization in Kit uses visibility only; unselected env prims are hidden."
             )
             self._apply_env_visibility(usd_stage, num_envs, self._resolved_visible_env_ids)
+        self._apply_viewport_camera_scene_partition(usd_stage, num_envs)
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
         )
@@ -164,6 +175,7 @@ class KitVisualizer(BaseVisualizer):
         """Close viewport resources and restore temporary state."""
         if not self._is_initialized:
             return
+        self._teardown_backend_menubar_label()
         self._restore_env_visibility()
         if self._camera_sensor is not None and self._camera_is_owned:
             remove_generated_prims(self._generated_camera_prim_paths)
@@ -211,8 +223,56 @@ class KitVisualizer(BaseVisualizer):
         return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
-        """Kit backend can host live plot widgets via viewport UI panels."""
+        """Kit backend hosts live plot widgets via :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer`."""
         return True
+
+    def add_live_plots(
+        self,
+        managers: dict,
+        scalars: dict | None = None,
+        term_names: dict[str, list[str]] | None = None,
+        env_idx: int = 0,
+    ) -> None:
+        """Register managers for live plotting using the Kit omni.ui widget path.
+
+        Creates a :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer` per manager and stores
+        them in :attr:`kit_manager_visualizers` so that :class:`~isaaclab.envs.ui.BaseEnvWindow`
+        can wire them into the viewport panel.  Also calls the base implementation to populate
+        :attr:`_live_plot_sources` for any non-omni.ui consumers.
+
+        Note:
+            Scalar groups (e.g. episode metrics) are stored in :attr:`_live_plot_sources` via
+            the base implementation but are not yet wired into the omni.ui viewport panel.
+
+        Args:
+            managers: Mapping of manager name to manager instance.
+            scalars: Optional mapping of group name to a dict of ``{term_name: callable}``.
+                Each callable must take no arguments and return a numeric value.
+            term_names: Optional per-manager allowlists of term names to include.
+            env_idx: Environment index to sample each step.  Defaults to ``0``.
+        """
+        super().add_live_plots(managers, scalars=scalars, term_names=term_names, env_idx=env_idx)
+        from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots
+        from isaaclab.ui.widgets.manager_live_visualizer import (
+            DirectScalarLiveVisualizer,
+            ManagerLiveVisualizer,
+            ManagerLiveVisualizerCfg,
+        )
+
+        self.kit_manager_visualizers: dict[str, ManagerLiveVisualizer | DirectScalarLiveVisualizer] = {
+            name: ManagerLiveVisualizer(
+                manager=mgr,
+                cfg=ManagerLiveVisualizerCfg(
+                    manager_name=name,
+                    term_names=(term_names or {}).get(name),
+                ),
+            )
+            for name, mgr in managers.items()
+        }
+        # Wire scalar groups (e.g. episode metrics) into the Kit UI panel.
+        for source in self._live_plot_sources:
+            if isinstance(source, DirectScalarLivePlots):
+                self.kit_manager_visualizers[source.manager_name] = DirectScalarLiveVisualizer(source)
 
     def requires_forward_before_step(self) -> bool:
         """OV viewport relies on refreshed kinematic state before render."""
@@ -237,6 +297,62 @@ class KitVisualizer(BaseVisualizer):
         self._set_viewport_camera(tuple(eye), tuple(target))
 
     # ---- Viewport + camera ----------------------------------------------------------------
+
+    def _setup_backend_menubar_label(self) -> None:
+        """Add a read-only backend label to the viewport menubar and hide the PhysX Simulation menu."""
+        try:
+            from omni.kit.viewport.menubar.core import IconMenuDelegate, ViewportMenuItem, get_menu_item
+        except (ImportError, ModuleNotFoundError):
+            return
+
+        backend = self.physics_backend or "unknown"
+        backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
+
+        # Hide the "Simulation / PhysX" toggle menu — it only reflects the omni.physics.core
+        # registry (always "PhysX") and is misleading when Newton MJWarp is active.
+        if backend not in ("physx", "ovphysx"):
+            sim_item = get_menu_item("Simulation")
+            if sim_item is not None:
+                sim_item.visible_model.set_value(False)
+                self._hid_simulation_menu = True
+
+        # Add a non-interactive backend label in the menubar. IconMenuDelegate is used (not
+        # LabelMenuDelegate) because it draws the "MenuBar.Item.Background" rectangle that gives
+        # other menubar items their styled box/border. width=0 suppresses the icon slot so only
+        # the text is shown; has_triangle=False removes the dropdown caret.
+        self._backend_menubar_label = ViewportMenuItem(
+            f"Physics: {backend_display}",
+            delegate=IconMenuDelegate("", text=True, width=0, has_triangle=False, enabled=False),
+        )
+
+    async def _setup_backend_menubar_label_async(self) -> None:
+        """Defer backend menubar label setup by one app tick.
+
+        Creating a :class:`ViewportMenuItem` synchronously during viewport init triggers an
+        ``omni.kit.viewport.menubar.camera`` render-settings notification before Isaac Sim's
+        camera collection is ready, producing a spurious ``AttributeError``.  Deferring until
+        the next ``next_update_async`` tick lets the collection initialize first.
+        """
+        import omni.kit.app
+
+        await omni.kit.app.get_app().next_update_async()
+        self._setup_backend_menubar_label()
+
+    def _teardown_backend_menubar_label(self) -> None:
+        """Remove the backend label and restore the Simulation menu visibility."""
+        if self._hid_simulation_menu:
+            try:
+                from omni.kit.viewport.menubar.core import get_menu_item
+            except (ImportError, ModuleNotFoundError):
+                self._hid_simulation_menu = False
+                return
+            sim_item = get_menu_item("Simulation")
+            if sim_item is not None:
+                sim_item.visible_model.set_value(True)
+            self._hid_simulation_menu = False
+        if self._backend_menubar_label is not None:
+            self._backend_menubar_label.destroy()
+            self._backend_menubar_label = None
 
     def _ensure_simulation_app(self) -> None:
         """Ensure a running Isaac Sim app is available and cache runtime mode."""
@@ -282,7 +398,6 @@ class KitVisualizer(BaseVisualizer):
         effective_viewport_name = (
             self.cfg.viewport_name if self.cfg.viewport_name is not None else _DEFAULT_VIEWPORT_NAME
         )
-
         if self.cfg.create_viewport:
             if not str(effective_viewport_name).strip():
                 raise RuntimeError(
@@ -313,6 +428,8 @@ class KitVisualizer(BaseVisualizer):
         if self._viewport_window is None:
             logger.warning("[KitVisualizer] No active viewport window found.")
             self._viewport_api = None
+            if not self._uses_camera_sensor_view():
+                self._apply_cfg_camera_pose_if_configured()
             self._refresh_controlled_camera_path()
             return
         self._viewport_api = self._viewport_window.viewport_api
@@ -322,6 +439,7 @@ class KitVisualizer(BaseVisualizer):
         else:
             self._apply_cfg_camera_pose_if_configured()
         self._refresh_controlled_camera_path()
+        asyncio.ensure_future(self._setup_backend_menubar_label_async())
 
     def _uses_camera_sensor_view(self) -> bool:
         """Return whether Kit should display a camera sensor image instead of an interactive viewport camera."""
@@ -331,12 +449,15 @@ class KitVisualizer(BaseVisualizer):
         """Resolve or create the Camera sensor backing non-interactive image views."""
         if not self._uses_camera_sensor_view():
             return
-        if self._runtime_headless:
-            return
-        if not get_settings_manager().get("/isaaclab/cameras_enabled", False):
+        cameras_enabled = get_settings_manager().get("/isaaclab/cameras_enabled", False)
+        if not cameras_enabled:
+            if self._runtime_headless:
+                # Headless without camera rendering: cannot create a camera sensor.
+                logger.debug("[KitVisualizer] Tiled camera sensor skipped: headless mode without --enable_cameras.")
+                return
             raise RuntimeError(
                 "[KitVisualizer] tiled_cam_view=True requires camera rendering support. "
-                "Rerun with --enable_cameras, or disable tiled_cam_view for this visualizer config."
+                "Disable tiled_cam_view for this visualizer config."
             )
         logger.debug(
             "[KitVisualizer] Setting up camera image view: tiled=%s source=%s num_envs=%s",
@@ -382,8 +503,11 @@ class KitVisualizer(BaseVisualizer):
             self._camera_is_owned = True
             self._update_owned_camera_poses()
             logger.debug("[KitVisualizer] Generated camera poses initialized.")
-        self._setup_camera_image_window()
-        logger.debug("[KitVisualizer] Camera image window initialized.")
+        if not self._runtime_headless:
+            self._setup_camera_image_window()
+            logger.debug("[KitVisualizer] Camera image window initialized.")
+        else:
+            logger.debug("[KitVisualizer] Camera image window skipped in headless mode.")
 
     def _setup_camera_image_window(self) -> None:
         """Create a dockable Kit UI image panel for camera sensor RGB output."""
@@ -501,9 +625,48 @@ class KitVisualizer(BaseVisualizer):
         """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""
         if self._viewport_api is not None:
             path = self._viewport_api.get_active_camera()
-            self._controlled_camera_path = path if path else "/OmniverseKit_Persp"
+            self._controlled_camera_path = path if path else _DEFAULT_VIEWPORT_CAMERA_PATH
         else:
-            self._controlled_camera_path = "/OmniverseKit_Persp"
+            self._controlled_camera_path = _DEFAULT_VIEWPORT_CAMERA_PATH
+
+    def _apply_viewport_camera_scene_partition(self, usd_stage: Usd.Stage, num_envs: int) -> None:
+        """Tag the viewport camera with the first visible env partition.
+
+        RTX scene partitioning culls per-env geometry by the camera's non-primvar
+        ``omni:scenePartition`` token. Interactive viewport cameras live outside
+        ``/World/envs`` and are created by Kit, so they do not inherit the env-root
+        primvar authored by :class:`~isaaclab.scene.InteractiveScene`.
+
+        This method is a no-op unless ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1``,
+        matching the opt-in behaviour of
+        :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_stage`.
+        """
+
+        if not isaac_rtx_per_env_scene_partition_enabled():
+            return
+
+        if num_envs <= 0 or self._controlled_camera_path is None:
+            return
+
+        logger.debug(
+            "[KitVisualizer] Per-environment Isaac RTX scene partitioning is enabled"
+            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1)."
+            " Authoring omni:scenePartition attribute onto viewport camera '%s'.",
+            self._controlled_camera_path,
+        )
+
+        env_id = self._resolved_visible_env_ids[0] if self._resolved_visible_env_ids else 0
+        camera_prim = usd_stage.GetPrimAtPath(self._controlled_camera_path)
+        if not camera_prim.IsValid() or not camera_prim.IsA(UsdGeom.Camera):
+            logger.debug(
+                "[KitVisualizer] Scene partition token skipped for non-camera viewport prim: %s",
+                self._controlled_camera_path,
+            )
+            return
+        attr = camera_prim.GetAttribute("omni:scenePartition")
+        if not attr.IsValid():
+            attr = camera_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token)
+        attr.Set(f"env_{env_id}")
 
     async def _dock_viewport_async(self, viewport_name: str, dock_position) -> None:
         """Dock a created viewport window relative to main viewport."""
@@ -539,6 +702,9 @@ class KitVisualizer(BaseVisualizer):
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         """Apply eye/target camera view to the active viewport."""
         if self._viewport_api is None:
+            # Without a viewport, Kit does not create its default perspective
+            # camera, so author it explicitly before render products use it.
+            self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
             return
 
         try:
@@ -549,7 +715,7 @@ class KitVisualizer(BaseVisualizer):
 
         camera_path = self._viewport_api.get_active_camera()
         if not camera_path:
-            camera_path = "/OmniverseKit_Persp"
+            camera_path = _DEFAULT_VIEWPORT_CAMERA_PATH
 
         # ``rotate=False`` for the position set: a freshly-opened stage's default
         # ``/OmniverseKit_Persp`` has no authored ``omni:kit:centerOfInterest``,

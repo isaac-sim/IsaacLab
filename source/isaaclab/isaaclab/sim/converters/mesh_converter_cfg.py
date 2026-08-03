@@ -26,14 +26,35 @@ class MeshConverterCfg(AssetConverterBaseCfg):
         If None, then no rigid body properties will be added.
     """
 
-    collision_props: schemas_cfg.CollisionPropertiesCfg = None
+    collision_props: (
+        schemas_cfg.CollisionPropertiesCfg | schemas_cfg.CollisionFragment | list[schemas_cfg.CollisionFragment]
+    ) = None
     """Collision properties to apply to the USD. Defaults to None.
+
+    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`) or a
+    list of :class:`~isaaclab.sim.schemas.CollisionFragment` fragments. When a fragment list is
+    given, ``UsdPhysics.CollisionAPI`` is applied as the implicit anchor and each fragment writes
+    its own namespace.
 
     Note:
         If None, then no collision properties will be added.
     """
-    mesh_collision_props: schemas_cfg.MeshCollisionBaseCfg = None
+    mesh_collision_props: (
+        schemas_cfg.MeshCollisionBaseCfg
+        | schemas_cfg.MeshCollisionFragment
+        | list[schemas_cfg.MeshCollisionFragment]
+        | None
+    ) = None
     """Mesh approximation properties to apply to all collision meshes in the USD.
+
+    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` or
+    a ``Physx*PropertiesCfg`` cooking cfg) or a list of
+    :class:`~isaaclab.sim.schemas.MeshCollisionFragment` fragments (e.g.
+    ``[UsdPhysicsMeshCollisionCfg(...), PhysxConvexHullCfg(...)]``). When a fragment list is given,
+    ``UsdPhysics.MeshCollisionAPI`` is applied as the implicit anchor, the ``physics:approximation``
+    token is resolved from whichever cooking fragment is present, and each fragment writes its own
+    namespace.
+
     Note:
         If None, then no mesh approximation properties will be added.
     """

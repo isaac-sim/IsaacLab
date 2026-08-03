@@ -22,10 +22,13 @@ repos:
         args: ["--maxkb=2000"]  # restrict files more than 2 MB. Should use git-lfs instead.
       - id: check-yaml
       - id: check-merge-conflict
+        # These verbatim license headings contain a literal "=======" separator.
+        exclude: '^docs/licenses/dependencies/(mujoco|llvmlite|numba)-license\.txt$'
       - id: check-case-conflict
       - id: check-executables-have-shebangs
       - id: check-toml
       - id: end-of-file-fixer
+        exclude: "^(.agents/skills/|.claude/skills$)"
       - id: check-shebang-scripts-are-executable
       - id: detect-private-key
       - id: debug-statements
@@ -69,3 +72,10 @@ repos:
       - id: rst-backticks
       - id: rst-directive-colons
       - id: rst-inline-touching-normal
+  - repo: local
+    hooks:
+      - id: check-git-lfs-pointers
+        name: check Git LFS pointers
+        entry: tools/pre_commit/check_git_lfs_pointers.sh
+        language: script
+        pass_filenames: true

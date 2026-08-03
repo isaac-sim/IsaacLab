@@ -16,7 +16,9 @@ ovphysx.types is pure Python with zero native dependencies, so this module is
 always safe to import regardless of USD state or native library loading.
 """
 
-from ovphysx.types import TensorType  # noqa: F401 — re-exported for new code
+from isaaclab_ovphysx._runtime import import_ovphysx
+
+TensorType = import_ovphysx("ovphysx.types").TensorType
 
 _TT = TensorType  # shorter reference for alias block
 
@@ -251,6 +253,27 @@ except AttributeError:
     pass
 
 """
+Shape material properties (friction / restitution) — new in ovphysx 0.4.13+.
+Guarded so this module stays import-safe against older wheels that lack them.
+"""
+
+try:
+    SHAPE_FRICTION_AND_RESTITUTION = _TT.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION
+    """Per-collision-shape material of each articulation instance — read/write, GPU.
+    Shape ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]``
+    restitution (all dimensionless)."""
+except AttributeError:
+    pass
+
+try:
+    RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION = _TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
+    """Per-collision-shape material of each rigid body — read/write, GPU. Shape
+    ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]`` restitution
+    (all dimensionless)."""
+except AttributeError:
+    pass
+
+"""
 Dynamics tensors (GPU)
 """
 
@@ -362,6 +385,38 @@ SPATIAL_TENDON_OFFSET = _TT.ARTICULATION_SPATIAL_TENDON_OFFSET
 Shape is ``[N, T_spa]``, dtype ``float32``.
 """
 
+"""
+Deformable body state and connectivity (GPU)
+"""
+
+DEFORMABLE_SIM_NODAL_POSITION = _TT.DEFORMABLE_SIM_NODAL_POSITION
+DEFORMABLE_SIM_NODAL_VELOCITY = _TT.DEFORMABLE_SIM_NODAL_VELOCITY
+DEFORMABLE_SIM_KINEMATIC_TARGET = _TT.DEFORMABLE_SIM_KINEMATIC_TARGET
+DEFORMABLE_REST_NODAL_POSITION = _TT.DEFORMABLE_REST_NODAL_POSITION
+DEFORMABLE_SIM_ELEMENT_INDICES = _TT.DEFORMABLE_SIM_ELEMENT_INDICES
+DEFORMABLE_COLLISION_ELEMENT_INDICES = _TT.DEFORMABLE_COLLISION_ELEMENT_INDICES
+
+"""
+Surface deformable state and connectivity (GPU)
+"""
+
+SURFACE_DEFORMABLE_SIM_POSITION = _TT.SURFACE_DEFORMABLE_SIM_POSITION
+SURFACE_DEFORMABLE_SIM_VELOCITY = _TT.SURFACE_DEFORMABLE_SIM_VELOCITY
+SURFACE_DEFORMABLE_REST_POSITION = _TT.SURFACE_DEFORMABLE_REST_POSITION
+SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES = _TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES
+
+"""
+Deformable material properties (CPU)
+"""
+
+DEFORMABLE_MATERIAL_DYNAMIC_FRICTION = _TT.DEFORMABLE_MATERIAL_DYNAMIC_FRICTION
+DEFORMABLE_MATERIAL_YOUNGS_MODULUS = _TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS
+DEFORMABLE_MATERIAL_POISSONS_RATIO = _TT.DEFORMABLE_MATERIAL_POISSONS_RATIO
+DEFORMABLE_MATERIAL_ELASTICITY_DAMPING = _TT.DEFORMABLE_MATERIAL_ELASTICITY_DAMPING
+DEFORMABLE_MATERIAL_BENDING_STIFFNESS = _TT.DEFORMABLE_MATERIAL_BENDING_STIFFNESS
+DEFORMABLE_MATERIAL_THICKNESS = _TT.DEFORMABLE_MATERIAL_THICKNESS
+DEFORMABLE_MATERIAL_BENDING_DAMPING = _TT.DEFORMABLE_MATERIAL_BENDING_DAMPING
+
 # fmt: on
 # DOF/body property tensor types are CPU-resident even in GPU simulations.
 # Write helpers check this set to route data through CPU, not self._device.
@@ -387,6 +442,13 @@ _CPU_ONLY_TYPES_CANDIDATES: tuple = (
     RIGID_BODY_MASS,
     RIGID_BODY_COM_POSE,
     RIGID_BODY_INERTIA,
+    DEFORMABLE_MATERIAL_DYNAMIC_FRICTION,
+    DEFORMABLE_MATERIAL_YOUNGS_MODULUS,
+    DEFORMABLE_MATERIAL_POISSONS_RATIO,
+    DEFORMABLE_MATERIAL_ELASTICITY_DAMPING,
+    DEFORMABLE_MATERIAL_BENDING_STIFFNESS,
+    DEFORMABLE_MATERIAL_THICKNESS,
+    DEFORMABLE_MATERIAL_BENDING_DAMPING,
 )
 # Optional rigid-body CPU entries: only included when the wheel exposes them.
 _RIGID_BODY_OPTIONAL_CPU: tuple = tuple(

@@ -29,8 +29,9 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import EventTermCfg
+
 from .manager_base import ManagerBase
-from .manager_term_cfg import EventTermCfg
 
 logger = logging.getLogger(__name__)
 
@@ -259,9 +260,11 @@ class EventManager(ManagerBase):
                 term_cfg.func.reset(env_mask=env_mask)
 
         # reset interval timers for non-global interval events
+        # note: terms with resample_interval_on_reset=False keep their per-environment counter
+        #   across resets, so we do not resample them either
         if "interval" in self._mode_term_cfgs:
             for i, term_cfg in enumerate(self._mode_term_cfgs["interval"]):
-                if term_cfg.is_global_time:
+                if term_cfg.is_global_time or not term_cfg.resample_interval_on_reset:
                     continue
                 lower, upper = self._interval_term_ranges[i]
                 wp.launch(

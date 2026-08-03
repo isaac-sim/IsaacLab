@@ -2,17 +2,20 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
 
 import weakref
+from typing import TYPE_CHECKING
 
 import warp as wp
-
-import omni.physics.tensors.api as physx
 
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from .kernels import compute_mean_vec3f_over_vertices, compute_nodal_state_w, vec6f
+
+if TYPE_CHECKING:
+    import omni.physics.tensors as physx
 
 
 class DeformableObjectData:

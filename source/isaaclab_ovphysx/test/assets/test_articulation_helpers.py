@@ -19,9 +19,8 @@ import warp as wp
 
 from pxr import Sdf, Usd, UsdPhysics
 
-# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
-# but the ovphysx wheel is not installed in that environment. Skip gracefully
-# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+# The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
+# CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ovphysx.assets.articulation.articulation import Articulation  # noqa: E402
@@ -39,8 +38,8 @@ def _define_tendon_joint(stage: Usd.Stage, path: str, schema_name: str) -> None:
     joint.GetPrim().SetMetadata("apiSchemas", schemas)
 
 
-def _make_articulation_root_stage(tmp_path) -> str:
-    """Create a stage with one relevant articulation subtree and unrelated joints elsewhere."""
+def _make_articulation_root_stage_usda() -> str:
+    """Serialize one relevant articulation subtree and unrelated joints in memory."""
     stage = Usd.Stage.CreateInMemory()
     stage.DefinePrim("/World", "Xform")
     stage.DefinePrim("/World/envs", "Xform")
@@ -70,9 +69,7 @@ def _make_articulation_root_stage(tmp_path) -> str:
         "PhysxTendonAttachmentLeafAPI:inst0",
     )
 
-    stage_path = tmp_path / "scene.usda"
-    stage.Export(str(stage_path))
-    return str(stage_path)
+    return stage.Flatten().ExportToString()
 
 
 def _make_articulation_shell() -> Articulation:
@@ -85,7 +82,9 @@ def _make_articulation_shell() -> Articulation:
         num_fixed_tendons=1,
         num_spatial_tendons=1,
     )
-    object.__setattr__(articulation, "_bindings", bindings.bindings)
+    # The migrated Articulation reads tendon counts off its OvPhysxView; inject the mock
+    # view over these bindings so the metadata passthrough resolves without a real view.
+    object.__setattr__(articulation, "_root_view", bindings.view)
     object.__setattr__(articulation, "_articulation_root_path", "/World/envs/env_0/Robot/root")
     object.__setattr__(articulation, "_initialize_handle", None)
     object.__setattr__(articulation, "_invalidate_initialize_handle", None)
@@ -104,16 +103,16 @@ def _make_articulation_shell() -> Articulation:
     return articulation
 
 
-def test_process_tendons_scopes_to_articulation_root(tmp_path):
+def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
-    stage_path = _make_articulation_root_stage(tmp_path)
-    old_stage_path = OvPhysxManager._stage_path
-    OvPhysxManager._stage_path = stage_path
+    stage_usda = _make_articulation_root_stage_usda()
+    old_stage_usda = OvPhysxManager._stage_usda
+    OvPhysxManager._stage_usda = stage_usda
     try:
         articulation._process_tendons()
     finally:
-        OvPhysxManager._stage_path = old_stage_path
+        OvPhysxManager._stage_usda = old_stage_usda
 
     assert articulation.fixed_tendon_names == ["fixed_joint"]
     assert articulation.spatial_tendon_names == ["spatial_joint"]
@@ -138,3 +137,15 @@ def test_mock_binding_set_rigid_object_shapes():
     # Articulation-only bindings must be absent
     assert TT.DOF_POSITION not in bindings.bindings
     assert TT.LINK_WRENCH not in bindings.bindings
+
+
+def test_mock_binding_read_preserves_structured_warp_dtype():
+    """Mock bindings should read flat component data into structured Warp arrays."""
+    from isaaclab_ovphysx import tensor_types as TT
+
+    bindings = MockOvPhysxBindingSet(num_instances=4, num_joints=1, num_bodies=2)
+    destination = wp.empty((4, 2), dtype=wp.spatial_vectorf, device="cpu")
+
+    bindings.bindings[TT.LINK_VELOCITY].read(destination)
+
+    assert destination.numpy().shape == (4, 2, 6)

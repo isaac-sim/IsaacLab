@@ -89,9 +89,13 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
             file_ext = ".py" if rl_library_name == "rsl_rl" else ".yaml"
             try:
                 template = jinja_env.get_template(f"agents/{file_name}")
-            except jinja2.exceptions.TemplateNotFound:
-                print(f"Template not found: agents/{file_name}")
-                continue
+            except jinja2.exceptions.TemplateNotFound as exc:
+                # Fail loudly: the task is still registered with this agent's entry point, so silently skipping
+                # the config would emit a project that only fails later at train time with a missing config file.
+                raise FileNotFoundError(
+                    f"No agent config template 'agents/{file_name}' for the requested '{rl_library_name}'"
+                    f" algorithm '{algorithm}'. Add the template or drop the algorithm from the selection."
+                ) from exc
             _write_file(os.path.join(agents_dir, file_name + file_ext), content=template.render(**specification))
     # workflow-specific content
     if task_spec["workflow"]["name"] == "direct":
@@ -144,6 +148,15 @@ def _generate_tasks(specification: dict, task_dir: str) -> list[dict]:
         elif task["workflow"]["name"] == "manager-based":
             task["id"] = f"{task_name_prefix}-{task_name}-v0"
         print(f"  |    |-- Generating '{task['id']}' task...")
+        # Ensure the workflow directory is an importable package so ``import_packages`` discovers the
+        # task. Internal tasks land in ``isaaclab_tasks/{direct,manager_based}/``, which are namespace
+        # dirs (no ``__init__.py``) since the core/contrib split (#5891) and would otherwise never
+        # register. Created only when missing so an existing package is never clobbered.
+        workflow_dir = os.path.join(task_dir, workflow["name"].replace("-", "_"))
+        os.makedirs(workflow_dir, exist_ok=True)
+        workflow_init = os.path.join(workflow_dir, "__init__.py")
+        if not os.path.exists(workflow_init):
+            shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__workflow"), workflow_init)
         _generate_task_per_workflow(task["dir"], {**specification, "task": task})
         specifications.append({**specification, "task": task})
     return specifications
@@ -172,26 +185,12 @@ def _external(specification: dict) -> None:
     _write_file(os.path.join(project_dir, "README.md"), content=template.render(**specification))
     # scripts
     print("  |-- Copying scripts...")
-    # reinforcement learning libraries
+    # unified reinforcement learning entrypoints (backends are provided by the isaaclab_rl package)
     dir = os.path.join(project_dir, "scripts")
     os.makedirs(dir, exist_ok=True)
-    for rl_library in specification["rl_libraries"]:
-        shutil.copytree(
-            os.path.join(ROOT_DIR, "scripts", "reinforcement_learning", rl_library["name"]),
-            os.path.join(dir, rl_library["name"]),
-            dirs_exist_ok=True,
-        )
-        # replace placeholder in scripts
-        for file in glob.glob(os.path.join(dir, rl_library["name"], "*.py")):
-            _replace_in_file(
-                [
-                    (
-                        "# PLACEHOLDER: Extension template (do not remove this comment)",
-                        f"import {name}.tasks  # noqa: F401",
-                    )
-                ],
-                src=file,
-            )
+    for script in ["train", "play"]:
+        template = jinja_env.get_template(f"external/{script}")
+        _write_file(os.path.join(dir, f"{script}.py"), content=template.render(**specification))
     # - other scripts
     _replace_in_file(
         [("import isaaclab_tasks", f"import {name}.tasks"), ("isaaclab_tasks", name), ('"Isaac"', '"Template-"')],
@@ -244,11 +243,7 @@ def _external(specification: dict) -> None:
     os.makedirs(dir, exist_ok=True)
     specifications = _generate_tasks(specification, dir)
     shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__tasks"), os.path.join(dir, "__init__.py"))
-    for workflow in specification["workflows"]:
-        shutil.copyfile(
-            os.path.join(TEMPLATE_DIR, "extension", "__init__workflow"),
-            os.path.join(dir, workflow["name"].replace("-", "_"), "__init__.py"),
-        )
+    # (per-workflow ``__init__.py`` files are created by ``_generate_tasks``)
     # - other files
     dir = os.path.join(project_dir, "source", name, name)
     template = jinja_env.get_template("extension/ui_extension_example.py")

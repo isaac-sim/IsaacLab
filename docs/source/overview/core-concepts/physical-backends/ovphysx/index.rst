@@ -8,6 +8,15 @@ OvPhysX Backend
     development. Expect feature coverage and test commands to change between
     Isaac Lab 3.0 beta releases.
 
+.. warning::
+
+    Do not combine OvPhysX with the Kit visualizer. Commands such as
+    ``presets=ovphysx --visualizer kit`` are unsupported because OvPhysX
+    loads USD-dependent PhysX plugins from its own package, while Kit already
+    owns a separate USD/plugin stack in the same process. Use
+    ``--visualizer newton``, ``--visualizer rerun``, ``--visualizer viser``,
+    or omit ``--visualizer`` for headless execution.
+
 OvPhysX is a kit-less variant of the PhysX backend. It drives PhysX directly
 (without the Omniverse Kit runtime) and reads scene-level solver parameters
 from the USD ``PhysicsScene`` prim rather than from a Python config. The Python
@@ -52,11 +61,26 @@ validated at the time of writing. The following pieces are available on
   `PR #5589 <https://github.com/isaac-sim/IsaacLab/pull/5589>`_.
 * FrameView — merged via
   `PR #5678 <https://github.com/isaac-sim/IsaacLab/pull/5678>`_.
+* :class:`~isaaclab.assets.DeformableObject` — experimental volume- and
+  surface-deformable support on CUDA simulation devices.
 
 Additional OvPhysX work remains in flight. IMU, Frame Transformer, Joint Wrench,
 PVA, Ray Caster, and rendering support are not documented as supported here
 until their implementations land on ``develop`` and pass the backend smoke
 tests.
+
+Deformable limitations
+----------------------
+
+OvPhysX deformables currently require every body matched by one
+:class:`~isaaclab.assets.DeformableObject` to have the same number of simulation
+nodes. Initialization raises an error for mixed node counts instead of exposing
+padded state that would produce incorrect reductions.
+
+Deformable scenes also require full-stage materialization. Startup cost therefore
+grows with the number of authored environments. Use this path for small validation
+scenes; training-scale workloads with thousands of environments are not currently
+supported.
 
 Installation
 ------------
@@ -76,34 +100,84 @@ You can also install all OV runtime wheels with:
 
     ./isaaclab.sh -i 'ov[all]'
 
-The ``ov[ovphysx]`` selector installs ``source/isaaclab_ovphysx`` with its
-``[ovphysx]`` extra. If the wheel is missing, OvPhysX-specific tests skip with
-``ovphysx wheel not installed`` and user code fails at import time.
+The ``ov[ovphysx]`` selector installs the ``ovphysx`` runtime wheel declared by
+the root ``pyproject.toml`` ``ov`` extra. If the wheel is missing, OvPhysX-specific
+tests skip with ``ovphysx wheel not installed`` and user code fails at import time.
 
 Testing the Installation
 ------------------------
 
 First check that the Python package and runtime wheel import correctly:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p -c "import ovphysx.types; from isaaclab_ovphysx.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python -c "import ovphysx.types; from isaaclab_ovphysx.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p -c "import ovphysx.types; from isaaclab_ovphysx.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
 
 Then run a small backend smoke test:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p -m pytest source/isaaclab_ovphysx/test/assets/test_rigid_object.py::test_initialization -k cpu
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python -m pytest source/isaaclab_ovphysx/test/assets/test_rigid_object.py::test_initialization -k cpu
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p -m pytest source/isaaclab_ovphysx/test/assets/test_rigid_object.py::test_initialization -k cpu
 
 To try a task that declares an OvPhysX physics preset, use the same preset CLI
 syntax as the other backends:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 --headless presets=ovphysx
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz none presets=ovphysx
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz none presets=ovphysx
 
 This command starts a headless zero-action rollout; stop it with ``Ctrl+C``
 after the environment has started and stepped successfully.
+
+Supported locomotion environments
+---------------------------------
+
+The following locomotion training environments declare an ``ovphysx`` physics
+preset. Their corresponding ``-Play`` variants support the same backend where
+available.
+
+* ``Isaac-Ant-Direct``
+* ``Isaac-Humanoid-Direct``
+* ``IsaacContrib-Velocity-Rough-AnymalB``
+* ``IsaacContrib-Velocity-Rough-AnymalC``
+* ``Isaac-Velocity-Flat-AnymalD``
+* ``Isaac-Velocity-Rough-AnymalD``
+* ``IsaacContrib-Velocity-Rough-UnitreeA1``
+* ``IsaacContrib-Velocity-Rough-UnitreeGo1``
+* ``Isaac-Velocity-Rough-UnitreeGo2``
+* ``Isaac-Velocity-Rough-Cassie``
+* ``Isaac-Velocity-Rough-G1``
+* ``Isaac-Velocity-Rough-H1``
 
 Status and follow-up
 --------------------

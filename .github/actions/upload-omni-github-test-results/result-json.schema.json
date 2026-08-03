@@ -1,0 +1,275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omni-github.local/schemas/artifact-upload/result-json.schema.json",
+  "title": "Test result JSON",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["test_tool_id", "app", "tests"],
+  "properties": {
+    "result_schema_version": {
+      "type": ["integer", "null"],
+      "default": 1,
+      "enum": [1, null]
+    },
+    "test_tool_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "app": {
+      "$ref": "#/$defs/appContext"
+    },
+    "tests": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20000,
+      "items": {
+        "$ref": "#/$defs/testRow"
+      }
+    }
+  },
+  "$defs": {
+    "shortString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "nullableShortString": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "messageString": {
+      "type": "string",
+      "maxLength": 4096
+    },
+    "nullableMessageString": {
+      "type": ["string", "null"],
+      "maxLength": 4096
+    },
+    "artifactRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "not": {
+        "pattern": "(^/|(^|/)\\.\\.(/|$)|\\\\)"
+      }
+    },
+    "appContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform"],
+      "properties": {
+        "platform": {
+          "$ref": "#/$defs/shortString"
+        },
+        "config": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 128,
+          "default": "release"
+        },
+        "python_version": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "app_version": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "kit_version_full": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "kit_build_number": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "app_name_full": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "kit_version": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "app_name": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "package": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "kit_git_hash": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "kit_branch": {
+          "$ref": "#/$defs/nullableShortString"
+        }
+      }
+    },
+    "testRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["test_id", "passed", "duration"],
+      "properties": {
+        "test_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "duration": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "test_name": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "group_id": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "test_type": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "skipped": {
+          "type": ["boolean", "null"],
+          "default": false
+        },
+        "unreliable": {
+          "type": ["boolean", "null"],
+          "default": false
+        },
+        "crash": {
+          "type": ["boolean", "null"],
+          "default": false
+        },
+        "timeout": {
+          "type": ["boolean", "null"],
+          "default": false
+        },
+        "retries": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 100,
+          "default": 0
+        },
+        "owner": {
+          "$ref": "#/$defs/nullableShortString"
+        },
+        "skip_reason": {
+          "$ref": "#/$defs/nullableMessageString"
+        },
+        "message": {
+          "$ref": "#/$defs/nullableMessageString"
+        },
+        "log_paths": {
+          "anyOf": [
+            {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/$defs/artifactRelativePath"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "app": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/appContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "custom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/customObject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "customObject": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 20,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/customNamespace"
+      }
+    },
+    "customNamespace": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 50,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/customValue"
+      }
+    },
+    "customValue": {
+      "oneOf": [
+        {
+          "type": "string",
+          "maxLength": 1024
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 20,
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/customValue"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -27,15 +27,15 @@ import warp as wp
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.envs.direct_rl_env import DirectRLEnv
 from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
+from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
-
-# from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import EventManager
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import has_kit
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
@@ -168,15 +168,10 @@ class DirectRLEnvWarp(DirectRLEnv):
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-        offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-        if has_gui or offscreen_render:
-            # self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-            self.viewport_camera_controller = None
+        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit
+        # (renderer camera); skip in kitless Newton-only runs where no Kit app is running.
+        if (self.sim.has_gui or self.sim.has_active_visualizers()) and has_kit():
+            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
 
@@ -214,7 +209,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
-        if bool(self.sim.settings.get("/isaaclab/visualizer")) and self.cfg.ui_window_class_type is not None:
+        if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -377,7 +372,9 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # return observations
         self._get_observations()
-        return {"policy": self.torch_obs_buf.clone()}, self.extras
+        # store the returned buffer so RslRlVecEnvWrapper.get_observations() can read env.obs_buf
+        self.obs_buf = {"policy": self.torch_obs_buf.clone()}
+        return self.obs_buf, self.extras
 
     @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMER_STEP or DEBUG_TIMERS)
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
@@ -417,9 +414,8 @@ class DirectRLEnvWarp(DirectRLEnv):
             )  # Creates a tensor and discards it. Not graphable unless training loop reuses the same pointer.
 
         # check if we need to do rendering within the physics loop
-        # note: checked here once to avoid multiple checks within the loop
-        _has_rtx = hasattr(self.sim, "has_rtx_sensors") and self.sim.has_rtx_sensors()
-        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or _has_rtx
+        # note: hoisted out of the decimation loop; is_rendering does live settings lookups
+        is_rendering = self.sim.is_rendering
 
         # perform physics stepping
         with Timer(name="physics_loop", msg="Physics loop took:", enable=DEBUG_TIMERS):
@@ -461,8 +457,10 @@ class DirectRLEnvWarp(DirectRLEnv):
             self._post_step_visualize()
 
         # return observations, rewards, resets and extras
+        # store the returned buffer so RslRlVecEnvWrapper.get_observations() can read env.obs_buf
+        self.obs_buf = {"policy": self.torch_obs_buf.clone()}
         return (
-            {"policy": self.torch_obs_buf.clone()},
+            self.obs_buf,
             self.torch_reward_buf,
             self.torch_reset_terminated,
             self.torch_reset_time_outs,
@@ -571,20 +569,14 @@ class DirectRLEnvWarp(DirectRLEnv):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # check that if any render could have happened
-            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-            # Rendering is possible if we have GUI or offscreen rendering enabled
-            can_render = has_gui or offscreen_render
-
-            if not can_render:
+            # rendering requires a GUI or offscreen rendering (mirrors the stable env)
+            if not (self.sim.has_gui or self.sim.has_offscreen_render):
                 render_mode_name = "NO_GUI_OR_RENDERING"
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' when the simulation render mode is"
                     f" '{render_mode_name}'. Please set the simulation render mode"
                     " to:'PARTIAL_RENDERING' or"
-                    " 'FULL_RENDERING'. If running headless, make"
-                    " sure --enable_cameras is set."
+                    " 'FULL_RENDERING'."
                 )
             # create the annotator if it does not exist
             if not hasattr(self, "_rgb_annotator"):

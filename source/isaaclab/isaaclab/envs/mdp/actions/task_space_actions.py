@@ -20,7 +20,7 @@ from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.operational_space import OperationalSpaceController
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
-from isaaclab.sim.utils import find_matching_prims
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -90,6 +90,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._ik_controller = DifferentialIKController(
             cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
         )
+        # joint limits are injected lazily on the first apply (asset data is populated by then) so
+        # the controller can do null-space joint-limit avoidance; only needed when joint_limit_avoidance_gain > 0.
+        self._limits_injected = False
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
@@ -201,6 +204,12 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        # lazily provide joint limits to the controller for null-space joint-limit avoidance
+        # (limits are uniform across envs for these articulations; env 0 is representative)
+        if not self._limits_injected and getattr(self.cfg.controller, "joint_limit_avoidance_gain", 0.0) > 0.0:
+            limits = self._asset.data.soft_joint_pos_limits.torch[0, self._joint_ids, :]
+            self._ik_controller.set_joint_pos_limits(limits[:, 0].clone(), limits[:, 1].clone())
+            self._limits_injected = True
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
             jacobian = self._compute_frame_jacobian()
@@ -336,8 +345,16 @@ class OperationalSpaceControllerAction(ActionTerm):
         # is provided.
         if self.cfg.task_frame_rel_path is not None:
             # The source RigidObject can be any child of the articulation asset (we will not use it),
-            # hence, we will use the first RigidObject child.
-            root_rigidbody_path = self._first_RigidObject_child_path()
+            # hence, we will use the first RigidObject descendant.
+            def has_rigid_body_api(prim) -> bool:
+                return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+
+            prim_path = self._asset.cfg.prim_path
+            resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
+            rigid_matches = resolve_matching_prims_from_source(prim_path, has_rigid_body_api, **resolve_kwargs)
+            if not rigid_matches:
+                raise ValueError(f"No descendant rigid body found under the expression: '{self._asset.cfg.prim_path}'.")
+            _, root_rigidbody_path = rigid_matches[0]
             task_frame_transformer_path = "/World/envs/env_.*/" + self.cfg.task_frame_rel_path
             task_frame_transformer_cfg = FrameTransformerCfg(
                 prim_path=root_rigidbody_path,
@@ -560,29 +577,6 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     """
 
-    def _first_RigidObject_child_path(self):
-        """Finds the first ``RigidObject`` child under the articulation asset.
-
-        Raises:
-            ValueError: If no child ``RigidObject`` is found under the articulation asset.
-
-        Returns:
-            str: The path to the first ``RigidObject`` child under the articulation asset.
-        """
-        child_prims = find_matching_prims(self._asset.cfg.prim_path + "/.*")
-        rigid_child_prim = None
-        # Loop through the list and stop at the first RigidObject found
-        for prim in child_prims:
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                rigid_child_prim = prim
-                break
-        if rigid_child_prim is None:
-            raise ValueError("No child rigid body found under the expression: '{self._asset.cfg.prim_path}'/.")
-        rigid_child_prim_path = rigid_child_prim.GetPath().pathString
-        # Remove the specific env index from the path string
-        rigid_child_prim_path = self._asset.cfg.prim_path + "/" + rigid_child_prim_path.split("/")[-1]
-        return rigid_child_prim_path
-
     def _resolve_command_indexes(self):
         """Resolves the indexes for the various command elements within the command tensor.
 
@@ -656,9 +650,8 @@ class OperationalSpaceControllerAction(ActionTerm):
         / :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.nullspace_control`
         and
         :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.gravity_compensation`
-        respectively. This avoids an unconditional engine call on backends
-        that don't expose the corresponding primitive (Newton has no
-        gravity-compensation API).
+        respectively. This avoids unconditional engine calls when the controller
+        does not consume the corresponding quantity.
 
         Note: For floating-base robots the Jacobian / mass-matrix / gravity-compensation
         DoF axis prepends 6 floating-base columns. We use ``self._jacobi_joint_idx``

@@ -12,6 +12,8 @@ import torch
 
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
+pytestmark = pytest.mark.unit
+
 
 def create_test_episode(device):
     """create a test episode with dummy data."""

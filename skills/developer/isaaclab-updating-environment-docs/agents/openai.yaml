@@ -1,0 +1,9 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+interface:
+  display_name: "Update Environment Docs"
+  short_description: "Keep environment catalog entries and presets current"
+  default_prompt: "Use $isaaclab-updating-environment-docs to update the environment catalog for a new or modified task."

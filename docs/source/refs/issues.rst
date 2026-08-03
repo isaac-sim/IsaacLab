@@ -93,6 +93,8 @@ message and continue with terminating the process. On Windows systems, please us
 ``Ctrl+Break`` or ``Ctrl+fn+B`` to terminate the process.
 
 
+.. _known-issues-closed-loop-newton:
+
 Closed-loop articulations on Newton (e.g. Agility Digit)
 --------------------------------------------------------
 
@@ -100,9 +102,9 @@ Robots whose USD encodes a closed kinematic loop -- such as the achilles rod and
 toe push-rods on the Agility Digit -- do not currently run correctly on the
 ``newton_mjwarp`` physics preset, even though they work on ``physx``. This affects:
 
-* ``Isaac-Velocity-Flat-Digit-v0`` / ``Isaac-Velocity-Flat-Digit-Play-v0``
-* ``Isaac-Velocity-Rough-Digit-v0`` / ``Isaac-Velocity-Rough-Digit-Play-v0``
-* ``Isaac-Tracking-LocoManip-Digit-v0`` / ``Isaac-Tracking-LocoManip-Digit-Play-v0``
+* ``IsaacContrib-Velocity-Flat-Digit``
+* ``IsaacContrib-Velocity-Rough-Digit``
+* ``IsaacContrib-Tracking-LocoManip-Digit``
 
 The root cause sits inside Newton's :class:`~newton.selection.ArticulationView`. When
 it builds its per-link axis it walks each joint in the articulation's joint range and

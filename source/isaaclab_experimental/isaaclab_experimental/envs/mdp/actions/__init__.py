@@ -7,7 +7,12 @@
 
 Provides Warp-first action term implementations overriding the stable
 :mod:`isaaclab.envs.mdp.actions` module.
+
+Symbols are lazily resolved from the ``__init__.pyi`` stub so that importing the
+pure-data action config classes does not eagerly pull in the runtime action term
+implementations (which depend on a running simulator).
 """
 
-from .actions_cfg import *  # noqa: F401, F403
-from .joint_actions import *  # noqa: F401, F403
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

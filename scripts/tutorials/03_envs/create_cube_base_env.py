@@ -22,7 +22,7 @@ The rest of the environment is similar to the previous tutorials.
 .. code-block:: bash
 
     # Run the script
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
+    uv run python scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
 
 """
 
@@ -288,7 +288,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     # The flag 'replicate_physics' is set to False, which means that the cube is not replicated
     # across multiple environments but rather each environment gets its own cube instance.
     # This allows modifying the cube's properties independently for each environment.
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=True)
+    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
 
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()

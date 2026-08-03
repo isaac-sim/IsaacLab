@@ -18,7 +18,6 @@ isaaclab.sim
 
     SimulationContext
     SimulationCfg
-    RenderCfg
 
   .. rubric:: Functions
 
@@ -37,11 +36,6 @@ Simulation Configuration
 ------------------------
 
 .. autoclass:: SimulationCfg
-  :members:
-  :show-inheritance:
-  :exclude-members: __init__
-
-.. autoclass:: RenderCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__

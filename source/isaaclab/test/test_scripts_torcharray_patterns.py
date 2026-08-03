@@ -59,9 +59,6 @@ _PROXYARRAY_DIRECT_METHOD_DOT_DATA = re.compile(
     r"\.(?:clone|assign)\s*\("
 )
 
-# scripts/tools/wrap_warp_to_torch.py is the migration utility and documents
-# the old pattern inside strings. Exclude it from the scan.
-_EXCLUDE = {"tools/wrap_warp_to_torch.py"}
 _EXCLUDE_PREFIXES = ("source/isaaclab_contrib/",)
 
 
@@ -91,8 +88,6 @@ def test_no_wp_to_torch_on_torcharray_data(path: Path) -> None:
     the wrap entirely for torch-native fields).
     """
     rel = path.relative_to(_repo_root()).as_posix()
-    if any(rel.endswith(suffix) for suffix in _EXCLUDE):
-        pytest.skip(f"{rel} is excluded from the ProxyArray hygiene scan")
     if rel.startswith(_EXCLUDE_PREFIXES):
         pytest.skip(f"{rel} is outside the ProxyArray migration scan scope")
 
@@ -114,8 +109,6 @@ def test_no_wp_to_torch_on_torcharray_data(path: Path) -> None:
 def test_no_direct_proxyarray_data_methods(path: Path) -> None:
     """No direct tensor/wp.array methods on migrated ``<x>.data.<field>`` accessors."""
     rel = path.relative_to(_repo_root()).as_posix()
-    if any(rel.endswith(suffix) for suffix in _EXCLUDE):
-        pytest.skip(f"{rel} is excluded from the ProxyArray hygiene scan")
     if rel.startswith(_EXCLUDE_PREFIXES):
         pytest.skip(f"{rel} is outside the ProxyArray migration scan scope")
 

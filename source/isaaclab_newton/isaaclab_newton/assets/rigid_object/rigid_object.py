@@ -12,15 +12,16 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
+from newton import ModelFlags
 from newton.selection import ArticulationView
-from newton.solvers import SolverNotifyFlags
 
 from pxr import UsdPhysics
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.physics import PhysicsEvent
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -174,20 +175,29 @@ class RigidObject(BaseRigidObject):
     Operations - Finders.
     """
 
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return cached proxy indices. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            Matched body indices and names.
         """
-        return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        body_ids, body_names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        resolved_ids = self._resolve_finder_indices(body_ids, domain="body", as_proxy=as_proxy, legacy_type="list")
+        return resolved_ids, body_names
 
     """
     Operations - Write to simulation.
@@ -198,6 +208,7 @@ class RigidObject(BaseRigidObject):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
@@ -205,6 +216,9 @@ class RigidObject(BaseRigidObject):
 
         .. note::
             This method expects partial data.
+
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -214,19 +228,25 @@ class RigidObject(BaseRigidObject):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, skip_forward=skip_forward)
 
     def write_root_pose_to_sim_mask(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root pose over selected environment mask into the simulation.
 
         .. note::
             This method expects full data.
+
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -236,14 +256,17 @@ class RigidObject(BaseRigidObject):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask)
+        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask, skip_forward=skip_forward)
 
     def write_root_velocity_to_sim_index(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -255,6 +278,9 @@ class RigidObject(BaseRigidObject):
         .. note::
             This method expects partial data.
 
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
@@ -263,19 +289,27 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(
+            root_velocity=root_velocity, env_ids=env_ids, skip_forward=skip_forward
+        )
 
     def write_root_velocity_to_sim_mask(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
         .. note::
             This method expects full data.
+
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -285,14 +319,19 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
+        self.write_root_com_velocity_to_sim_mask(
+            root_velocity=root_velocity, env_mask=env_mask, skip_forward=skip_forward
+        )
 
     def write_root_link_pose_to_sim_index(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
@@ -300,6 +339,9 @@ class RigidObject(BaseRigidObject):
 
         .. note::
             This method expects partial data.
+
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -309,16 +351,15 @@ class RigidObject(BaseRigidObject):
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
                 or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-
-        Note:
-            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.set_root_link_pose_to_sim_index,
+            shared_kernels.set_root_link_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
@@ -329,19 +370,16 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        # Need to invalidate the buffer to trigger the update with the new state.
-        if self.data._root_link_state_w is not None:
-            self.data._root_link_state_w.timestamp = -1.0
-        if self.data._root_state_w is not None:
-            self.data._root_state_w.timestamp = -1.0
-        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
+        # Let the data class handle the invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose(env_ids=env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
@@ -349,6 +387,9 @@ class RigidObject(BaseRigidObject):
 
         .. note::
             This method expects full data.
+
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -358,9 +399,8 @@ class RigidObject(BaseRigidObject):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-
-        Note:
-            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -378,19 +418,16 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        # Need to invalidate the buffer to trigger the update with the new state.
-        if self.data._root_link_state_w is not None:
-            self.data._root_link_state_w.timestamp = -1.0
-        if self.data._root_state_w is not None:
-            self.data._root_state_w.timestamp = -1.0
-        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
+        # Let the data class handle the invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose(env_mask=env_mask)
 
     def write_root_com_pose_to_sim_index(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
@@ -400,6 +437,9 @@ class RigidObject(BaseRigidObject):
         .. note::
             This method expects partial data.
 
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
@@ -408,9 +448,8 @@ class RigidObject(BaseRigidObject):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
                 or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-
-        Note:
-            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -419,7 +458,7 @@ class RigidObject(BaseRigidObject):
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
         wp.launch(
-            shared_kernels.set_root_com_pose_to_sim_index,
+            shared_kernels.set_root_com_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
@@ -432,21 +471,17 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        # Need to invalidate the buffer to trigger the update with the new state.
-        if self.data._root_com_state_w is not None:
-            self.data._root_com_state_w.timestamp = -1.0
-        if self.data._root_link_state_w is not None:
-            self.data._root_link_state_w.timestamp = -1.0
-        if self.data._root_state_w is not None:
-            self.data._root_state_w.timestamp = -1.0
-        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
+        # Let the data class handle the invalidation of pose-dependent properties.
+        # The com pose was just written, so it must not be invalidated.
+        if not skip_forward:
+            self.data._reset_pose(env_ids=env_ids, from_link=False)
 
     def write_root_com_pose_to_sim_mask(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
@@ -456,6 +491,9 @@ class RigidObject(BaseRigidObject):
         .. note::
             This method expects full data.
 
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
@@ -464,9 +502,8 @@ class RigidObject(BaseRigidObject):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-
-        Note:
-            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -485,21 +522,17 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        # Need to invalidate the buffer to trigger the update with the new state.
-        if self.data._root_com_state_w is not None:
-            self.data._root_com_state_w.timestamp = -1.0
-        if self.data._root_link_state_w is not None:
-            self.data._root_link_state_w.timestamp = -1.0
-        if self.data._root_state_w is not None:
-            self.data._root_state_w.timestamp = -1.0
-        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
+        # Let the data class handle the invalidation of pose-dependent properties.
+        # The com pose was just written, so it must not be invalidated.
+        if not skip_forward:
+            self.data._reset_pose(env_mask=env_mask, from_link=False)
 
     def write_root_com_velocity_to_sim_index(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -511,6 +544,9 @@ class RigidObject(BaseRigidObject):
         .. note::
             This method expects partial data.
 
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
@@ -520,16 +556,15 @@ class RigidObject(BaseRigidObject):
                 Shape is (len(env_ids), 6) or (num_instances, 6),
                 or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-
-        Note:
-            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.set_root_com_velocity_to_sim_index,
+            shared_kernels.set_root_com_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
@@ -542,17 +577,16 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        if self.data._root_state_w is not None:
-            self.data._root_state_w.timestamp = -1.0
-        if self.data._root_com_state_w is not None:
-            self.data._root_com_state_w.timestamp = -1.0
-        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
+        # Let the data class handle the invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity(env_ids=env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
@@ -564,6 +598,9 @@ class RigidObject(BaseRigidObject):
         .. note::
             This method expects full data.
 
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
@@ -572,9 +609,8 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-
-        Note:
-            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -593,17 +629,16 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        if self.data._root_state_w is not None:
-            self.data._root_state_w.timestamp = -1.0
-        if self.data._root_com_state_w is not None:
-            self.data._root_com_state_w.timestamp = -1.0
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
+        # Let the data class handle the invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity(env_mask=env_mask)
 
     def write_root_link_velocity_to_sim_index(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
@@ -615,6 +650,9 @@ class RigidObject(BaseRigidObject):
         .. note::
             This method expects partial data or full data.
 
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
@@ -624,9 +662,8 @@ class RigidObject(BaseRigidObject):
                 Shape is (len(env_ids), 6) or (num_instances, 6),
                 or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-
-        Note:
-            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -634,7 +671,7 @@ class RigidObject(BaseRigidObject):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.
         wp.launch(
-            shared_kernels.set_root_link_velocity_to_sim_index,
+            shared_kernels.set_root_link_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
@@ -650,19 +687,17 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        if self.data._root_link_state_w is not None:
-            self.data._root_link_state_w.timestamp = -1.0
-        if self.data._root_state_w is not None:
-            self.data._root_state_w.timestamp = -1.0
-        if self.data._root_com_state_w is not None:
-            self.data._root_com_state_w.timestamp = -1.0
-        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
+        # Let the data class handle the invalidation of velocity-dependent properties.
+        # The link velocity was just written, so it must not be invalidated.
+        if not skip_forward:
+            self.data._reset_velocity(env_ids=env_ids, from_com=False)
 
     def write_root_link_velocity_to_sim_mask(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link velocity over selected environment mask into the simulation.
 
@@ -674,6 +709,9 @@ class RigidObject(BaseRigidObject):
         .. note::
             This method expects full data.
 
+        .. note::
+            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
@@ -682,9 +720,8 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-
-        Note:
-            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -706,13 +743,10 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        if self.data._root_link_state_w is not None:
-            self.data._root_link_state_w.timestamp = -1.0
-        if self.data._root_state_w is not None:
-            self.data._root_state_w.timestamp = -1.0
-        if self.data._root_com_state_w is not None:
-            self.data._root_com_state_w.timestamp = -1.0
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
+        # Let the data class handle the invalidation of velocity-dependent properties.
+        # The link velocity was just written, so it must not be invalidated.
+        if not skip_forward:
+            self.data._reset_velocity(env_mask=env_mask, from_com=False)
 
     """
     Operations - Setters.
@@ -745,20 +779,26 @@ class RigidObject(BaseRigidObject):
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_body_mass_and_inverse_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
                 env_ids,
                 body_ids,
+                self._ALL_BODY_INDICES,
+                False,
+                self.data._sim_bind_body_inertia,
             ],
             outputs=[
-                self.data.body_mass,
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
             ],
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -788,20 +828,26 @@ class RigidObject(BaseRigidObject):
             body_mask = self._ALL_BODY_MASK
         self.assert_shape_and_dtype_mask(masses, (env_mask, body_mask), wp.float32, "masses")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            shared_kernels.write_body_mass_and_inverse_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
                 masses,
                 env_mask,
                 body_mask,
+                self._ALL_BODY_INDICES,
+                False,
+                self.data._sim_bind_body_inertia,
             ],
             outputs=[
-                self.data.body_mass,
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
             ],
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
@@ -835,7 +881,7 @@ class RigidObject(BaseRigidObject):
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_com_position_to_buffer_index,
+            shared_kernels.write_body_com_position_to_buffer_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
@@ -847,8 +893,9 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -895,8 +942,9 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
@@ -925,20 +973,26 @@ class RigidObject(BaseRigidObject):
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_index,
+            shared_kernels.write_body_inertia_and_inverse_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 inertias,
                 env_ids,
                 body_ids,
+                self._ALL_BODY_INDICES,
+                False,
+                self.data._sim_bind_body_mass,
             ],
             outputs=[
-                self.data.body_inertia,
+                self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
             ],
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -968,67 +1022,37 @@ class RigidObject(BaseRigidObject):
             body_mask = self._ALL_BODY_MASK
         self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_mask,
+            shared_kernels.write_body_inertia_and_inverse_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
                 inertias,
                 env_mask,
                 body_mask,
+                self._ALL_BODY_INDICES,
+                False,
+                self.data._sim_bind_body_mass,
             ],
             outputs=[
-                self.data.body_inertia,
+                self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inv_mass,
+                self.data._sim_bind_body_inv_inertia,
             ],
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     """
     Internal helper.
     """
 
     def _initialize_impl(self):
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
+        def has_rigid_body_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-        # find rigid root prims
-        root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
-            traverse_instance_prims=False,
-        )
-        if len(root_prims) == 0:
-            raise RuntimeError(
-                f"Failed to find a rigid body when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'USD RigidBodyAPI' applied."
-            )
-        if len(root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
-                f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one rigid body in the prim path tree."
-            )
-
-        articulation_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-            traverse_instance_prims=False,
-        )
-        if len(articulation_prims) != 0:
-            if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
-                raise RuntimeError(
-                    f"Found an articulation root when resolving '{self.cfg.prim_path}' for rigid objects. These are"
-                    f" located at: '{articulation_prims}' under '{template_prim_path}'. Please disable the articulation"
-                    " root in the USD or from code by setting the parameter"
-                    " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn configuration."
-                )
-
-        # resolve root prim back into regex expression
-        root_prim_path = root_prims[0].GetPath().pathString
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
+        resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
+        _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- object view
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
@@ -1100,10 +1124,6 @@ class RigidObject(BaseRigidObject):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
-        if isinstance(env_ids, torch.Tensor):
-            if env_ids.dtype == torch.int64:
-                env_ids = env_ids.to(torch.int32)
-            return wp.from_torch(env_ids, dtype=wp.int32)
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
@@ -1117,14 +1137,12 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
+        if isinstance(body_ids, ProxyArray):
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(body_ids, list):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
             return self._ALL_BODY_INDICES
-        if isinstance(body_ids, torch.Tensor):
-            if body_ids.dtype == torch.int64:
-                body_ids = body_ids.to(torch.int32)
-            return wp.from_torch(body_ids, dtype=wp.int32)
         return body_ids
 
     """
@@ -1149,8 +1167,8 @@ class RigidObject(BaseRigidObject):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_com_state_to_sim(
         self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None
@@ -1165,8 +1183,8 @@ class RigidObject(BaseRigidObject):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_com_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_com_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_link_state_to_sim(
         self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None
@@ -1181,5 +1199,5 @@ class RigidObject(BaseRigidObject):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_link_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)

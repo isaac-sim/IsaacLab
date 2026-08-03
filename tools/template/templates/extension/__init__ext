@@ -10,5 +10,7 @@ Python module serving as a project/extension template.
 # Register Gym environments.
 from .tasks import *
 
-# Register UI extensions.
-from .ui_extension_example import *
+# NOTE: The UI extension (``ui_extension_example.py``) imports ``omni.ext``, which only exists
+# while Kit is running. Kit loads it via the ``...ui_extension_example`` ``[[python.module]]``
+# entry in ``config/extension.toml``; it is intentionally not imported here so that importing
+# this package stays omni-free for headless use (e.g. Gym registration before SimulationApp).

@@ -26,22 +26,25 @@ the :meth:`gymnasium.make` function.
 .. dropdown:: Environment creation in this tutorial
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/environments/random_agent.py
+   .. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
       :language: python
-      :lines: 36-47
+      :start-at: # parse configuration via Hydra
+      :end-at: env = gym.make(args_cli.task, cfg=env_cfg)
 
 
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``random_agent.py`` script in the ``scripts/environments`` directory.
+The tutorial corresponds to the ``random_agent.py`` script in the ``scripts/environments`` directory. The
+script is a thin wrapper that calls into the :mod:`isaaclab_rl.entrypoints` module, where the actual
+implementation lives.
 
-.. dropdown:: Code for random_agent.py
+.. dropdown:: Code for simple_agents.py
    :icon: code
 
-   .. literalinclude:: ../../../../scripts/environments/random_agent.py
+   .. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
       :language: python
-      :emphasize-lines: 36-37, 42-47
+      :emphasize-lines: 24, 64-75
       :linenos:
 
 
@@ -74,18 +77,18 @@ Manager-Based Environments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For manager-based environments, the following shows the registration
-call for the cartpole environment in the ``isaaclab_tasks.manager_based.classic.cartpole`` sub-package:
+call for the cartpole environment in the ``isaaclab_tasks.core.cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/__init__.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
-   :lines: 10-
-   :emphasize-lines: 4, 11, 12, 15
+   :lines: 14-16,61-75
+   :emphasize-lines: 5, 6, 9
 
 The ``id`` argument is the name of the environment. As a convention, we name all the environments
 with the prefix ``Isaac-`` to make it easier to search for them in the registry. The name of the
 environment is typically followed by the name of the task, and then the name of the robot.
 For instance, for legged locomotion with ANYmal C on flat terrain, the environment is called
-``Isaac-Velocity-Flat-Anymal-C-v0``. The version number ``v<N>`` is typically used to specify different
+``IsaacContrib-Velocity-Flat-AnymalC``. The version number ``v<N>`` is typically used to specify different
 variations of the same environment. Otherwise, the names of the environments can become too long
 and difficult to read.
 
@@ -109,12 +112,12 @@ Additionally, we add the suffix ``-Direct`` to the environment name to different
 manager-based environments.
 
 As an example, the following shows the registration call for the cartpole environment in the
-``isaaclab_tasks.direct.cartpole`` sub-package:
+``isaaclab_tasks.core.cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/__init__.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
-   :lines: 10-31
-   :emphasize-lines: 5, 12, 13, 16
+   :lines: 14-16,32-43
+   :emphasize-lines: 5, 6, 9
 
 
 Creating the environment
@@ -124,7 +127,7 @@ To inform the ``gym`` registry with all the environments provided by the ``isaac
 extension, we must import the module at the start of the script. This will execute the ``__init__.py``
 file which iterates over all the sub-packages and registers their respective environments.
 
-.. literalinclude:: ../../../../scripts/environments/random_agent.py
+.. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
    :language: python
    :start-at: import isaaclab_tasks  # noqa: F401
    :end-at: import isaaclab_tasks  # noqa: F401
@@ -134,7 +137,7 @@ the default configuration as well as to create the environment instance. In addi
 parsed command line arguments such as the number of environments, the simulation device,
 and whether to render, are used to override the default configuration.
 
-.. literalinclude:: ../../../../scripts/environments/random_agent.py
+.. literalinclude:: ../../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
    :language: python
    :start-at: # parse configuration via Hydra
    :end-at: env = gym.make(args_cli.task, cfg=env_cfg)
@@ -147,9 +150,20 @@ The Code Execution
 
 Now that we have gone through the code, let's run the script and see the result:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32 --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
 
 This should open a stage with everything similar to the :ref:`tutorial-create-manager-rl-env` tutorial.
@@ -164,9 +178,19 @@ To stop the simulation, you can either close the window, or press ``Ctrl+C`` in 
 
 In addition, you can also change the simulation device from GPU to CPU by setting the value of the ``--device`` flag explicitly:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32 --device cpu --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --device cpu --viz kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --device cpu --viz kit
 
 With the ``--device cpu`` flag, the simulation will run on the CPU. This is useful for debugging the simulation.
 However, the simulation will run much slower than on the GPU.

@@ -1,6 +1,15 @@
 Debugging and Training Guide
 ============================
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-training-rl-agents`` and
+   ``isaaclab-debugging-rl-training`` agent skills
+   (`skills/user/train-rl-agents/ <../../../../skills/user/train-rl-agents/SKILL.md>`__,
+   `skills/user/debug-rl-training/ <../../../../skills/user/debug-rl-training/SKILL.md>`__).
+   When you change this page, update those skills so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 In this tutorial, we'll guide developers working with Isaac Lab to understand the
 impact of various parameters on training time, GPU utilization, and memory usage.
 This is especially helpful for addressing Out of Memory (OOM) errors that commonly

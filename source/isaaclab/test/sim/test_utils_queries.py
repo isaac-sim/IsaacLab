@@ -20,6 +20,8 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
@@ -87,6 +89,14 @@ def test_get_first_matching_ancestor_prim():
     assert isaaclab_result is None
 
 
+def test_matches_path_expr_prefix():
+    path_expr = "/World/envs/env_.*/Robot"
+    assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0")
+    assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot")
+    assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Object")
+    assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot/base")
+
+
 def test_get_all_matching_child_prims():
     """Test get_all_matching_child_prims() function."""
     # create scene
@@ -98,7 +108,7 @@ def test_get_all_matching_child_prims():
     # note: isaac sim function does not support instanced prims so we add it here
     #  after the above test for the above test to still pass.
     sim_utils.create_prim(
-        "/World/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
     )
 
     # test with predicate
@@ -113,6 +123,18 @@ def test_get_all_matching_child_prims():
     assert len(isaaclab_result) == 1
     assert isaaclab_result[0].GetPrimPath() == "/World/Franka/panda_hand/visuals/panda_hand"
 
+    # test expected number of matches
+    isaaclab_result = sim_utils.get_all_matching_child_prims(
+        "/World", predicate=lambda x: x.GetTypeName() == "Cube", expected_num_matches=1
+    )
+    assert len(isaaclab_result) == 1
+    with pytest.raises(RuntimeError, match="Expected 2 prims under '/World', found 1"):
+        sim_utils.get_all_matching_child_prims(
+            "/World", predicate=lambda x: x.GetTypeName() == "Cube", expected_num_matches=2
+        )
+    with pytest.raises(ValueError, match="Expected number of matches must be non-negative"):
+        sim_utils.get_all_matching_child_prims("/World", expected_num_matches=-1)
+
     # test valid path
     with pytest.raises(ValueError):
         sim_utils.get_all_matching_child_prims("World/Room")
@@ -123,13 +145,19 @@ def test_get_first_matching_child_prim():
     # create scene
     sim_utils.create_prim("/World/Floor")
     sim_utils.create_prim(
-        "/World/env_1/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/env_1/Franka",
+        "Xform",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
     )
     sim_utils.create_prim(
-        "/World/env_2/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/env_2/Franka",
+        "Xform",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
     )
     sim_utils.create_prim(
-        "/World/env_0/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/env_0/Franka",
+        "Xform",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
     )
 
     # test
@@ -152,7 +180,9 @@ def test_find_global_fixed_joint_prim():
     # create scene
     sim_utils.create_prim("/World")
     sim_utils.create_prim("/World/ANYmal", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd")
-    sim_utils.create_prim("/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    sim_utils.create_prim(
+        "/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
+    )
     if "4.5" in ISAAC_NUCLEUS_DIR:
         franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd"
     else:

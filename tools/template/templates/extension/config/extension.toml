@@ -25,6 +25,11 @@ keywords = ["extension", "template", "isaaclab"]
 [[python.module]]
 name = "{{ name }}"
 
+# UI extension module: Kit imports this submodule directly and scans it for ``omni.ext.IExt``
+# subclasses. Kept separate from the package root so ``import {{ name }}`` stays omni-free headless.
+[[python.module]]
+name = "{{ name }}.ui_extension_example"
+
 [isaac_lab_settings]
 # TODO: Uncomment and list any apt dependencies here.
 #       If none, leave it commented out.

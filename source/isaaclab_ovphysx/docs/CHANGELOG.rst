@@ -1,6 +1,487 @@
 Changelog
 ---------
 
+8.2.2 (2026-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OvPhysX environment cloning to preserve nested asset offsets and orientations.
+* Fixed the missing OvPhysX runtime error to recommend the uv-managed ``ovphysx`` extra.
+
+
+8.2.1 (2026-08-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OvPhysX articulation Jacobians, mass matrices, and gravity compensation
+  through the backend-agnostic articulation data API.
+* Added deformable nodal position export on the OVPhysX SceneData backend so soft
+  bodies and cloth can drive Newton Warp / OVRTX shadow visualization.
+* Added OVPhysX articulation Jacobians, mass matrices, and gravity
+  compensation through the backend-agnostic articulation data API.
+* Added the ``as_proxy`` return-mode option to OVPhysX asset finder methods.
+  ``as_proxy=False`` is the default and returns the legacy selector
+  representation, while ``as_proxy=True`` opts into cached
+  :class:`~isaaclab.utils.warp.ProxyArray` selectors. Pass their explicit
+  ``.warp`` or ``.torch`` views to downstream APIs.
+
+Changed
+^^^^^^^
+
+* Cached stable OVPhysX articulation and rigid asset read launches outside CUDA
+  graph capture. No user migration is required.
+
+Fixed
+^^^^^
+
+* Fixed procedural OvPhysX deformables by registering their USD schema before
+  stage creation for the selected backend.
+* Fixed OVPhysX indexed articulation writes to accept signed 32-bit and 64-bit
+  environment and item selectors without Torch conversion tensors.
+* Fixed stale pose-, velocity-, and center-of-mass-derived rigid asset data
+  immediately after simulation state and property writes.
+* Fixed dynamics reads for reversed USD joint relationships.
+
+
+8.2.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added asset method and data property micro-benchmarks for the articulation,
+  rigid object, and rigid object collection classes.
+* Added update and backend-read micro-benchmarks with structured results for
+  contact, frame transformer, IMU, PVA, joint wrench, and ray caster sensors.
+* Added matched plane and deterministic rough-terrain phases to the ray caster
+  sensor micro-benchmark.
+
+Changed
+^^^^^^^
+
+* Changed the ovphysx asset micro-benchmarks from separate method and data scripts
+  to one combined script per asset concept. Run the retained
+  benchmark_<asset>.py script to produce both historical result artifacts.
+
+
+8.1.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OvPhysX articulation Jacobians, mass matrices, and gravity compensation
+  through the backend-agnostic articulation data API.
+
+Changed
+^^^^^^^
+
+* Cached stable OvPhysX articulation read launches outside CUDA graph capture.
+  No user migration is required.
+
+
+8.1.0 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added volume and surface deformable-object support for the OVPhysX backend,
+  including nodal state, volume kinematic targets, mesh connectivity, and
+  runtime deformable material properties.
+
+
+8.0.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added backend joint/body ordering introspection properties to
+  :class:`~isaaclab_ovphysx.assets.Articulation`.
+
+Changed
+^^^^^^^
+
+* Added ``ovstage`` as a required dependency so it is installed automatically alongside
+  ``isaaclab_ovphysx``.
+* Changed the OVPhysX dependency to ``ovphysx==0.5.9`` and migrated initial
+  USD ingestion to OVStage.
+
+Fixed
+^^^^^
+
+* Fixed indexed joint-state writes with nonidentity joint ordering so positions
+  and velocities reach the intended backend joints.
+* Fixed root-link velocity refreshes that overwrote and falsely marked the
+  body-link velocity cache as fresh.
+* Fixed partial joint position and velocity writes that rewrote newer
+  unselected backend rows with stale cached values.
+
+
+7.0.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_ovphysx.assets.Articulation.write_joint_state_to_sim_index` to update
+  joint position and velocity state in one device kernel.
+* Added :data:`~isaaclab_ovphysx.cloner.PHYSICS_CONTEXT`, the backend's default physics
+  replication context referenced by asset cfgs: its clone replay authors USD itself, so it
+  replicates alone. With physics replication disabled, OvPhysX assets are not cloned.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+* Removed ``queue_ovphysx_replication``: direct the contexts through
+  :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` and
+  :func:`~isaaclab.cloner.queue_replication` instead.
+
+Fixed
+^^^^^
+
+* Fixed unnecessary wrench-buffer resets when OVPhysX articulations had no instantaneous wrenches.
+* Fixed :class:`~isaaclab_ovphysx.sensors.ContactSensor` failing to initialize on assets with
+  nested rigid-body hierarchies (e.g. USD generated by the URDF importer in Isaac Sim 6.0 and
+  later). The contact-binding sensor patterns are now built from each body's own resolved path
+  expression instead of the first matched body's parent plus leaf names, which could not address
+  bodies nested under other bodies.
+* Fixed OVPhysX actuator joint indices to follow the common actuator indexing contract.
+* Fixed OVPhysX initialization alongside Kit by reusing Kit's registered PhysX schema provider.
+* Fixed the OVPhysX manager to support both the declared public runtime API and the current runtime API.
+
+
+6.3.1 (2026-07-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``fix_root_link=True`` for OVPhysX fragment-based articulation spawns by relocating the
+  articulation root to the parser-required parent, including when an existing disabled world fixed
+  joint is re-enabled.
+
+
+6.3.0 (2026-07-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :data:`~isaaclab_ovphysx.tensor_types.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION` alias for
+  the per-collision-shape rigid-body material tensor type (static friction, dynamic friction,
+  restitution) exposed by the ovphysx wheel. Read and write it through
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`, e.g.
+  ``root_view.get_attribute(tensor_types.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)``.
+
+
+6.2.0 (2026-07-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_local_scales`
+  and :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_world_scales`,
+  which delegate to the internal :class:`~isaaclab.sim.views.UsdFrameView`.
+  Scale writes go through the writer scope (see the ``xform-space-writer``
+  fragment).
+* Added :data:`~isaaclab_ovphysx.tensor_types.SHAPE_FRICTION_AND_RESTITUTION` and
+  :data:`~isaaclab_ovphysx.tensor_types.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION` aliases for
+  the per-collision-shape material tensor types (static friction, dynamic friction,
+  restitution) exposed by the ovphysx wheel. Read and write them through
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`, e.g.
+  ``root_view.get_attribute(tensor_types.SHAPE_FRICTION_AND_RESTITUTION)``.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView` now ships
+  pass-through ``FrameViewWorldSpaceWriter`` / ``FrameViewLocalSpaceWriter``
+  implementations so writes follow the new
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_world_space_writer` /
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer` context API.
+  ``set_world_poses`` / ``set_local_poses`` shims still work (one-time
+  ``DeprecationWarning`` per class).  Scale writes inside the writer scope
+  delegate to the internal :class:`~isaaclab.sim.views.UsdFrameView` and
+  land in the USD stage (no propagation to OVPhysX-side collision-shape
+  scales).
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_scales` and
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.set_scales`.  For reads,
+  use the explicit ``get_local_scales`` (operates on ``xformOp:scale``) or
+  ``get_world_scales``.  For writes, use the writer scope's
+  ``set_scales``.  The deprecated methods still work but emit a
+  ``DeprecationWarning`` and default to local scales, preserving prior
+  behavior.
+
+
+6.1.1 (2026-07-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OVPhysX optional runtime dependency to install
+  ``ovphysx==0.5.2+head.f62c22207c``, matching the supported runtime wheel.
+
+
+6.1.0 (2026-07-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ovphysx.physics.OvPhysxCfg.enable_enhanced_determinism` and
+  :attr:`~isaaclab_ovphysx.physics.OvPhysxCfg.enable_external_forces_every_iteration`, mirroring the
+  equivalent PhysX solver settings already exposed on
+  :class:`~isaaclab_physx.physics.PhysxCfg`.
+
+
+6.0.0 (2026-07-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :attr:`~isaaclab_ovphysx.assets.RigidObjectCollection.root_view` now returns an
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` binding manager instead of a raw ``dict``
+  mapping ``TensorType`` to ``TensorBinding``. The view wraps the fused multi-prim bindings
+  (``prim_paths=[...]``) and stores each under the collection's ``LINK_*``/``BODY_*`` data-class
+  key via ``key_aliases`` (mapped from the underlying ``RIGID_BODY_*`` type). Replace
+  ``root_view[tensor_type]`` with ``root_view.try_binding_for(tensor_type)``.
+
+Fixed
+^^^^^
+
+* Updated :class:`~isaaclab_ovphysx.physics.OvPhysxManager` for the current
+  OVPhysX constructor, stage-reset, and synchronous-step APIs.
+* Synchronized GPU-to-host property staging before OVPhysX consumes the pinned
+  host buffers.
+
+
+5.0.1 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed center-of-mass writes in :class:`~isaaclab_ovphysx.assets.RigidObject`,
+  :class:`~isaaclab_ovphysx.assets.RigidObjectCollection`, and
+  :class:`~isaaclab_ovphysx.assets.Articulation` for compatibility with Warp
+  1.15.
+
+
+5.0.0 (2026-06-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :attr:`~isaaclab_ovphysx.assets.Articulation.root_view` now returns an
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` binding manager instead of a raw
+  ``dict`` mapping ``TensorType`` to ``TensorBinding``. The view owns all tensor-binding
+  creation, caching, reads, and writes for the articulation. Address bindings by attribute
+  name or ``TensorType`` member through
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.try_binding_for` /
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.get_attribute` rather than indexing the
+  dict, e.g. replace ``root_view[tensor_type]`` with
+  ``root_view.try_binding_for(tensor_type)`` and ``tensor_type in root_view`` with
+  ``root_view.try_binding_for(tensor_type) is not None``.
+* **Breaking:** :attr:`~isaaclab_ovphysx.assets.RigidObject.root_view` now returns an
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` binding manager instead of a raw
+  ``dict`` mapping ``TensorType`` to ``TensorBinding``. The view owns all tensor-binding
+  creation, caching, reads, and writes for the rigid object. Replace ``root_view[tensor_type]``
+  with ``root_view.try_binding_for(tensor_type)`` /
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.get_attribute`.
+
+Fixed
+^^^^^
+
+* Fixed repeated OVPhysX articulation body-frame center-of-mass pose reads by caching them as model
+  properties and invalidating dependent buffers when center-of-mass offsets are updated.
+
+
+4.0.0 (2026-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`, a string-keyed binding manager
+  over the OVPhysX tensor bindings. Attributes are addressed by the lowercased
+  ``TensorType`` name (e.g. ``view.get_attribute("articulation_dof_stiffness")``,
+  ``view.read_into("articulation_root_pose", buf)``,
+  ``view.set_attribute("rigid_body_pose", values, mask=...)``), bringing the OVPhysX
+  binding surface closer to the Newton selection API. The view reads/writes each binding
+  on its native device and raises on a device mismatch rather than staging between CPU
+  and GPU. :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.get_attribute` returns a typed
+  array for attributes with a structured layout (e.g. ``wp.transformf`` for poses,
+  ``wp.spatial_vectorf`` for velocities) and flat ``float32`` otherwise, and
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.read_into` reuses the ``float32``
+  reinterpret of a destination buffer across calls so the wheel's read cache stays warm.
+
+
+3.2.0 (2026-06-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_ovphysx.sensors.JointWrenchSensor` and
+  :class:`~isaaclab_ovphysx.sensors.JointWrenchSensorData` so the factory
+  :class:`~isaaclab.sensors.JointWrenchSensor` dispatches under the OVPhysX
+  backend.
+* Added :class:`~isaaclab_ovphysx.sensors.FrameTransformer` and
+  :class:`~isaaclab_ovphysx.sensors.FrameTransformerData` for OVPhysX
+  frame transform sensing.
+
+Removed
+^^^^^^^
+
+* Removed :attr:`~isaaclab_ovphysx.assets.ArticulationData.body_incoming_joint_wrench_b`
+  to match the PhysX and Newton backends. Add
+  :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene and read
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.force` and
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.torque` instead.
+
+
+3.1.0 (2026-06-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_ovphysx.sensors.Imu` and
+  :class:`~isaaclab_ovphysx.sensors.ImuData` implementing the
+  :class:`~isaaclab.sensors.imu.BaseImu` /
+  :class:`~isaaclab.sensors.imu.BaseImuData` contracts on the OVPhysX
+  backend. Reports angular velocity and proper linear acceleration in
+  the sensor body frame using ovphysx tensor bindings on the rigid-body
+  ancestor of the sensor prim path.
+* Added :mod:`isaaclab_ovphysx.sensors.ray_caster` with
+  :class:`~isaaclab_ovphysx.sensors.ray_caster.RayCaster`,
+  :class:`~isaaclab_ovphysx.sensors.ray_caster.RayCasterCamera`,
+  :class:`~isaaclab_ovphysx.sensors.ray_caster.MultiMeshRayCaster`, and
+  :class:`~isaaclab_ovphysx.sensors.ray_caster.MultiMeshRayCasterCamera`.
+  Mirrors :mod:`isaaclab_physx.sensors.ray_caster` structure: a single
+  ``_OvPhysxRayCasterMixin`` carries the backend-specific pose-tracking
+  surface, reading body poses via the ovphysx
+  ``create_tensor_binding(pattern=..., tensor_type=RIGID_BODY_POSE)``
+  API. Static (non-physics) sensor frames fall back to a one-time USD
+  pose snapshot. Unblocks ``Isaac-Velocity-Rough-Anymal-D-v0`` (the
+  height_scanner now dispatches under OVPhysX).
+* Added :class:`~isaaclab_ovphysx.sensors.Pva` and
+  :class:`~isaaclab_ovphysx.sensors.PvaData` implementing the
+  :class:`~isaaclab.sensors.pva.BasePva` /
+  :class:`~isaaclab.sensors.pva.BasePvaData` contracts on the OVPhysX
+  backend. Reports world-frame pose, body-frame linear and angular
+  velocities, body-frame coordinate linear and angular accelerations,
+  and projected gravity using ovphysx tensor bindings on the rigid-body
+  ancestor of the sensor prim path. Linear and angular accelerations
+  are coordinate accelerations (zero at rest, ``-g`` in freefall) and
+  do not include the IMU's gravity bias — projected gravity is reported
+  separately as the unit gravity direction vector.
+* Added :meth:`~isaaclab_ovphysx.physics.OvPhysxManager.get_gravity`
+  classmethod mirroring PhysX's ``SimulationView.get_gravity()`` so
+  backend-agnostic sensor code can read scene gravity through a single
+  entry point.
+
+
+3.0.6 (2026-06-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``skip_forward`` argument to the root, body, and joint state writers (e.g.
+  ``write_root_link_pose_to_sim_index``) to defer cached-buffer invalidation when several
+  writes are batched before a single forward pass.
+
+Fixed
+^^^^^
+
+* Fixed stale cached asset pose and velocity state after simulation state writes.
+
+
+3.0.5 (2026-06-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused shared path-expression helpers when deriving OVPhysX schema-root view expressions.
+
+
+3.0.4 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Re-enabled both CPU and GPU coverage in CI for OVPhysX tests by tagging
+  :file:`test/assets/test_articulation.py`,
+  :file:`test/assets/test_rigid_object.py`,
+  :file:`test/assets/test_rigid_object_collection.py`,
+  :file:`test/sensors/test_contact_sensor.py`, and
+  :file:`test/sim/test_views_xform_prim_ovphysx.py` with the new
+  ``device_split`` pytest marker, which causes the CI driver to invoke each
+  file once per device in separate subprocesses. Works around the
+  ``ovphysx<=0.3.7`` process-global device lock (gap G5).
+* Stopped OVPhysX assets from enqueueing redundant USD replication work
+  during scene cloning.
+
+
+3.0.3 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added an actionable install error when the optional ``ovphysx`` runtime wheel
+  is missing from the :mod:`isaaclab_ovphysx` backend.
+
+
+3.0.2 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OVPhysX optional runtime dependency to install ``ovphysx==0.4.13``
+  instead of accepting newer breaking releases.
+
+
+3.0.1 (2026-06-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added torch tensor input support to
+  :meth:`~isaaclab_ovphysx.assets.RigidObjectCollection.reshape_data_to_view_3d`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_scales`
+  now returns a :class:`~isaaclab.utils.warp.ProxyArray`, matching the updated
+  :class:`~isaaclab.sim.views.BaseFrameView` contract. Callers that fed the
+  return value into Warp kernels or ``set_scales`` need to extract the
+  underlying array via ``.warp``.
+
+
 3.0.0 (2026-05-20)
 ~~~~~~~~~~~~~~~~~~
 

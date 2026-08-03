@@ -1,0 +1,280 @@
+Please see the most recent version of this license here: https://docs.omniverse.nvidia.com/dev-guide/latest/common/NVIDIA_Omniverse_License_Agreement.html.
+
+NVIDIA OMNIVERSE LICENSE AGREEMENT
+
+This license, including the exhibit attached, is a legal agreement between you and NVIDIA Corporation (“NVIDIA”) and governs the use of NVIDIA Omniverse for both individuals and Omniverse Enterprise Subscriptions. By accessing or using Omniverse and the associated services, as applicable, you are affirming that you have read and agree to this license.
+
+This license can be accepted only by an adult of legal age of majority in the country in which Omniverse is used. If you are under the legal age of majority, you must ask your parent or legal guardian to consent to this license.
+
+If you are entering into this license on behalf of a company or other legal entity, you represent that you have the legal authority to bind the entity to this license, in which case “you” will mean the entity you represent.
+
+If you don’t have the required age or authority to accept this license, or if you don’t accept all the terms and conditions of this license, do not use Omniverse.
+
+You agree to use Omniverse only for purposes that are permitted by (a) this license, and (b) any applicable law, regulation or generally accepted practices or guidelines in the relevant jurisdictions.
+
+1. Definitions
+
+1.1 “App” means a NVIDIA application. An App is typically a user persona specific tool, service or workflow.
+
+1.2 “Batch” means a NVIDIA batch processing tool for rendering and microservices.
+
+1.3 “Connector” means a NVIDIA plug-in between Omniverse Products and certain third-party content creation tools.
+
+1.4 “Content” means a NVIDIA audio asset, 2D asset or 3D asset.
+
+1.5 “Contribution” means any code, in source code format or object code format, or any other information or content, that you make available to NVIDIA by any means (e.g., via submissions to forums, or via the Exchange, or NVIDIA’s GitHub Omniverse repository, or through email or otherwise), except for: (i) those portions of your applications and extensions developed on top of Apps and Extensions without modifying the Apps and Extensions, and (ii) derivative works of Content as authorized under Section 2.1 (c), which are not Contributions.
+
+1.6 “Creator” means a collection of Omniverse Products that enable authorized users to, for example, create content, connect to design applications and develop new applications and workflows.
+
+1.7 “Exchange” means a feature of the Launcher that allows the exchange of Omniverse Products with other Omniverse Licensees.
+
+1.8 “Extension” means a NVIDIA plug-in to Omniverse Kit that enables new capabilities, workflows, UIs or services.
+
+1.9 “Feedback” means suggestions, fixes, modifications, feature requests or other feedback regarding Omniverse, including proposed changes.
+
+1.10 “Kit” means a NVIDIA toolkit application for the development of applications or services.
+
+1.11 “Launcher” means a download manager for Omniverse Products.
+
+1.12 “License Portal” means the website https://nvid.nvidia.com and its subdomains, including (but not limited to) the associated software and services, from which certain Omniverse users can obtain designated Omniverse Products not generally available from the Omniverse Website.
+
+1.13 “Nucleus” means a NVIDIA application that enables collaboration services.
+
+1.14 “Omniverse” means the Omniverse Website, License Portal and Omniverse Products.
+
+1.15 “Omniverse GitHub Repository” means the repository at https://github.com/NVIDIA-Omniverse.
+
+1.16 “Omniverse Licensee” means a third party who is separately licensed by NVIDIA to use the Omniverse Products.
+
+1.17 “Omniverse Products” means the NVIDIA published content that can be downloaded from the Omniverse Website or the License Portal such as the Launcher, Nucleus, Connectors, Apps, Kits, Batch, Extensions, Content, and Utility Tools each as available at NVIDIA’s discretion exclusive of Third-Party Published Content.
+
+1.18 “Omniverse Website” means the website http://www.nvidia.com/omniverse/ and its subdomains, including (but not limited to) the associated software and services.
+
+1.19 “Project Content” means a game, application, software, or other content that you develop using Omniverse Products.
+
+1.20 “Public Distribution” means to provide Omniverse or otherwise make a copy available, or to make Omniverse functionality available to third parties.
+
+1.21 “Third-Party Published Content” means any content from third party publishers available to Omniverse users.
+
+1.22 “Reviewer” means a collection of Omniverse Products that enable authorized users to view and approve Omniverse generated content.
+
+1.23 “Utility Tools” means tools for use with Omniverse Products for troubleshooting, diagnostics, performance analysis and maintenance.
+
+2. Licenses
+
+2.1 Grant to Omniverse Products. Subject to the terms of this license and payment of fees (where applicable), NVIDIA grants you a non-exclusive, non-transferable, non-sublicensable (except as described in this license) license to use the NVIDIA Omniverse Products as follows:
+
+Install and use copies of the Launcher, Nucleus, Connectors, Apps, Kits, Batch, Extensions Content, and Utility Tools subject to the applicable limitations of your license (for example, your license type and duration),
+
+Configure Omniverse Products using the configuration files provided (as applicable),
+
+Modify and create derivative works of source code provided by NVIDIA as part of the Apps and Extensions, and any Public Distribution (i.e., intended for Omniverse Licensees generally) which includes Apps and Extensions (including as modified by you under this license) must take place either through the Exchange or through a fork of the Omniverse GitHub Repository,
+
+Modify and create derivative works of: the sample or reference source code delivered in the Utility Tools, and the Content,
+
+Distribute those Extensions that are identified as samples (unmodified or as modified by you), subject to the distribution requirements below,
+
+Distribute snippets of any Extensions, up to 30 lines of code in length, online in public forums for the sole purpose of discussing the content of the snippet, or distribute such snippets in connection with supporting patches and plug-ins for the Extension or other Omniverse Products, so long as it is not to aggregate, recombine, or reconstruct any larger portion of the Extension, subject to the distribution requirements below,
+
+Distribute extensions or applications that you develop using the Kit and/or Extensions, provided that the Kit itself is not distributed and that Extensions are only distributed pursuant to the grants in subsections 2(e) or 2(f),
+
+Distribute Content (unmodified or as modified by you) as incorporated into your products or services for the purpose of enhancing your work, subject to the distribution requirements below, but not deploy or distribute the Content on a stand-alone basis,
+
+Distribute user generated content that you develop using Omniverse, such as video, audio, stills, models, 3D assets and screen captures, including (but not limited to) as described in Section 5 of this Agreement, and
+
+Execute batch jobs using Omniverse Products obtained from the License Portal, such as rendering, on compute nodes up to the number of GPUs authorized in your license.
+
+2.2 Terms for Third-Party Published Content On Omniverse, users may find content from third party publishers, as available from time to time. NVIDIA encourages you to review the license, privacy statements and other documents (as applicable) for the Third-Party Published Content that you choose to obtain, including so that you can understand how the provider may collect, use and share your data. When you obtain Third-Party Published Content delivered by NVIDIA, NVIDIA may also share your registration information and information about your use with the third-party provider. NVIDIA is not responsible for the licenses, privacy statements or practices of other companies or organizations.
+
+NVIDIA does not provide any warranties or support, nor shall NVIDIA be liable to you or third parties with respect to use of Third-Party Published Content. Any claims related to your use of Third-Party Published Content is solely between you and the licensor.
+
+2.2 Promotional Offerings. NVIDIA may, from time to time, offer free or discounted pricing programs covering certain uses of Omniverse Products, as examples for evaluation or academic use. NVIDIA may stop accepting new sign-ups or discontinue a promotional offering at any time. Standard charges will apply after a promotional offering end or if you exceed the promotional offering use terms. You must comply with any additional terms, restrictions, or limitations (e.g., limitations on the total amount of usage) for a promotional offering as described in the corresponding offer terms.
+
+2.3 License Types.
+
+Omniverse Products obtained by individuals from the Omniverse Website under this license may be used commercially, provided however that (a) an authorized user can only use Nucleus, Connectors, Apps and Kits with one other individual in your entity or its affiliates to create Project Content without purchasing Subscription Licenses and (b) use of Batch by an individual is limited to two GPUs. For clarity, an entity and its affiliates may have multiple groups of up to two individuals creating Project Content without purchasing Subscription Licenses. Omniverse Enterprise Subscription Licenses are required for an authorized user to use Nucleus, Connectors, Apps and Kits with three or more individuals in your entity or affiliates to create Project Content. The License Portal contains Omniverse Products available under Subscription Licenses.
+
+Omniverse Products in the License Portal are licensed under the license types below; and not all license types may be available for each Omniverse Product. Your order, license key and/or the product description will indicate the features of your license.
+
+“Subscription License” means a license with a fixed duration and inclusive of certain services described in the Software Support Supplement for the duration of the license. You may have the option to purchase additional services for the duration of a Subscription License, based on NVIDIA’s then-current service offerings.
+
+“Concurrent Users License” or “CCU” means a license that allows concurrent authorized users to use an Omniverse Product, however the simultaneous number of authorized users cannot exceed the maximum number of CCUs authorized under the license.
+
+“Named User License” means a license that may only be used by a single named authorized user and such authorized user may not re-assign or share the license with any other person (including, without limitation, other authorized users); provided, however, that if the named authorized user is no longer employed or no longer requires any access to Omniverse Product as part of his or her job, you may re-assign a named user license to a new named authorized user. You shall track the names and the access period of individuals in conjunction with the use of Named User Licenses.
+
+Under some license types authorized users are Creators of certain Omniverse Products and under other license types authorized users are Viewers of certain Omniverse Products.
+
+3. Distribution Requirements.
+These are the distribution requirements for you to exercise the distribution grants described above:
+
+3.1 For Omniverse Products distributed that contain NVIDIA source code, you shall include the following notice: “This software contains source code provided by NVIDIA Corporation.”
+
+3.2 The terms under which you distribute Omniverse Products must be at least as protective as the terms of this license (including, but not limited to, terms relating to the license grant, license restrictions and protection of NVIDIA’s intellectual property rights).
+
+4. Authorized Users.
+You may allow employees and contractors of your entity or of your subsidiary(ies) to access and use Omniverse from your secure network to perform work on your behalf. If you are an academic institution, you may allow users enrolled or employed by the academic institution to access and use the Omniverse from your secure network. You are responsible for the compliance with the terms of this license by your authorized users.
+
+5. User Content
+Certain NVIDIA published Apps include functionality that allows users to share and transmit user generated content with other users, which is enabled by NVIDIA websites, services and APIs. You may share content via Apps that you separately own or have rights to use (“User Content”) in accordance with the terms of this Agreement, so that you and other App users that have access to the User Content may access, use, modify, organize and share the User Content. Further, you are solely responsible for any User Content that you upload, store or share, including any personal information relating to an identifiable individual, financial, health or governmental information, or any other information which may be subject to data privacy or data security laws, rules, or regulations.. You represent that you either own the User Content or have sufficient rights and permissions to use it in or with Omniverse Products. You are solely responsible for compliance with all applicable laws, statutes, regulations, rules, orders and guidelines, whether local, state, provincial, national, or international, with respect to your User Content.. You hereby grant NVIDIA, its affiliates, their personnel and suppliers and service providers a non-exclusive, worldwide, limited license to access, use, copy, display and transmit User Content in connection with the provision of the sharing functionality in Apps, to provide you support or for security reasons, and to modify or improve Omniverse Products and underlying technology. YOU ACCEPT SOLE RESPONSIBILITY FOR AND ASSUME ALL RISK ARISING FROM USER CONTENT IN YOUR ACCOUNT. Any User Content is shared at your sole risk and you understand it can be read, collected, used and modified by those with access to the User Content and NVIDIA is not responsible for such User Content including (without limitation) your privacy rights, your proprietary rights, or your legal and regulatory compliance. You acknowledge that NVIDIA does not manage or control User Content that you upload, access, store, or distribute through Apps, and accepts no responsibility or liability for that information regardless of whether such User Content is transmitted to or by you in breach of this Agreement.
+
+You acknowledge and agree that NVIDIA may, but is not obligated to, block, monitor, scan or review User Content transmitted through Omniverse and that NVIDIA shall not be responsible for the content of any such communications or transmissions but may remove User Content if requested to do so by law enforcement. In connection with providing or otherwise sharing User Content through Omniverse , you represent and warrant that neither the User Content nor your posting, publication, submission or transmittal of it or the use of it (or any portion thereof) will: (a) infringe, misappropriate or violate a third party’s patent, copyright, trademark, trade secret, moral rights or other intellectual property rights, or rights of publicity or privacy, or otherwise violates the terms under which you are licensed; (b) express or imply any endorsement of your User Content by NVIDIA; or (c) violate applicable national or international export and import laws, rules and regulations. You further represent and warrant that neither your actions nor your posting, submission or otherwise transmission of any permitted User Content or other content will: (i) violate, or encourage any conduct that would violate any applicable law or regulation or would give rise to legal liability; (ii) be fraudulent, false, misleading or deceptive; (iii) be defamatory, obscene, pornographic, vulgar or offensive; (iv) promote discrimination, bigotry, racism, hatred, harassment or harm against any individual or group; (v) be violent or threatening or promote violence or actions that are threatening to any other person; (vi) promote illegal activities; (xii) contain any malware, viruses, drop dead device, worm, trojan horse, trap, back door or other software routine that is designed to delete, disable, deactivate, interfere with or otherwise harm any software, program, data, device, system or service, or which is intended to provide unauthorized access or to produce unauthorized modifications; (xiii) use any robot, spider, data scrapping or extraction tool or other similar mechanism; or (ix) interfere with or disrupt the security, integrity or performance of Omniverse. You are responsible for the consequences of User Content that does not conform to these limitations.
+
+6. Limitations
+Your license to use Omniverse is restricted as follows:
+
+6.1 You shall use Omniverse exclusively for authorized and legal purposes, consistent with all applicable laws, regulations and the rights of others.
+
+6.2 You may not combine the use of paid and unpaid Omniverse Products to bypass paying license or service fees to NVIDIA. If three or more individuals in your entity or its affiliates collaborate to create Project Content, Subscription Licenses are required.
+
+6.3 You may not reverse engineer, decompile or disassemble, or remove copyright or other proprietary notices from any portion of the Omniverse Products or copies of the Omniverse Products.
+
+6.4 Except as expressly provided in this license, you may not copy, sell, rent, sublicense, transfer, distribute, modify or create derivative works of any portion of Omniverse, including (without limitation) in any publicly accessible software repositories.
+
+6.5 You are not licensed to use Omniverse Products to provide a service to third parties as a hosted or managed service without having a separate agreement with NVIDIA for this purpose. You may contact omniverse-license-questions@nvidia.com with a request for a license.
+
+6.6 You may not indicate that a product or service developed with Omniverse is sponsored or endorsed by NVIDIA.
+
+6.7 You may not bypass, disable, or circumvent any technical limitations, encryption, security, digital rights management or authentication mechanism in Omniverse.
+
+6.8 You may not misuse, disrupt or exploit NVIDIA servers for any unauthorized use, or try to access areas not intended for users, or upload to NVIDIA servers any malware (such as viruses, drop dead device, worm, trojan horse, trap, back door or other software routine of such nature), or use NVIDIA servers for any form of excessive automated bulk activity, or to relay any other form of unsolicited advertising or solicitation.
+
+6.9 You may not use the Omniverse Products in any manner that would cause them to become subject to an open source software or shareware license. As examples, licenses that require as a condition of use, modification, and/or distribution that the Omniverse Products be (i) disclosed or distributed in source code form; (ii) licensed for the purpose of making derivative works; or (iii) redistributable at no charge.
+
+6.10 Unless you have an agreement with NVIDIA for the use of Omniverse in critical applications, you may not use the Omniverse Products with any system or application where the use or failure of the system or application can reasonably be expected to threaten or result in personal injury, death, or catastrophic loss. Examples include use in avionics, navigation, military, medical, life support or other life critical applications. NVIDIA does not design, test or manufacture the Omniverse Products for these critical uses and NVIDIA shall not be liable to you or any third party, in whole or in part, for any claims or damages arising from such uses.
+
+6.11 You agree to defend, indemnify and hold harmless NVIDIA and its affiliates, and their respective employees, contractors, agents, officers and directors, from and against any and all claims, damages, obligations, losses, liabilities, costs or debt, fines, restitutions and expenses (including but not limited to attorney’s fees and costs incident to establishing the right of indemnification) arising out of or related to your use of Omniverse outside of the scope of this license, or not in compliance with its terms. If you are prohibited by law from entering into the indemnification obligation above, then you assume, to the extent permitted by law, all liability for all claims, demands, actions, losses, liabilities, and expenses (including attorneys’ fees, costs and expert witnesses’ fees) that are the stated subject matter of the indemnification obligation above.
+
+6.12 You may not distribute or disclose to third parties the output of the Utility Tools where the output reveals functionality or performance data pertinent to NVIDIA hardware or software products, results of benchmarking, competitive analysis, regression or performance data relating to the Utility Tools or NVIDIA GPUs without the prior written permission from NVIDIA.
+
+6.13 You may not replace any NVIDIA software components in the Omniverse Products that are governed by this license with other software that implements NVIDIA APIs.
+
+6.14 You may not use the Omniverse Products for the purpose of developing competing products or technologies or assisting a third party in such activities.
+
+Updates and Support. NVIDIA will at its sole discretion update the Omniverse Website, License Portal and Omniverse Products that are available from the Omniverse Website and License Portal. NVIDIA and you may consent to update over the air your version of the Launcher. Except if pursuant to an accepted order, NVIDIA is under no obligation to provide support services, maintenance, updates or upgrades as described in Software Support Supplement. Unless revisions are provided with their separate governing terms, they are deemed part of the Omniverse Website, License Portal or the Omniverse Product, as applicable, and governed by this license.
+
+Log-In Information. You are responsible for maintaining your NVIDIA Account log-in information secure for your use only, and for the activities under your account. You agree to notify NVIDIA of any known unauthorized use of your NVIDIA account.
+
+Pre-Release Versions. The Omniverse Website and/or Omniverse Products identified as alpha, beta, preview, early access or otherwise as pre-release may not be fully functional, may contain errors or design flaws, and may have reduced or different security, privacy, availability, and reliability standards relative to commercial versions of NVIDIA offerings. You may use a pre-release Omniverse offering at your own risk, understanding that such versions are not intended for use in business-critical systems. NVIDIA may choose not to make available a commercial version of any pre-release Omniverse offering. NVIDIA may also choose to abandon development and terminate the availability of a pre-release Omniverse offering at any time without liability.
+
+Components Under Other Licenses. Omniverse may include NVIDIA or third-party components with separate legal notices or terms as may be described in proprietary notices accompanying the Omniverse component. If and to the extent there is a conflict between the terms in this license and the license terms associated with a component, the license terms associated with a component control only to the extent necessary to resolve the conflict.
+
+To obtain source code for software provided under licenses that require redistribution of source code, including the GNU General Public License (GPL) and GNU Lesser General Public License (LGPL), contact oss-requests@nvidia.com. This offer is valid for a period of three (3) years from the date of the distribution of this product by NVIDIA CORPORATION.
+
+Ownership. NVIDIA reserves all rights, title and interest in and to Omniverse not expressly granted to you under this license. NVIDIA and its suppliers hold all rights, title and interest in and to Omniverse, including their respective intellectual property rights. Omniverse is copyrighted and protected by the laws of the United States and other countries, and international treaty provisions.
+
+Feedback. You may, but are not obligated to, provide Feedback to NVIDIA or a NVIDIA Affiliate. Feedback, even if designated as confidential by you, shall not create any confidentiality obligation for NVIDIA. NVIDIA and its designees have a perpetual, non-exclusive, worldwide, irrevocable license to use, reproduce, publicly display, modify, create derivative works of, license, sublicense, and otherwise distribute and exploit Feedback as NVIDIA sees fit without payment and without obligation or restriction of any kind on account of intellectual property rights or otherwise. You represent and warrant that you have sufficient rights in any Feedback that you provide to grant the rights described above.
+
+Contribution. If you make a Contribution as described in this license, you hereby assign to NVIDIA all right, title, and interest (including all copyright, patent, and other intellectual property rights) in that Contribution for all current and future methods and forms of exploitation in any country. If any of those rights are not effectively assigned under applicable law, you hereby grant NVIDIA and its designees a non-exclusive, fully-paid, irrevocable, transferable, sublicensable license to reproduce, distribute, publicly perform, publicly display, make, use, have made, sell, offer to sell, import, modify and make derivative works based on, and otherwise exploit that Contribution for all current and future methods and forms of exploitation in any country. If any of those rights may not be assigned or licensed under applicable law (such as moral and other personal rights), you hereby waive and agree not to assert such rights. NVIDIA will use the Contribution as it sees fit without payment and without obligation or restriction of any kind on account of intellectual property rights or otherwise. You represent and warrant that you have sufficient rights in any Contributions that you provide to grant the rights described above.
+
+Data Collection.
+
+You hereby acknowledge that the Omniverse software may access and collect data in order to: (a) deliver content or service through Omniverse; and (b) improve NVIDIA products and services. Information collected by the Omniverse software is limited to: (i) operating system; (ii) installed applications; (iii) usage data such as session duration and user UI interaction; and (iv) diagnostic data, including crash reports.
+
+Omniverse may contain links to websites and services. NVIDIA encourages you to review the privacy statements on those sites and services that you choose to visit so that you can understand how they may collect, use and share your data.  NVIDIA is not responsible for the privacy statements or practices of sites and services controlled by other companies or organizations.
+
+You should review the NVIDIA Privacy Policy, located at  https://www.nvidia.com/en-us/about-nvidia/privacy-policy/, which explains NVIDIA’s policy for collecting and using data.
+
+No Warranties. OMNIVERSE IS PROVIDED AS-IS AND WITH ALL FAULTS. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW NVIDIA AND ITS AFFILIATES EXPRESSLY DISCLAIM ALL WARRANTIES OF ANY KIND OR NATURE, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT, OR FITNESS FOR A PARTICULAR PURPOSE. NVIDIA DOES NOT WARRANT THAT OMNIVERSE WILL MEET YOUR REQUIREMENTS, OR THAT THE OPERATION THEREOF WILL BE UNINTERRUPTED OR ERROR-FREE, OR THAT ALL ERRORS CAN OR WILL BE CORRECTED. NVIDIA does not warrant or assume responsibility for the accuracy or completeness of any information, text, graphics, links or other items contained in Omniverse.
+
+Limitations of Liability. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW NVIDIA AND ITS AFFILIATES SHALL NOT BE LIABLE FOR ANY SPECIAL, INCIDENTAL, PUNITIVE OR CONSEQUENTIAL DAMAGES, OR FOR ANY LOST PROFITS, PROJECT DELAYS, LOSS OF USE, LOSS OF DATA OR LOSS OF GOODWILL, OR THE COSTS OF PROCURING SUBSTITUTE PRODUCTS, ARISING OUT OF OR IN CONNECTION WITH THIS LICENSE OR THE USE OR PERFORMANCE OF OMNIVERSE, WHETHER SUCH LIABILITY ARISES FROM ANY CLAIM BASED UPON BREACH OF CONTRACT, BREACH OF WARRANTY, TORT (INCLUDING NEGLIGENCE), PRODUCT LIABILITY OR ANY OTHER CAUSE OF ACTION OR THEORY OF LIABILITY, EVEN IF NVIDIA HAS PREVIOUSLY BEEN ADVISED OF, OR COULD REASONABLY HAVE FORESEEN, THE POSSIBILITY OF SUCH DAMAGES AND REGARDLESS IF A REMEDY FAILS ITS ESSENTIAL PURPOSE. IN NO EVENT WILL NVIDIA’S AND ITS AFFILIATES TOTAL CUMULATIVE LIABILITY UNDER OR ARISING OUT OF THIS LICENSE EXCEED THE NET AMOUNTS RECEIVED BY NVIDIA OR ITS AFFILIATES FOR YOUR USE OF THE PARTICULAR UNEXPIRED OMNIVERSE LICENSES GIVING RISE TO THE CLAIM BEFORE THE LIABILITY AROSE (or up to US$10.00 if you obtained licenses or services at no charge). THE NATURE OF THE LIABILITY OR THE NUMBER OF CLAIMS OR SUITS SHALL NOT ENLARGE OR EXTEND THIS LIMIT. The disclaimers, exclusions and limitations of liability set forth in this license form an essential basis of the bargain between the parties, and, absent any such disclaimers, exclusions or limitations of liability, the provisions of the license, including, without limitation, the economic terms, would be substantially different.
+
+Termination.
+
+17.1 NVIDIA may terminate this license upon notice if: (i) you fail to comply with any term of this license and the non-compliance is not fixed within thirty (30) days following notice from NVIDIA (or immediately if you violate NVIDIA’s intellectual property rights); (ii) you commence or participate in any legal proceeding against NVIDIA with respect to Omniverse; or (iii) you become the subject of a voluntary or involuntary petition in bankruptcy or any proceeding relating to insolvency, receivership, liquidation or composition for the benefit of creditors, if that petition or proceeding is not dismissed with prejudice within sixty (60) days after filing, or if you cease to do business.
+
+17.2 For Omniverse Products for which NVIDIA indicates a fixed license duration (i.e., a Subscription term), your license ends at the earlier of the expiration or termination of the applicable subscription term or this license. For Omniverse Products for which NVIDIA does not indicate a fixed license duration, either party may terminate the license at any time for convenience with 30 days prior written notice. Each service ends at the earlier of the expiration or termination of the service or this license, or upon the expiration or termination of the associated license and no credit or refund will be provided for any fees paid.
+
+17.3 Upon any expiration or termination of this license, a particular license or a service any amounts owed to NVIDIA become immediately due and payable and you agree to promptly discontinue use of the affected Omniverse Products and destroy all copies in your possession or control. Upon written request, you will certify in writing that you have complied with your commitments under this section. Upon any termination of this license all provisions survive except for the licenses granted to you.
+
+General
+
+18.1 Applicable Law. This license will be governed in all respects by the laws of the United States and of the State of Delaware, without regard to the conflicts of laws principles. The United Nations Convention on Contracts for the International Sale of Goods is specifically disclaimed. You agree to all terms of this license in the English language. The state or federal courts residing in Santa Clara County, California shall have exclusive jurisdiction over any dispute or claim arising out of this license. Notwithstanding this, you agree that NVIDIA shall still be allowed to apply for injunctive remedies or urgent legal relief in any jurisdiction.
+
+18.2 No Assignment. This license and your rights and obligations thereunder may not be assigned by you by any means or operation of law without NVIDIA’s permission. Any attempted assignment not approved by NVIDIA in writing shall be void and of no effect. NVIDIA may assign, delegate or transfer this license and its rights and obligations, and if to a non-affiliate you will be notified.
+
+18.3 Audit Rights. During the term of this license and for a period of three (3) years thereafter, NVIDIA or an independent auditor will have the right to audit you during regular business hours to check for compliance with the terms of this license. Audits will be conducted no more frequently than annually, unless non-compliance was previously found. If an audit reveals an underpayment, you will promptly remit the full amount of such underpayment to NVIDIA including interest that will accrue (without the requirement of a notice) at the lower of 1.5% per month or the highest rate permissible by law. If the underpaid amount exceeds five percent (5%) of the amounts payable to NVIDIA during the audited period and/or if the audit reveals a material non-conformance with the terms of this license, then you will reimburse NVIDIA’s reasonable audit costs. Further, you agree that the party delivering Omniverse licenses or services to you may share with NVIDIA information regarding your compliance with this license.
+
+18.4 Export. Omniverse is subject to United States export laws and regulations. You agree to comply with all applicable U.S. and international export laws, including the Export Administration Regulations (EAR) administered by the U.S. Department of Commerce and economic sanctions administered by the U.S. Department of Treasury’s Office of Foreign Assets Control (OFAC). These laws include restrictions on destinations, end-users and end-use. By accepting this license, you confirm that you are not currently residing in a country or region currently embargoed by the U.S. and that you are not otherwise prohibited from assessing or using Omniverse.
+
+18.5 Government Use. Omniverse is, and shall be treated as being, “Commercial Items” as that term is defined at 48 CFR § 2.101, consisting of “commercial computer software” and “commercial computer software documentation”, respectively, as such terms are used in, respectively, 48 CFR § 12.212 and 48 CFR §§ 227.7202 & 252.227-7014(a)(1). Use, duplication or disclosure by the U.S. Government or a U.S. Government subcontractor is subject to the restrictions in this license pursuant to 48 CFR § 12.212 or 48 CFR § 227.7202. In no event shall the US Government user acquire rights in Omniverse beyond those specified in 48 C.F.R. 52.227-19(b)(1)-(2).
+
+18.6 Notices. Please direct your legal notices or other correspondence to NVIDIA Corporation, 2788 San Tomas Expressway, Santa Clara, California 95051, United States of America, Attention: Legal Department. If NVIDIA needs to contact you about Omniverse, you consent to receive the notices by email or through Omniverse. You agree that any such notices that NVIDIA sends you electronically will satisfy any legal communication requirements.
+
+18.7 Force Majeure. Neither party will be responsible for any failure or delay in its performance under this Agreement (except for any payment obligations) to the extent due to causes beyond its reasonable control for so long as such force majeure event continues in effect.
+
+18.8 Entire Agreement. This license, together with the Software Support Supplement, is the final, complete and exclusive agreement between the parties relating to the subject matter of this license and supersedes all prior or contemporaneous understandings and agreements relating to this subject matter, whether oral or written. If any court of competent jurisdiction determines that any provision of this license is illegal, invalid or unenforceable, the remaining provisions will remain in full force and effect. Any additional and/or conflicting terms and conditions on any other documents are null, void, and invalid. Any amendment or waiver under this license shall be in writing and signed by representatives of both parties to be valid.
+
+18.9 Licensing. If the distribution terms in this license are not suitable for your organization, or for any questions regarding this license, please contact NVIDIA at omniverse-license-questions@nvidia.com.
+
+(v. May 13, 2022)
+
+SOFTWARE SUPPORT SUPPLEMENT
+The terms in this supplement describe the support services that you may obtain directly from NVIDIA for certain Omniverse Products under the terms of your license agreement as modified by this supplement. Capitalized terms used but not defined below shall have the meaning assigned to them in the license.
+
+This supplement is an exhibit to the license and is incorporated as an integral part of the license. In the event of conflict between the terms in this supplement and the terms in the license, the terms in this supplement shall govern.
+
+Scope
+If your order indicates that NVIDIA will directly provide Technical Support, Maintenance, Updates and/or Upgrades for your license(s), then NVIDIA agrees to provide the below services for the Omniverse Website, License Portal and applicable Supported Products based on the service subscription purchased during the applicable service term, solely on Certified System(s), and solely for the Supported OSs.
+
+The services described in this supplement are provided by NVIDIA to you based on the then-current service subscription plan(s) available for the Supported Product. If you have an agreement with a NVIDIA reseller specifying that a third-party will deliver the same services described in this supplement for Supported Products, this supplement does not apply. NVIDIA may update the scope of services under your service subscription plan and any such modifications are binding on you, provided that such modifications do not single you out.
+
+Services
+Technical Support. If your service subscription includes Technical Support, subject to payment of applicable fees NVIDIA will make available to you Technical Support for the Omniverse Website, License Portal and applicable Supported Products during the service term. You will be permitted to designate in writing to NVIDIA designated users for purposes of obtaining Technical Support. NVIDIA will provide Technical Support to such designated users only via a dedicated support portal. NVIDIA will use commercially reasonable efforts to analyze each potential Technical Support issue to determine if it qualifies for service. NVIDIA shall issue a response to all potential Technical Support issues filed, provided no commitment is made with respect to the specific resolution.
+
+Maintenance. If your service subscription includes Maintenance, subject to payment of applicable fees NVIDIA will make available to you the Maintenance associated with the applicable Supported Products during the service term.
+
+Updates. If your service subscription includes Updates, subject to payment of applicable fees NVIDIA will make available to you the Updates associated with the applicable Supported Products during the service term.
+
+Upgrades. If your service subscription includes Upgrades, subject to payment of applicable fees NVIDIA will make available to you the Upgrades associated with the applicable Supported Products during the service term.
+
+Reinstatement. If you elect not to renew certain service subscriptions and later you desire to re-enroll, you must pay with respect to the services being reinstated at the then-current rates: (a) fees for the period between the last expiration of the service subscription and until commencement of the new service subscription, (b) fees for service term of the new service subscription, and (c) any applicable reinstatement fees in addition to fees under (a) and (b). Service subscription re-enrollment is subject to availability of the service subscription plans at the time of ordering and software version restrictions.
+
+Requirements and Availability. You shall (a) purchase the initial service subscription for Supported Products only for the most current generally available version of Supported Products, and (b) initially purchase and renew service subscriptions for all of your licenses of the applicable Supported Products. The service subscription plans will indicate the types of services (from the above) that are available for specific Supported Products. NVIDIA is not obligated to provide any services under this supplement for Supported Products version after the end of support period to its licensees. NVIDIA is not obligated to initiate or renew any service subscription if such service subscription plan is no longer made available by NVIDIA.
+
+Exclusions
+NVIDIA does not provide services under this supplement related to:
+
+errors in your own or your licensors’ products that are not due to Errors in Omniverse;
+
+service necessary due to operator error, improper use of Omniverse or attempted support by unauthorized persons;
+
+use of Omniverse outside of this license scope;
+
+modifications to Omniverse made by you or on your behalf, or any modifications made by any third party without NVIDIA’s authorization;
+
+use of Omniverse that deviates from the operating procedures, indicated supported operating systems and any other specifications indicated in the documentation;
+
+to the extent the provision thereof would violate NVIDIA’s obligations to its third-party licensors and suppliers with respect to such third parties’ intellectual property; or
+
+Omniverse licenses or related services provided free of charge.
+
+Further, services under this supplement do not include any enhancement(s) or addition(s) to Omniverse beyond Maintenance, Updates and Upgrades for Supported Products.
+
+Your Responsibilities
+In order for NVIDIA to deliver services under this supplement, you agree that: you are responsible for procuring, installing and maintaining all equipment and obtaining all consents for other software and other hardware necessary to operate Omniverse; your failure to deploy a Maintenance, Update or Upgrade available to you as promptly as possible may render the applicable Supported Products non-operable or non-conforming to later documentation provided by NVIDIA; you shall further provide through designated users such information, and/or access to your resources and personnel as NVIDIA may reasonably require for providing services. As examples, as reasonably requested you shall (i) identify the correct version(s) of Omniverse Website, License Portal and/or Supported Products, (ii) provide the documentation and assistance necessary to demonstrate and diagnose each potential Technical Support issue, including providing necessary test cases that NVIDIA can reproduce on a Certified System, (iii) provide remote system access (upon mutual agreement) for NVIDIA to replicate potential Errors, and (iv) provide embedded diagnostic information; When you use Maintenance, Update or Upgrade, access to a new product version does not change the number of authorized licenses you have for Supported Products and you shall discontinue use of the prior version as necessary to maintain your authorized number of licenses; you will appoint as designated users only those of your employees who have reasonably appropriate technical backgrounds and skills. You may remove or replace designated users during the service term with notice to NVIDIA; and you will appoint, at NVIDIA’s request, designated service and engineering contacts for service issue escalations.
+
+NVIDIA shall be excused from performing any of its obligations hereunder to the extent any such non-performance is attributable to your failure to perform your responsibilities under this section.
+
+Service Fees; Payment Terms
+When you purchase service subscriptions directly from NVIDIA the following applies: Fees for the service subscriptions are set forth in the associated order and are payable pursuant to the terms of such order. Unless otherwise expressly indicated in an order, fees will be invoiced upon your purchase, are payable upon invoice and are expressed in U.S. Dollars. All fees are non-refundable, and don’t include any taxes, duties or similar charges. If NVIDIA is required to pay sales, use, property, value-added or other taxes based on the payments provided under the license and if NVIDIA is required to collect and remit such taxes, then such taxes shall be billed to and paid by you or your reseller, unless NVIDIA receives a valid exemption or resale certificate. If you are not billed the applicable tax under the order, then it is your responsibility to properly remit the tax directly to the applicable tax jurisdiction. Further, you acknowledge that the payments to NVIDIA under the license shall be made in full without reduction for withholding taxes, if applicable. This section shall not apply to taxes based on NVIDIA’s net income or payroll taxes. All amounts not paid when due will accrue interest (without the requirement of a notice) at the lower of 1.5% per month or the highest rate permissible by law until the unpaid amounts are paid in full. If payment is overdue, NVIDIA reserves the right to suspend or terminate service subscriptions, in addition to any other remedies it may have, until the payment delinquency is corrected. Payment obligations survive any expiration or termination of the license.
+
+Definitions
+“Certified Systems” means Supported OS platforms, corresponding hardware platforms, third-party software and configuration details appearing on a list maintained by NVIDIA and made available to you, or as otherwise approved by NVIDIA.
+
+“Error(s)” means a reproducible defect, problem, logical error or bug in the Supported Product that constitutes a failure to comply substantially with the applicable documentation and is reported using standard NVIDIA procedures.
+
+“Error Correction(s)” means adapting, re-configuring, or reprogramming the Supported Product to correct the Error(s).
+
+“Maintenance” means security patch(es), Error Correction(s) and Workaround(s) to the Supported Product made available by NVIDIA in its sole discretion and on a “when and if generally made available” basis to its other commercial customers of the Supported Product who have the same Supported Product version under a service subscription contract with NVIDIA that specifically includes “Maintenance”. Maintenance may include revisions to documentation.
+
+“Supported OS” means the supported operating system(s) listed in conjunction with a particular Certified System on the list maintained by NVIDIA and made available to you.
+
+“Supported Products” means the Omniverse Products installed for your use that are under a current and valid license and for which you purchased service subscriptions and does not include any modifications made by you or a third party on your behalf, any modifications to the Omniverse Products made by NVIDIA pursuant to a consulting services agreement or any portion of the Omniverse Products not developed by NVIDIA.
+
+“Technical Support” means the provision of telephone or web-based technical assistance to questions from designated users related to the installation, use and operation of the Omniverse Website, License Portal or Supported Products, including basic instruction or assistance related to functional Errors in the Omniverse Website, License Portal or Supported Product.
+
+“Updates” means those modifications to the Supported Product other than Maintenance made available by NVIDIA in its sole discretion and on a “when and if generally made available” basis to its other commercial customers of the Omniverse Product who have the same Supported Product version under a service subscription contract with NVIDIA that specifically includes “Updates” and that is indicated by NVIDIA as being an update by means of a change in the digit to right of first decimal point (e.g., version 5.0 to version 5.1).
+
+“Upgrades” means those modifications to the Supported Product other than Maintenance made available by NVIDIA in its sole discretion and on a “when and if generally made available” basis to its other commercial customers of the Supported Product who have the same Supported Product version under a service subscription contract with NVIDIA that specifically includes “Upgrades” and that is indicated by NVIDIA as being an upgrade by means of a change in the digit to left of first decimal point (e.g., version 5.0 to version 6.0).
+
+“Workarounds” means procedures and routines, for use by you, which, when employed in the regular operation of, or access to, the Omniverse Enterprise Product, will avoid or substantially diminish the practical adverse effects of the relevant Error.

@@ -14,7 +14,7 @@ This script demonstrates USD-authored PPISP on a Gaussian scene through the kit-
         --max_steps 60 \
         --num_envs 8
 
-OVRTX must run kit-less: do not launch this script through ``isaaclab.sh -p``.
+OVRTX must run kit-less: launch this script with ``uv run python``.
 """
 
 import argparse
@@ -26,15 +26,20 @@ import numpy as np
 import torch
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
-from isaaclab_ppisp.cfg import PpispCfg, ppisp_cfg_from_usd_shader
+from isaaclab_ppisp._demo_utils import (
+    find_ppisp_camera_bindings,
+    format_available_ppisp_cameras,
+    order_ppisp_bindings_by_camera,
+)
+from isaaclab_ppisp.cfg import PpispCfg, ppisp_cfg_from_usd_camera
 
-from pxr import Usd, UsdGeom, UsdShade
+from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
 DEFAULT_INPUT_SCENE = f"{ISAAC_NUCLEUS_DIR}/Samples/Scene_ParticleField/valiant_auto.usdz"
@@ -50,7 +55,7 @@ parser.add_argument(
     "--camera_prim_path",
     type=str,
     default=None,
-    help="Optional camera prim path override. Omit to auto-select the first PPISP-bound camera.",
+    help="Optional camera prim path override. Omit to auto-select the first camera with PPISP attributes.",
 )
 parser.add_argument(
     "--camera_time_code",
@@ -100,11 +105,6 @@ parser.add_argument(
     type=str,
     default=None,
     help="Directory to write comparison images. Defaults to scripts/demos/sensors/output/ppisp_camera_ovrtx.",
-)
-parser.add_argument(
-    "--disable_ovrtx_cloning",
-    action="store_true",
-    help="Export all envs to OVRTX instead of using OVRTX internal env cloning.",
 )
 parser.add_argument("--ovrtx_log_level", type=str, default="verbose", help="OVRTX carb log level.")
 parser.add_argument("--ovrtx_log_file", type=str, default="/tmp/ovrtx_renderer.log", help="OVRTX log file path.")
@@ -164,7 +164,6 @@ def make_renderer_cfg() -> Any:
         ) from exc
 
     return OVRTXRendererCfg(
-        use_ovrtx_cloning=not args_cli.disable_ovrtx_cloning,
         log_level=args_cli.ovrtx_log_level,
         log_file_path=args_cli.ovrtx_log_file,
     )
@@ -180,61 +179,11 @@ def make_sim_cfg() -> sim_utils.SimulationCfg:
     )
 
 
-def find_ppisp_camera_bindings(stage: Usd.Stage) -> list[tuple[str, Usd.Prim, Usd.Prim]]:
-    """Return camera, RenderProduct, and PPISP shader bindings from a source stage."""
-    bindings = []
-    for prim in stage.Traverse():
-        if prim.GetTypeName() != "RenderProduct":
-            continue
-        shader_prim = stage.GetPrimAtPath(prim.GetPath().AppendChild("PPISP"))
-        if not shader_prim or not shader_prim.IsValid():
-            continue
-        camera_rel = prim.GetRelationship("camera")
-        if not camera_rel:
-            continue
-        for target in camera_rel.GetTargets():
-            camera_prim = stage.GetPrimAtPath(target)
-            if camera_prim and camera_prim.IsValid():
-                bindings.append((str(target), prim, shader_prim))
-    return bindings
-
-
-def order_ppisp_bindings_by_camera(
-    stage: Usd.Stage, ppisp_bindings: list[tuple[str, Usd.Prim, Usd.Prim]]
-) -> list[tuple[str, Usd.Prim, Usd.Prim]]:
-    """Return PPISP bindings ordered by source Camera prim traversal."""
-    binding_by_camera_path = {}
-    for binding in ppisp_bindings:
-        binding_by_camera_path.setdefault(binding[0], binding)
-
-    ordered_bindings = []
-    seen_paths = set()
-    for prim in stage.Traverse():
-        if prim.GetTypeName() != "Camera":
-            continue
-        camera_path = str(prim.GetPath())
-        binding = binding_by_camera_path.get(camera_path)
-        if binding is not None:
-            ordered_bindings.append(binding)
-            seen_paths.add(camera_path)
-
-    for binding in ppisp_bindings:
-        if binding[0] not in seen_paths:
-            ordered_bindings.append(binding)
-            seen_paths.add(binding[0])
-    return ordered_bindings
-
-
-def format_available_ppisp_cameras(ppisp_bindings: list[tuple[str, Usd.Prim, Usd.Prim]]) -> str:
-    """Format PPISP-bound camera paths for CLI error messages."""
-    return "\n  ".join(dict.fromkeys(binding[0] for binding in ppisp_bindings))
-
-
-def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Prim, Usd.Prim]:
-    """Resolve the source camera and PPISP shader binding from CLI or source stage metadata."""
+def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Prim | None, Usd.Prim]:
+    """Resolve the source camera and PPISP camera binding from CLI or source stage metadata."""
     ppisp_bindings = order_ppisp_bindings_by_camera(source_stage, find_ppisp_camera_bindings(source_stage))
     if not ppisp_bindings:
-        raise RuntimeError("No PPISP RenderProduct bindings found in input scene.")
+        raise RuntimeError("No cameras with PPISP camera attributes found in input scene.")
 
     if args_cli.camera_prim_path is not None:
         camera_prim_path = args_cli.camera_prim_path
@@ -249,14 +198,14 @@ def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Pri
         available = format_available_ppisp_cameras(ppisp_bindings)
         raise RuntimeError(
             f"Camera prim not found: {camera_prim_path}\n"
-            "Omit --camera_prim_path to auto-select a PPISP-bound camera, or use one of:\n"
+            "Omit --camera_prim_path to auto-select a camera with PPISP attributes, or use one of:\n"
             f"  {available}"
         )
     if camera_prim.GetTypeName() != "Camera":
         available = format_available_ppisp_cameras(ppisp_bindings)
         raise RuntimeError(
             f"Prim is not a Camera: {camera_prim_path} ({camera_prim.GetTypeName()})\n"
-            "Omit --camera_prim_path to auto-select a PPISP-bound camera, or use one of:\n"
+            "Omit --camera_prim_path to auto-select a camera with PPISP attributes, or use one of:\n"
             f"  {available}"
         )
 
@@ -266,8 +215,8 @@ def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Pri
 
     available = format_available_ppisp_cameras(ppisp_bindings)
     raise RuntimeError(
-        f"Selected camera has no PPISP RenderProduct binding: {camera_prim_path}\n"
-        "Omit --camera_prim_path to auto-select a PPISP-bound camera, or use one of:\n"
+        f"Selected camera has no PPISP camera attributes: {camera_prim_path}\n"
+        "Omit --camera_prim_path to auto-select a camera with PPISP attributes, or use one of:\n"
         f"  {available}"
     )
 
@@ -312,14 +261,15 @@ def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_
     stage = sim_utils.get_current_stage()
     target_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     camera_rel_path = source_camera_path_to_default_rel_path(source_stage, source_camera_prim_path)
+    scene_prims = sim_utils.find_matching_prims("/World/envs/env_.*/Scene", stage)
+    if not scene_prims:
+        raise RuntimeError("No duplicated scene prims found under /World/envs.")
+
     authored_count = 0
-    for env_id in range(args_cli.num_envs):
-        scene_path = f"/World/envs/env_{env_id}/Scene"
+    for scene_prim in scene_prims:
+        scene_path = scene_prim.GetPath().pathString
         target_camera_path = f"{scene_path}/{camera_rel_path}"
-        scene_prim = stage.GetPrimAtPath(scene_path)
         target_camera_prim = stage.GetPrimAtPath(target_camera_path)
-        if not scene_prim or not scene_prim.IsValid():
-            raise RuntimeError(f"Duplicated scene prim not found: {scene_path}")
         if not target_camera_prim or not target_camera_prim.IsValid():
             raise RuntimeError(f"Duplicated camera prim not found: {target_camera_path}")
 
@@ -342,8 +292,10 @@ def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_
     )
 
 
-def get_render_product_resolution(render_product_prim: Usd.Prim) -> tuple[int, int] | None:
+def get_render_product_resolution(render_product_prim: Usd.Prim | None) -> tuple[int, int] | None:
     """Return ``(width, height)`` from a RenderProduct ``resolution`` attribute."""
+    if render_product_prim is None:
+        return None
     resolution_attr = render_product_prim.GetAttribute("resolution")
     if not resolution_attr:
         return None
@@ -353,7 +305,7 @@ def get_render_product_resolution(render_product_prim: Usd.Prim) -> tuple[int, i
     return int(resolution[0]), int(resolution[1])
 
 
-def resolve_image_shape(render_product_prim: Usd.Prim) -> tuple[int, int]:
+def resolve_image_shape(render_product_prim: Usd.Prim | None) -> tuple[int, int]:
     """Resolve demo output ``(width, height)`` preserving source aspect when height is omitted."""
     width = args_cli.image_width
     height = args_cli.image_height
@@ -369,12 +321,12 @@ def resolve_image_shape(render_product_prim: Usd.Prim) -> tuple[int, int]:
     return width, height
 
 
-def make_ppisp_cfg(shader_prim: Usd.Prim, num_ppisp_bindings: int) -> PpispCfg:
-    """Parse the selected source PPISP shader into an explicit cfg for duplicated envs."""
-    ppisp_cfg = ppisp_cfg_from_usd_shader(UsdShade.Shader(shader_prim))
-    ppisp_cfg.shader_prim_path = None
+def make_ppisp_cfg(camera_prim: Usd.Prim, num_ppisp_bindings: int) -> PpispCfg:
+    """Parse the selected source PPISP camera into an explicit cfg for duplicated envs."""
+    ppisp_cfg = ppisp_cfg_from_usd_camera(camera_prim)
+    ppisp_cfg.camera_prim_path = None
     if args_cli.ppisp_responsivity is None:
-        print(f"[INFO] Using USD-authored PPISP values from {num_ppisp_bindings} PPISP shader(s).", flush=True)
+        print(f"[INFO] Using USD-authored PPISP values from {num_ppisp_bindings} PPISP camera(s).", flush=True)
     else:
         ppisp_cfg.inputs["responsivity"] = float(args_cli.ppisp_responsivity)
         print(
@@ -563,11 +515,12 @@ def run_simulator(sim: sim_utils.SimulationContext, baseline_camera: Camera, ppi
 
 def main() -> None:
     """Main function."""
+    args_cli.input_scene = retrieve_file_path(args_cli.input_scene)
     source_stage = Usd.Stage.Open(args_cli.input_scene)
     if source_stage is None:
         raise RuntimeError(f"Failed to open input scene: {args_cli.input_scene}")
-    source_camera_prim_path, render_product_prim, shader_prim = resolve_source_camera_binding(source_stage)
-    ppisp_cfg = make_ppisp_cfg(shader_prim, len(find_ppisp_camera_bindings(source_stage)))
+    source_camera_prim_path, render_product_prim, ppisp_camera_prim = resolve_source_camera_binding(source_stage)
+    ppisp_cfg = make_ppisp_cfg(ppisp_camera_prim, len(find_ppisp_camera_bindings(source_stage)))
     camera_prim_path = source_camera_path_to_env_regex(source_stage, source_camera_prim_path)
     width, height = resolve_image_shape(render_product_prim)
 

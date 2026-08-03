@@ -14,10 +14,10 @@ through the auto-tune functionality.
 .. code-block:: bash
 
     # Usage with GUI
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py -h
+    uv run python scripts/benchmarks/benchmark_cameras.py -h
 
     # Usage with headless
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py -h --headless
+    uv run python scripts/benchmarks/benchmark_cameras.py -h
 
 """
 
@@ -25,6 +25,7 @@ through the auto-tune functionality.
 
 import argparse
 from collections.abc import Callable
+from dataclasses import MISSING
 
 from isaaclab.app import AppLauncher
 
@@ -225,11 +226,11 @@ parser.add_argument(
 
 # Benchmark arguments
 parser.add_argument(
-    "--benchmark_backend",
+    "--benchmark_formatter",
     type=str,
     default="omniperf",
     choices=["json", "osmo", "omniperf", "summary"],
-    help="Benchmarking backend options, defaults omniperf",
+    help="Benchmark output formatter, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
 
@@ -259,6 +260,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
 from isaaclab.scene.interactive_scene import InteractiveScene
 from isaaclab.sensors import (
     Camera,
@@ -267,7 +269,6 @@ from isaaclab.sensors import (
     RayCasterCameraCfg,
     patterns,
 )
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
 from isaaclab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
 from isaaclab_tasks.utils import load_cfg_from_registry
@@ -275,6 +276,21 @@ from isaaclab_tasks.utils import load_cfg_from_registry
 """
 Camera Creation
 """
+
+
+def _get_camera_class_name(camera_cfg: type[CameraCfg]) -> str:
+    """Return the configured camera sensor class name."""
+    class_type_field = camera_cfg.__dataclass_fields__["class_type"]
+    if class_type_field.default is not MISSING:
+        class_type = class_type_field.default
+    elif class_type_field.default_factory is not MISSING:
+        class_type = class_type_field.default_factory()
+    else:
+        raise AttributeError(f"{camera_cfg.__name__} has no default class_type.")
+
+    if hasattr(class_type, "__name__"):
+        return class_type.__name__
+    return str(class_type).rsplit(":", maxsplit=1)[-1]
 
 
 def create_camera_base(
@@ -287,33 +303,28 @@ def create_camera_base(
     instantiate: bool = True,
 ) -> Camera | CameraCfg | None:
     """Generalized function to create a camera or tiled camera sensor."""
-    # Determine prim prefix based on the camera class
-    name = camera_cfg.class_type.__name__
+    # If valid camera settings are provided, create the camera
+    if num_cams <= 0 or len(data_types) <= 0 or height <= 0 or width <= 0:
+        return None
 
+    name = _get_camera_class_name(camera_cfg)
+    cfg = camera_cfg(
+        prim_path=prim_path if prim_path is not None else f"/World/{name}_.*/{name}",
+        update_period=0,
+        height=height,
+        width=width,
+        data_types=data_types,
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
+        ),
+    )
     if instantiate:
         # Create the necessary prims
         for idx in range(num_cams):
             sim_utils.create_prim(f"/World/{name}_{idx:02d}", "Xform")
-    if prim_path is None:
-        prim_path = f"/World/{name}_.*/{name}"
-    # If valid camera settings are provided, create the camera
-    if num_cams > 0 and len(data_types) > 0 and height > 0 and width > 0:
-        cfg = camera_cfg(
-            prim_path=prim_path,
-            update_period=0,
-            height=height,
-            width=width,
-            data_types=data_types,
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1e4)
-            ),
-        )
-        if instantiate:
-            return camera_cfg.class_type(cfg=cfg)
-        else:
-            return cfg
-    else:
-        return None
+        return cfg.class_type(cfg=cfg)
+
+    return cfg
 
 
 def create_tiled_cameras(
@@ -766,13 +777,13 @@ def main():
         num_cameras = args_cli.num_ray_caster_cameras
 
     # Create the benchmark
-    backend_type = args_cli.benchmark_backend
+    formatter_type = args_cli.benchmark_formatter
     benchmark = BaseIsaacLabBenchmark(
         benchmark_name="benchmark_cameras",
-        backend_type=backend_type,
+        formatter_type=formatter_type,
         output_path=args_cli.output_path,
         use_recorders=True,
-        frametime_recorders=backend_type in ("summary", "omniperf"),
+        frametime_recorders=formatter_type in ("summary", "omniperf"),
         output_prefix="benchmark_cameras",
         workflow_metadata={
             "metadata": [
@@ -941,7 +952,7 @@ def main():
 
     # Finalize benchmark
     benchmark.update_manual_recorders()
-    benchmark._finalize_impl()
+    benchmark.finalize()
 
 
 if __name__ == "__main__":

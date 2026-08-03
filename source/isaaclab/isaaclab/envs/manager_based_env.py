@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import builtins
 import logging
+import sys
 import warnings
 from collections.abc import Sequence
 from typing import Any
@@ -17,7 +18,6 @@ from isaaclab.managers import ActionManager, EventManager, ObservationManager, R
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
-from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -85,6 +85,9 @@ class ManagerBasedEnv:
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
+        # The env remains closed until initialization completes.
+        self._is_closed = True
+
         # check that the config is valid
         cfg.validate()
         # Resolve any preset-wrapper fields (PresetCfg subclasses or old-style ``presets`` dicts)
@@ -93,7 +96,6 @@ class ManagerBasedEnv:
         # store inputs to class
         self.cfg = cfg
         # initialize internal variables
-        self._is_closed = False
         self._physics_handles_decimation = False
 
         # set the seed for the environment
@@ -124,6 +126,7 @@ class ManagerBasedEnv:
             if created_sim:
                 self.sim.clear_instance()
             raise
+        self._is_closed = False
 
     def _init_sim(self):
         """Complete environment initialization after the SimulationContext is created.
@@ -225,12 +228,15 @@ class ManagerBasedEnv:
         # add timeline event to load managers
         self.load_managers()
 
+        # Wire live plots into all active visualizers (Newton, Rerun, Viser) and create
+        # Kit omni.ui ManagerLiveVisualizer widgets when a GUI window is present.
+        # Skipped when truly headless (no GUI and no standalone visualizers active).
+        self.setup_manager_visualizers()
+
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
-            # setup live visualizers
-            self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -257,11 +263,9 @@ class ManagerBasedEnv:
             if self.cfg.num_rerenders_on_reset == 0:
                 self.cfg.num_rerenders_on_reset = 1
 
-    def __del__(self):
+    def __del__(self, _sys=sys):
         """Cleanup for the environment."""
-        import sys
-
-        if not sys.is_finalizing():
+        if not self._is_closed and not _sys.is_finalizing() and _sys.meta_path is not None:
             self.close()
 
     """
@@ -376,11 +380,27 @@ class ManagerBasedEnv:
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms."""
+        """Wire manager terms into live plots for all active visualizer backends.
 
+        Calls :meth:`~isaaclab.visualizers.BaseVisualizer.add_live_plots` on every visualizer
+        registered with the simulation context.  For the Kit backend this also populates
+        :attr:`manager_visualizers` with :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer`
+        instances so that :class:`~isaaclab.envs.ui.BaseEnvWindow` can build the omni.ui panels.
+
+        Does nothing when running truly headless (no Kit GUI and no standalone visualizers).
+        """
+        if not self.sim.has_gui and not self.sim.has_active_visualizers():
+            self.manager_visualizers = {}
+            return
+        managers = {
+            "action_manager": self.action_manager,
+            "observation_manager": self.observation_manager,
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots(managers)
+        # Populate manager_visualizers for the Kit window (BaseEnvWindow reads this attribute).
         self.manager_visualizers = {
-            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
         }
 
     """
@@ -600,6 +620,11 @@ class ManagerBasedEnv:
             # Stop simulation first to allow physics to clean up properly
             self.sim.stop()
 
+            # Drop cached observation tensors so they don't survive close via
+            # gymnasium's wrapper chain.
+            if isinstance(getattr(self, "obs_buf", None), dict):
+                self.obs_buf.clear()
+
             # destructor is order-sensitive
             del self.viewport_camera_controller
             del self.action_manager
@@ -651,3 +676,5 @@ class ManagerBasedEnv:
         # -- recorder manager
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
+
+        self.sim.render_context.reset_scene_state_cadence()

@@ -14,13 +14,13 @@ Compares batched transform operation performance across:
 
 Usage:
     # All backends
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --device cuda:0 --headless
+    uv run python scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --device cuda:0
 
     # Select specific backends
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_view_comparison.py --backends usd fabric newton --headless
+    uv run python scripts/benchmarks/benchmark_view_comparison.py --backends usd fabric newton
 
     # With profiling
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --profile --headless
+    uv run python scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --profile
 """
 
 from __future__ import annotations
@@ -284,7 +284,8 @@ def _run_pose_benchmarks(
 
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        view.set_world_poses(new_positions, orientations)
+        with view.xform_world_space_writer() as w:
+            w.set_poses(new_positions, orientations)
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     ret_pos, ret_quat = view.get_world_poses()

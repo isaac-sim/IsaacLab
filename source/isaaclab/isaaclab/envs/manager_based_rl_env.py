@@ -15,7 +15,6 @@ import numpy as np
 import torch
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
-from isaaclab.ui.widgets import ManagerLiveVisualizer
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -56,6 +55,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
+        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
     }
     """Metadata for the environment."""
 
@@ -143,15 +143,37 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms."""
+        """Wire manager terms and episode metrics into live plots for all active visualizer backends.
 
+        Calls :meth:`~isaaclab.visualizers.BaseVisualizer.add_live_plots` on every visualizer
+        registered with the simulation context.  In addition to manager terms, registers
+        ``episode/mean_reward`` and ``episode/episode_length`` as direct scalar sources so
+        that top-level training metrics are always visible alongside per-term breakdowns.
+        For the Kit backend this also populates :attr:`manager_visualizers` with
+        :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer` instances so that
+        :class:`~isaaclab.envs.ui.BaseEnvWindow` can build the omni.ui panels.
+        """
+        managers = {
+            "action_manager": self.action_manager,
+            "observation_manager": self.observation_manager,
+            "command_manager": self.command_manager,
+            "termination_manager": self.termination_manager,
+            "reward_manager": self.reward_manager,
+            "curriculum_manager": self.curriculum_manager,
+        }
+        scalars = {
+            "episode": {
+                "mean_reward": lambda: float(getattr(self, "reward_buf", None).mean())
+                if getattr(self, "reward_buf", None) is not None
+                else 0.0,
+                "episode_length": lambda: float(self.episode_length_buf.float().mean()),
+            }
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots(managers, scalars=scalars)
+        # Populate manager_visualizers for the Kit window (BaseEnvWindow reads this attribute).
         self.manager_visualizers = {
-            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
-            "command_manager": ManagerLiveVisualizer(manager=self.command_manager),
-            "termination_manager": ManagerLiveVisualizer(manager=self.termination_manager),
-            "reward_manager": ManagerLiveVisualizer(manager=self.reward_manager),
-            "curriculum_manager": ManagerLiveVisualizer(manager=self.curriculum_manager),
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
         }
 
     """
@@ -247,6 +269,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
+            # capture the terminal observation before reset and expose it for Same-Step autoreset.
+            if self.cfg.compute_final_obs:
+                self.extras["final_obs"] = self.observation_manager.compute()
             # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
@@ -259,6 +284,20 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
             # trigger recorder terms for post-reset calls
             self.recorder_manager.record_post_reset(reset_env_ids)
+
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            # Only reset envs not already reset this step to avoid redundant resets.
+            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+            not_yet_reset[reset_env_ids] = False
+            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
+            if len(manual_reset_ids) > 0:
+                # mark as terminated so RL wrappers observe the episode boundary
+                self.reset_terminated[manual_reset_ids] = True
+                # mirror the recorder lifecycle used for normal resets
+                self.recorder_manager.record_pre_reset(manual_reset_ids)
+                self._reset_idx(manual_reset_ids)
+                self.recorder_manager.record_post_reset(manual_reset_ids)
 
         # -- update command
         self.command_manager.compute(dt=self.step_dt)
@@ -317,6 +356,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             del self.reward_manager
             del self.termination_manager
             del self.curriculum_manager
+            # Drop the observation/action space objects. gymnasium's wrapper chain keeps
+            # the env referenced past close, so without this they leak — and for image
+            # observations each space holds a large gym.spaces.Box bounds array.
+            self.single_observation_space = None
+            self.single_action_space = None
+            self.observation_space = None
+            self.action_space = None
             # call the parent class to close the environment
             super().close()
 
@@ -398,3 +444,5 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
+
+        self.sim.render_context.reset_scene_state_cadence()

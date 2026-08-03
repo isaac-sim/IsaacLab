@@ -17,6 +17,8 @@ from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
     focus_distance=400.0,
@@ -131,10 +133,36 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.RGB_HDR,
         RenderBufferKind.ALBEDO,
         RenderBufferKind.DEPTH,
+        RenderBufferKind.DISTANCE_TO_CAMERA,
+        RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.NORMALS,
-        RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
+        RenderBufferKind.SEMANTIC_SEGMENTATION,
+        RenderBufferKind.INSTANCE_SEGMENTATION,
     }
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+
+
+@pytest.mark.parametrize("colorize", [True, False])
+def test_newton_warp_segmentation_spec_follows_colorize_flags(colorize):
+    """Segmentation specs are RGBA uint8 when colorized, else single-channel int32 (matching RTX)."""
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
+    from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    renderer = NewtonWarpRenderer.__new__(NewtonWarpRenderer)
+    renderer.cfg = NewtonWarpRendererCfg(
+        colorize_semantic_segmentation=colorize,
+        colorize_instance_segmentation=colorize,
+    )
+    specs = renderer.supported_output_types()
+
+    expected = RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
+    for kind in (
+        RenderBufferKind.SEMANTIC_SEGMENTATION,
+        RenderBufferKind.INSTANCE_SEGMENTATION,
+    ):
+        assert specs[kind] == expected
 
 
 def test_newton_warp_wraps_requested_rgb_hdr_output():
@@ -217,9 +245,9 @@ def test_camera_data_no_arg_construction_yields_empty_container():
 
 def test_camera_data_segmentation_dtype_follows_supported_spec():
     """CameraData consumes the layout dtype declared by the renderer spec."""
-    cfg = _make_camera_cfg(["instance_segmentation_fast"])
-    raw_specs = {RenderBufferKind.INSTANCE_SEGMENTATION_FAST: RenderBufferSpec(1, wp.int32)}
-    colorized_specs = {RenderBufferKind.INSTANCE_SEGMENTATION_FAST: RenderBufferSpec(4, wp.uint8)}
+    cfg = _make_camera_cfg(["instance_segmentation"])
+    raw_specs = {RenderBufferKind.INSTANCE_SEGMENTATION: RenderBufferSpec(1, wp.int32)}
+    colorized_specs = {RenderBufferKind.INSTANCE_SEGMENTATION: RenderBufferSpec(4, wp.uint8)}
 
     raw = CameraData.allocate(
         data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=raw_specs
@@ -228,10 +256,10 @@ def test_camera_data_segmentation_dtype_follows_supported_spec():
         data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=colorized_specs
     )
 
-    assert raw.output["instance_segmentation_fast"].dtype == wp.int32
-    assert raw.output["instance_segmentation_fast"].shape == (1, 4, 4, 1)
-    assert colorized.output["instance_segmentation_fast"].dtype == wp.uint8
-    assert colorized.output["instance_segmentation_fast"].shape == (1, 4, 4, 4)
+    assert raw.output["instance_segmentation"].dtype == wp.int32
+    assert raw.output["instance_segmentation"].shape == (1, 4, 4, 1)
+    assert colorized.output["instance_segmentation"].dtype == wp.uint8
+    assert colorized.output["instance_segmentation"].shape == (1, 4, 4, 4)
 
 
 def test_camera_data_allocate_raises_on_unknown_name():

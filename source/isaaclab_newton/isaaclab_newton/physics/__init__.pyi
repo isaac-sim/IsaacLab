@@ -9,6 +9,8 @@ __all__ = [
     "HydroelasticSDFCfg",
     "NewtonKaminoManager",
     "KaminoSolverCfg",
+    "NewtonMPMManager",
+    "MPMSolverCfg",
     "NewtonMJWarpManager",
     "MJWarpSolverCfg",
     "NewtonCfg",
@@ -26,6 +28,8 @@ from .kamino_manager import NewtonKaminoManager
 from .kamino_manager_cfg import KaminoSolverCfg
 from .mjwarp_manager import NewtonMJWarpManager
 from .mjwarp_manager_cfg import MJWarpSolverCfg
+from .mpm_manager import NewtonMPMManager
+from .mpm_manager_cfg import MPMSolverCfg
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
 from .newton_manager import NewtonManager
 from .newton_manager_cfg import (

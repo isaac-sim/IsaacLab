@@ -15,12 +15,14 @@ import warp as wp
 
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.physics import OvPhysxManager as SimulationManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 
 class RigidObjectData(BaseRigidObjectData):
@@ -59,30 +61,31 @@ class RigidObjectData(BaseRigidObjectData):
 
     def __init__(
         self,
-        bindings: dict,
+        view: OvPhysxView,
         device: str,
         check_shapes: bool = True,
     ):
         """Initializes the rigid object data.
 
         Args:
-            bindings: The OVPhysX tensor bindings dict keyed by tensor-type constant.
-                ``num_instances`` is read from ``bindings[RIGID_BODY_POSE].count`` and
-                ``num_bodies`` is fixed at 1; ``body_names`` is set by
+            view: The :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` binding manager
+                for this rigid object. ``num_instances`` is read from the
+                ``rigid_body_pose`` binding's ``count`` and ``num_bodies`` is fixed at 1;
+                ``body_names`` is set by
                 :meth:`~isaaclab_ovphysx.assets.RigidObject._initialize_impl`.
             device: The device used for processing.
             check_shapes: Whether to enforce internal shape/dtype invariants on
                 lazy reads. Defaults to ``True``; production callers thread this
                 from :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks`.
         """
-        super().__init__(bindings, device)
-        # Set the tensor bindings (OVPhysX exposes per-tensor-type bindings rather than a single view).
-        self._bindings = bindings
+        super().__init__(view, device)
+        # The view owns the per-tensor-type bindings and the CPU/GPU device policy.
+        self._view = view
         self._check_shapes = check_shapes
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
-        root_pose = self._bindings[TT.RIGID_BODY_POSE]
+        root_pose = self._view.binding_for(TT.RIGID_BODY_POSE)
         self._num_instances = root_pose.count
         self._num_bodies = 1
 
@@ -137,6 +140,78 @@ class RigidObjectData(BaseRigidObjectData):
         # Trigger an update of the body com acceleration buffer at a higher frequency
         # since we do finite differencing.
         self.body_com_acc_w
+
+    def _reset_pose(self, from_link: bool = True) -> None:
+        """Reset pose-dependent cached rigid object properties.
+
+        Writing a root pose moves the body, so the composite root state buffers go stale.
+
+        Args:
+            from_link: Set ``True`` when the root link pose was written so the derived root
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
+                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
+        """
+        # The root com pose is derived from the root link pose, so only invalidate it when the link
+        # pose was the quantity written (otherwise we would clobber the freshly-written com pose).
+        # The composite root state buffers always go stale on a pose write.
+        reset_timestamps(
+            [
+                self._root_com_pose_w if from_link else None,
+                self._root_link_vel_w,
+                self._projected_gravity_b,
+                self._heading_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+            ]
+        )
+
+    def _reset_velocity(self, from_com: bool = True) -> None:
+        """Reset velocity-dependent cached rigid object properties.
+
+        Writing a root velocity changes the body velocities, so the composite root state buffers go stale.
+
+        Args:
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
+                velocity was written directly so it is not clobbered. Defaults to True.
+        """
+        # The root link velocity is derived from the root com velocity, so only invalidate it when the
+        # com velocity was the quantity written (otherwise we would clobber the freshly-written value).
+        # The composite root state buffers always go stale on a velocity write.
+        reset_timestamps(
+            [
+                self._root_link_vel_w if from_com else None,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+            ]
+        )
+
+    def _reset_body_com_pose_b_dependents(self) -> None:
+        """Reset cached properties derived from the body-frame center-of-mass offset."""
+        reset_timestamps(
+            [
+                self._root_com_pose_w,
+                self._root_com_vel_w,
+                self._root_link_vel_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+            ]
+        )
 
     """
     Names.
@@ -230,7 +305,8 @@ class RigidObjectData(BaseRigidObjectData):
         rigid body relative to the world.
         """
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_vel_w",
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
                 inputs=[
@@ -239,7 +315,6 @@ class RigidObjectData(BaseRigidObjectData):
                     self.body_com_pose_b,
                 ],
                 outputs=[self._root_link_vel_w.data],
-                device=self.device,
             )
             self._root_link_vel_w.timestamp = self._sim_timestamp
         if self._root_link_vel_w_ta is None:
@@ -256,7 +331,8 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_pose_w",
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
                 inputs=[
@@ -266,7 +342,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_com_pose_w.data,
                 ],
-                device=self.device,
             )
             self._root_com_pose_w.timestamp = self._sim_timestamp
 
@@ -424,12 +499,12 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "projected_gravity_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
                 outputs=[self._projected_gravity_b.data],
-                device=self.device,
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
         if self._projected_gravity_b_ta is None:
@@ -447,12 +522,12 @@ class RigidObjectData(BaseRigidObjectData):
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
         if self._heading_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "heading_w",
                 shared_kernels.root_heading_w,
                 dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
-                device=self.device,
             )
             self._heading_w.timestamp = self._sim_timestamp
         if self._heading_w_ta is None:
@@ -468,12 +543,12 @@ class RigidObjectData(BaseRigidObjectData):
         expressed in the root link's actor frame.
         """
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_lin_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_link_lin_vel_w, self.root_link_quat_w],
                 outputs=[self._root_link_lin_vel_b.data],
-                device=self.device,
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
         if self._root_link_lin_vel_b_ta is None:
@@ -489,12 +564,12 @@ class RigidObjectData(BaseRigidObjectData):
         expressed in the root link's actor frame.
         """
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_ang_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_link_ang_vel_w, self.root_link_quat_w],
                 outputs=[self._root_link_ang_vel_b.data],
-                device=self.device,
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
         if self._root_link_ang_vel_b_ta is None:
@@ -510,12 +585,12 @@ class RigidObjectData(BaseRigidObjectData):
         expressed in the root link's actor frame.
         """
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_lin_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_com_lin_vel_w, self.root_link_quat_w],
                 outputs=[self._root_com_lin_vel_b.data],
-                device=self.device,
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
         if self._root_com_lin_vel_b_ta is None:
@@ -531,12 +606,12 @@ class RigidObjectData(BaseRigidObjectData):
         expressed in the root link's actor frame.
         """
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_ang_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
                 inputs=[self.root_com_ang_vel_w, self.root_link_quat_w],
                 outputs=[self._root_com_ang_vel_b.data],
-                device=self.device,
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp
         if self._root_com_ang_vel_b_ta is None:
@@ -828,8 +903,8 @@ class RigidObjectData(BaseRigidObjectData):
         # The wheel exposes ``RIGID_BODY_MASS`` as ``(N,)`` and ``RIGID_BODY_INERTIA`` as ``(N, 9)``;
         # the ``BaseRigidObjectData`` contract is ``(N, 1)`` and ``(N, 1, 9)`` respectively, so we
         # read into a flat buffer and reshape (zero-copy) after the read.
-        mass_binding = self._bindings[TT.RIGID_BODY_MASS]
-        inertia_binding = self._bindings[TT.RIGID_BODY_INERTIA]
+        mass_binding = self._view.binding_for(TT.RIGID_BODY_MASS)
+        inertia_binding = self._view.binding_for(TT.RIGID_BODY_INERTIA)
         self._body_mass = wp.zeros(mass_binding.shape, dtype=wp.float32, device=self.device)
         self._body_inertia = wp.zeros(inertia_binding.shape, dtype=wp.float32, device=self.device)
         self._read_binding_into(TT.RIGID_BODY_MASS, self._body_mass)
@@ -912,20 +987,24 @@ class RigidObjectData(BaseRigidObjectData):
     """
 
     def _get_binding(self, tensor_type: int):
-        """Return the binding for the given tensor type, or None."""
-        return self._bindings.get(tensor_type)
+        """Return the binding for the given tensor type, or None.
+
+        Delegates to :attr:`root_view`'s
+        :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.try_binding_for`.
+        """
+        return self._view.try_binding_for(tensor_type)
 
     def _read_binding_into(self, tensor_type: int, dst: wp.array) -> None:
         """Read the OVPhysX TensorBinding for *tensor_type* into *dst*.
 
-        Adapter that replaces PhysX's view-getter pattern: the wheel exposes
-        ``binding.read(target)`` rather than a getter returning a wp.array, so
-        we read into a flat float32 view of *dst*. CPU-only bindings on a
-        non-CPU sim go through a lazily-allocated pinned-host wp.array to
-        satisfy the wheel's device match.
+        Routes through :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.read_into`, which
+        reinterprets a structured *dst* off the binding shape and reuses that reinterpret
+        across calls (keeping the wheel's read cache warm). CPU-only bindings on a non-CPU
+        sim are read into a pinned-host staging buffer first (the view does not stage across
+        devices), then copied to *dst* on the simulation device.
         """
-        binding = self._bindings[tensor_type]
         if self._check_shapes:
+            binding = self._view.binding_for(tensor_type)
             dst_bytes = dst.size * wp.types.type_size_in_bytes(dst.dtype)
             binding_bytes = 4 * math.prod(binding.shape)
             assert dst_bytes >= binding_bytes, (
@@ -933,26 +1012,22 @@ class RigidObjectData(BaseRigidObjectData):
                 f"({dst_bytes} B < {binding_bytes} B). Caller allocated dst with "
                 f"shape={tuple(dst.shape)}, dtype={dst.dtype}; binding shape={tuple(binding.shape)}."
             )
-        # Build a flat float32 view of dst matching the binding's shape.
-        if dst.dtype == wp.float32:
-            view = dst
-        else:
-            view = wp.array(
-                ptr=dst.ptr,
-                shape=binding.shape,
-                dtype=wp.float32,
-                device=str(dst.device),
-                copy=False,
-            )
-        if tensor_type in TT._CPU_ONLY_TYPES and str(view.device) != "cpu":
+        if tensor_type in TT._CPU_ONLY_TYPES and self.device != "cpu":
             staging = self._cpu_staging_buffers.get(tensor_type)
             if staging is None:
-                staging = wp.zeros(binding.shape, dtype=wp.float32, device="cpu", pinned=True)
+                staging = wp.zeros(
+                    self._view.binding_for(tensor_type).shape, dtype=wp.float32, device="cpu", pinned=True
+                )
                 self._cpu_staging_buffers[tensor_type] = staging
-            binding.read(staging)
+            self._view.read_into(tensor_type, staging)
+            # Copy the flat float32 staging into dst (possibly structured) on the sim device.
+            if dst.dtype == wp.float32:
+                view = dst
+            else:
+                view = wp.array(ptr=dst.ptr, shape=staging.shape, dtype=wp.float32, device=str(dst.device), copy=False)
             wp.copy(view, staging)
         else:
-            binding.read(view)
+            self._view.read_into(tensor_type, dst)
 
     def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
         """Generates a position array from a transform array."""
@@ -1013,7 +1088,8 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._default_root_state is None:
             self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
-        wp.launch(
+        self._read_launch_cache.launch(
+            "default_root_state",
             shared_kernels.concat_root_pose_and_vel_to_state,
             dim=self._num_instances,
             inputs=[
@@ -1023,7 +1099,6 @@ class RigidObjectData(BaseRigidObjectData):
             outputs=[
                 self._default_root_state,
             ],
-            device=self.device,
         )
         if self._default_root_state_ta is None:
             self._default_root_state_ta = ProxyArray(self._default_root_state)
@@ -1039,7 +1114,8 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1049,7 +1125,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_state_w.timestamp = self._sim_timestamp
 
@@ -1067,7 +1142,8 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1077,7 +1153,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_link_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
 
@@ -1095,7 +1170,8 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1105,7 +1181,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_com_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
 
@@ -1124,7 +1199,8 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_state_w
         if self._root_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1134,7 +1210,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_state_w.timestamp = self._sim_timestamp
         if self._body_state_w_ta is None:
@@ -1152,7 +1227,8 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_link_state_w
         if self._root_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1162,7 +1238,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_link_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
         if self._body_link_state_w_ta is None:
@@ -1180,7 +1255,8 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_com_state_w
         if self._root_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
@@ -1190,7 +1266,6 @@ class RigidObjectData(BaseRigidObjectData):
                 outputs=[
                     self._root_com_state_w.data,
                 ],
-                device=self.device,
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
         if self._body_com_state_w_ta is None:

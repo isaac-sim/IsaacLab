@@ -5,41 +5,67 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import MISSING
+
 from isaaclab.utils.configclass import configclass
 
-from .cloner_strategies import random
+from .cloner_strategies import sequential
+
+
+@configclass
+class InclusionSet:
+    """Legal clone combination defined by explicitly listing active assets."""
+
+    assets: list[str] = MISSING
+    """Scene asset names active in this clone combination."""
+
+    weight: int = 1
+    """Relative sampling weight for this clone combination."""
 
 
 @configclass
 class CloneCfg:
     """Configuration for environment replication.
 
-    The scene builds a :class:`~isaaclab.cloner.ClonePlan` directly from asset
-    configuration, spawns the representative source prims, and then uses this
-    configuration to dispatch USD and physics replication for that plan.
+    Holds the knobs :class:`~isaaclab.scene.InteractiveScene` forwards to
+    :func:`~isaaclab.cloner.make_clone_plan` when building per-env layouts.
     """
 
-    clone_regex: str = "/World/envs/env_.*"
-    """Destination template for per-environment paths.
+    clone_strategy: Callable[..., object] = sequential
+    """Function used to build prototype-to-environment mapping. Default is :func:`sequential`."""
 
-    The substring ``".*"`` is replaced with ``"{}"`` internally and formatted with the
-    environment index (e.g., ``/World/envs/env_0``, ``/World/envs/env_1``).
+    clone_combinations: list[InclusionSet] = []
+    """Legal scene-asset combinations for heterogeneous clone planning.
+
+    Each entry names the assets that are active in one legal combination.
+    Assets not referenced by any entry are active in every combination. An
+    empty list keeps the homogeneous/default behavior.
     """
-
-    clone_usd: bool = True
-    """Enable USD-spec replication to author cloned prims and optional transforms."""
-
-    clone_physics: bool = True
-    """Enable PhysX replication for the same mapping to speed up physics setup."""
-
-    physics_clone_fn: callable | None = None
-    """Function used to perform physics replication."""
-
-    clone_strategy: callable = random
-    """Function used to build prototype-to-environment mapping. Default is :func:`random`."""
 
     device: str = "cpu"
     """Torch device on which mapping buffers are allocated."""
 
-    clone_in_fabric: bool = False
-    """Enable/disable cloning in fabric for PhysX replication. Default is False."""
+    clone_regex: str = "/World/envs/env_.*"
+    """Regex matching every replicated env prim. Used to expand ``{ENV_REGEX_NS}`` cfg macros."""
+
+    replicate_physics: bool = True
+    """Whether physics replication clones each environment. Default is True.
+
+    If False, cloning is USD-only: the physics engine parses the per-env USD prims directly
+    instead of replicating env_0's parsed structure. Applied by :func:`~isaaclab.cloner.replicate`.
+    """
+
+
+def add(this: CloneCfg, other: InclusionSet) -> CloneCfg:
+    """Append one clone combination to ``this`` and return it.
+
+    Args:
+        this: Configuration that accumulates the combination.
+        other: Clone combination to append.
+
+    Returns:
+        ``this``, with the combination appended.
+    """
+    this.clone_combinations = [*this.clone_combinations, other]
+    return this

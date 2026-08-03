@@ -12,6 +12,7 @@ from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.utils.configclass import configclass
 
 from ..asset_base_cfg import AssetBaseCfg
+from .ordering import ArticulationOrderingConvention
 
 if TYPE_CHECKING:
     from .articulation import Articulation
@@ -66,6 +67,38 @@ class ArticulationCfg(AssetBaseCfg):
     positions from violating the limits, such as for termination conditions.
 
     The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
+    """
+
+    joint_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
+    """Public joint-name ordering convention or complete explicit permutation.
+
+    Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
+    corresponding :class:`ArticulationOrderingConvention` members, or a list or
+    tuple (normalized to a tuple at initialization) containing every backend joint name exactly once.
+
+    ``None`` is the default: public joint order follows active backend solver-view
+    order and no ordering map is installed. An order that resolves to backend
+    order is normalized to ``None`` as well, so an installed map always denotes
+    an actual permutation. Symbolic resolution and map construction occur during
+    articulation initialization only, not each step.
+    """
+
+    body_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
+    """Public body-name ordering convention or complete explicit permutation.
+
+    Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
+    corresponding :class:`ArticulationOrderingConvention` members, or a list or
+    tuple (normalized to a tuple at initialization) containing every backend body name exactly once.
+
+    ``None`` is the default: public body order follows active backend solver-view
+    order and no ordering map is installed. An order that resolves to backend
+    order is normalized to ``None`` as well, so an installed map always denotes
+    an actual permutation. Symbolic resolution and map construction occur during
+    articulation initialization only, not each step.
+
+    For fixed-base articulations, the backend root body must remain at public index
+    zero; all remaining bodies may be permuted. Floating-base orders may relocate
+    the root body.
     """
 
     actuators: dict[str, ActuatorBaseCfg] = MISSING

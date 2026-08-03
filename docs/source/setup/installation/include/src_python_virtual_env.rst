@@ -60,9 +60,23 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
          .. tab-item:: :icon:`fa-brands fa-windows` Windows
             :sync: windows
 
-            .. warning::
-               Windows support for UV is currently unavailable. Please check
-               `issue #3438 <https://github.com/isaac-sim/IsaacLab/issues/3438>`_ to track progress.
+            .. code:: batch
+
+               :: Option 1: Default environment name 'env_isaaclab'
+               isaaclab.bat --uv  :: or "isaaclab.bat -u"
+               :: Option 2: Custom name
+               isaaclab.bat --uv my_env  :: or "isaaclab.bat -u my_env"
+
+            .. code:: batch
+
+               :: Activate environment
+               env_isaaclab\Scripts\activate  :: or "my_env\Scripts\activate"
+
+            .. note::
+
+               You can also create the environment manually with ``uv venv --python 3.12 --seed env_isaaclab``.
+               The ``--seed`` flag ensures ``pip`` is available inside the venv, which the Isaac Lab installer
+               requires.
 
    .. tab-item::  Conda Environment
 
@@ -117,5 +131,6 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
 
 Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` or
 ``isaaclab.bat -p`` to run python scripts. You can use the default python executable in your
-environment by running ``python`` or ``python3``. However, for the rest of the documentation,
-we will assume that you are using ``./isaaclab.sh -p`` or ``isaaclab.bat -p`` to run python scripts.
+environment by running ``python`` or ``python3``. Updated how-to guides use ``python`` directly;
+older pages may still show ``./isaaclab.sh -p`` or ``isaaclab.bat -p``, which are equivalent when
+your virtual environment is active.

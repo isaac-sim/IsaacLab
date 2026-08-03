@@ -1,0 +1,45 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import math
+
+import isaaclab.envs.mdp as mdp
+from isaaclab.utils.configclass import configclass
+
+from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
+
+##
+# Pre-defined configs
+##
+from isaaclab_assets import UR10_CFG  # isort: skip
+
+
+##
+# Environment configuration
+##
+
+
+@configclass
+class UR10ReachEnvCfg(ReachEnvCfg):
+    def __post_init__(self) -> None:
+        # post init of parent
+        super().__post_init__()
+
+        # switch robot to ur10
+        self.scene.robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # override events
+        self.events.reset_robot_joints.params["position_range"] = (0.75, 1.25)
+        # override rewards
+        self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["ee_link"]
+        self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["ee_link"]
+        self.rewards.joint_vel.params["asset_cfg"].joint_names = [".*"]
+        # override actions
+        self.actions.arm_action = mdp.JointPositionActionCfg(
+            asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True
+        )
+        # override command generator body
+        # end-effector is along x-direction
+        self.commands.ee_pose.body_name = "ee_link"
+        self.commands.ee_pose.ranges.pitch = (math.pi / 2, math.pi / 2)

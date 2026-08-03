@@ -15,9 +15,11 @@ presets and their paths automatically, including inside dict-valued fields.
 
 Override categories (applied in order):
     1. Global presets: ``presets=inference,newton_mjwarp`` -- apply everywhere matching
-    2. Path presets: ``env.backend=newton_mjwarp`` -- REPLACE specific section
-    3. Preset-path scalars: ``env.backend.dt=0.001`` -- handled by us
-    4. Global scalars: ``env.decimation=10`` -- handled by Hydra
+    2. Typed selectors: ``physics=newton_mjwarp`` / ``renderer=NAME`` -- like a
+       global preset, but must resolve against a config of that type or it errors
+    3. Path presets: ``env.backend=newton_mjwarp`` -- REPLACE specific section
+    4. Preset-path scalars: ``env.backend.dt=0.001`` -- handled by us
+    5. Global scalars: ``env.decimation=10`` -- handled by Hydra
 
 Example usage::
 
@@ -46,18 +48,22 @@ _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
 def _user_stacklevel() -> int:
     """Compute a ``warnings.warn`` stacklevel that lands on the first frame
-    outside this module, so deprecation messages cite user code rather than
-    internal hydra-utility frames.
+    outside the ``isaaclab_tasks.utils`` package, so deprecation messages
+    cite user code rather than internal utility frames.
 
-    Walks at most a small bounded number of frames; if no non-hydra frame is
-    found within the bound (frozen modules, exec'd contexts, or oddly named
-    ``__file__`` globals), falls back to ``stacklevel=2`` so the warning at
-    least jumps out of the helper that called it.
+    Walks at most a small bounded number of frames; if no out-of-package
+    frame is found within the bound (frozen modules, exec'd contexts, or
+    oddly named ``__name__`` globals), falls back to ``stacklevel=2`` so
+    the warning at least jumps out of the helper that called it.
+
+    Package-scoped (not file-scoped) so callers in any module under
+    ``isaaclab_tasks.utils.*`` (``hydra``, ``parse_cfg``, ...) get the same
+    "skip our own internals" behavior without duplicating the walk.
     """
     max_walk = 16
     level = 1
     frame = sys._getframe(1)
-    while frame is not None and frame.f_globals.get("__file__") == __file__:
+    while frame is not None and frame.f_globals.get("__name__", "").startswith(__package__):
         level += 1
         frame = frame.f_back
         if level > max_walk:
@@ -111,6 +117,21 @@ class PresetCfg:
     The preset *name* (``newton_mjwarp``) is decoupled from the config class
     (``NewtonCfg``): the class describes the Newton backend, while the field
     name labels which solver variant this entry selects.
+
+    **Class-local helpers (underscore convention).** Names prefixed with
+    ``_`` and callables (nested classes, methods) are skipped by the
+    resolver and are NOT registered as variants. Use this to keep shared
+    helpers adjacent to the variants that need them, without polluting the
+    module namespace::
+
+        @configclass
+        class MultiBackendCameraCfg(PresetCfg):
+            # Class-local helper -- not a variant.
+            _ROTATED_OFFSET = CameraCfg.OffsetCfg(rot=(1, 0, 0, 0), ...)
+
+            rgb = CameraCfg(data_types=["rgb"])
+            albedo = CameraCfg(data_types=["albedo"], offset=_ROTATED_OFFSET)
+            default = rgb
     """
 
     def __getattr__(self, name: str):
@@ -260,6 +281,7 @@ def _pick_alternative(
     path: str = "",
     explicit_name: str | None = None,
     consumed_selected: set[str] | None = None,
+    typed_hits: dict[str, set[PresetTarget]] | None = None,
 ):
     """Choose the best alternative from a PresetCfg.
 
@@ -291,16 +313,22 @@ def _pick_alternative(
         name = _normalize_preset_name(raw_name, field_names)
         if name not in fields or name == match_name:
             continue
+        val = fields[name]
         if consumed_selected is not None:
             consumed_selected.add(raw_name)
             consumed_selected.add(name)
+        if typed_hits is not None:
+            # record which typed targets (physics/renderer) this name landed on
+            targets = {t for t in PresetTarget if t.base_classes and isinstance(val, t.base_classes)}
+            if targets:
+                typed_hits.setdefault(raw_name, set()).update(targets)
+                typed_hits.setdefault(name, set()).update(targets)
         if match_name is not None:
-            val = fields[name]
             if match_value is not val and match_value != val:
                 raise ValueError(
                     f"Conflicting global presets: '{match_name}' and '{name}' both define preset for '{path}'"
                 )
-        match_name, match_value = name, fields[name]
+        match_name, match_value = name, val
     if match_name is not None:
         return match_value
     if "default" in fields:
@@ -319,6 +347,7 @@ def _resolve_active_presets(
     *,
     strict_explicit: bool = True,
     consumed_selected: set[str] | None = None,
+    typed_hits: dict[str, set[PresetTarget]] | None = None,
     consumed_explicit: set[str] | None = None,
 ):
     """Resolve presets by walking only the currently active tree.
@@ -345,6 +374,7 @@ def _resolve_active_presets(
                 path=path,
                 explicit_name=explicit.get(path),
                 consumed_selected=consumed_selected,
+                typed_hits=typed_hits,
             )
         return val
 
@@ -434,7 +464,7 @@ def _run_hydra(task, env_cfg, agent_cfg, hydra_args, callback):
         sys.argv = original_argv
 
 
-def resolve_task_config(task_name: str, agent_cfg_entry_point: str):
+def resolve_task_config(task_name: str, agent_cfg_entry_point: str, play_mode: bool = False):
     """Resolve env and agent configs with Hydra overrides, presets, and scalars fully applied.
 
     Safe to call before Kit is launched -- callable config values are stored as
@@ -442,25 +472,29 @@ def resolve_task_config(task_name: str, agent_cfg_entry_point: str):
     first use, so no implementation modules are imported eagerly.
 
     Args:
-        task_name: Task name (e.g., "Isaac-Velocity-Flat-Anymal-C-v0").
+        task_name: Task name (e.g., "IsaacContrib-Velocity-Flat-AnymalC").
         agent_cfg_entry_point: Agent config entry point key (e.g., "rsl_rl_cfg_entry_point").
+        play_mode: Whether to apply the play-mode overrides defined by the environment
+            configuration's ``play_mode`` method after loading. Defaults to False.
 
     Returns:
         Tuple of (env_cfg, agent_cfg) fully resolved.
     """
     task = task_name.split(":")[-1]
-    env_cfg, agent_cfg, hydra_args = register_task(task, agent_cfg_entry_point)
+    env_cfg, agent_cfg, hydra_args = register_task(task, agent_cfg_entry_point, play_mode=play_mode)
     resolved = {}
     _run_hydra(task, env_cfg, agent_cfg, hydra_args, lambda e, a: resolved.update(env_cfg=e, agent_cfg=a))
     return resolved["env_cfg"], resolved["agent_cfg"]
 
 
-def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
+def hydra_task_config(task_name: str, agent_cfg_entry_point: str, play_mode: bool = False) -> Callable:
     """Decorator for Hydra config with REPLACE-only preset semantics.
 
     Args:
-        task_name: Task name (e.g., "Isaac-Reach-Franka-v0")
+        task_name: Task name (e.g., "Isaac-Reach-Franka")
         agent_cfg_entry_point: Agent config entry point key
+        play_mode: Whether to apply the play-mode overrides defined by the environment
+            configuration's ``play_mode`` method after loading. Defaults to False.
 
     Returns:
         Decorated function receiving ``(env_cfg, agent_cfg, *args, **kwargs)``
@@ -470,7 +504,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             task = task_name.split(":")[-1]
-            env_cfg, agent_cfg, hydra_args = register_task(task, agent_cfg_entry_point)
+            env_cfg, agent_cfg, hydra_args = register_task(task, agent_cfg_entry_point, play_mode=play_mode)
             _run_hydra(task, env_cfg, agent_cfg, hydra_args, lambda e, a: func(e, a, *args, **kwargs))
 
         return wrapper
@@ -516,11 +550,47 @@ def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, li
     return "\n".join(lines)
 
 
-def register_task(task_name: str, agent_entry: str) -> tuple:
+def _validate_typed_presets(
+    requested: dict[PresetTarget, set[str]],
+    typed_hits: dict[str, set[PresetTarget]],
+) -> None:
+    """Check that each typed selector landed on a config of its own type.
+
+    A typed selector (``physics=NAME`` / ``renderer=NAME``) is an explicit
+    request for a backend of that type, so ``NAME`` must replace at least one
+    config of that type during resolution. If it only matched unrelated presets
+    that happen to share the name (a scalar, a sensor variant), the backend
+    silently stays unchanged, so raise. The free-form ``presets=NAME`` broadcast
+    is intentionally *not* checked -- there the user makes no typing claim.
+
+    Raises:
+        ValueError: If a ``physics=`` / ``renderer=`` name never resolved
+            against a config of that target's type.
+    """
+    aliases = PresetTarget.all_legacy_aliases()
+    missing = sorted(
+        (t.value, n) for t, ns in requested.items() for n in ns if t not in typed_hits.get(aliases.get(n, n), set())
+    )
+    if missing:
+        clauses = ", ".join(f"{label}={name}" for label, name in missing)
+        raise ValueError(
+            f"Typed preset selector(s) {clauses} did not match any preset of that type for this task. "
+            "The name only matched unrelated presets (or nothing), so the backend would stay unchanged. "
+            "Use a task that declares it on the matching config, or drop the selector."
+        )
+
+
+def register_task(task_name: str, agent_entry: str, play_mode: bool = False) -> tuple:
     """Load configs, collect presets recursively, register base config to Hydra.
 
     Presets are collected from nested configclasses and stored separately -
     NOT registered as Hydra groups to avoid Hydra's merge behavior.
+
+    Args:
+        task_name: Task name (e.g., "Isaac-Reach-Franka").
+        agent_entry: Agent config entry point key.
+        play_mode: Whether to apply the play-mode overrides defined by the environment
+            configuration's ``play_mode`` method after loading. Defaults to False.
 
     Returns:
         Tuple of ``(env_cfg, agent_cfg, hydra_args)`` where presets have been
@@ -532,7 +602,12 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
     agent_cfg = load_cfg_from_registry(task_name, agent_entry) if agent_entry else None
 
+    # CLI preset tokens: ``presets=NAME[,...]`` broadcasts (no typing claim),
+    # while ``physics=NAME`` / ``renderer=NAME`` are typed selectors that must
+    # resolve against a config of that type (enforced after resolution).
+    typed_labels = {target.value: target for target in PresetTarget if target.base_classes}
     global_presets: list[str] = []
+    requested_targets: dict[PresetTarget, set[str]] = {}
     override_items: list[tuple[str, str, str]] = []
     hydra_args: list[str] = []
     for arg in sys.argv[1:]:
@@ -540,13 +615,19 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
             hydra_args.append(arg)
             continue
         key, val = arg.split("=", 1)
-        if key.lstrip("-") == "presets":
+        token = key.lstrip("-")
+        if token == PresetTarget.DOMAIN.value:
             global_presets.extend(v.strip() for v in val.split(",") if v.strip())
+        elif token in typed_labels:
+            for name in (v.strip() for v in val.split(",") if v.strip()):
+                global_presets.append(name)
+                requested_targets.setdefault(typed_labels[token], set()).add(name)
         else:
             override_items.append((key, val, arg))
 
     explicit = {key: val for key, val, _arg in override_items}
     consumed_presets: set[str] = set()
+    typed_hits: dict[str, set[PresetTarget]] = {}
     consumed_explicit: set[str] = set()
     env_explicit = {path: name for path, name in explicit.items() if path == "env" or path.startswith("env.")}
     agent_explicit = {path: name for path, name in explicit.items() if path == "agent" or path.startswith("agent.")}
@@ -557,6 +638,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         root_path="env",
         strict_explicit=False,
         consumed_selected=consumed_presets,
+        typed_hits=typed_hits,
         consumed_explicit=consumed_explicit,
     )
     if agent_cfg is not None:
@@ -567,6 +649,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
             root_path="agent",
             strict_explicit=False,
             consumed_selected=consumed_presets,
+            typed_hits=typed_hits,
             consumed_explicit=consumed_explicit,
         )
 
@@ -590,6 +673,14 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         if unknown:
             display = {n: p for n, p in name_to_paths.items() if n != "default"}
             raise ValueError(_format_unknown_presets_error(unknown, display))
+
+    # Typed selectors (physics=/renderer=) must have landed on a cfg of their type
+    _validate_typed_presets(requested_targets, typed_hits)
+
+    # apply play-mode overrides after preset resolution so they act on the resolved
+    # config, and before scalar overrides so explicit user values still win
+    if play_mode and hasattr(env_cfg, "play_mode"):
+        env_cfg.play_mode()
 
     cfgs = {"env": env_cfg, "agent": agent_cfg}
     for key, val, arg in override_items:

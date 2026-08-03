@@ -21,6 +21,7 @@ from isaaclab.utils.leapp import (
     leapp_tensor_semantics,
 )
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 
 class BaseRigidObjectData(ABC):
@@ -52,6 +53,7 @@ class BaseRigidObjectData(ABC):
         """
         # Set the parameters
         self.device = device
+        self._read_launch_cache = _WarpLaunchCache(device)
 
     @abstractmethod
     def update(self, dt: float) -> None:
@@ -59,6 +61,34 @@ class BaseRigidObjectData(ABC):
 
         Args:
             dt: The time step for the update. This must be a positive value.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _reset_pose(self, from_link: bool = True) -> None:
+        """Invalidate cached pose-dependent quantities after a pose write to the simulation.
+
+        Backends implement this to mark the affected pose buffers stale (and trigger any
+        forward-kinematics refresh) so the next read recomputes from the freshly written state.
+
+        Args:
+            from_link: Set ``True`` when the root link pose was written so the derived
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False``
+                when the center-of-mass pose was written directly so it is not clobbered.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _reset_velocity(self, from_com: bool = True) -> None:
+        """Invalidate cached velocity-dependent quantities after a velocity write to the simulation.
+
+        Backends implement this to mark the affected velocity buffers stale (and trigger any
+        forward-kinematics refresh) so the next read recomputes from the freshly written state.
+
+        Args:
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the
+                link velocity was written directly so it is not clobbered.
         """
         raise NotImplementedError()
 
@@ -634,6 +664,7 @@ class BaseRigidObjectData(ABC):
         raise NotImplementedError()
 
     def _create_buffers(self) -> None:
+        self._read_launch_cache.clear()
         # -- Default mass and inertia (Lazy allocation of default values)
         self._default_mass = None
         self._default_inertia = None

@@ -6,7 +6,7 @@
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.manager_based.manipulation.stack.config.franka.bin_stack_ik_rel_env_cfg import FrankaBinStackEnvCfg
+from isaaclab_tasks.contrib.stack.config.franka.bin_stack_ik_rel_env_cfg import FrankaBinStackEnvCfg
 
 
 @configclass

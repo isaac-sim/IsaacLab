@@ -8,7 +8,7 @@ Policy Inference in USD Environment
 
 Having learnt how to modify a task in :ref:`tutorial-modify-direct-rl-env`, we will now look at how to run a trained policy in a prebuilt USD scene.
 
-In this tutorial, we will use the RSL RL library and the trained policy from the Humanoid Rough Terrain ``Isaac-Velocity-Rough-H1-v0`` task in a simple warehouse USD.
+In this tutorial, we will use the RSL RL library and the trained policy from the Humanoid Rough Terrain ``Isaac-Velocity-Rough-H1`` task in a simple warehouse USD.
 
 
 The Tutorial Code
@@ -16,8 +16,9 @@ The Tutorial Code
 
 For this tutorial, we use the trained policy's checkpoint exported as jit (which is an offline version of the policy).
 
-The ``H1RoughEnvCfg_PLAY`` cfg encapsulates the configuration values of the inference environment, including the assets to
-be instantiated.
+The ``H1RoughEnvCfg`` cfg encapsulates the configuration values of the environment, including the assets to
+be instantiated. Calling its ``play_mode`` method applies the play/inference overrides
+(such as a reduced number of environments and disabled observation noise) on top of the training configuration.
 
 In order to use a prebuilt USD environment instead of the terrain generator specified, we make the
 following changes to the config before passing it to the ``ManagerBasedRLEnv``.
@@ -38,19 +39,40 @@ This is because when simulating a small number of environment, CPU simulation ca
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-First, we need to train the ``Isaac-Velocity-Rough-H1-v0`` task by running the following:
+First, we need to train the ``Isaac-Velocity-Rough-H1`` task by running the following:
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Velocity-Rough-H1-v0 --headless
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Rough-H1
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Rough-H1
 
 When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
 where you started the simulation.
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Velocity-Rough-H1-v0 --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz kit
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz kit
 
 
 After running the play script, the policy will be exported to jit and onnx files under the experiment logs directory.
@@ -61,9 +83,20 @@ to learn about how to initialize the policy.
 We can then load the warehouse asset and run inference on the H1 robot using the exported jit policy
 (``policy.pt`` file in the ``exported/`` directory).
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt --viz kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run python scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt --viz kit
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt --viz kit
 
 
 .. figure:: ../../_static/tutorials/tutorial_policy_inference_in_usd.jpg

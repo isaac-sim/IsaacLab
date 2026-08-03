@@ -68,8 +68,17 @@ class PresetTarget(enum.Enum):
     future release.
     """
 
-    RENDERER = ("renderer", (RendererCfg,))
-    """Camera-sensor renderers -- ``renderer=NAME`` selector."""
+    RENDERER = ("renderer", (RendererCfg,), {"ovrtx_renderer": "ovrtx", "isaacsim_rtx_renderer": "isaacsim_rtx"})
+    """Camera-sensor renderers -- ``renderer=NAME`` selector.
+
+    Legacy aliases ``ovrtx_renderer`` -> ``ovrtx`` and
+    ``isaacsim_rtx_renderer`` -> ``isaacsim_rtx`` exist because the renderer
+    presets dropped their redundant ``_renderer`` suffix (the ``renderer=``
+    selector already names the category). Hydra's resolver (see
+    :func:`~isaaclab_tasks.utils.hydra._normalize_preset_name`) consults these
+    and emits a :class:`FutureWarning`; the aliases will be removed in a
+    future release.
+    """
 
     DOMAIN = ("presets",)
     """Free-form env-specific presets -- ``presets=NAME[,...]`` selector (catch-all).

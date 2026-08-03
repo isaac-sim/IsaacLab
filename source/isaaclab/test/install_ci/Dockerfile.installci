@@ -42,9 +42,9 @@ RUN apt-get update && \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# ARM-specific build deps (swig, GL/X11 dev headers) are intentionally NOT
-# pre-installed here.  ``./isaaclab.sh -i`` auto-installs them via apt when
-# missing, so install_ci exercises the real user-visible install path on ARM.
+# ARM-specific GL/X11 dev headers are intentionally NOT pre-installed here.
+# ``./isaaclab.sh -i`` auto-installs them via apt when missing, so install_ci
+# exercises the real user-visible install path on ARM.
 
 # Make python3 the default python
 RUN ln -sf /usr/bin/python3 /usr/bin/python
@@ -100,7 +100,7 @@ RUN if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
  && chown -R isaaclab:isaaclab ${ISAACLAB_PATH}
 
 # Passwordless sudo for the runtime user so ``./isaaclab.sh -i`` can apt-get
-# install missing build deps (swig, GL/X11) without prompting at test time.
+# install missing GL/X11 build deps without prompting at test time.
 RUN echo "isaaclab ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/isaaclab \
  && chmod 0440 /etc/sudoers.d/isaaclab
 

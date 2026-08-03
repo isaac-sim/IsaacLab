@@ -42,6 +42,7 @@ docker/.container.cfg
 **/.neptune/*
 docker/artifacts/
 *.tmp
+**/__tracked_surface.stl
 
 # Doc Outputs
 **/docs/_build/*
@@ -79,9 +80,6 @@ _build
 
 # Ruff cache
 **/.ruff_cache/
-
-# Dev-time files, generated stuff
-**/__*
 
 # Isaac Lab CI environments in native mode
 **/_isaaclab_install_ci_*

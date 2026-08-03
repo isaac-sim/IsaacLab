@@ -3,13 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_experimental.managers.action_manager import ActionTerm, ActionTermCfg
+from isaaclab_experimental.managers.manager_term_cfg import ActionTermCfg
 
-from . import joint_actions
+if TYPE_CHECKING:
+    from .joint_actions import JointEffortAction, JointPositionAction
 
 ##
 # Joint actions.
@@ -40,7 +44,7 @@ class JointPositionActionCfg(JointActionCfg):
     See :class:`JointPositionAction` for more details.
     """
 
-    class_type: type[ActionTerm] = joint_actions.JointPositionAction
+    class_type: type[JointPositionAction] | str = "{DIR}.joint_actions:JointPositionAction"
 
     use_default_offset: bool = True
     """Whether to use default joint positions configured in the articulation asset as offset.
@@ -58,4 +62,4 @@ class JointEffortActionCfg(JointActionCfg):
     See :class:`JointEffortAction` for more details.
     """
 
-    class_type: type[ActionTerm] = joint_actions.JointEffortAction
+    class_type: type[JointEffortAction] | str = "{DIR}.joint_actions:JointEffortAction"

@@ -10,6 +10,8 @@ import pytest
 import isaaclab.utils.dict as dict_utils
 import isaaclab.utils.string as string_utils
 
+pytestmark = pytest.mark.unit
+
 
 def _test_function(x):
     """Test function for string <-> callable conversion."""
