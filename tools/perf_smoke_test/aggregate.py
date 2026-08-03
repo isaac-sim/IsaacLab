@@ -8,7 +8,9 @@
 import argparse
 import json
 import os
+import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 _MODULE_DIR = Path(__file__).parent
@@ -30,7 +32,6 @@ from baseline_manager import (  # noqa: E402
     update_baselines_git,
 )
 from contracts import BenchResult  # noqa: E402
-from environment_skew import DependencySkew, detect_dependency_skew  # noqa: E402
 from gate_config import BASELINE_PUSH_RETRIES, MIN_BASELINE_SAMPLES, load_gate_config  # noqa: E402
 from gate_types import FpsMeanThreshold, OracleVerdict  # noqa: E402
 from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
@@ -159,6 +160,79 @@ def _runtime_context(bench_result: BenchResult) -> tuple[str, str]:
         if part
     )
     return str(gpu_name or "N/A"), runtime or "N/A"
+
+
+# --- Source-versus-image dependency skew -------------------------------------
+#
+# The gate bind-mounts Isaac Lab source over a prebuilt CI image, but the image
+# supplies the installed third-party packages (Newton, Warp, Isaac Sim). Between
+# a dependency-pin change landing on develop and the next image publish, a PR's
+# source can reference a symbol the installed package does not have yet, which
+# crashes every affected task before any FPS is measured. That crash says nothing
+# about the PR's performance, so it is reported as a stale image and left
+# advisory rather than read as a performance failure.
+
+# Packages installed into the CI image rather than bind-mounted from the PR. A
+# missing symbol in Isaac Lab's own source is a genuine defect in the change
+# under test and still fails.
+IMAGE_PROVIDED_PACKAGES: frozenset[str] = frozenset(
+    {
+        "carb",
+        "isaacsim",
+        "mujoco",
+        "mujoco_warp",
+        "newton",
+        "omni",
+        "pxr",
+        "warp",
+    }
+)
+
+# Python spells "this name is not in the installed package" three ways.
+_MISSING_NAME_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"ImportError: cannot import name ['\"](?P<symbol>\w+)['\"] from ['\"](?P<module>[\w.]+)['\"]"),
+    re.compile(r"ModuleNotFoundError: No module named ['\"](?P<module>[\w.]+)['\"]"),
+    re.compile(r"AttributeError: module ['\"](?P<module>[\w.]+)['\"] has no attribute ['\"](?P<symbol>\w+)['\"]"),
+)
+
+
+@dataclass(frozen=True)
+class DependencySkew:
+    """One detected mismatch between the PR's source and the image's packages."""
+
+    package: str
+    module: str
+    symbol: str | None
+
+    def describe(self) -> str:
+        """Return a one-line reviewer-facing description of the mismatch."""
+        if self.symbol:
+            return f"`{self.module}` in the CI image has no `{self.symbol}`"
+        return f"`{self.module}` is not installed in the CI image"
+
+
+def detect_dependency_skew(log_text: str | None) -> DependencySkew | None:
+    """Return the dependency skew a benchmark log indicates, if any.
+
+    Args:
+        log_text: Captured benchmark output, typically ``BenchResult.stdout_tail``.
+
+    Returns:
+        The detected mismatch, or ``None`` when the log shows no missing symbol
+        from an image-provided package.
+    """
+    if not log_text:
+        return None
+    for pattern in _MISSING_NAME_PATTERNS:
+        match = pattern.search(log_text)
+        if match is None:
+            continue
+        module = match.group("module")
+        package = module.split(".", 1)[0]
+        if package not in IMAGE_PROVIDED_PACKAGES:
+            continue
+        return DependencySkew(package=package, module=module, symbol=match.groupdict().get("symbol"))
+    return None
 
 
 def _skewed_rows(rows: list[tuple]) -> list[tuple[str, str, DependencySkew]]:
