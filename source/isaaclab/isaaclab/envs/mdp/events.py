@@ -1480,7 +1480,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 actuator.stiffness[env_ids] = stiffness
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_stiffness_to_sim_index(
-                        stiffness=stiffness, joint_ids=actuator.joint_indices, env_ids=env_ids
+                        stiffness=stiffness[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
                 if actuator_writer is not None:
                     actuator_writer.write_actuator_stiffness_to_sim(
@@ -1494,7 +1494,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 actuator.damping[env_ids] = damping
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_damping_to_sim_index(
-                        damping=damping, joint_ids=actuator.joint_indices, env_ids=env_ids
+                        damping=damping[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
                 if actuator_writer is not None:
                     actuator_writer.write_actuator_damping_to_sim(
