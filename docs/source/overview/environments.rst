@@ -115,6 +115,13 @@ to list presets for every registered environment.
 See the :doc:`Hydra preset system documentation </source/features/hydra>`
 for all available backend names and how the typed selectors work.
 
+.. note::
+
+   The DexSuite Kuka Allegro tasks use the homogeneous ``cube`` object preset with
+   ``physics=ovphysx``. The heterogeneous ``shapes`` preset is not supported with
+   OvPhysX; selecting both causes configuration validation to fail. Use
+   ``presets=cube`` or choose another supported physics backend.
+
 
 Single-agent
 ------------
@@ -216,7 +223,8 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``newton_kamino``,           |
     |                         |                              |                                                                             | ``ovphysx``                  |
     |                         |                              |                                                                             | **presets=** ``joint_pos``,  |
-    |                         |                              |                                                                             | ``diffik``, ``newton_ik``    |
+    |                         |                              |                                                                             | ``diffik``, ``diffik_abs``,  |
+    |                         |                              |                                                                             | ``newton_ik``                |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |reach-ur10|            | |reach-ur10-link|            | Move the end-effector to a sampled target pose with the UR10 robot          | **physics=**                 |
     |                         |                              |                                                                             | ``isaacsim_physx``,          |
@@ -791,15 +799,29 @@ for the definition/use of the various Gymnasium observation and action spaces su
     See Direct workflow's :py:obj:`~isaaclab.envs.DirectRLEnvCfg.observation_space` / :py:obj:`~isaaclab.envs.DirectRLEnvCfg.action_space`
     documentation for more details.
 
-The following tables summarize the different pairs of showcased spaces for the *Cartpole* and *Cartpole-Camera* tasks.
-Replace ``<OBSERVATION>`` and ``<ACTION>`` with the observation and action spaces to be explored in the task names for training and evaluation.
+The following tables summarize the different pairs of showcased spaces for the *Cartpole* and
+*Cartpole-Camera* tasks. Their registered task IDs are fixed:
+``IsaacContrib-Cartpole-Showcase-Direct`` and
+``IsaacContrib-Cartpole-Camera-Showcase-Direct``. Select the observation/action pair with
+``presets=<observation>_<action>`` rather than changing the task ID, and select the matching skrl
+agent entry point for that pair. For example:
+
+.. code-block:: bash
+
+    uv run --extra isaacsim isaaclab train --rl_library skrl \
+        --task IsaacContrib-Cartpole-Showcase-Direct \
+        --agent skrl_box_box_cfg_entry_point presets=box_box
+
+    uv run --extra isaacsim isaaclab train --rl_library skrl \
+        --task IsaacContrib-Cartpole-Camera-Showcase-Direct \
+        --agent skrl_box_box_cfg_entry_point presets=box_box
 
 .. raw:: html
 
     <table class="showcase-table">
     <caption>
       <p>Showcase spaces for the <strong>Cartpole</strong> task</p>
-      <p><code>Isaac-Cartpole-Showcase-&lt;OBSERVATION&gt;-&lt;ACTION&gt;-Direct-v0</code></p>
+      <p><code>IsaacContrib-Cartpole-Showcase-Direct presets=&lt;observation&gt;_&lt;action&gt;</code></p>
     </caption>
     <tbody>
       <tr>
@@ -848,7 +870,7 @@ Replace ``<OBSERVATION>`` and ``<ACTION>`` with the observation and action space
     <table class="showcase-table">
     <caption>
         <p>Showcase spaces for the <strong>Cartpole-Camera</strong> task</p>
-        <p><code>Isaac-Cartpole-Camera-Showcase-&lt;OBSERVATION&gt;-&lt;ACTION&gt;-Direct-v0</code></p>
+        <p><code>IsaacContrib-Cartpole-Camera-Showcase-Direct presets=&lt;observation&gt;_&lt;action&gt;</code></p>
     </caption>
     <tbody>
       <tr>
@@ -1007,11 +1029,11 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Cloth-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``newton_mjwarp_vbd_proxy``
+      - **physics=** ``newton_mjwarp_vbd_proxy``, ``ovphysx``
     * - Isaac-Lift-Cloth-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``newton_mjwarp_vbd_proxy``
+      - | **physics=** ``newton_mjwarp_vbd_proxy``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
     * - Isaac-Lift-Cube-Franka
       - Manager Based
@@ -1036,11 +1058,11 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Soft-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``physx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``, ``physx``
     * - Isaac-Lift-Soft-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``physx``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``
     * - Isaac-Open-Drawer-Franka
       - Manager Based
@@ -1058,7 +1080,7 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
-          | **presets=** ``diffik``, ``joint_pos``, ``newton_ik``
+          | **presets=** ``diffik``, ``diffik_abs``, ``joint_pos``, ``newton_ik``
     * - Isaac-Reach-Franka-OSC
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1326,10 +1348,6 @@ including disabling runtime perturbations used for training.
       - Manager Based
       -
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``physx``
-    * - IsaacContrib-Reach-Franka-IK-Abs
-      - Manager Based
-      -
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
     * - IsaacContrib-Reach-OpenArm
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)

@@ -381,7 +381,7 @@ class RemotizedPDActuator(DelayedPDActuator):
         self,
         cfg: RemotizedPDActuatorCfg,
         joint_names: list[str],
-        joint_ids: Sequence[int],
+        joint_ids: slice | torch.Tensor,
         num_envs: int,
         device: str,
         stiffness: torch.Tensor | float = 0.0,

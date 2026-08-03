@@ -267,7 +267,7 @@ These friction values were determined through iterative visual comparison:
 
                  .. code-block:: bash
 
-                     uv run isaaclab train --rl_library rsl_rl \
+                     uv run --extra video isaaclab train --rl_library rsl_rl \
                          --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
                          --video --video_length 800 --video_interval 5000
 
@@ -287,7 +287,7 @@ These friction values were determined through iterative visual comparison:
 
                  .. code-block:: bash
 
-                     uv run isaaclab train --rl_library rsl_rl \
+                     uv run --extra video isaaclab train --rl_library rsl_rl \
                          --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                          --video --video_length 800 --video_interval 5000
 
@@ -762,7 +762,7 @@ Now launch the full training run with more parallel environments in headless mod
 
               .. code-block:: bash
 
-                  uv run isaaclab train --rl_library rsl_rl \
+                  uv run --extra video isaaclab train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
                       --num_envs 256 \
                       --video --video_length 200 --video_interval 76800
@@ -784,7 +784,7 @@ Now launch the full training run with more parallel environments in headless mod
 
               .. code-block:: bash
 
-                  uv run isaaclab train --rl_library rsl_rl \
+                  uv run --extra video isaaclab train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
                       --num_envs 256 \
                       --video --video_length 200 --video_interval 76800
@@ -806,7 +806,7 @@ Now launch the full training run with more parallel environments in headless mod
 
               .. code-block:: bash
 
-                  uv run isaaclab train --rl_library rsl_rl \
+                  uv run --extra video isaaclab train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                       --num_envs 256 \
                       --video --video_length 200 --video_interval 76800

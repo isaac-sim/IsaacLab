@@ -36,6 +36,7 @@ class TestMockArticulationViewWarpInit:
             fixed_base=True,
         )
         assert view.count == 4
+        assert view.max_dofs == 12
         assert view.shared_metatype.dof_count == 12
         assert view.shared_metatype.link_count == 13
         assert view.shared_metatype.fixed_base is True

@@ -128,6 +128,49 @@ def test_method_benchmark_collects_exact_requested_samples() -> None:
     assert call_count == 6
 
 
+def test_method_benchmark_prepares_target_outside_timed_operation() -> None:
+    """Target cache preparation should run for every call without contributing to measured latency."""
+    runner = _runner(num_iterations=1, warmup_steps=1)
+    events: list[str] = []
+
+    def prepare_target() -> None:
+        events.append("target")
+
+    def generator(_config) -> dict[str, object]:
+        events.append("inputs")
+        return {}
+
+    def operation() -> None:
+        events.append("operation")
+
+    def clock() -> int:
+        events.append("clock")
+        return events.count("clock") * 1_000
+
+    with patch("isaaclab.benchmark.method_benchmark.time.perf_counter_ns", side_effect=clock):
+        result = runner._benchmark_method(
+            operation,
+            "example",
+            generator,
+            prepare_target=prepare_target,
+        )
+
+    assert result is not None
+    assert events == [
+        "target",
+        "inputs",
+        "operation",
+        "target",
+        "inputs",
+        "operation",
+        "target",
+        "inputs",
+        "clock",
+        "operation",
+        "clock",
+    ]
+
+
 def test_method_dependency_surface_is_not_published() -> None:
     """The unused method dependency arguments should not become public API."""
     definition_fields = {field.name for field in fields(MethodBenchmarkDefinition)}

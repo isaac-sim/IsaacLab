@@ -52,8 +52,10 @@ from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
 
 wp.init()
 
-# OVPhysX/Warp and the PyTorch reference use different float32 operation order on CUDA.
-_OVPHYSX_WRENCH_RTOL = 1e-5
+# OVPhysX/Warp and the PyTorch reference use different float32 operation order on CUDA. The
+# relative gap grows with the wrench magnitude: the Ant scenes see contact wrenches on the order
+# of 1e8, where the two orderings differ by a few 1e-5 relative.
+_OVPHYSX_WRENCH_RTOL = 1e-4
 _OVPHYSX_WRENCH_ATOL = 1e-5
 
 # ---------------------------------------------------------------------------

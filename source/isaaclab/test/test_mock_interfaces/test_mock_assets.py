@@ -5,9 +5,12 @@
 
 """Unit tests for mock asset interfaces."""
 
+from types import SimpleNamespace
+
 import pytest
 import torch
 
+from isaaclab.envs.mdp.actions import BinaryJointPositionAction, BinaryJointPositionActionCfg
 from isaaclab.test.mock_interfaces.assets import (
     MockArticulation,
     MockRigidObject,
@@ -21,6 +24,42 @@ from isaaclab.test.mock_interfaces.assets import (
 from isaaclab.test.mock_interfaces.utils import MockArticulationBuilder
 
 pytestmark = pytest.mark.unit
+
+
+def test_binary_joint_action_uses_cached_proxy_warp_view():
+    """Test repeated action writes use the cached finder's explicit Warp view."""
+    robot = MockArticulation(
+        num_instances=2,
+        num_joints=3,
+        num_bodies=1,
+        joint_names=["joint_0", "joint_1", "joint_2"],
+        device="cpu",
+    )
+    expected_selector = robot.find_joints(["joint_0", "joint_2"], preserve_order=True, as_proxy=True)[0]
+    received_selectors = []
+
+    def record_target(*, target, joint_ids=None, env_ids=None):
+        received_selectors.append(joint_ids)
+
+    robot.set_joint_position_target_index = record_target
+    env = SimpleNamespace(scene={"robot": robot}, num_envs=2, device="cpu")
+    cfg = BinaryJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["joint_0", "joint_2"],
+        open_command_expr={"joint_.*": 1.0},
+        close_command_expr={"joint_.*": -1.0},
+    )
+
+    action = BinaryJointPositionAction(cfg, env)
+    action.process_actions(torch.ones(2, 1))
+    action.apply_actions()
+    action.apply_actions()
+
+    assert action._joint_ids is expected_selector.warp
+    assert len(received_selectors) == 2
+    assert all(selector is expected_selector.warp for selector in received_selectors)
+    assert expected_selector._torch_cache is None
+
 
 # ==============================================================================
 # MockArticulation Tests
@@ -236,12 +275,14 @@ class TestMockRigidObjectCollection:
         assert collection.data.body_link_vel_w.torch.shape == (4, 5, 6)
         assert collection.data.body_link_state_w.torch.shape == (4, 5, 13)
 
-    def test_find_bodies_returns_mask(self, collection):
-        """Test that find_bodies returns a mask tensor."""
-        body_mask, names = collection.find_bodies("body_0")
-        assert isinstance(body_mask, torch.Tensor)
-        assert body_mask.shape == (5,)
-        assert body_mask[0]
+    def test_find_bodies_returns_indices(self, collection):
+        """Test that find_bodies returns an int32 index tensor."""
+        body_ids, names = collection.find_bodies("body_0")
+        assert isinstance(body_ids, torch.Tensor)
+        assert body_ids.dtype == torch.int32
+        assert body_ids.device.type == collection.device
+        assert body_ids.tolist() == [0]
+        assert names == ["body_0"]
 
 
 # ==============================================================================
