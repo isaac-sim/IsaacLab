@@ -19,8 +19,8 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # sim
-        # lower margin to avoid self-collision
-        self.sim.physics.newton_mjwarp.default_shape_cfg.margin = 0.001
         # scene
-        self.scene.robot = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = ANYMAL_D_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ANYMAL_D_CFG.init_state.replace(pos=(0.0, 0.0, 0.65))
+        )

@@ -52,20 +52,17 @@ class RoughPhysicsCfg(PresetCfg):
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=200,
-            nconmax=100,
+            njmax=1000,
+            nconmax=300,
             cone="pyramidal",
             impratio=1.0,
             integrator="implicitfast",
             use_mujoco_contacts=False,
         ),
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        num_substeps=1,
+        num_substeps=2,
         debug_mode=False,
-        # 1 cm shape margin is the single most important Newton setting for rough
-        # terrain — without it, non-AnymalD robots fail to learn stable contact
-        # on triangle-mesh terrain. See isaaclab_newton 0.5.22 changelog.
-        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+        default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
     )
     default = isaacsim_physx
 
@@ -321,6 +318,7 @@ class TerminationsCfg:
         func=mdp.illegal_contact,
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
     )
+    body_speed = DoneTerm(func=mdp.body_lin_vel_out_of_manual_limit, params={"max_speed": 20.0})
 
 
 @configclass
@@ -362,6 +360,8 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material
+        newton = self.sim.physics.newton_mjwarp
+        newton.collision_cfg.rigid_contact_max = newton.solver_cfg.nconmax * self.scene.num_envs
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:
