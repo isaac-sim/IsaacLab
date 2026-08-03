@@ -31,9 +31,18 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     """Read-only runtime collection of actuator groups for one articulation.
 
     The collection owns actuator command buffers, processed joint command buffers,
-    actuator telemetry, and actuator-resolved gain/state buffers. Named actuator
-    groups remain visible through the mapping interface, but membership is fixed
-    after construction.
+    actuator telemetry, and actuator-resolved gain/state buffers. Named mapping
+    entries are stable logical configuration and access groups, and membership is
+    fixed after construction. Compatible groups whose concrete type is the same
+    supported stateless actuator class may share a private execution actuator while
+    retaining their separate per-joint parameters and group-shaped public values.
+    Execution batches are an implementation detail, and users must not depend on
+    their count.
+
+    The collection owns lifecycle execution for its managed groups. Calling
+    :meth:`~isaaclab.actuators.ActuatorBase.compute` or
+    :meth:`~isaaclab.actuators.ActuatorBase.reset` directly on a mapping value is
+    unsupported.
     """
 
     @dataclass

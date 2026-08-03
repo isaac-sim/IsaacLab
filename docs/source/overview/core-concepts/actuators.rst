@@ -461,6 +461,9 @@ on implicit actuators may not transfer unchanged to explicit ones -- and why the
 Runtime API: ``articulation.actuators``
 ---------------------------------------
 
+Group access
+^^^^^^^^^^^^
+
 :attr:`~isaaclab.assets.Articulation.actuators` is an
 :class:`~isaaclab.actuators.ActuatorCollection`, a read-only ``Mapping`` from group name to actuator
 model. Membership is fixed after construction, so you can look up and iterate groups but not add or
@@ -471,6 +474,25 @@ replace them:
     legs = robot.actuators["legs"]          # the ActuatorBase for the "legs" group
     for name, actuator in robot.actuators.items():
         print(name, type(actuator).__name__)
+
+Logical groups and execution batches
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Named entries such as ``hips`` and ``knees`` remain separate configuration and
+access groups. Isaac Lab may execute disjoint groups of the same supported
+stateless actuator class through one private actuator instance. Per-joint gains
+and limits may differ; aggregation does not merge their public configuration or
+change the shapes returned by ``robot.actuators["hips"]``.
+
+Execution batching is an implementation detail. Do not call
+:meth:`~isaaclab.actuators.ActuatorBase.compute` or
+:meth:`~isaaclab.actuators.ActuatorBase.reset` directly on an actuator obtained
+from the collection, and do not rely on the number of execution batches. Set
+commands and perform lifecycle operations through the articulation and its
+:class:`~isaaclab.actuators.ActuatorCollection`.
+
+Commands, telemetry, and lifecycle
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Setting actuator commands.** The mutable ``command`` view contains the desired position,
 velocity, and effort received by the actuator models. Use its index setters for the common case
@@ -582,6 +604,10 @@ CUDA-graph-captured region. Implicit actuators are unaffected: their gains are w
 solver and PD runs there as before, so implicit joints keep working exactly the same. The PhysX
 backend can also consume these Newton-authored actuators through its adapter, which steps them
 host-side each step, so the authoring is shared across backends.
+
+Newton owns a separate native execution aggregation path. When native actuator handling is active,
+Isaac Lab keeps the named logical groups for configuration and access but does not construct the
+private host-side execution batches described above.
 
 **Supported models.** The authoring maps each supported config to a set of USD schemas:
 
