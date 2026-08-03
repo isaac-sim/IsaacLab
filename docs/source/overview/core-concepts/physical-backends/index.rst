@@ -96,6 +96,10 @@ per-task support, see each backend's own ``limitations`` page.
       - Yes
       - Yes (experimental VBD)
       - Experimental (CUDA only)
+    * - Cable Object API
+      - No
+      - VBD
+      - No
     * - Contact Sensor
       - Yes
       - Yes

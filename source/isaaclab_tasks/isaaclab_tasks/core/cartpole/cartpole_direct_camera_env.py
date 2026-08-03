@@ -56,8 +56,8 @@ class CartpoleCameraEnv(CartpoleEnv):
         plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
 
-        if self.device == "cpu":
-            # we need to explicitly filter collisions for CPU simulation
+        # PhysX replication requires explicit collision filtering between environments.
+        if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[])
 
         # add articulation and sensors to scene
