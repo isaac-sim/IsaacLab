@@ -39,10 +39,9 @@ class OpenArmCubeLiftEnvCfg(LiftEnvCfg):
         self.scene.robot = OPENARM_UNI_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # Scope the joint-space terms to the OpenArm's own joints.
-        openarm_cfg = SceneEntityCfg("robot", joint_names=OPENARM_JOINTS)
-        self.observations.policy.joint_pos.params = {"asset_cfg": openarm_cfg}
-        self.observations.policy.joint_vel.params = {"asset_cfg": openarm_cfg}
-        self.rewards.joint_vel.params["asset_cfg"] = openarm_cfg
+        self.observations.policy.joint_pos.params = {"asset_cfg": SceneEntityCfg("robot", joint_names=OPENARM_JOINTS)}
+        self.observations.policy.joint_vel.params = {"asset_cfg": SceneEntityCfg("robot", joint_names=OPENARM_JOINTS)}
+        self.rewards.joint_vel.params["asset_cfg"] = SceneEntityCfg("robot", joint_names=OPENARM_JOINTS)
 
         # Shrink the goal workspace to the smaller arm's reach.
         self.commands.object_pose.ranges.pos_x = (0.2, 0.4)
