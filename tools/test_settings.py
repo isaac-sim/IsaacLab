@@ -72,7 +72,7 @@ PER_TEST_TIMEOUTS = {
     # Every kitless rendering file runs each AOV twice (the ``ovstage_variant`` fixture covers the
     # legacy and ovstage OVRTX code paths). At 76 cases the Kuka Allegro scene overruns the default
     # budget; the remaining kitless files still fit but have little headroom.
-    "test_rendering_dexsuite_kuka_homo_kitless.py": 2000,
+    "test_rendering_lift_kuka_homo_kitless.py": 2000,
     # Budgets ~45s per AOV: one full RTX env is built and torn down per parametrized data type.
     # Bump this when renderer cases are added to _DEFAULT_SENSOR_DATA_TYPES in rendering_test_utils.py.
     "test_rendering_shadow_hand.py": 1500,
@@ -149,7 +149,7 @@ TEST_RL_ENVS = [
     "Isaac-Ant",
     "Isaac-Cartpole",
     # manipulation
-    "Isaac-Lift-Cube-Franka",
+    "Isaac-Lift-Franka",
     "Isaac-Open-Drawer-Franka",
     # dexterous manipulation
     "Isaac-Reorient-Cube-Allegro",
