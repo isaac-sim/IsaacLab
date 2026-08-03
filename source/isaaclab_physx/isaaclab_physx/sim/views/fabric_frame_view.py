@@ -29,12 +29,13 @@ logger = logging.getLogger(__name__)
 def _parent_path(prim_path: str) -> str:
     """Parent prim path of ``prim_path``.
 
+    Args:
+        prim_path: Absolute prim path, so it always contains a separator.
+
     Raises:
         RuntimeError: If the prim is directly under the stage root and thus has
             no non-pseudoroot parent to read Fabric matrices from.
     """
-    # Slice at the last separator instead of rsplit: no list, no tail string.
-    # View prim paths are absolute, so rfind always hits at least the leading "/".
     parent = prim_path[: prim_path.rfind("/")]
     if not parent:
         raise RuntimeError(
@@ -153,38 +154,20 @@ class FabricFrameView(BaseFrameView):
       :mod:`isaaclab.sim.views.xform_space_writer` for the full contract).
       The "torn data" concern is what motivates that no-step rule; it
       is separate from why the tracking pause exists.
-    * **Per-view index attributes; selections match O(view), not O(stage).**
-      During ``_initialize_fabric`` the view authors two private ``uint``
-      attributes in Fabric: one on each managed prim (value = the prim's view
-      index) and one on each unique parent prim (value = the parent's ordinal).
-      Every selection requires the matching index attribute, so selections
-      resolve to exactly the view's prims -- never the whole stage.  The
-      attribute names embed a process-wide monotonic uid, so a dead view's
-      leftover attributes can never satisfy a live view's selection.
-
-      Three selections are built once and kept for the view's lifetime:
-
-      .. code-block:: text
-
-          _sel_ro     : child index=RO, worldMatrix=RO, localMatrix=RO  (steady state)
-          _sel_rw     : child index=RO, worldMatrix=RW, localMatrix=RW  (inside writer scope)
-          _sel_parent : parent index=RO, worldMatrix=RO                 (parent reads)
-
-      Writer ``__enter__`` flips an ``_is_rw`` flag so child accessors resolve
-      to the RW selection; ``__exit__`` flips back to RO.  The RO steady state
-      tells Kit's next-tick ``update_world_xforms()`` that no attribute is
-      user-authored, so it leaves both alone.  Combined with the tracking
-      pause and the opposite-space derive at scope exit, this is what keeps
-      the next render tick from overwriting our writes.
-    * **Kernel-built slot mappings; topology-adaptive without caching.**  Every
-      selection access calls ``PrepareForReuse()`` and then rebuilds the
-      view->fabric slot mapping in a single Warp kernel launch over the index
-      attribute (:func:`~isaaclab.utils.warp.fabric.map_view_indices_to_fabric_slots`).
-      The mapping is re-derived from live Fabric data on each access -- O(count)
-      device work with no host-side path resolution -- so Fabric bucket moves
-      are absorbed on the next access and can never leave a stale mapping
-      behind.  If a managed prim disappears from a selection (prim or attribute
-      removed), the accessor raises :class:`RuntimeError`; recreate the view.
+    * **Selections are scoped to the view, not the stage.**  The view tags its
+      own prims (and their parents) with private per-view index attributes and
+      requires those attributes in every prim selection, so a selection resolves
+      to exactly the prims the view manages however large the stage grows.
+      Tag names are unique per view instance, so views never interfere with one
+      another.  The tags are authored on first use and are not removed when the
+      view is dropped; repeatedly recreating views over the same prims on a
+      long-lived stage accumulates attributes on those prims.
+    * **Topology changes are absorbed, with no cache to invalidate.**  The
+      view-to-Fabric mapping is re-derived from live Fabric data on every
+      access, so prims moving between Fabric buckets can never leave a stale
+      mapping behind.  If a managed prim disappears (prim or attribute removed)
+      the next access raises :class:`RuntimeError` and the view must be
+      recreated.  See ``_refresh_child_selection`` for how this is done.
 
     Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`; the
     convenience :meth:`set_world_poses` / :meth:`set_local_poses` helpers accept
@@ -473,13 +456,14 @@ class FabricFrameView(BaseFrameView):
         Storage convention: see
         :func:`isaaclab.utils.warp.fabric.update_indexed_local_matrix_from_world`.
         """
+        world_ifa, local_ifa = self._get_child_ifas()
         wp.launch(
             kernel=fabric_utils.update_indexed_local_matrix_from_world,
             dim=self.count,
             inputs=[
-                self._get_world_ifa(),
+                world_ifa,
                 self._get_parent_world_ifa(),
-                self._get_local_ifa(),
+                local_ifa,
                 self._view_indices,
             ],
             device=self._device,
@@ -494,13 +478,14 @@ class FabricFrameView(BaseFrameView):
         Storage convention: see
         :func:`isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`.
         """
+        world_ifa, local_ifa = self._get_child_ifas()
         wp.launch(
             kernel=fabric_utils.update_indexed_world_matrix_from_local,
             dim=self.count,
             inputs=[
-                self._get_local_ifa(),
+                local_ifa,
                 self._get_parent_world_ifa(),
-                self._get_world_ifa(),
+                world_ifa,
                 self._view_indices,
             ],
             device=self._device,
@@ -517,6 +502,19 @@ class FabricFrameView(BaseFrameView):
     def _get_local_ifa(self) -> wp.indexedfabricarray:
         sel = self._refresh_child_selection()
         return wp.indexedfabricarray(fa=wp.fabricarray(sel, self._LOCAL_MATRIX_NAME), indices=self._child_slots_buf)
+
+    def _get_child_ifas(self) -> tuple[wp.indexedfabricarray, wp.indexedfabricarray]:
+        """Return ``(world, local)`` child arrays from a single selection refresh.
+
+        Callers that need both spaces must use this instead of calling
+        :meth:`_get_world_ifa` and :meth:`_get_local_ifa`, which would refresh
+        the same selection -- and re-run its mapping kernel -- twice.
+        """
+        sel = self._refresh_child_selection()
+        return (
+            wp.indexedfabricarray(fa=wp.fabricarray(sel, self._WORLD_MATRIX_NAME), indices=self._child_slots_buf),
+            wp.indexedfabricarray(fa=wp.fabricarray(sel, self._LOCAL_MATRIX_NAME), indices=self._child_slots_buf),
+        )
 
     def _get_parent_world_ifa(self) -> wp.indexedfabricarray:
         self._refresh_parent_selection()
