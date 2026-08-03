@@ -3,13 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch the XR Kit experience before importing Scene UI."""
+"""Launch real Scene UI extensions without starting an XR runtime."""
 
 from isaaclab.app import AppLauncher
 
-simulation_app = AppLauncher(headless=True, xr=True, device="cpu").app
-
-"""Rest everything follows."""
+_SCENE_UI_KIT_ARGS = " ".join(
+    (
+        "--enable omni.kit.xr.core",
+        "--enable omni.kit.scene_view.xr",
+        "--enable omni.kit.scene_view.xr_utils",
+    )
+)
+simulation_app = AppLauncher(
+    headless=True,
+    enable_cameras=True,
+    device="cpu",
+    kit_args=_SCENE_UI_KIT_ARGS,
+).app
 
 import pytest
 from isaaclab_teleop.camera_feed import _PanelDescriptor
@@ -21,7 +31,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
 def test_real_scene_ui_imports_and_constructs_world_panel():
-    """The XR experience provides the real Scene UI signatures used by PiP."""
+    """The real Scene UI extensions provide the signatures used by PiP."""
     sim_utils.create_new_stage()
     presenter = _KitSceneUiCameraFeedPresenter()
     descriptor = _PanelDescriptor(
