@@ -121,6 +121,29 @@ def test_stop_is_dispatched_for_lazy_class_type(physics_cfg):
 
 
 @pytest.mark.isaacsim_ci
+def test_clear_instance_closes_renderers():
+    """``clear_instance`` must close registered renderers rather than leave them to garbage collection.
+
+    A renderer is shared by every camera whose config resolves to it, so the stage-bound resources it
+    owns cannot be released from a single camera's ``cleanup``. Nothing else releases them either:
+    the OVRTX ovstage path holds its stage in a ``contextlib.ExitStack``, which has no finalizer, so
+    collection never runs the context managers that own it.
+    """
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg()))
+
+    closed = []
+
+    class _Renderer:
+        def close(self):
+            closed.append(True)
+
+    sim.render_context._renderer_entries.append((object(), _Renderer()))  # noqa: SLF001
+    SimulationContext.clear_instance()
+
+    assert closed, "registered renderers were not closed at teardown"
+
+
+@pytest.mark.isaacsim_ci
 def test_instance_before_creation():
     """Test accessing instance before creating returns None."""
     # clear any existing instance

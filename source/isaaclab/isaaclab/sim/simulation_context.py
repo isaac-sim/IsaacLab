@@ -865,6 +865,11 @@ class SimulationContext:
             # This must happen before clearing USD prims to avoid PhysX cleanup errors
             cls._instance.physics_manager.close()
 
+            # Close the camera renderers. Ordered after the physics manager so PhysicsEvent.STOP has
+            # already invalidated the cameras that hold render data, and before close_stage() so the
+            # backends release their stage-bound resources while the stage still exists.
+            cls._instance._render_context.close()
+
             # Close all visualizers
             for viz in cls._instance._visualizers:
                 viz.close()

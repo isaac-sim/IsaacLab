@@ -162,3 +162,22 @@ class RenderContext:
     def reset_scene_state_cadence(self) -> None:
         """Clear per-step scene state update dedupe (e.g. a long pause with no physics)."""
         self._last_scene_state_step = None
+
+    def close(self) -> None:
+        """Close every registered backend and drop it from this context.
+
+        Called from :meth:`~isaaclab.sim.simulation_context.SimulationContext.clear_instance` after
+        cameras have released their render data and before the stage is torn down, so
+        :meth:`BaseRenderer.close` runs while the stage is still alive. A backend that raises is
+        logged and skipped so the remaining backends still close. Idempotent.
+        """
+        for _cfg, renderer in self._renderer_entries:
+            try:
+                renderer.close()
+            except Exception:
+                logger.exception("Error closing renderer %s.", type(renderer).__name__)
+        self._renderer_entries.clear()
+        self._prepared_renderer_ids.clear()
+        self._prepared_num_envs = None
+        self._last_scene_state_step = None
+        self._physics_initialized = False

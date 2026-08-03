@@ -401,3 +401,190 @@ def test_ovrtx_cleanup_without_render_data_keeps_renderer_state():
 
     assert renderer._render_product_paths == ["/Render/RenderProduct_camera"]
     assert renderer._initialized_scene is True
+
+
+class _RecordingBinding:
+    def __init__(self, events: list[str], name: str):
+        self._events = events
+        self._name = name
+
+    def unbind(self) -> None:
+        self._events.append(f"unbind:{self._name}")
+
+
+def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
+    """Build a legacy-path renderer whose backend calls are recorded into ``events``."""
+
+    class Backend:
+        def reset_stage(self) -> None:
+            events.append("reset_stage")
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = False
+    renderer._camera_xform_binding = _RecordingBinding(events, "camera")
+    renderer._object_xform_binding = _RecordingBinding(events, "object")
+    renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
+    renderer._particle_points_binding = _RecordingBinding(events, "particle")
+    renderer._deformable_particle_offsets = [0]
+    renderer._deformable_particle_counts = [1]
+    renderer._particle_visual_offsets = [0]
+    renderer._particle_visual_counts = [1]
+    renderer._particle_workaround_applied = True
+    renderer._renderer = Backend()
+    renderer._render_product_paths = ["/Render/RenderProduct_camera"]
+    renderer._output_id_color_buffers = {"semantic_segmentation": object()}
+    renderer._initialized_scene = True
+    return renderer
+
+
+def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
+    """Build an ovstage-path renderer whose backend calls are recorded into ``events``."""
+
+    class Completion:
+        def wait(self) -> None:
+            return
+
+    class Stage:
+        def release_query(self, query):
+            events.append(f"release_query:{query}")
+            return Completion()
+
+    class StagePaths:
+        def destroy_path_list(self, path_list) -> None:
+            events.append(f"destroy_path_list:{path_list}")
+
+    class Backend:
+        def detach_ovstage(self) -> None:
+            events.append("detach_ovstage")
+
+    class ExitStack:
+        def close(self) -> None:
+            events.append("exit_stack_close")
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = True
+    renderer._stage = Stage()
+    renderer._stage_paths = StagePaths()
+    renderer._camera_xform_query = "camera"
+    renderer._camera_paths_list = "camera"
+    renderer._object_xform_query = "object"
+    renderer._object_paths_list = "object"
+    renderer._deformable_points_query = "deformable"
+    renderer._deformable_paths_list = "deformable"
+    renderer._particle_points_query = "particle"
+    renderer._particle_paths_list = "particle"
+    renderer._object_newton_indices = object()
+    renderer._deformable_particle_offsets = [0]
+    renderer._deformable_particle_counts = [1]
+    renderer._particle_visual_offsets = [0]
+    renderer._particle_visual_counts = [1]
+    renderer._env_root_xforms = object()
+    renderer._renderer = Backend()
+    renderer._ovstage_exit_stack = ExitStack()
+    renderer._render_product_paths = ["/Render/RenderProduct_camera"]
+    renderer._output_id_color_buffers = {"semantic_segmentation": object()}
+    renderer._initialized_scene = True
+    renderer._current_ordinal = 7
+    return renderer
+
+
+def test_ovrtx_close_releases_legacy_renderer_state():
+    """``close`` unbinds the tensor bindings and resets the stage the renderer owns."""
+    events: list[str] = []
+    renderer = _make_legacy_renderer_with_backend(events)
+
+    renderer.close()
+
+    assert events == [
+        "unbind:camera",
+        "unbind:object",
+        "unbind:deformable",
+        "unbind:particle",
+        "reset_stage",
+    ]
+    assert renderer._camera_xform_binding is None
+    assert renderer._object_xform_binding is None
+    assert renderer._deformable_points_binding is None
+    assert renderer._particle_points_binding is None
+    assert renderer._particle_workaround_applied is False
+    assert renderer._renderer is None
+    assert renderer._render_product_paths == []
+    assert renderer._output_id_color_buffers == {}
+    assert renderer._initialized_scene is False
+
+
+def test_ovrtx_close_releases_ovstage_renderer_state():
+    """``close`` releases the queries and path lists, then detaches before closing the ExitStack.
+
+    The ExitStack owns the ovstage ``Stage`` and ``PathDictionary`` as context managers, so it is the
+    only thing that releases them — ``ExitStack`` has no finalizer, and garbage collection never
+    invokes ``__exit__``. Detaching first avoids a use-after-free while the renderer still references
+    the stage.
+    """
+    events: list[str] = []
+    renderer = _make_ovstage_renderer_with_backend(events)
+
+    renderer.close()
+
+    assert events == [
+        "release_query:camera",
+        "destroy_path_list:camera",
+        "release_query:object",
+        "destroy_path_list:object",
+        "release_query:deformable",
+        "destroy_path_list:deformable",
+        "release_query:particle",
+        "destroy_path_list:particle",
+        "detach_ovstage",
+        "exit_stack_close",
+    ]
+    assert renderer._camera_xform_query is None
+    assert renderer._particle_paths_list is None
+    assert renderer._object_newton_indices is None
+    assert renderer._env_root_xforms is None
+    assert renderer._renderer is None
+    assert renderer._ovstage_exit_stack is None
+    assert renderer._stage is None
+    assert renderer._stage_paths is None
+    assert renderer._render_product_paths == []
+    assert renderer._output_id_color_buffers == {}
+    assert renderer._initialized_scene is False
+    assert renderer._current_ordinal == 0
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_ovrtx_close_is_idempotent(use_ovstage):
+    """A second ``close`` releases nothing again, so a repeated teardown cannot double-free."""
+    events: list[str] = []
+    renderer = (
+        _make_ovstage_renderer_with_backend(events) if use_ovstage else _make_legacy_renderer_with_backend(events)
+    )
+
+    renderer.close()
+    events.clear()
+    renderer.close()
+
+    assert events == []
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_ovrtx_close_before_initialization_is_a_noop(use_ovstage):
+    """``close`` runs on a renderer that never initialized — the sim was never played, or setup raised."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = use_ovstage
+    renderer._render_product_paths = []
+    renderer._output_id_color_buffers = {}
+    renderer._initialized_scene = False
+    renderer._renderer = None
+    renderer._deformable_particle_offsets = []
+    renderer._deformable_particle_counts = []
+    renderer._particle_visual_offsets = []
+    renderer._particle_visual_counts = []
+    if use_ovstage:
+        renderer._init_fields_ovstage()
+    else:
+        renderer._init_fields_legacy()
+
+    renderer.close()
+
+    assert renderer._initialized_scene is False
