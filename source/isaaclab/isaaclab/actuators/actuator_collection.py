@@ -797,6 +797,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         joint_ids: torch.Tensor,
         target_buffer: wp.array,
     ) -> None:
+        actuator_attr = {"kp": "stiffness", "kd": "damping"}[attr]
+        self._write_execution_parameter(actuator_attr, values, env_ids, joint_ids)
         env_ids_wp = wp.from_torch(env_ids.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
         joint_ids_wp = wp.from_torch(joint_ids.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
         values_wp = wp.from_torch(values.to(self.device, dtype=torch.float32).contiguous(), dtype=wp.float32)
@@ -808,6 +810,24 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             device=self.device,
         )
         self._control.write_native_actuator_gain(attr, values, env_ids, joint_ids)
+
+    def _write_execution_parameter(
+        self,
+        attr: str,
+        values: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        values = values.to(self.device, dtype=torch.float32)
+        env_ids = env_ids.to(self.device, dtype=torch.long)
+        joint_ids = joint_ids.to(self.device, dtype=torch.long)
+        for batch in self._execution_batches:
+            batch_joint_ids = batch.joint_indices.to(dtype=torch.long)
+            requested_columns, batch_columns = torch.where(joint_ids[:, None] == batch_joint_ids[None, :])
+            if requested_columns.numel() == 0:
+                continue
+            target = getattr(batch.actuator, attr)
+            target[env_ids[:, None], batch_columns[None, :]] = values[:, requested_columns]
 
     def _validate_coverage(self) -> None:
         if self.num_joints == 0:

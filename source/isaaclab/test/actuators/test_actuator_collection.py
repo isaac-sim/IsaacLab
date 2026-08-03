@@ -159,6 +159,7 @@ class FakeActuatorControl(ActuatorControl):
         self._joint_pos = ProxyArray(wp.zeros((num_envs, len(self._joint_names)), dtype=wp.float32, device=device))
         self._joint_vel = ProxyArray(wp.zeros((num_envs, len(self._joint_names)), dtype=wp.float32, device=device))
         self.written_properties: list[tuple[str, bool]] = []
+        self.native_gain_writes: list[tuple[str, torch.Tensor, torch.Tensor, torch.Tensor]] = []
         self.staged_commands: list[str] = []
         self.submitted = False
 
@@ -261,6 +262,9 @@ class FakeActuatorControl(ActuatorControl):
     def write_resolved_joint_properties(self, actuator, *, native_managed: bool) -> None:
         self.written_properties.append((actuator.__class__.__name__, native_managed))
 
+    def write_native_actuator_gain(self, attr, values, env_ids, joint_ids) -> None:
+        self.native_gain_writes.append((attr, values.clone(), env_ids.clone(), joint_ids.clone()))
+
     def stage_user_command(
         self,
         command_name: str,
@@ -274,6 +278,17 @@ class FakeActuatorControl(ActuatorControl):
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
         self.submitted = True
+
+
+class NativeFakeActuatorControl(FakeActuatorControl):
+    """Control object that handles actuator execution natively."""
+
+    @property
+    def native_active(self) -> bool:
+        return True
+
+    def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
+        return True
 
 
 class ProxyFinderActuatorControl(FakeActuatorControl):
@@ -679,6 +694,98 @@ def test_stateful_subclasses_and_overlapping_groups_remain_unbatched():
         FakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2"]),
     )
     assert len(cross_class._execution_batches) == 3
+
+
+def test_runtime_gains_route_into_aggregate_and_native_hook():
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    collection = ActuatorCollection(
+        {
+            "hips": _dc_cfg(
+                ["joint_0", "joint_1"],
+                stiffness=20.0,
+                damping=1.0,
+                effort_limit=40.0,
+                velocity_limit=10.0,
+                saturation_effort=60.0,
+            ),
+            "knees": _dc_cfg(
+                ["joint_2", "joint_3"],
+                stiffness=30.0,
+                damping=2.0,
+                effort_limit=70.0,
+                velocity_limit=20.0,
+                saturation_effort=120.0,
+            ),
+        },
+        control,
+    )
+    env_ids = torch.tensor([1], dtype=torch.long)
+
+    collection.write_actuator_stiffness_to_sim(
+        stiffness=torch.tensor([[71.0, 93.0]]),
+        env_ids=env_ids,
+        joint_ids=torch.tensor([0, 3], dtype=torch.long),
+    )
+
+    torch.testing.assert_close(collection["hips"].stiffness[1, 0], torch.tensor(71.0), rtol=0.0, atol=0.0)
+    torch.testing.assert_close(collection["knees"].stiffness[1, 1], torch.tensor(93.0), rtol=0.0, atol=0.0)
+    torch.testing.assert_close(collection.actuator_stiffness.torch[1, 0], torch.tensor(71.0), rtol=0.0, atol=0.0)
+    torch.testing.assert_close(collection.actuator_stiffness.torch[1, 3], torch.tensor(93.0), rtol=0.0, atol=0.0)
+    assert control.native_gain_writes[-1][0] == "kp"
+
+    collection.write_actuator_damping_to_sim(
+        damping=torch.tensor([[47.0, 29.0]]),
+        env_ids=env_ids,
+        joint_ids=torch.tensor([3, 0], dtype=torch.long),
+    )
+
+    torch.testing.assert_close(collection["knees"].damping[1, 1], torch.tensor(47.0), rtol=0.0, atol=0.0)
+    torch.testing.assert_close(collection["hips"].damping[1, 0], torch.tensor(29.0), rtol=0.0, atol=0.0)
+    torch.testing.assert_close(collection.actuator_damping.torch[1, 3], torch.tensor(47.0), rtol=0.0, atol=0.0)
+    torch.testing.assert_close(collection.actuator_damping.torch[1, 0], torch.tensor(29.0), rtol=0.0, atol=0.0)
+    assert control.native_gain_writes[-1][0] == "kd"
+
+
+def test_native_execution_bypasses_lab_aggregation_and_keeps_group_gains_current(monkeypatch):
+    control = NativeFakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    collection = ActuatorCollection(
+        {
+            "hips": _dc_cfg(
+                ["joint_0", "joint_1"],
+                stiffness=20.0,
+                damping=1.0,
+                effort_limit=40.0,
+                velocity_limit=10.0,
+                saturation_effort=60.0,
+            ),
+            "knees": _dc_cfg(
+                ["joint_2", "joint_3"],
+                stiffness=30.0,
+                damping=2.0,
+                effort_limit=70.0,
+                velocity_limit=20.0,
+                saturation_effort=120.0,
+            ),
+        },
+        control,
+    )
+
+    assert len(collection._execution_batches) == 2
+    assert all(len(batch.group_names) == 1 for batch in collection._execution_batches)
+
+    def fail_compute(*args, **kwargs):
+        raise AssertionError("Lab actuator execution must be bypassed")
+
+    monkeypatch.setattr(DCMotor, "compute", fail_compute)
+    collection.compute()
+    collection.write_actuator_stiffness_to_sim(
+        stiffness=torch.tensor([[71.0, 93.0]]),
+        env_ids=torch.tensor([1], dtype=torch.long),
+        joint_ids=torch.tensor([0, 3], dtype=torch.long),
+    )
+
+    torch.testing.assert_close(collection["hips"].stiffness[1, 0], torch.tensor(71.0), rtol=0.0, atol=0.0)
+    torch.testing.assert_close(collection["knees"].stiffness[1, 1], torch.tensor(93.0), rtol=0.0, atol=0.0)
 
 
 def test_collection_exports_proxy_arrays():
