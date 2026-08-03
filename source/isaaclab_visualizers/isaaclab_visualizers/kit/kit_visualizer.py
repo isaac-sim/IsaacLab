@@ -325,6 +325,19 @@ class KitVisualizer(BaseVisualizer):
             delegate=IconMenuDelegate("", text=True, width=0, has_triangle=False, enabled=False),
         )
 
+    async def _setup_backend_menubar_label_async(self) -> None:
+        """Defer backend menubar label setup by one app tick.
+
+        Creating a :class:`ViewportMenuItem` synchronously during viewport init triggers an
+        ``omni.kit.viewport.menubar.camera`` render-settings notification before Isaac Sim's
+        camera collection is ready, producing a spurious ``AttributeError``.  Deferring until
+        the next ``next_update_async`` tick lets the collection initialize first.
+        """
+        import omni.kit.app
+
+        await omni.kit.app.get_app().next_update_async()
+        self._setup_backend_menubar_label()
+
     def _teardown_backend_menubar_label(self) -> None:
         """Remove the backend label and restore the Simulation menu visibility."""
         if self._hid_simulation_menu:
@@ -426,7 +439,7 @@ class KitVisualizer(BaseVisualizer):
         else:
             self._apply_cfg_camera_pose_if_configured()
         self._refresh_controlled_camera_path()
-        self._setup_backend_menubar_label()
+        asyncio.ensure_future(self._setup_backend_menubar_label_async())
 
     def _uses_camera_sensor_view(self) -> bool:
         """Return whether Kit should display a camera sensor image instead of an interactive viewport camera."""

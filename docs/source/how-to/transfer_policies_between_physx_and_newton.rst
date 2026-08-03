@@ -32,7 +32,7 @@ Task readiness and checkpoint compatibility
 -------------------------------------------
 
 The same registered task should describe the same Markov decision process (MDP) in both physics
-engines. Selecting ``physics=physx`` or ``physics=newton_mjwarp`` resolves a backend alternative
+engines. Selecting ``physics=isaacsim_physx`` or ``physics=newton_mjwarp`` resolves a backend alternative
 through :class:`~isaaclab_tasks.utils.PresetCfg`; use that mechanism for intentional
 backend-specific physics, asset, and control configuration. A physics preset should not silently
 change policy-facing action, observation, reward, termination, command, or reset terms. If a
@@ -202,9 +202,9 @@ pattern is:
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=physx
+   uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=isaacsim_physx
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /absolute/path/to/physx_checkpoint.pt physics=physx
+       --checkpoint /absolute/path/to/physx_checkpoint.pt physics=isaacsim_physx
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
        --checkpoint /absolute/path/to/physx_checkpoint.pt physics=newton_mjwarp
 
@@ -212,7 +212,7 @@ pattern is:
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
        --checkpoint /absolute/path/to/newton_checkpoint.pt physics=newton_mjwarp
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /absolute/path/to/newton_checkpoint.pt physics=physx
+       --checkpoint /absolute/path/to/newton_checkpoint.pt physics=isaacsim_physx
 
 
 Run the Franka lift transfer
@@ -231,21 +231,21 @@ in MJWarp:
    uv run isaaclab train --rl_library rsl_rl \
        --task Isaac-Lift-Franka \
        --run_name physx_source \
-       physics=physx
+       physics=isaacsim_physx
 
    # Replace RUN_DIRECTORY and ITERATION with the values produced by training.
    PHYSX_CHECKPOINT="/absolute/path/to/logs/rsl_rl/dexsuite_franka/RUN_DIRECTORY/model_ITERATION.pt"
 
    # PP: reproduce the PhysX source baseline.
    uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka-Play \
+       --task Isaac-Lift-Franka \
        --num_envs 32 \
        --checkpoint "$PHYSX_CHECKPOINT" \
-       physics=physx
+       physics=isaacsim_physx
 
    # PN: deploy the PhysX-trained checkpoint in MJWarp.
    uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka-Play \
+       --task Isaac-Lift-Franka \
        --num_envs 32 \
        --checkpoint "$PHYSX_CHECKPOINT" \
        physics=newton_mjwarp
@@ -266,17 +266,17 @@ PhysX:
 
    # NN: reproduce the MJWarp source baseline.
    uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka-Play \
+       --task Isaac-Lift-Franka \
        --num_envs 32 \
        --checkpoint "$MJWARP_CHECKPOINT" \
        physics=newton_mjwarp
 
    # NP: deploy the MJWarp-trained checkpoint in PhysX.
    uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka-Play \
+       --task Isaac-Lift-Franka \
        --num_envs 32 \
        --checkpoint "$MJWARP_CHECKPOINT" \
-       physics=physx
+       physics=isaacsim_physx
 
 
 See also

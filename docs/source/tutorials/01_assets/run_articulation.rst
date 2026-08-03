@@ -155,10 +155,10 @@ in the ``scripts/demos`` directory. You can run these scripts as:
       .. code-block:: bash
 
          # Spawn many different single-arm manipulators
-         uv run python scripts/demos/arms.py
+         uv run --extra isaacsim python scripts/demos/arms.py
 
          # Spawn many different quadrupeds
-         uv run python scripts/demos/quadrupeds.py
+         uv run --extra isaacsim python scripts/demos/quadrupeds.py
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash

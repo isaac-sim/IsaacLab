@@ -38,7 +38,6 @@ from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
-from isaaclab.physics.physics_manager_cfg import PhysicsCfg, _set_physics_preset_selection
 from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
 from isaaclab.utils.configclass import configclass
 
@@ -209,25 +208,6 @@ def _preset_fields(preset_obj) -> dict:
     return d
 
 
-def _record_preset_selection(value, preset_name: str, fields: dict):
-    """Attach preset-selection metadata when a physics preset resolves to a concrete config."""
-    if not isinstance(value, PhysicsCfg):
-        return value
-    if preset_name == "default" and fields.get("physx") == value:
-        preset_name = "physx"
-    _set_physics_preset_selection(value, preset_name, fields)
-    return value
-
-
-def _preset_values_conflict(first, second) -> bool:
-    """Return whether two selected preset values conflict on the same path."""
-    if first is second:
-        return False
-    if isinstance(first, PhysicsCfg) and isinstance(second, PhysicsCfg):
-        return True
-    return first != second
-
-
 def _iter_cfg_items(cfg):
     if isinstance(cfg, Mapping):
         return cfg.items()
@@ -316,7 +296,7 @@ def _pick_alternative(
     if explicit_name is not None:
         explicit_name = _normalize_preset_name(explicit_name, field_names)
         if explicit_name in fields:
-            return _record_preset_selection(fields[explicit_name], explicit_name, fields)
+            return fields[explicit_name]
         avail = list(fields)
         hint = ""
         if explicit_name in PresetTarget.all_legacy_aliases():
@@ -344,15 +324,15 @@ def _pick_alternative(
                 typed_hits.setdefault(raw_name, set()).update(targets)
                 typed_hits.setdefault(name, set()).update(targets)
         if match_name is not None:
-            if _preset_values_conflict(match_value, val):
+            if match_value is not val and match_value != val:
                 raise ValueError(
                     f"Conflicting global presets: '{match_name}' and '{name}' both define preset for '{path}'"
                 )
         match_name, match_value = name, val
     if match_name is not None:
-        return _record_preset_selection(match_value, match_name, fields)
+        return match_value
     if "default" in fields:
-        return _record_preset_selection(fields["default"], "default", fields)
+        return fields["default"]
     raise ValueError(
         f"PresetCfg {type(preset_obj).__name__} at '{path}' has no 'default' field "
         f"and none of the selected presets {selected} match its fields {set(fields.keys())}."

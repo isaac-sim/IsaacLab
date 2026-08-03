@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from ..method_benchmark import MethodBenchmarkRunnerConfig
+from ..method_benchmark import MethodBenchmarkRunnerConfig, PrepareTarget
 
 AssetComponent = Literal["articulation", "rigid_object", "rigid_object_collection"]
 AssetPhysicsFamily = Literal["physx", "newton", "ovphysx"]
@@ -31,6 +31,7 @@ class AssetMethodSpec:
     input_generators: Mapping[str, InputGenerator]
     category: str
     requires: str | None = None
+    prepare_target: PrepareTarget | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,7 @@ class AssetBenchmarkAdapter(Protocol):
     default_num_joints: int
     method_name_overrides: Mapping[str, str]
     generator_overrides: Mapping[WorkloadKey, InputGenerator]
+    generator_replacements: Mapping[str, Mapping[str, InputGenerator]]
     supported_properties: frozenset[str]
     property_dependency_overrides: Mapping[str, tuple[str, ...]]
 

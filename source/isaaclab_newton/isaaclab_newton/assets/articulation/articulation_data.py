@@ -17,6 +17,7 @@ from isaaclab.assets.articulation.base_articulation_data import BaseArticulation
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -75,7 +76,7 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp = 0.0
         self._is_primed = False
         self._fk_timestamp = 0.0
-        self._cached_read_launches: dict[object, wp.Launch] = {}
+        self._read_launch_cache = _WarpLaunchCache(device)
 
         # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2) so
         # per-env gravity randomization stays live; consumers normalize on read.
@@ -85,24 +86,6 @@ class ArticulationData(BaseArticulationData):
 
         self._create_simulation_bindings()
         self._create_buffers()
-
-    def _launch_cached_read(self, key: object, kernel: wp.Kernel, *, dim, inputs, outputs) -> None:
-        """Launch a read kernel through a cached command outside CUDA graph capture."""
-        device = wp.get_device(self.device)
-        if not device.is_cuda or device.is_capturing:
-            wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device)
-            return
-        command = self._cached_read_launches.get(key)
-        if command is None:
-            command = wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device, record_cmd=True)
-            if command is None:
-                return
-            self._cached_read_launches[key] = command
-        command.launch()
-
-    def _reset_cached_read_launches(self) -> None:
-        """Discard recorded read launches whose arguments may no longer be valid."""
-        self._cached_read_launches.clear()
 
     @property
     def is_primed(self) -> bool:
@@ -181,6 +164,14 @@ class ArticulationData(BaseArticulationData):
             [
                 self._root_com_pose_w if from_link else None,
                 self._body_com_pose_w,
+                self._root_link_vel_w,
+                self._body_link_vel_w,
+                self._projected_gravity_b,
+                self._heading_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
                 # root states
                 self._root_state_w,
                 self._root_link_state_w,
@@ -218,6 +209,10 @@ class ArticulationData(BaseArticulationData):
             [
                 self._root_link_vel_w if from_com else None,
                 self._body_link_vel_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
                 # root states
                 self._root_state_w,
                 self._root_link_state_w,
@@ -234,6 +229,28 @@ class ArticulationData(BaseArticulationData):
         self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+        )
+
+    def _reset_body_com_pose_b_dependents(self) -> None:
+        """Reset cached properties derived from body-frame center-of-mass offsets."""
+        reset_timestamps(
+            [
+                self._body_com_pose_b,
+                self._root_com_pose_w,
+                self._root_link_vel_w,
+                self._body_com_pose_w,
+                self._body_link_vel_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
         )
 
     """
@@ -465,6 +482,15 @@ class ArticulationData(BaseArticulationData):
         return self._joint_friction_coeff_ta
 
     @property
+    def joint_viscous_friction_coeff(self) -> ProxyArray:
+        """Newton passive joint damping [N·s/m or N·m·s/rad, depending on joint type].
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_joints).
+        """
+        return self._joint_viscous_friction_coeff_ta
+
+    @property
     def joint_pos_limits_lower(self) -> ProxyArray:
         """Joint position limits lower provided to the simulation. Shape is (num_instances, num_joints)."""
         return self._joint_pos_limits_lower_ta
@@ -495,7 +521,7 @@ class ArticulationData(BaseArticulationData):
             joint_pos_limits_upper = (
                 self._joint_pos_limits_upper_user if self.has_joint_ordering else self._sim_bind_joint_pos_limits_upper
             )
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "joint_pos_limits",
                 articulation_kernels.concat_joint_pos_limits_lower_and_upper,
                 dim=(self._num_instances, self._num_joints),
@@ -697,7 +723,7 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_link_vel_w",
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
@@ -726,7 +752,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_com_pose_w",
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
@@ -802,7 +828,7 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         if self._body_link_vel_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "body_link_vel_w",
                 shared_kernels.get_body_link_vel_from_body_com_vel,
                 dim=(self._num_instances, self._num_bodies),
@@ -832,7 +858,7 @@ class ArticulationData(BaseArticulationData):
         """
         self._ensure_fk_fresh()
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "body_com_pose_w",
                 shared_kernels.get_body_com_pose_from_body_link_pose,
                 dim=(self._num_instances, self._num_bodies),
@@ -917,7 +943,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "body_com_pose_b",
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self._num_instances, self._num_bodies),
@@ -956,7 +982,7 @@ class ArticulationData(BaseArticulationData):
             joint_S_s=self._joint_S_s_buf,
         )
         joint_ordering = self.joint_ordering
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "body_com_jacobian_w",
             articulation_kernels.gather_jacobian_rows,
             dim=self._body_com_jacobian_w_buf.shape,
@@ -985,7 +1011,7 @@ class ArticulationData(BaseArticulationData):
         # kernel from using stale link rotations during reset / IK-warm-start paths.
         link_pose_w = self.body_link_pose_w.warp
         com_jac = self.body_com_jacobian_w
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "body_link_jacobian_w",
             articulation_kernels.shift_jacobian_com_to_origin,
             dim=self._body_link_jacobian_w_buf.shape[:2] + (self._body_link_jacobian_w_buf.shape[3],),
@@ -1027,7 +1053,7 @@ class ArticulationData(BaseArticulationData):
             joint_S_s=self._joint_S_s_buf,
         )
         joint_ordering = self.joint_ordering
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "mass_matrix",
             articulation_kernels.gather_mass_matrix_rows,
             dim=self._mass_matrix_buf.shape,
@@ -1142,7 +1168,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "projected_gravity_b",
                 shared_kernels.projected_gravity_b_kernel,
                 dim=self._num_instances,
@@ -1164,7 +1190,7 @@ class ArticulationData(BaseArticulationData):
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
         if self._heading_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "heading_w",
                 shared_kernels.root_heading_w,
                 dim=self._num_instances,
@@ -1190,7 +1216,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
@@ -1215,7 +1241,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b.data)
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
@@ -1240,7 +1266,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b.data)
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
@@ -1265,7 +1291,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b.data)
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
@@ -1563,7 +1589,7 @@ class ArticulationData(BaseArticulationData):
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
         # A full Newton reset recreates model/state arrays, invalidating recorded pointers.
-        self._reset_cached_read_launches()
+        self._read_launch_cache.clear()
 
         # Short-hand for the number of instances, number of links, and number of joints.
         self._num_instances = self._root_view.count
@@ -1590,6 +1616,12 @@ class ArticulationData(BaseArticulationData):
         if body_com_vel_w is not None:
             self._sim_bind_body_com_vel_w = body_com_vel_w[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
+        self._sim_bind_body_inv_mass = self._root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[
+            :, 0
+        ]
+        self._sim_bind_body_inv_inertia = self._root_view.get_attribute(
+            "body_inv_inertia", SimulationManager.get_model()
+        )[:, 0]
         # Newton stores body_inertia as (N, 1, B) mat33f — the [:, 0] removes the padding dim
         # giving (N, B) mat33f. Reinterpret as (N, B, 9) float32 via pointer aliasing.
         # Each mat33f element is 9 contiguous float32 values (36 bytes), so the inner stride is 4.
@@ -1625,6 +1657,9 @@ class ArticulationData(BaseArticulationData):
             )[:, 0]
             self._sim_bind_joint_damping_sim = self._root_view.get_attribute(
                 "joint_target_kd", SimulationManager.get_model()
+            )[:, 0]
+            self._sim_bind_joint_viscous_friction_coeff = self._root_view.get_attribute(
+                "joint_damping", SimulationManager.get_model()
             )[:, 0]
             self._sim_bind_joint_armature = self._root_view.get_attribute(
                 "joint_armature", SimulationManager.get_model()
@@ -1664,6 +1699,9 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
             self._sim_bind_joint_damping_sim = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_viscous_friction_coeff = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
             self._sim_bind_joint_armature = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_friction_coeff = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
@@ -1772,9 +1810,7 @@ class ArticulationData(BaseArticulationData):
         self._joint_dynamic_friction = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        self._joint_viscous_friction = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
+        # Newton stores passive damping in the live ``joint_damping`` model field.
         self._soft_joint_vel_limits = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
@@ -1848,6 +1884,7 @@ class ArticulationData(BaseArticulationData):
         self._joint_damping_user: wp.array | None = None
         self._joint_armature_user: wp.array | None = None
         self._joint_friction_coeff_user: wp.array | None = None
+        self._joint_viscous_friction_user: wp.array | None = None
         self._joint_pos_limits_lower_user: wp.array | None = None
         self._joint_pos_limits_upper_user: wp.array | None = None
         self._joint_vel_limits_user: wp.array | None = None
@@ -1978,6 +2015,7 @@ class ArticulationData(BaseArticulationData):
             "_joint_damping_user",
             "_joint_armature_user",
             "_joint_friction_coeff_user",
+            "_joint_viscous_friction_user",
             "_joint_pos_limits_lower_user",
             "_joint_pos_limits_upper_user",
             "_joint_vel_limits_user",
@@ -2020,6 +2058,7 @@ class ArticulationData(BaseArticulationData):
                 "_joint_damping_user",
                 "_joint_armature_user",
                 "_joint_friction_coeff_user",
+                "_joint_viscous_friction_user",
                 "_joint_pos_limits_lower_user",
                 "_joint_pos_limits_upper_user",
                 "_joint_vel_limits_user",
@@ -2059,6 +2098,7 @@ class ArticulationData(BaseArticulationData):
             self._joint_damping_user = None
             self._joint_armature_user = None
             self._joint_friction_coeff_user = None
+            self._joint_viscous_friction_user = None
             self._joint_pos_limits_lower_user = None
             self._joint_pos_limits_upper_user = None
             self._joint_vel_limits_user = None
@@ -2142,7 +2182,7 @@ class ArticulationData(BaseArticulationData):
         (re)allocation below reconciles from those maps read directly, so an
         ordering that was cleared on rebind releases its buffers.
         """
-        self._reset_cached_read_launches()
+        self._read_launch_cache.clear()
         # Always build the row map (even under identity ordering) so the gather kernel can
         # index the body axis unconditionally -- the map owns the entire body-axis encoding.
         self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
@@ -2166,7 +2206,7 @@ class ArticulationData(BaseArticulationData):
         """
         if not self.has_joint_ordering:
             return
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "joint_state_ordering",
             ordering_kernels.reorder_joint_state_backend_to_user,
             dim=(self._num_instances, self._num_joints),
@@ -2185,7 +2225,7 @@ class ArticulationData(BaseArticulationData):
         """
         if not self.has_body_ordering:
             return
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "body_state_ordering",
             ordering_kernels.reorder_body_state_backend_to_user,
             dim=(self._num_instances, self._num_bodies),
@@ -2231,6 +2271,7 @@ class ArticulationData(BaseArticulationData):
             (self._sim_bind_joint_damping_sim, self._joint_damping_user),
             (self._sim_bind_joint_armature, self._joint_armature_user),
             (self._sim_bind_joint_friction_coeff, self._joint_friction_coeff_user),
+            (self._sim_bind_joint_viscous_friction_coeff, self._joint_viscous_friction_user),
             (self._sim_bind_joint_pos_limits_lower, self._joint_pos_limits_lower_user),
             (self._sim_bind_joint_pos_limits_upper, self._joint_pos_limits_upper_user),
             (self._sim_bind_joint_vel_limits_sim, self._joint_vel_limits_user),
@@ -2306,6 +2347,11 @@ class ArticulationData(BaseArticulationData):
         joint_friction_coeff = (
             self._joint_friction_coeff_user if self.has_joint_ordering else self._sim_bind_joint_friction_coeff
         )
+        joint_viscous_friction_coeff = (
+            self._joint_viscous_friction_user
+            if self.has_joint_ordering
+            else self._sim_bind_joint_viscous_friction_coeff
+        )
         joint_pos_limits_lower = (
             self._joint_pos_limits_lower_user if self.has_joint_ordering else self._sim_bind_joint_pos_limits_lower
         )
@@ -2337,6 +2383,7 @@ class ArticulationData(BaseArticulationData):
             self._joint_damping_ta = ProxyArray(joint_damping)
             self._joint_armature_ta = ProxyArray(joint_armature)
             self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
+            self._joint_viscous_friction_coeff_ta = ProxyArray(joint_viscous_friction_coeff)
             self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
             self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
             self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
@@ -2377,6 +2424,7 @@ class ArticulationData(BaseArticulationData):
             self._joint_damping_ta = ProxyArray(joint_damping)
             self._joint_armature_ta = ProxyArray(joint_armature)
             self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
+            self._joint_viscous_friction_coeff_ta = ProxyArray(joint_viscous_friction_coeff)
             self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
             self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
             self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
@@ -2506,7 +2554,7 @@ class ArticulationData(BaseArticulationData):
         if not transform.is_contiguous:
             # Launch the right kernel based on the shape of the transform array.
             if len(transform.shape) > 1:
-                self._launch_cached_read(
+                self._read_launch_cache.launch(
                     ("split_transform_to_pos_2d", id(source)),
                     shared_kernels.split_transform_to_pos_2d,
                     dim=transform.shape,
@@ -2514,7 +2562,7 @@ class ArticulationData(BaseArticulationData):
                     outputs=[source],
                 )
             else:
-                self._launch_cached_read(
+                self._read_launch_cache.launch(
                     ("split_transform_to_pos_1d", id(source)),
                     shared_kernels.split_transform_to_pos_1d,
                     dim=transform.shape,
@@ -2553,7 +2601,7 @@ class ArticulationData(BaseArticulationData):
         if not transform.is_contiguous:
             # Launch the right kernel based on the shape of the transform array.
             if len(transform.shape) > 1:
-                self._launch_cached_read(
+                self._read_launch_cache.launch(
                     ("split_transform_to_quat_2d", id(source)),
                     shared_kernels.split_transform_to_quat_2d,
                     dim=transform.shape,
@@ -2561,7 +2609,7 @@ class ArticulationData(BaseArticulationData):
                     outputs=[source],
                 )
             else:
-                self._launch_cached_read(
+                self._read_launch_cache.launch(
                     ("split_transform_to_quat_1d", id(source)),
                     shared_kernels.split_transform_to_quat_1d,
                     dim=transform.shape,
@@ -2603,7 +2651,7 @@ class ArticulationData(BaseArticulationData):
         if not spatial_vector.is_contiguous:
             # Launch the right kernel based on the shape of the spatial_vector array.
             if len(spatial_vector.shape) > 1:
-                self._launch_cached_read(
+                self._read_launch_cache.launch(
                     ("split_spatial_vector_to_top_2d", id(source)),
                     shared_kernels.split_spatial_vector_to_top_2d,
                     dim=spatial_vector.shape,
@@ -2611,7 +2659,7 @@ class ArticulationData(BaseArticulationData):
                     outputs=[source],
                 )
             else:
-                self._launch_cached_read(
+                self._read_launch_cache.launch(
                     ("split_spatial_vector_to_top_1d", id(source)),
                     shared_kernels.split_spatial_vector_to_top_1d,
                     dim=spatial_vector.shape,
@@ -2653,7 +2701,7 @@ class ArticulationData(BaseArticulationData):
         if not spatial_vector.is_contiguous:
             # Launch the right kernel based on the shape of the spatial_vector array.
             if len(spatial_vector.shape) > 1:
-                self._launch_cached_read(
+                self._read_launch_cache.launch(
                     ("split_spatial_vector_to_bottom_2d", id(source)),
                     shared_kernels.split_spatial_vector_to_bottom_2d,
                     dim=spatial_vector.shape,
@@ -2661,7 +2709,7 @@ class ArticulationData(BaseArticulationData):
                     outputs=[source],
                 )
             else:
-                self._launch_cached_read(
+                self._read_launch_cache.launch(
                     ("split_spatial_vector_to_bottom_1d", id(source)),
                     shared_kernels.split_spatial_vector_to_bottom_1d,
                     dim=spatial_vector.shape,
@@ -2690,7 +2738,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=(self._num_instances),
@@ -2721,7 +2769,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
@@ -2752,7 +2800,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
@@ -2787,7 +2835,7 @@ class ArticulationData(BaseArticulationData):
         if self._default_root_state is None:
             self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
             self._default_root_state_ta = ProxyArray(self._default_root_state)
-        self._launch_cached_read(
+        self._read_launch_cache.launch(
             "default_root_state",
             shared_kernels.concat_root_pose_and_vel_to_state,
             dim=self._num_instances,
@@ -2821,7 +2869,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._body_state_w_ta = ProxyArray(self._body_state_w.data)
         if self._body_state_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "body_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self._num_instances, self._num_bodies),
@@ -2856,7 +2904,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._body_link_state_w_ta = ProxyArray(self._body_link_state_w.data)
         if self._body_link_state_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "body_link_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self._num_instances, self._num_bodies),
@@ -2893,7 +2941,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._body_com_state_w_ta = ProxyArray(self._body_com_state_w.data)
         if self._body_com_state_w.timestamp < self._sim_timestamp:
-            self._launch_cached_read(
+            self._read_launch_cache.launch(
                 "body_com_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self._num_instances, self._num_bodies),

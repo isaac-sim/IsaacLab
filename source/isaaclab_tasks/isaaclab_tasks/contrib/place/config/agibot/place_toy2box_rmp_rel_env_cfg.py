@@ -20,6 +20,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
@@ -176,7 +177,7 @@ class TerminationsCfg:
 class PhysicsCfg(PresetCfg):
     """Physics backend presets for Agibot place tasks."""
 
-    default = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.01,
         gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
         gpu_total_aggregate_pairs_capacity=16 * 1024,
@@ -202,7 +203,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = default
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = physx
 
 
 # Robot USD assets whose gripper revolute joints are authored with reversed

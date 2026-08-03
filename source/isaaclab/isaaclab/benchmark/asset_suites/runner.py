@@ -24,20 +24,26 @@ def resolve_method_benchmarks(
     """Resolve shared method specs against backend capabilities and overrides."""
     definitions: list[MethodBenchmarkDefinition] = []
     method_name_overrides = getattr(adapter, "method_name_overrides", {})
+    generator_replacements = getattr(adapter, "generator_replacements", {})
     for spec in suite.methods:
         if spec.requires is not None and spec.requires not in adapter.capabilities:
             continue
-        generators = dict(spec.input_generators)
-        for mode in tuple(generators):
-            override = adapter.generator_overrides.get((spec.method_name, mode))
-            if override is not None:
-                generators[mode] = override
+        replacement = generator_replacements.get(spec.method_name)
+        if replacement is not None:
+            generators = dict(replacement)
+        else:
+            generators = dict(spec.input_generators)
+            for mode in tuple(generators):
+                override = adapter.generator_overrides.get((spec.method_name, mode))
+                if override is not None:
+                    generators[mode] = override
         definitions.append(
             MethodBenchmarkDefinition(
                 name=spec.name,
                 method_name=method_name_overrides.get(spec.method_name, spec.method_name),
                 input_generators=generators,
                 category=spec.category,
+                prepare_target=spec.prepare_target,
             )
         )
     return definitions

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.1 (2026-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the missing OVRTX runtime error to recommend the uv-managed ``ovrtx`` extra.
+
+
 0.10.0 (2026-07-28)
 ~~~~~~~~~~~~~~~~~~~
 

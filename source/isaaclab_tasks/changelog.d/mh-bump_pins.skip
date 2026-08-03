@@ -1,2 +1,0 @@
-Test-only: re-enabled the Newton Warp renderer cases in the Franka soft and cloth
-rendering tests, which the bumped Newton pin fixes.
