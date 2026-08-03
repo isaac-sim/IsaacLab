@@ -188,8 +188,8 @@ RL-Games
                   uv run isaaclab train --rl_library rl_games --task Isaac-Ant physics=newton_mjwarp
                   # run command for playing with 32 environments
                   uv run isaaclab play --rl_library rl_games --task Isaac-Ant --num_envs 32 --checkpoint /PATH/TO/model.pth
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                  uv run isaaclab play --rl_library rl_games --task Isaac-Ant --video --video_length 200
+                  # run command for recording video of a trained agent
+                  uv run --extra video isaaclab play --rl_library rl_games --task Isaac-Ant --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -203,7 +203,7 @@ RL-Games
                   ./isaaclab.sh train --rl_library rl_games --task Isaac-Ant physics=newton_mjwarp
                   # run command for playing with 32 environments
                   ./isaaclab.sh play --rl_library rl_games --task Isaac-Ant --num_envs 32 --checkpoint /PATH/TO/model.pth
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
+                  # run command for recording video of a trained agent (requires MoviePy)
                   ./isaaclab.sh play --rl_library rl_games --task Isaac-Ant --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -219,7 +219,7 @@ RL-Games
             isaaclab.bat train --rl_library rl_games --task Isaac-Ant physics=newton_mjwarp
             :: run command for playing with 32 environments
             isaaclab.bat play --rl_library rl_games --task Isaac-Ant --num_envs 32 --checkpoint /PATH/TO/model.pth
-            :: run command for recording video of a trained agent (requires installing `ffmpeg`)
+            :: run command for recording video of a trained agent (requires MoviePy)
             isaaclab.bat play --rl_library rl_games --task Isaac-Ant --video --video_length 200
 
 RSL-RL
@@ -248,8 +248,8 @@ RSL-RL
                   uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
                   # run command for playing with 32 environments
                   uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                  uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
+                  # run command for recording video of a trained agent
+                  uv run --extra video isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -263,7 +263,7 @@ RSL-RL
                   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
                   # run command for playing with 32 environments
                   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
+                  # run command for recording video of a trained agent (requires MoviePy)
                   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -279,7 +279,7 @@ RSL-RL
             isaaclab.bat train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
             :: run command for playing with 32 environments
             isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
-            :: run command for recording video of a trained agent (requires installing `ffmpeg`)
+            :: run command for recording video of a trained agent (requires MoviePy)
             isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
 -  Training and distilling an agent with
@@ -369,8 +369,8 @@ SKRL
                            uv run isaaclab train --rl_library skrl --task Isaac-Reach-Franka physics=newton_mjwarp
                            # run command for playing with 32 environments
                            uv run isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
-                           # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                           uv run isaaclab play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
+                           # run command for recording video of a trained agent
+                           uv run --extra video isaaclab play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
 
                      .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -384,7 +384,7 @@ SKRL
                            ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka physics=newton_mjwarp
                            # run command for playing with 32 environments
                            ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
-                           # run command for recording video of a trained agent (requires installing `ffmpeg`)
+                           # run command for recording video of a trained agent (requires MoviePy)
                            ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
 
                .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -400,7 +400,7 @@ SKRL
                      isaaclab.bat train --rl_library skrl --task Isaac-Reach-Franka physics=newton_mjwarp
                      :: run command for playing with 32 environments
                      isaaclab.bat play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
-                     :: run command for recording video of a trained agent (requires installing `ffmpeg`)
+                     :: run command for recording video of a trained agent (requires MoviePy)
                      isaaclab.bat play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
 
       .. tab-item:: JAX
@@ -488,8 +488,8 @@ SKRL
                   uv run isaaclab train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax presets=newton_mjwarp
                   # run command for playing with 32 environments
                   uv run isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                  uv run isaaclab play --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax --video --video_length 200
+                  # run command for recording video of a trained agent
+                  uv run --extra video isaaclab play --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -501,7 +501,7 @@ SKRL
                   ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax presets=newton_mjwarp
                   # run command for playing with 32 environments
                   ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
+                  # run command for recording video of a trained agent (requires MoviePy)
                   ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax --video --video_length 200
 
    - Training the multi-agent environment ``Isaac-Shadow-Handover-Direct`` with skrl:
@@ -575,8 +575,8 @@ Stable-Baselines3
                   uv run isaaclab train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 physics=newton_mjwarp
                   # run command for playing with 32 environments
                   uv run isaaclab play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --num_envs 32 --checkpoint /PATH/TO/model.zip
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                  uv run isaaclab play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --video --video_length 200
+                  # run command for recording video of a trained agent
+                  uv run --extra video isaaclab play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -590,7 +590,7 @@ Stable-Baselines3
                   ./isaaclab.sh train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 physics=newton_mjwarp
                   # run command for playing with 32 environments
                   ./isaaclab.sh play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --num_envs 32 --checkpoint /PATH/TO/model.zip
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
+                  # run command for recording video of a trained agent (requires MoviePy)
                   ./isaaclab.sh play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -606,7 +606,7 @@ Stable-Baselines3
             isaaclab.bat train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 physics=newton_mjwarp
             :: run command for playing with 32 environments
             isaaclab.bat play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --num_envs 32 --checkpoint /PATH/TO/model.zip
-            :: run command for recording video of a trained agent (requires installing `ffmpeg`)
+            :: run command for recording video of a trained agent (requires MoviePy)
             isaaclab.bat play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --video --video_length 200
 
 RLinf
@@ -650,7 +650,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
          .. code:: bash
 
             # Evaluate with video recording
-            uv run isaaclab play --rl_library rlinf \
+            uv run --extra video isaaclab play --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
                 --model_path /path/to/checkpoint --video
 

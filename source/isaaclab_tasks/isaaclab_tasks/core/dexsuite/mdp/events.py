@@ -22,16 +22,19 @@ from isaaclab.utils.math import quat_apply, random_orientation, sample_uniform
 from .utils import (
     collect_body_collision_meshes,
     collect_collision_meshes,
+    farthest_point_sampling,
     get_reset_state,
     sample_object_point_cloud,
     set_reset_state,
 )
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation
-    from isaaclab.envs import ManagerBasedEnv
+    from collections.abc import Sequence
 
-    from .events_cfg import MeshClearanceCfg, SlabClearanceCfg
+    from isaaclab.assets import Articulation
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+
+    from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg, SuccessMonitorCfg
 
 
 def reset_joints_shared_offset(
@@ -123,6 +126,130 @@ def reset_to_target(
     asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=picked)
 
 
+class SuccessMonitor:
+    """Per-slot success-rate table whose draws favor a target success rate.
+
+    Each monitored slot — for the reset bank, one banked state — keeps a ring buffer of its most
+    recent episode outcomes. Sampling weights peak at :attr:`SuccessMonitorCfg.target_success_rate`,
+    so with the default target of one half the draw concentrates on the states the policy solves
+    about half the time and spends little on the ones it always solves or never solves.
+
+    Slots are laid out as :paramref:`num_partitions` contiguous blocks of :paramref:`partition_size`
+    and every draw stays inside one partition. The reset bank needs this because a state harvested
+    in one asset-combination group cannot be replayed in another; callers with no such constraint
+    pass a single partition.
+    """
+
+    def __init__(self, cfg: SuccessMonitorCfg, num_partitions: int, partition_size: int, device: str):
+        """Allocate the outcome table.
+
+        Args:
+            cfg: Monitor configuration.
+            num_partitions: Number of independently sampled blocks of slots.
+            partition_size: Slots per partition.
+            device: Device holding the table; slot ids passed in must live on it too.
+        """
+        self.cfg = cfg
+        self.num_partitions = num_partitions
+        self.partition_size = partition_size
+        self.device = device
+
+        num_slots = num_partitions * partition_size
+        self.success_buf = torch.zeros((num_slots, cfg.monitored_history_len), device=device)
+        self.success_rate = torch.zeros(num_slots, device=device)
+        self.success_pointer = torch.zeros(num_slots, device=device, dtype=torch.long)
+        self.success_size = torch.zeros(num_slots, device=device, dtype=torch.long)
+
+    def get_success_rate(self) -> torch.Tensor:
+        """Return a copy of every slot's measured success rate, shape [num_slots]."""
+        return self.success_rate.clone()
+
+    def get_mean_success_rate(self) -> float:
+        """Return the success rate over the whole table, averaged across the slots that have episodes.
+
+        Slots with no episodes yet are left out rather than counted as failures, so the number
+        reports how well the policy does on the states it has actually been given and does not dip
+        just because the table is still filling.
+        """
+        measured = self.success_size > 0
+        if not bool(measured.any()):
+            return 0.0
+        return float(self.success_rate[measured].mean())
+
+    def success_update(self, slot_ids: torch.Tensor, success: torch.Tensor):
+        """Append episode outcomes to their slots' ring buffers and refresh the success rates.
+
+        Slots may repeat within one call, which happens whenever several environments replayed the
+        same banked state; the outcomes are appended in order and only the newest
+        :attr:`SuccessMonitorCfg.monitored_history_len` of them survive.
+
+        Args:
+            slot_ids: Slot each outcome belongs to, shape [num_outcomes].
+            success: Whether each episode succeeded, shape [num_outcomes].
+        """
+        if len(slot_ids) == 0:
+            return
+        history = self.cfg.monitored_history_len
+        # group the outcomes by slot, stably so the newest stay last within each slot
+        order = torch.argsort(slot_ids, stable=True)
+        ordered_slots = slot_ids[order]
+        unique_slots, counts = torch.unique_consecutive(ordered_slots, return_counts=True)
+
+        # position of each outcome within its slot's append run, with anything beyond the ring's
+        # capacity given a negative position and dropped
+        starts = counts.cumsum(0) - counts
+        offset = torch.arange(len(ordered_slots), device=self.device) - starts.repeat_interleave(counts)
+        offset = offset - (counts - history).clamp(min=0).repeat_interleave(counts)
+        kept = offset >= 0
+
+        slots = ordered_slots[kept]
+        positions = (self.success_pointer[slots] + offset[kept]) % history
+        self.success_buf[slots, positions] = success[order][kept].to(dtype=self.success_buf.dtype)
+
+        written = counts.clamp(max=history)
+        self.success_pointer[unique_slots] = (self.success_pointer[unique_slots] + written) % history
+        self.success_size[unique_slots] = (self.success_size[unique_slots] + written).clamp(max=history)
+        # unwritten ring entries are zero, so the row sum is the number of successes remembered
+        self.success_rate[:] = self.success_buf.sum(dim=1) / self.success_size.clamp(min=1)
+
+    def target_weights(self) -> torch.Tensor:
+        """Return each slot's sampling weight, peaking at the target success rate.
+
+        The weight is the Beta density shape ``p^(a-1) * (1-p)^(b-1)`` with ``a = 1 + kappa * target``
+        and ``b = 1 + kappa * (1 - target)``, which places the mode at the target and flattens as
+        ``kappa`` shrinks.
+
+        Returns:
+            Weights, shape [num_slots]. Unnormalized; :func:`torch.multinomial` normalizes them.
+        """
+        target = min(max(self.cfg.target_success_rate, 0.0), 1.0)
+        kappa = max(self.cfg.kappa, 0.0)
+        a = 1.0 + kappa * target
+        b = 1.0 + kappa * (1.0 - target)
+
+        # The offset avoids ``0 ** 0`` and, more importantly, floors the weight at the extremes:
+        # slots that always succeed, always fail, or have not been drawn at all stay in circulation
+        # instead of being starved for good, so their rates can still be revised.
+        eps = 1e-4
+        rate = self.success_rate
+        weights = ((rate + eps).pow(a - 1.0) * (1.0 - rate + eps).pow(b - 1.0)).clamp_min(eps)
+        # ``w ** (1/T)`` equals ``softmax(log(w) / T)`` up to the normalization the draw applies anyway
+        return weights.pow(1.0 / max(self.cfg.temperature, 1.0))
+
+    def sample_by_target_rate(self, partition_ids: torch.Tensor) -> torch.Tensor:
+        """Draw one slot per requested partition, preferring slots near the target success rate.
+
+        Args:
+            partition_ids: Partition to draw from for each sample, shape [num_samples].
+
+        Returns:
+            Slot ids, shape [num_samples].
+        """
+        weights = self.target_weights().view(self.num_partitions, self.partition_size)
+        slots = torch.multinomial(weights[partition_ids], 1).view(-1)
+        return partition_ids * self.partition_size + slots
+
+
 class conditional_reset(ManagerTermBase):
     """Run wrapped reset terms and guarantee the resulting states satisfy a criterion.
 
@@ -131,35 +258,40 @@ class conditional_reset(ManagerTermBase):
     are processed recursively), so this term only *calls* them and never resolves functions,
     scene entities, or class terms itself.
 
-    On the first reset, the wrapped terms are re-rolled and the states satisfying
+    On the first reset the wrapped terms are re-rolled and the states satisfying
     :paramref:`valid_criteria` are harvested into a buffer of :paramref:`buffer_size_per_group`
-    samples per group (rejection sampling, amortized once). The prefill ignores ``env_ids``
-    and rolls every environment — a partial first reset could otherwise never fill the groups
-    it does not cover — and since the rolls perturb all environments, the first reset then
-    restores a banked sample to every environment. Every subsequent reset restores a random
-    banked sample to the requested environments only — the wrapped terms and criteria never
-    run again.
+    samples per group by rejection sampling. The prefill ignores ``env_ids`` and rolls every
+    environment, since a partial first reset could otherwise never fill the groups it does not
+    cover. The bank is then frozen: the wrapped terms and criteria never run again, and every
+    reset from that point restores a banked sample to the requested environments.
 
-    The captured state is the reset surface of the scene (see :func:`get_reset_state`):
-    root pose/velocity plus joint positions/velocities of every articulation, and the root
-    pose/velocity of every rigid object, buffered relative to the environment origins so a
-    sample harvested in one environment can be replayed in another.
-
-    With heterogeneous cloning (e.g. multi-asset spawned objects), environments are only
-    interchangeable within the same unique asset combination: a state harvested in a cube
-    environment is not a valid state for a capsule environment. The buffer is therefore
-    partitioned by the scene's clone plan — an environment's column of the plan's clone mask
-    is its asset-combination signature — as ``[num_groups * buffer_size_per_group]`` rows,
-    and failing environments are only patched from their own group's partition.
+    Given a :paramref:`diversity_feature` the prefill keeps the most spread-out states rather
+    than the first valid ones, and given a :paramref:`success_monitor` the restore is drawn by
+    each state's measured success rate rather than uniformly.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         self._prefilled = False
         self._buffer = torch.empty(0, 0, device=env.device)
+        self._descriptor = torch.empty(0, 0, device=env.device)
         self._reset_assets = list(env.scene.articulations) + list(env.scene.rigid_objects)
         self._group = torch.empty(0, dtype=torch.long, device=env.device)
         self._fill = torch.empty(0, dtype=torch.long, device=env.device)
+        self._monitor: SuccessMonitor | None = None
+        self._success_term = None
+        # bank row each environment is currently playing; -1 until its first restore
+        self._playing_row = torch.full((env.num_envs,), -1, dtype=torch.long, device=env.device)
+
+    def reset(self, env_ids: Sequence[int] | None = None):
+        """Log how well the policy does across the bank, once a monitor is tracking it.
+
+        Reported from here rather than from the reward term because the bank is what the number is
+        about: it covers every state the policy is being restarted from, not just the episodes that
+        happen to be ending now.
+        """
+        if self._monitor is not None:
+            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._monitor.get_mean_success_rate()
 
     def __call__(
         self,
@@ -169,6 +301,10 @@ class conditional_reset(ManagerTermBase):
         valid_criteria: dict[str, ManagerTermBaseCfg],
         buffer_size_per_group: int = 20,
         max_prefill_iters: int | None = None,
+        diversity_feature: ManagerTermBaseCfg | None = None,
+        oversample_factor: float = 2.0,
+        success_monitor: SuccessMonitorCfg | None = None,
+        success_reward_term: str = "success",
     ):
         """Restore banked criterion-valid states, prefilling the bank on the first reset.
 
@@ -187,7 +323,23 @@ class conditional_reset(ManagerTermBase):
             buffer_size_per_group: Required number of valid states to bank per unique asset
                 combination during the prefill phase.
             max_prefill_iters: Optional re-roll budget for the prefill phase. If ``None``,
-                prefill continues until every group reaches :paramref:`buffer_size_per_group`.
+                prefill continues until every group reaches its harvest target.
+            diversity_feature: Optional descriptor as a term config (e.g.
+                :class:`GraspTravelDistanceCfg`), evaluated as
+                ``func(env, env_ids, **params) -> Tensor`` of shape [len(env_ids), feature_dim]
+                over the freshly reset environments and resolved by the event manager like the
+                criteria. When given, the bank is farthest-point sampled over this descriptor
+                instead of taking the valid states first-come. Each column is rescaled to unit
+                span before sampling, so the axes count equally however they are scaled.
+            oversample_factor: Candidates to harvest per banked state. Higher values give the
+                farthest-point pass more to choose from at a proportional prefill cost. Ignored
+                without :paramref:`diversity_feature`.
+            success_monitor: Optional :class:`SuccessMonitorCfg`. When given, banked states are drawn
+                by success rate instead of uniformly, and each state's outcomes are recorded as the
+                episodes started from it end.
+            success_reward_term: Reward term supplying the episode outcome, which must keep a sticky
+                per-environment ``succeeded`` buffer like :class:`success_reward` does. Only read
+                with :paramref:`success_monitor`.
         """
 
         def roll_once(roll_ids: torch.Tensor) -> torch.Tensor:
@@ -205,6 +357,10 @@ class conditional_reset(ManagerTermBase):
             mask = env.scene.clone_plan.clone_mask.to(device=env.device, dtype=torch.uint8)
             self._group = torch.unique(mask.T, dim=0, return_inverse=True)[1]
             num_groups = int(self._group.max().item()) + 1
+            # without a descriptor there is nothing to spread over, so harvesting extra is waste
+            harvest_size = buffer_size_per_group
+            if diversity_feature is not None:
+                harvest_size = round(buffer_size_per_group * oversample_factor)
             self._fill = torch.zeros(num_groups, dtype=torch.long, device=env.device)
             iteration = 0
 
@@ -213,25 +369,25 @@ class conditional_reset(ManagerTermBase):
             all_ids = torch.arange(env.num_envs, device=env.device)
 
             with tqdm(
-                total=num_groups * buffer_size_per_group,
+                total=num_groups * harvest_size,
                 desc="Prefilling reset buffer",
                 unit="state",
                 dynamic_ncols=True,
             ) as progress:
-                while not bool((self._fill >= buffer_size_per_group).all()):
+                while not bool((self._fill >= harvest_size).all()):
                     if max_prefill_iters is not None and iteration >= max_prefill_iters:
-                        short = torch.nonzero(self._fill < buffer_size_per_group).view(-1)
+                        short = torch.nonzero(self._fill < harvest_size).view(-1)
                         counts = {int(group): int(self._fill[group]) for group in short}
                         raise RuntimeError(
                             "conditional_reset: could not fill the reset-state buffer for every asset-combination "
-                            f"group. Required {buffer_size_per_group} valid states per group, got {counts} after "
+                            f"group. Required {harvest_size} valid states per group, got {counts} after "
                             f"{max_prefill_iters} prefill iterations."
                         )
                     iteration += 1
                     valid_ids = all_ids[roll_once(all_ids)]
                     for group in torch.unique(self._group[valid_ids]).tolist():
                         filled = int(self._fill[group])
-                        remaining = buffer_size_per_group - filled
+                        remaining = harvest_size - filled
                         if remaining <= 0:
                             continue
                         take = valid_ids[self._group[valid_ids] == group][:remaining]
@@ -239,14 +395,32 @@ class conditional_reset(ManagerTermBase):
                             continue
                         state = get_reset_state(env, take, self._reset_assets, is_relative=True)
                         if self._buffer.numel() == 0:
-                            capacity = num_groups * buffer_size_per_group
+                            capacity = num_groups * harvest_size
                             self._buffer = torch.empty(
                                 capacity, state.shape[-1], device=state.device, dtype=state.dtype
                             )
-                        row = group * buffer_size_per_group + filled
+                        row = group * harvest_size + filled
                         self._buffer[row : row + len(take)] = state
+                        if diversity_feature is not None:
+                            # measured now: the next roll overwrites the states these describe
+                            feature = diversity_feature.func(env, take, **diversity_feature.params)
+                            if self._descriptor.numel() == 0:
+                                self._descriptor = torch.empty(
+                                    num_groups * harvest_size,
+                                    feature.shape[-1],
+                                    device=feature.device,
+                                    dtype=feature.dtype,
+                                )
+                            self._descriptor[row : row + len(take)] = feature
                         self._fill[group] += len(take)
                         progress.update(len(take))
+            if diversity_feature is not None:
+                self._keep_most_spread(num_groups, harvest_size, buffer_size_per_group)
+            if success_monitor is not None:
+                # one monitored slot per banked state, partitioned exactly like the bank
+                self._monitor = success_monitor.class_type(
+                    success_monitor, num_groups, buffer_size_per_group, env.device
+                )
             self._prefilled = True
             # drop the prefill-only terms/criteria so their device memory is freed
             terms.clear()
@@ -255,11 +429,118 @@ class conditional_reset(ManagerTermBase):
             # banked state to all of them, not just the requested subset
             env_ids = all_ids
 
-        # ``rand * fill`` floors to a uniform draw in ``[0, fill)``.
         groups = self._group[env_ids]
-        donor = (torch.rand(len(env_ids), device=env_ids.device) * self._fill[groups]).long()
-        rows = groups * buffer_size_per_group + donor
+        if self._monitor is None:
+            # ``rand * fill`` floors to a uniform draw in ``[0, fill)``.
+            donor = (torch.rand(len(env_ids), device=env_ids.device) * self._fill[groups]).long()
+            rows = groups * buffer_size_per_group + donor
+        else:
+            # credit before drawing: the outcome belongs to the row these environments were playing
+            self._credit_episodes(env, env_ids, self._monitor, success_reward_term)
+            rows = self._monitor.sample_by_target_rate(groups)
+            self._playing_row[env_ids] = rows
         set_reset_state(env, self._buffer[rows], env_ids, self._reset_assets, is_relative=True)
+
+    def _keep_most_spread(self, num_groups: int, harvest_size: int, keep_size: int):
+        """Thin each group's harvest down to the ``keep_size`` states most spread over the descriptor.
+
+        Rewrites the buffer with a ``keep_size`` stride so the draw at the end of :meth:`__call__`
+        addresses it unchanged, and frees the descriptors, which are prefill-only.
+        """
+        kept = torch.empty(
+            num_groups * keep_size, self._buffer.shape[-1], device=self._buffer.device, dtype=self._buffer.dtype
+        )
+        for group in range(num_groups):
+            start = group * harvest_size
+            feature = self._descriptor[start : start + harvest_size]
+            # rescale to unit span per axis, otherwise the axis with the widest numbers decides the
+            # spread on its own and the others are covered only incidentally
+            feature = feature / (feature.amax(dim=0) - feature.amin(dim=0)).clamp(min=1e-6)
+            picked = start + farthest_point_sampling(feature, keep_size)
+            kept[group * keep_size : (group + 1) * keep_size] = self._buffer[picked]
+        self._buffer = kept
+        self._fill.fill_(keep_size)
+        self._descriptor = torch.empty(0, 0, device=self._descriptor.device)
+
+    def _credit_episodes(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: torch.Tensor,
+        monitor: SuccessMonitor,
+        success_reward_term: str,
+    ):
+        """Record the outcome of the episode each environment just finished against the row it played.
+
+        Reads the success flag of the reward term rather than recomputing it, and must therefore run
+        while the flag still describes the finished episode: reset events fire before the reward
+        manager resets its terms.
+        """
+        if self._success_term is None:
+            self._success_term = env.reward_manager.get_term_cfg(success_reward_term).func
+            if not hasattr(self._success_term, "succeeded"):
+                raise TypeError(
+                    f"conditional_reset: reward term '{success_reward_term}' keeps no 'succeeded' buffer, so"
+                    " episode outcomes cannot be credited to the banked states. Point 'success_reward_term'"
+                    " at a term that keeps one, such as 'success_reward'."
+                )
+        played = self._playing_row[env_ids]
+        # an environment that has not been restored yet has no episode to credit
+        started = played >= 0
+        monitor.success_update(played[started], self._success_term.succeeded[env_ids][started])
+
+
+class grasp_travel_distance(ManagerTermBase):
+    """How far the hand has to close on the object, and how far the object then has to travel.
+
+    Two-axis spread descriptor for :class:`conditional_reset`, measuring the distance from the
+    object to whichever measured robot body is farthest from it and the distance from the object to
+    the middle of the goal region. Together they are what makes one reset state a different learning
+    problem from another: a start with the object already between the fingertips and next to the
+    goal asks for a different policy than one with the hand an arm's length away and the goal across
+    the workspace. Spreading over both keeps the easy and hard corners that rejection sampling alone
+    would leave rare, rather than spreading over one axis and letting the other fall where it may.
+
+    The goal is redrawn from :attr:`GraspTravelDistanceCfg.command_name`'s ranges on every reset and
+    is not stored with a banked state, so the second axis measures the middle of that range: the
+    distance the object has to travel up to the per-episode spread of the goal itself.
+
+    Configured with :class:`GraspTravelDistanceCfg`; called as ``(env, env_ids) -> Tensor`` of shape
+    [len(env_ids), 2], columns ``[0]`` hand-to-object and ``[1]`` object-to-goal, in metres or in
+    log-metres depending on :attr:`GraspTravelDistanceCfg.log_scale`.
+    """
+
+    # distances below this are treated as this far apart, keeping the logarithm finite
+    MIN_DISTANCE = 1e-3
+
+    cfg: GraspTravelDistanceCfg
+
+    def __init__(self, cfg: GraspTravelDistanceCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        self._robot: Articulation = env.scene[cfg.asset_name]
+        self._object = env.scene[cfg.object_name]
+        self._body_ids = self._robot.find_bodies(cfg.body_names)[0]
+        # taken from the config, not the command manager: descriptors are built when physics starts
+        # playing, before any manager exists. Kept in the robot frame, where commands are sampled.
+        command_cfg = getattr(env.cfg.commands, cfg.command_name, None)
+        if command_cfg is None:
+            raise ValueError(
+                f"grasp_travel_distance: no command term named '{cfg.command_name}' to read the goal region from."
+            )
+        ranges = command_cfg.ranges
+        self._goal_center_b = torch.tensor(
+            [sum(ranges.pos_x) / 2, sum(ranges.pos_y) / 2, sum(ranges.pos_z) / 2], device=env.device
+        )
+
+    def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor) -> torch.Tensor:
+        object_pos = self._object.data.root_pos_w.torch[env_ids]
+        body_pos = self._robot.data.body_pos_w.torch[env_ids][:, self._body_ids]
+        grasp = torch.linalg.norm(body_pos - object_pos[:, None, :], dim=-1).amax(dim=-1, keepdim=True)
+        goal_pos = self._robot.data.root_pos_w.torch[env_ids] + quat_apply(
+            self._robot.data.root_quat_w.torch[env_ids], self._goal_center_b.expand(len(env_ids), 3)
+        )
+        travel = torch.linalg.norm(goal_pos - object_pos, dim=-1, keepdim=True)
+        feature = torch.cat([grasp, travel], dim=-1)
+        return feature.clamp_min(self.MIN_DISTANCE).log() if self.cfg.log_scale else feature
 
 
 @wp.func

@@ -95,7 +95,7 @@ def test_manager_full_stage_never_replays_runtime_clones():
     fake = SimpleNamespace(clone=lambda *args, **kwargs: pytest.fail("clone must not run"))
     previous = OvPhysxManager._pending_clones
     try:
-        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 0.0, 0.0)])]
+        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])]
         OvPhysxManager._replay_pending_clones(fake, requires_full_stage=True)
         assert OvPhysxManager._pending_clones == []
     finally:
@@ -122,7 +122,7 @@ def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
             (
                 "/World/envs/env_0/Object",
                 ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
-                [(1.0, 2.0, 3.0), (4.0, 5.0, 6.0)],
+                [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0), (4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0)],
             )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -156,12 +156,12 @@ def test_manager_full_stage_materializes_nested_targets_parent_before_child():
             (
                 "/World/envs/env_0/Groceries/Object",
                 ["/World/envs/env_1/Groceries/Object"],
-                [(1.0, 0.0, 0.0)],
+                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
             ),
             (
                 "/World/envs/env_0/Groceries",
                 ["/World/envs/env_1/Groceries"],
-                [(1.0, 0.0, 0.0)],
+                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
             ),
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -195,7 +195,7 @@ def test_manager_full_stage_promotes_generated_nested_ancestors_to_def():
             (
                 "/World/envs/env_0/Groceries/Object",
                 ["/World/envs/env_1/Groceries/Object"],
-                [(1.0, 0.0, 0.0)],
+                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
             )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -230,7 +230,9 @@ def test_manager_full_stage_overlays_existing_ancestor_without_removing_descenda
 
     previous = OvPhysxManager._pending_clones
     try:
-        OvPhysxManager._pending_clones = [("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0)])]
+        OvPhysxManager._pending_clones = [
+            ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])
+        ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
         assert layer.ImportFromString(materialized_usda)
@@ -290,7 +292,7 @@ def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
             (
                 "/World/envs/env_0/Object",
                 ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
-                [(1.0, 0.0, 0.0), (2.0, 0.0, 0.0)],
+                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), (2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
             )
         ]
         with pytest.raises(RuntimeError, match="clone target parent is absent"):
@@ -302,7 +304,7 @@ def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
 
 
 def test_manager_replays_pending_runtime_clones_without_full_stage_requirement():
-    """The default replay path preserves the runtime's positional pose API."""
+    """The default replay path forwards final world transforms to the runtime."""
     from isaaclab_ovphysx.physics import OvPhysxManager
 
     class FakePhysX:
@@ -319,7 +321,7 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement()
     fake = FakePhysX()
     previous = OvPhysxManager._pending_clones
     try:
-        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0)])]
+        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
         OvPhysxManager._replay_pending_clones(fake, requires_full_stage=False)
         assert fake.calls == [
             ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),

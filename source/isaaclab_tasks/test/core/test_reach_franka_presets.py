@@ -10,6 +10,7 @@ import torch
 from gymnasium.envs.registration import registry
 
 import isaaclab.envs.mdp as mdp
+from isaaclab.controllers.differential_ik import DifferentialIKController
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_presets
@@ -17,6 +18,7 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 _TASK = "Isaac-Reach-Franka"
 _CONTRIB_DIFFIK_TASK = "IsaacContrib-Reach-Franka-IK-Rel"
+_CONTRIB_DIFFIK_ABS_TASK = "IsaacContrib-Reach-Franka-IK-Abs"
 _NEWTON_IK_TASK = "Isaac-Reach-Franka-Newton-IK-Rel"
 _NEWTON_IK_V0_TASK = "Isaac-Reach-Franka-Newton-IK-Rel-v0"
 _OSC_TASK = "Isaac-Reach-Franka-OSC"
@@ -42,6 +44,18 @@ def test_reach_uses_controller_neutral_franka_config_module():
     assert _NEWTON_IK_V0_TASK not in registry
 
 
+def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
+    spec = registry[_CONTRIB_DIFFIK_ABS_TASK]
+
+    assert spec.kwargs["deprecated"] == {"alias": "--task Isaac-Reach-Franka physics=isaacsim_physx presets=diffik_abs"}
+    with pytest.warns(FutureWarning, match="presets=diffik_abs"):
+        legacy_cfg = load_cfg_from_registry(_CONTRIB_DIFFIK_ABS_TASK, "env_cfg_entry_point")
+
+    canonical_cfg = _load_env_cfg("diffik_abs", "isaacsim_physx")
+    legacy_cfg = resolve_presets(legacy_cfg)
+    assert legacy_cfg.to_dict() == canonical_cfg.to_dict()
+
+
 @pytest.mark.parametrize(
     ("presets", "action_type", "physics_type"),
     [
@@ -52,6 +66,7 @@ def test_reach_uses_controller_neutral_franka_config_module():
         (("diffik",), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
         (("diffik", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
         (("diffik", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
+        (("diffik_abs", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
         (("newton_ik", "newton_mjwarp"), "NewtonInverseKinematicsActionCfg", "NewtonCfg"),
     ],
 )
@@ -233,6 +248,26 @@ def test_reach_diffik_action_configuration_is_identical_across_backends():
     assert newton_action.controller.ik_params == {"lambda_val": 0.01}
     assert newton_action.scale == (0.05, 0.05, 0.05, 0.5, 0.5, 0.5)
     assert newton_action.clip is None
+
+
+def test_reach_diffik_abs_action_configuration():
+    cfg = _load_env_cfg("diffik_abs", "isaacsim_physx")
+    action = cfg.actions.arm_action
+    controller = DifferentialIKController(action.controller, num_envs=1, device="cpu")
+
+    assert action.controller.use_relative_mode is False
+    assert controller.action_dim == 7
+    assert action.scale == 1.0
+    assert _load_env_cfg("joint_pos", "isaacsim_physx").scene.robot.spawn.rigid_props.disable_gravity is False
+    assert cfg.scene.robot.spawn.rigid_props.disable_gravity is True
+
+
+@pytest.mark.parametrize("physics", ["newton_mjwarp", "ovphysx"])
+def test_reach_diffik_abs_rejects_unsupported_physics(physics):
+    cfg = _load_env_cfg("diffik_abs", physics)
+
+    with pytest.raises(ValueError, match="requires the 'isaacsim_physx' physics preset"):
+        cfg.validate()
 
 
 def test_reach_newton_ik_action_configuration():

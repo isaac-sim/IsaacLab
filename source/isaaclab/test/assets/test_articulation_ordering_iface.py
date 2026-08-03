@@ -855,6 +855,7 @@ def _get_backend_joint_property_tensors(backend: str, art, raw_backend) -> dict[
             "velocity_limits": _clone_backend_tensor(art.data._sim_bind_joint_vel_limits_sim),
             "effort_limits": _clone_backend_tensor(art.data._sim_bind_joint_effort_limits_sim),
             "friction": _clone_backend_tensor(art.data._sim_bind_joint_friction_coeff),
+            "viscous_friction": _clone_backend_tensor(art.data._sim_bind_joint_viscous_friction_coeff),
         }
     raise AssertionError(f"Unsupported backend for joint-property ordering test: {backend}")
 
@@ -1201,6 +1202,7 @@ class TestArticulationOrderingAllocation:
             "_joint_damping_user",
             "_joint_armature_user",
             "_joint_friction_coeff_user",
+            "_joint_viscous_friction_user",
             "_joint_pos_limits_lower_user",
             "_joint_pos_limits_upper_user",
             "_joint_vel_limits_user",
@@ -1935,13 +1937,14 @@ class TestArticulationDataJointState:
             "effort_limits": art.data.joint_effort_limits,
             "friction": art.data.joint_friction_coeff,
         }
-        if backend in ("physx", "ovphysx"):
+        if backend in ("physx", "ovphysx", "newton"):
             public_properties.update(
                 {
-                    "dynamic_friction": art.data.joint_dynamic_friction_coeff,
                     "viscous_friction": art.data.joint_viscous_friction_coeff,
                 }
             )
+        if backend in ("physx", "ovphysx"):
+            public_properties["dynamic_friction"] = art.data.joint_dynamic_friction_coeff
 
         for property_name, public_property in public_properties.items():
             _assert_proxy_close(public_property, backend_properties[property_name][:, user_to_backend])
@@ -2223,6 +2226,14 @@ class TestArticulationWritersJoint:
                         "viscous_friction",
                     ),
                 ]
+            )
+        if backend == "newton":
+            property_cases.append(
+                (
+                    "write_joint_viscous_friction_coefficient_to_sim",
+                    "joint_viscous_friction_coeff",
+                    "viscous_friction",
+                )
             )
 
         for case_index, (method_name, value_name, property_name) in enumerate(property_cases):

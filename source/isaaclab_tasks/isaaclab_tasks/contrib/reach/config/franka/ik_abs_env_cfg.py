@@ -3,33 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+"""Deprecated compatibility configuration for absolute DiffIK Franka Reach."""
+
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
-
 
 @configclass
 class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
-    def __post_init__(self):
-        # post init of parent
+    """Compatibility configuration that selects the canonical absolute DiffIK preset."""
+
+    def __post_init__(self) -> None:
         super().__post_init__()
-
-        # Set Franka as robot
-        # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-
-        # Set actions for the specific robot type (franka)
-        self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
-            asset_name="robot",
-            joint_names=["panda_joint.*"],
-            body_name="panda_hand",
-            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+        self.sim.physics = self.sim.physics.isaacsim_physx
+        self.scene.robot.spawn.rigid_props.disable_gravity = (
+            self.scene.robot.spawn.rigid_props.disable_gravity.diffik_abs
         )
+        self.actions.arm_action = self.actions.arm_action.diffik_abs
