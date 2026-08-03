@@ -15,6 +15,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
@@ -266,6 +267,78 @@ def _fire_all_interval_events_once(env) -> None:
     event_manager.apply("interval", dt=1e9)
 
 
+def _configure_osc_smoke_actions(env, actions: torch.Tensor) -> None:
+    """Replace absolute OSC targets with matching task commands.
+
+    Random samples from an unbounded action space are not valid absolute poses: their
+    quaternions are not normalized and their positions may be unreachable. When an
+    operational-space action term has a unique pose command for the same asset and
+    body, this helper tracks that command with the controller's nominal gains.
+
+    Args:
+        env: A constructed manager-based environment.
+        actions: The sampled actions to update in place.
+    """
+    action_manager = getattr(env.unwrapped, "action_manager", None)
+    command_manager = getattr(env.unwrapped, "command_manager", None)
+    if action_manager is None or command_manager is None:
+        return
+
+    action_offset = 0
+    for term_name, term_dim in zip(action_manager.active_terms, action_manager.action_term_dim):
+        action_term = action_manager.get_term(term_name)
+        action_cfg = action_term.cfg
+        if not isinstance(action_cfg, OperationalSpaceControllerActionCfg):
+            action_offset += term_dim
+            continue
+
+        controller_cfg = action_cfg.controller_cfg
+        if "pose_abs" not in controller_cfg.target_types or action_cfg.task_frame_rel_path is not None:
+            action_offset += term_dim
+            continue
+
+        pose_commands = []
+        for command_name in command_manager.active_terms:
+            command_term = command_manager.get_term(command_name)
+            if (
+                getattr(command_term.cfg, "asset_name", None) == action_cfg.asset_name
+                and getattr(command_term.cfg, "body_name", None) == action_cfg.body_name
+                and command_term.command.shape[1] == 7
+            ):
+                pose_commands.append(command_term.command)
+        if len(pose_commands) != 1:
+            action_offset += term_dim
+            continue
+
+        command_offset = 0
+        for target_type in controller_cfg.target_types:
+            if target_type == "pose_abs":
+                pose_command = pose_commands[0]
+                actions[:, action_offset + command_offset : action_offset + command_offset + 3] = (
+                    pose_command[:, :3] / action_cfg.position_scale
+                )
+                actions[:, action_offset + command_offset + 3 : action_offset + command_offset + 7] = (
+                    pose_command[:, 3:] / action_cfg.orientation_scale
+                )
+                command_offset += 7
+            elif target_type in ("pose_rel", "wrench_abs"):
+                command_offset += 6
+
+        if controller_cfg.impedance_mode in ("variable_kp", "variable"):
+            stiffness = torch.as_tensor(controller_cfg.motion_stiffness_task, device=actions.device)
+            actions[:, action_offset + command_offset : action_offset + command_offset + 6] = (
+                stiffness / action_cfg.stiffness_scale
+            )
+            command_offset += 6
+        if controller_cfg.impedance_mode == "variable":
+            damping_ratio = torch.as_tensor(controller_cfg.motion_damping_ratio_task, device=actions.device)
+            actions[:, action_offset + command_offset : action_offset + command_offset + 6] = (
+                damping_ratio / action_cfg.damping_ratio_scale
+            )
+
+        action_offset += term_dim
+
+
 def _run_environments(
     task_name,
     device,
@@ -432,6 +505,7 @@ def _check_random_actions(
                     actions = sample_space(
                         env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
                     )
+                    _configure_osc_smoke_actions(env, actions)
                 # apply actions
                 transition = env.step(actions)
                 # check signals

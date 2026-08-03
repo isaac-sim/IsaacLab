@@ -102,7 +102,7 @@ class ShadowHandAsymLSTMPPORunnerCfg(ShadowHandAsymFFPPORunnerCfg):
 @configclass
 class ShadowHandCameraFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 64
-    max_iterations = 50000
+    max_iterations = 5000
     save_interval = 250
     experiment_name = "shadow_hand_camera"
     obs_groups = {"actor": ["policy"], "critic": ["critic"]}

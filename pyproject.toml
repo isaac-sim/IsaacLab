@@ -178,12 +178,12 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-# Aggregate of the compatible extras. Omits teleop/ovphysx/viser, whose pins clash
-# with isaacsim (lxml, packaging<24, websockets); install those via their own extra.
+# Aggregate of the compatible extras. Omits teleop/ovphysx, whose pins clash
+# with isaacsim (lxml and packaging<24); install those via their own extra.
 # Also omits tetrahedralization and video because their dependencies are large and
 # narrowly used; request either extra explicitly when needed.
 all = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf,mimic]",
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,rlinf,mimic]",
 ]
 leapp = [
     "leapp>=0.5.2",
@@ -391,10 +391,12 @@ override-dependencies = [
     "torchaudio==2.11.0",
     # Isaac Sim 6.0 pins 4.12.2, which lacks Sentinel required by the Newton viewer stack.
     "typing-extensions>=4.15.0",
+    # Isaac Sim 6.0 pins 12.0; use Viser's minimum compatible version to limit the override scope.
+    "websockets==13.1",
 ]
 # teleop (lxml>=5.2.2) and mimic (lxml<5.0.0, also in ``all``) cannot co-resolve;
 # declaring the conflict lets uv fork the resolution instead of failing.
-# isaacsim pins clash with teleop/ovphysx/viser/mimic/test (and ``all`` aggregates
+# isaacsim pins clash with teleop/ovphysx/mimic/test (and ``all`` aggregates
 # several of these); forking keeps ``--extra isaacsim`` resolvable on its own.
 conflicts = [
     [{ extra = "teleop" }, { extra = "mimic" }],
@@ -402,7 +404,6 @@ conflicts = [
     [{ extra = "isaacsim" }, { extra = "teleop" }],
     [{ extra = "isaacsim" }, { extra = "ov" }],
     [{ extra = "isaacsim" }, { extra = "ovphysx" }],
-    [{ extra = "isaacsim" }, { extra = "viser" }],
     [{ extra = "isaacsim" }, { extra = "mimic" }],
     [{ extra = "isaacsim" }, { extra = "all" }],
     [{ extra = "isaacsim" }, { extra = "test" }],
