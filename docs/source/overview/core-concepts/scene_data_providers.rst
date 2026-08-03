@@ -39,6 +39,11 @@ The system has three layers:
      :class:`SceneDataFormat.Matrix44`, :class:`SceneDataFormat.Vec3_Matrix33`).
    - :attr:`SceneDataBackend.transform_count` — number of transforms.
    - :attr:`SceneDataBackend.transform_paths` — list of USD prim paths, one per transform.
+   - :attr:`SceneDataBackend.points` — flattened deformable nodal positions as
+     :class:`SceneDataFormat.Points` (optional; rigid-only backends return an empty buffer).
+   - :attr:`SceneDataBackend.point_count` — total number of geometry points.
+   - :attr:`SceneDataBackend.geometry_paths` — one USD prim path per deformable body instance.
+   - :attr:`SceneDataBackend.geometry_counts` — unpadded nodal count per geometry entity.
 
 2. :class:`~isaaclab.scene_data.SceneDataProvider` — wraps a backend and offers
    format conversion plus index re-mapping:
@@ -51,6 +56,11 @@ The system has three layers:
    - :meth:`SceneDataProvider.create_mapping` — build a remap array from the backend's prim
      paths to a consumer's desired ordering. Used when a renderer or visualizer wants
      transforms indexed by its own body list rather than by the physics view order.
+   - :meth:`SceneDataProvider.get_points` — copy backend deformable nodal positions into a
+     consumer buffer, optionally remapping entity slices via
+     :meth:`SceneDataProvider.create_geometry_mapping`.
+   - :meth:`SceneDataProvider.create_geometry_mapping` — map backend deformable entities to
+     consumer particle offsets in a shadow Newton ``particle_q`` buffer.
    - :meth:`SceneDataProvider.get_camera_transforms` — discover per-camera, per-env
      world transforms from the USD stage.
    - :attr:`SceneDataProvider.usd_stage` — USD stage handle for stage-walking consumers.
@@ -61,6 +71,10 @@ The system has three layers:
 
    - ``PhysxSceneDataBackend`` (internal to :mod:`isaaclab_physx.physics`) wraps PhysX's
      ``RigidBodyView`` and exposes its transforms as :class:`SceneDataFormat.Transform`.
+     When deformable bodies are present it also exposes flattened simulation nodal positions
+     through :class:`SceneDataFormat.Points`.
+   - ``OvPhysxSceneDataBackend`` (internal to :mod:`isaaclab_ovphysx.physics`) mirrors the
+     PhysX contract for rigid transforms and OVPhysX deformable nodal tensors.
    - ``NewtonSceneDataBackend`` (internal to :mod:`isaaclab_newton.physics`) wraps the
      Newton model's ``body_q`` and exposes it as :class:`SceneDataFormat.Transform`.
 
@@ -76,6 +90,14 @@ Newton-native consumers (Newton visualizer, Rerun, Viser, Newton Warp renderer, 
 additionally need a Newton ``Model``/``State`` to render against. To satisfy that requirement,
 :class:`~isaaclab_newton.physics.NewtonManager` builds a **shadow Newton model** from the USD
 stage on first access and updates its ``body_q`` from the PhysX backend each render frame.
+When the scene contains PhysX or OVPhysX deformables, the shadow model also allocates
+``particle_q`` render slots for soft/cloth meshes, syncs simulation nodal positions through
+:meth:`SceneDataProvider.get_points` with ``allow_passthrough=False`` into a separate
+sim-sized buffer, and remaps or copies those positions into the render-sized
+``particle_q`` buffer each frame. Volume deformables with mismatched sim and visual vertex
+counts use a barycentric sim-to-visual remap so Newton Warp and OVRTX render the paired
+visual mesh rather than tet simulation topology. The shadow deformable registry exposes
+render-slot offsets and ``particles_per_body`` counts for OVRTX point bindings.
 This is hidden behind :meth:`NewtonManager.get_model` / :meth:`NewtonManager.get_state`, so
 renderers don't need to know which physics backend is active.
 

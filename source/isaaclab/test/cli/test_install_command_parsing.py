@@ -22,6 +22,7 @@ from isaaclab.cli.commands.install import (
     MANUAL_EXTRA_FEATURES,
     OPTIONAL_ISAACLAB_SUBMODULES,
     VALID_EXTRA_FEATURES,
+    _install_extra_feature,
     _install_ov_extra_dependencies,
     command_install,
     split_install_items,
@@ -131,14 +132,14 @@ class TestInstallConstants:
         assert OPTIONAL_ISAACLAB_SUBMODULES["teleop"] == ("isaaclab_teleop",)
 
     def test_valid_extra_features(self):
-        expected = {"contrib", "newton", "ov", "rl", "visualizer"}
+        expected = {"contrib", "newton", "ov", "rl", "tetrahedralization", "visualizer"}
         assert expected == VALID_EXTRA_FEATURES
 
     def test_manual_extra_features_subset_of_valid(self):
         assert MANUAL_EXTRA_FEATURES <= VALID_EXTRA_FEATURES
 
     def test_manual_extra_features(self):
-        assert {"contrib", "ov"} == MANUAL_EXTRA_FEATURES
+        assert {"contrib", "ov", "tetrahedralization"} == MANUAL_EXTRA_FEATURES
 
     def test_no_overlap_between_optional_submodules_and_extra_features(self):
         assert not (set(OPTIONAL_ISAACLAB_SUBMODULES.keys()) & VALID_EXTRA_FEATURES)
@@ -258,6 +259,7 @@ class TestCommandInstallDispatch:
         mocks = self._run("all")
         called_features = {c.args[0] for c in mocks["_install_extra_feature"].call_args_list}
         assert "contrib" not in called_features
+        assert "tetrahedralization" not in called_features
         assert "ov" not in called_features
 
     def test_all_does_not_call_install_isaacsim(self):
@@ -309,6 +311,16 @@ class TestCommandInstallDispatch:
     def test_visualizer_with_selector(self):
         mocks = self._run("visualizer[rerun]")
         mocks["_install_extra_feature"].assert_called_once_with("visualizer", "rerun")
+
+    def test_tetrahedralization_dispatches_manual_extra_feature(self):
+        mocks = self._run("tetrahedralization")
+        mocks["_install_extra_feature"].assert_called_once_with("tetrahedralization", "")
+
+    def test_tetrahedralization_installs_root_extra(self):
+        with patch(f"{_INSTALL_MODULE}._install_root_extra") as install_root_extra:
+            _install_extra_feature("tetrahedralization")
+
+        install_root_extra.assert_called_once_with("tetrahedralization")
 
     # --- manual extra features and optional submodules ---
 

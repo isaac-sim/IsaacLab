@@ -68,9 +68,9 @@ Use plausible ranges around a corrected nominal model. Use curriculum only when 
 Generic command pattern:
 
 ```bash
-uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=physx
+uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=isaacsim_physx
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-  --checkpoint /absolute/path/to/physx_checkpoint.pt physics=physx
+  --checkpoint /absolute/path/to/physx_checkpoint.pt physics=isaacsim_physx
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
   --checkpoint /absolute/path/to/physx_checkpoint.pt physics=newton_mjwarp
 
@@ -78,9 +78,9 @@ uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=newton_mjwar
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
   --checkpoint /absolute/path/to/newton_checkpoint.pt physics=newton_mjwarp
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-  --checkpoint /absolute/path/to/newton_checkpoint.pt physics=physx
+  --checkpoint /absolute/path/to/newton_checkpoint.pt physics=isaacsim_physx
 ```
 
 ### Run The Franka Lift Transfer
 
-For Franka, use `Isaac-Lift-Franka` to train and `Isaac-Lift-Franka-Play` to infer. The play task disables Franka gripper-closing-speed randomization. Use the exact PP, PN, NN, and NP commands from the how-to.
+For Franka, use `Isaac-Lift-Franka` to train and infer. The play entry point applies the task's `play_mode` overrides and disables Franka gripper-closing-speed randomization automatically. Use the exact PP, PN, NN, and NP commands from the how-to.

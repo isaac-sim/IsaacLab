@@ -13,7 +13,7 @@ import isaaclab.app.app_launcher as app_launcher_module
 import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils as utils_module
 from isaaclab.app import AppLauncher
-from isaaclab.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _uses_isaac_sim_runtime
+from isaaclab.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _get_kit_runtime_sources
 
 pytestmark = pytest.mark.integration
 
@@ -61,7 +61,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
     )
     args = argparse.Namespace(experience="isaaclab.python.kit", visualizer=None)
 
-    assert _uses_isaac_sim_runtime(scan, args)
+    assert _get_kit_runtime_sources(scan, args)
 
 
 def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.MonkeyPatch):
@@ -350,6 +350,19 @@ def test_matrix_no_cli_with_cfg_kit_newton_non_headless(monkeypatch: pytest.Monk
     assert launcher._cli_visualizer_explicit is False
 
 
+def test_matrix_empty_dict_resolves_headless(monkeypatch: pytest.MonkeyPatch):
+    # tools that launch Kit only to reach an extension API pass no visualizer, and must stay headless
+    headless, _ = _resolve_headless_for_case(monkeypatch, {})
+    assert headless is True
+
+
+def test_matrix_viz_kit_dict_resolves_windowed(monkeypatch: pytest.MonkeyPatch):
+    # a Kit viewport only exists when the launcher is told to create it
+    headless, launcher = _resolve_headless_for_case(monkeypatch, {"visualizer": ["kit"]})
+    assert headless is False
+    assert launcher._cli_visualizer_types == ["kit"]
+
+
 @pytest.mark.parametrize("visualizer", [None, ["none"]])
 def test_matrix_viz_none_disables_all_and_headless(monkeypatch: pytest.MonkeyPatch, visualizer):
     headless, launcher = _resolve_headless_for_case(
@@ -458,3 +471,33 @@ def test_allows_isaacsim_full_streaming_experience_when_livestream_disabled(tmp_
     launcher._resolve_experience_file({"experience": str(experience)})
 
     assert launcher._sim_experience_file == str(experience)
+
+
+def test_constructor_reports_missing_isaac_sim(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(app_launcher_module, "SimulationApp", None)
+
+    with pytest.raises(ImportError, match="requires the full Isaac Sim runtime"):
+        AppLauncher()
+
+
+def test_is_available_reflects_simulation_app_presence(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(app_launcher_module, "SimulationApp", None)
+    assert AppLauncher.is_available() is False
+
+    monkeypatch.setattr(app_launcher_module, "SimulationApp", object())
+    assert AppLauncher.is_available() is True
+
+
+def test_has_gui_reads_published_setting():
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    settings = get_settings_manager()
+    original = settings.get("/isaaclab/has_gui")
+    try:
+        settings.set_bool("/isaaclab/has_gui", True)
+        assert AppLauncher.has_gui() is True
+
+        settings.set_bool("/isaaclab/has_gui", False)
+        assert AppLauncher.has_gui() is False
+    finally:
+        settings.set_bool("/isaaclab/has_gui", bool(original))
