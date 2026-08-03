@@ -342,6 +342,15 @@ RSL-RL
 SKRL
 ----
 
+The SKRL integration is optional. Add ``--extra skrl`` to every ``uv run``
+command that selects ``--rl_library skrl``. Combine it with other extras in a
+comma-separated list when needed. For example:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim,skrl isaaclab train --rl_library skrl \
+      --task Isaac-Cartpole-Camera-Direct renderer=rtx physics=newton_mjwarp
+
 -  Training an agent with
    `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka``:
 
@@ -361,16 +370,14 @@ SKRL
 
                         .. code:: bash
 
-                           # install python module (for skrl)
-                           ./isaaclab.sh -i skrl
                            # run command for training
-                           uv run isaaclab train --rl_library skrl --task Isaac-Reach-Franka
+                           uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Reach-Franka
                            # run command for training with Newton backend
-                           uv run isaaclab train --rl_library skrl --task Isaac-Reach-Franka physics=newton_mjwarp
+                           uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Reach-Franka physics=newton_mjwarp
                            # run command for playing with 32 environments
-                           uv run isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
+                           uv run --extra skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
                            # run command for recording video of a trained agent
-                           uv run --extra video isaaclab play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
+                           uv run --extra video,skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
 
                      .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -483,13 +490,13 @@ SKRL
                .. code:: bash
 
                   # run command for training
-                  uv run isaaclab train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax
+                  uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax
                   # run command for training with Newton backend
-                  uv run isaaclab train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax presets=newton_mjwarp
+                  uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax presets=newton_mjwarp
                   # run command for playing with 32 environments
-                  uv run isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
+                  uv run --extra skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
                   # run command for recording video of a trained agent
-                  uv run --extra video isaaclab play --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax --video --video_length 200
+                  uv run --extra video,skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -518,12 +525,10 @@ SKRL
 
                .. code:: bash
 
-                  # install python module (for skrl)
-                  ./isaaclab.sh -i skrl
                   # run command for training with the MAPPO algorithm (IPPO is also supported)
-                  uv run isaaclab train --rl_library skrl --task Isaac-Shadow-Handover-Direct --algorithm MAPPO
+                  uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Shadow-Handover-Direct --algorithm MAPPO
                   # run command for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
-                  uv run isaaclab play --rl_library skrl --task Isaac-Shadow-Handover-Direct --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
+                  uv run --extra skrl isaaclab play --rl_library skrl --task Isaac-Shadow-Handover-Direct --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
