@@ -6,6 +6,7 @@
 """Joint-space DisplayPort insertion environment for Flexiv Rizon 4S + Grav gripper."""
 
 import math
+import os
 
 import torch
 
@@ -20,6 +21,7 @@ from isaaclab.utils.configclass import configclass
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 import isaaclab_tasks.contrib.deploy.mdp.terminations as cable_terminations
 from isaaclab_tasks.contrib.deploy.cable_insertion.displayport_insertion_env_cfg import (
+    DISPLAY_ASSETS_DIR,
     PLUG_GOAL_ROT,
     PLUG_INSERTION_OFFSET,
     SOCKET_INSERTION_OFFSET,
@@ -43,6 +45,12 @@ _PLUG_ROOT, _PLUG_ROT = compute_plug_pose(
 
 # Blade engagement along the insertion axis used by the at-goal curriculum [m].
 _INSERTION_LENGTH = 0.011
+
+# Calibrated Rizon4s USD (measured kinematics) used in place of the stock Nucleus robot USD.
+_RIZON4S_CALIBRATED_USD_PATH = os.path.join(
+    DISPLAY_ASSETS_DIR,
+    "Rizon4s-063459_with_Grav_calibrated_kinematics.usd",
+)
 
 ##
 # Pre-defined configs
@@ -308,6 +316,7 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
         self.scene.robot = FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.spawn.replace(
+                usd_path=_RIZON4S_CALIBRATED_USD_PATH,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,
