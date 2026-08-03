@@ -407,7 +407,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
         for batch in self._execution_batches:
             actuator = batch.actuator
-            joint_indices = batch.joint_indices
+            joint_indices = actuator.joint_indices if len(batch.group_names) == 1 else batch.joint_indices
             control_action = ArticulationActions(
                 joint_positions=self.command.position.torch[:, joint_indices],
                 joint_velocities=self.command.velocity.torch[:, joint_indices],
@@ -548,8 +548,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         *,
         executor: ActuatorBase | None = None,
     ) -> ActuatorCollection._ExecutionBatch:
-        if executor is None:
-            executor = groups[0]
         group_slices = []
         start = 0
         for group in groups:
@@ -557,8 +555,11 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             group_slices.append(slice(start, stop))
             start = stop
         joint_indices = joint_indices.to(self.device, dtype=torch.int32).contiguous()
-        executor._joint_names = [name for group in groups for name in group.joint_names]
-        executor._joint_indices = joint_indices
+        if executor is None:
+            executor = groups[0]
+        else:
+            executor._joint_names = [name for group in groups for name in group.joint_names]
+            executor._joint_indices = joint_indices
         return self._ExecutionBatch(
             actuator=executor,
             group_names=group_names,
@@ -611,7 +612,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             safe_names, safe_groups, safe_indices = zip(*safe)
             combined = torch.cat(safe_indices)
             executor = actuator_type._build_execution_actuator(safe_groups)
-            executor._joint_indices = combined
             batch = self._make_execution_batch(safe_names, safe_groups, combined, executor=executor)
             self._validate_execution_batch(batch, safe_groups)
             self._bind_execution_batch_parameters(batch, safe_groups)

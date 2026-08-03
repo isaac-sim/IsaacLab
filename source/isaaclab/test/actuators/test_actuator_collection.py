@@ -37,6 +37,14 @@ def _implicit_cfg() -> ImplicitActuatorCfg:
     return ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)
 
 
+class SelectorRecordingActuator(ImplicitActuator):
+    """Custom actuator that records the selector supplied to :meth:`compute`."""
+
+    def compute(self, control_action, joint_pos, joint_vel):
+        self.observed_joint_indices = control_action.joint_indices
+        return super().compute(control_action, joint_pos, joint_vel)
+
+
 def _ideal_cfg(joints: list[str], *, stiffness: float, damping: float, effort_limit: float):
     return IdealPDActuatorCfg(
         joint_names_expr=joints,
@@ -434,6 +442,22 @@ def test_collection_is_mapping_like_and_read_only():
     assert list(collection.items())[0][0] == "all"
     with pytest.raises(TypeError, match="membership is fixed"):
         collection["new"] = collection["all"]
+
+
+def test_singleton_all_joint_group_preserves_public_selector():
+    collection = ActuatorCollection({"all": _implicit_cfg()}, FakeActuatorControl())
+
+    assert collection["all"].joint_indices == slice(None)
+
+
+def test_custom_singleton_compute_receives_original_selector():
+    cfg = _implicit_cfg()
+    cfg.class_type = SelectorRecordingActuator
+    collection = ActuatorCollection({"all": cfg}, FakeActuatorControl())
+
+    collection.compute()
+
+    assert collection["all"].observed_joint_indices == slice(None)
 
 
 def test_same_stateless_class_builds_one_execution_batch_with_group_views():
