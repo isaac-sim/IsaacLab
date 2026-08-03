@@ -52,15 +52,9 @@ def arange_k(a: ArrayUInt32_1d):
 def map_view_indices_to_fabric_slots(view_indices: FabricArrayUInt32, fabric_slots: ArrayInt32_1d):
     """Invert a selection's per-prim view-index attribute into a slot lookup table.
 
-    ``view_indices`` is the fabric array of a per-view ``uint`` index attribute:
-    one entry per selected prim, holding that prim's view-side index.  After the
-    launch, ``fabric_slots[view_index]`` is the fabric-side slot of that view
-    prim in the selection, suitable as :class:`wp.indexedfabricarray` indices.
-
-    The dtypes differ on purpose: the input is ``uint32`` because the Fabric
-    index attribute is authored as ``UInt``, while the output is ``int32``
-    because Warp only accepts ``int32`` index arrays (see
-    :data:`ArrayInt32_1d`).  This kernel is where that boundary is crossed.
+    Inverts a permutation: ``view_indices`` holds each selected prim's view-side
+    index, and after the launch ``fabric_slots[view_index]`` is that prim's
+    fabric-side slot, ready to use as :class:`wp.indexedfabricarray` indices.
 
     The launch dimension must equal the selection's prim count, and the stored
     view indices must cover ``0..dim-1`` exactly for the table to be complete.
@@ -72,12 +66,7 @@ def map_view_indices_to_fabric_slots(view_indices: FabricArrayUInt32, fabric_slo
 
 @wp.kernel(enable_backward=False)
 def gather_fabric_slots(slots: ArrayInt32_1d, gather_map: ArrayUInt32_1d, out_slots: ArrayInt32_1d):
-    """Gather ``slots`` entries through ``gather_map``: ``out_slots[i] = slots[gather_map[i]]``.
-
-    ``gather_map`` holds view-side indices (``uint32``), while ``slots`` and
-    ``out_slots`` hold Fabric slots for :class:`wp.indexedfabricarray`
-    (``int32``); see :data:`ArrayInt32_1d`.
-    """
+    """Gather ``slots`` entries through ``gather_map``: ``out_slots[i] = slots[gather_map[i]]``."""
     i = int(wp.tid())
     out_slots[i] = slots[int(gather_map[i])]
 

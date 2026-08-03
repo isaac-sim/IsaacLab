@@ -185,15 +185,11 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
 
 @pytest.mark.parametrize("device", test_devices())
 def test_fabric_rebuild_after_topology_change(device, view_factory):
-    """A simulated topology change rebuilds the slot mappings and leaves the
-    view in a state where subsequent writes/reads still produce correct data.
+    """Refreshing every selection mid-use leaves writes and reads correct.
 
-    Real ``PrimSelection.PrepareForReuse`` reports topology change only when Fabric
-    reallocates internally, which is hard to provoke from a unit test.  The slot
-    mappings are rebuilt from live Fabric data on every accessor call anyway, so
-    here we drive the refresh paths directly (both child selections and the
-    parent selection), mimicking what the accessors do on a real topology event,
-    then verify a roundtrip still works.
+    ``PrepareForReuse`` only reports a topology change when Fabric reallocates
+    internally, which this test does not provoke, so this is a smoke test of the
+    refresh paths rather than true topology-recovery coverage.
     """
     bundle = view_factory(2, device)
     view = bundle.view
@@ -305,17 +301,11 @@ def test_prepare_for_reuse_detects_topology_change(device, view_factory):
 
 @pytest.mark.parametrize("device", test_devices())
 def test_selections_match_only_the_view_prims(device, view_factory):
-    """Each selection resolves to the view's own prims, not to the whole stage.
+    """Selections contain only the managed child prims and their unique parents.
 
-    The selections require the view's private index attribute.  Without it they
-    would require only the Fabric world and local matrix attributes, which
-    nearly every prim on the stage carries -- so they would resolve to the whole
-    scene (~1.1M prims at 8192 environments) and the view would have to find its
-    own prims in that list on every access.  That whole-stage lookup is what
-    stalled camera pose reads at high environment counts.
-
-    The fixture puts every child under its own parent, so the child selections
-    hold ``view.count`` prims and the parent selection holds one entry per env.
+    Without the per-view index attribute in the selection predicate the child
+    selections also pick up the parents (and, on a real stage, every other
+    xformable), so this fails with "matched 8 prims, expected 4".
     """
     num_envs = 4
     bundle = view_factory(num_envs, device)
