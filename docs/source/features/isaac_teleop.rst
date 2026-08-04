@@ -1174,9 +1174,9 @@ vertical, and grid layouts. ``IsaacContrib-PickPlace-GR1T2-Abs`` and
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
 ``CameraCfg`` through ``xr_camera_feeds``. In the reference examples, the selected
 ``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
-the same view shown to the operator. GR1T2 demonstrates a fixed task camera; Locomanipulation uses
-the same fixed task-camera placement pattern for G1. The NutPour and ExhaustPipe GR1T2
-teleoperation tasks also present their existing recorded ``robot_pov_cam``:
+the same view shown to the operator. Both reference cameras are parented to the robot's physical
+root body, so the recorded view follows robot motion. The NutPour and ExhaustPipe GR1T2 teleoperation
+tasks also present their existing recorded ``robot_pov_cam``:
 
 .. code-block:: bash
 

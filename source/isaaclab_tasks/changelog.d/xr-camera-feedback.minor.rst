@@ -1,8 +1,8 @@
 Added
 ^^^^^
 
-* Added recorded ``robot_pov_cam`` policy observations to the GR1T2 pick-place and G1
-  locomanipulation tasks for XR camera feedback.
+* Added recorded, robot-attached ``robot_pov_cam`` policy observations to the GR1T2 pick-place and
+  G1 locomanipulation tasks for XR camera feedback that follows robot motion.
 
 Fixed
 ^^^^^

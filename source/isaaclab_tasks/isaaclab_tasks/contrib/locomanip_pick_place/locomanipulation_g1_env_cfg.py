@@ -297,8 +297,12 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     # Humanoid robot w/ arms higher
     robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    # Fixed task camera matching the GR1T2 training-camera placement.
-    robot_pov_cam = robot_pov_camera_cfg()
+    # Preserve the recorded task view while following the locomoting robot.
+    robot_pov_cam = robot_pov_camera_cfg(
+        parent_prim_path="{ENV_REGEX_NS}/Robot/pelvis",
+        offset_pos=(0.11356200, 0.00336488, 0.91003009),
+        offset_rot=(-0.69167832, 0.69341183, -0.14424081, 0.14126472),
+    )
 
     # Per-hand contact sensors over all finger links, used to drive controller
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors

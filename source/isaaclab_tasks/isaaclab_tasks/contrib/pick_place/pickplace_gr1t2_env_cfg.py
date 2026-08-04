@@ -368,7 +368,11 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
     """GR1T2 pick-place scene with the camera observation shown in XR PiP."""
 
-    robot_pov_cam = robot_pov_camera_cfg()
+    robot_pov_cam = robot_pov_camera_cfg(
+        parent_prim_path="{ENV_REGEX_NS}/Robot/base_link",
+        offset_pos=(0.11999996, -0.00000233, 0.74674994),
+        offset_rot=(-0.69303199, 0.69304552, -0.14034840, 0.14034565),
+    )
 
 
 ##

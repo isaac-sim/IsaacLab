@@ -13,13 +13,20 @@ from isaaclab_tasks.utils.hydra import resolve_presets
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 
-@pytest.mark.parametrize("env_cfg_type", [PickPlaceGR1T2EnvCfg, LocomanipulationG1EnvCfg])
-def test_xr_camera_reference_tasks_select_recorded_camera(env_cfg_type):
-    """Reference tasks record and present the same camera after a temporal reset refresh."""
+@pytest.mark.parametrize(
+    ("env_cfg_type", "camera_prim_path"),
+    [
+        (PickPlaceGR1T2EnvCfg, "{ENV_REGEX_NS}/Robot/base_link/RobotPOVCam"),
+        (LocomanipulationG1EnvCfg, "{ENV_REGEX_NS}/Robot/pelvis/RobotPOVCam"),
+    ],
+)
+def test_xr_camera_reference_tasks_select_recorded_camera(env_cfg_type, camera_prim_path):
+    """Reference tasks record and present a camera attached to the physical robot root."""
     cfg = env_cfg_type()
 
     assert cfg.isaac_teleop.xr_camera_feeds[0].camera_name == "robot_pov_cam"
     assert hasattr(cfg.observations.policy, "robot_pov_cam")
+    assert cfg.scene.robot_pov_cam.prim_path == camera_prim_path
     assert isinstance(cfg.scene.robot_pov_cam.renderer_cfg, MultiBackendRendererCfg)
     assert cfg.num_rerenders_on_reset == 3
 

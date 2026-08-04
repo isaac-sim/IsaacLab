@@ -25,19 +25,26 @@ class _RobotPovCameraRendererCfg(MultiBackendRendererCfg):
     isaacsim_rtx = default
 
 
-def robot_pov_camera_cfg() -> CameraCfg:
-    """Return the shared recorded robot-PoV camera configuration."""
+def robot_pov_camera_cfg(
+    *,
+    parent_prim_path: str,
+    offset_pos: tuple[float, float, float],
+    offset_rot: tuple[float, float, float, float],
+) -> CameraCfg:
+    """Return a recorded robot-PoV camera attached to a robot body.
+
+    Args:
+        parent_prim_path: Path of the physical robot body that the camera follows.
+        offset_pos: Camera position in the parent body frame.
+        offset_rot: Camera XYZW quaternion in the parent body frame using the ROS camera convention.
+    """
     return CameraCfg(
-        prim_path="{ENV_REGEX_NS}/RobotPOVCam",
+        prim_path=f"{parent_prim_path}/RobotPOVCam",
         update_period=0.0,
         height=450,
         width=720,
         data_types=["rgb"],
         renderer_cfg=_RobotPovCameraRendererCfg(),
         spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2.0)),
-        offset=CameraCfg.OffsetCfg(
-            pos=(0.0, 0.12, 1.67675),
-            rot=(0.9801, 0.0, 0.0, -0.19848),
-            convention="ros",
-        ),
+        offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
     )
