@@ -85,7 +85,9 @@ class ObjectCfg(PresetCfg):
             solver_velocity_iteration_count=0,
             disable_gravity=False,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.CollisionPropertiesCfg(
+            mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
+        ),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
     )
     default = shapes
