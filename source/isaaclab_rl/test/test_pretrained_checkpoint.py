@@ -52,6 +52,15 @@ def test_get_pretrained_checkpoint_filename_preserves_legacy_layout():
     assert pretrained_checkpoint.get_pretrained_checkpoint_filename("rl_games", "Isaac-Cartpole") == "checkpoint.pth"
 
 
+def test_get_log_root_path_preserves_legacy_task_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """Test that callers omitting both backends retain the task-specific log root."""
+    monkeypatch.chdir(tmp_path)
+
+    path = pretrained_checkpoint.get_log_root_path("rsl_rl", "Isaac-Cartpole")
+
+    assert path == str(tmp_path / "logs" / "rsl_rl" / "Isaac-Cartpole")
+
+
 def test_get_pretrained_checkpoint_filename_requires_both_backends():
     """Test that partial backend identifiers are rejected."""
     with pytest.raises(ValueError, match="must be provided together"):

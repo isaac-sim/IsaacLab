@@ -12,3 +12,9 @@ Changed
 * Changed new pretrained checkpoint uploads to use one flat directory per RL
   library. Legacy callers that do not provide backend names continue to use the
   previous ``<library>/<task>/checkpoint`` layout.
+
+Fixed
+^^^^^
+
+* Fixed legacy checkpoint log discovery to preserve task-specific experiment
+  directories.

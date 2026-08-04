@@ -6,12 +6,17 @@
 """Tests for the pretrained-checkpoint training utility."""
 
 from argparse import Namespace
+from pathlib import Path
+
+import pytest
 
 from scripts.tools.train_and_publish_checkpoints import (
     CheckpointJob,
     _play_command,
     _select_physics_variants,
     _training_command,
+    collect_pretrained_checkpoint,
+    publish_pretrained_checkpoint,
 )
 
 
@@ -49,3 +54,47 @@ def test_select_physics_variants_does_not_fall_back_to_automatic_physx() -> None
     selections = _select_physics_variants("Isaac-Test", ["physx", "ovphysx"], "physx", ["physx"])
 
     assert selections == []
+
+
+def test_legacy_job_experiment_name_preserves_task_name() -> None:
+    """Legacy jobs must keep separate experiment directories for each task."""
+    job = CheckpointJob(workflow="rsl_rl", task_name="Isaac-Test")
+
+    assert job.experiment_name == "Isaac-Test"
+
+
+def test_legacy_collection_preserves_task_directory(tmp_path: Path) -> None:
+    """Legacy collected checkpoints must retain their task-specific directory."""
+    job = CheckpointJob(workflow="rsl_rl", task_name="Isaac-Test")
+
+    path = collect_pretrained_checkpoint(job, str(tmp_path), dry_run=True)
+
+    assert path == str(tmp_path / "rsl_rl" / "Isaac-Test" / "checkpoint.pt")
+
+
+def test_publish_uses_collected_checkpoint_without_training_logs(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Publishing a collected checkpoint must not require its original training logs."""
+    job = CheckpointJob(
+        workflow="rsl_rl",
+        task_name="Isaac-Test",
+        physics_backend="newton",
+        render_backend="none",
+    )
+    collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newton_none.pt"
+    collected_path.parent.mkdir()
+    collected_path.touch()
+    args = Namespace(
+        dry_run=True,
+        force_publish=True,
+        output_dir=str(tmp_path),
+        publish_root="omniverse://checkpoints",
+    )
+
+    assert publish_pretrained_checkpoint(job, args)
+    assert (
+        f"Publishing {collected_path} -> omniverse://checkpoints/rsl_rl/Isaac-Test_newton_none.pt"
+        in capsys.readouterr().out
+    )

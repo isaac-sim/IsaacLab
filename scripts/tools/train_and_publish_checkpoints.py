@@ -129,6 +129,8 @@ class CheckpointJob:
     @property
     def experiment_name(self) -> str:
         """Return the experiment directory name used by the RL workflow."""
+        if self.physics_backend is None and self.render_backend is None:
+            return self.task_name
         filename = get_pretrained_checkpoint_filename(
             self.workflow,
             self.task_name,
@@ -504,13 +506,7 @@ def train_job(job: CheckpointJob, args: argparse.Namespace, smoke: bool = False)
 
 def collect_pretrained_checkpoint(job: CheckpointJob, output_dir: str, dry_run: bool = False) -> str | None:
     """Copy the last or best checkpoint into the structured output directory."""
-    filename = get_pretrained_checkpoint_filename(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
-    destination = os.path.abspath(os.path.join(output_dir, job.workflow, filename))
+    destination = _get_collected_checkpoint_path(job, output_dir)
     if dry_run:
         print(f"Would collect the completed checkpoint -> {destination}")
         return destination
@@ -600,13 +596,9 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
     """Publish an accepted checkpoint to the configured Nucleus asset root."""
     if args.publish_root is None and not has_pretrained_checkpoints_asset_root_dir():
         raise RuntimeError("A pretrained-checkpoint Nucleus asset root is not configured")
-    if not has_pretrained_checkpoint_job_finished(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    ):
-        print(f"Skipping publish of {job.job_id}; training is incomplete")
+    local_path = _get_collected_checkpoint_path(job, args.output_dir)
+    if not os.path.isfile(local_path):
+        print(f"Skipping publish of {job.job_id}; no collected checkpoint was found")
         return False
 
     if not args.force_publish:
@@ -620,12 +612,6 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
             print(f"Skipping publish of {job.job_id}; it does not have an accepted review")
             return False
 
-    local_path = get_pretrained_checkpoint_path(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
     if args.publish_root is None:
         publish_path = get_pretrained_checkpoint_publish_path(
             job.workflow,
@@ -668,13 +654,7 @@ def _summary_row(job: CheckpointJob, output_dir: str) -> list[str | bool]:
         if job.physics_backend is not None
         else has_pretrained_checkpoint_job_finished(job.workflow, job.task_name)
     )
-    filename = get_pretrained_checkpoint_filename(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
-    collected_path = os.path.abspath(os.path.join(output_dir, job.workflow, filename))
+    collected_path = _get_collected_checkpoint_path(job, output_dir)
     review = get_pretrained_checkpoint_review(
         job.workflow,
         job.task_name,
@@ -693,6 +673,20 @@ def _summary_row(job: CheckpointJob, output_dir: str) -> list[str | bool]:
         os.path.isfile(collected_path),
         (review or {}).get("result", ""),
     ]
+
+
+def _get_collected_checkpoint_path(job: CheckpointJob, output_dir: str) -> str:
+    """Return the absolute path of a checkpoint in the collection directory."""
+    filename = get_pretrained_checkpoint_filename(
+        job.workflow,
+        job.task_name,
+        job.physics_backend,
+        job.render_backend,
+    )
+    path_parts = [output_dir, job.workflow]
+    if job.physics_backend is None:
+        path_parts.append(job.task_name)
+    return os.path.abspath(os.path.join(*path_parts, filename))
 
 
 def main(argv: list[str] | None = None) -> int:

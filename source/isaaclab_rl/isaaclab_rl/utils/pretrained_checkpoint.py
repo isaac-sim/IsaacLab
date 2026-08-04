@@ -364,6 +364,8 @@ def _get_pretrained_checkpoint_stem(
     render_backend: str | None,
 ) -> str:
     """Return the checkpoint filename without its workflow extension."""
+    if physics_backend is None and render_backend is None:
+        return task_name
     filename = get_pretrained_checkpoint_filename(workflow, task_name, physics_backend, render_backend)
     return filename.removesuffix(WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS[workflow])
 
