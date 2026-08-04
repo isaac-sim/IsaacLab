@@ -435,7 +435,7 @@ def test_manager_supports_current_runtime_api():
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="cache root is LOCALAPPDATA-derived on Windows")
-def test_manager_passes_explicit_cooked_collider_cache_dir(monkeypatch, tmp_path):
+def test_manager_passes_explicit_derived_data_cache_dir(monkeypatch, tmp_path):
     """Every runtime and device combination hands OVPhysX an explicit cache directory.
 
     Without it the bundled Carbonite defaults the UJITSO cache to the directory holding the
@@ -489,13 +489,11 @@ def test_manager_passes_explicit_cooked_collider_cache_dir(monkeypatch, tmp_path
     def via_typed_field(config):
         return config.cooked_collider_cache_dir
 
-    # The route follows what ``PhysXConfig`` accepts, not which PhysX API is in play -- hence the
-    # last row, a current-style PhysX whose config predates the typed field.
+    # Each runtime takes the setting through the key its own PhysXConfig accepts.
     runtimes = [
         (LegacyCudaPhysX, legacy_config, via_override),
         (LegacyIndexPhysX, legacy_config, via_override),
         (CurrentPhysX, current_config, via_typed_field),
-        (CurrentPhysX, legacy_config, via_override),
     ]
     for physx_cls, config_factory, resolve in runtimes:
         for device in ("gpu", "cpu"):
