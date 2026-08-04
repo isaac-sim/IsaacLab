@@ -17,13 +17,13 @@ if TYPE_CHECKING:
 def gravity_range_linear(
     env: ManagerBasedRLEnv,
     _env_ids: Sequence[int],
-    _value: tuple[list[float], list[float]],
+    event_name: str,
     start_gravity_z: float,
     end_gravity_z: float,
     start_step: int,
     end_step: int,
-) -> tuple[list[float], list[float]]:
-    """Linearly interpolate deterministic vertical gravity bounds [m/s^2]."""
+) -> dict[str, float]:
+    """Linearly ramp an event's deterministic vertical gravity [m/s^2]."""
     if end_step <= start_step:
         raise ValueError("end_step must be greater than start_step.")
 
@@ -31,4 +31,7 @@ def gravity_range_linear(
     alpha = min(max(alpha, 0.0), 1.0)
     gravity_z = start_gravity_z + alpha * (end_gravity_z - start_gravity_z)
     gravity = [0.0, 0.0, gravity_z]
-    return gravity, gravity.copy()
+    event_cfg = env.event_manager.get_term_cfg(event_name)
+    event_cfg.params["gravity_distribution_params"] = (gravity, gravity.copy())
+    env.event_manager.set_term_cfg(event_name, event_cfg)
+    return {"gravity_z": gravity_z}

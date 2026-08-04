@@ -538,16 +538,13 @@ class CurriculumCfg:
 
     # Since we use 24 steps per env, 10000 steps correspond to 10000/24 = 416.67 learning iterations
     gravity = CurrTerm(
-        func=mdp.modify_term_cfg,
+        func=mdp.gravity_range_linear,
         params={
-            "address": "events.variable_gravity.params.gravity_distribution_params",
-            "modify_fn": mdp.gravity_range_linear,
-            "modify_params": {
-                "start_gravity_z": -0.0001,
-                "end_gravity_z": -9.81,
-                "start_step": 0,
-                "end_step": 10000,
-            },
+            "event_name": "variable_gravity",
+            "start_gravity_z": -0.0001,
+            "end_gravity_z": -9.81,
+            "start_step": 0,
+            "end_step": 10000,
         },
     )
 
