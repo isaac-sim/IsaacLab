@@ -785,7 +785,7 @@ def _count_physics(usd_path: str) -> tuple[int, int]:
 
 @pytest.mark.isaacsim_ci
 def test_physics_variant_selected_by_default(sim_config):
-    """Verify that the converter selects the ``"physx"`` physics variant by default.
+    """Verify that the converter selects the backend-portable ``"physics"`` variant by default.
 
     The importer leaves its ``"Physics"`` variant set unselected, which composes the asset without
     joints, articulation roots, or mass properties. Without a selection this asserts 0 joints.
@@ -800,7 +800,7 @@ def test_physics_variant_selected_by_default(sim_config):
     urdf_converter = UrdfConverter(config)
 
     selection, _ = _physics_variant(urdf_converter.usd_path)
-    assert selection == "physx"
+    assert selection == "physics"
 
     joints, roots = _count_physics(urdf_converter.usd_path)
     assert joints > 0, "Expected the converted USD to compose joints"
@@ -830,7 +830,7 @@ def test_physics_variant_override(sim_config):
 
 @pytest.mark.isaacsim_ci
 def test_physics_variant_falls_back_when_requested_absent():
-    """Verify that an asset without the requested variant falls back to the neutral ``"physics"`` one.
+    """Verify that an asset without the requested variant falls back to the portable ``"physics"`` one.
 
     ``test_fixed_only.urdf`` carries a single fixed joint, for which the importer writes no
     PhysX-specific data, so its variant set offers only ``"none"`` and ``"physics"``.
@@ -844,6 +844,7 @@ def test_physics_variant_falls_back_when_requested_absent():
         fix_base=True,
         force_usd_conversion=True,
         usd_dir=output_dir,
+        physics_variant="physx",
     )
     urdf_converter = UrdfConverter(config)
 

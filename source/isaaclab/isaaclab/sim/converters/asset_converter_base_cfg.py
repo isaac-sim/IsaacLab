@@ -49,15 +49,19 @@ class AssetConverterBaseCfg:
         `scene-graph instancing <https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html>`_.
     """
 
-    physics_variant: str = "physx"
-    """The ``"Physics"`` variant to select on the generated USD file. Defaults to ``"physx"``.
+    physics_variant: str = "physics"
+    """The ``"Physics"`` variant to select on the generated USD file. Defaults to ``"physics"``.
 
     The URDF and MJCF importers emit physics as payloads behind a ``"Physics"`` variant set that they
     leave unselected, which composes the asset without joints, articulation roots, or mass properties.
     The converter authors this selection so that the asset carries physics on its own.
 
-    The importers offer ``"physx"`` and ``"mujoco"`` -- which both sublayer the backend-neutral
-    ``"physics"`` variant -- alongside an empty ``"none"`` variant. Assets that do not provide the
-    requested variant fall back to ``"physics"``. A selection authored on a referencing prim wins over
-    this one, so :attr:`~isaaclab.sim.UsdFileCfg.variants` can still override it at spawn time.
+    The default ``"physics"`` variant holds the backend-portable description: standard ``UsdPhysics``
+    joints, articulation roots, and mass, plus the Newton schemas. The ``"physx"`` and ``"mujoco"``
+    variants sublayer it and add solver-specific tuning on top, so select one of those to author an
+    asset for a specific backend. ``"none"`` converts without physics. Assets that do not provide the
+    requested variant fall back to ``"physics"``.
+
+    Every variant stays in the generated USD file, so this only decides what composes by default:
+    :attr:`~isaaclab.sim.UsdFileCfg.variants` overrides the selection at spawn time.
     """
