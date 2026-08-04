@@ -30,8 +30,8 @@ torchrun rendezvous options.
 
 Every rank runs the full training script, so every rank repeats the same startup banners, simulation
 warnings, and model summaries. The launcher passes torchrun's `--local_ranks_filter` by default so
-only rank 0 reaches the console. Per-iteration metrics already come from rank 0 alone, so nothing is
-lost.
+only local rank 0 reaches the console. Per-iteration metrics already come from global rank 0 alone, so
+nothing is lost. The filter is per node, so a multi-node launch shows the startup output once per node.
 
 Crashes still surface: `train.py` wraps its entry point in `record`, so torchrun names the failing
 rank and prints its traceback as the root cause even when that rank's output is hidden.

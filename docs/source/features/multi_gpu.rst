@@ -66,9 +66,10 @@ Because every rank executes the full training script, every rank also writes the
 simulation warnings, and model summaries. Without filtering, that output is repeated once per GPU, which
 makes an eight-GPU log nearly unreadable.
 
-``train_multigpu`` therefore restricts console output to rank 0 by default, by passing torchrun's
-``--local_ranks_filter``. Per-iteration training metrics are already reported by rank 0 alone, so the
-filtered log contains the same information with none of the repetition.
+``train_multigpu`` therefore restricts console output to local rank 0 by default, by passing torchrun's
+``--local_ranks_filter``. Per-iteration training metrics are already reported by global rank 0 alone, so
+the filtered log contains the same information with none of the repetition. Because the filter is applied
+per node, a multi-node launch shows one copy of the startup output per node rather than one in total.
 
 Failures are still reported. ``train.py`` wraps its entry point in
 `torch.distributed.elastic record <https://pytorch.org/docs/stable/elastic/errors.html>`_, so when any
@@ -88,7 +89,7 @@ To keep every rank's output while still reading a clean console, write per-rank 
     uv run isaaclab train_multigpu --rl_library rsl_rl --task Isaac-Cartpole --tee 3 --log_dir /tmp/ranklogs
 
 This writes ``stdout.log`` and ``stderr.log`` per rank under ``--log_dir`` while the console still shows
-only rank 0.
+only local rank 0.
 
 .. note::
 

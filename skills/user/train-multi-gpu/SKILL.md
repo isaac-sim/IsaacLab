@@ -28,9 +28,9 @@ completion but the reward curves or metrics look wrong.
    `--dry_run` to print the resolved launcher command without running it.
 4. For skrl with JAX, `--num_gpus` must be an integer and the torchrun-only options are rejected. Use
    `--coordinator_address` instead.
-5. Expect console output from rank 0 only. The launcher filters the other ranks by default because
-   each one repeats the same startup and warning output. Use `--log_all_ranks` when ranks may
-   disagree with each other, or `--tee 3 --log_dir <dir>` to keep per-rank logs on disk.
+5. Expect console output from local rank 0 on each node only. The launcher filters the other ranks by
+   default because each one repeats the same startup and warning output. Use `--log_all_ranks` when
+   ranks may disagree with each other, or `--tee 3 --log_dir <dir>` to keep per-rank logs on disk.
 6. Separate a launcher problem from a communication problem before changing training code. A hang
    with all participating GPUs at 100% utilization and no error is a NCCL stall, not a task bug.
 7. When a run hangs, reproduce it at a different world size and with the standalone NCCL probe in
