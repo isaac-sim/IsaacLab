@@ -268,9 +268,6 @@ def main():
     # the state machine emits absolute end-effector poses, so pick the IK action preset; the env
     # defaults to relative joint targets, which RL trains on.
     env_cfg.actions = ActionsCfg().ik
-    # frame the deformable at (0.5, 0.0, 0.05) rather than the world origin. ``viewer`` drives the
-    # Kit viewport; ``default_visualizer_cfg`` drives the Newton/Kit visualizer window, which
-    # otherwise falls back to VisualizerCfg's (4.0, -4.0, 3.0).
     env_cfg.viewer.eye = (1.3, 0.6, 0.5)
     env_cfg.viewer.lookat = (0.5, 0.0, 0.05)
     env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=env_cfg.viewer.eye, lookat=env_cfg.viewer.lookat)
