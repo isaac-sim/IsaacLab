@@ -84,7 +84,7 @@ _XR_KIT = {"xr": True, "visualizer": ["kit"], "visualizer_explicit": True}
         ({}, 0, 0, False, True),
     ],
 )
-def test_xr_auto_start_tracks_resolved_headless(
+def test_xr_without_explicit_windowed_visualizer_forces_headless(
     launcher_args: dict,
     headless_env: int,
     livestream: int,
@@ -92,14 +92,13 @@ def test_xr_auto_start_tracks_resolved_headless(
     expected_has_window: bool,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Test that XR runs headless without an explicit windowed visualizer, and auto-starts then.
+    """Test that enabling XR runs headless unless a windowed visualizer is explicitly requested.
 
-    A task config declaring a windowed visualizer must not leave ``--xr`` non-headless, since the
-    XR session auto-starts. Conversely ``HEADLESS=1`` and livestreaming run headless even when one
-    was explicitly requested, so auto-start must follow the *resolved* headless state
-    rather than the visualizer selection alone -- otherwise the session waits forever for a
-    "Start XR" click that no window can deliver. Resolution is exercised directly to avoid
-    launching Isaac Sim.
+    A task config declaring a windowed visualizer must not leave ``--xr`` opening a window nobody
+    asked for, and ``HEADLESS=1`` / livestreaming must keep forcing headless even when one was
+    explicitly requested. Resolution is exercised directly to avoid launching Isaac Sim; what the
+    resolved state then publishes is asserted by
+    :func:`test_load_extensions_publishes_has_gui_setting`.
 
     ``has_window`` is asserted alongside because it is deliberately *not* the negation of
     headless: livestreaming is headless but windowed.
@@ -121,9 +120,6 @@ def test_xr_auto_start_tracks_resolved_headless(
 
     assert launcher._headless is expected_headless
     assert launcher.has_window is expected_has_window
-    # This is the expression published as ``/isaaclab/xr/auto_start``: the session must start
-    # itself exactly when XR is on and no window exists to start it from.
-    assert (launcher._xr and launcher._headless) is (bool(launcher_args.get("xr")) and expected_headless)
 
 
 def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.MonkeyPatch):
@@ -265,18 +261,31 @@ def test_load_extensions_publishes_deterministic_setting(monkeypatch: pytest.Mon
 
 
 @pytest.mark.parametrize(
-    ("headless", "livestream", "xr", "expected_has_gui"),
+    ("headless", "livestream", "xr", "expected_has_gui", "expected_xr_auto_start"),
     [
-        pytest.param(False, 0, False, True, id="local-window"),
-        pytest.param(True, 0, False, False, id="headless"),
-        pytest.param(True, 1, False, True, id="livestream"),
-        pytest.param(True, 0, True, True, id="xr"),
+        pytest.param(False, 0, False, True, False, id="local-window"),
+        pytest.param(True, 0, False, False, False, id="headless"),
+        pytest.param(True, 1, False, True, False, id="livestream"),
+        pytest.param(True, 0, True, True, True, id="xr"),
+        # XR with a window: the operator starts the session, so it must not auto-start.
+        pytest.param(False, 0, True, True, False, id="xr-windowed"),
+        # ...but a windowless XR run must, however that windowless state was reached.
+        pytest.param(True, 1, True, True, True, id="xr-livestream"),
     ],
 )
 def test_load_extensions_publishes_has_gui_setting(
-    monkeypatch: pytest.MonkeyPatch, headless: bool, livestream: int, xr: bool, expected_has_gui: bool
+    monkeypatch: pytest.MonkeyPatch,
+    headless: bool,
+    livestream: int,
+    xr: bool,
+    expected_has_gui: bool,
+    expected_xr_auto_start: bool,
 ):
-    """Publish the GUI state consumed by SimulationContext and RTX rendering."""
+    """Publish the GUI and XR auto-start state consumed by SimulationContext and the teleop stack.
+
+    Asserted at the publication site rather than by recomputing the expression, so that changing
+    what is published fails here instead of silently agreeing with a restated formula.
+    """
     launcher = AppLauncher.__new__(AppLauncher)
     launcher._deterministic_rendering = False
     launcher._python_logging_level = logging.ERROR
@@ -296,6 +305,7 @@ def test_load_extensions_publishes_has_gui_setting(
     launcher._load_extensions()
 
     assert settings.values["/isaaclab/has_gui"] is expected_has_gui
+    assert settings.values["/isaaclab/xr/auto_start"] is expected_xr_auto_start
 
 
 def test_set_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):

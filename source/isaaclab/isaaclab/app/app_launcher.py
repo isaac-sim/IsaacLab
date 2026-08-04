@@ -374,6 +374,10 @@ class AppLauncher:
         window and forwards input from the remote client. Use this rather than the headless
         state to decide whether UI-driven features are available: livestreaming runs the host
         headless yet still presents an interactive window.
+
+        Distinct from :meth:`has_gui`, which also counts an XR session as interactive. A
+        windowless XR run has somewhere to display but no window to click in or type into, so
+        prefer this for keyboard bindings, viewport widgets, and other window-bound features.
         """
         return not self._headless or self._livestream >= 1
 
