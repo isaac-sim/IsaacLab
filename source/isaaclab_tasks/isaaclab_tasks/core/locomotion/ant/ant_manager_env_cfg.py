@@ -36,8 +36,8 @@ class AntPhysicsCfg(PresetCfg):
     default: PhysxCfg = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=38,
-            nconmax=15,
+            njmax=45,
+            nconmax=25,
             cone="pyramidal",
             integrator="implicitfast",
             impratio=1,

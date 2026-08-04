@@ -189,6 +189,17 @@ def reset_joints(
         states[env_index] = state
 
 
+@wp.kernel
+def reset_actions(
+    actions: wp.array2d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+):
+    """Reset actions for masked environments."""
+    env_index, action_index = wp.tid()
+    if env_mask[env_index]:
+        actions[env_index, action_index] = 0.0
+
+
 @wp.func
 def heading_reward(
     heading_proj: wp.float32,
@@ -664,6 +675,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
 
         super()._reset_idx(mask)
 
+        wp.launch(reset_actions, dim=(self.num_envs, self.robot.num_joints), inputs=[self.actions, mask])
         wp.launch(
             reset_root,
             dim=self.num_envs,
