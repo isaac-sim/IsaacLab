@@ -182,16 +182,8 @@ def test_reach_uses_menagerie_franka():
         "panda_joint[1-4]": 20.0,
         "panda_joint[5-7]": 25.0,
     }
-    assert robot.actuators["panda_arm"].stiffness == {
-        "panda_joint[1-2]": 1000.0,
-        "panda_joint[3-4]": 750.0,
-        "panda_joint[5-7]": 300.0,
-    }
-    assert robot.actuators["panda_arm"].damping == {
-        "panda_joint[1-2]": 20.0,
-        "panda_joint[3-4]": 4.0,
-        "panda_joint[5-7]": 2.0,
-    }
+    assert robot.actuators["panda_arm"].stiffness is None
+    assert robot.actuators["panda_arm"].damping is None
     assert robot.actuators["panda_arm"].armature is None
     assert robot.actuators["panda_hand"].stiffness is None
     assert robot.actuators["panda_hand"].damping is None
