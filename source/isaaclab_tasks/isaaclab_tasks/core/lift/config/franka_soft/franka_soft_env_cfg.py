@@ -39,7 +39,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
@@ -62,7 +62,7 @@ from . import mdp
 # Pre-defined configs
 ##
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG  # isort:skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG  # isort:skip
 
 
 ##

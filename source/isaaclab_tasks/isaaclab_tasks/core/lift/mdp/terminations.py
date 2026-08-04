@@ -88,7 +88,6 @@ def object_reached_goal(
     return torch.linalg.norm(des_pos_w - object.data.root_pos_w.torch[:, :3], dim=1) < threshold
 
 
-
 def ee_below_minimum(
     env: ManagerBasedRLEnv,
     minimum_height: float,
