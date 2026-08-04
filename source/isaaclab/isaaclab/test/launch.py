@@ -25,6 +25,12 @@ launch configuration into one process::
 
     pytestmark = pytest.mark.kit  # launch_kit()
     pytestmark = pytest.mark.kit_cameras  # launch_kit(cameras=True)
+
+The two groups cannot be merged. Cameras cannot be enabled after startup, so a plain ``kit``
+file cannot run in a process a ``kit_cameras`` file will later join; and a camera-enabled app
+is not a drop-in replacement for a plain one either, because some tests assert that offscreen
+rendering is off. :func:`launch_kit` therefore raises on any mismatch rather than handing back
+an app whose configuration is not the one the caller asked for.
 """
 
 from __future__ import annotations
@@ -49,20 +55,24 @@ def launch_kit(*, cameras: bool = False) -> Any:
         The running ``SimulationApp``.
 
     Raises:
-        RuntimeError: If a camera-enabled app is requested but Kit is already running in
-            this process without cameras, or if Kit was started by something other than
-            this function. Both mean the test files sharing this process do not share a
-            launch configuration and must be split across processes.
+        RuntimeError: If the running app was booted with a different ``cameras`` setting, or if
+            Kit was started by something other than this function. Both mean the test files
+            sharing this process do not share a launch configuration and must be split across
+            processes.
     """
     global _app, _cameras
 
     if _app is not None:
-        if cameras and not _cameras:
+        if cameras != _cameras:
+            wanted = "with" if cameras else "without"
+            running = "with" if _cameras else "without"
             raise RuntimeError(
-                "launch_kit(cameras=True) was called, but Kit is already running in this process"
-                " without cameras. Camera extensions cannot be enabled after startup. Mark this"
-                " file `pytest.mark.kit_cameras` so it is grouped with other camera tests instead"
-                " of with plain `pytest.mark.kit` files."
+                f"launch_kit(cameras={cameras}) wants an app {wanted} cameras, but Kit is already"
+                f" running in this process {running} them, and that cannot be changed after"
+                " startup. Files marked `kit` and `kit_cameras` need separate processes. A"
+                " camera-enabled app is not a drop-in replacement for a plain one:"
+                " test_simulation_context.py::test_headless_mode asserts that offscreen"
+                " rendering is off."
             )
         return _app
 

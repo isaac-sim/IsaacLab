@@ -3,27 +3,28 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""List the test files in a directory that can share one Kit app, in a safe order.
+"""List the test files in a directory that can share one Kit app.
 
 The ``kit`` / ``kit_cameras`` / ``kit_solo`` markers already record which files can share a
 Kit app; this turns that into the file list a runner needs, so the two never drift. Anything
 that hardcodes such a list has to be updated by hand whenever a file is added, renamed, or
 reclassified, and a stale list is silently wrong rather than loudly broken.
 
-Selection: every file marked ``kit`` or ``kit_cameras``, minus those marked ``kit_solo`` and
-those in :data:`tools.test_settings.TESTS_TO_SKIP`.
+One profile at a time. ``kit`` and ``kit_cameras`` files cannot share a process in either
+direction: cameras cannot be enabled after startup, and a camera-enabled app is not a drop-in
+replacement for a plain one because some tests assert that offscreen rendering is off. Each
+profile is a separate batch, so the caller asks for one.
 
-Order: ``kit_cameras`` files first. A camera-enabled app can serve tests that do not need
-cameras, but cameras cannot be enabled after startup, so a plain ``kit`` file booting first
-would make a later ``launch_kit(cameras=True)`` raise.
+Selection: files marked with the requested profile, minus those also marked ``kit_solo`` and
+those in :data:`tools.test_settings.TESTS_TO_SKIP`.
 
 Markers are read from the file's source rather than by importing it, because importing a
 Kit-dependent test module boots Kit.
 
 Usage::
 
-    python3 tools/kit_test_files.py source/isaaclab/test/sim --format paths
-    python3 tools/kit_test_files.py source/isaaclab/test/sim --format names
+    python3 tools/kit_test_files.py source/isaaclab/test/sim --profile kit --format paths
+    python3 tools/kit_test_files.py source/isaaclab/test/sim --profile kit_cameras --format names
 """
 
 from __future__ import annotations
@@ -49,33 +50,49 @@ def _tests_to_skip() -> frozenset[str]:
     return frozenset(TESTS_TO_SKIP)
 
 
-def shareable_test_files(directory: Path) -> list[Path]:
-    """Return the files under ``directory`` that can share a Kit app, cameras first.
+def shareable_test_files(directory: Path, profile: str = "kit") -> list[Path]:
+    """Return the files under ``directory`` that can share one Kit app of ``profile``.
 
     Args:
         directory: Directory to scan, non-recursively matching ``test_*.py``.
+        profile: Which launch configuration to select, ``"kit"`` or ``"kit_cameras"``.
 
     Returns:
-        The selected files: ``kit_cameras`` ones first, each group sorted by name.
+        The selected files, sorted by name.
+
+    Raises:
+        ValueError: If ``profile`` is not a known launch configuration.
     """
+    if profile not in ("kit", "kit_cameras"):
+        raise ValueError(f"unknown profile {profile!r}; expected 'kit' or 'kit_cameras'")
+
     skip = _tests_to_skip()
-    cameras, plain = [], []
+    selected = []
     for path in sorted(directory.glob("test_*.py")):
         if path.name in skip:
             continue
         source = path.read_text(encoding="utf-8", errors="replace")
         if _MARK_SOLO.search(source):
             continue
+        # `kit_cameras` implies the file also matches the plain `kit` pattern's prefix, so
+        # classify on the more specific marker first.
         if _MARK_CAMERAS.search(source):
-            cameras.append(path)
-        elif _MARK_KIT.search(source):
-            plain.append(path)
-    return cameras + plain
+            if profile == "kit_cameras":
+                selected.append(path)
+        elif _MARK_KIT.search(source) and profile == "kit":
+            selected.append(path)
+    return selected
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path, help="directory to scan for test files")
+    parser.add_argument(
+        "--profile",
+        choices=("kit", "kit_cameras"),
+        default="kit",
+        help="which launch configuration to select; the two never share a process",
+    )
     parser.add_argument(
         "--format",
         choices=("paths", "names"),
@@ -88,9 +105,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.directory.is_dir():
         parser.error(f"not a directory: {args.directory}")
 
-    files = shareable_test_files(args.directory)
+    files = shareable_test_files(args.directory, args.profile)
     if not files:
-        parser.error(f"no Kit-marked test files found in {args.directory}")
+        parser.error(f"no {args.profile} test files found in {args.directory}")
 
     if args.format == "paths":
         print(" ".join(path.as_posix() for path in files))
