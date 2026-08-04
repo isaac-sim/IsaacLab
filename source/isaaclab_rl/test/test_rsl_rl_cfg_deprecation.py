@@ -17,6 +17,7 @@ simulation_app = app_launcher.app
 from dataclasses import MISSING
 
 import pytest
+import torch
 
 from isaaclab_rl.rsl_rl import (
     RslRlDistillationAlgorithmCfg,
@@ -30,7 +31,7 @@ from isaaclab_rl.rsl_rl import (
     RslRlPpoAlgorithmCfg,
     RslRlRNNModelCfg,
 )
-from isaaclab_rl.rsl_rl.utils import _is_missing, handle_deprecated_rsl_rl_cfg
+from isaaclab_rl.rsl_rl.utils import _is_missing, handle_deprecated_rsl_rl_cfg, handle_deprecated_rsl_rl_checkpoint
 
 
 def _ppo_algo():
@@ -531,3 +532,54 @@ class TestV5:
     def test_returns_same_object(self):
         cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo())
         assert handle_deprecated_rsl_rl_cfg(cfg, "5.0.0") is cfg
+
+
+def _deprecated_checkpoint() -> dict:
+    """A pre-5.0 rsl-rl checkpoint: single combined ``model_state_dict`` with ``actor.*``/``critic.*``/``std``."""
+    return {
+        "model_state_dict": {
+            "std": torch.ones(3),
+            "actor.0.weight": torch.zeros(4, 5),
+            "actor.0.bias": torch.zeros(4),
+            "critic.0.weight": torch.zeros(1, 5),
+            "critic.0.bias": torch.zeros(1),
+        },
+        "optimizer_state_dict": {"state": {}, "param_groups": []},
+        "iter": 42,
+        "infos": None,
+    }
+
+
+class TestHandleDeprecatedRslRlCheckpoint:
+    def test_converts_combined_state_dict(self, tmp_path):
+        path = str(tmp_path / "checkpoint.pt")
+        torch.save(_deprecated_checkpoint(), path)
+
+        out = handle_deprecated_rsl_rl_checkpoint(path, "5.0.1")
+
+        assert out != path
+        converted = torch.load(out, weights_only=False)
+        assert set(converted["actor_state_dict"]) == {"distribution.std_param", "mlp.0.weight", "mlp.0.bias"}
+        assert set(converted["critic_state_dict"]) == {"mlp.0.weight", "mlp.0.bias"}
+        assert converted["iter"] == 42
+        # values are preserved through the remap
+        torch.testing.assert_close(converted["actor_state_dict"]["distribution.std_param"], torch.ones(3))
+
+    def test_new_layout_passthrough(self, tmp_path):
+        path = str(tmp_path / "checkpoint.pt")
+        torch.save({"actor_state_dict": {}, "critic_state_dict": {}, "iter": 0, "infos": None}, path)
+        assert handle_deprecated_rsl_rl_checkpoint(path, "5.0.1") == path
+
+    def test_old_rsl_rl_passthrough(self, tmp_path):
+        path = str(tmp_path / "checkpoint.pt")
+        torch.save(_deprecated_checkpoint(), path)
+        # rsl-rl < 5.0 reads the combined layout natively, so no conversion should happen
+        assert handle_deprecated_rsl_rl_checkpoint(path, "4.1.0") == path
+
+    def test_unrecognized_key_raises(self, tmp_path):
+        path = str(tmp_path / "checkpoint.pt")
+        ckpt = _deprecated_checkpoint()
+        ckpt["model_state_dict"]["unexpected.0.weight"] = torch.zeros(2)
+        torch.save(ckpt, path)
+        with pytest.raises(ValueError):
+            handle_deprecated_rsl_rl_checkpoint(path, "5.0.1")

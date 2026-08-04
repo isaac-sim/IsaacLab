@@ -18,19 +18,7 @@ Cloning the Repository
 
 Before building the container, clone the Isaac Lab repository (if not already done):
 
-.. tab-set::
-
-   .. tab-item:: SSH
-
-      .. code:: bash
-
-         git clone git@github.com:isaac-sim/IsaacLab.git
-
-   .. tab-item:: HTTPS
-
-      .. code:: bash
-
-         git clone https://github.com/isaac-sim/IsaacLab.git
+.. isaaclab-clone-commands::
 
 Next Steps
 ----------

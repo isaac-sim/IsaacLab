@@ -183,11 +183,11 @@ def resolve_matching_names(
     When a list of query regular expressions is provided, the function checks each target string against each
     query regular expression and returns the indices of the matched strings and the matched strings.
 
-    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
+    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
     of the provided list of strings. This means that the ordering is dictated by the order of the target strings
     and not the order of the query regular expressions.
 
-    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
+    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
     of the provided list of query regular expressions.
 
     For example, consider the list of strings is ['a', 'b', 'c', 'd', 'e'] and the regular expressions are ['a|c', 'b'].
@@ -280,11 +280,11 @@ def resolve_matching_names_values(
     """Match a list of regular expressions in a dictionary against a list of strings and return
     the matched indices, names, and values.
 
-    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
+    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
     of the provided list of strings. This means that the ordering is dictated by the order of the target strings
     and not the order of the query regular expressions.
 
-    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
+    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
     of the provided list of query regular expressions.
 
     For example, consider the dictionary is {"a|d|e": 1, "b|c": 2}, the list of strings is ['a', 'b', 'c', 'd', 'e'].

@@ -16,6 +16,11 @@ on:
     # we're skipping the branches and paths filter to allow docs to be built on any PR because heredoc is used
     # additionally, we have a check that determines what version of docs will be built
     types: [opened, synchronize, reopened]
+  # Nightly multi-version rebuild + deploy from develop tip. Picks up every
+  # develop commit accumulated since the previous nightly in a single run.
+  schedule:
+    - cron: '0 2 * * *'  # 6pm PST / 7pm PDT
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,13 +34,13 @@ jobs:
       trigger-deploy: ${{ steps.trigger-deploy.outputs.defined }}
     steps:
     - id: info
-      run: echo "repo=github.repository=${{ github.repository }}, ref=github.ref=${{ github.ref }}"
+      run: echo "repo=github.repository=${{ github.repository }}, ref=github.ref=${{ github.ref }}, event=github.event_name=${{ github.event_name }}"
     - id: trigger-deploy
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
-      # develop, main, release/ trigger multi-version build, then deployment to gh-pages
-      # all others - just the current docs without deployment
-      if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')) }}"
+      # Nightly schedule and workflow_dispatch trigger multi-version deploy.
+      # All branch pushes (including main) build current-docs only; deploy waits for the cron above.
+      if: "${{ github.repository == env.REPO_NAME && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
 
   build-latest-docs:
@@ -79,6 +84,10 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
+      with:
+        # On schedule, always rebuild from the develop tip regardless of
+        # which ref the cron run defaults to. Other events use github.ref.
+        ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
 
     - name: Setup python
       uses: actions/setup-python@v5
@@ -94,11 +103,11 @@ jobs:
       working-directory: ./docs
       env:
         # "deploy" branches build the full set of versions so every page
-        # has a complete version dropdown: main, develop, tags >= v2.0.0
-        # (including pre-release suffixes like -beta or -rc1). v1.x tags and
-        # release/ branches are excluded.
-        SMV_BRANCH_WHITELIST: '^(main|develop)$'
-        SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
+        # has a complete version dropdown: main, develop, release/3.0.0-beta2,
+        # and stable tags >= v2.0.0. Other release branches and prerelease tags
+        # are excluded.
+        SMV_BRANCH_WHITELIST: '^(main|develop|release/3\.0\.0-beta2)$'
+        SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+$'
       run: |
         git fetch --prune --unshallow --tags
         git checkout --detach HEAD
@@ -131,4 +140,3 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./docs/_build
         keep_files: false
-        force_orphan: true

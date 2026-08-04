@@ -21,4 +21,4 @@ from .rl_cfg import *
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
 from .vecenv_wrapper import RslRlVecEnvWrapper
-from .utils import handle_deprecated_rsl_rl_cfg
+from .utils import handle_deprecated_rsl_rl_cfg, handle_deprecated_rsl_rl_checkpoint
