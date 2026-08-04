@@ -50,36 +50,6 @@ def test_rsl_rl_disables_code_state_capture():
     assert logger.git_status_repos == []
 
 
-def test_rsl_rl_timing_recorder_captures_logger_durations():
-    """RSL-RL timing should be available on ranks whose TensorBoard logging is disabled."""
-
-    class FakeLogger:
-        def __init__(self):
-            self.calls = 0
-
-        def log(self, **_kwargs) -> None:
-            self.calls += 1
-
-    logger = FakeLogger()
-    runner = SimpleNamespace(logger=logger)
-    recorder = train_rsl_rl._RslRlTimingRecorder(runner)
-
-    with recorder:
-        logger.log(collect_time=1.25, learn_time=0.75)
-        logger.log(collect_time=1.5, learn_time=1.0)
-
-    assert recorder.collection_times_s == [1.25, 1.5]
-    assert recorder.iteration_times_s == [2.0, 2.5]
-    assert logger.calls == 2
-
-
-def test_rsl_rl_regular_training_does_not_create_timing_recorder():
-    """Regular training must leave the RSL-RL logger unwrapped."""
-    runner = SimpleNamespace(logger=SimpleNamespace(log=lambda **_kwargs: None))
-
-    assert train_rsl_rl._create_rsl_rl_timing_recorder(runner, distributed=False) is None
-
-
 def test_rsl_rl_parser_only_accepts_distributed_from_benchmark_launcher():
     """The regular benchmark remains single-process while the private launcher mode is accepted."""
     with pytest.raises(SystemExit):
@@ -90,65 +60,6 @@ def test_rsl_rl_parser_only_accepts_distributed_from_benchmark_launcher():
     )
     assert args_cli.distributed
     assert args_cli.benchmark_multigpu
-
-
-def test_rl_games_timing_observer_captures_epoch_durations(monkeypatch: pytest.MonkeyPatch):
-    """RL-Games timing should use all-rank epochs and not depend on rank-zero print callbacks."""
-
-    class FakeObserver:
-        def __init__(self):
-            self.after_steps_calls = 0
-            self.after_print_stats_calls = 0
-
-        def before_init(self, *_args) -> None:
-            pass
-
-        def after_init(self, _algo) -> None:
-            pass
-
-        def process_infos(self, _infos, _done_indices) -> None:
-            pass
-
-        def after_steps(self) -> None:
-            self.after_steps_calls += 1
-
-        def after_clear_stats(self) -> None:
-            pass
-
-        def after_print_stats(self, _frame: int, _epoch_num: int, _total_time: float) -> None:
-            self.after_print_stats_calls += 1
-
-    timestamps = iter([1.0, 2.0, 3.0, 3.0, 4.5, 6.0])
-    monkeypatch.setattr(train_rl_games.time, "perf_counter", lambda: next(timestamps))
-    delegated = FakeObserver()
-    observer = train_rl_games._RlGamesTimingObserver(delegated)
-    algo = SimpleNamespace()
-
-    def train_epoch() -> None:
-        observer.after_steps()
-
-    algo.train_epoch = train_epoch
-
-    observer.after_init(algo)
-    algo.train_epoch()
-    # RL-Games calls this only on global rank 0; epoch timing must not rely on it.
-    observer.after_print_stats(0, 2, 0.0)
-    algo.train_epoch()
-
-    assert observer.collection_times_s == [1.0, 1.5]
-    assert observer.iteration_times_s == [2.0, 3.0]
-    assert delegated.after_steps_calls == 2
-    assert delegated.after_print_stats_calls == 1
-
-    observer.restore()
-    assert algo.train_epoch is train_epoch
-
-
-def test_rl_games_regular_training_does_not_create_timing_observer():
-    """Regular training must not install distributed epoch timing."""
-    delegated = SimpleNamespace()
-
-    assert train_rl_games._create_rl_games_timing_observer(delegated, distributed=False) is None
 
 
 def test_rl_games_parser_only_accepts_distributed_from_benchmark_launcher():

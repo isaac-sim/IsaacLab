@@ -231,12 +231,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
-    from isaaclab.benchmark._distributed import (
-        DistributedContext,
-        LocalTrainingTiming,
-        aggregate_training_timing,
-        build_distributed_metadata,
-    )
+    from isaaclab.benchmark._distributed import DistributedContext, build_distributed_metadata, global_training_work
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
@@ -300,6 +295,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             _common.validate_distributed_device(args_cli)
             distributed = DistributedContext.from_env(enabled=args_cli.distributed)
             _apply_distributed_config(args_cli, agent_cfg, env_cfg, rank=distributed.rank)
+            configured_num_envs, _ = global_training_work(distributed, env_cfg.scene.num_envs, rollouts)
 
             log_root_path = os.path.abspath(os.path.join("logs", "skrl", agent_cfg["agent"]["experiment"]["directory"]))
             from datetime import datetime
@@ -343,7 +339,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                         "metadata": [
                             {"name": "task", "data": args_cli.task},
                             {"name": "seed", "data": agent_cfg["seed"]},
-                            {"name": "num_envs", "data": env_cfg.scene.num_envs * distributed.world_size},
+                            {"name": "num_envs", "data": configured_num_envs},
                             {"name": "max_iterations", "data": resolved_max_iterations},
                             {"name": "algorithm", "data": algorithm.upper()},
                             {
@@ -402,8 +398,10 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             with success_context, environment_step_timer, benchmark_monitor:
                 runner.run()
 
-            if benchmark is not None:
-                benchmark.update_manual_recorders()
+            if not distributed.is_main:
+                return None
+            assert benchmark is not None
+            benchmark.update_manual_recorders()
 
             collection_times_s = list(bt.collection_times_s)
             iter_times_s = list(bt.iter_times_s)
@@ -419,48 +417,9 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             )
 
             local_num_envs = env.unwrapped.num_envs
-            aggregated_timing = None
-            if distributed.enabled:
-                aggregated_timing = aggregate_training_timing(
-                    LocalTrainingTiming(
-                        startup_time_s=startup,
-                        iteration_times_s=tuple(iter_times_s),
-                        collection_times_s=tuple(collection_times_s),
-                        environment_step_times_s=tuple(environment_step_timer.step_times_s),
-                        simulation_step_times_s=(
-                            tuple(environment_step_timer.simulation_step_times_s)
-                            if environment_step_timer.simulation_step_times_s is not None
-                            else None
-                        ),
-                        simulation_step_calls=environment_step_timer.simulation_step_calls,
-                        num_envs=local_num_envs,
-                        steps_per_iteration=local_num_envs * rollouts,
-                    ),
-                    distributed,
-                )
-                if not distributed.is_main:
-                    return None
-
-            assert benchmark is not None
-
-            if aggregated_timing is not None:
-                iter_times_s = list(aggregated_timing.iteration_times_s)
-                collection_fps = list(aggregated_timing.collection_fps)
-                total_fps = list(aggregated_timing.total_fps)
-                startup = aggregated_timing.startup_time_s
-                num_envs = aggregated_timing.num_envs
-                steps_per_iteration = aggregated_timing.steps_per_iteration
-                environment_step_times_s = aggregated_timing.environment_step_times_s
-                simulation_step_times_s = aggregated_timing.simulation_step_times_s
-                simulation_step_calls = aggregated_timing.simulation_step_calls
-            else:
-                num_envs = local_num_envs
-                steps_per_iteration = num_envs * rollouts
-                collection_fps = [steps_per_iteration / value for value in collection_times_s if value > 0]
-                total_fps = [steps_per_iteration / value for value in iter_times_s if value > 0]
-                environment_step_times_s = environment_step_timer.step_times_s
-                simulation_step_times_s = environment_step_timer.simulation_step_times_s
-                simulation_step_calls = environment_step_timer.simulation_step_calls
+            num_envs, steps_per_iteration = global_training_work(distributed, local_num_envs, rollouts)
+            collection_fps = [steps_per_iteration / value for value in collection_times_s if value > 0]
+            total_fps = [steps_per_iteration / value for value in iter_times_s if value > 0]
 
             runtime = builders.build_runtime(
                 startup_time_s=startup,
@@ -470,9 +429,9 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 steps_per_iteration=steps_per_iteration,
                 frames_per_environment_step=num_envs,
                 environment_step_warmup_steps=args_cli.warmup_steps,
-                environment_step_times_s=environment_step_times_s,
-                simulation_step_times_s=simulation_step_times_s,
-                simulation_step_calls=simulation_step_calls,
+                environment_step_times_s=environment_step_timer.step_times_s,
+                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
+                simulation_step_calls=environment_step_timer.simulation_step_calls,
             )
 
             desc = RL_LIBRARY_DESCRIPTORS["skrl"]

@@ -361,11 +361,12 @@ For multi-node execution, run the command on every node with a distinct
        --task Isaac-Lift-KukaAllegro-Camera \
        presets=isaacsim_physx
 
-Only global rank 0 emits the benchmark bundle. Global throughput uses the sum
-of work across ranks divided by the slowest-rank duration. The learning curve
-and checkpoint describe rank 0. GPU resource measurements cover every visible
-device on the rank-0 node; CPU and RAM measurements cover the rank-0 process.
-These scopes are recorded in ``TrainingBundle.extra``.
+Only global rank 0 emits the benchmark bundle. Throughput counts the work done
+by every rank using the training durations reported by rank 0. Training timing,
+the learning curve, and the checkpoint describe rank 0. GPU resource
+measurements cover every visible device on the rank-0 node; CPU and RAM
+measurements cover the rank-0 process. These scopes are recorded in
+``TrainingBundle.extra``.
 
 This benchmark is training-only and Torch-only. It does not support skrl JAX,
 SB3, play or runtime benchmarking, video recording, environment sensor capture,
