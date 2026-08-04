@@ -73,6 +73,49 @@ def _parse_as_training_script(child_argv: list[str], monkeypatch: pytest.MonkeyP
     return args.kit_args
 
 
+def test_shared_launcher_builds_torchrun_command(monkeypatch: pytest.MonkeyPatch):
+    """The reusable launcher should target the configured script and add distributed mode."""
+    from isaaclab.cli._multigpu import MultiGpuLauncherSpec, build_distributed_command, parse_multigpu_args
+
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0,1")
+    target_script = Path("/tmp/train_target.py")
+    launcher_spec = MultiGpuLauncherSpec(
+        target_script=target_script,
+        description="Test launcher.",
+        supported_libraries=("rsl_rl",),
+    )
+
+    args_cli, forwarded_args = parse_multigpu_args(
+        ["--num_gpus", "2", "--task", "Isaac-Cartpole-Direct"], launcher_spec
+    )
+    command = build_distributed_command(args_cli, forwarded_args, launcher_spec)
+
+    assert command == [
+        sys.executable,
+        "-m",
+        "torch.distributed.run",
+        "--nproc_per_node",
+        "2",
+        "--local_ranks_filter",
+        "0",
+        str(target_script),
+        "--rl_library",
+        "rsl_rl",
+        "--task",
+        "Isaac-Cartpole-Direct",
+        "--distributed",
+    ]
+
+
+def test_regular_launcher_help_preserves_examples(capsys: pytest.CaptureFixture[str]):
+    """Refactoring the launcher should retain its documented command examples."""
+    with pytest.raises(SystemExit) as exc_info:
+        train_multigpu.main(["--help"])
+
+    assert exc_info.value.code == 0
+    assert "train_multigpu --num_gpus 4 --task Isaac-Cartpole" in capsys.readouterr().out
+
+
 class TestFuseKitArgs:
     """Unit tests for :meth:`AppLauncher._fuse_kit_args`."""
 
