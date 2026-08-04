@@ -430,10 +430,11 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             if not hasattr(self, "_rgb_annotator"):
                 import omni.replicator.core as rep
 
-                # create render product
-                self._render_product = rep.create.render_product(
-                    self.cfg.viewer.cam_prim_path, self.cfg.viewer.resolution
-                )
+                # create render product from the main Kit viewport camera
+                _cam_prim_path = "/OmniverseKit_Persp"
+                _resolution = (1280, 720)
+                self._render_product = rep.create.render_product(_cam_prim_path, _resolution)
+                self._render_resolution = _resolution
                 # create rgb annotator -- used to read data from the render product
                 self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
                 self._rgb_annotator.attach([self._render_product])
@@ -444,7 +445,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             # return the rgb data
             # note: initially the renerer is warming up and returns empty data
             if rgb_data.size == 0:
-                return np.zeros((self.cfg.viewer.resolution[1], self.cfg.viewer.resolution[0], 3), dtype=np.uint8)
+                return np.zeros((self._render_resolution[1], self._render_resolution[0], 3), dtype=np.uint8)
             else:
                 return rgb_data[:, :, :3]
         else:

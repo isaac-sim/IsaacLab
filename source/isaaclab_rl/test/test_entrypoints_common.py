@@ -256,7 +256,9 @@ def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: p
     assert len(calls) == 1
     assert calls[0][0] == "Isaac-Test"
     assert calls[0][1]["cfg"] is env_cfg
-    assert calls[0][1]["render_mode"] is None
+    # render_mode is no longer passed — recording is configured via env_cfg.video_recorders
+    # before env creation (apply_video_recording), not via the gym render-mode mechanism.
+    assert "render_mode" not in calls[0][1]
 
 
 def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -277,7 +279,8 @@ def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.Mon
     env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
 
     assert env is expected_env
-    assert calls == [(env_cfg, "Isaac-Test", {"render_mode": "rgb_array"})]
+    # render_mode is no longer forwarded — recording is driven by env_cfg.video_recorders.
+    assert calls == [(env_cfg, "Isaac-Test", {})]
 
 
 def test_dispatch_library_entrypoint_shows_help_without_library(

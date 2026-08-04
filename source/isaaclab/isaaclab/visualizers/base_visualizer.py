@@ -201,9 +201,15 @@ class BaseVisualizer(ABC):
         if scalars:
             for group_name, scalar_dict in scalars.items():
                 self._live_plot_sources.append(DirectScalarLivePlots(group_name, scalar_dict))
-        self._live_plot_sources += [
-            ManagerLivePlots(name, mgr, (term_names or {}).get(name)) for name, mgr in managers.items()
-        ]
+        for name, mgr in managers.items():
+            # Skip managers that have no active terms — they contribute nothing to plots
+            # and would create empty panels in Rerun, Viser, and the Kit live-plot window.
+            active = getattr(mgr, "active_terms", None)
+            if active is not None:
+                has_terms = bool(active) if not isinstance(active, dict) else any(v for v in active.values())
+                if not has_terms:
+                    continue
+            self._live_plot_sources.append(ManagerLivePlots(name, mgr, (term_names or {}).get(name)))
         self._live_plot_env_idx = env_idx
 
     def _render_live_plots(self) -> None:
