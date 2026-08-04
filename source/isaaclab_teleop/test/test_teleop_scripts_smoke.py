@@ -14,9 +14,8 @@ asserts it starts up past the regression introduced by the render-flag cleanup i
 * ``record_demos.py`` read the removed ``args_cli.enable_cameras`` attribute, raising
   ``AttributeError``.
 
-They also cover the XR startup regression: the XR experience depended on the
-``omni.kit.xr.bundle.generic`` meta-extension, which Isaac Sim does not ship, so ``--xr`` aborted
-with a dependency solver failure wherever the Kit SDK registry was unreachable.
+They also cover the XR startup regression, where a dependency on the unshipped
+``omni.kit.xr.bundle.generic`` aborted ``--xr`` wherever the Kit SDK registry was unreachable.
 
 These follow the Isaac Lab subprocess-integration test convention (see
 ``scripts/benchmarks/test``) rather than the isaacsim-CI methodology, so they run in the Isaac
@@ -174,15 +173,11 @@ def test_record_demos_starts(tmp_path):
 def test_xr_experience_declares_only_shipped_extensions():
     """The XR experience depends on XR extensions Isaac Sim ships, not on a registry-only bundle.
 
-    ``omni.kit.xr.profile.ar`` was removed in Kit 110 and briefly replaced by the
-    ``omni.kit.xr.bundle.generic`` meta-extension, which is absent from the Isaac Sim
-    distribution and resolves only from the Kit SDK registry. That made every ``--xr`` run
-    depend on registry reachability, and abort the app when it was unavailable.
+    ``omni.kit.xr.bundle.generic`` is not shipped and resolves only from the Kit SDK registry, so
+    depending on it aborted every ``--xr`` run that could not reach the registry.
 
-    This check is static on purpose. A machine that can reach the registry downloads the bundle
-    into the user extension cache on first use and loads it from there forever after, so a launch
-    test cannot detect the regression once that cache is warm -- which is exactly why the failure
-    only ever showed up in containers.
+    Static on purpose: a machine that reaches the registry caches the bundle on first use and
+    loads it locally forever after, so a launch test cannot catch this once that cache is warm.
     """
     dependencies = set(re.findall(r'^\s*"([^"]+)"\s*=', _XR_EXPERIENCE.read_text(encoding="utf-8"), re.MULTILINE))
 
@@ -198,16 +193,12 @@ def test_record_demos_starts_headless_xr(tmp_path):
 
     ``--xr`` without an explicit Kit visualizer resolves to headless and selects
     ``isaaclab.python.xr.openxr.headless.kit``, whose dependency chain aborted the app before any
-    Python ran. Reaching a startup marker proves the XR experience resolved its extensions and the
-    headless XR path runs end-to-end. Either marker is accepted -- env creation already clears the
-    dependency solver, which is what this gates on. The run stops short of the OpenXR session,
-    which needs a headset and a CloudXR runtime that CI does not have.
+    Python ran. Either marker is accepted: env creation already clears the dependency solver, which
+    is what this gates on. The run stops short of the OpenXR session, which needs a headset.
 
-    The extension registry is disabled so extensions must resolve from what Isaac Sim ships on
-    disk. That keeps the test hermetic and immune to registry outages, and makes it fail on a
-    clean extension cache if a registry-only dependency is ever reintroduced. On a machine whose
-    cache is already warm the bundle would load locally regardless, so
-    :func:`test_xr_experience_declares_only_shipped_extensions` is the portable guard.
+    The registry is disabled so extensions must resolve from what Isaac Sim ships, keeping the test
+    hermetic. See :func:`test_xr_experience_declares_only_shipped_extensions` for the warm-cache
+    caveat.
     """
     argv = [
         "scripts/tools/record_demos.py",

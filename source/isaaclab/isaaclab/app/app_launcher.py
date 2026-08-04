@@ -370,10 +370,8 @@ class AppLauncher:
     def headless(self) -> bool:
         """Whether the app was launched without a Kit window.
 
-        This is resolved from the visualizer selection rather than read from a flag: the app runs
-        headless unless ``--visualizer kit`` was requested or livestreaming is enabled. Enabling XR
-        without an explicit ``--visualizer kit`` also forces headless, since the XR session starts
-        on its own.
+        Resolved from the visualizer selection rather than a flag: headless unless
+        ``--visualizer kit`` was requested or livestreaming is enabled.
         """
         return self._headless
 
@@ -881,12 +879,9 @@ class AppLauncher:
         # Resolve headless from visualizer intent when livestream is disabled.
         if self._livestream == 0:
             if self._xr_auto_start:
-                # XR without an explicit '--viz kit' runs headless: the AR session starts
-                # automatically, so there is no viewport in which to click "Start XR".
+                # XR without an explicit '--viz kit': no viewport to click "Start XR" in.
                 if not self._headless:
-                    logger.debug(
-                        "Forcing headless mode because XR is enabled and no Kit visualizer was explicitly requested."
-                    )
+                    logger.debug("Forcing headless mode because XR is enabled without an explicit Kit visualizer.")
                 self._headless = True
             elif self._cli_visualizer_explicit:
                 # Explicit CLI selection controls headless: only Kit implies non-headless.
@@ -979,11 +974,9 @@ class AppLauncher:
         else:
             self._xr = bool(xr_env)
 
-        # Determine whether the XR session should start automatically.
-        # When XR is enabled but no Kit visualizer was explicitly requested via CLI,
-        # there is no viewport in which to click "Start XR", so the session must start
-        # itself. This also forces headless mode in :meth:`_resolve_headless_settings`
-        # and is published as ``/isaaclab/xr/auto_start``.
+        # Determine whether the XR session should start on its own. Without an explicit
+        # '--viz kit' there is no viewport to click "Start XR" in, so it must. This also
+        # forces headless below and is published as ``/isaaclab/xr/auto_start``.
         if self._xr:
             has_explicit_kit = self._cli_visualizer_explicit and "kit" in set(self._cli_visualizer_types)
             self._xr_auto_start = not has_explicit_kit

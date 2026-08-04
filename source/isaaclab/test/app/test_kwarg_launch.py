@@ -69,7 +69,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
     [
         # XR with no CLI visualizer: headless even though the task config asks for Kit.
         ({"xr": True}, True),
-        # An explicit '--viz kit' is the one way to get a viewport alongside XR.
+        # An explicit '--viz kit' is the only way to get a viewport alongside XR.
         ({"xr": True, "visualizer": ["kit"], "visualizer_explicit": True}, False),
         ({"xr": True, "visualizer": ["none"], "visualizer_explicit": True}, True),
         # Without XR the task config still decides.
@@ -79,9 +79,8 @@ def test_explicit_experience_requires_isaac_sim_runtime():
 def test_xr_without_explicit_kit_visualizer_forces_headless(launcher_args: dict, expected_headless: bool):
     """Test that enabling XR runs headless unless a Kit visualizer is explicitly requested.
 
-    Headless XR auto-starts the AR session because there is no viewport in which to click
-    "Start XR", so ``--xr`` alone must not be left non-headless by a task config that happens to
-    declare a Kit visualizer. Resolution is exercised directly to avoid launching Isaac Sim.
+    A task config declaring a Kit visualizer must not leave ``--xr`` non-headless, since the XR
+    session auto-starts. Resolution is exercised directly to avoid launching Isaac Sim.
     """
     launcher = object.__new__(AppLauncher)
     launcher._livestream = 0
