@@ -25,7 +25,10 @@ import pytest
 from isaaclab_teleop.camera_feed import _PanelDescriptor
 from isaaclab_teleop.camera_feed_kit_scene_ui import _KitSceneUiCameraFeedPresenter
 
+import omni.replicator.core as rep
+
 import isaaclab.sim as sim_utils
+from isaaclab.sensors.camera import Camera, CameraCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -52,3 +55,50 @@ def test_real_scene_ui_imports_and_constructs_world_panel():
         panel.close()
 
     assert panel._closed
+
+
+def test_real_feed_source_reads_cuda_from_cpu_camera_render_product():
+    """PiP owns a CUDA annotator while the Camera-owned RGBA buffer stays on CPU."""
+    sim_utils.create_new_stage()
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device="cpu", dt=1.0 / 60.0))
+    camera = Camera(
+        CameraCfg(
+            prim_path="/World/Camera",
+            height=64,
+            width=64,
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(),
+        )
+    )
+    source = None
+
+    try:
+        sim.reset()
+        for _ in range(2):
+            sim.step()
+            camera.update(sim.cfg.dt)
+
+        fallback = camera.data.output["rgba"].torch[0]
+        assert fallback.device.type == "cpu"
+
+        presenter = _KitSceneUiCameraFeedPresenter()
+        source = presenter.create_image_source("camera", camera)
+        assert source is not None
+
+        for _ in range(2):
+            sim.step()
+            camera.update(sim.cfg.dt)
+            simulation_app.update()
+        image = source.get_image(tuple(fallback.shape))
+
+        assert image.device.type == "cuda"
+        assert tuple(image.shape) == tuple(fallback.shape)
+        assert image.data_ptr() == source._annotator.get_data().ptr
+        assert image.dtype == fallback.dtype
+    finally:
+        if source is not None:
+            source.close()
+        camera._invalidate_initialize_callback(None)
+        rep.vp_manager.destroy_hydra_textures("Replicator")
+        sim.stop()
+        sim.clear_instance()

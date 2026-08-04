@@ -19,8 +19,8 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
   modes for controlling how the anchor orientation tracks the reference prim.
 - **Retargeting tuning UI** -- optional ImGui window for real-time adjustment of retargeter
   parameters when `retargeters_to_tune` is provided.
-- **XR camera feedback** -- selected scene cameras can be shown through Kit Scene UI using their
-  existing RGBA allocation.
+- **XR camera feedback** -- selected scene cameras can be shown through Kit Scene UI using a
+  feed-owned CUDA view of their existing RTX render product, with camera-buffer fallback.
 
 ## Architecture
 

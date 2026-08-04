@@ -215,7 +215,6 @@ class Camera(SensorBase):
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
-        self._camera_output_device: str | None = None
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
@@ -524,10 +523,9 @@ class Camera(SensorBase):
             cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
         )
         device_str = self._device if isinstance(self._device, str) else str(self._device)
-        self._camera_output_device = self._renderer.resolve_camera_output_device(device_str)
         render_spec = CameraRenderSpec(
             cfg=self.cfg,
-            device=self._camera_output_device,
+            device=device_str,
             num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
             view_count=self._num_envs,
@@ -649,20 +647,18 @@ class Camera(SensorBase):
                 type(self._renderer).__name__,
                 unsupported,
             )
-        state_device = self._device if isinstance(self._device, str) else str(self._device)
-        if self._camera_output_device is None:
-            raise RuntimeError("Camera output device was not resolved before buffer allocation.")
+        device_str = self._device if isinstance(self._device, str) else str(self._device)
         self._data = CameraData.allocate(
             data_types=known,
             height=self.cfg.height,
             width=self.cfg.width,
             num_views=self._view.count,
-            device=self._camera_output_device,
+            device=self._device,
             supported_specs=specs,
         )
         # Camera-frame state (pose / intrinsics) is owned by the camera, not
         # the renderer: allocate warp buffers and populate them.
-        self._data.create_buffers(self._view.count, state_device)
+        self._data.create_buffers(self._view.count, device_str)
         self._update_intrinsic_matrices()
         self._update_poses()
         self._renderer.set_outputs(self._render_data, self._data.output)

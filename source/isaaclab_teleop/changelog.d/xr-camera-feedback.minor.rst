@@ -4,7 +4,8 @@ Added
 * Added XR camera feedback to ``teleop_se3_agent.py`` and ``record_demos.py``, with task-configured
   existing-camera selection, declarative layouts, and viewer-start, head-locked, or explicit-world
   placement.
-* Added direct and staged CUDA image presentation paths so camera feedback works with CPU physics.
+* Added a PiP-owned CUDA Replicator source with staged camera-buffer fallback so camera feedback works
+  with CPU physics without changing the core camera output device.
 * Added lazy Kit Scene UI loading so kitless teleoperation warns and continues without PiP.
 * Added :class:`~isaaclab_teleop.XrCameraFeedSession` as the supported camera-feedback lifecycle
   API for teleoperation entry points.

@@ -139,10 +139,6 @@ class IsaacRtxRenderer(BaseRenderer):
         ensure_rtx_hydra_engine_attached()
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
 
-    def resolve_camera_output_device(self, simulation_device: str) -> str:
-        """Use the optional RTX pixel-output override without moving camera state."""
-        return self.cfg.camera_output_device or simulation_device
-
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply RTX-specific USD overrides.
 

@@ -12,6 +12,7 @@ import logging
 import math
 import time
 from collections import Counter
+from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import lru_cache
@@ -308,6 +309,8 @@ def _panel_descriptor(cfg: XrCameraFeedCfg, layout_cfg: XrCameraFeedLayoutCfg) -
 class _ActiveFeed:
     cfg: XrCameraFeedCfg
     camera: Camera
+    fallback_image: torch.Tensor
+    image_source: Any | None
     image: torch.Tensor
     upload_image: torch.Tensor
     panel: Any
@@ -335,17 +338,27 @@ class _XrCameraFeedManager:
             for cfg in cfgs:
                 self._validate_cfg(cfg, self._layout_cfg.placement)
                 camera, image = self._bind_image(cfg)
-                upload_image = self._presenter.prepare_upload_image(cfg.camera_name, image)
-                bound_feeds.append((camera, image, upload_image))
-            image_sizes = [(int(image.shape[1]), int(image.shape[0])) for _, image, _ in bound_feeds]
+                bound_feeds.append((camera, image))
+            image_sizes = [(int(image.shape[1]), int(image.shape[0])) for _, image in bound_feeds]
             resolved_cfgs = _layout_feed_cfgs(cfgs, image_sizes, self._layout_cfg)
-            for cfg, (camera, image, upload_image) in zip(resolved_cfgs, bound_feeds, strict=True):
-                panel = self._presenter.create_panel(
-                    _panel_descriptor(cfg, self._layout_cfg),
-                    width=int(image.shape[1]),
-                    height=int(image.shape[0]),
-                )
-                self._feeds.append(_ActiveFeed(cfg, camera, image, upload_image, panel))
+            for cfg, (camera, fallback_image) in zip(resolved_cfgs, bound_feeds, strict=True):
+                image_source = self._presenter.create_image_source(cfg.camera_name, camera)
+                try:
+                    image = image_source.get_image(tuple(fallback_image.shape)) if image_source is not None else None
+                    if image is None:
+                        image = fallback_image
+                    upload_image = image
+                    panel = self._presenter.create_panel(
+                        _panel_descriptor(cfg, self._layout_cfg),
+                        width=int(fallback_image.shape[1]),
+                        height=int(fallback_image.shape[0]),
+                    )
+                except Exception:
+                    if image_source is not None:
+                        with suppress(Exception):
+                            image_source.close()
+                    raise
+                self._feeds.append(_ActiveFeed(cfg, camera, fallback_image, image_source, image, upload_image, panel))
             self._frame_subscription = self._presenter.subscribe_to_frame_updates(self._on_frame)
         except Exception:
             self.close()
@@ -397,43 +410,69 @@ class _XrCameraFeedManager:
             and first.data_ptr() == second.data_ptr()
         )
 
-    def _rebind_feed(self, feed: _ActiveFeed, camera: Camera, image: torch.Tensor) -> None:
-        if self._same_allocation(feed.image, image):
-            feed.camera = camera
+    def _rebind_feed(self, feed: _ActiveFeed, camera: Camera, fallback_image: torch.Tensor) -> None:
+        camera_changed = feed.camera is not camera
+        image_changed = not self._same_allocation(feed.fallback_image, fallback_image)
+        if not camera_changed and not image_changed:
             return
-        old_shape = tuple(feed.image.shape)
-        feed.upload_image = self._presenter.prepare_upload_image(
-            feed.cfg.camera_name,
-            image,
-            previous_source=feed.image,
-            previous_upload=feed.upload_image,
-        )
-        if tuple(image.shape) != old_shape:
-            replacement = self._presenter.create_panel(
-                _panel_descriptor(feed.cfg, self._layout_cfg),
-                width=int(image.shape[1]),
-                height=int(image.shape[0]),
-            )
+
+        replacement_source = feed.image_source
+        replacement_panel = feed.panel
+        if camera_changed:
+            replacement_source = self._presenter.create_image_source(feed.cfg.camera_name, camera)
+        try:
+            if tuple(fallback_image.shape) != tuple(feed.fallback_image.shape):
+                replacement_panel = self._presenter.create_panel(
+                    _panel_descriptor(feed.cfg, self._layout_cfg),
+                    width=int(fallback_image.shape[1]),
+                    height=int(fallback_image.shape[0]),
+                )
+        except Exception:
+            if camera_changed and replacement_source is not None:
+                with suppress(Exception):
+                    replacement_source.close()
+            raise
+
+        if camera_changed:
+            old_source = feed.image_source
+            feed.image_source = replacement_source
+            if old_source is not None:
+                try:
+                    old_source.close()
+                except Exception:
+                    logger.exception("Failed to close XR camera feed source %r.", feed.cfg.camera_name)
+        if replacement_panel is not feed.panel:
             old_panel = feed.panel
-            feed.panel = replacement
+            feed.panel = replacement_panel
             old_panel.close()
         feed.camera = camera
-        feed.image = image
+        feed.fallback_image = fallback_image
 
     def update(self) -> None:
         now = time.monotonic()
         for feed in self._feeds:
             if now < feed.next_update_time:
                 continue
-            image = self._image_from_output(feed.cfg, feed.camera.data.output)
-            self._rebind_feed(feed, feed.camera, image)
             self._publish_feed(feed)
             period = 0.0 if feed.cfg.max_update_hz == 0.0 else 1.0 / feed.cfg.max_update_hz
             feed.next_update_time = now + period
 
     def _publish_feed(self, feed: _ActiveFeed) -> None:
-        self._presenter.stage_upload_image(feed.image, feed.upload_image)
-        feed.panel.upload(feed.upload_image)
+        image = feed.image_source.get_image(tuple(feed.fallback_image.shape)) if feed.image_source is not None else None
+        if image is None:
+            fallback_image = self._image_from_output(feed.cfg, feed.camera.data.output)
+            self._rebind_feed(feed, feed.camera, fallback_image)
+            image = feed.fallback_image
+        upload_image = self._presenter.prepare_upload_image(
+            feed.cfg.camera_name,
+            image,
+            previous_source=feed.image,
+            previous_upload=feed.upload_image,
+        )
+        self._presenter.stage_upload_image(image, upload_image)
+        feed.panel.upload(upload_image)
+        feed.image = image
+        feed.upload_image = upload_image
 
     def refresh(self, *, publish: bool = True) -> None:
         for feed in self._feeds:
@@ -449,6 +488,11 @@ class _XrCameraFeedManager:
             self._frame_subscription.close()
             self._frame_subscription = None
         for feed in reversed(self._feeds):
+            if feed.image_source is not None:
+                try:
+                    feed.image_source.close()
+                except Exception:
+                    logger.exception("Failed to close XR camera feed source %r.", feed.cfg.camera_name)
             try:
                 feed.panel.close()
             except Exception:

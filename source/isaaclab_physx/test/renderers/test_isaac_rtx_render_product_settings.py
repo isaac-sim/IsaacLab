@@ -103,8 +103,8 @@ def test_camera_local_dlss_settings_survive_annotator_attachment():
         sim.clear_instance()
 
 
-def test_cpu_simulation_camera_can_publish_cuda_pixels():
-    """Keep camera pose state on CPU while Isaac RTX publishes its image on CUDA."""
+def test_cpu_simulation_camera_keeps_pixels_on_cpu():
+    """Keep camera state and policy-visible pixels on the simulation device."""
     sim_utils.create_new_stage()
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device="cpu", dt=1.0 / 60.0))
     camera = Camera(
@@ -114,7 +114,7 @@ def test_cpu_simulation_camera_can_publish_cuda_pixels():
             width=64,
             data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg(),
-            renderer_cfg=IsaacRtxRendererCfg(camera_output_device="cuda:0"),
+            renderer_cfg=IsaacRtxRendererCfg(),
         )
     )
 
@@ -125,8 +125,7 @@ def test_cpu_simulation_camera_can_publish_cuda_pixels():
             camera.update(sim.cfg.dt)
 
         assert camera.data.pos_w.torch.device.type == "cpu"
-        assert camera.data.output["rgb"].torch.device.type == "cuda"
-        assert camera.data.output["rgb"].torch.device.index == 0
+        assert camera.data.output["rgb"].torch.device.type == "cpu"
     finally:
         camera._invalidate_initialize_callback(None)
         rep.vp_manager.destroy_hydra_textures("Replicator")

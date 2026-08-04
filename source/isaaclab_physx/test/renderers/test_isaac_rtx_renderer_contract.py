@@ -155,30 +155,6 @@ def test_render_product_uuid_name_format_is_sdf_safe():
         assert Sdf.Path.IsValidPathString(f"/Render/{name}")
 
 
-def test_camera_output_device_override_is_rtx_local(monkeypatch):
-    """RTX may put pixels on CUDA while the base renderer keeps simulation placement."""
-    _install_omni_stubs(monkeypatch)
-    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
-    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
-
-    from isaaclab.renderers.base_renderer import BaseRenderer
-
-    renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
-    renderer.cfg = IsaacRtxRendererCfg(camera_output_device="cuda:0")
-
-    assert renderer.resolve_camera_output_device("cpu") == "cuda:0"
-    assert BaseRenderer.resolve_camera_output_device(renderer, "cpu") == "cpu"
-
-
-@pytest.mark.parametrize("value", ["gpu", "cuda:x", "", 0])
-def test_renderer_cfg_rejects_invalid_camera_output_device(value):
-    """Invalid output devices fail during configuration rather than Replicator startup."""
-    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
-
-    with pytest.raises(ValueError, match="camera_output_device"):
-        IsaacRtxRendererCfg(camera_output_device=value)
-
-
 def test_dlss_settings_are_authored_per_render_product(monkeypatch):
     """Camera-local DLSS settings use their schema-backed RenderProduct attributes."""
     _install_omni_stubs(monkeypatch)

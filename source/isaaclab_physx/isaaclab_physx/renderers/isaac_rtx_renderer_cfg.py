@@ -108,15 +108,6 @@ class IsaacRtxRendererCfg(RendererCfg):
     global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
     """Global Kit/RTX quality settings applied before RTX Hydra attach."""
 
-    camera_output_device: str | None = None
-    """Optional device for Replicator annotators and persistent camera pixel outputs.
-
-    This leaves physics and camera pose state on the simulation device. For
-    example, set ``"cuda:0"`` with CPU physics to avoid an RTX GPU-to-CPU
-    readback when a GPU consumer uses the camera image. ``None`` preserves the
-    simulation-device behavior.
-    """
-
     enable_dlss_ray_reconstruction: bool | None = None
     """Enable DLSS Ray Reconstruction for this renderer's render products.
 
@@ -204,21 +195,6 @@ class IsaacRtxRendererCfg(RendererCfg):
 
     def __post_init__(self) -> None:
         """Validate render-product settings before Kit silently ignores them."""
-        if self.camera_output_device is not None and (
-            not isinstance(self.camera_output_device, str)
-            or not (
-                self.camera_output_device == "cpu"
-                or self.camera_output_device == "cuda"
-                or (
-                    self.camera_output_device.startswith("cuda:")
-                    and self.camera_output_device.removeprefix("cuda:").isdigit()
-                )
-            )
-        ):
-            raise ValueError(
-                "camera_output_device must be 'cpu', 'cuda', 'cuda:<index>', or None, "
-                f"got {self.camera_output_device!r}."
-            )
         ray_reconstruction = self.enable_dlss_ray_reconstruction
         if ray_reconstruction is not None and type(ray_reconstruction) is not bool:
             raise TypeError("enable_dlss_ray_reconstruction must be a bool or None.")

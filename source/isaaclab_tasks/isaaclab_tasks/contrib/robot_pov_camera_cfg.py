@@ -19,7 +19,6 @@ class _RobotPovCameraRendererCfg(MultiBackendRendererCfg):
     """Renderer presets shared by the recorded robot-PoV cameras."""
 
     default: IsaacRtxRendererCfg = IsaacRtxRendererCfg(
-        camera_output_device="cuda:0",
         enable_dlss_ray_reconstruction=True,
         dlss_exec_mode="quality",
     )
