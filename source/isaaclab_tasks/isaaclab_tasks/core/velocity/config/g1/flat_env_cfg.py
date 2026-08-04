@@ -34,7 +34,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
-    default = physx
+    default = isaacsim_physx
 
 
 @configclass

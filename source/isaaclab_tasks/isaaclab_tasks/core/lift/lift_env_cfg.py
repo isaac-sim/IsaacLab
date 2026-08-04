@@ -506,7 +506,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = physx
+    default = isaacsim_physx
 
 
 @configclass

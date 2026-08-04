@@ -1197,6 +1197,11 @@ class AppLauncher:
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
                 self._kit_args.append(argument)
 
+        argument = "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false"
+        setting = argument.partition("=")[0]
+        if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+            self._kit_args.append(argument)
+
         sys.argv += self._kit_args
 
     def _create_app(self):
