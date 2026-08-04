@@ -31,7 +31,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from isaaclab.benchmark import BenchmarkResult
+    from isaaclab.benchmark.schema import StartupBundle
 
 import argparse
 import cProfile
@@ -41,7 +44,8 @@ import sys
 import time
 from datetime import datetime, timezone
 
-_VALID_PHASES = {"app_launch", "python_imports", "task_config", "env_creation", "first_step"}
+_PHASE_ORDER = ("python_imports", "task_config", "app_launch", "env_creation", "first_step")
+_VALID_PHASES = set(_PHASE_ORDER)
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -171,6 +175,61 @@ def _isaaclab_source_prefixes() -> list[str]:
     return list(dict.fromkeys(prefixes))
 
 
+def _timer_totals(since: dict[str, float] | None = None) -> dict[str, float]:
+    """Return the cumulative time [s] recorded by each named :class:`~isaaclab.utils.timer.Timer`.
+
+    Args:
+        since: Earlier snapshot to subtract, keeping only timers that advanced.
+
+    Returns:
+        Cumulative (or elapsed, when ``since`` is given) seconds keyed by timer name.
+    """
+    from isaaclab.utils.timer import Timer
+
+    totals = {name: info["mean"] * info["n"] for name, info in Timer.timing_info.items()}
+    if since is None:
+        return totals
+    elapsed = {name: total - since.get(name, 0.0) for name, total in totals.items()}
+    return {name: seconds for name, seconds in elapsed.items() if seconds > 1e-6}
+
+
+def _print_summary(bundle: StartupBundle, output_paths: tuple[Path, ...], detail: dict[str, float]) -> None:
+    """Print a compact per-phase wall-clock breakdown; the full profile stays in the JSON output.
+
+    Args:
+        bundle: Completed startup bundle.
+        output_paths: Files written by the benchmark formatters.
+        detail: Elapsed seconds of the timers that ran during ``env_creation``.
+    """
+    width = 64
+    phase_order = [name for name in _PHASE_ORDER if name in bundle.phases]
+    phase_order += [name for name in bundle.phases if name not in _PHASE_ORDER]
+    total_s = sum(bundle.phases[name].total_time_s for name in phase_order)
+    label_width = max(len(name) for name in phase_order)
+
+    print()
+    print("=" * width)
+    envs = f"{bundle.run.num_envs} envs" if bundle.run.num_envs is not None else "default envs"
+    print(f" Startup summary: {bundle.run.task} ({envs}, {bundle.run.config.physics_backend})")
+    print("=" * width)
+    longest_s = max(bundle.phases[name].total_time_s for name in phase_order)
+    for name in phase_order:
+        seconds = bundle.phases[name].total_time_s
+        share = seconds / total_s if total_s > 0 else 0.0
+        bar = "#" * round(20 * seconds / longest_s) if longest_s > 0 else ""
+        print(f" {name:<{label_width}}  {seconds:7.2f} s  {share:5.1%}  {bar}".rstrip())
+        if name != "env_creation":
+            continue
+        # Nested timers: they overlap each other and the phase, so no share is shown.
+        for timer_name, timer_s in sorted(detail.items(), key=lambda item: -item[1]):
+            print(f"   {timer_name:<{label_width + 22}} {timer_s:7.2f} s")
+    print("-" * width)
+    print(f" {'total':<{label_width}}  {total_s:7.2f} s")
+    for path in output_paths:
+        print(f" report: {path}")
+    print("=" * width)
+
+
 def run(argv: list[str]) -> BenchmarkResult:
     """Run the startup benchmark and write the selected formatter outputs.
 
@@ -234,12 +293,17 @@ def run(argv: list[str]) -> BenchmarkResult:
         env_creation_profile = cProfile.Profile()
         env_creation_time_begin = time.perf_counter_ns()
         try:
+            timers_before = _timer_totals()
             env_creation_profile.enable()
             try:
                 env = gym.make(args.task, cfg=env_cfg)
+                env_reset_time_begin = time.perf_counter_ns()
                 env.reset()
+                env_reset_time_end = time.perf_counter_ns()
             finally:
                 env_creation_profile.disable()
+            env_creation_detail = _timer_totals(since=timers_before)
+            env_creation_detail["env_reset"] = (env_reset_time_end - env_reset_time_begin) / 1e9
 
             if torch.cuda.is_available() and torch.cuda.is_initialized():
                 torch.cuda.synchronize()
@@ -327,10 +391,12 @@ def run(argv: list[str]) -> BenchmarkResult:
                 phases=phases,
                 top_n=args.top_n,
                 whitelist=args.whitelist_config,
+                extra={f"env_creation.{name}_s": seconds for name, seconds in env_creation_detail.items()},
             )
             benchmark.attach_bundle(bundle)
             output_paths = benchmark.finalize()
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
+            _print_summary(bundle, output_paths, env_creation_detail)
         finally:
             if env is not None:
                 env.close()

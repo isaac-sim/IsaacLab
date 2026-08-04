@@ -371,12 +371,21 @@ fresh process and control cache state and execution order when comparing runs.
 Read The Result
 ~~~~~~~~~~~~~~~
 
+A per-phase wall-time summary is printed to the console when the run finishes,
+including the timers that ran during ``env_creation``. The JSON output holds the
+full profile.
+
 Read the wall time and attributed functions under each entry in ``phases``.
 Pass ``--whitelist_config scripts/benchmarks/startup_whitelist.yaml`` to select
 stable ``fnmatch`` patterns for specific phases. Whitelist mode ignores
 ``--top_n`` for listed phases. A pattern that matches no profiled function is
 still emitted with zero own time, cumulative time, and calls, which preserves
-stable dashboard keys.
+stable dashboard keys, and logs a warning naming the pattern.
+
+Patterns match profile labels, which are built relative to each installed
+package root: in-repo functions carry no package prefix
+(``utils.assets:_find_asset_dependencies``), while external packages keep their
+full dotted path (``warp._src.context:launch``).
 
 The typed result replaces runtime throughput fields with startup-specific
 ``config`` and ``phases`` mappings. Each phase reports wall time and selected
