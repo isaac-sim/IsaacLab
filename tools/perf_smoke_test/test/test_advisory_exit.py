@@ -237,7 +237,8 @@ def test_skew_excused_crashes_do_not_report_pass() -> None:
         has_block=False,
         has_hard_failure=False,  # cleared by detect_dependency_skew
         blocking=False,
-        expected_buckets=9,
+        missing=[],
+        expected_total=9,
     )
 
     assert out["overall_verdict"] == "HARD_FAILURE"
@@ -249,7 +250,12 @@ def test_skew_excused_crashes_do_not_report_pass() -> None:
 def test_missing_buckets_are_not_graded_on_the_survivors() -> None:
     """One passing bucket out of nine is not a pass."""
     out = aggregate._verdict_outputs(
-        _rows(OracleVerdict.PASS), has_block=False, has_hard_failure=False, blocking=False, expected_buckets=9
+        _rows(OracleVerdict.PASS),
+        has_block=False,
+        has_hard_failure=False,
+        blocking=False,
+        missing=[f"Task-{i}/physx" for i in range(8)],
+        expected_total=9,
     )
 
     assert out["overall_verdict"] == "HARD_FAILURE"
@@ -264,7 +270,8 @@ def test_a_complete_clean_run_still_passes() -> None:
         has_block=False,
         has_hard_failure=False,
         blocking=False,
-        expected_buckets=9,
+        missing=[],
+        expected_total=9,
     )
 
     assert out["overall_verdict"] == "PASS"
@@ -272,14 +279,91 @@ def test_a_complete_clean_run_still_passes() -> None:
     assert "9 buckets" in out["status_description"]
 
 
-def test_expected_bucket_count_is_optional() -> None:
-    """An unreadable tasks.json disables the completeness check, never fails a run."""
+def test_unreadable_matrix_disables_the_completeness_check() -> None:
+    """An unreadable tasks.json must never invent a failure."""
     out = aggregate._verdict_outputs(
         _rows(*([OracleVerdict.PASS] * 3)),
         has_block=False,
         has_hard_failure=False,
         blocking=False,
-        expected_buckets=None,
+        missing=[],
+        expected_total=0,
     )
 
     assert out["overall_verdict"] == "PASS"
+
+
+# --- the comment and the commit status must never disagree ----------------
+#
+# They are produced by different code paths: the sticky comment and job summary
+# come from _build_summary_markdown, the status from _verdict_outputs. An
+# earlier fix taught only the latter about missing buckets, so a run with 8 of 9
+# buckets reported showed a red status reading "only 8 of 9 buckets reported"
+# directly above a comment headlined "No meaningful performance regressions
+# detected -- 0 benchmark failures". These drive the real aggregate.main() over
+# the real tasks.json and compare both surfaces.
+
+import dataclasses  # noqa: E402
+
+from task_config import load_tasks  # noqa: E402
+
+
+def _run_real_matrix(tmp_path: Path, monkeypatch, *, reported: int):
+    """Run aggregate over `reported` of the 9 real matrix buckets."""
+    buckets = [(t.task_id, t.backend_key) for t in load_tasks()]
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "baselines").mkdir(parents=True, exist_ok=True)
+    summary_file = tmp_path / "verdict_summary.md"
+    output_file = tmp_path / "gh_output.txt"
+    gate_config = tmp_path / "gate_config.json"
+    gate_config.write_text(json.dumps({"blocking": False}), encoding="utf-8")
+
+    for i, (task_id, backend_key) in enumerate(buckets[:reported]):
+        bench = dataclasses.replace(
+            _bench_result(fps=100.0, info_present=True), task_id=task_id, backend=backend_key, backend_key=backend_key
+        )
+        task_dir = artifacts_dir / f"bench-{i}"
+        task_dir.mkdir(parents=True, exist_ok=True)
+        (task_dir / "perf_smoke_test_result.json").write_text(json.dumps(bench.to_dict()))
+
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "aggregate.py",
+            "--artifacts_dir", str(artifacts_dir),
+            "--gpu_model", "L40S",
+            "--baselines_dir", str(tmp_path / "baselines"),
+            "--allow_baseline_update", "false",
+            "--gate_config", str(gate_config),
+            "--summary_file", str(summary_file),
+        ],
+    )  # fmt: skip
+    aggregate.main()
+    outputs = dict(line.split("=", 1) for line in output_file.read_text().splitlines() if "=" in line)
+    return outputs, summary_file.read_text(encoding="utf-8"), len(buckets)
+
+
+def test_partial_matrix_is_flagged_on_both_surfaces(tmp_path, monkeypatch) -> None:
+    """A red status must never sit above an all-clear comment."""
+    total_reported = 8
+    outputs, summary, total = _run_real_matrix(tmp_path, monkeypatch, reported=total_reported)
+
+    assert outputs["status_state"] == "failure"
+    assert f"only {total_reported} of {total}" in outputs["status_description"]
+    # The comment is what a reviewer reads, so it must carry the same message.
+    assert f"Only {total_reported} of {total}" in summary
+    assert "No meaningful performance regressions detected" not in summary
+    # And it must name the bucket that vanished, not just count it.
+    assert "did not report" in summary
+
+
+def test_complete_matrix_is_clean_on_both_surfaces(tmp_path, monkeypatch) -> None:
+    """The coverage guard must not fire when every bucket reported."""
+    outputs, summary, total = _run_real_matrix(tmp_path, monkeypatch, reported=9)
+
+    assert outputs["status_state"] == "success"
+    assert "did not report" not in summary
+    assert "coverage is incomplete" not in summary

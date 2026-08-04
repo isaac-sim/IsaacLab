@@ -329,8 +329,40 @@ def _build_stale_image_section(skewed: list[tuple[str, str, DependencySkew]]) ->
     )
 
 
-def _build_summary_markdown(rows: list[tuple], *, blocking: bool) -> str:
-    """Build reviewer-first Markdown for the sticky PR comment."""
+def _coverage(rows: list[tuple]) -> tuple[list[str], int]:
+    """Return ``(missing_labels, expected_total)`` for the configured matrix.
+
+    A bucket whose job died before ``build_bench_result`` uploads nothing, so it
+    contributes no row. Grading only the rows that arrived would report an
+    all-clear over a bucket that was never measured, which is exactly the class
+    of silent green this gate exists to catch. Returns ``([], 0)`` when the
+    matrix cannot be read, so this can never invent a failure.
+
+    Counts are over distinct buckets, not rows, so a duplicated artifact cannot
+    inflate the total.
+    """
+    try:
+        expected = {(task.task_id, task.backend_key) for task in load_tasks()}
+    except Exception:
+        return [], 0
+    reported = {(result.task_id, result.backend) for result, _ in rows}
+    missing = sorted(f"{task_id}/{backend}" for task_id, backend in expected - reported)
+    return missing, len(expected)
+
+
+def _build_summary_markdown(
+    rows: list[tuple], *, blocking: bool, missing: list[str] | None = None, expected_total: int = 0
+) -> str:
+    """Build reviewer-first Markdown for the sticky PR comment.
+
+    Args:
+        rows: ``(OracleResult, BenchResult)`` pairs for every scored bucket.
+        blocking: Whether the gate is in blocking mode, for the mode banner.
+        missing: ``task/backend`` labels that produced no result at all. Kept in
+            the headline so the comment cannot disagree with the commit status.
+        expected_total: Size of the configured matrix, for the "N of M" phrasing.
+    """
+    missing = missing or []
     counts = {verdict: 0 for verdict in OracleVerdict}
     for result, _ in rows:
         counts[result.verdict] += 1
@@ -347,6 +379,11 @@ def _build_summary_markdown(rows: list[tuple], *, blocking: bool) -> str:
         overall = "❌ No benchmark results were produced"
     elif unexplained_failures:
         overall = "❌ One or more benchmarks failed before producing usable performance data"
+    elif missing:
+        # Ranked above skew/BLOCK/WARN: the rows that did arrive may all be clean,
+        # but the change is not covered, so no all-clear may be printed.
+        reported_n = expected_total - len(missing)
+        overall = f"❌ Only {reported_n} of {expected_total} benchmark buckets reported — coverage is incomplete"
     elif skewed:
         overall = "⚠️ The CI image is stale for this PR, so some tasks could not be measured"
     elif counts[OracleVerdict.BLOCK]:
@@ -359,20 +396,25 @@ def _build_summary_markdown(rows: list[tuple], *, blocking: bool) -> str:
     warnings_label = "warning" if counts[OracleVerdict.WARN] == 1 else "warnings"
     blocks_label = "blocking signal" if counts[OracleVerdict.BLOCK] == 1 else "blocking signals"
     failures_label = "benchmark failure" if counts[OracleVerdict.HARD_FAILURE] == 1 else "benchmark failures"
-    count_summary = " · ".join(
-        (
-            f"✅ {counts[OracleVerdict.PASS]} passed",
-            f"⚠️ {counts[OracleVerdict.WARN]} {warnings_label}",
-            f"🚫 {counts[OracleVerdict.BLOCK]} {blocks_label}",
-            f"❌ {counts[OracleVerdict.HARD_FAILURE]} {failures_label}",
-        )
-    )
+    count_parts = [
+        f"✅ {counts[OracleVerdict.PASS]} passed",
+        f"⚠️ {counts[OracleVerdict.WARN]} {warnings_label}",
+        f"🚫 {counts[OracleVerdict.BLOCK]} {blocks_label}",
+        f"❌ {counts[OracleVerdict.HARD_FAILURE]} {failures_label}",
+    ]
+    if missing:
+        # Name them: "8 of 9" alone leaves the reviewer guessing which task is
+        # unmeasured, and a missing bucket is the one a regression can hide in.
+        count_parts.append(f"🚫 {len(missing)} did not report ({', '.join(missing)})")
+    count_summary = " · ".join(count_parts)
     mode = (
         "**Blocking:** BLOCK and HARD FAILURE results fail the check."
         if blocking
         else (
-            "**Advisory:** this job stays green whatever the verdict. A BLOCK or HARD FAILURE still shows up"
-            " as a red `perf-smoke-test` commit status and in this table -- it just does not fail the PR."
+            "**Advisory:** this job stays green whatever the verdict. Anything that is not a clean pass --"
+            " a BLOCK, a HARD FAILURE, or a bucket that never reported -- still shows up as a red"
+            " `perf-smoke-test` commit status, and the reason is in the overall result above."
+            " It just does not fail the PR."
         )
     )
 
@@ -425,7 +467,13 @@ def _write_github_output(**values) -> None:
 
 
 def _verdict_outputs(
-    rows: list[tuple], *, has_block: bool, has_hard_failure: bool, blocking: bool, expected_buckets: int | None = None
+    rows: list[tuple],
+    *,
+    has_block: bool,
+    has_hard_failure: bool,
+    blocking: bool,
+    missing: list[str] | None = None,
+    expected_total: int = 0,
 ) -> dict[str, str]:
     """Derive the reported verdict and the `perf-smoke-test` commit status from the rows.
 
@@ -440,8 +488,9 @@ def _verdict_outputs(
         has_hard_failure: Whether any bucket failed to produce a usable measurement,
             excluding failures already excused as a stale CI image.
         blocking: The gate's ``blocking`` setting, used only to label the status.
-        expected_buckets: How many buckets the matrix should have produced. When
-            fewer reported, the gate says so instead of grading the survivors.
+        missing: ``task/backend`` labels that produced no result. Shared with
+            :func:`_build_summary_markdown` so the commit status and the PR
+            comment cannot disagree about coverage.
 
     Returns:
         The ``overall_verdict`` / ``status_state`` / ``status_description`` /
@@ -453,7 +502,7 @@ def _verdict_outputs(
     # most bench jobs never uploaded, would otherwise fall through to an
     # affirmative "no regression detected" over measurements that never happened.
     unmeasured = [result for result, _ in rows if result.verdict == OracleVerdict.HARD_FAILURE]
-    missing = max(0, (expected_buckets or 0) - len(rows))
+    missing = missing or []
 
     if has_hard_failure:
         verdict = OracleVerdict.HARD_FAILURE
@@ -465,7 +514,7 @@ def _verdict_outputs(
         description = f"perf-smoke: no usable measurement for {len(unmeasured)} bucket(s); CI image looks stale"
     elif missing or not rows:
         verdict = OracleVerdict.HARD_FAILURE
-        description = f"perf-smoke: only {len(rows)} of {expected_buckets or '?'} buckets reported a result"
+        description = f"perf-smoke: only {expected_total - len(missing)} of {expected_total} buckets reported a result"
     elif has_block:
         verdict = OracleVerdict.BLOCK
         description = "perf-smoke: blocking-level performance regression detected"
@@ -703,7 +752,10 @@ def main() -> int:
             baseline_update_failed = True
             print(f"::error::Baseline push failed: {exc}")
 
-    summary = _build_summary_markdown(rows, blocking=blocking)
+    # One source of truth for coverage, shared by the summary/comment and the
+    # commit status so the two surfaces cannot contradict each other.
+    missing_buckets, expected_total = _coverage(rows)
+    summary = _build_summary_markdown(rows, blocking=blocking, missing=missing_buckets, expected_total=expected_total)
     print("\n## Performance Smoke Results\n")
     print(summary)
     print()
@@ -729,17 +781,6 @@ def main() -> int:
             app_config=args.omni_app_config,
         )
 
-    # How many buckets the matrix should have produced. The gate always runs the
-    # full matrix, so a shortfall means bench jobs died without uploading -- which
-    # must not be graded as a pass over the survivors. Left as None (check
-    # disabled) if tasks.json cannot be read, so this can never fail a run by
-    # itself.
-    try:
-        expected_buckets = len(load_tasks())
-    except Exception as exc:  # pragma: no cover - defensive
-        print(f"[aggregate] Warning: could not determine expected bucket count: {exc}")
-        expected_buckets = None
-
     output_values = {
         "baseline_read_sha": baseline_read_sha,
         **_verdict_outputs(
@@ -747,7 +788,8 @@ def main() -> int:
             has_block=has_block,
             has_hard_failure=has_hard_failure,
             blocking=blocking,
-            expected_buckets=expected_buckets,
+            missing=missing_buckets,
+            expected_total=expected_total,
         ),
     }
     if baseline_push_result:
