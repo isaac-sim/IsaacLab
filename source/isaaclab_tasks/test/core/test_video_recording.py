@@ -26,6 +26,15 @@ Tests:
     - multi_recorder → kit clip ✓, sensor clip ✓, both non-black and moving
 """
 
+# Check for moviepy before launching Kit so a missing dependency produces a
+# clean collection-time skip rather than an orphaned SimulationApp.
+import pytest
+
+try:
+    from moviepy.editor import VideoFileClip
+except ImportError:
+    pytest.skip("moviepy is not installed; install with: pip install 'moviepy<2'", allow_module_level=True)
+
 from isaaclab.app import AppLauncher
 
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
@@ -38,13 +47,7 @@ import os
 import tempfile
 
 import numpy as np
-import pytest
 import torch
-
-try:
-    from moviepy.editor import VideoFileClip
-except ImportError:
-    pytest.skip("moviepy is not installed; install with: pip install 'moviepy<2'", allow_module_level=True)
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg

@@ -56,7 +56,7 @@ def test_apply_video_recording_injects_correct_recorder():
 
 
 def test_apply_video_recording_uses_cfg_defaults_when_cli_not_passed():
-    """video=True without --video_length/--video_interval keeps VideoRecorderCfg defaults."""
+    """video=True without --video_length/--video_interval uses historical CLI cadence."""
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     defaults = VideoRecorderCfg()
@@ -64,7 +64,9 @@ def test_apply_video_recording_uses_cfg_defaults_when_cli_not_passed():
     apply_video_recording(env_cfg, "/my/log", _args())  # no video_length/interval
     rec = env_cfg.video_recorders[0]
     assert rec.video_length == defaults.video_length  # default kept
-    assert rec.video_interval == defaults.video_interval  # default kept
+    # CLI fallback uses video_interval=2000 to match historical --video cadence
+    # (record immediately then every 2000 steps), not VideoRecorderCfg()'s default of 0.
+    assert rec.video_interval == 2000
 
 
 def test_apply_video_recording_patches_existing_recorders():

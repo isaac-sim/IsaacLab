@@ -600,6 +600,14 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
     if not getattr(args_cli, "video", False):
         return
 
+    frontend = getattr(args_cli, "frontend", "torch") or "torch"
+    if frontend != "torch":
+        raise ValueError(
+            f"--video is not supported with --frontend {frontend!r}. "
+            "Video recording requires the standard torch frontend. "
+            "Remove --video or switch to --frontend torch."
+        )
+
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     existing: list = getattr(env_cfg, "video_recorders", []) or []
