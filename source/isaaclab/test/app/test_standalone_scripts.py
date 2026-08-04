@@ -200,13 +200,13 @@ def test_commands_respect_script_launcher_capabilities():
         case
         for case in build_cases(SPECS)
         if case.spec.relative_path == "scripts/demos/bin_packing.py"
-        and case.physics_backend == "newton_mjwarp"
+        and case.physics_backend == "isaacsim_physx"
         and case.visualizer == "none"
     )
     assert "--num_envs" in physics_case.command()
     num_envs_index = physics_case.command().index("--num_envs")
     assert physics_case.command()[num_envs_index + 1] == "2"
-    assert physics_case.command()[-4:] == ["--physics", "newton_mjwarp", "--visualizer", "none"]
+    assert physics_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "none"]
 
     multi_asset_case = next(
         case
@@ -251,6 +251,12 @@ def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path)
     """PhysX-only sensor demos must accept their documented backend explicitly."""
     spec = next(spec for spec in SPECS if spec.relative_path == relative_path)
     assert spec.physics_backends == (("--physics", "isaacsim_physx"),)
+
+
+def test_cable_demo_accepts_explicit_newton_vbd_selector():
+    """The Newton-only cable demo must accept its documented backend explicitly."""
+    spec = next(spec for spec in SPECS if spec.relative_path == "scripts/demos/cables.py")
+    assert spec.physics_backends == (("--physics", "newton_vbd"),)
 
 
 def test_multi_mesh_raycaster_opens_requested_rerun_viewer():

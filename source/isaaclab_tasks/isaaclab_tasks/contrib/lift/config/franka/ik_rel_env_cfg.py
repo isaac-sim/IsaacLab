@@ -7,7 +7,7 @@ from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.lift.config.franka import joint_pos_env_cfg
+from isaaclab_tasks.contrib.lift.config.franka import joint_pos_env_cfg
 
 ##
 # Pre-defined configs

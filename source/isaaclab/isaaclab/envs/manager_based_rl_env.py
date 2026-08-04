@@ -76,14 +76,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
 
-        # Forward render_mode and viewer camera to VideoRecorderCfg before super().__init__()
-        # creates the VideoRecorder, so fallback cameras are only spawned when --video is active
-        # (env_render_mode="rgb_array") and the perspective view matches the task viewport.
-        if cfg.video_recorder is not None:
-            cfg.video_recorder.env_render_mode = render_mode
-            cfg.video_recorder.eye = tuple(float(x) for x in cfg.viewer.eye)
-            cfg.video_recorder.lookat = tuple(float(x) for x in cfg.viewer.lookat)
-
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
         # store the render mode
@@ -304,6 +296,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
+        # -- advance video recorders (after render and resets, before final obs)
+        for recorder in self.video_recorders:
+            recorder.step()
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
         self.obs_buf = self.observation_manager.compute(update_history=True)
@@ -317,15 +312,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
-          x-by-y pixel image, suitable for turning into a video.
+
+        .. note::
+            ``render_mode="rgb_array"`` is no longer supported.  Use
+            :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` on
+            ``env_cfg.video_recorders`` instead.
 
         Args:
             recompute: Whether to force a render even if the simulator has already rendered the scene.
                 Defaults to False.
 
         Returns:
-            The rendered image as a numpy array if mode is "rgb_array". Otherwise, returns None.
+            None.
 
         Raises:
             RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
@@ -338,12 +336,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
+        if self.render_mode == "rgb_array":
+            import warnings
+
+            warnings.warn(
+                "render_mode='rgb_array' is deprecated and will be removed in a future release. "
+                "Use VideoRecorderCfg on env_cfg.video_recorders to capture frames instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return None
         if self.render_mode == "human" or self.render_mode is None:
             return None
-        elif self.render_mode == "rgb_array":
-            if self.video_recorder is None:
-                return None
-            return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."

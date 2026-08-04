@@ -1,0 +1,1 @@
+Test-only: narrowed the bin-packing standalone-script case to the isaacsim_physx backend the demo now supports (no public API change).

@@ -439,6 +439,19 @@ class PhysxManager(PhysicsManager):
         omni.kit.app.get_app().update()
         sim.set_setting("/app/player/playSimulations", True)  # type: ignore[union-attr]
 
+        # Register the headless video pump as a render callback so it fires after each
+        # visualizer step without depending on the now-deleted recording_hooks module.
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (  # noqa: PLC0415
+            pump_kit_app_for_headless_video_render_if_needed,
+        )
+
+        _sim = PhysicsManager._sim
+        _sim.add_render_callback(
+            "physx_headless_video_pump",
+            lambda _: pump_kit_app_for_headless_video_render_if_needed(_sim),
+            order=-10,
+        )
+
     @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
         """Fix and normalize an articulation root for the PhysX parser."""
@@ -486,6 +499,11 @@ class PhysxManager(PhysicsManager):
     def get_scene_data_backend(cls) -> SceneDataBackend:
         """Return the SceneDataBackend for the SceneDataProvider."""
         return cls._scene_data_backend
+
+    @classmethod
+    def video_capture_backend(cls) -> str:
+        """Kit/Replicator perspective video capture."""
+        return "kit"
 
     @classmethod
     def step(cls) -> None:

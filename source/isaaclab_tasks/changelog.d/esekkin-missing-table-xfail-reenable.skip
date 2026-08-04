@@ -1,0 +1,1 @@
+Test-only: removed the Newton Warp missing-table xfail from the kitless Franka rendering tests (OMPE-103086).

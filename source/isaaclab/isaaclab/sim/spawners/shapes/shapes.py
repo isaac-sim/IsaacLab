@@ -5,9 +5,11 @@
 
 from __future__ import annotations
 
+import math
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from pxr import Usd
+from pxr import Usd, UsdGeom
 
 from isaaclab.sim import schemas
 from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
@@ -234,6 +236,61 @@ def spawn_cone(
     return stage.GetPrimAtPath(prim_path)
 
 
+@clone
+def spawn_cable(
+    prim_path: str,
+    cfg: shapes_cfg.CableCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Create an open linear ``UsdGeom.BasisCurves`` cable.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the cable at.
+        cfg: The cable configuration.
+        translation: Local translation of the cable root [m].
+        orientation: Local orientation in ``(x, y, z, w)`` order.
+        **kwargs: Additional arguments consumed by :func:`clone`.
+
+    Returns:
+        The created cable root prim.
+    """
+    if len(cfg.positions) < 3:
+        raise ValueError(f"CableCfg requires at least three positions, got {len(cfg.positions)}.")
+    if any(len(point) != 3 for point in cfg.positions):
+        raise ValueError("CableCfg positions must contain exactly three coordinates.")
+    if any(not math.isfinite(coordinate) for point in cfg.positions for coordinate in point):
+        raise ValueError("CableCfg positions must contain only finite coordinates.")
+    if any(math.dist(start, end) <= 1.0e-8 for start, end in zip(cfg.positions, cfg.positions[1:])):
+        raise ValueError(
+            "CableCfg consecutive positions must be separated by more than 1e-8 m in the cable-local frame."
+        )
+    cfg.physics_material.validate()
+
+    stage = get_current_stage()
+    attributes = {
+        "points": cfg.positions,
+        "curveVertexCounts": [len(cfg.positions)],
+        "type": UsdGeom.Tokens.linear,
+        "wrap": UsdGeom.Tokens.nonperiodic,
+        "widths": [cfg.physics_material.thickness],
+    }
+    _spawn_geom_from_prim_type(
+        prim_path,
+        cfg,
+        "BasisCurves",
+        attributes,
+        translation,
+        orientation,
+        stage=stage,
+        geometry_schema_func=schemas.define_deformable_curve_properties,
+    )
+    curve_prim = stage.GetPrimAtPath(f"{prim_path}/geometry/mesh")
+    UsdGeom.BasisCurves(curve_prim).SetWidthsInterpolation(UsdGeom.Tokens.constant)
+    return stage.GetPrimAtPath(prim_path)
+
+
 """
 Helper functions.
 """
@@ -241,13 +298,14 @@ Helper functions.
 
 def _spawn_geom_from_prim_type(
     prim_path: str,
-    cfg: shapes_cfg.ShapeCfg,
+    cfg: shapes_cfg.ShapeCfg | shapes_cfg.CableCfg,
     prim_type: str,
     attributes: dict,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     scale: tuple[float, float, float] | None = None,
     stage: Usd.Stage | None = None,
+    geometry_schema_func: Callable[[str, Usd.Stage | None], None] | None = None,
 ):
     """Create a USDGeom-based prim with the given attributes.
 
@@ -274,6 +332,7 @@ def _spawn_geom_from_prim_type(
             in which case this is set to identity.
         scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.
         stage: The stage to spawn the asset at. Defaults to None, in which case the current stage is used.
+        geometry_schema_func: A schema writer called on the geometry prim after creation.
 
     Raises:
         ValueError: If a prim already exists at the given path.
@@ -293,8 +352,10 @@ def _spawn_geom_from_prim_type(
 
     # create the geometry prim
     create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
+    if geometry_schema_func is not None:
+        geometry_schema_func(mesh_prim_path, stage=stage)
     # apply collision properties
-    if cfg.collision_props is not None:
+    if getattr(cfg, "collision_props", None) is not None:
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
         coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
         if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
@@ -324,7 +385,7 @@ def _spawn_geom_from_prim_type(
 
     # note: we apply rigid properties in the end to later make the instanceable prim
     # apply mass properties
-    if cfg.mass_props is not None:
+    if getattr(cfg, "mass_props", None) is not None:
         # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> define_*
         # normalize a single fragment to a list so the convenience form routes like a list
         mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
@@ -333,7 +394,7 @@ def _spawn_geom_from_prim_type(
         else:
             schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
     # apply rigid body properties
-    if cfg.rigid_props is not None:
+    if getattr(cfg, "rigid_props", None) is not None:
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
         rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
         if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):

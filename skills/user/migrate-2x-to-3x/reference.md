@@ -26,6 +26,8 @@ Start with the official migration guide, then verify behavior against current so
 - `ProxyArray` access for asset and sensor data.
 - Asset and physics view API renames.
 - RL workflow compatibility helpers.
+- **Viewport camera** — `ViewerCfg` and `ViewportCameraController` removed; use `sim.default_visualizer_cfg = VisualizerCfg(eye=..., lookat=...)` or `sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]` for asset tracking.
+- **Video recording** — `gym.wrappers.RecordVideo` replaced by `VideoRecorderCfg` on `env_cfg.video_recorders`; `recording_hooks` module removed, use `sim.add_render_callback()` instead.
 
 ## Old Patterns
 

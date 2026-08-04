@@ -540,6 +540,7 @@ class ViserVisualizer(BaseVisualizer):
             )
         num_envs = int((metadata or {}).get("num_envs", 0))
         self._viewer.set_model(self._model)
+        self._viewer.show_particles = self.cfg.show_particles
         # Set up sidebar AFTER set_model() — set_model calls clear_model() internally,
         # which would destroy any GUI elements created before it.
         if server is not None:

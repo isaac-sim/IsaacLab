@@ -27,9 +27,6 @@ class DirectRLEnvCfg:
     """
 
     # simulation settings
-    viewer: ViewerCfg = ViewerCfg()
-    """Viewer configuration. Default is ViewerCfg()."""
-
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""
 
@@ -273,8 +270,24 @@ class DirectRLEnvCfg:
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
 
-    video_recorder: VideoRecorderCfg = VideoRecorderCfg()
-    """Configuration for video recording when ``render_mode="rgb_array"`` (i.e. ``--video``)."""
+    video_recorders: list[VideoRecorderCfg] = []
+    """Video recording streams. Each entry records from its configured source independently.
+
+    Leave empty to disable recording. Set ``--video`` on the CLI to auto-populate this list
+    with a default stream from the active visualizer.
+    """
+
+    viewer: ViewerCfg = ViewerCfg()
+    """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+    or :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
+
+    .. deprecated::
+        This field is deprecated and will be removed in a future release. Configure the viewport
+        camera via :class:`~isaaclab.visualizers.VisualizerCfg` on the simulation config::
+
+            from isaaclab.visualizers import VisualizerCfg
+            env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0))
+    """
 
     def play_mode(self):
         """Adjust the configuration for interactive playback and policy inference.
@@ -284,12 +297,12 @@ class DirectRLEnvCfg:
         The base implementation applies defaults that are useful for most tasks:
 
         * caps the number of environments at 50 to keep the scene lightweight, and
-        * disables the observation noise model.
+        * disables observation noise.
 
         Override this method in a task configuration to customize playback behavior. Call
         ``super().play_mode()`` to keep the shared defaults.
         """
         # make a smaller scene for play
         self.scene.num_envs = min(self.scene.num_envs, 50)
-        # disable observation noise for play
+        # disable observation noise
         self.observation_noise_model = None

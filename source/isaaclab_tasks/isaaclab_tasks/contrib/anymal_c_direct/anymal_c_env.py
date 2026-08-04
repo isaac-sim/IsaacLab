@@ -77,8 +77,8 @@ class AnymalCEnv(DirectRLEnv):
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
         plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
-        # we need to explicitly filter collisions for CPU simulation
-        if self.device == "cpu":
+        # PhysX replication requires explicit collision filtering between environments.
+        if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
