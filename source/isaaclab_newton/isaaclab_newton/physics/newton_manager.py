@@ -449,10 +449,8 @@ class NewtonManager(PhysicsManager):
     _newton_particle_count_attr = "newton:particleCount"
     _particle_visual_prims: dict[str, _ParticleVisualPrim] = {}
 
-    # cubric GPU transform hierarchy (replaces CPU update_world_xforms)
-    _cubric = None
-    _cubric_adapter: int | None = None
-    _cubric_bound_fabric_id: int | None = None
+    # Cached after the first fabric sync that probes IFabricHierarchy GPU APIs.
+    _use_fabric_gpu_hierarchy: bool | None = None
 
     # Set to True after sync_transforms_to_usd() successfully writes body positions for
     # the first time in each simulation session.  Reset to False in clear().  Polled by
@@ -630,11 +628,12 @@ class NewtonManager(PhysicsManager):
         The Warp kernel reads ``state_0.body_q[newton_index[i]]`` and writes the
         corresponding ``mat44d`` to ``omni:fabric:worldMatrix`` for each prim.
 
-        When cubric is available the method mirrors PhysX's ``DirectGpuHelper``
-        pattern: pause Fabric change tracking, write transforms, resume tracking,
-        then call ``IAdapter::compute`` on the GPU to propagate the hierarchy and
-        notify the Fabric Scene Delegate.  Otherwise it falls back to the CPU
-        ``update_world_xforms()`` path.
+        When ``IFabricHierarchy.update_world_xforms_gpu_with_options`` is
+        available the method mirrors PhysX's ``DirectGpuHelper`` pattern: pause
+        Fabric change tracking, write transforms, resume tracking, then run the
+        GPU hierarchy update with ``RIGID_BODY | FORCE_UPDATE`` so Newton-authored
+        world matrices stay authoritative on rigid-body prims.  Otherwise it
+        falls back to the CPU ``update_world_xforms()`` path.
         """
         if cls._usdrt_stage is None or cls._model is None or cls._state_0 is None:
             return
@@ -643,23 +642,28 @@ class NewtonManager(PhysicsManager):
         try:
             import usdrt
 
-            # Lazy adapter creation: deferred from initialize_solver() to avoid
-            # startup-ordering issues with the cubric plugin.
-            if cls._cubric is not None and cls._cubric.available and cls._cubric_adapter is None:
-                NewtonManager._cubric_adapter = cls._cubric.create_adapter()
-                if cls._cubric_adapter is not None:
-                    logger.info("cubric GPU transform hierarchy enabled")
-                else:
-                    logger.warning("cubric adapter creation failed; falling back to update_world_xforms()")
-                    NewtonManager._cubric = None
-
-            use_cubric = cls._cubric is not None and cls._cubric_adapter is not None
-
             fabric_hierarchy = None
+            gpu_opts_cls = None
             if hasattr(usdrt, "hierarchy"):
                 fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
                     cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
                 )
+                gpu_opts_cls = getattr(usdrt.hierarchy, "FabricHierarchyGpuUpdateOptions", None)
+
+            if cls._use_fabric_gpu_hierarchy is None and hasattr(usdrt, "hierarchy"):
+                # Probe the pybind class once so a transient null hierarchy handle does
+                # not permanently disable the GPU path for the session.
+                NewtonManager._use_fabric_gpu_hierarchy = gpu_opts_cls is not None and hasattr(
+                    usdrt.hierarchy.IFabricHierarchy, "update_world_xforms_gpu_with_options"
+                )
+                if cls._use_fabric_gpu_hierarchy:
+                    logger.info("Fabric GPU transform hierarchy enabled via IFabricHierarchy")
+                else:
+                    logger.info("Fabric GPU transform hierarchy unavailable; falling back to update_world_xforms()")
+
+            use_gpu_hierarchy = bool(
+                cls._use_fabric_gpu_hierarchy and fabric_hierarchy is not None and gpu_opts_cls is not None
+            )
 
             # Pause hierarchy change tracking BEFORE SelectPrims.
             # SelectPrims with ReadWrite access calls getAttributeArrayGpu
@@ -668,7 +672,7 @@ class NewtonManager(PhysicsManager):
             # Kit's updateWorldXforms will do an expensive connectivity
             # rebuild every frame.  PhysX avoids this via ScopedUSDRT which
             # pauses tracking before any Fabric writes.
-            if use_cubric and fabric_hierarchy is not None:
+            if use_gpu_hierarchy:
                 fabric_hierarchy.track_world_xform_changes(False)
                 fabric_hierarchy.track_local_xform_changes(False)
 
@@ -702,16 +706,17 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._newton_fabric_ready = True
                 NewtonManager._transforms_dirty = False
 
-                if use_cubric and fabric_hierarchy is not None:
-                    fabric_id = cls._usdrt_stage.GetFabricId().id
-                    if fabric_id != cls._cubric_bound_fabric_id:
-                        cls._cubric.bind_to_stage(cls._cubric_adapter, fabric_id)
-                        NewtonManager._cubric_bound_fabric_id = fabric_id
-                    cls._cubric.compute(cls._cubric_adapter)
+                if use_gpu_hierarchy:
+                    # RIGID_BODY: inverse-propagate on PhysicsRigidBodyAPI buckets
+                    # (keep Newton world matrices, derive local). FORCE_UPDATE:
+                    # bypass the change-listener dirty check after tracking pause.
+                    fabric_hierarchy.update_world_xforms_gpu_with_options(
+                        gpu_opts_cls.RIGID_BODY | gpu_opts_cls.FORCE_UPDATE
+                    )
                 elif fabric_hierarchy is not None:
                     fabric_hierarchy.update_world_xforms()
             finally:
-                if use_cubric and fabric_hierarchy is not None:
+                if use_gpu_hierarchy:
                     fabric_hierarchy.track_world_xform_changes(True)
                     fabric_hierarchy.track_local_xform_changes(True)
         except Exception:
@@ -1029,11 +1034,7 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def clear(cls):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
-        if cls._cubric is not None and cls._cubric_adapter is not None:
-            cls._cubric.release_adapter(cls._cubric_adapter)
-        NewtonManager._cubric = None
-        NewtonManager._cubric_adapter = None
-        NewtonManager._cubric_bound_fabric_id = None
+        NewtonManager._use_fabric_gpu_hierarchy = None
         NewtonManager._newton_fabric_ready = False
         NewtonManager._builder = None
         NewtonManager._model = None
@@ -1591,8 +1592,8 @@ class NewtonManager(PhysicsManager):
 
             prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
             prim.GetAttribute(NewtonManager._newton_index_attr).Set(body_index)
-            # Tag with PhysicsRigidBodyAPI so cubric's eRigidBody mode applies
-            # Inverse propagation (preserves Newton's world transforms and derives
+            # Tag with PhysicsRigidBodyAPI so FabricHierarchyGpuUpdateOptions.RIGID_BODY
+            # applies Inverse propagation (preserves Newton's world transforms and derives
             # local) instead of Forward.
             prim.AddAppliedSchema("PhysicsRigidBodyAPI")
 
@@ -1969,9 +1970,9 @@ class NewtonManager(PhysicsManager):
         Thin orchestrator: delegates solver construction to
         :meth:`_build_solver` (overridden by each solver subclass), allocates
         the collision pipeline (when applicable) via
-        :meth:`_initialize_contacts`, then sets up cubric bindings and either
-        captures the CUDA graph immediately or defers capture until the
-        first :meth:`step` call (RTX-active path).
+        :meth:`_initialize_contacts`, then either captures the CUDA graph
+        immediately or defers capture until the first :meth:`step` call
+        (RTX-active path).
 
         .. warning::
             When using a CUDA-enabled device, the simulation is graphed.
@@ -2011,9 +2012,6 @@ class NewtonManager(PhysicsManager):
         cls._eval_fk(None, None)
         cls._mark_transforms_dirty()
 
-        if cls._usdrt_stage is not None:
-            cls._setup_cubric_bindings()
-
         # Skip the initial graph capture when the Newton actuator fast path is
         # active. Capturing here would use ``cls._decimation`` (still its default
         # of 1, because the env's ``set_decimation`` hasn't run yet); a second
@@ -2026,24 +2024,6 @@ class NewtonManager(PhysicsManager):
         # so we still need the start-time capture below.
         if not cls._use_newton_actuators_active:
             cls._capture_or_defer_graph()
-
-    @classmethod
-    def _setup_cubric_bindings(cls) -> None:
-        """Initialize cubric ctypes bindings when the Kit viewport is active.
-
-        Adapter creation itself is deferred to the first
-        :meth:`sync_transforms_to_usd` call to avoid startup-ordering issues
-        with the cubric plugin.
-        """
-        from isaaclab_newton.physics._cubric import CubricBindings
-
-        bindings = CubricBindings()
-        if bindings.initialize():
-            NewtonManager._cubric = bindings
-            logger.info("cubric bindings ready (adapter deferred to first render)")
-        else:
-            NewtonManager._cubric = None
-            logger.warning("cubric bindings init failed; falling back to update_world_xforms()")
 
     @classmethod
     def _capture_or_defer_graph(cls) -> None:

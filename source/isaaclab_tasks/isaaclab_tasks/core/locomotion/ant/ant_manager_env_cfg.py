@@ -33,7 +33,7 @@ class AntPhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default: PhysxAutoCfg = physx
+    default: PhysxCfg = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=38,
@@ -154,9 +154,9 @@ class ObservationsCfg:
 
 @configclass
 class AntObservationsCfg(PresetCfg):
-    default: ObservationsCfg = ObservationsCfg()
     physx: ObservationsCfg = ObservationsCfg()
     isaacsim_physx: ObservationsCfg = physx
+    default: ObservationsCfg = isaacsim_physx
     newton_mjwarp: ObservationsCfg = ObservationsCfg()
 
 

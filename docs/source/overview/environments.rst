@@ -90,13 +90,17 @@ modes. The **Presets** column in each table below is divided into three labeled 
 
 * **physics=** — physics-backend name passed as ``physics=NAME``
   (e.g. ``physx``, ``isaacsim_physx``, ``newton_mjwarp``,
-  ``newton_kamino``, ``ovphysx``, ``newton_mjwarp_vbd_proxy``). On tasks that
-  expose automatic PhysX-family selection, ``physx`` uses Isaac Sim PhysX when
-  Kit is required and OvPhysX otherwise when the task supports it. Tasks
-  without an OvPhysX alternative fall back to Isaac Sim PhysX; use
-  ``isaacsim_physx`` to force Isaac Sim PhysX directly.
+  ``newton_kamino``, ``ovphysx``, ``newton_mjwarp_vbd_proxy``). Environments
+  whose previous default was automatic PhysX selection use the concrete
+  ``isaacsim_physx`` variant by default; explicit backend defaults such as
+  Newton remain unchanged. Select ``physics=physx`` to opt into automatic
+  PhysX-family selection: it uses Isaac Sim PhysX when Kit is required and
+  OvPhysX otherwise when the task supports it. Tasks without an OvPhysX
+  alternative fall back to Isaac Sim PhysX.
 * **renderer=** — renderer-backend name passed as ``renderer=NAME``
-  (e.g. ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``)
+  (e.g. ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``, ``rtx``). Cameras
+  using the multi-backend renderer config default to concrete ``isaacsim_rtx``;
+  select ``renderer=rtx`` to opt into automatic RTX-family selection.
 * **presets=** — environment-specific (domain) preset name passed as
   ``presets=NAME[,NAME,...]``
   (e.g. ``rgb``, ``depth``, ``single_camera``, ``duo_camera``)
@@ -109,7 +113,7 @@ supported and causes configuration validation to fail.
 
 Pass ``--task=<task-name> --help`` to a training script to see all available
 preset names grouped by selector type at the command line, or run
-``./isaaclab.sh -p scripts/environments/list_envs.py --show_presets``
+``uv run python scripts/environments/list_envs.py --show_presets``
 to list presets for every registered environment.
 
 See the :doc:`Hydra preset system documentation </source/features/hydra>`
