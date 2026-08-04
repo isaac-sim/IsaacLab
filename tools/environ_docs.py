@@ -28,17 +28,20 @@ from isaaclab_tasks.utils.preset_target import PresetTarget
 if TYPE_CHECKING:
     from gymnasium.envs.registration import EnvSpec
 
-# Physics-backend preset names that may be mirrored on non-physics ``PresetCfg``
-# fields (for example contact-sensor presets). Those mirrors are resolved together
-# with ``physics=`` when the env's physics preset declares the name, but should
-# not appear under ``presets=`` when physics does not expose them.
-_PHYSICS_BACKEND_MIRROR_NAMES = frozenset(
+# Backend preset names that may be mirrored on untyped ``PresetCfg`` fields
+# (for example contact-sensor or observation presets). These should only appear
+# under their typed ``physics=`` or ``renderer=`` selectors, never ``presets=``.
+_BACKEND_MIRROR_NAMES = frozenset(
     {
+        "isaacsim_physx",
+        "isaacsim_rtx",
         "newton_kamino",
         "newton_mjwarp",
         "newton_mjwarp_vbd_proxy",
         "ovphysx",
+        "ovrtx",
         "physx",
+        "rtx",
         *PresetTarget.all_legacy_aliases().keys(),
         *PresetTarget.all_legacy_aliases().values(),
     }
@@ -85,8 +88,8 @@ class EnvironmentDocRow:
 
     task_name: str
     workflow: str
-    rl_libraries: str
-    presets: str
+    rl_libraries: dict[str, list[str]]
+    presets: dict[PresetTarget, list[str]] | None
 
 
 def is_training_task(task_id: str) -> bool:
@@ -200,41 +203,44 @@ def _physics_names_for_docs(task_name: str, preset_map: dict[PresetTarget, list[
 def _domain_presets_for_docs(preset_map: dict[PresetTarget, list[str]]) -> list[str]:
     """Return domain preset names that are not already covered by typed selectors.
 
-    Some tasks mirror physics-backend names on non-physics ``PresetCfg`` fields
-    (for example observation presets named ``physx`` / ``newton_mjwarp``, or
-    contact-sensor presets named ``ovphysx``). Names that also exist on the
-    env's physics preset are selected via ``physics=`` and are filtered here.
-    Backend names that appear only on non-physics fields are omitted entirely
-    because they are not meaningful ``presets=`` selectors for users.
+    Some tasks mirror backend names on untyped ``PresetCfg`` fields (for
+    example observation presets named ``physx`` / ``newton_mjwarp``, or
+    contact-sensor presets named ``ovphysx``). Names that also exist on typed
+    physics or renderer presets are selected through those targets and are
+    filtered here. Backend names that appear only on untyped fields are omitted
+    entirely because they are not meaningful ``presets=`` selectors for users.
     """
-    physics_names = set(preset_map.get(PresetTarget.PHYSICS, []))
-    typed_names = physics_names | set(preset_map.get(PresetTarget.RENDERER, []))
+    typed_names = set(preset_map.get(PresetTarget.PHYSICS, [])) | set(preset_map.get(PresetTarget.RENDERER, []))
     domain_names: list[str] = []
     for name in preset_map.get(PresetTarget.DOMAIN, []):
-        if name in typed_names:
-            continue
-        if name in _PHYSICS_BACKEND_MIRROR_NAMES and name not in physics_names:
+        if name in typed_names or name in _BACKEND_MIRROR_NAMES:
             continue
         domain_names.append(name)
     return domain_names
 
 
+def _selector_names_for_docs(
+    preset_map: dict[PresetTarget, list[str]] | None,
+) -> dict[PresetTarget, list[str]]:
+    """Return concrete selector names grouped by their command-line target."""
+    if preset_map is None:
+        return {target: [] for target in _SELECTOR_LABELS}
+
+    return {
+        PresetTarget.PHYSICS: _filter_selector_names(PresetTarget.PHYSICS, preset_map.get(PresetTarget.PHYSICS, [])),
+        PresetTarget.RENDERER: _filter_selector_names(PresetTarget.RENDERER, preset_map.get(PresetTarget.RENDERER, [])),
+        PresetTarget.DOMAIN: _filter_selector_names(PresetTarget.DOMAIN, _domain_presets_for_docs(preset_map)),
+    }
+
+
 def format_presets_rst(preset_map: dict[PresetTarget, list[str]] | None) -> str:
     """Format concrete preset selectors for an RST ``list-table`` cell."""
-    if preset_map is None:
-        return ""
-
     groups: list[tuple[str, list[str]]] = []
-    physics_names = _filter_selector_names(PresetTarget.PHYSICS, preset_map.get(PresetTarget.PHYSICS, []))
-    renderer_names = _filter_selector_names(PresetTarget.RENDERER, preset_map.get(PresetTarget.RENDERER, []))
-    domain_names = _filter_selector_names(PresetTarget.DOMAIN, _domain_presets_for_docs(preset_map))
-
-    if physics_names:
-        groups.append(("physics=", physics_names))
-    if renderer_names:
-        groups.append(("renderer=", renderer_names))
-    if domain_names:
-        groups.append(("presets=", domain_names))
+    selector_names = _selector_names_for_docs(preset_map)
+    for target, label in _SELECTOR_LABELS.items():
+        names = selector_names[target]
+        if names:
+            groups.append((f"{label}=", names))
 
     if not groups:
         return ""
@@ -271,7 +277,10 @@ def patch_curated_environment_tables(content: str, rows: list[EnvironmentDocRow]
     if curated_end == -1:
         raise ValueError(f"Could not find '{COMPREHENSIVE_LIST_START_MARKER}' in environments.rst.")
 
-    task_presets = {row.task_name: _parse_formatted_presets(row.presets) for row in rows}
+    task_presets: dict[str, dict[str, set[str]]] = {}
+    for row in rows:
+        selector_names = _selector_names_for_docs(row.presets)
+        task_presets[row.task_name] = {label: set(selector_names[target]) for target, label in _SELECTOR_LABELS.items()}
     substitutions = _parse_task_link_substitutions(content[:curated_end])
     newline = "\r\n" if "\r\n" in content else "\n"
     curated_lines = content[:curated_end].splitlines()
@@ -301,20 +310,6 @@ def _parse_task_link_substitutions(content: str) -> dict[str, str]:
     """Return ``{substitution_name: task_id}`` for environment links."""
     pattern = re.compile(r"^\.\. \|([^|]+)\| replace:: .*?`([^`<>]+?)\s*(?:<[^>]+>)?`\s*$", re.MULTILINE)
     return {match.group(1): match.group(2).strip() for match in pattern.finditer(content)}
-
-
-def _parse_formatted_presets(value: str) -> dict[str, set[str]]:
-    """Parse a formatted comprehensive-table preset cell by selector label."""
-    result = {label: set() for label in _SELECTOR_LABELS.values()}
-    current: str | None = None
-    for line in value.splitlines():
-        for label in result:
-            if f"**{label}=**" in line:
-                current = label
-                break
-        if current is not None:
-            result[current].update(re.findall(r"``([^`]+)``", line))
-    return result
 
 
 def _patch_curated_grid_table(
@@ -492,8 +487,8 @@ def collect_environment_doc_rows(
             EnvironmentDocRow(
                 task_name=spec.id,
                 workflow=get_workflow(spec.entry_point),
-                rl_libraries=format_rl_libraries(agents),
-                presets=format_presets_rst(preset_map),
+                rl_libraries=agents,
+                presets=preset_map,
             )
         )
 
@@ -525,8 +520,8 @@ def render_comprehensive_list_table(rows: list[EnvironmentDocRow]) -> str:
             [
                 f"    * - {row.task_name}",
                 _render_list_table_cell(row.workflow),
-                _render_list_table_cell(row.rl_libraries),
-                _render_list_table_cell(row.presets),
+                _render_list_table_cell(format_rl_libraries(row.rl_libraries)),
+                _render_list_table_cell(format_presets_rst(row.presets)),
             ]
         )
 
@@ -539,13 +534,13 @@ def render_environment_browser_task_rows(rows: list[EnvironmentDocRow]) -> str:
     for row in rows:
         if not row.task_name.startswith("Isaac-"):
             continue
-        presets = _parse_formatted_presets(row.presets)
+        selectors = _selector_names_for_docs(row.presets)
         values = (
             row.task_name,
-            ",".join(re.findall(r"\*\*([^*]+)\*\*", row.rl_libraries)),
-            ",".join(sorted(presets["physics"])),
-            ",".join(sorted(presets["renderer"])),
-            ",".join(sorted(presets["presets"])),
+            ",".join(library for library in _RL_LIBRARY_ORDER if library in row.rl_libraries),
+            ",".join(sorted(selectors[PresetTarget.PHYSICS])),
+            ",".join(sorted(selectors[PresetTarget.RENDERER])),
+            ",".join(sorted(selectors[PresetTarget.DOMAIN])),
         )
         rendered_values = ", ".join(json.dumps(value) for value in values)
         lines.append(f"            [{rendered_values}],")

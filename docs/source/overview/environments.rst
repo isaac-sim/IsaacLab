@@ -261,7 +261,7 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
-    |                         | |franka-direct-link|         |                                                                             | **presets=** ``isaacsim_physx``         |
+    |                         | |franka-direct-link|         |                                                                             |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
@@ -779,8 +779,7 @@ Navigation
     +----------------+---------------------+-----------------------------------------------------------------------------+------------------------------+
     | World          | Environment ID      | Description                                                                 | Presets                      |
     +================+=====================+=============================================================================+==============================+
-    | |anymal_c_nav| | |anymal_c_nav-link| | Navigate towards a target x-y position and heading with the ANYmal C robot. | **presets=**                 |
-    |                |                     |                                                                             | ``isaacsim_physx``           |
+    | |anymal_c_nav| | |anymal_c_nav-link| | Navigate towards a target x-y position and heading with the ANYmal C robot. |                              |
     +----------------+---------------------+-----------------------------------------------------------------------------+------------------------------+
 
 .. |anymal_c_nav-link| replace:: :isaaclab-source:`IsaacContrib-Navigation-Flat-AnymalC <source/isaaclab_tasks/isaaclab_tasks/contrib/navigation/config/anymal_c/navigation_env_cfg.py>`
@@ -1128,7 +1127,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Open-Drawer-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **presets=** ``isaacsim_physx``
+      -
     * - Isaac-Open-Drawer-Franka-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1368,7 +1367,7 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Navigation-Flat-AnymalC
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **presets=** ``isaacsim_physx``
+      -
     * - IsaacContrib-NutPour-GR1T2-Pink-IK-Abs
       - Manager Based
       -
@@ -1376,11 +1375,11 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Open-Drawer-Franka-IK-Abs
       - Manager Based
       -
-      - **presets=** ``isaacsim_physx``
+      -
     * - IsaacContrib-Open-Drawer-Franka-IK-Rel
       - Manager Based
       -
-      - **presets=** ``isaacsim_physx``
+      -
     * - IsaacContrib-Open-Drawer-OpenArm
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)

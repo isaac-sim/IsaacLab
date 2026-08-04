@@ -85,7 +85,7 @@ def main() -> int:
         help="Exit with code 1 when generated environment documentation is out of date instead of rewriting it.",
     )
     parser.add_argument(
-        "--browser-output",
+        "--browser_output",
         type=Path,
         default=_default_browser_path(),
         help="Path to environment-browser.js (default: docs/source/_static/css/environment-browser.js).",

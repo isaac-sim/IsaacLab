@@ -141,6 +141,17 @@ def test_format_presets_rst_hides_physics_backend_mirrors_without_physics_preset
     assert "ovphysx" not in formatted
 
 
+def test_format_presets_rst_hides_concrete_backend_mirrors_without_typed_selectors():
+    formatted = format_presets_rst(
+        {
+            PresetTarget.PHYSICS: [],
+            PresetTarget.RENDERER: [],
+            PresetTarget.DOMAIN: ["isaacsim_physx", "isaacsim_rtx", "ovrtx", "rgb"],
+        }
+    )
+    assert formatted == "**presets=** ``rgb``"
+
+
 def test_format_presets_rst_keeps_ovphysx_on_physics():
     formatted = format_presets_rst(
         {
@@ -216,7 +227,7 @@ def test_collect_environment_doc_rows_applies_rlinf_override():
         ),
     ]
     rows = collect_environment_doc_rows(specs)
-    assert rows[0].rl_libraries == "**rlinf** (PPO)"
+    assert rows[0].rl_libraries == {"rlinf": ["PPO"]}
 
 
 def test_format_presets_rst_returns_empty_string_when_unavailable():
@@ -234,8 +245,8 @@ def test_render_comprehensive_list_table_uses_blank_cells_for_missing_values():
             EnvironmentDocRow(
                 task_name="Isaac-Ant-v0",
                 workflow="Manager Based",
-                rl_libraries="",
-                presets="",
+                rl_libraries={},
+                presets=None,
             )
         ]
     )
@@ -280,12 +291,12 @@ def test_patch_curated_environment_tables_synchronizes_concrete_presets():
         EnvironmentDocRow(
             task_name="Isaac-Cartpole",
             workflow="Manager Based",
-            rl_libraries="",
-            presets=(
-                "| **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``\n"
-                "  | **renderer=** ``isaacsim_rtx``, ``ovrtx``\n"
-                "  | **presets=** ``rgb``"
-            ),
+            rl_libraries={},
+            presets={
+                PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp", "ovphysx"],
+                PresetTarget.RENDERER: ["isaacsim_rtx", "ovrtx"],
+                PresetTarget.DOMAIN: ["rgb"],
+            },
         )
     ]
 
@@ -305,18 +316,18 @@ def test_environment_browser_rows_include_only_concrete_core_selectors():
         EnvironmentDocRow(
             task_name="Isaac-Cartpole",
             workflow="Manager Based",
-            rl_libraries="**rsl_rl** (PPO), **skrl** (PPO)",
-            presets=(
-                "| **physics=** ``isaacsim_physx``, ``newton_mjwarp``\n"
-                "  | **renderer=** ``isaacsim_rtx``, ``ovrtx``\n"
-                "  | **presets=** ``rgb``"
-            ),
+            rl_libraries={"rsl_rl": ["PPO"], "skrl": ["PPO"]},
+            presets={
+                PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
+                PresetTarget.RENDERER: ["isaacsim_rtx", "ovrtx"],
+                PresetTarget.DOMAIN: ["rgb"],
+            },
         ),
         EnvironmentDocRow(
             task_name="IsaacContrib-Cartpole",
             workflow="Manager Based",
-            rl_libraries="**rsl_rl** (PPO)",
-            presets="**physics=** ``ovphysx``",
+            rl_libraries={"rsl_rl": ["PPO"]},
+            presets={PresetTarget.PHYSICS: ["ovphysx"]},
         ),
     ]
     rendered = render_environment_browser_task_rows(rows)
