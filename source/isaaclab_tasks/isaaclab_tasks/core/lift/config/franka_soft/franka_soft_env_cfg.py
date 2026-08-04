@@ -479,6 +479,15 @@ class EventCfg:
         },
     )
 
+    variable_gravity = EventTerm(
+        func=mdp.randomize_physics_scene_gravity,
+        mode="reset",
+        params={
+            "gravity_distribution_params": ([0.0, 0.0, -9.81], [0.0, 0.0, -9.81]),
+            "operation": "abs",
+        },
+    )
+
 
 @configclass
 class RewardsCfg:
@@ -532,9 +541,44 @@ class CurriculumCfg:
 
     # Since we use 24 steps per env, 10000 steps correspond to 10000/24 = 416.67 learning iterations
     gravity = CurrTerm(
-        func=mdp.modify_gravity_linear,
-        params={"start_gravity_z": -0.0001, "end_gravity_z": -9.81, "start_step": 0, "end_step": 10000},
+        func=mdp.modify_term_cfg,
+        params={
+            "address": "events.variable_gravity.params.gravity_distribution_params",
+            "modify_fn": mdp.gravity_range_linear,
+            "modify_params": {
+                "start_gravity_z": -0.0001,
+                "end_gravity_z": -9.81,
+                "start_step": 0,
+                "end_step": 10000,
+            },
+        },
     )
+
+
+@configclass
+class EventPresetCfg(PresetCfg):
+    """Backend presets for soft-lift events. Ovphysx does not support variable gravity, so the event is disabled."""
+
+    newton_mjwarp_vbd_proxy: EventCfg = EventCfg()
+    physx: EventCfg = EventCfg()
+    isaacsim_physx: EventCfg = EventCfg()
+    ovphysx: EventCfg = EventCfg()
+    ovphysx.variable_gravity = None
+
+    default = newton_mjwarp_vbd_proxy
+
+
+@configclass
+class CurriculumPresetCfg(PresetCfg):
+    """Backend presets that omit OVPhysX gravity scheduling."""
+
+    newton_mjwarp_vbd_proxy: CurriculumCfg = CurriculumCfg()
+    physx: CurriculumCfg = CurriculumCfg()
+    isaacsim_physx: CurriculumCfg = CurriculumCfg()
+    ovphysx: CurriculumCfg = CurriculumCfg()
+    ovphysx.gravity = None
+
+    default = newton_mjwarp_vbd_proxy
 
 
 @configclass
@@ -609,8 +653,8 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
+    events: EventPresetCfg = EventPresetCfg()
+    curriculum: CurriculumPresetCfg = CurriculumPresetCfg()
 
     def __post_init__(self) -> None:
         # general settings
@@ -629,6 +673,11 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
 
         self.video_recorder.window_width = 1920
         self.video_recorder.window_height = 1080
+
+    def play_mode(self):
+        super().play_mode()
+        if self.curriculum is not None:
+            self.curriculum.gravity = None
 
 
 @configclass

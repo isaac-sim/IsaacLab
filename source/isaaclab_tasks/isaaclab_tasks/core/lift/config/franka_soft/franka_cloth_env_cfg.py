@@ -204,9 +204,28 @@ class CurriculumCfg:
 
     # Since we use 24 steps per env, 20000 steps correspond to 20000/24 = 833.33 learning iterations
     gravity = CurrTerm(
-        func=mdp.modify_gravity_linear,
-        params={"start_gravity_z": -1.0, "end_gravity_z": -9.81, "start_step": 0, "end_step": 20000},
+        func=mdp.modify_term_cfg,
+        params={
+            "address": "events.variable_gravity.params.gravity_distribution_params",
+            "modify_fn": mdp.gravity_range_linear,
+            "modify_params": {
+                "start_gravity_z": -1.0,
+                "end_gravity_z": -9.81,
+                "start_step": 0,
+                "end_step": 20000,
+            },
+        },
     )
+
+
+@configclass
+class CurriculumPresetCfg(PresetCfg):
+    """Preset config for Franka cloth curricula."""
+
+    newton_mjwarp_vbd_proxy: CurriculumCfg = CurriculumCfg()
+    ovphysx: CurriculumCfg = CurriculumCfg().replace(gravity=None)
+
+    default = newton_mjwarp_vbd_proxy
 
 
 @configclass
@@ -242,6 +261,7 @@ def _make_ovphysx_event_cfg() -> FrankaClothEventCfg:
     """Create cloth events that select all robot shapes on OvPhysX."""
     cfg = FrankaClothEventCfg()
     cfg.robot_physics_material.params["asset_cfg"] = SceneEntityCfg("robot")
+    cfg.variable_gravity = None
     return cfg
 
 
@@ -266,7 +286,7 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
 
     scene: FrankaClothScenePresetCfg = FrankaClothScenePresetCfg()
     events: EventPresetCfg = EventPresetCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
+    curriculum: CurriculumPresetCfg = CurriculumPresetCfg()
 
     def __post_init__(self) -> None:
         super().__post_init__()

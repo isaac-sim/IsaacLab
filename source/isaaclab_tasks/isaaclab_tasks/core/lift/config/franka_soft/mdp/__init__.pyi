@@ -25,10 +25,10 @@ __all__ = [
     "DeformableUniformPoseCommand",
     "DeformableUniformPoseCommandCfg",
     # curriculums
-    "modify_gravity_linear",
+    "gravity_range_linear",
 ]
 
-from .curriculums import modify_gravity_linear
+from .curriculums import gravity_range_linear
 from .events import randomize_deformable_material, reset_deformable_over_support
 from .observations import (
     DeformableSampledPointsInRobotRootFrame,
