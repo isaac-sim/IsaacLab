@@ -17,6 +17,16 @@ __all__ = [
     "reset_to_target",
     "get_reset_state",
     "set_reset_state",
+    "joint_vel_out_of_sim_limit",
+    "deformable_outside_bounds",
+    "deformable_lifting",
+    "deformable_fingertip_distance",
+    "deformable_com_goal_reached",
+    "deformable_com_ee_distance",
+    "DeformableComGoalDistance",
+    "reset_deformable_over_support",
+    "gravity_range_linear",
+    "DeformableUniformPoseCommandCfg",
     "ObjectUniformPoseCommandCfg",
     "DifficultyScheduler",
     "initial_final_interpolate_fn",
@@ -45,13 +55,14 @@ __all__ = [
     "out_of_bound",
 ]
 
-from .commands import ObjectUniformPoseCommandCfg
-from .curriculums import DifficultyScheduler, initial_final_interpolate_fn
+from .commands import DeformableUniformPoseCommandCfg, ObjectUniformPoseCommandCfg
+from .curriculums import DifficultyScheduler, gravity_range_linear, initial_final_interpolate_fn
 from .events import (
     SuccessMonitor,
     conditional_reset,
     grasp_travel_distance,
     mesh_clearance,
+    reset_deformable_over_support,
     reset_joints_shared_offset,
     reset_to_target,
     slab_clearance,
@@ -68,8 +79,13 @@ from .observations import (
     vision_camera,
 )
 from .rewards import (
+    DeformableComGoalDistance,
     contacts,
     contact_count,
+    deformable_com_ee_distance,
+    deformable_com_goal_reached,
+    deformable_fingertip_distance,
+    deformable_lifting,
     deformable_com_goal_distance,
     deformable_ee_distance,
     deformable_lifted,
@@ -82,8 +98,10 @@ from .rewards import (
     success_reward,
 )
 from .terminations import (
+    deformable_outside_bounds,
     abnormal_robot_state,
     ee_below_minimum,
+    joint_vel_out_of_sim_limit,
     object_reached_goal,
     out_of_bound,
 )

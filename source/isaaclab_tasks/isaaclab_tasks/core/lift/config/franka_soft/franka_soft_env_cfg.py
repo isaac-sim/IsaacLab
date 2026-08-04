@@ -55,7 +55,7 @@ from isaaclab_contrib.deformable.newton_manager_cfg import (
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from . import mdp
+from ... import mdp
 
 ##
 # Pre-defined configs
@@ -503,7 +503,7 @@ class RewardsCfg:
     )
 
     deformable_goal_tracking = RewTerm(
-        func=mdp.deformable_com_goal_distance,
+        func=mdp.DeformableComGoalDistance,
         params={
             "std": 0.3,
             "minimal_height": 0.0,
