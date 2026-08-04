@@ -359,8 +359,6 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material
-        newton = self.sim.physics.newton_mjwarp
-        newton.collision_cfg.rigid_contact_max = newton.solver_cfg.nconmax * self.scene.num_envs
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:
