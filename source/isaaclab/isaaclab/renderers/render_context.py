@@ -163,19 +163,25 @@ class RenderContext:
         """Clear per-step scene state update dedupe (e.g. a long pause with no physics)."""
         self._last_scene_state_step = None
 
-    def close(self) -> None:
+    def close(self, caught_exceptions: list[Exception]) -> None:
         """Close every registered backend and drop it from this context.
 
         Called from :meth:`~isaaclab.sim.simulation_context.SimulationContext.clear_instance` after
         cameras have released their render data and before the stage is torn down, so
-        :meth:`BaseRenderer.close` runs while the stage is still alive. A backend that raises is
-        logged and skipped so the remaining backends still close. Idempotent.
+        :meth:`BaseRenderer.close` runs while the stage is still alive. Exceptions are always
+        collected into ``caught_exceptions`` — closing continues for all remaining backends
+        regardless of failures, and the caller re-raises once teardown is complete. Idempotent.
+
+        Args:
+            caught_exceptions: A list to which any exceptions raised by backend
+                :meth:`BaseRenderer.close` calls are appended.
         """
         for _cfg, renderer in self._renderer_entries:
             try:
                 renderer.close()
-            except Exception:
-                logger.exception("Error closing renderer %s.", type(renderer).__name__)
+            except Exception as exc:  # noqa: BLE001 - reported by the caller after teardown finishes
+                logger.error("Error closing renderer %s: %s", type(renderer).__name__, exc)
+                caught_exceptions.append(exc)
         self._renderer_entries.clear()
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
