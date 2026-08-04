@@ -19,11 +19,17 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers.manager_term_cfg import TerminationTermCfg
+
+
+def _threshold_or_unset(threshold: float | None) -> float:
+    """Map an optional success threshold to the kernel's negative-means-unset encoding."""
+    return -1.0 if threshold is None else threshold
 
 
 """
@@ -82,46 +88,54 @@ def _pose_command_success_kernel(
     out[i] = success
 
 
-def pose_command_success(env: ManagerBasedRLEnv, out, command_name: str) -> None:
+class pose_command_success(ManagerTermBase):
     """Terminate environments whose pose command satisfies all configured success thresholds.
 
     Warp-first override of :func:`isaaclab.envs.mdp.terminations.pose_command_success`.
+
+    The command term, its thresholds, the tracked body index and the warp view of the command
+    buffer are all resolved at init, leaving :meth:`__call__` a single kernel launch.
 
     Note:
         The stable term also ORs the result into the command's per-episode success tracker. That
         tracker is already maintained by ``UniformPoseCommand._update_metrics`` on every step, so
         recomputing the thresholds here keeps ``Metrics/success_rate`` intact.
     """
-    fn = pose_command_success
-    command = env.command_manager.get_term(command_name)
-    position_threshold = command.cfg.position_success_threshold
-    orientation_threshold = command.cfg.orientation_success_threshold
-    # matches the stable term: with no threshold configured, no env ever succeeds
-    if position_threshold is None and orientation_threshold is None:
-        out.zero_()
-        return
-    # cache the warp view of the command tensor on first call (zero-copy)
-    if not hasattr(fn, "_cmd_wp") or fn._cmd_name != command_name:
+
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        command_name = cfg.params["command_name"]
+        command = env.command_manager.get_term(command_name)
+        # a negative threshold marks "not configured" for the kernel
+        self._position_threshold = _threshold_or_unset(command.cfg.position_success_threshold)
+        self._orientation_threshold = _threshold_or_unset(command.cfg.orientation_success_threshold)
+        # matches the stable term: with no threshold configured, no env ever succeeds
+        self._any_threshold = self._position_threshold >= 0.0 or self._orientation_threshold >= 0.0
+        self._body_idx = command.body_idx
+        self._asset: Articulation = command.robot
         cmd = env.command_manager.get_command(command_name)
-        fn._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
-        fn._cmd_name = command_name
-    asset: Articulation = command.robot
-    wp.launch(
-        kernel=_pose_command_success_kernel,
-        dim=env.num_envs,
-        inputs=[
-            asset.data.root_pos_w.warp,
-            asset.data.root_quat_w.warp,
-            asset.data.body_pos_w.warp,
-            asset.data.body_quat_w.warp,
-            fn._cmd_wp,
-            command.body_idx,
-            -1.0 if position_threshold is None else position_threshold,
-            -1.0 if orientation_threshold is None else orientation_threshold,
-            out,
-        ],
-        device=env.device,
-    )
+        self._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
+
+    def __call__(self, env: ManagerBasedRLEnv, out: wp.array(dtype=wp.bool), command_name: str) -> None:
+        if not self._any_threshold:
+            out.zero_()
+            return
+        wp.launch(
+            kernel=_pose_command_success_kernel,
+            dim=env.num_envs,
+            inputs=[
+                self._asset.data.root_pos_w.warp,
+                self._asset.data.root_quat_w.warp,
+                self._asset.data.body_pos_w.warp,
+                self._asset.data.body_quat_w.warp,
+                self._cmd_wp,
+                self._body_idx,
+                self._position_threshold,
+                self._orientation_threshold,
+                out,
+            ],
+            device=env.device,
+        )
 
 
 """

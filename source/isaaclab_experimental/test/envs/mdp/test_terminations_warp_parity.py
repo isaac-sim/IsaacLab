@@ -49,6 +49,7 @@ from parity_helpers import (
 )
 
 import isaaclab.envs.mdp.terminations as stable_term
+from isaaclab.managers.manager_term_cfg import TerminationTermCfg
 
 # ============================================================================
 # Fixtures
@@ -299,8 +300,12 @@ class TestPoseCommandSuccessParity:
         if position_threshold is not None or orientation_threshold is not None:
             assert expected.any(), "thresholds produced no successes; the comparison would be vacuous"
 
-        assert_equal(run_warp_term(warp_term.pose_command_success, env, command_name="ee_pose"), expected)
-        assert_equal(run_warp_term_captured(warp_term.pose_command_success, env, command_name="ee_pose"), expected)
+        params = {"command_name": "ee_pose"}
+        warp_fn = warp_term.pose_command_success(
+            TerminationTermCfg(func=warp_term.pose_command_success, params=params), env
+        )
+        assert_equal(run_warp_term(warp_fn, env, **params), expected)
+        assert_equal(run_warp_term_captured(warp_fn, env, **params), expected)
 
 
 # ============================================================================
