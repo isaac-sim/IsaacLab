@@ -244,28 +244,25 @@ def test_close_closes_every_backend_once_and_drops_them():
     second = _FakeBackend(close_hits=closed)
     _set_entries(ctx, (IsaacRtxRendererCfg(), first), (NewtonWarpRendererCfg(), second))
 
-    errors: list[Exception] = []
-    ctx.close(caught_exceptions=errors)
+    ctx.close()
     assert closed == [first, second]
-    assert errors == []
 
-    ctx.close(caught_exceptions=errors)
+    ctx.close()
     assert closed == [first, second]
 
 
-def test_close_collects_the_failure_and_closes_the_remaining_backends():
-    """A failing backend must not strand the others, and its exception must reach the caller."""
+def test_close_raises_only_after_every_backend_is_closed():
+    """A failing backend must not strand the others, and its failure must not go unreported."""
     ctx = RenderContext()
     closed: list[Any] = []
     failing = _FakeBackend(close_hits=closed, close_raises=True)
     healthy = _FakeBackend(close_hits=closed)
     _set_entries(ctx, (IsaacRtxRendererCfg(), failing), (NewtonWarpRendererCfg(), healthy))
 
-    errors: list[Exception] = []
-    ctx.close(caught_exceptions=errors)
+    with pytest.raises(RuntimeError, match="1 renderer\\(s\\) failed to close"):
+        ctx.close()
 
     assert closed == [failing, healthy]
-    assert [str(error) for error in errors] == ["backend failed to close"]
 
 
 def test_close_resets_stage_and_step_bookkeeping():
@@ -274,7 +271,7 @@ def test_close_resets_stage_and_step_bookkeeping():
     _set_entries(ctx, (IsaacRtxRendererCfg(), _FakeBackend()))
     ctx.ensure_prepare_stage(None, 4)
 
-    ctx.close(caught_exceptions=[])
+    ctx.close()
 
     with pytest.raises(RuntimeError, match="get_renderer must be called"):
         ctx.ensure_prepare_stage(None, 4)

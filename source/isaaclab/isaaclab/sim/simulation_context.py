@@ -869,14 +869,10 @@ class SimulationContext:
             # This must happen before clearing USD prims to avoid PhysX cleanup errors
             cls._instance.physics_manager.close()
 
-            # Failures are collected rather than raised so that the remaining teardown still runs;
-            # they are re-raised once the stage is down.
-            close_errors: list[Exception] = []
-
             # Close the camera renderers. Ordered after the physics manager so PhysicsEvent.STOP has
             # already invalidated the cameras that hold render data, and before close_stage() so the
             # backends release their stage-bound resources while the stage still exists.
-            cls._instance._render_context.close(caught_exceptions=close_errors)
+            cls._instance._render_context.close()
 
             # Close all visualizers
             for viz in cls._instance._visualizers:
@@ -884,7 +880,8 @@ class SimulationContext:
             cls._instance._visualizers.clear()
 
             # Close and drop all registered singleton services
-            cls._instance._services.close_all(caught_exceptions=close_errors)
+            service_errors: list[Exception] = []
+            cls._instance._services.close_all(caught_exceptions=service_errors)
 
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.
@@ -899,10 +896,10 @@ class SimulationContext:
             gc.collect()
             logger.info("SimulationContext cleared")
 
-            if close_errors:
-                msg = f"SimulationContext.clear_instance(): {len(close_errors)} object(s) failed to close"
+            if service_errors:
+                msg = f"SimulationContext.clear_instance(): {len(service_errors)} service(s) failed to close"
                 # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
-                raise RuntimeError(msg) from close_errors[0]
+                raise RuntimeError(msg) from service_errors[0]
 
     @classmethod
     def clear_stage(cls) -> None:

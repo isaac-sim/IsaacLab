@@ -163,27 +163,31 @@ class RenderContext:
         """Clear per-step scene state update dedupe (e.g. a long pause with no physics)."""
         self._last_scene_state_step = None
 
-    def close(self, caught_exceptions: list[Exception]) -> None:
+    def close(self) -> None:
         """Close every registered backend and drop it from this context.
 
         Called from :meth:`~isaaclab.sim.simulation_context.SimulationContext.clear_instance` after
         cameras have released their render data and before the stage is torn down, so
-        :meth:`BaseRenderer.close` runs while the stage is still alive. Exceptions are always
-        collected into ``caught_exceptions`` — closing continues for all remaining backends
-        regardless of failures, and the caller re-raises once teardown is complete. Idempotent.
+        :meth:`BaseRenderer.close` runs while the stage is still alive. A backend that raises does
+        not prevent the others from closing; the failure is reported once every backend has been
+        given the chance. Idempotent.
 
-        Args:
-            caught_exceptions: A list to which any exceptions raised by backend
-                :meth:`BaseRenderer.close` calls are appended.
+        Raises:
+            RuntimeError: If any backend's :meth:`BaseRenderer.close` raised.
         """
+        errors: list[Exception] = []
         for _cfg, renderer in self._renderer_entries:
             try:
                 renderer.close()
-            except Exception as exc:  # noqa: BLE001 - reported by the caller after teardown finishes
+            except Exception as exc:  # noqa: BLE001 - re-raised below once every backend is closed
                 logger.error("Error closing renderer %s: %s", type(renderer).__name__, exc)
-                caught_exceptions.append(exc)
+                errors.append(exc)
         self._renderer_entries.clear()
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
         self._last_scene_state_step = None
         self._physics_initialized = False
+
+        if errors:
+            # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
+            raise RuntimeError(f"{len(errors)} renderer(s) failed to close") from errors[0]
