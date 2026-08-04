@@ -325,33 +325,35 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
-            benchmark = BaseIsaacLabBenchmark(
-                benchmark_name="benchmark_training",
-                formatter_type=formatter_types,
-                output_path=args_cli.output_path,
-                use_recorders=True,
-                frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
-                output_prefix=(
-                    f"benchmark_training_multigpu_{args_cli.task}"
-                    if distributed.enabled
-                    else f"benchmark_training_{args_cli.task}"
-                ),
-                workflow_metadata={
-                    "metadata": [
-                        {"name": "task", "data": args_cli.task},
-                        {"name": "seed", "data": agent_cfg["seed"]},
-                        {"name": "num_envs", "data": env_cfg.scene.num_envs * distributed.world_size},
-                        {"name": "max_iterations", "data": resolved_max_iterations},
-                        {"name": "algorithm", "data": algorithm.upper()},
-                        {
-                            "name": "environment_step_measurement_mode",
-                            "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
-                        },
-                        {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
-                    ]
-                },
-            )
+            benchmark = None
+            if distributed.is_main:
+                benchmark = BaseIsaacLabBenchmark(
+                    benchmark_name="benchmark_training",
+                    formatter_type=formatter_types,
+                    output_path=args_cli.output_path,
+                    use_recorders=True,
+                    frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+                    output_prefix=(
+                        f"benchmark_training_multigpu_{args_cli.task}"
+                        if distributed.enabled
+                        else f"benchmark_training_{args_cli.task}"
+                    ),
+                    workflow_metadata={
+                        "metadata": [
+                            {"name": "task", "data": args_cli.task},
+                            {"name": "seed", "data": agent_cfg["seed"]},
+                            {"name": "num_envs", "data": env_cfg.scene.num_envs * distributed.world_size},
+                            {"name": "max_iterations", "data": resolved_max_iterations},
+                            {"name": "algorithm", "data": algorithm.upper()},
+                            {
+                                "name": "environment_step_measurement_mode",
+                                "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
+                            },
+                            {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
+                            {"name": "presets", "data": ",".join(cfg.presets)},
+                        ]
+                    },
+                )
 
             env_cfg.log_dir = log_dir
             _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
@@ -393,10 +395,14 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 measure_synchronized_step_breakdown=args_cli.measure_sync_step,
                 warmup_steps=args_cli.warmup_steps,
             )
-            with success_context, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+            benchmark_monitor = (
+                BenchmarkMonitor(benchmark, interval=1.0) if benchmark is not None else contextlib.nullcontext()
+            )
+            with success_context, environment_step_timer, benchmark_monitor:
                 runner.run()
 
-            benchmark.update_manual_recorders()
+            if benchmark is not None:
+                benchmark.update_manual_recorders()
 
             collection_times_s = list(bt.collection_times_s)
             iter_times_s = list(bt.iter_times_s)
@@ -433,6 +439,8 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 )
                 if not distributed.is_main:
                     return None
+
+            assert benchmark is not None
 
             if aggregated_timing is not None:
                 iter_times_s = list(aggregated_timing.iteration_times_s)

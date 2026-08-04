@@ -111,7 +111,7 @@ def _collective_device(context: DistributedContext):
     import torch.distributed as dist
 
     backend = str(dist.get_backend()).lower()
-    return torch.device(f"cuda:{context.local_rank}") if "nccl" in backend else torch.device("cpu")
+    return torch.device("cuda", torch.cuda.current_device()) if "nccl" in backend else torch.device("cpu")
 
 
 def _validate_collective_context(context: DistributedContext) -> None:
@@ -131,15 +131,14 @@ def _equal_int(value: int, name: str, device) -> int:
     import torch
     import torch.distributed as dist
 
-    minimum = torch.tensor(value, dtype=torch.int64, device=device)
-    maximum = minimum.clone()
-    dist.all_reduce(minimum, op=dist.ReduceOp.MIN)
-    dist.all_reduce(maximum, op=dist.ReduceOp.MAX)
-    min_value = int(minimum.item())
-    max_value = int(maximum.item())
-    if min_value != max_value:
-        raise ValueError(f"{name} must match across ranks; observed minimum {min_value} and maximum {max_value}")
-    return min_value
+    local = torch.tensor(value, dtype=torch.int64, device=device)
+    gathered = [torch.empty_like(local) for _ in range(dist.get_world_size())]
+    dist.all_gather(gathered, local)
+    observed = [int(item.item()) for item in gathered]
+    if len(set(observed)) != 1:
+        details = ", ".join(f"rank {rank}: {rank_value}" for rank, rank_value in enumerate(observed))
+        raise ValueError(f"{name} must match across ranks; observed {details}")
+    return observed[0]
 
 
 def _sum_int(value: int, device) -> int:

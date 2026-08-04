@@ -220,32 +220,34 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
-            benchmark = BaseIsaacLabBenchmark(
-                benchmark_name="benchmark_training",
-                formatter_type=formatter_types,
-                output_path=args_cli.output_path,
-                use_recorders=True,
-                frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
-                output_prefix=(
-                    f"benchmark_training_multigpu_{args_cli.task}"
-                    if distributed.enabled
-                    else f"benchmark_training_{args_cli.task}"
-                ),
-                workflow_metadata={
-                    "metadata": [
-                        {"name": "task", "data": args_cli.task},
-                        {"name": "seed", "data": agent_cfg.seed},
-                        {"name": "num_envs", "data": env_cfg.scene.num_envs * distributed.world_size},
-                        {"name": "max_iterations", "data": agent_cfg.max_iterations},
-                        {
-                            "name": "environment_step_measurement_mode",
-                            "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
-                        },
-                        {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
-                    ]
-                },
-            )
+            benchmark = None
+            if distributed.is_main:
+                benchmark = BaseIsaacLabBenchmark(
+                    benchmark_name="benchmark_training",
+                    formatter_type=formatter_types,
+                    output_path=args_cli.output_path,
+                    use_recorders=True,
+                    frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+                    output_prefix=(
+                        f"benchmark_training_multigpu_{args_cli.task}"
+                        if distributed.enabled
+                        else f"benchmark_training_{args_cli.task}"
+                    ),
+                    workflow_metadata={
+                        "metadata": [
+                            {"name": "task", "data": args_cli.task},
+                            {"name": "seed", "data": agent_cfg.seed},
+                            {"name": "num_envs", "data": env_cfg.scene.num_envs * distributed.world_size},
+                            {"name": "max_iterations", "data": agent_cfg.max_iterations},
+                            {
+                                "name": "environment_step_measurement_mode",
+                                "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
+                            },
+                            {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
+                            {"name": "presets", "data": ",".join(cfg.presets)},
+                        ]
+                    },
+                )
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
             resume_path = (
@@ -291,13 +293,17 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 warmup_steps=args_cli.warmup_steps,
             )
             rsl_rl_timing = _RslRlTimingRecorder(runner)
-            with early, environment_step_timer, rsl_rl_timing, BenchmarkMonitor(benchmark, interval=1.0):
+            benchmark_monitor = (
+                BenchmarkMonitor(benchmark, interval=1.0) if benchmark is not None else contextlib.nullcontext()
+            )
+            with early, environment_step_timer, rsl_rl_timing, benchmark_monitor:
                 runner.learn(
                     num_learning_iterations=agent_cfg.max_iterations,
                     init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
                 )
 
-            benchmark.update_manual_recorders()
+            if benchmark is not None:
+                benchmark.update_manual_recorders()
 
             aggregated_timing = None
             if distributed.enabled:
@@ -328,6 +334,8 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 )
                 if not distributed.is_main:
                     return None
+
+            assert benchmark is not None
 
             desc = RL_LIBRARY_DESCRIPTORS["rsl_rl"]
             log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)

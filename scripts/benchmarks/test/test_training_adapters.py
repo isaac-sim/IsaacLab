@@ -86,7 +86,7 @@ def test_rsl_rl_parser_only_accepts_distributed_from_benchmark_launcher():
 
 
 def test_rl_games_timing_observer_captures_epoch_durations(monkeypatch: pytest.MonkeyPatch):
-    """RL-Games timing should wrap its observer lifecycle without losing callbacks."""
+    """RL-Games timing should use all-rank epochs and not depend on rank-zero print callbacks."""
 
     class FakeObserver:
         def __init__(self):
@@ -111,21 +111,30 @@ def test_rl_games_timing_observer_captures_epoch_durations(monkeypatch: pytest.M
         def after_print_stats(self, _frame: int, _epoch_num: int, _total_time: float) -> None:
             self.after_print_stats_calls += 1
 
-    timestamps = iter([1.0, 2.0, 3.0, 3.0, 4.5, 6.0, 6.0])
+    timestamps = iter([1.0, 2.0, 3.0, 3.0, 4.5, 6.0])
     monkeypatch.setattr(train_rl_games.time, "perf_counter", lambda: next(timestamps))
     delegated = FakeObserver()
     observer = train_rl_games._RlGamesTimingObserver(delegated)
+    algo = SimpleNamespace()
 
-    observer.after_init(SimpleNamespace())
-    observer.after_steps()
-    observer.after_print_stats(0, 1, 0.0)
-    observer.after_steps()
+    def train_epoch() -> None:
+        observer.after_steps()
+
+    algo.train_epoch = train_epoch
+
+    observer.after_init(algo)
+    algo.train_epoch()
+    # RL-Games calls this only on global rank 0; epoch timing must not rely on it.
     observer.after_print_stats(0, 2, 0.0)
+    algo.train_epoch()
 
     assert observer.collection_times_s == [1.0, 1.5]
     assert observer.iteration_times_s == [2.0, 3.0]
     assert delegated.after_steps_calls == 2
-    assert delegated.after_print_stats_calls == 2
+    assert delegated.after_print_stats_calls == 1
+
+    observer.restore()
+    assert algo.train_epoch is train_epoch
 
 
 def test_rl_games_parser_only_accepts_distributed_from_benchmark_launcher():

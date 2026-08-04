@@ -37,6 +37,8 @@ class _RlGamesTimingObserver:
 
     def __init__(self, observer: Any) -> None:
         self._observer = observer
+        self._algo = None
+        self._original_train_epoch = None
         self._iteration_start_s: float | None = None
         self._collection_recorded = False
         self.collection_times_s: list[float] = []
@@ -51,9 +53,33 @@ class _RlGamesTimingObserver:
         self._observer.before_init(base_name, config, experiment_name)
 
     def after_init(self, algo: Any) -> None:
-        """Delegate initialization and start the first epoch timer."""
+        """Delegate initialization and wrap the all-rank epoch boundary."""
         self._observer.after_init(algo)
-        self._iteration_start_s = time.perf_counter()
+        self._algo = algo
+        original_train_epoch = algo.train_epoch
+        self._original_train_epoch = original_train_epoch
+
+        def timed_train_epoch(*args, **kwargs):
+            self._iteration_start_s = time.perf_counter()
+            self._collection_recorded = False
+            try:
+                result = original_train_epoch(*args, **kwargs)
+            except BaseException:
+                self._iteration_start_s = None
+                raise
+            if not self._collection_recorded:
+                self._iteration_start_s = None
+                raise RuntimeError("RL-Games epoch timing completed without a collection boundary")
+            self.iteration_times_s.append(time.perf_counter() - self._iteration_start_s)
+            self._iteration_start_s = None
+            return result
+
+        algo.train_epoch = timed_train_epoch
+
+    def restore(self) -> None:
+        """Restore the algorithm's original epoch method after training."""
+        if self._algo is not None and self._original_train_epoch is not None:
+            self._algo.train_epoch = self._original_train_epoch
 
     def process_infos(self, infos: Any, done_indices: Any) -> None:
         """Delegate environment information processing."""
@@ -63,6 +89,8 @@ class _RlGamesTimingObserver:
         """Record collection time and delegate the rollout boundary."""
         if self._iteration_start_s is None:
             raise RuntimeError("RL-Games collection timing started before observer initialization")
+        if self._collection_recorded:
+            raise RuntimeError("RL-Games reported multiple collection boundaries in one epoch")
         self.collection_times_s.append(time.perf_counter() - self._iteration_start_s)
         self._collection_recorded = True
         self._observer.after_steps()
@@ -72,13 +100,8 @@ class _RlGamesTimingObserver:
         self._observer.after_clear_stats()
 
     def after_print_stats(self, frame: int, epoch_num: int, total_time: float) -> None:
-        """Record complete epoch time and begin timing the next epoch."""
-        if self._iteration_start_s is None or not self._collection_recorded:
-            raise RuntimeError("RL-Games epoch timing completed without a collection boundary")
-        self.iteration_times_s.append(time.perf_counter() - self._iteration_start_s)
+        """Delegate rank-zero statistics printing."""
         self._observer.after_print_stats(frame, epoch_num, total_time)
-        self._iteration_start_s = time.perf_counter()
-        self._collection_recorded = False
 
 
 def _parse_args(argv: list[str]):
@@ -253,32 +276,34 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
-            benchmark = BaseIsaacLabBenchmark(
-                benchmark_name="benchmark_training",
-                formatter_type=formatter_types,
-                output_path=args_cli.output_path,
-                use_recorders=True,
-                frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
-                output_prefix=(
-                    f"benchmark_training_multigpu_{args_cli.task}"
-                    if distributed.enabled
-                    else f"benchmark_training_{args_cli.task}"
-                ),
-                workflow_metadata={
-                    "metadata": [
-                        {"name": "task", "data": args_cli.task},
-                        {"name": "seed", "data": agent_cfg["params"]["seed"]},
-                        {"name": "num_envs", "data": env_cfg.scene.num_envs * distributed.world_size},
-                        {"name": "max_iterations", "data": agent_cfg["params"]["config"].get("max_epochs")},
-                        {
-                            "name": "environment_step_measurement_mode",
-                            "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
-                        },
-                        {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
-                    ]
-                },
-            )
+            benchmark = None
+            if distributed.is_main:
+                benchmark = BaseIsaacLabBenchmark(
+                    benchmark_name="benchmark_training",
+                    formatter_type=formatter_types,
+                    output_path=args_cli.output_path,
+                    use_recorders=True,
+                    frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+                    output_prefix=(
+                        f"benchmark_training_multigpu_{args_cli.task}"
+                        if distributed.enabled
+                        else f"benchmark_training_{args_cli.task}"
+                    ),
+                    workflow_metadata={
+                        "metadata": [
+                            {"name": "task", "data": args_cli.task},
+                            {"name": "seed", "data": agent_cfg["params"]["seed"]},
+                            {"name": "num_envs", "data": env_cfg.scene.num_envs * distributed.world_size},
+                            {"name": "max_iterations", "data": agent_cfg["params"]["config"].get("max_epochs")},
+                            {
+                                "name": "environment_step_measurement_mode",
+                                "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
+                            },
+                            {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
+                            {"name": "presets", "data": ",".join(cfg.presets)},
+                        ]
+                    },
+                )
 
             config_name = agent_cfg["params"]["config"]["name"]
             log_root_path = os.path.abspath(os.path.join("logs", "rl_games", config_name))
@@ -320,6 +345,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
             early_stop_observer = RlGamesEarlyStopObserver(IsaacAlgoObserver(), **build_success_kwargs(args_cli))
             observer = _RlGamesTimingObserver(early_stop_observer)
+            cleanup.callback(observer.restore)
             cleanup.callback(_close_rl_games_writer, observer)
             runner = Runner(observer)
             runner.load(agent_cfg)
@@ -331,10 +357,14 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 measure_synchronized_step_breakdown=args_cli.measure_sync_step,
                 warmup_steps=args_cli.warmup_steps,
             )
-            with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+            benchmark_monitor = (
+                BenchmarkMonitor(benchmark, interval=1.0) if benchmark is not None else contextlib.nullcontext()
+            )
+            with environment_step_timer, benchmark_monitor:
                 runner.run({"train": True, "play": False, "sigma": None})
 
-            benchmark.update_manual_recorders()
+            if benchmark is not None:
+                benchmark.update_manual_recorders()
 
             # Flush TensorBoard events before parsing them; ExitStack closes the writer.
             writer = getattr(getattr(observer, "algo", None), "writer", None)
@@ -371,6 +401,8 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 )
                 if not distributed.is_main:
                     return None
+
+            assert benchmark is not None
 
             desc = RL_LIBRARY_DESCRIPTORS["rl_games"]
             tb_dir = run_log_dir

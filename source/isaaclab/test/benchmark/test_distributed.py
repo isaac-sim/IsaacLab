@@ -106,6 +106,19 @@ def test_distributed_context_rejects_non_divisible_world(monkeypatch: pytest.Mon
         DistributedContext.from_env(enabled=True)
 
 
+def test_nccl_collective_uses_current_cuda_device(monkeypatch: pytest.MonkeyPatch):
+    """Aggregation should respect per-process CUDA remapping instead of raw local rank."""
+    import torch
+
+    from isaaclab.benchmark import _distributed
+
+    monkeypatch.setattr(torch.distributed, "get_backend", lambda: "nccl")
+    monkeypatch.setattr(torch.cuda, "current_device", lambda: 0)
+    context = DistributedContext(True, rank=1, local_rank=1, world_size=2, local_world_size=2)
+
+    assert _distributed._collective_device(context) == torch.device("cuda:0")
+
+
 def test_aggregate_training_timing_uses_global_work_and_slowest_rank(tmp_path: Path):
     """Concurrent rank work should be summed while critical-path times use the maximum."""
     data = _run_aggregate_workers(tmp_path)
@@ -129,6 +142,8 @@ def test_aggregate_training_timing_rejects_mismatched_series_lengths(tmp_path: P
     data = _run_aggregate_workers(tmp_path, mismatch=True)
     assert "iteration_times_s" in data["error"]
     assert "length" in data["error"]
+    assert "rank 0: 2" in data["error"]
+    assert "rank 1: 1" in data["error"]
 
 
 def _benchmark_parser() -> argparse.ArgumentParser:
