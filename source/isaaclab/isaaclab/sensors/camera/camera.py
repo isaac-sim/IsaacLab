@@ -17,6 +17,7 @@ from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.app.logging_utils import force_log_level
 from isaaclab.cloner import queue_replication
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
@@ -484,7 +485,8 @@ class Camera(SensorBase):
         if sim_ctx is None:
             raise RuntimeError("SimulationContext is not initialized.")
         self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
-        logger.info("Using renderer: %s", type(self._renderer).__name__)
+        with force_log_level(logging.INFO):
+            logger.info("Using renderer: %s", type(self._renderer).__name__)
 
         # Build the render spec early — both the wrapper ISP (which delegates
         # any renderer-side per-camera setup) and ``create_render_data`` consume
