@@ -14,7 +14,7 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import get_suffix, iter_clone_plan_matches, split_clone_template
+from isaaclab import cloner
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
@@ -268,7 +268,7 @@ class NewtonSiteFrameView(BaseFrameView):
                     f"FrameView prim '{path_expr}' is a Newton collision shape. "
                     "FrameView should only be used for non-physics frames."
                 )
-            matches = tuple(iter_clone_plan_matches(plan, path_expr)) if plan is not None else ()
+            matches = tuple(cloner.query.iter_sources(plan, path_expr)) if plan is not None else ()
             if matches:
                 for source_root, destination_template, source_path, env_ids in matches:
                     source_prim = None
@@ -371,8 +371,8 @@ class NewtonSiteFrameView(BaseFrameView):
 
         ref_path = source_root
         if source_root is not None and destination_template is not None:
-            template_prefix, _ = split_clone_template(destination_template)
-            source_suffix = get_suffix(source_root, template_prefix + "{}")
+            template_prefix, _ = cloner.path.split(destination_template)
+            source_suffix = cloner.path.relativize(source_root, template_prefix + "{}")
             if source_suffix is not None:
                 ref_path = source_root[: -len(source_suffix)] if source_suffix else source_root
         ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None

@@ -10,6 +10,10 @@ The :func:`train` and :func:`play` functions accept typed requests, while
 Both select the backend implementation via the ``--rl_library`` argument or the
 :attr:`TrainingRequest.backend` field.
 
+The :func:`zero_agent` and :func:`random_agent` functions (and their
+:func:`run_zero_agent_cli` and :func:`run_random_agent_cli` counterparts) run the
+checkpoint-free variations of playback, which need no reinforcement learning backend.
+
 Example:
 
 .. code-block:: python
@@ -19,15 +23,20 @@ Example:
     train(TrainingRequest(backend="rsl_rl", task="Isaac-Cartpole", max_iterations=100))
 """
 
-from .api import BackendName, PlaybackRequest, TrainingRequest, play, train
-from .dispatch import run_play_cli, run_train_cli
+from .api import BackendName, PlaybackRequest, SimpleAgentRequest, TrainingRequest, play, random_agent, train, zero_agent
+from .dispatch import run_play_cli, run_random_agent_cli, run_train_cli, run_zero_agent_cli
 
 __all__ = [
     "BackendName",
     "PlaybackRequest",
+    "SimpleAgentRequest",
     "TrainingRequest",
     "play",
+    "random_agent",
     "run_play_cli",
+    "run_random_agent_cli",
     "run_train_cli",
+    "run_zero_agent_cli",
     "train",
+    "zero_agent",
 ]

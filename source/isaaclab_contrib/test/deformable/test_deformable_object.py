@@ -20,7 +20,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
@@ -179,6 +179,7 @@ def test_initialization(sim):
     assert cube_object.is_initialized
     assert cube_object.num_instances == num_cubes
     assert cube_object.max_sim_vertices_per_body > 0
+    assert len(NewtonManager.get_model().particle_color_groups) > 0
 
     particles_per_body = cube_object.max_sim_vertices_per_body
 

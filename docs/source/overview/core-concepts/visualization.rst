@@ -325,91 +325,12 @@ explicitly (e.g. to reduce overhead during profiling):
 Video Recording
 ---------------
 
-Video recording is enabled with the ``--video`` flag. When combined with ``--visualizer``,
-the visualizer selection also determines which backend captures the video frames:
+Video recording is configured on ``env_cfg.video_recorders`` and driven internally by
+``env.step()`` — no gym wrapper required. The source string selects whether to capture from
+a visualizer viewport (``"visualizer:kit"``, ``"visualizer:newton"``) or a named scene sensor
+(``"sensor:tiled_camera"``), and each entry produces an independent ``mp4`` clip stream.
 
-- ``--visualizer kit`` enables ``--video`` capture through the Isaac RTX renderer (Omniverse Replicator).
-- ``--visualizer newton`` enables ``--video`` capture through the Newton OpenGL renderer.
-- ``--visualizer rerun`` does not produce ``--video`` clips; it records Rerun ``.rrd`` data for replay
-  through the Rerun visualizer.
-- ``--visualizer viser`` does not currently provide a ``--video`` recording backend.
-
-When both Kit and Newton visualizers are active, Isaac Lab records a single ``--video`` stream and
-Kit takes precedence. To record from the renderer/physics stack instead of the active visualizer,
-set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
-
-.. list-table:: ``--video`` compatibility: visualizer × renderer preset
-   :header-rows: 1
-   :widths: 28 36 36
-
-   * - Renderer preset
-     - ``--visualizer kit --video``
-     - ``--visualizer newton --video``
-   * - ``isaacsim_rtx``
-     - ✅ Kit RTX captures video *(default, no change)*
-     - ✅ Newton GL captures video *(overrides RTX backend)*
-   * - ``newton_renderer``
-     - ✅ Kit RTX captures video *(overrides Newton backend)*
-     - ✅ Newton GL captures video *(default, no change)*
-   * - ``ovrtx``
-     - ❌ **Raises an error** — see note below
-     - ✅ Newton GL captures video; ovrtx provides camera sensor data
-
-.. note::
-
-   ``--visualizer kit`` combined with ``ovrtx`` raises a ``ValueError`` at startup.
-   Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries compiled against
-   different USD namespaces (``pxrInternal_v0_25_11`` vs ``ovInternal_v0_25_11``), which
-   causes a dynamic-linker crash when loaded into the same process.
-   Use ``--visualizer newton`` instead — it is compatible with all renderer presets.
-
-**Record video with the ovrtx renderer preset**
-
-.. code-block:: bash
-
-   uv run isaaclab benchmark training \
-     --rl_library rsl_rl \
-     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --visualizer newton \
-     --video \
-     --video_length=300 \
-     --video_interval=2000 \
-     --max_iterations=5 \
-     --num_envs=1024 \
-     --benchmark_formatter=summary \
-     physics=newton_mjwarp renderer=ovrtx presets=rgb
-
-**Record video with the Isaac RTX renderer preset using the Newton video backend**
-
-.. code-block:: bash
-
-   uv run isaaclab benchmark training \
-     --rl_library rsl_rl \
-     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --visualizer newton \
-     --video \
-     --video_length=300 \
-     --video_interval=2000 \
-     --max_iterations=5 \
-     --num_envs=1024 \
-     --benchmark_formatter=summary \
-     physics=physx renderer=isaacsim_rtx presets=rgb
-
-**Record video with the Isaac RTX renderer preset using the Kit video backend**
-
-.. code-block:: bash
-
-   uv run isaaclab benchmark training \
-     --rl_library rsl_rl \
-     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --visualizer kit \
-     --video \
-     --video_length=300 \
-     --video_interval=2000 \
-     --max_iterations=5 \
-     --num_envs=1024 \
-     --benchmark_formatter=summary \
-     physics=physx renderer=isaacsim_rtx presets=rgb
+See :doc:`/source/how-to/record_video` for a full guide with examples.
 
 
 Visualizer Backends
@@ -538,6 +459,13 @@ Rerun Visualizer
 - Recording to .rrd files for offline replay (.rrd files can be opened with ctrl+O from the web viewer)
 - Timeline scrubbing and playback controls of recordings
 - Visualization debug markers
+- **Pause Rendering** / **Reset Episode** controls via the ImGui sidebar (under **IsaacLab Controls**)
+
+.. note::
+
+   Rerun's ImGui overlay is embedded in the Newton viewer process. Custom interactive controls
+   are limited to what ImGui exposes within that context; simulation pause is not supported from
+   Rerun. Use the Viser visualizer for full interactive controls.
 
 .. important::
 
@@ -606,6 +534,8 @@ server, allowing you to view and interact with the scene from any browser.
 - Environment filtering to control which environments are rendered
 - Visualization debug markers (joints, contacts, center of mass, particles, and more — toggled
   from the **Isaac Lab → Visualization Markers** sidebar panel)
+- Interactive sidebar controls: **Pause Rendering** (freezes the 3D view without stopping physics),
+  **Pause Simulation** (pauses the training/rollout loop), and **Reset Episode**
 
 .. important::
 

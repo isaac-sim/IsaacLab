@@ -89,11 +89,17 @@ class IsaacLabCloneHttps(SphinxDirective):
     """Render an HTTPS clone command as a copy-friendly ``code-block``."""
 
     has_content = False
+    option_spec = {"platform": directives.unchanged_required}
 
     def run(self) -> list[nodes.Node]:
+        platform = self.options.get("platform", "linux").strip().lower()
+        if platform not in {"linux", "windows"}:
+            raise self.error(f"Unsupported platform '{platform}'. Use 'linux' or 'windows'.")
+
         branch = _branch(self.config)
+        language = "batch" if platform == "windows" else "bash"
         content = f"""\
-.. code-block:: bash
+.. code-block:: {language}
 
    git clone https://github.com/isaac-sim/IsaacLab.git --branch {branch}
    cd IsaacLab

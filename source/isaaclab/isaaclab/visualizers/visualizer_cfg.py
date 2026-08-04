@@ -15,6 +15,21 @@ if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
 
 
+_VISUALIZER_EXTRAS = {
+    "kit": "isaacsim",
+    "rerun": "rerun",
+    "viser": "viser",
+}
+
+
+def _get_visualizer_install_hint(visualizer_type: str) -> str:
+    """Return the uv command needed to run a visualizer backend."""
+    extra = _VISUALIZER_EXTRAS.get(visualizer_type)
+    if extra is None:
+        return "Run your command with: uv run <command>."
+    return f"Run your command with: uv run --extra {extra} <command>."
+
+
 @configclass
 class VisualizerCfg:
     """Base configuration for all visualizer backends.
@@ -135,7 +150,7 @@ class VisualizerCfg:
         except (ValueError, ImportError, ModuleNotFoundError) as exc:
             if self.visualizer_type in ("newton", "rerun", "viser", "kit"):
                 raise ImportError(
-                    f"Visualizer '{self.visualizer_type}' requires the isaaclab_visualizers package. "
-                    f"Install with: pip install isaaclab_visualizers[{self.visualizer_type}]"
+                    f"Could not import visualizer '{self.visualizer_type}' from isaaclab_visualizers. "
+                    f"{_get_visualizer_install_hint(self.visualizer_type)}\nOriginal error: {exc}"
                 ) from exc
             raise

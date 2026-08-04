@@ -12,6 +12,7 @@ from isaaclab_physx.physics import PhysxCfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -24,10 +25,10 @@ from isaaclab_assets import HUMANOID_CFG
 
 @configclass
 class HumanoidPhysicsCfg(PresetCfg):
-    physx: PhysxCfg = PhysxCfg()
     isaacsim_physx: PhysxCfg = PhysxCfg()
     ovphysx: OvPhysxCfg = OvPhysxCfg()
-    default = physx
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=80,

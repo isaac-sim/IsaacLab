@@ -9,16 +9,17 @@ from pathlib import Path
 
 import pytest
 from rendering_test_utils import (
-    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
+    make_kitless_rendering_params_franka,
     make_require_ovlibs_install_fixture,
     rendering_test_franka_cloth,
 )
 
 pytestmark = pytest.mark.isaacsim_ci
 
+_RENDERING_PARAMS = make_kitless_rendering_params_franka(include_cloth_motion_vectors=True)
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -27,7 +28,9 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
-@pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+@pytest.mark.parametrize(
+    "ovstage_variant,physics_backend,renderer,data_type", _RENDERING_PARAMS, indirect=["ovstage_variant"]
+)
 def test_rendering_franka_cloth_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Camera output must match golden images for the Franka cloth test setup."""
     rendering_test_franka_cloth(physics_backend, renderer, data_type, _COMPARISON_SCORES)

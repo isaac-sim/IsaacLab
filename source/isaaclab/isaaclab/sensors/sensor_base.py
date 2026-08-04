@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
 from isaaclab.sim.utils.transforms import resolve_prim_pose
@@ -230,9 +231,7 @@ class SensorBase(ABC):
         clone_plan = self._clone_plan
         clone_plan_matches = ()
         if clone_plan is not None:
-            from isaaclab.cloner.cloner_utils import iter_clone_plan_matches  # noqa: PLC0415
-
-            clone_plan_matches = tuple(iter_clone_plan_matches(clone_plan, self.cfg.prim_path))
+            clone_plan_matches = tuple(cloner.query.iter_sources(clone_plan, self.cfg.prim_path))
         if clone_plan_matches:
             self._parent_prims = []
             self._num_envs = int(clone_plan.clone_mask.shape[1])
@@ -435,7 +434,7 @@ class SensorBase(ABC):
 
         1. When an active :class:`~isaaclab.cloner.ClonePlan` exists, the
            source-side env path is taken from the plan via
-           :func:`~isaaclab.cloner.resolve_clone_plan_source`, the rigid-body ancestor
+           :func:`~isaaclab.cloner.query.path_to_source`, the rigid-body ancestor
            is located on that source env, and the destination expression is
            reconstructed by trimming the sensor-relative suffix from the plan's
            destination glob.

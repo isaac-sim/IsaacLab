@@ -13,11 +13,13 @@ Tests:
     - from isaaclab import __version__ -> verify version matches wheel filename
     - from isaaclab import _deprioritize_prebundle_paths -> verify wheel exports path sanitizer
     - from isaaclab.app import AppLauncher -> verify importable
-    - from isaaclab.envs import ViewerCfg -> verify importable
+    - from isaaclab.envs import VideoRecorderCfg -> verify importable
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
     - import pinocchio -> verify importable
+    - python -c "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)"
+        -> verify the all extra omits tetrahedralization dependencies
 """
 
 from __future__ import annotations
@@ -102,10 +104,10 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         result = self.run_in_uv_env(["python", "-c", "from isaaclab.app import AppLauncher"])
         assert result.returncode == 0, f"import isaaclab.app failed:\n{result.stdout}\n{result.stderr}"
 
-    # from isaaclab.envs import ViewerCfg
+    # from isaaclab.envs import VideoRecorderCfg
     def test_isaaclab_envs_importable(self):
         """Verify isaaclab.envs is importable."""
-        result = self.run_in_uv_env(["python", "-c", "from isaaclab.envs import ViewerCfg"])
+        result = self.run_in_uv_env(["python", "-c", "from isaaclab.envs import VideoRecorderCfg"])
         assert result.returncode == 0, f"import isaaclab.envs failed:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
@@ -131,3 +133,14 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         """Verify pinocchio is importable and has the expected version."""
         result = self.run_in_uv_env(["python", "-c", "import pinocchio as pin; print(pin.__version__)"])
         assert result.returncode == 0, f"import pinocchio failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_install_all_omits_tetrahedralization_dependencies(self):
+        """Verify the wheel's all extra does not install pytetwild."""
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)",
+            ]
+        )
+        assert result.returncode == 0, f"pytetwild should not be installed by [all]:\n{result.stdout}\n{result.stderr}"

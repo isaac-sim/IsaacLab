@@ -18,6 +18,7 @@ backend-specific configuration, installation, and limitations.
     newton/index
     ovphysx/index
     solver-comparison
+    sim-to-sim-policy-transfer
 
 
 Choosing a Backend
@@ -91,6 +92,14 @@ per-task support, see each backend's own ``limitations`` page.
       - Yes
       - Yes
       - Yes
+    * - Deformable Object API
+      - Yes
+      - Yes (experimental VBD)
+      - Experimental (CUDA only)
+    * - Cable Object API
+      - No
+      - VBD
+      - No
     * - Contact Sensor
       - Yes
       - Yes
@@ -126,17 +135,23 @@ declares all three backends side by side:
 
 .. code-block:: python
 
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab.physics import PhysxAutoCfg
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_ovphysx.physics import OvPhysxCfg
+    from isaaclab_physx.physics import PhysxCfg
 
     @configclass
     class CartpolePhysicsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
-        physx: PhysxCfg = PhysxCfg()
-        newton_mjwarp: NewtonCfg = NewtonCfg(solver_cfg=MJWarpSolverCfg())
+        isaacsim_physx: PhysxCfg = PhysxCfg()
         ovphysx: OvPhysxCfg = OvPhysxCfg()
+        physx: PhysxAutoCfg = PhysxAutoCfg(
+            isaacsim_physx=isaacsim_physx,
+            ovphysx=ovphysx,
+        )
+        default: PhysxCfg = isaacsim_physx
+        newton_mjwarp: NewtonCfg = NewtonCfg(solver_cfg=MJWarpSolverCfg())
 
-Users then select the backend at the command line via ``presets=<name>`` or by
-overriding the physics field directly. See :ref:`hydra-backend-solver-presets` for
-the full Hydra interaction.
+With no selector, the task uses concrete Isaac Sim PhysX. Users can select a
+backend with ``physics=<name>``; ``physics=physx`` explicitly opts into automatic
+selection between the configured PhysX-family implementations. See
+:ref:`hydra-backend-solver-presets` for the full Hydra interaction.

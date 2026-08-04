@@ -53,37 +53,55 @@ def play(args: list[str] | None = None) -> None:
     run_python_command(ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py", args, check=True)
 
 
+def zero_agent(args: list[str] | None = None) -> None:
+    """Run an environment with a zero-action agent."""
+    if args is None:
+        args = sys.argv[1:]
+    run_python_command(ISAACLAB_ROOT / "scripts" / "environments" / "zero_agent.py", args, check=True)
+
+
+def random_agent(args: list[str] | None = None) -> None:
+    """Run an environment with a random-action agent."""
+    if args is None:
+        args = sys.argv[1:]
+    run_python_command(ISAACLAB_ROOT / "scripts" / "environments" / "random_agent.py", args, check=True)
+
+
 def benchmark(args: list[str] | None = None) -> None:
     """Run a runtime, startup, training, or play benchmark.
 
     Args:
-        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+        args: Command-line arguments. Uses sys.argv when omitted.
     """
-    parser = argparse.ArgumentParser(description="Run an Isaac Lab benchmark.")
-    parser.add_argument("command", choices=("runtime", "startup", "training", "play"), help="Benchmark workflow to run.")
-    if args is None:
-        args = sys.argv[1:]
-    if not args or args[0] in ("-h", "--help"):
-        parser.parse_args(args)
-    parsed_args = parser.parse_args(args[:1])
-    run_python_command(
-        ISAACLAB_ROOT / "scripts" / "benchmarks" / f"{parsed_args.command}.py", args[1:], check=True
-    )
+    from isaaclab.benchmark import run_benchmark_cli
+
+    status = run_benchmark_cli(args)
+    if status != 0:
+        raise SystemExit(status)
+
+
+def microbenchmark(args: list[str] | None = None) -> None:
+    """Run a component micro-benchmark with an exact physics variant."""
+    from isaaclab.benchmark import run_microbenchmark_cli
+
+    status = run_microbenchmark_cli(args)
+    if status != 0:
+        raise SystemExit(status)
 
 
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
-    if len(sys.argv) > 1 and sys.argv[1] == "benchmark":
-        benchmark(sys.argv[2:])
-        return
-    if len(sys.argv) > 1 and sys.argv[1] == "train":
-        train(sys.argv[2:])
-        return
-    if len(sys.argv) > 1 and sys.argv[1] == "train_multigpu":
-        train_multigpu(sys.argv[2:])
-        return
-    if len(sys.argv) > 1 and sys.argv[1] == "play":
-        play(sys.argv[2:])
+    subcommands = {
+        "benchmark": benchmark,
+        "microbenchmark": microbenchmark,
+        "train": train,
+        "train_multigpu": train_multigpu,
+        "play": play,
+        "zero_agent": zero_agent,
+        "random_agent": random_agent,
+    }
+    if len(sys.argv) > 1 and sys.argv[1] in subcommands:
+        subcommands[sys.argv[1]](sys.argv[2:])
         return
 
     executable_name = Path(sys.argv[0]).name
@@ -95,9 +113,12 @@ def cli() -> None:
         epilog=(
             "commands:\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
+            "  microbenchmark  Run a component micro-benchmark\n"
             "  train           Run scripts/reinforcement_learning/train.py\n"
             "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"
-            "  play            Run scripts/reinforcement_learning/play.py"
+            "  play            Run scripts/reinforcement_learning/play.py\n"
+            "  zero_agent      Run scripts/environments/zero_agent.py\n"
+            "  random_agent    Run scripts/environments/random_agent.py"
         ),
     )
 
@@ -128,23 +149,26 @@ def cli() -> None:
             "    ov[ovrtx|ovphysx|all]\n"
             "    rl[rsl-rl|skrl|sb3|rl-games]  (default: all)\n"
             "    visualizer[kit|rerun|viser]  (default: all)\n"
+            "  Tetrahedralization has no selector and must be requested explicitly.\n"
             "  On Linux/macOS, quote selectors containing brackets:\n"
             "    --install 'rl[rsl-rl]'\n"
             "\n"
             "* Special values:\n"
             "  all   - Core + optional submodules (mimic, teleop) + auto extra\n"
             "          features (newton, rl, visualizer). Does not install contrib/ov\n"
-            "          dependency extras (default).\n"
+            "          dependency extras or tetrahedralization (default).\n"
             "  core  - Core submodules only; no optional submodules, no extra features.\n"
             "  <empty> (-i with no value) - Same as 'all'.\n"
             "\n"
-            "Note: Contrib and OV source packages are core; runtime dependencies require selectors:\n"
+            "Explicit-only dependency extras:\n"
             "  ./isaaclab.sh -i 'contrib[rlinf]'\n"
             "  ./isaaclab.sh -i 'ov[ovrtx]'\n"
+            "  ./isaaclab.sh -i tetrahedralization\n"
             "\n"
             "Examples:\n"
             "  ./isaaclab.sh -i\n"
             "  ./isaaclab.sh -i core\n"
+            "  ./isaaclab.sh -i tetrahedralization\n"
             "  ./isaaclab.sh -i 'rl[rsl-rl]'\n"
             "  ./isaaclab.sh -i mimic,teleop,'visualizer[rerun]'\n"
             "  ./isaaclab.sh -i 'ov[ovrtx]'\n"

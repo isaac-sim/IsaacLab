@@ -53,6 +53,72 @@ Prerequisites
    Teleoperation is not currently supported on DGX Spark.
 
 
+.. _teleop-workstation-capability-check:
+
+Workstation capability check
+----------------------------
+
+When a teleop session starts, Isaac Lab measures the workstation against the spec above and
+reports any unmet requirement. The result is printed to the terminal and pushed to the connected
+XR client, where it appears as a dismissible banner in the headset -- so the warning is visible
+to the operator wearing the device, not only in a terminal they cannot see.
+
+The check is **advisory and never blocks a session**. It reports:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Requirement
+     - Threshold
+   * - CPU single-thread
+     - At least 80% of the reference CPU (AMD Ryzen Threadripper 7960X)
+   * - CPU governor
+     - ``performance``, unless the single-thread score already meets its threshold
+   * - CPU boost clock
+     - 4.0 GHz
+   * - CPU physical cores
+     - 8
+   * - GPU memory
+     - 24 GB
+   * - GPU architecture
+     - Compute capability 8.9 (Ada) or newer
+   * - NVIDIA driver
+     - 580 or newer
+   * - System memory
+     - 60 GiB (a nominal 64 GB machine)
+   * - CPU architecture
+     - ``x86_64``
+
+Thresholds are numeric rather than a list of approved CPU and GPU models, so equivalent hardware
+passes. CPU single-thread throughput is weighted most heavily and is measured with a short
+benchmark rather than inferred from the core count: Pink IK and CPU-side physics are
+single-thread bound, so a machine with fewer but faster cores teleoperates better than one with
+many slow cores.
+
+.. tip::
+
+   **The CPU governor is only reported when the machine is also measurably slow.** Ubuntu
+   defaults to ``powersave``, which costs per-frame ramp-up latency in the bursty workload
+   teleoperation generates. The governor is a proxy for delivered throughput, though, so a
+   workstation whose single-thread score already meets its threshold is fast enough whatever
+   the governor says and is not flagged. Setting ``performance`` remains a setup step -- see
+   :ref:`install-isaac-teleop`.
+
+If a probe is unavailable (for example, ``cpufreq`` is not exposed inside a container), that item
+is reported as skipped rather than failed.
+
+On a multi-GPU workstation the GPU checks measure the device the session runs on -- the one
+selected with ``--device`` -- not simply the first adapter. The reported value names the ordinal
+(e.g. ``cuda:1``) so it is clear which GPU was measured.
+
+To use the check on its own -- for example to qualify a machine before setting up a session:
+
+.. code-block:: bash
+
+   uv run python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
+
+
 .. _install-isaac-teleop:
 
 Install Isaac Teleop
@@ -66,6 +132,34 @@ Install Isaac Teleop
 
    The CloudXR runtime links against Vulkan at runtime. If your system already has the
    NVIDIA driver installed, ``libvulkan1`` may already be present.
+
+#. Set the CPU frequency governor to ``performance``:
+
+   .. code-block:: bash
+
+      # cpupower ships in linux-tools; install it if the command is not found
+      sudo apt-get install -y linux-tools-common linux-tools-$(uname -r)
+
+      sudo cpupower frequency-set -g performance
+
+   Ubuntu defaults to the ``powersave`` governor, which measurably increases Pink IK solve
+   latency and lowers the achievable teleop frame rate. Because IK and CPU-side physics are
+   single-thread bound, this is one of the highest-impact settings on the workstation.
+
+   Verify the change:
+
+   .. code-block:: bash
+
+      cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+
+   Expected output: ``performance``.
+
+   .. note::
+
+      This setting does not survive a reboot. Re-run the command after restarting, or make it
+      persistent with a systemd unit or your distribution's ``cpupower`` service configuration.
+      The :ref:`teleop-workstation-capability-check` reports the governor at session start, so a
+      machine that has reverted to ``powersave`` is flagged before you notice the frame rate.
 
 #. ``isaacteleop`` is installed automatically as a dependency of ``isaaclab_teleop``.
    No separate pip install step is required. For building from source or plugin
