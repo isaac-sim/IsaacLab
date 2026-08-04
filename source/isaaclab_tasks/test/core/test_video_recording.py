@@ -40,7 +40,11 @@ import tempfile
 import numpy as np
 import pytest
 import torch
-from moviepy.editor import VideoFileClip
+
+try:
+    from moviepy.editor import VideoFileClip
+except ImportError:
+    pytest.skip("moviepy is not installed; install with: pip install 'moviepy<2'", allow_module_level=True)
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
