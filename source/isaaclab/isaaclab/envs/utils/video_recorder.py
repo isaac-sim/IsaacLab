@@ -55,15 +55,18 @@ def _select_video_backend(scene: InteractiveScene, backend_source: str) -> tuple
     physics_name = scene.sim.physics_manager.__name__.lower()
     renderer_types = scene._sensor_renderer_types()
     # Checked before the "physx" test below: the OvPhysX manager is named
-    # ``OvPhysxManager``, so a substring match sends kitless OvPhysX to the Kit
-    # recorder, which then fails on a lazy ``import omni.replicator`` at the
-    # first rendered frame -- after simulation startup and policy load. OvPhysX
-    # has no capture backend, so say so here instead.
-    if "ovphysx" in physics_name and "isaac_rtx" not in renderer_types:
-        raise RuntimeError(
-            "Video recording (--video) is not supported on kitless OvPhysX: it has no capture backend. "
-            "Use isaacsim_physx (Kit camera) or a Newton physics backend (GL viewer) to record video."
-        )
+    # ``OvPhysxManager``, so a substring match would send it to the Kit recorder,
+    # which is unavailable kitless. The GL viewer works instead because
+    # :meth:`NewtonManager.get_model` builds a shadow Newton model for non-Newton
+    # backends and :meth:`NewtonManager.update_visualization_state` refreshes it
+    # from the live OvPhysX scene each frame.
+    if "ovphysx" in physics_name:
+        if "isaac_rtx" in renderer_types:
+            raise RuntimeError(
+                "OvPhysX cannot run with the Kit-based Isaac RTX renderer. "
+                "Use a kitless renderer, or switch the physics backend to isaacsim_physx."
+            )
+        return "newton_gl", None
     if "physx" in physics_name or "isaac_rtx" in renderer_types:
         return "kit", None
     if "newton" in physics_name or "newton_warp" in renderer_types:

@@ -129,20 +129,25 @@ def test_resolve_backend_raises_without_supported_source():
         _select_video_backend(_make_scene(physics_backend="unknown"), "visualizer")
 
 
-def test_resolve_backend_rejects_kitless_ovphysx():
+@pytest.mark.parametrize("renderer_types", [(), ("ovrtx",)])
+def test_resolve_backend_routes_ovphysx_to_the_gl_viewer(renderer_types):
     """OvPhysxManager contains "physx", so a substring match would route it to the Kit
-    recorder, which only fails on a lazy omni.replicator import at the first frame."""
-    with pytest.raises(RuntimeError, match="not supported on kitless OvPhysX"):
-        _select_video_backend(_make_scene(physics_backend="OvPhysxManager"), "visualizer")
-
-
-def test_resolve_backend_allows_ovphysx_with_an_rtx_sensor_renderer():
-    """The Kit camera comes from the renderer, so OvPhysX plus Isaac RTX still records."""
-    backend, _ = _select_video_backend(
-        _make_scene(physics_backend="OvPhysxManager", renderer_types=("isaac_rtx",)), "visualizer"
+    recorder, which is unavailable kitless. NewtonManager's shadow model lets the GL
+    viewer drive an OvPhysX-simulated scene, with or without a camera renderer."""
+    backend, visualizer = _select_video_backend(
+        _make_scene(physics_backend="OvPhysxManager", renderer_types=renderer_types), "visualizer"
     )
 
-    assert backend == "kit"
+    assert backend == "newton_gl"
+    assert visualizer is None
+
+
+def test_resolve_backend_rejects_ovphysx_with_isaac_rtx():
+    """Isaac RTX is Kit-based, so it cannot pair with a kitless physics backend."""
+    with pytest.raises(RuntimeError, match="cannot run with the Kit-based Isaac RTX renderer"):
+        _select_video_backend(
+            _make_scene(physics_backend="OvPhysxManager", renderer_types=("isaac_rtx",)), "visualizer"
+        )
 
 
 def test_resolve_backend_rejects_invalid_source():
