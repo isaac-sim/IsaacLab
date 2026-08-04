@@ -218,7 +218,7 @@ def test_xr_experience_declares_only_shipped_extensions():
 def test_record_demos_starts_headless_xr(tmp_path):
     """record_demos.py starts under ``--xr`` with no ``--viz kit`` (the QA-reported failure).
 
-    ``--xr`` without an explicit Kit visualizer resolves to headless and selects
+    ``--xr`` without an explicit windowed visualizer resolves to headless and selects
     ``isaaclab.python.xr.openxr.headless.kit``, whose dependency chain aborted the app before any
     Python ran. Either marker is accepted: env creation already clears the dependency solver, which
     is what this gates on. The run stops short of the OpenXR session, which needs a headset.

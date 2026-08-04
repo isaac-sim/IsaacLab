@@ -216,8 +216,8 @@ def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, has_window:
     """Create an optional keyboard for headset-free IsaacTeleop control.
 
     Binds ``B`` / ``P`` / ``R`` to start-resume / pause / reset so a user can drive
-    the teleop state machine without an XR headset. Keys are captured through the Kit
-    app window, so this returns ``None`` when there is no window or when IsaacTeleop is
+    the teleop state machine without an XR headset. Keys are captured through the app
+    window, so this returns ``None`` when there is no window or when IsaacTeleop is
     not the active stack (a windowless run still auto-starts teleop). ``R`` is an operator
     reset: :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset` with ``pause=True`` injects a
     single RESET pulse (the loop's control-event handler turns it into one environment

@@ -70,7 +70,7 @@ _XR_KIT = {"xr": True, "visualizer": ["kit"], "visualizer_explicit": True}
 @pytest.mark.parametrize(
     "launcher_args, headless_env, livestream, expected_headless, expected_has_window",
     [
-        # XR with no CLI visualizer: headless even though the task config asks for Kit.
+        # XR with no CLI visualizer: headless even though the task config asks for a window.
         ({"xr": True}, 0, 0, True, False),
         # An explicit '--viz kit' is the only way to get a viewport alongside XR.
         (_XR_KIT, 0, 0, False, True),
@@ -92,11 +92,11 @@ def test_xr_auto_start_tracks_resolved_headless(
     expected_has_window: bool,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Test that XR runs headless without an explicit Kit visualizer, and auto-starts when it does.
+    """Test that XR runs headless without an explicit windowed visualizer, and auto-starts then.
 
-    A task config declaring a Kit visualizer must not leave ``--xr`` non-headless, since the XR
-    session auto-starts. Conversely ``HEADLESS=1`` and livestreaming run headless even when
-    ``--visualizer kit`` was requested, so auto-start must follow the *resolved* headless state
+    A task config declaring a windowed visualizer must not leave ``--xr`` non-headless, since the
+    XR session auto-starts. Conversely ``HEADLESS=1`` and livestreaming run headless even when one
+    was explicitly requested, so auto-start must follow the *resolved* headless state
     rather than the visualizer selection alone -- otherwise the session waits forever for a
     "Start XR" click that no window can deliver. Resolution is exercised directly to avoid
     launching Isaac Sim.

@@ -368,12 +368,12 @@ class AppLauncher:
 
     @property
     def has_window(self) -> bool:
-        """Whether a Kit window exists that can render UI and receive input.
+        """Whether a window exists that can render UI and receive input.
 
-        True when a windowed visualizer (currently ``--visualizer kit``) was requested, or when
-        livestreaming, which renders a window and forwards input from the remote client. Use this
-        rather than the headless state to decide whether UI-driven features are available:
-        livestreaming runs the host headless yet still presents an interactive window.
+        True when a windowed visualizer was requested, or when livestreaming, which renders a
+        window and forwards input from the remote client. Use this rather than the headless
+        state to decide whether UI-driven features are available: livestreaming runs the host
+        headless yet still presents an interactive window.
         """
         return not self._headless or self._livestream >= 1
 
@@ -885,11 +885,11 @@ class AppLauncher:
         # Resolve headless from visualizer intent when livestream is disabled.
         if self._livestream == 0:
             if self._xr_implies_headless:
-                # XR without an explicit '--viz kit': no viewport to click "Start XR" in.
+                # XR without an explicit windowed visualizer: no viewport to start the session from.
                 if not self._headless:
                     logger.info(
-                        "XR is enabled without an explicit Kit visualizer, so running headless. "
-                        "Pass '--viz kit' to also open a local viewport."
+                        "XR is enabled without an explicit windowed visualizer, so running headless. "
+                        "To also open a local viewport, pass '--viz <names>' (for example '--viz kit')."
                     )
                 self._headless = True
             elif self._cli_visualizer_explicit:
@@ -983,9 +983,9 @@ class AppLauncher:
         else:
             self._xr = bool(xr_env)
 
-        # Whether XR alone should force headless. Without an explicit '--viz kit' there is no
-        # viewport to click "Start XR" in, so a window would serve no purpose. This only adds
-        # to the headless decision below; it never makes a run non-headless.
+        # Whether XR alone should force headless. Without an explicit windowed visualizer there
+        # is no viewport to start the session from, so a window would serve no purpose. This only
+        # adds to the headless decision below; it never makes a run non-headless.
         if self._xr:
             has_explicit_kit = self._cli_visualizer_explicit and "kit" in set(self._cli_visualizer_types)
             self._xr_implies_headless = not has_explicit_kit
