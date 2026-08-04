@@ -66,10 +66,16 @@ class ObjectUniformPoseCommand(CommandTerm):
         # extract the robot and body index for which the command is generated
         self.robot: Articulation = env.scene[cfg.asset_name]
         self.object: RigidObject = env.scene[cfg.object_name]
+        self.success_vis_asset: RigidObject | AssetBaseCfg | None
         if cfg.success_vis_asset_name in env.scene.keys():
-            self.success_vis_asset: RigidObject = env.scene[cfg.success_vis_asset_name]
+            self.success_vis_asset = env.scene[cfg.success_vis_asset_name]
         else:
             self.success_vis_asset = None
+        if isinstance(self.success_vis_asset, AssetBaseCfg):
+            offset = torch.tensor(self.success_vis_asset.init_state.pos, device=self.device)
+            self._static_success_vis_pos_w = env.scene.env_origins + offset
+        else:
+            self._static_success_vis_pos_w = None
 
         # create buffers
         # -- commands: (x, y, z, qx, qy, qz, qw) in root frame
@@ -135,9 +141,13 @@ class ObjectUniformPoseCommand(CommandTerm):
             self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
             success_id &= self.metrics["orientation_error"] < 0.5
         if self.success_vis_asset is not None:
-            self.success_visualizer.visualize(
-                self.success_vis_asset.data.root_pos_w.torch, marker_indices=success_id.int()
-            )
+            self.success_visualizer.visualize(self._get_success_vis_pos_w(), marker_indices=success_id.int())
+
+    def _get_success_vis_pos_w(self) -> torch.Tensor:
+        """Return the success visualization positions in the world frame."""
+        if self._static_success_vis_pos_w is not None:
+            return self._static_success_vis_pos_w
+        return self.success_vis_asset.data.root_pos_w.torch
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets
@@ -203,10 +213,6 @@ class DeformableUniformPoseCommand(ObjectUniformPoseCommand):
     Deformable objects expose no root orientation, so the target is tracked with the COM
     (:attr:`~isaaclab.assets.DeformableObject.data.root_pos_w`) and only ``position_only``
     commands are supported.
-
-    The success visualizer asset may be a static asset (``AssetBaseCfg``), which has no
-    runtime view. In that case its world position is the fixed spawn offset from the
-    environment origins.
     """
 
     cfg: DeformableUniformPoseCommandCfg
@@ -219,13 +225,6 @@ class DeformableUniformPoseCommand(ObjectUniformPoseCommand):
         if not cfg.position_only:
             raise ValueError("DeformableUniformPoseCommand only supports position_only commands.")
         super().__init__(cfg, env)
-
-        # static assets are stored as their config, so their world position is constant
-        if isinstance(self.success_vis_asset, AssetBaseCfg):
-            offset = torch.tensor(self.success_vis_asset.init_state.pos, device=self.device)
-            self._static_success_vis_pos_w = env.scene.env_origins + offset
-        else:
-            self._static_success_vis_pos_w = None
 
     def _update_metrics(self):
         # transform command from base frame to simulation world frame
@@ -242,8 +241,4 @@ class DeformableUniformPoseCommand(ObjectUniformPoseCommand):
             return
         # same success radius as the goal markers of the base class
         success_id = (self.metrics["position_error"] < 0.05).int()
-        if self._static_success_vis_pos_w is not None:
-            vis_pos_w = self._static_success_vis_pos_w
-        else:
-            vis_pos_w = self.success_vis_asset.data.root_pos_w.torch
-        self.success_visualizer.visualize(vis_pos_w, marker_indices=success_id)
+        self.success_visualizer.visualize(self._get_success_vis_pos_w(), marker_indices=success_id)
