@@ -49,6 +49,41 @@ def test_rsl_rl_disables_code_state_capture():
     assert logger.git_status_repos == []
 
 
+def test_rsl_rl_timing_recorder_captures_logger_durations():
+    """RSL-RL timing should be available on ranks whose TensorBoard logging is disabled."""
+
+    class FakeLogger:
+        def __init__(self):
+            self.calls = 0
+
+        def log(self, **_kwargs) -> None:
+            self.calls += 1
+
+    logger = FakeLogger()
+    runner = SimpleNamespace(logger=logger)
+    recorder = train_rsl_rl._RslRlTimingRecorder(runner)
+
+    with recorder:
+        logger.log(collect_time=1.25, learn_time=0.75)
+        logger.log(collect_time=1.5, learn_time=1.0)
+
+    assert recorder.collection_times_s == [1.25, 1.5]
+    assert recorder.iteration_times_s == [2.0, 2.5]
+    assert logger.calls == 2
+
+
+def test_rsl_rl_parser_only_accepts_distributed_from_benchmark_launcher():
+    """The regular benchmark remains single-process while the private launcher mode is accepted."""
+    with pytest.raises(SystemExit):
+        train_rsl_rl._parse_args(["--task", "unused", "--distributed"])
+
+    args_cli, _remaining, _cli_args = train_rsl_rl._parse_args(
+        ["--task", "unused", "--distributed", "--benchmark_multigpu"]
+    )
+    assert args_cli.distributed
+    assert args_cli.benchmark_multigpu
+
+
 def test_sb3_iteration_time_includes_policy_update(monkeypatch: pytest.MonkeyPatch):
     """Test that SB3 reports collection time separately from the full training iteration."""
     timestamps = iter([1_000_000_000, 1_000_000_000, 3_000_000_000, 6_000_000_000])

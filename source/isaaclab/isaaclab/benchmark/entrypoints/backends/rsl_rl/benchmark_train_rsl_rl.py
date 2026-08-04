@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 import sys
 import time
+from contextlib import AbstractContextManager
 from typing import Any
 
 from isaaclab_rl.entrypoints import common as _common
@@ -22,6 +23,32 @@ from isaaclab_rl.entrypoints import common as _common
 def _disable_code_state_capture(runner: Any) -> None:
     """Disable RSL-RL Git state capture while retaining TensorBoard logging."""
     runner.logger.git_status_repos = []
+
+
+class _RslRlTimingRecorder(AbstractContextManager):
+    """Record RSL-RL collection and complete iteration durations from logger calls."""
+
+    def __init__(self, runner: Any) -> None:
+        self._logger = runner.logger
+        self._original_log = runner.logger.log
+        self.collection_times_s: list[float] = []
+        self.iteration_times_s: list[float] = []
+
+    def __enter__(self) -> _RslRlTimingRecorder:
+        """Install the logger wrapper."""
+
+        def record_log(*args, **kwargs) -> None:
+            collection_time = float(kwargs["collect_time"])
+            self.collection_times_s.append(collection_time)
+            self.iteration_times_s.append(collection_time + float(kwargs["learn_time"]))
+            self._original_log(*args, **kwargs)
+
+        self._logger.log = record_log
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        """Restore the original logger method."""
+        self._logger.log = self._original_log
 
 
 def _parse_args(argv: list[str]):
@@ -51,7 +78,7 @@ def _parse_args(argv: list[str]):
         parser,
         agent_default="rsl_rl_cfg_entry_point",
         agent_help="Name of the RL agent configuration entry point.",
-        include_distributed=False,
+        include_distributed=True,
         max_iterations_type=parse_positive_int,
     )
     cli_args.add_rsl_rl_args(parser)
@@ -92,21 +119,21 @@ def _parse_args(argv: list[str]):
         help="Omit per-iteration series data from the bundle to reduce file size.",
     )
 
+    from isaaclab.benchmark._distributed import add_multigpu_benchmark_args, validate_multigpu_benchmark_args
     from isaaclab.benchmark.entrypoints.early_stop import add_success_cli_args
 
     add_success_cli_args(parser)
-
-    if "--distributed" in argv:
-        parser.error("Distributed training benchmarks are not supported.")
+    add_multigpu_benchmark_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
+    validate_multigpu_benchmark_args(parser, args_cli)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args, cli_args
 
 
-def run(argv: list[str]) -> BenchmarkResult:
+def run(argv: list[str]) -> BenchmarkResult | None:
     """Run the RSL-RL training benchmark and write a :class:`~isaaclab.benchmark.TrainingBundle`.
 
     Args:
@@ -125,6 +152,11 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark._distributed import (
+        DistributedContext,
+        LocalTrainingTiming,
+        aggregate_training_timing,
+    )
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
@@ -176,6 +208,13 @@ def run(argv: list[str]) -> BenchmarkResult:
             installed_rsl_rl = metadata.version("rsl-rl-lib")
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
             env_cfg.seed = agent_cfg.seed
+            _common.validate_distributed_device(args_cli)
+
+            distributed = DistributedContext.from_env(enabled=args_cli.distributed)
+            if distributed.enabled:
+                agent_cfg.device = env_cfg.sim.device
+                agent_cfg.seed += distributed.rank
+                env_cfg.seed = agent_cfg.seed
 
             cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
@@ -187,12 +226,16 @@ def run(argv: list[str]) -> BenchmarkResult:
                 output_path=args_cli.output_path,
                 use_recorders=True,
                 frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
-                output_prefix=f"benchmark_training_{args_cli.task}",
+                output_prefix=(
+                    f"benchmark_training_multigpu_{args_cli.task}"
+                    if distributed.enabled
+                    else f"benchmark_training_{args_cli.task}"
+                ),
                 workflow_metadata={
                     "metadata": [
                         {"name": "task", "data": args_cli.task},
                         {"name": "seed", "data": agent_cfg.seed},
-                        {"name": "num_envs", "data": env_cfg.scene.num_envs},
+                        {"name": "num_envs", "data": env_cfg.scene.num_envs * distributed.world_size},
                         {"name": "max_iterations", "data": agent_cfg.max_iterations},
                         {
                             "name": "environment_step_measurement_mode",
@@ -214,9 +257,10 @@ def run(argv: list[str]) -> BenchmarkResult:
             if agent_cfg.run_name:
                 log_dir += f"_{agent_cfg.run_name}"
             log_dir = os.path.join(log_root_path, log_dir)
-            _common.write_run_manifest(
-                log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent}
-            )
+            if distributed.is_main:
+                _common.write_run_manifest(
+                    log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent}
+                )
             env_cfg.log_dir = log_dir
             _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
@@ -246,13 +290,44 @@ def run(argv: list[str]) -> BenchmarkResult:
                 measure_synchronized_step_breakdown=args_cli.measure_sync_step,
                 warmup_steps=args_cli.warmup_steps,
             )
-            with early, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+            rsl_rl_timing = _RslRlTimingRecorder(runner)
+            with early, environment_step_timer, rsl_rl_timing, BenchmarkMonitor(benchmark, interval=1.0):
                 runner.learn(
                     num_learning_iterations=agent_cfg.max_iterations,
                     init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
                 )
 
             benchmark.update_manual_recorders()
+
+            aggregated_timing = None
+            if distributed.enabled:
+                startup = StartupTime(
+                    app_launch=(app_t1 - app_t0) / 1e9,
+                    env_creation=(env_t1 - env_t0) / 1e9,
+                    first_step=(rsl_rl_timing.iteration_times_s[0] if rsl_rl_timing.iteration_times_s else 0.0),
+                    python_imports=(imports_t1 - imports_t0) / 1e9,
+                    task_config=(config_t1 - config_t0) / 1e9,
+                )
+                local_num_envs = env.unwrapped.num_envs
+                aggregated_timing = aggregate_training_timing(
+                    LocalTrainingTiming(
+                        startup_time_s=startup,
+                        iteration_times_s=tuple(rsl_rl_timing.iteration_times_s),
+                        collection_times_s=tuple(rsl_rl_timing.collection_times_s),
+                        environment_step_times_s=tuple(environment_step_timer.step_times_s),
+                        simulation_step_times_s=(
+                            tuple(environment_step_timer.simulation_step_times_s)
+                            if environment_step_timer.simulation_step_times_s is not None
+                            else None
+                        ),
+                        simulation_step_calls=environment_step_timer.simulation_step_calls,
+                        num_envs=local_num_envs,
+                        steps_per_iteration=local_num_envs * agent_cfg.num_steps_per_env,
+                    ),
+                    distributed,
+                )
+                if not distributed.is_main:
+                    return None
 
             desc = RL_LIBRARY_DESCRIPTORS["rsl_rl"]
             log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
@@ -263,32 +338,49 @@ def run(argv: list[str]) -> BenchmarkResult:
                     file=sys.stderr,
                 )
 
-            # RSL-RL reports collection and learning durations separately in seconds.
-            coll = log_data.get("Perf/collection_time", [])
-            learn_ = log_data.get("Perf/learning_time", [])
-            iteration_times_s = [c + lrn for c, lrn in zip(coll, learn_)]
-            collection_fps_series = [env.unwrapped.num_envs * agent_cfg.num_steps_per_env / c for c in coll if c > 0]
-            total_fps_series = list(log_data.get("Perf/total_fps", []))
-
-            startup = StartupTime(
-                app_launch=(app_t1 - app_t0) / 1e9,
-                env_creation=(env_t1 - env_t0) / 1e9,
-                first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
-                python_imports=(imports_t1 - imports_t0) / 1e9,
-                task_config=(config_t1 - config_t0) / 1e9,
-            )
+            if aggregated_timing is not None:
+                iteration_times_s = list(aggregated_timing.iteration_times_s)
+                collection_fps_series = list(aggregated_timing.collection_fps)
+                total_fps_series = list(aggregated_timing.total_fps)
+                startup = aggregated_timing.startup_time_s
+                runtime_num_envs = aggregated_timing.num_envs
+                steps_per_iteration = aggregated_timing.steps_per_iteration
+                environment_step_times_s = aggregated_timing.environment_step_times_s
+                simulation_step_times_s = aggregated_timing.simulation_step_times_s
+                simulation_step_calls = aggregated_timing.simulation_step_calls
+            else:
+                # RSL-RL reports collection and learning durations separately in seconds.
+                coll = log_data.get("Perf/collection_time", [])
+                learn_ = log_data.get("Perf/learning_time", [])
+                iteration_times_s = [c + lrn for c, lrn in zip(coll, learn_)]
+                collection_fps_series = [
+                    env.unwrapped.num_envs * agent_cfg.num_steps_per_env / c for c in coll if c > 0
+                ]
+                total_fps_series = list(log_data.get("Perf/total_fps", []))
+                startup = StartupTime(
+                    app_launch=(app_t1 - app_t0) / 1e9,
+                    env_creation=(env_t1 - env_t0) / 1e9,
+                    first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
+                    python_imports=(imports_t1 - imports_t0) / 1e9,
+                    task_config=(config_t1 - config_t0) / 1e9,
+                )
+                runtime_num_envs = env.unwrapped.num_envs
+                steps_per_iteration = runtime_num_envs * agent_cfg.num_steps_per_env
+                environment_step_times_s = environment_step_timer.step_times_s
+                simulation_step_times_s = environment_step_timer.simulation_step_times_s
+                simulation_step_calls = environment_step_timer.simulation_step_calls
 
             runtime = builders.build_runtime(
                 startup_time_s=startup,
                 iteration_times_s=iteration_times_s,
                 collection_fps=collection_fps_series,
                 total_fps=total_fps_series,
-                steps_per_iteration=env.unwrapped.num_envs * agent_cfg.num_steps_per_env,
-                frames_per_environment_step=env.unwrapped.num_envs,
+                steps_per_iteration=steps_per_iteration,
+                frames_per_environment_step=runtime_num_envs,
                 environment_step_warmup_steps=args_cli.warmup_steps,
-                environment_step_times_s=environment_step_timer.step_times_s,
-                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
-                simulation_step_calls=environment_step_timer.simulation_step_calls,
+                environment_step_times_s=environment_step_times_s,
+                simulation_step_times_s=simulation_step_times_s,
+                simulation_step_calls=simulation_step_calls,
             )
 
             tracker = get_success_tracker(args_cli, early.tracker, log_data)
@@ -317,12 +409,16 @@ def run(argv: list[str]) -> BenchmarkResult:
                 seed=seed,
                 start_utc=start_utc,
                 end_utc=end_utc,
-                num_envs=env.unwrapped.num_envs,
+                num_envs=runtime_num_envs,
                 max_iterations=agent_cfg.max_iterations,
             )
 
             checkpoint_path = get_checkpoint_path(log_root_path, re.escape(os.path.basename(log_dir)), r"model_.*\.pt")
-            video_path = os.path.join(log_dir, "videos") if getattr(args_cli, "video", False) else None
+            video_path = (
+                os.path.join(log_dir, "videos")
+                if getattr(args_cli, "video", False) and not distributed.enabled
+                else None
+            )
 
             bundle = builders.build_training_bundle(
                 run=run_identity,
@@ -334,6 +430,19 @@ def run(argv: list[str]) -> BenchmarkResult:
                 success_rate=success_rate,
                 checkpoint_path=checkpoint_path,
                 video_path=video_path,
+                extra=(
+                    {
+                        "distributed": True,
+                        "world_size": distributed.world_size,
+                        "local_world_size": distributed.local_world_size,
+                        "num_nodes": distributed.num_nodes,
+                        "num_envs_per_rank": local_num_envs,
+                        "learning_scope": "rank0",
+                        "resource_scope": "rank0_node",
+                    }
+                    if distributed.enabled
+                    else None
+                ),
             )
 
             benchmark.attach_bundle(bundle)
