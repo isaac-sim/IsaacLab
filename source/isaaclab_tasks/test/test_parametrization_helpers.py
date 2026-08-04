@@ -106,16 +106,11 @@ def test_lift_factory_applies_shared_native_crash_policy() -> None:
 
 
 def test_franka_factory_adds_cloth_only_motion_policy() -> None:
-    """Franka suites should share table xfails while cloth adds motion-vector xfails."""
+    """Only the cloth suite should carry the motion-vector xfail."""
     soft_params = {param.id: param for param in make_kitless_rendering_params_franka()}
     cloth_params = {
         param.id: param for param in make_kitless_rendering_params_franka(include_cloth_motion_vectors=True)
     }
-
-    table_id = "legacy-newton-newton_warp-rgb"
-    assert [mark.name for mark in soft_params[table_id].marks] == ["xfail"]
-    assert [mark.name for mark in cloth_params[table_id].marks] == ["xfail"]
-    assert "OMPE-103086" in soft_params[table_id].marks[0].kwargs["reason"]
 
     for variant in ("legacy", "ovstage"):
         motion_id = f"{variant}-newton-ovrtx-motion_vectors"
