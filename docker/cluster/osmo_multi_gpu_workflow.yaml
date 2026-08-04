@@ -43,8 +43,10 @@ workflow:
           set -euo pipefail
 
           # Isaac Sim images ship their own Vulkan ICDs. Hide the system ones so the
-          # loader does not pick up a conflicting driver on the compute node.
-          if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ]; then
+          # loader does not pick up a conflicting driver on the compute node. The
+          # published images run as an unprivileged user and cannot write to
+          # /usr/share, so skip the rename there instead of failing the job.
+          if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ] && [ -w "/usr/share" ]; then
             mv /usr/share/vulkan /usr/share/vulkan_hidden
           fi
 
@@ -78,4 +80,5 @@ default-values:
   storage: 256
   platform: dgx-h100
   master_port: 29400
-  args:
+  # Empty rather than null: a null default renders as the literal string "None".
+  args: ""
