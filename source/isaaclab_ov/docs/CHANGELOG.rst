@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.2 (2026-08-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX missing-runtime errors to recommend supported uv-managed and
+  direct-wheel commands.
+
+
 0.10.1 (2026-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
