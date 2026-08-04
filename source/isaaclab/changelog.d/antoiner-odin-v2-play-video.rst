@@ -15,6 +15,11 @@ Added
 Fixed
 ^^^^^
 
+* Fixed ``--video`` on kitless OvPhysX selecting the Kit capture backend. The OvPhysX
+  physics manager is named ``OvPhysxManager``, so a substring test for ``physx`` routed it
+  to a recorder that imports ``omni.replicator`` lazily, and the run failed on the first
+  rendered frame after simulation startup and policy load. OvPhysX has no capture backend,
+  so it now raises at backend selection with a message naming the alternatives.
 * Fixed :attr:`~isaaclab.benchmark.schema.TrainingBundle.checkpoint_path` being reported as
   ``None`` by the RSL-RL, RL-Games, and SKRL training benchmarks. The field is now populated
   from the checkpoint the run actually wrote, so downstream play workflows can roll out a
