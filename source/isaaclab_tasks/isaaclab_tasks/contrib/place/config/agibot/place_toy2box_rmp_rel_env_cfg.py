@@ -204,7 +204,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = physx
+    default = isaacsim_physx
 
 
 # Robot USD assets whose gripper revolute joints are authored with reversed
@@ -232,7 +232,7 @@ def raise_if_reversed_joints_on_newton(env_cfg) -> None:
         raise ValueError(
             "This task's robot has gripper joints authored with reversed body0/body1 ordering, "
             "which the Newton backend's USD parser does not support ('Reversed joints are not "
-            "supported'). Re-run this task with physics=physx (the default)."
+            "supported'). Re-run this task with physics=isaacsim_physx (the default)."
         )
 
 

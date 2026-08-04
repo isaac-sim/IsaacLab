@@ -253,6 +253,12 @@ def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path)
     assert spec.physics_backends == (("--physics", "isaacsim_physx"),)
 
 
+def test_cable_demo_accepts_explicit_newton_vbd_selector():
+    """The Newton-only cable demo must accept its documented backend explicitly."""
+    spec = next(spec for spec in SPECS if spec.relative_path == "scripts/demos/cables.py")
+    assert spec.physics_backends == (("--physics", "newton_vbd"),)
+
+
 def test_multi_mesh_raycaster_opens_requested_rerun_viewer():
     """The interactive raycaster demo must open Rerun when the user explicitly requests it."""
     path = script_cases.ROOT / "scripts/demos/sensors/multi_mesh_raycaster.py"

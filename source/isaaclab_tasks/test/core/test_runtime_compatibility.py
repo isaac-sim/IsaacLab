@@ -226,17 +226,13 @@ def test_newton_plus_ovrtx_is_valid():
     validate_runtime_compatibility(env_cfg)
 
 
-def test_default_auto_physx_plus_ovrtx_resolves_to_ovphysx():
-    """Default automatic PhysX uses OvPhysX when OVRTX is the only renderer signal."""
+def test_default_isaacsim_physx_plus_ovrtx_raises():
+    """The concrete default Isaac Sim PhysX backend is incompatible with OVRTX."""
     env_cfg = _resolve_with_presets("ovrtx")
 
-    assert isinstance(env_cfg.sim.physics, PhysxAutoCfg)
-
-    config_scan = validate_runtime_compatibility(env_cfg)
-
-    assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
-    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    with pytest.raises(ValueError, match="PhysxCfg"):
+        validate_runtime_compatibility(env_cfg)
 
 
 def test_explicit_auto_physx_plus_ovrtx_resolves_to_ovphysx():
@@ -306,14 +302,14 @@ def test_default_preset_is_valid():
     validate_runtime_compatibility(env_cfg)
 
 
-def test_rtx_with_default_physx_is_valid_and_resolves_to_ovphysx_and_ovrtx():
-    """The RTX preset chooses kitless PhysX-family backends when no Kit runtime is needed."""
+def test_rtx_with_default_physx_is_valid_and_resolves_to_isaac_sim_backends():
+    """The RTX selector follows the default concrete Isaac Sim PhysX backend."""
     env_cfg = _resolve_with_presets("rtx")
     config_scan = validate_runtime_compatibility(env_cfg)
 
-    assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
-    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+    assert config_scan.needs_kit is True
 
 
 def test_renderer_selector_physx_rtx_is_valid_and_resolves_to_ovphysx_and_ovrtx():

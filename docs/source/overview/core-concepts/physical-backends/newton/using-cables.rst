@@ -29,8 +29,21 @@ in your environment:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/demos/cables.py
-    ./isaaclab.sh -p scripts/demos/cables.py --num_cables 40 --num_segments 15
+    # Default Newton VBD physics with the Kit visualizer.
+    uv run python scripts/demos/cables.py
+
+    # Explicit Newton VBD physics with the Newton visualizer.
+    uv run python scripts/demos/cables.py --physics newton_vbd --visualizer newton
+
+    # No visualizer and a larger cable pile.
+    uv run python scripts/demos/cables.py --visualizer none --num_cables 40 --num_segments 15
+
+The demo accepts ``newton_vbd`` as its only ``--physics`` option. Its
+``--visualizer`` option accepts ``kit``, ``newton``, ``rerun``, ``viser``, and
+``none``; when omitted, the demo uses ``kit``. Use ``--num_cables`` and
+``--num_segments`` to change the pile size and cable resolution. Use
+``--max_steps`` to stop after a fixed number of simulation steps; its negative
+default runs until the selected visualizer closes or the process is interrupted.
 
 The demo spawns a pile of randomly oriented cables onto a ground plane under
 standalone Newton VBD, lets them collide and settle, and periodically restores

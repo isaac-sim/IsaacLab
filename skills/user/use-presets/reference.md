@@ -49,9 +49,11 @@ From the Isaac Lab checkout, use `uv run python scripts/environments/list_envs.p
 Import paths:
 
 ```python
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_tasks.utils import PresetCfg
 ```
@@ -61,8 +63,10 @@ Pattern:
 ```python
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg()
-    physx = default
+    isaacsim_physx = PhysxCfg()
+    ovphysx = OvPhysxCfg()
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = isaacsim_physx
     newton_mjwarp = NewtonCfg(solver_cfg=MJWarpSolverCfg())
 
 
@@ -73,11 +77,13 @@ class MyEnvCfg:
 
 For multi-backend tasks, keep backend-specific solver values in the preset wrapper. Do not branch on backend names inside step, reward, or reset logic unless behavior truly cannot be represented as config.
 
+When a task currently defaults to `PhysxAutoCfg`, replace that default with the concrete `isaacsim_physx` variant. Preserve explicit Newton and other backend defaults. Keep `physx` as the explicit automatic selector through `PhysxAutoCfg`, matching the renderer convention where `isaacsim_rtx` is concrete and `rtx` is automatic.
+
 For schema presets, import universal fragments and base cfgs from `isaaclab.sim.schemas`, PhysX-specific cfgs from `isaaclab_physx.sim.schemas`, and Newton or MuJoCo cfgs from `isaaclab_newton.sim.schemas`.
 
 ## Validation Checklist
 
-- The `default` variant is valid.
+- A default that previously aliased `PhysxAutoCfg` now aliases `isaacsim_physx`; explicit backend defaults remain unchanged.
 - Every named variant is tested.
 - Selector names match existing conventions such as `physx`, `newton_mjwarp`, `newton_kamino`, `ovphysx`, `rgb`, and `depth`.
 - A small random-agent rollout succeeds for each variant.

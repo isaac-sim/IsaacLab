@@ -26,19 +26,25 @@ This is enough when the task only supports PhysX and there are no renderer, sens
 ## Physics Presets
 
 Use `PresetCfg` when the same task supports multiple physics backends.
+The example below applies when the task's established default is PhysX. Preserve
+an explicit Newton or other backend default when adding more variants.
 
 ```python
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_tasks.utils import PresetCfg
 
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    physx = default
+    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    ovphysx = OvPhysxCfg()
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = isaacsim_physx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(njmax=120, nconmax=15),
         num_substeps=1,
@@ -53,6 +59,7 @@ class MyMultiBackendEnvCfg:
 Command examples:
 
 ```bash
+uv run python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4
 uv run python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4 physics=physx
 uv run python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4 physics=newton_mjwarp
 ```
@@ -90,7 +97,7 @@ uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-
 For camera tasks that expose physics, renderer, and data-type variants, combine selectors:
 
 ```bash
-uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=physx renderer=isaacsim_rtx_renderer presets=rgb
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb
 uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=newton_mjwarp renderer=newton_renderer presets=depth
 ```
 
