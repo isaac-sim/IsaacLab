@@ -179,7 +179,7 @@ class OsmoClient:
             tasks=tasks,
         )
 
-    def validate(self, yaml_path: Path) -> None:
+    def validate(self, yaml_path: Path, *, pool: str | None = None) -> None:
         """Validate a workflow YAML server-side without submitting it.
 
         Catches schema drift that local rendering cannot: OSMO rejects unknown
@@ -188,11 +188,17 @@ class OsmoClient:
 
         Args:
             yaml_path: Path to the rendered workflow YAML.
+            pool: Target OSMO pool. Must match what :meth:`submit` will use:
+                platforms are validated against the pool, so validating against
+                the profile default rejects a platform the target pool offers.
 
         Raises:
             OsmoAuthError, OsmoTransientError, OsmoCliError: per :func:`_classify`.
         """
-        cp = self._run([self._exe, "workflow", "validate", str(yaml_path)])
+        cmd = [self._exe, "workflow", "validate", str(yaml_path)]
+        if pool is not None:
+            cmd.extend(["--pool", pool])
+        cp = self._run(cmd)
         if cp.returncode != 0:
             raise _classify(cp.stderr)(f"`osmo workflow validate` failed for {yaml_path.name}: {cp.stderr.strip()}")
 

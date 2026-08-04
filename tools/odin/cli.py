@@ -385,7 +385,10 @@ def _submit_and_poll(
     # cannot leave a dispatch half-submitted.
     if not args.skip_preflight:
         for path, _side in rendered:
-            client.validate(path)
+            # Same pool as the submit below: platforms are validated against the
+            # pool, so validating against the profile default rejects a platform
+            # the target pool offers.
+            client.validate(path, pool=args.pool or cfg.pool)
 
     for path, _side in rendered:
         workflow_id = client.submit(

@@ -137,6 +137,16 @@ def test_validate_accepts_a_good_workflow(monkeypatch, tmp_path: Path) -> None:
     assert fake.calls[0][:3] == ["osmo", "workflow", "validate"]
 
 
+def test_validate_targets_the_pool_it_will_submit_to(monkeypatch, tmp_path: Path) -> None:
+    # OSMO validates the platform against the pool, so validating against the
+    # profile default rejected `ovx-l40s` as "does not exist in pool
+    # isaac-dev-l40-03" while the submit target offered it.
+    fake = _FakeRun(_cp(stdout="Workflow validation succeeded."))
+    _client(monkeypatch, fake).validate(tmp_path / "wf.yaml", pool="isaac-lab-l40s-03")
+    assert "--pool" in fake.calls[0]
+    assert fake.calls[0][fake.calls[0].index("--pool") + 1] == "isaac-lab-l40s-03"
+
+
 def test_validate_raises_on_schema_rejection(monkeypatch, tmp_path: Path) -> None:
     # OSMO rejects unknown task fields outright; catching that before submit is
     # the whole point of the preflight.

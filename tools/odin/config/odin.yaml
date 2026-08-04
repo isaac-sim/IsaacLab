@@ -5,7 +5,7 @@
 
 # OdinV2 dispatch configuration.
 osmo_profile: default
-pool: isaac-dev-l40-03
+pool: isaac-lab-l40s-03
 priority: NORMAL
 
 image:
@@ -18,7 +18,7 @@ resources:
   gpu: 1
   memory: 64Gi
   storage: 64Gi
-  platform: ovx-l40
+  platform: ovx-l40s
 
 # Every task is wrapped in its own single-task group, so OSMO's clock is
 # per-group and this is a ceiling that catches wedged tasks rather than a
