@@ -436,19 +436,41 @@ def test_manager_supports_current_runtime_api():
 
 @pytest.mark.skipif(sys.platform == "win32", reason="cache root is LOCALAPPDATA-derived on Windows")
 def test_manager_passes_explicit_cooked_collider_cache_dir(monkeypatch, tmp_path):
-    """Both runtime branches hand OVPhysX an explicit cache directory.
+    """Every runtime and device combination hands OVPhysX an explicit cache directory.
 
     Without it the bundled Carbonite defaults the UJITSO cache to the directory holding the
     Python interpreter, which is silently wrong when writable and errors when it is not.
+
+    The two runtimes accept the setting through different keys, so each stubbed ``PhysXConfig``
+    mimics its real signature: the declared runtime has no ``cooked_collider_cache_dir`` field
+    and would raise on the typed keyword, while the current runtime rejects the generic
+    override as conflicting with that field.
     """
     from isaaclab_ovphysx.physics import OvPhysxManager
 
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     expected = str(tmp_path / "ov" / "DerivedDataCache")
 
-    class LegacyPhysX:
+    def legacy_config(*, carbonite_overrides=None, num_threads=None):
+        return SimpleNamespace(carbonite_overrides=carbonite_overrides, num_threads=num_threads)
+
+    def current_config(*, num_threads=None, cooked_collider_cache_dir=None, carbonite_overrides=None):
+        return SimpleNamespace(
+            num_threads=num_threads,
+            cooked_collider_cache_dir=cooked_collider_cache_dir,
+            carbonite_overrides=carbonite_overrides,
+        )
+
+    class LegacyCudaPhysX:
         def __init__(self, *, device, active_cuda_gpus=None, config=None):
-            self.constructor = {"config": config}
+            self.config = config
+
+        def set_config_int32(self, key, value):
+            pass
+
+    class LegacyIndexPhysX:
+        def __init__(self, *, device, gpu_index=None, config=None):
+            self.config = config
 
         def set_config_int32(self, key, value):
             pass
@@ -459,16 +481,22 @@ def test_manager_passes_explicit_cooked_collider_cache_dir(monkeypatch, tmp_path
             pass
 
         def __init__(self, *, active_cuda_gpus=None, config=None):
-            self.constructor = {"config": config}
+            self.config = config
 
-    for physx_cls in (LegacyPhysX, CurrentPhysX):
-        runtime = SimpleNamespace(
-            PhysX=physx_cls,
-            PhysXConfig=lambda **kwargs: SimpleNamespace(**kwargs),
-            ConfigInt32=SimpleNamespace(NUM_THREADS="num_threads"),
-        )
-        physx = OvPhysxManager._create_physx_instance(runtime, "gpu", 0)
-        assert physx.constructor["config"].cooked_collider_cache_dir == expected
+    for physx_cls in (LegacyCudaPhysX, LegacyIndexPhysX):
+        for device in ("gpu", "cpu"):
+            runtime = SimpleNamespace(
+                PhysX=physx_cls,
+                PhysXConfig=legacy_config,
+                ConfigInt32=SimpleNamespace(NUM_THREADS="num_threads"),
+            )
+            physx = OvPhysxManager._create_physx_instance(runtime, device, 0)
+            assert physx.config.carbonite_overrides["/UJITSO/datastore/localCachePath"] == expected
+
+    for device in ("gpu", "cpu"):
+        runtime = SimpleNamespace(PhysX=CurrentPhysX, PhysXConfig=current_config)
+        physx = OvPhysxManager._create_physx_instance(runtime, device, 0)
+        assert physx.config.cooked_collider_cache_dir == expected
 
 
 def test_manager_serializes_env0_only_stage_in_memory(caplog):

@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import sys
+import tempfile
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
@@ -977,9 +978,16 @@ class OvPhysxManager(PhysicsManager):
         """
         if sys.platform == "win32":
             base = os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local")
-            return os.path.join(base, "ov", "cache", "DerivedDataCache")
-        base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
-        return os.path.join(base, "ov", "DerivedDataCache")
+            cache_dir = os.path.join(base, "ov", "cache", "DerivedDataCache")
+        else:
+            base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+            cache_dir = os.path.join(base, "ov", "DerivedDataCache")
+        if not os.path.isabs(cache_dir):
+            # ``expanduser`` leaves "~" unchanged when the home directory cannot be resolved
+            # (e.g. an arbitrary-UID container with no passwd entry); a relative path would
+            # put the cache under the working directory.
+            cache_dir = os.path.join(tempfile.gettempdir(), "ov", "DerivedDataCache")
+        return cache_dir
 
     @staticmethod
     def _create_physx_instance(ovphysx: Any, ovphysx_device: str, gpu_index: int) -> Any:
@@ -1026,17 +1034,18 @@ class OvPhysxManager(PhysicsManager):
         except (TypeError, ValueError):
             # C-extension constructors may not expose a Python-visible signature
             physx_parameters = {}
+        # The declared runtime's PhysXConfig predates ``cooked_collider_cache_dir``, so the cache
+        # path goes through the generic override here rather than the typed field used above.
+        legacy_overrides: dict[str, bool | int | float | str] = {
+            "/UJITSO/datastore/localCachePath": OvPhysxManager._cooked_collider_cache_dir(),
+        }
         if "active_cuda_gpus" in physx_parameters and ovphysx_device == "gpu":
             physx_kwargs["active_cuda_gpus"] = str(gpu_index)
-            physx_kwargs["config"] = ovphysx.PhysXConfig(
-                cooked_collider_cache_dir=OvPhysxManager._cooked_collider_cache_dir(),
-                carbonite_overrides={
-                    "/physics/suppressReadback": True,
-                    "/physics/suppressFabricUpdate": True,
-                },
-            )
+            legacy_overrides["/physics/suppressReadback"] = True
+            legacy_overrides["/physics/suppressFabricUpdate"] = True
         elif "gpu_index" in physx_parameters:
             physx_kwargs["gpu_index"] = gpu_index
+        physx_kwargs["config"] = ovphysx.PhysXConfig(carbonite_overrides=legacy_overrides)
 
         physx = ovphysx.PhysX(**physx_kwargs)
         if hasattr(physx, "set_setting"):
