@@ -36,8 +36,10 @@ class DistributedContext:
             int(os.getenv("WORLD_SIZE", "1")),
             int(os.getenv("LOCAL_WORLD_SIZE", "1")),
         )
-        if context.world_size < 1 or context.local_world_size < 1:
-            raise ValueError("WORLD_SIZE and LOCAL_WORLD_SIZE must be positive")
+        if context.world_size < 2:
+            raise ValueError(f"WORLD_SIZE={context.world_size} must be at least 2")
+        if context.local_world_size < 1:
+            raise ValueError("LOCAL_WORLD_SIZE must be positive")
         if not 0 <= context.rank < context.world_size:
             raise ValueError(f"RANK={context.rank} must be in [0, WORLD_SIZE={context.world_size})")
         if not 0 <= context.local_rank < context.local_world_size:
@@ -59,6 +61,33 @@ class DistributedContext:
     def num_nodes(self) -> int:
         """Number of uniformly sized worker nodes."""
         return self.world_size // self.local_world_size
+
+
+def build_distributed_metadata(
+    context: DistributedContext, num_envs_per_rank: int
+) -> dict[str, bool | int | str]:
+    """Build bundle metadata for a distributed training benchmark.
+
+    Args:
+        context: Distributed worker metadata.
+        num_envs_per_rank: Number of environments hosted by each worker.
+
+    Returns:
+        Distributed topology and output-scope metadata.
+    """
+    if not context.enabled:
+        raise ValueError("Distributed metadata requires an enabled distributed context")
+    return {
+        "distributed": True,
+        "world_size": context.world_size,
+        "local_world_size": context.local_world_size,
+        "num_nodes": context.num_nodes,
+        "num_envs_per_rank": num_envs_per_rank,
+        "learning_scope": "rank0",
+        "resource_scope_gpu": "rank0_node",
+        "resource_scope_cpu": "rank0_process",
+        "resource_scope_ram": "rank0_process",
+    }
 
 
 @dataclass(frozen=True)
@@ -184,20 +213,12 @@ def _max_startup(startup: StartupTime, device) -> StartupTime:
     )
 
 
-def _local_aggregate(local: LocalTrainingTiming) -> AggregatedTrainingTiming:
-    return AggregatedTrainingTiming(
-        **local.__dict__,
-        collection_fps=tuple(local.steps_per_iteration / value for value in local.collection_times_s),
-        total_fps=tuple(local.steps_per_iteration / value for value in local.iteration_times_s),
-    )
-
-
 def aggregate_training_timing(
     local: LocalTrainingTiming, context: DistributedContext
 ) -> AggregatedTrainingTiming:
     """Reduce rank-local timing samples into global-work critical-path metrics."""
     if not context.enabled:
-        return _local_aggregate(local)
+        raise ValueError("Training timing aggregation requires an enabled distributed context")
     _validate_collective_context(context)
     device = _collective_device(context)
 

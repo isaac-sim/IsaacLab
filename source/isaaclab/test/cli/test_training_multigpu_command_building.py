@@ -7,27 +7,18 @@
 
 from __future__ import annotations
 
-import importlib.util
 import shlex
 import sys
 from pathlib import Path
 
 import pytest
 
+from isaaclab.benchmark.entrypoints import training_multigpu as launcher
+
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_LAUNCHER_PATH = _REPO_ROOT / "scripts" / "benchmarks" / "training_multigpu.py"
-
-
-def _load_launcher():
-    spec = importlib.util.spec_from_file_location("training_multigpu", _LAUNCHER_PATH)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _build_command(argv: list[str]) -> list[str]:
-    launcher = _load_launcher()
     args_cli, forwarded_args = launcher._parse_args(argv)
     return launcher._build_distributed_command(args_cli, forwarded_args)
 
@@ -105,8 +96,6 @@ def test_launcher_allows_zero_sensor_capture_and_opaque_kit_args(monkeypatch: py
 def test_dry_run_is_shell_parsable(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
     """Dry-run output should preserve one token per forwarded argument."""
     monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0,1")
-    launcher = _load_launcher()
-
     assert launcher.main(["--dry_run", "--num_gpus", "2", "--task", "X"]) == 0
 
     tokens = shlex.split(capsys.readouterr().out)

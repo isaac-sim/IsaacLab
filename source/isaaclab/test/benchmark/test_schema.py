@@ -111,6 +111,12 @@ def _resources() -> Resources:
         gpu_mem_gb=MeanStd(mean=18.4, std=0.3, peak=19.2),
         cpu_util_pct=MeanStd(mean=31.5, std=4.8),
         ram_gb=MeanStd(mean=22.1, std=0.4, peak=24.8),
+        gpu_devices={
+            "0": Resources.GpuDevice(
+                utilization_pct=MeanStd(mean=87.2, std=6.1),
+                memory_gb=MeanStd(mean=18.4, std=0.3, peak=19.2),
+            )
+        },
     )
 
 
@@ -157,6 +163,7 @@ def test_training_bundle_round_trip(tmp_path):
     assert "overhead_fraction" not in timing
     # merged MeanStd: util has no peak, memory does
     assert data["resources"]["gpu_util_pct"]["peak"] is None
+    assert data["resources"]["gpu_devices"]["0"]["utilization_pct"]["mean"] == pytest.approx(87.2)
     assert data["resources"]["ram_gb"]["peak"] == pytest.approx(24.8)
     assert data["learning"]["success_rate"]["final_raw"] == pytest.approx(0.95)
     assert data["learning"]["success_rate"]["series_per_iter"] == pytest.approx([0.1, 0.5, 0.95])

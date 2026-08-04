@@ -363,14 +363,14 @@ For multi-node execution, run the command on every node with a distinct
 
 Only global rank 0 emits the benchmark bundle. Global throughput uses the sum
 of work across ranks divided by the slowest-rank duration. The learning curve
-and checkpoint describe rank 0, while hardware and resource measurements cover
-the rank-0 node. These scopes are recorded in ``TrainingBundle.extra``.
+and checkpoint describe rank 0. GPU resource measurements cover every visible
+device on the rank-0 node; CPU and RAM measurements cover the rank-0 process.
+These scopes are recorded in ``TrainingBundle.extra``.
 
 This benchmark is training-only and Torch-only. It does not support skrl JAX,
 SB3, play or runtime benchmarking, video recording, environment sensor capture,
-or success-based early stopping. Multi-node launching is supported but was not
-hardware-validated when this experimental workflow was introduced. See
-:ref:`train-multigpu-command` for the general distributed training launcher.
+or success-based early stopping. See :ref:`train-multigpu-command` for the
+general distributed training launcher.
 
 Startup Profiling
 -----------------

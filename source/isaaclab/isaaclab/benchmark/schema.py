@@ -342,16 +342,30 @@ class Resources:
     uninformative); memory fields populate ``peak``.
 
     Args:
-        gpu_util_pct: GPU utilisation [%].
-        gpu_mem_gb: GPU memory used [GB].
+        gpu_util_pct: Current-device GPU utilisation [%].
+        gpu_mem_gb: Current-device GPU memory used [GB].
         cpu_util_pct: CPU utilisation [%].
         ram_gb: Host RAM used [GB].
+        gpu_devices: GPU utilisation and memory keyed by logical CUDA device index.
     """
+
+    @dataclass(frozen=True)
+    class GpuDevice:
+        """Resource metrics for one logical CUDA device.
+
+        Args:
+            utilization_pct: GPU utilisation [%].
+            memory_gb: GPU memory used [GB].
+        """
+
+        utilization_pct: MeanStd
+        memory_gb: MeanStd
 
     gpu_util_pct: MeanStd
     gpu_mem_gb: MeanStd
     cpu_util_pct: MeanStd
     ram_gb: MeanStd
+    gpu_devices: dict[str, GpuDevice] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

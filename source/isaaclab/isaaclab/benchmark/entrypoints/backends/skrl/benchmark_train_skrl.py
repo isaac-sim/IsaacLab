@@ -235,6 +235,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
         DistributedContext,
         LocalTrainingTiming,
         aggregate_training_timing,
+        build_distributed_metadata,
     )
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
@@ -518,19 +519,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 success_rate=success_rate,
                 checkpoint_path=None,
                 video_path=os.path.join(log_dir, "videos") if args_cli.video and not distributed.enabled else None,
-                extra=(
-                    {
-                        "distributed": True,
-                        "world_size": distributed.world_size,
-                        "local_world_size": distributed.local_world_size,
-                        "num_nodes": distributed.num_nodes,
-                        "num_envs_per_rank": local_num_envs,
-                        "learning_scope": "rank0",
-                        "resource_scope": "rank0_node",
-                    }
-                    if distributed.enabled
-                    else None
-                ),
+                extra=(build_distributed_metadata(distributed, local_num_envs) if distributed.enabled else None),
             )
 
             benchmark.attach_bundle(bundle)

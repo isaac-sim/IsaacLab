@@ -415,17 +415,32 @@ def capture_resources(bm: Any) -> Resources:
     # --- GPU ---
     gpu_meas = gpu_data.measurements if gpu_data is not None else []
     gpu_metadata = {m.name: m.data for m in gpu_data.metadata or []} if gpu_data is not None else {}
-    gpu_prefix = (
-        f"GPU {gpu_metadata.get('gpu_current_device', 0)} " if gpu_metadata.get("gpu_device_count", 1) > 1 else "GPU "
-    )
+    gpu_device_count = int(gpu_metadata.get("gpu_device_count", 1))
+    gpu_devices: dict[str, Resources.GpuDevice] = {}
+    for device_index in range(gpu_device_count):
+        prefix = f"GPU {device_index} " if gpu_device_count > 1 else "GPU "
+        utilization = MeanStd(
+            mean=_find_value(gpu_meas, f"{prefix}Utilization"),
+            std=_find_value(gpu_meas, f"{prefix}Utilization std"),
+            peak=None,
+        )
+        memory_mean = _find_value(gpu_meas, f"{prefix}Memory Used")
+        memory = MeanStd(
+            mean=memory_mean,
+            std=_find_value(gpu_meas, f"{prefix}Memory Used std"),
+            peak=max(memory_mean, _find_value(gpu_meas, f"{prefix}Memory Used peak", default=0.0)),
+        )
+        gpu_devices[str(device_index)] = Resources.GpuDevice(
+            utilization_pct=utilization,
+            memory_gb=memory,
+        )
 
-    gpu_util_mean = _find_value(gpu_meas, f"{gpu_prefix}Utilization")
-    gpu_util_std = _find_value(gpu_meas, f"{gpu_prefix}Utilization std")
-
-    gpu_mem_mean = _find_value(gpu_meas, f"{gpu_prefix}Memory Used")
-    gpu_mem_std = _find_value(gpu_meas, f"{gpu_prefix}Memory Used std")
-    _gpu_mem_peak_raw = _find_value(gpu_meas, f"{gpu_prefix}Memory Used peak", default=0.0)
-    gpu_mem_peak = max(gpu_mem_mean, _gpu_mem_peak_raw)
+    current_device = gpu_devices.get(str(gpu_metadata.get("gpu_current_device", 0)))
+    if current_device is None:
+        current_device = Resources.GpuDevice(
+            utilization_pct=MeanStd(mean=0.0, std=0.0, peak=None),
+            memory_gb=MeanStd(mean=0.0, std=0.0, peak=0.0),
+        )
 
     # --- CPU ---
     cpu_meas = cpu_data.measurements if cpu_data is not None else []
@@ -442,8 +457,9 @@ def capture_resources(bm: Any) -> Resources:
     ram_peak = max(ram_mean, _ram_peak_raw)
 
     return Resources(
-        gpu_util_pct=MeanStd(mean=gpu_util_mean, std=gpu_util_std, peak=None),
-        gpu_mem_gb=MeanStd(mean=gpu_mem_mean, std=gpu_mem_std, peak=gpu_mem_peak),
+        gpu_util_pct=current_device.utilization_pct,
+        gpu_mem_gb=current_device.memory_gb,
         cpu_util_pct=MeanStd(mean=cpu_util_mean, std=cpu_util_std, peak=None),
         ram_gb=MeanStd(mean=ram_mean, std=ram_std, peak=ram_peak),
+        gpu_devices=gpu_devices,
     )

@@ -73,6 +73,13 @@ def test_rsl_rl_timing_recorder_captures_logger_durations():
     assert logger.calls == 2
 
 
+def test_rsl_rl_regular_training_does_not_create_timing_recorder():
+    """Regular training must leave the RSL-RL logger unwrapped."""
+    runner = SimpleNamespace(logger=SimpleNamespace(log=lambda **_kwargs: None))
+
+    assert train_rsl_rl._create_rsl_rl_timing_recorder(runner, distributed=False) is None
+
+
 def test_rsl_rl_parser_only_accepts_distributed_from_benchmark_launcher():
     """The regular benchmark remains single-process while the private launcher mode is accepted."""
     with pytest.raises(SystemExit):
@@ -135,6 +142,13 @@ def test_rl_games_timing_observer_captures_epoch_durations(monkeypatch: pytest.M
 
     observer.restore()
     assert algo.train_epoch is train_epoch
+
+
+def test_rl_games_regular_training_does_not_create_timing_observer():
+    """Regular training must not install distributed epoch timing."""
+    delegated = SimpleNamespace()
+
+    assert train_rl_games._create_rl_games_timing_observer(delegated, distributed=False) is None
 
 
 def test_rl_games_parser_only_accepts_distributed_from_benchmark_launcher():

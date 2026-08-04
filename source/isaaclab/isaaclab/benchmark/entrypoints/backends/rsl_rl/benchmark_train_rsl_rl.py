@@ -51,6 +51,11 @@ class _RslRlTimingRecorder(AbstractContextManager):
         self._logger.log = self._original_log
 
 
+def _create_rsl_rl_timing_recorder(runner: Any, distributed: bool) -> _RslRlTimingRecorder | None:
+    """Create rank-local timing instrumentation for distributed training."""
+    return _RslRlTimingRecorder(runner) if distributed else None
+
+
 def _parse_args(argv: list[str]):
     """Parse CLI arguments and forward the remaining Hydra preset tokens via ``sys.argv``.
 
@@ -156,6 +161,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
         DistributedContext,
         LocalTrainingTiming,
         aggregate_training_timing,
+        build_distributed_metadata,
     )
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
@@ -292,11 +298,12 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 measure_synchronized_step_breakdown=args_cli.measure_sync_step,
                 warmup_steps=args_cli.warmup_steps,
             )
-            rsl_rl_timing = _RslRlTimingRecorder(runner)
+            rsl_rl_timing = _create_rsl_rl_timing_recorder(runner, distributed.enabled)
+            rsl_rl_timing_context = rsl_rl_timing if rsl_rl_timing is not None else contextlib.nullcontext()
             benchmark_monitor = (
                 BenchmarkMonitor(benchmark, interval=1.0) if benchmark is not None else contextlib.nullcontext()
             )
-            with early, environment_step_timer, rsl_rl_timing, benchmark_monitor:
+            with early, environment_step_timer, rsl_rl_timing_context, benchmark_monitor:
                 runner.learn(
                     num_learning_iterations=agent_cfg.max_iterations,
                     init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
@@ -307,6 +314,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
             aggregated_timing = None
             if distributed.enabled:
+                assert rsl_rl_timing is not None
                 startup = StartupTime(
                     app_launch=(app_t1 - app_t0) / 1e9,
                     env_creation=(env_t1 - env_t0) / 1e9,
@@ -438,19 +446,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 success_rate=success_rate,
                 checkpoint_path=checkpoint_path,
                 video_path=video_path,
-                extra=(
-                    {
-                        "distributed": True,
-                        "world_size": distributed.world_size,
-                        "local_world_size": distributed.local_world_size,
-                        "num_nodes": distributed.num_nodes,
-                        "num_envs_per_rank": local_num_envs,
-                        "learning_scope": "rank0",
-                        "resource_scope": "rank0_node",
-                    }
-                    if distributed.enabled
-                    else None
-                ),
+                extra=(build_distributed_metadata(distributed, local_num_envs) if distributed.enabled else None),
             )
 
             benchmark.attach_bundle(bundle)

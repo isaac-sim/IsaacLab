@@ -104,6 +104,11 @@ class _RlGamesTimingObserver:
         self._observer.after_print_stats(frame, epoch_num, total_time)
 
 
+def _create_rl_games_timing_observer(observer: Any, distributed: bool) -> _RlGamesTimingObserver | None:
+    """Create rank-local timing instrumentation for distributed training."""
+    return _RlGamesTimingObserver(observer) if distributed else None
+
+
 def _parse_args(argv: list[str]):
     """Parse CLI arguments and forward the remaining Hydra preset tokens via ``sys.argv``.
 
@@ -209,6 +214,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
         DistributedContext,
         LocalTrainingTiming,
         aggregate_training_timing,
+        build_distributed_metadata,
     )
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
@@ -344,8 +350,10 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
 
             early_stop_observer = RlGamesEarlyStopObserver(IsaacAlgoObserver(), **build_success_kwargs(args_cli))
-            observer = _RlGamesTimingObserver(early_stop_observer)
-            cleanup.callback(observer.restore)
+            timing_observer = _create_rl_games_timing_observer(early_stop_observer, distributed.enabled)
+            observer = timing_observer if timing_observer is not None else early_stop_observer
+            if timing_observer is not None:
+                cleanup.callback(timing_observer.restore)
             cleanup.callback(_close_rl_games_writer, observer)
             runner = Runner(observer)
             runner.load(agent_cfg)
@@ -375,18 +383,19 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             local_num_envs = env.unwrapped.num_envs
             aggregated_timing = None
             if distributed.enabled:
+                assert timing_observer is not None
                 startup = StartupTime(
                     app_launch=(app_t1 - app_t0) / 1e9,
                     env_creation=(env_t1 - env_t0) / 1e9,
-                    first_step=(observer.iteration_times_s[0] if observer.iteration_times_s else 0.0),
+                    first_step=(timing_observer.iteration_times_s[0] if timing_observer.iteration_times_s else 0.0),
                     python_imports=(imports_t1 - imports_t0) / 1e9,
                     task_config=(config_t1 - config_t0) / 1e9,
                 )
                 aggregated_timing = aggregate_training_timing(
                     LocalTrainingTiming(
                         startup_time_s=startup,
-                        iteration_times_s=tuple(observer.iteration_times_s),
-                        collection_times_s=tuple(observer.collection_times_s),
+                        iteration_times_s=tuple(timing_observer.iteration_times_s),
+                        collection_times_s=tuple(timing_observer.collection_times_s),
                         environment_step_times_s=tuple(environment_step_timer.step_times_s),
                         simulation_step_times_s=(
                             tuple(environment_step_timer.simulation_step_times_s)
@@ -503,19 +512,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 success_rate=success_rate,
                 checkpoint_path=checkpoint_path,
                 video_path=video_path,
-                extra=(
-                    {
-                        "distributed": True,
-                        "world_size": distributed.world_size,
-                        "local_world_size": distributed.local_world_size,
-                        "num_nodes": distributed.num_nodes,
-                        "num_envs_per_rank": local_num_envs,
-                        "learning_scope": "rank0",
-                        "resource_scope": "rank0_node",
-                    }
-                    if distributed.enabled
-                    else None
-                ),
+                extra=(build_distributed_metadata(distributed, local_num_envs) if distributed.enabled else None),
             )
 
             benchmark.attach_bundle(bundle)

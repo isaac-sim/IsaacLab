@@ -7,14 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab.benchmark.entrypoints.training_multigpu import (
-    LAUNCHER_SPEC,
-    _build_distributed_command,
-    _parse_args,
-    main,
-)
-
-__all__ = ["LAUNCHER_SPEC", "_build_distributed_command", "_parse_args", "main"]
+from isaaclab.benchmark.entrypoints.training_multigpu import main
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -23,6 +23,7 @@ from isaaclab.benchmark._distributed import (
     LocalTrainingTiming,
     add_multigpu_benchmark_args,
     aggregate_training_timing,
+    build_distributed_metadata,
     validate_multigpu_benchmark_args,
 )
 from isaaclab.benchmark.schema import StartupTime
@@ -96,6 +97,17 @@ def test_distributed_context_reads_torchrun_environment(monkeypatch: pytest.Monk
     assert context.num_nodes == 2
 
 
+def test_distributed_context_rejects_single_worker(monkeypatch: pytest.MonkeyPatch):
+    """A distributed benchmark requires at least two global workers."""
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("LOCAL_RANK", "0")
+    monkeypatch.setenv("WORLD_SIZE", "1")
+    monkeypatch.setenv("LOCAL_WORLD_SIZE", "1")
+
+    with pytest.raises(ValueError, match="WORLD_SIZE.*at least 2"):
+        DistributedContext.from_env(enabled=True)
+
+
 def test_distributed_context_rejects_non_divisible_world(monkeypatch: pytest.MonkeyPatch):
     """A heterogeneous process layout should fail instead of reporting the wrong node count."""
     monkeypatch.setenv("RANK", "0")
@@ -144,6 +156,40 @@ def test_aggregate_training_timing_rejects_mismatched_series_lengths(tmp_path: P
     assert "length" in data["error"]
     assert "rank 0: 2" in data["error"]
     assert "rank 1: 1" in data["error"]
+
+
+def test_aggregate_training_timing_rejects_disabled_context():
+    """Distributed aggregation must not provide a second local timing path."""
+    local = LocalTrainingTiming(
+        startup_time_s=StartupTime(1.0, 1.0, 1.0),
+        iteration_times_s=(1.0,),
+        collection_times_s=(0.5,),
+        environment_step_times_s=(0.25,),
+        simulation_step_times_s=None,
+        simulation_step_calls=None,
+        num_envs=16,
+        steps_per_iteration=64,
+    )
+
+    with pytest.raises(ValueError, match="enabled distributed context"):
+        aggregate_training_timing(local, DistributedContext.from_env(enabled=False))
+
+
+def test_build_distributed_metadata_reports_independent_resource_scopes():
+    """Bundle metadata must distinguish node-wide GPU data from process data."""
+    context = DistributedContext(True, rank=0, local_rank=0, world_size=4, local_world_size=2)
+
+    assert build_distributed_metadata(context, num_envs_per_rank=32) == {
+        "distributed": True,
+        "world_size": 4,
+        "local_world_size": 2,
+        "num_nodes": 2,
+        "num_envs_per_rank": 32,
+        "learning_scope": "rank0",
+        "resource_scope_gpu": "rank0_node",
+        "resource_scope_cpu": "rank0_process",
+        "resource_scope_ram": "rank0_process",
+    }
 
 
 def _benchmark_parser() -> argparse.ArgumentParser:

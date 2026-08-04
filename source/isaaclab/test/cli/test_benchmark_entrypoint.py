@@ -38,11 +38,6 @@ def test_benchmark_propagates_nonzero_dispatch_status():
     assert exc_info.value.code == 2
 
 
-def test_benchmark_dispatch_registers_multi_gpu_training_launcher():
-    """The CLI dispatcher should expose the separate multi-GPU training workflow."""
-    assert dispatch._CLI_WORKFLOW_MODULES["training_multigpu"].endswith("entrypoints.training_multigpu")
-
-
 def test_benchmark_dispatch_propagates_multi_gpu_launcher_status(monkeypatch: pytest.MonkeyPatch):
     """A distributed launcher failure should become the benchmark command status."""
     module_name = dispatch._CLI_WORKFLOW_MODULES["training_multigpu"]
