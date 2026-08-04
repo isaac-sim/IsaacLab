@@ -14,8 +14,8 @@ from rendering_test_utils import (
     attach_comparison_properties,
     generate_html_report,
     make_kitless_rendering_params,
-    make_kitless_rendering_params_dexsuite,
     make_kitless_rendering_params_franka,
+    make_kitless_rendering_params_lift,
     make_skip_rendering_params,
     make_xfail_rendering_params,
 )
@@ -94,9 +94,9 @@ def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
     assert marked[0].marks[0].kwargs["reason"] == "Native renderer crash."
 
 
-def test_dexsuite_factory_applies_shared_native_crash_policy() -> None:
-    """Both stage variants should share the ticketed Dexsuite MDL skips."""
-    params = {param.id: param for param in make_kitless_rendering_params_dexsuite()}
+def test_lift_factory_applies_shared_native_crash_policy() -> None:
+    """Both stage variants should share the ticketed Lift MDL skips."""
+    params = {param.id: param for param in make_kitless_rendering_params_lift()}
 
     for variant in ("legacy", "ovstage"):
         for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):

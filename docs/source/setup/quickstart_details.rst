@@ -32,6 +32,11 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
 
       .. code-block:: bash
 
+         # Default: concrete Isaac Sim PhysX
+         uv run isaaclab train --rl_library rsl_rl \
+           --task=Isaac-Cartpole-Direct \
+           --num_envs=4096
+
          # Kit-less: Newton MJWarp + Newton visualizer
          uv run isaaclab train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
@@ -80,18 +85,18 @@ Available Presets
 
 **Physics backends** (``physics=NAME``):
 
+- ``isaacsim_physx`` — concrete PhysX via Isaac Sim / Kit; this is the default when an environment would otherwise default to automatic PhysX selection
 - ``physx`` — automatic PhysX-family selection: Isaac Sim PhysX when Kit is required, otherwise OvPhysX when the task supports it; tasks without OvPhysX support fall back to Isaac Sim PhysX
-- ``isaacsim_physx`` — force PhysX via Isaac Sim / Kit
 - ``newton_mjwarp`` — Newton with the MuJoCo-Warp solver
 - ``newton_kamino`` — Newton with the Kamino solver (beta, limited tasks)
 - ``ovphysx`` — OV PhysX (kit-less; incompatible with ``--visualizer kit``)
 
 **Renderer backends** (``renderer=NAME``):
 
-- ``isaacsim_rtx`` — Isaac Sim RTX (default with Isaac Sim)
+- ``isaacsim_rtx`` — concrete Isaac Sim RTX; this is the default for cameras that use the multi-backend renderer config
 - ``newton_renderer`` — Newton Warp renderer
 - ``ovrtx`` — OV RTX renderer (kit-less)
-- ``rtx`` — Automatic RTX renderer selection
+- ``rtx`` — automatic RTX renderer selection
 
 Automatic RTX selection is available only when the camera exposes the renderer
 choices with :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg`:

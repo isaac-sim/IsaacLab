@@ -150,6 +150,20 @@ def test_deferred_cuda_device_synchronizes_torch_and_warp(monkeypatch: pytest.Mo
     assert devices == [2]
 
 
+def test_limit_cpu_threads_forwarded_to_simulation_app(monkeypatch: pytest.MonkeyPatch):
+    """A SimulationApp thread limit must survive AppLauncher config resolution."""
+    monkeypatch.setenv("HEADLESS", "0")
+    monkeypatch.setenv("LIVESTREAM", "0")
+    monkeypatch.setenv("XR", "0")
+
+    launcher = AppLauncher.__new__(AppLauncher)
+    monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
+
+    launcher._config_resolution({"headless": True, "device": "cpu", "limit_cpu_threads": 1})
+
+    assert launcher._sim_app_config["limit_cpu_threads"] == 1
+
+
 class _DummySettings:
     def __init__(self):
         self.values = {}
@@ -336,15 +350,14 @@ def test_matrix_no_cli_with_cfg_kit_newton_non_headless(monkeypatch: pytest.Monk
     assert launcher._cli_visualizer_explicit is False
 
 
-def test_matrix_converter_default_dict_resolves_headless(monkeypatch: pytest.MonkeyPatch):
-    # pins the converter CLI contract: ConverterCli.parse_args launches AppLauncher({})
-    # for conversion without preview, which must stay headless
+def test_matrix_empty_dict_resolves_headless(monkeypatch: pytest.MonkeyPatch):
+    # tools that launch Kit only to reach an extension API pass no visualizer, and must stay headless
     headless, _ = _resolve_headless_for_case(monkeypatch, {})
     assert headless is True
 
 
-def test_matrix_converter_viz_kit_dict_resolves_windowed(monkeypatch: pytest.MonkeyPatch):
-    # pins the converter CLI contract: AppLauncher({"visualizer": ["kit"]}) must open a window
+def test_matrix_viz_kit_dict_resolves_windowed(monkeypatch: pytest.MonkeyPatch):
+    # a Kit viewport only exists when the launcher is told to create it
     headless, launcher = _resolve_headless_for_case(monkeypatch, {"visualizer": ["kit"]})
     assert headless is False
     assert launcher._cli_visualizer_types == ["kit"]

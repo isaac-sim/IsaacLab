@@ -107,7 +107,6 @@ def _build_newton_builder_from_mapping(
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
-        post_replicate_hooks=NewtonManager._post_replicate_hooks,
     )
 
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}

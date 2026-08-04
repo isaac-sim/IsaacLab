@@ -652,20 +652,25 @@ when no CLI override is given. Other fields are named presets selectable with
 
 .. code-block:: python
 
-   from isaaclab_tasks.utils import PresetCfg
+   from isaaclab.physics import PhysxAutoCfg
    from isaaclab.utils.configclass import configclass
+   from isaaclab_ovphysx.physics import OvPhysxCfg
+   from isaaclab_tasks.utils import PresetCfg
 
    @configclass
    class MyPhysicsCfg(PresetCfg):
-       default: PhysxCfg = PhysxCfg(...)   # used when no override is given
-       physx:   PhysxCfg = PhysxCfg(...)   # selected by physics=physx
+       isaacsim_physx: PhysxCfg = PhysxCfg(...)
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+       default: PhysxCfg = isaacsim_physx  # used when no override is given
        newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by physics=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``physics=newton_mjwarp`` (or ``physics=physx``) on the CLI to swap the entire config section.
-The legacy ``presets=NAME`` form still works for the same values.
+Pass ``physics=newton_mjwarp`` on the CLI to swap the entire config section.
+Use ``physics=physx`` to opt into automatic PhysX-family selection. The legacy
+``presets=NAME`` form still works for the same values.
 
 .. code-block:: bash
 
@@ -673,7 +678,7 @@ The legacy ``presets=NAME`` form still works for the same values.
    uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
        --task Isaac-Open-Drawer-Franka-Direct physics=newton_mjwarp
 
-   # Run with default (PhysX) backend
+   # Run with default (concrete Isaac Sim PhysX) backend
    uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
        --task Isaac-Open-Drawer-Franka-Direct
 
@@ -693,18 +698,30 @@ subclass that carries both a PhysX and a Newton variant.
        self.sim.dt = 1 / 60
        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
 
+.. important::
+
+   The ``After`` example below mirrors the current Reach task, which intentionally
+   uses Newton/MJWarp as its default. The ``Before`` snippet only illustrates the
+   older single-backend form, so the default differs between the two snippets.
+   When migrating a task that should retain PhysX by default, use
+   ``default: PhysxCfg = isaacsim_physx`` instead. Adding backend variants should
+   not silently change a task's established default.
+
 *After:*
 
 .. code-block:: python
 
+   from isaaclab.physics import PhysxAutoCfg
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_ovphysx.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
    @configclass
    class ReachPhysicsCfg(PresetCfg):
-       default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-       physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
@@ -714,6 +731,7 @@ subclass that carries both a PhysX and a Newton variant.
            num_substeps=1,
            debug_mode=False,
        )
+       default: NewtonCfg = newton_mjwarp
 
    # In the env cfg __post_init__:
    def __post_init__(self):

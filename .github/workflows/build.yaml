@@ -774,8 +774,8 @@ jobs:
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_cartpole.py,
-          test_rendering_dexsuite_kuka_hetero.py,
-          test_rendering_dexsuite_kuka_homo.py,
+          test_rendering_lift_kuka_hetero.py,
+          test_rendering_lift_kuka_homo.py,
           test_rendering_franka_cloth.py,
           test_rendering_franka_soft.py,
           test_rendering_registered_tasks.py,
@@ -824,8 +824,8 @@ jobs:
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
           test_rendering_cartpole_kitless.py,
-          test_rendering_dexsuite_kuka_hetero_kitless.py,
-          test_rendering_dexsuite_kuka_homo_kitless.py,
+          test_rendering_lift_kuka_hetero_kitless.py,
+          test_rendering_lift_kuka_homo_kitless.py,
           test_rendering_franka_cloth_kitless.py,
           test_rendering_franka_soft_kitless.py,
           test_rendering_shadow_hand_kitless.py
