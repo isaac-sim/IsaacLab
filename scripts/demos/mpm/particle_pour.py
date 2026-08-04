@@ -307,7 +307,6 @@ def create_sim_cfg():
                 project_outside_colliders=True,
             ),
             use_cuda_graph=True,
-            simplify_meshes=False,
         ),
     )
 
