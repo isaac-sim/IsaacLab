@@ -82,11 +82,6 @@ SIMPLE_SHADING_MODES = {
     "simple_shading_full_mdl": 3,
 }
 SIMPLE_SHADING_MODE_SETTING = "/rtx/minimal/mode"
-DLSS_RAY_RECONSTRUCTION_API_SCHEMA = "OmniRtxDebugSettingsAPI_1"
-DLSS_RAY_RECONSTRUCTION_ATTR = "omni:rtx:newDenoiser:enabled"
-DLSS_EXEC_MODE_API_SCHEMA = "OmniRtxSettingsRtAPI_1"
-DLSS_EXEC_MODE_ATTR = "omni:rtx:post:dlss:execMode"
-_DLSS_RAY_RECONSTRUCTION_MIN_ISAAC_SIM_VERSION = (6, 1)
 
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
@@ -456,7 +451,7 @@ class IsaacRtxRenderer(BaseRenderer):
         if ray_reconstruction is True:
             isaac_sim_version = get_isaac_sim_version()
             isaac_sim_major_minor = (isaac_sim_version.major, isaac_sim_version.minor)
-            if isaac_sim_major_minor < _DLSS_RAY_RECONSTRUCTION_MIN_ISAAC_SIM_VERSION:
+            if isaac_sim_major_minor < (6, 1):
                 ray_reconstruction = False
                 logger.warning(
                     "DLSS Ray Reconstruction was requested, but Isaac Sim %s predates responsive denoising. "
@@ -472,15 +467,15 @@ class IsaacRtxRenderer(BaseRenderer):
             if ray_reconstruction is not None:
                 self._set_render_product_schema_attribute(
                     render_product,
-                    DLSS_RAY_RECONSTRUCTION_API_SCHEMA,
-                    DLSS_RAY_RECONSTRUCTION_ATTR,
+                    "OmniRtxDebugSettingsAPI_1",
+                    "omni:rtx:newDenoiser:enabled",
                     ray_reconstruction,
                 )
             if dlss_exec_mode is not None:
                 self._set_render_product_schema_attribute(
                     render_product,
-                    DLSS_EXEC_MODE_API_SCHEMA,
-                    DLSS_EXEC_MODE_ATTR,
+                    "OmniRtxSettingsRtAPI_1",
+                    "omni:rtx:post:dlss:execMode",
                     dlss_exec_mode,
                 )
 

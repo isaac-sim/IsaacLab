@@ -5,13 +5,10 @@
 
 """Configuration for Isaac RTX (Replicator) Renderer."""
 
-from typing import Any, Literal, get_args
+from typing import Any, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
-
-_DlssExecMode = Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"]
-_DLSS_EXEC_MODES = frozenset(get_args(_DlssExecMode))
 
 
 @configclass
@@ -100,6 +97,9 @@ class IsaacRtxRendererCfg(RendererCfg):
     Holds the Replicator/RTX-specific knobs (semantic segmentation, instance
     segmentation, semantic filtering, depth clipping) used by the RTX rendering
     pipeline.
+    Render-product-local settings stay separate from :attr:`global_settings` so
+    one camera can be configured without changing other render products in the
+    Kit process.
     """
 
     renderer_type: str = "isaac_rtx"
@@ -117,7 +117,7 @@ class IsaacRtxRendererCfg(RendererCfg):
     ``True`` falls back to classic DLSS because responsive denoising is unavailable.
     """
 
-    dlss_exec_mode: _DlssExecMode | None = None
+    dlss_exec_mode: Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"] | None = None
     """Optional render-product-local DLSS execution mode.
 
     ``None`` preserves Kit's render-product default. Unlike
@@ -192,13 +192,3 @@ class IsaacRtxRendererCfg(RendererCfg):
     - ``"zero"``: Values are clipped to zero.
     - ``"none"``: No clipping is applied. Values will be returned as ``inf``.
     """
-
-    def __post_init__(self) -> None:
-        """Validate render-product settings before Kit silently ignores them."""
-        ray_reconstruction = self.enable_dlss_ray_reconstruction
-        if ray_reconstruction is not None and type(ray_reconstruction) is not bool:
-            raise TypeError("enable_dlss_ray_reconstruction must be a bool or None.")
-        if self.dlss_exec_mode is not None and self.dlss_exec_mode not in _DLSS_EXEC_MODES:
-            raise ValueError(
-                f"dlss_exec_mode must be one of {sorted(_DLSS_EXEC_MODES)} or None, got {self.dlss_exec_mode!r}."
-            )
