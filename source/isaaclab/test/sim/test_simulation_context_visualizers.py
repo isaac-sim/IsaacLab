@@ -543,7 +543,7 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
 
 
 def test_kit_visualizer_default_camera_source_accepts_set_camera_view(monkeypatch: pytest.MonkeyPatch):
-    """Default Kit visualizer camera follows SimulationContext/ViewportCameraController updates."""
+    """Default Kit visualizer camera follows SimulationContext set_camera_view updates."""
     applied_camera_poses = []
     monkeypatch.setattr(
         kit_visualizer.KitVisualizer,
@@ -717,6 +717,58 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
     assert isinstance(cfgs[0], NewtonVisualizerCfg)
     assert cfgs[0].tiled_cam_target_prim_path == "/World/envs/*/Object"
     assert cfgs[0].tiled_cam_eye == (1.0, -1.0, 0.5)
+
+
+def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
+    """default_visualizer_cfg fills in env-level hints (eye, lookat) on explicit cfgs.
+
+    When visualizer_cfgs is set directly (e.g. for video recording), fields that are
+    still at the backend class's own factory default are overridden by default_visualizer_cfg
+    so the env's intended camera position is respected.
+    """
+    settings = {
+        "/isaaclab/visualizer/types": "",
+        "/isaaclab/visualizer/explicit": False,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    default_cfg = VisualizerCfg(
+        eye=(8.0, 0.0, 5.0),
+        lookat=(0.0, 0.0, 0.5),
+        tiled_cam_target_prim_path="/World/envs/*/Object",
+    )
+    # Explicit Newton cfg with only window_width customized; eye/lookat at class defaults.
+    explicit_cfg = NewtonVisualizerCfg(window_width=320, window_height=240)
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[explicit_cfg], default_visualizer_cfg=default_cfg)
+
+    cfgs = ctx._resolve_visualizer_cfgs()
+
+    assert len(cfgs) == 1
+    # env-level hints applied (were at class defaults on explicit_cfg)
+    assert cfgs[0].eye == (8.0, 0.0, 5.0)
+    assert cfgs[0].lookat == (0.0, 0.0, 0.5)
+    assert cfgs[0].tiled_cam_target_prim_path == "/World/envs/*/Object"
+    # user-customized fields preserved
+    assert cfgs[0].window_width == 320
+    assert cfgs[0].window_height == 240
+
+
+def test_default_visualizer_cfg_does_not_override_explicitly_customized_fields():
+    """Explicitly-set fields on a visualizer cfg beat default_visualizer_cfg."""
+    settings = {
+        "/isaaclab/visualizer/types": "",
+        "/isaaclab/visualizer/explicit": False,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    default_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))
+    # eye explicitly set — should NOT be overridden by default_cfg
+    explicit_cfg = NewtonVisualizerCfg(eye=(1.0, 2.0, 3.0))
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[explicit_cfg], default_visualizer_cfg=default_cfg)
+
+    cfgs = ctx._resolve_visualizer_cfgs()
+
+    assert cfgs[0].eye == (1.0, 2.0, 3.0)
 
 
 def test_is_rendering_true_when_only_cfg_visualizer_is_set():

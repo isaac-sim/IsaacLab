@@ -21,11 +21,9 @@ from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
 
-from .common import VecEnvObs
+from .common import VecEnvObs, _apply_deprecated_viewer_cfg
 from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data, export_scene_data
 from .utils.video_recorder import VideoRecorder
 
@@ -104,6 +102,10 @@ class ManagerBasedEnv:
         else:
             logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
+        # Backwards-compat: if the deprecated viewer field has non-default eye/lookat, apply
+        # them to sim.default_visualizer_cfg so the scene camera still matches user intent.
+        _apply_deprecated_viewer_cfg(self.cfg)
+
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
             # the type-annotation is required to avoid a type-checking error
@@ -177,18 +179,6 @@ class ManagerBasedEnv:
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
-        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
-        has_visualizers = self.sim.has_active_visualizers()
-        if (self.sim.has_gui or has_visualizers) and has_kit():
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
-
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
@@ -198,15 +188,7 @@ class ManagerBasedEnv:
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
 
-        # Instantiate the video recorder before sim.reset() so that any fallback Camera
-        # (used for state-based envs without an observation camera) is spawned into the USD
-        # stage and registered for the PHYSICS_READY callback before physics initialises.
-        # env_render_mode and eye/lookat are forwarded by subclasses (e.g. ManagerBasedRLEnv)
-        # into cfg.video_recorder before calling super().__init__().
-        if self.cfg.video_recorder is not None:
-            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
-        else:
-            self.video_recorder = None
+        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
@@ -587,6 +569,10 @@ class ManagerBasedEnv:
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
+        # advance video recorders (after render, before obs)
+        for recorder in self.video_recorders:
+            recorder.step()
+
         # -- compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
         self.recorder_manager.record_post_step()
@@ -625,8 +611,11 @@ class ManagerBasedEnv:
             if isinstance(getattr(self, "obs_buf", None), dict):
                 self.obs_buf.clear()
 
+            # flush any buffered video frames
+            for recorder in getattr(self, "video_recorders", []):
+                recorder.close()
+
             # destructor is order-sensitive
-            del self.viewport_camera_controller
             del self.action_manager
             del self.observation_manager
             del self.event_manager

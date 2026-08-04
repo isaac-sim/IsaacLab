@@ -507,11 +507,12 @@ class AppLauncher:
             parser._option_string_actions.pop("-h")
             parser._option_string_actions.pop("--help")
 
-        # Parse known args for potential name collisions/type mismatches
-        # between the config fields SimulationApp expects and the ArgParse
-        # arguments that the user passed.
-        known, _ = parser.parse_known_args()
-        config = vars(known)
+        # Collect the declared arguments for potential name collisions/type mismatches between the
+        # config fields SimulationApp expects and the ArgParse arguments that the user added. Read
+        # from the parser rather than by parsing the command line: parsing exits the process when a
+        # required argument is missing, which is the case for any script with required positionals
+        # invoked with '--help', and the launcher arguments would never reach the help output.
+        config = {action.dest: action.default for action in parser._actions if action.dest != argparse.SUPPRESS}
         if len(config) == 0:
             logger.warning(
                 "[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object."
@@ -680,6 +681,7 @@ class AppLauncher:
         "open_usd": [str, type(None)],
         "livesync_usd": [str, type(None)],
         "fast_shutdown": [bool],
+        "limit_cpu_threads": [int],
         "experience": [str],
     }
     """A dictionary containing the type of arguments passed to SimulationApp.
@@ -1194,6 +1196,11 @@ class AppLauncher:
             setting = argument.partition("=")[0]
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
                 self._kit_args.append(argument)
+
+        argument = "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false"
+        setting = argument.partition("=")[0]
+        if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+            self._kit_args.append(argument)
 
         sys.argv += self._kit_args
 

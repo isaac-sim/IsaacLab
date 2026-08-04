@@ -26,67 +26,120 @@ optional arguments:
   --collision_type          Type of collision geometry to use. (default: "Convex Hull")
   --self_collision          Activate self-collisions between links. (default: False)
   --import_physics_scene    Import the physics scene from the MJCF file. (default: False)
-  --viz [BACKEND]           Preview the converted asset; bare --viz picks the backend that fits
-                            the runtime (kit, newton, rerun, viser). (default: no preview)
+
+The standard launcher arguments are also accepted. In particular, ``--viz`` previews the converted
+asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` (or ``rerun`` /
+``viser``) opens it kitlessly. Run with ``--help`` for the full list.
+
 """
 
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
+
 import argparse
-import os
-import sys
-import traceback
+from importlib import metadata
 
-from isaaclab.sim.converters._converter_cli import ConverterCli
+from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
 
+parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
+parser.add_argument("input", type=str, help="The path to the input MJCF file.")
+parser.add_argument("output", type=str, help="The path to store the USD file.")
+parser.add_argument(
+    "--merge_mesh",
+    "--merge-mesh",
+    action="store_true",
+    default=False,
+    help="Merge meshes where possible to optimize the model.",
+)
+parser.add_argument(
+    "--collision_from_visuals",
+    "--collision-from-visuals",
+    action="store_true",
+    default=False,
+    help="Generate collision geometry from visual geometries.",
+)
+parser.add_argument(
+    "--collision_type",
+    "--collision-type",
+    type=str,
+    default="Convex Hull",
+    choices=["Convex Hull", "Convex Decomposition", "Bounding Sphere", "Bounding Cube"],
+    help='Type of collision geometry to use. Defaults to "Convex Hull".',
+)
+parser.add_argument(
+    "--self_collision",
+    "--self-collision",
+    action="store_true",
+    default=False,
+    help="Activate self-collisions between links of the articulation.",
+)
+parser.add_argument(
+    "--import_physics_scene",
+    "--import-physics-scene",
+    action="store_true",
+    default=False,
+    help="Import the physics scene (worldbody, defaults) from the MJCF file.",
+)
+add_launcher_args(parser)
+args_cli = parser.parse_args()
 
-def _create_parser() -> argparse.ArgumentParser:
-    """Create the MJCF converter argument parser."""
-    parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
-    parser.add_argument("input", type=str, help="The path to the input MJCF file.")
-    parser.add_argument("output", type=str, help="The path to store the USD file.")
-    parser.add_argument(
-        "--merge_mesh",
-        "--merge-mesh",
-        action="store_true",
-        default=False,
-        help="Merge meshes where possible to optimize the model.",
+# The MJCF importer ships as a Kit extension unless the standalone importer wheel is installed, so
+# Kit is only required when the wheel is absent. With the wheel present the conversion runs kitlessly
+# and the kitless visualizers can host the preview.
+try:
+    metadata.distribution("isaacsim-asset-isolated")
+    args_cli.require_kit = False
+except metadata.PackageNotFoundError:
+    args_cli.require_kit = True
+
+# Report the missing importer before converting anything. Without this the launcher reports only
+# that Isaac Sim is absent, which does not mention the wheel that would make this run kitlessly.
+if args_cli.require_kit and not AppLauncher.is_available():
+    raise ImportError(
+        "MJCF conversion requires either the full Isaac Sim runtime or the standalone"
+        " 'isaacsim-asset-isolated' importer wheel, but neither is installed."
     )
-    parser.add_argument(
-        "--collision_from_visuals",
-        "--collision-from-visuals",
-        action="store_true",
-        default=False,
-        help="Generate collision geometry from visual geometries.",
-    )
-    parser.add_argument(
-        "--collision_type",
-        "--collision-type",
-        type=str,
-        default="Convex Hull",
-        choices=["Convex Hull", "Convex Decomposition", "Bounding Sphere", "Bounding Cube"],
-        help='Type of collision geometry to use. Defaults to "Convex Hull".',
-    )
-    parser.add_argument(
-        "--self_collision",
-        "--self-collision",
-        action="store_true",
-        default=False,
-        help="Activate self-collisions between links of the articulation.",
-    )
-    parser.add_argument(
-        "--import_physics_scene",
-        "--import-physics-scene",
-        action="store_true",
-        default=False,
-        help="Import the physics scene (worldbody, defaults) from the MJCF file.",
-    )
-    return parser
 
+import os  # noqa: E402
 
-args_cli, simulation_app = ConverterCli.parse_args(_create_parser(), "mjcf")
-
+import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.physics import PhysicsCfg  # noqa: E402
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg  # noqa: E402
 from isaaclab.utils.assets import check_file_path  # noqa: E402
 from isaaclab.utils.dict import print_dict  # noqa: E402
+
+
+def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
+    """Open the converted asset in the visualizer selected on the command line.
+
+    Args:
+        usd_path: Path of the generated USD file to display.
+        physics_cfg: Physics config resolved by :func:`~isaaclab.app.launch_simulation`.
+    """
+    visualizers = args_cli.visualizer or []
+    if not visualizers:
+        return
+
+    if "kit" in visualizers:
+        # a Kit app that resolved without a GUI has no viewport to display the asset in
+        if AppLauncher.has_gui():
+            sim_utils.show_stage_in_viewport(usd_path)
+        return
+
+    # Kitless preview: the physics backend ingests the USD stage and every visualizer renders the
+    # shared scene data, so no backend-specific code is needed here. Physics is not stepped -- the
+    # asset is shown in its imported pose until the visualizer window is closed.
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg))
+    light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    light_cfg.func("/World/Light", light_cfg)
+    asset_cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
+    asset_cfg.func("/World/ConvertedAsset", asset_cfg)
+    sim.reset()
+
+    # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:
+    # that predicate also reports True for an empty visualizer list (headless stepping), and ``render``
+    # drops visualizers once they close, so the preview would never exit.
+    while any(viz.is_running() and not viz.is_closed for viz in sim.visualizers):
+        sim.render()
 
 
 def main():
@@ -122,29 +175,17 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    # Create mjcf converter and import the file
-    mjcf_converter = MjcfConverter(mjcf_converter_cfg)
-    # print output
-    print("MJCF importer output:")
-    print(f"Generated USD file: {mjcf_converter.usd_path}")
-    print("-" * 80)
-    print("-" * 80)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # Create mjcf converter and import the file
+        mjcf_converter = MjcfConverter(mjcf_converter_cfg)
+        # print output
+        print("MJCF importer output:")
+        print(f"Generated USD file: {mjcf_converter.usd_path}")
+        print("-" * 80)
+        print("-" * 80)
 
-    # Open the converted asset in a kitless visualizer (newton / rerun / viser) when requested.
-    ConverterCli.preview(args_cli, simulation_app, mjcf_converter.usd_path)
+        preview(mjcf_converter.usd_path, physics_cfg)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception:
-        traceback.print_exc()
-        # Kit's shutdown hooks override the interpreter exit status, so force a failure code.
-        # os._exit skips interpreter shutdown, so flush first or the diagnostics printed
-        # above are lost whenever stdout is redirected (the CI case).
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os._exit(1)
-    # close sim app
-    if simulation_app is not None:
-        simulation_app.close()
+    main()

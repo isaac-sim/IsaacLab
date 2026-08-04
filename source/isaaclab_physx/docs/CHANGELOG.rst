@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+4.0.1 (2026-08-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed PhysX lifecycle ownership to preserve Isaac Sim's simulation manager
+  when its default callbacks can be disabled at startup while retaining the
+  compatibility takeover for older versions.
+
+
 4.0.0 (2026-08-02)
 ~~~~~~~~~~~~~~~~~~
 

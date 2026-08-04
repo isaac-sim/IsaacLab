@@ -234,7 +234,7 @@ in MJWarp:
        physics=isaacsim_physx
 
    # Replace RUN_DIRECTORY and ITERATION with the values produced by training.
-   PHYSX_CHECKPOINT="/absolute/path/to/logs/rsl_rl/dexsuite_franka/RUN_DIRECTORY/model_ITERATION.pt"
+   PHYSX_CHECKPOINT="/absolute/path/to/logs/rsl_rl/lift_franka/RUN_DIRECTORY/model_ITERATION.pt"
 
    # PP: reproduce the PhysX source baseline.
    uv run isaaclab play --rl_library rsl_rl \
@@ -262,7 +262,7 @@ PhysX:
        physics=newton_mjwarp
 
    # Replace RUN_DIRECTORY and ITERATION with the values produced by training.
-   MJWARP_CHECKPOINT="/absolute/path/to/logs/rsl_rl/dexsuite_franka/RUN_DIRECTORY/model_ITERATION.pt"
+   MJWARP_CHECKPOINT="/absolute/path/to/logs/rsl_rl/lift_franka/RUN_DIRECTORY/model_ITERATION.pt"
 
    # NN: reproduce the MJWarp source baseline.
    uv run isaaclab play --rl_library rsl_rl \

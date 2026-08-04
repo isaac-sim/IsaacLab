@@ -68,7 +68,7 @@ _EXPORT_BACKENDS = (
             # binary gripper + cabinet articulation
             "Isaac-Open-Drawer-Franka",
             # classic lift: object_position_in_robot_root_frame + quat math
-            "Isaac-Lift-Cube-Franka",
+            "IsaacContrib-Lift-Cube-Franka",
             # history buffers + Object-cloud / contact observations
             "Isaac-Lift-KukaAllegro",
             # manager-based locomotion with contact-rich body observations
@@ -105,7 +105,7 @@ _EXPORT_BACKENDS = (
 _SIM_PRESET = "newton_mjwarp"
 
 # These tasks reject any preset token; export uses their authored default backend.
-_TASKS_WITHOUT_PRESET = frozenset({"Isaac-Lift-Cube-Franka"})
+_TASKS_WITHOUT_PRESET = frozenset({"IsaacContrib-Lift-Cube-Franka"})
 
 
 def _ensure_text(output: str | bytes | None) -> str:

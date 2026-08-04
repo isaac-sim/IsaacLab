@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+8.2.3 (2026-08-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OvPhysX missing-runtime error to recommend installing the supported
+  ``ovphysx`` wheel instead of a nonexistent source-package extra.
+
+
 8.2.2 (2026-08-02)
 ~~~~~~~~~~~~~~~~~~
 

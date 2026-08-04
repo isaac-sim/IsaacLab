@@ -13,7 +13,7 @@ Tests:
     - from isaaclab import __version__ -> verify version matches wheel filename
     - from isaaclab import _deprioritize_prebundle_paths -> verify wheel exports path sanitizer
     - from isaaclab.app import AppLauncher -> verify importable
-    - from isaaclab.envs import ViewerCfg -> verify importable
+    - from isaaclab.envs import VideoRecorderCfg -> verify importable
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
@@ -104,10 +104,10 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         result = self.run_in_uv_env(["python", "-c", "from isaaclab.app import AppLauncher"])
         assert result.returncode == 0, f"import isaaclab.app failed:\n{result.stdout}\n{result.stderr}"
 
-    # from isaaclab.envs import ViewerCfg
+    # from isaaclab.envs import VideoRecorderCfg
     def test_isaaclab_envs_importable(self):
         """Verify isaaclab.envs is importable."""
-        result = self.run_in_uv_env(["python", "-c", "from isaaclab.envs import ViewerCfg"])
+        result = self.run_in_uv_env(["python", "-c", "from isaaclab.envs import VideoRecorderCfg"])
         assert result.returncode == 0, f"import isaaclab.envs failed:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
