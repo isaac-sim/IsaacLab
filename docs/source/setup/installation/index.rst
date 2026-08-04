@@ -81,7 +81,7 @@ Choose an installation path
 System requirements
 -------------------
 
-Full Isaac Sim workflows require Python 3.12 on Ubuntu 24.04 or Windows 11. Use a recent NVIDIA
+Full Isaac Sim workflows require Python 3.12 on Ubuntu 22.04+ or Windows 11. Use a recent NVIDIA
 production driver and a workstation with at least 32 GB RAM and 16 GB GPU VRAM. Rendering can
 require additional VRAM. Confirm your machine against the `Isaac Sim system requirements
 <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`__ and
@@ -172,19 +172,17 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
+         # Full Isaac Sim support
+         uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct presets=physx
+
          # Play a policy
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
-      .. warning::
+      .. note::
 
-         Isaac Sim installs with ``uv run --extra isaacsim`` on aarch64, but PhysX
-         training is not functional on DGX Spark yet: it fails during environment
-         creation. Use a Newton or OV backend instead. The ``isaaclab`` CLI
-         automatically preloads the system OpenMP runtime for ``uv run`` on
-         aarch64, so no manual ``LD_PRELOAD`` workaround is needed for these
-         commands. For direct Python commands that import Isaac Sim without the
-         ``isaaclab`` CLI, prefix the command with
-         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1``.
+         For direct Python commands that import Isaac Sim on aarch64, prefix the
+         command with ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1``.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
