@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import json
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -58,6 +60,23 @@ RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
 # Marker comments that delimit the auto-generated section in environments.rst.
 COMPREHENSIVE_LIST_START_MARKER = ".. START-AUTO-GENERATED: comprehensive-environment-list"
 COMPREHENSIVE_LIST_END_MARKER = ".. END-AUTO-GENERATED: comprehensive-environment-list"
+ENVIRONMENT_BROWSER_TASKS_START_MARKER = "// START-AUTO-GENERATED: environment-browser-task-rows"
+ENVIRONMENT_BROWSER_TASKS_END_MARKER = "// END-AUTO-GENERATED: environment-browser-task-rows"
+
+# Automatic backend-family aliases are intentionally omitted from environment
+# tables. The concrete backend names make runtime requirements explicit and do
+# not change meaning based on the rest of the selected configuration.
+_OMITTED_SELECTOR_NAMES = {
+    PresetTarget.PHYSICS: frozenset({"physx"}),
+    PresetTarget.RENDERER: frozenset({"rtx"}),
+    PresetTarget.DOMAIN: frozenset({"physx", "rtx"}),
+}
+
+_SELECTOR_LABELS = {
+    PresetTarget.PHYSICS: "physics",
+    PresetTarget.RENDERER: "renderer",
+    PresetTarget.DOMAIN: "presets",
+}
 
 
 @dataclass(frozen=True)
@@ -201,14 +220,14 @@ def _domain_presets_for_docs(preset_map: dict[PresetTarget, list[str]]) -> list[
 
 
 def format_presets_rst(preset_map: dict[PresetTarget, list[str]] | None) -> str:
-    """Format preset selectors for an RST ``list-table`` cell."""
+    """Format concrete preset selectors for an RST ``list-table`` cell."""
     if preset_map is None:
         return ""
 
     groups: list[tuple[str, list[str]]] = []
-    physics_names = preset_map.get(PresetTarget.PHYSICS, [])
-    renderer_names = preset_map.get(PresetTarget.RENDERER, [])
-    domain_names = _domain_presets_for_docs(preset_map)
+    physics_names = _filter_selector_names(PresetTarget.PHYSICS, preset_map.get(PresetTarget.PHYSICS, []))
+    renderer_names = _filter_selector_names(PresetTarget.RENDERER, preset_map.get(PresetTarget.RENDERER, []))
+    domain_names = _filter_selector_names(PresetTarget.DOMAIN, _domain_presets_for_docs(preset_map))
 
     if physics_names:
         groups.append(("physics=", physics_names))
@@ -226,6 +245,214 @@ def format_presets_rst(preset_map: dict[PresetTarget, list[str]] | None) -> str:
     return "\n        ".join(
         f"| {group}" if index == 0 else f"  | {group}" for index, group in enumerate(formatted_groups)
     )
+
+
+def _filter_selector_names(target: PresetTarget, names: list[str]) -> list[str]:
+    """Return selector names after removing automatic backend-family aliases."""
+    omitted = _OMITTED_SELECTOR_NAMES[target]
+    return [name for name in names if name not in omitted]
+
+
+def patch_curated_environment_tables(content: str, rows: list[EnvironmentDocRow]) -> str:
+    """Update preset cells in the curated environment grid tables.
+
+    Curated rows can contain more than one task ID. Their preset cell shows the
+    union of the concrete selectors for those tasks; the comprehensive table
+    remains the task-specific source of truth.
+
+    Args:
+        content: Complete ``environments.rst`` contents.
+        rows: Environment rows collected from the Gym registry.
+
+    Returns:
+        Document contents with synchronized curated preset cells.
+    """
+    curated_end = content.find(COMPREHENSIVE_LIST_START_MARKER)
+    if curated_end == -1:
+        raise ValueError(f"Could not find '{COMPREHENSIVE_LIST_START_MARKER}' in environments.rst.")
+
+    task_presets = {row.task_name: _parse_formatted_presets(row.presets) for row in rows}
+    substitutions = _parse_task_link_substitutions(content[:curated_end])
+    newline = "\r\n" if "\r\n" in content else "\n"
+    curated_lines = content[:curated_end].splitlines()
+    updated_lines: list[str] = []
+
+    index = 0
+    while index < len(curated_lines):
+        line = curated_lines[index]
+        if line.lstrip().startswith("+") and "Presets" in "\n".join(curated_lines[index : index + 8]):
+            table_end = index
+            while table_end < len(curated_lines) and curated_lines[table_end].lstrip().startswith(("+", "|")):
+                table_end += 1
+            updated_lines.extend(_patch_curated_grid_table(curated_lines[index:table_end], substitutions, task_presets))
+            index = table_end
+            continue
+
+        updated_lines.append(line)
+        index += 1
+
+    curated = newline.join(updated_lines)
+    if curated_lines:
+        curated += newline
+    return curated + content[curated_end:]
+
+
+def _parse_task_link_substitutions(content: str) -> dict[str, str]:
+    """Return ``{substitution_name: task_id}`` for environment links."""
+    pattern = re.compile(r"^\.\. \|([^|]+)\| replace:: .*?`([^`<>]+?)\s*(?:<[^>]+>)?`\s*$", re.MULTILINE)
+    return {match.group(1): match.group(2).strip() for match in pattern.finditer(content)}
+
+
+def _parse_formatted_presets(value: str) -> dict[str, set[str]]:
+    """Parse a formatted comprehensive-table preset cell by selector label."""
+    result = {label: set() for label in _SELECTOR_LABELS.values()}
+    current: str | None = None
+    for line in value.splitlines():
+        for label in result:
+            if f"**{label}=**" in line:
+                current = label
+                break
+        if current is not None:
+            result[current].update(re.findall(r"``([^`]+)``", line))
+    return result
+
+
+def _patch_curated_grid_table(
+    table_lines: list[str], substitutions: dict[str, str], task_presets: dict[str, dict[str, set[str]]]
+) -> list[str]:
+    """Synchronize one curated RST grid table with collected preset rows."""
+    if not table_lines:
+        return table_lines
+
+    column_boundaries = [index for index, char in enumerate(table_lines[0]) if char == "+"]
+    if len(column_boundaries) < 3:
+        return table_lines
+
+    row_blocks: list[tuple[int, int]] = []
+    index = 0
+    while index < len(table_lines):
+        if not table_lines[index].lstrip().startswith("|"):
+            index += 1
+            continue
+        row_start = index
+        while index < len(table_lines) and table_lines[index].lstrip().startswith("|"):
+            index += 1
+        row_blocks.append((row_start, index))
+
+    parsed_blocks = {
+        block: _parse_grid_row(table_lines[start:end], column_boundaries)
+        for block, (start, end) in enumerate(row_blocks)
+    }
+    header = parsed_blocks.get(0, [])
+    environment_column = next(
+        (column for column, values in enumerate(header) if "Environment ID" in " ".join(values)), None
+    )
+    preset_column = next((column for column, values in enumerate(header) if "Presets" in " ".join(values)), None)
+    if environment_column is None or preset_column is None:
+        return table_lines
+
+    replacement_cells: dict[int, dict[str, set[str]]] = {}
+    for block, cells in parsed_blocks.items():
+        if block == 0:
+            continue
+        task_ids = []
+        for substitution in re.findall(r"\|([^|]+)\|", " ".join(cells[environment_column])):
+            task_id = substitutions.get(substitution)
+            if task_id in task_presets:
+                task_ids.append(task_id)
+        if not task_ids:
+            continue
+        replacement_cells[block] = {
+            label: set().union(*(task_presets[task_id][label] for task_id in task_ids))
+            for label in _SELECTOR_LABELS.values()
+        }
+
+    original_widths = [end - start - 1 for start, end in zip(column_boundaries, column_boundaries[1:])]
+    preset_width = original_widths[preset_column]
+    longest_literal = max(
+        (len(f"``{name}``") for groups in replacement_cells.values() for names in groups.values() for name in names),
+        default=0,
+    )
+    updated_widths = list(original_widths)
+    updated_widths[preset_column] = max(preset_width, longest_literal + 3)
+
+    rendered_cells = {
+        block: _render_curated_preset_cell(groups, updated_widths[preset_column] - 2)
+        for block, groups in replacement_cells.items()
+    }
+
+    block_by_start = {start: block for block, (start, _) in enumerate(row_blocks)}
+    output: list[str] = []
+    index = 0
+    while index < len(table_lines):
+        line = table_lines[index]
+        if line.lstrip().startswith("+"):
+            output.append(_resize_grid_border(line, updated_widths))
+            index += 1
+            continue
+
+        block = block_by_start.get(index)
+        if block is None:
+            output.append(line)
+            index += 1
+            continue
+
+        start, end = row_blocks[block]
+        cells = parsed_blocks[block]
+        if block in rendered_cells:
+            cells[preset_column] = rendered_cells[block]
+        output.extend(_render_grid_row(cells, updated_widths, table_lines[start][: column_boundaries[0]]))
+        index = end
+
+    return output
+
+
+def _parse_grid_row(lines: list[str], boundaries: list[int]) -> list[list[str]]:
+    """Parse the cells of one multi-line RST grid-table row."""
+    return [[line[start + 1 : end].strip() for line in lines] for start, end in zip(boundaries, boundaries[1:])]
+
+
+def _render_curated_preset_cell(groups: dict[str, set[str]], content_width: int) -> list[str]:
+    """Render concrete selectors into wrapped grid-cell lines."""
+    lines: list[str] = []
+    for label in _SELECTOR_LABELS.values():
+        names = sorted(groups[label])
+        if not names:
+            continue
+        pieces = [f"``{name}``{',' if index < len(names) - 1 else ''}" for index, name in enumerate(names)]
+        current = f"**{label}=**"
+        for piece in pieces:
+            candidate = f"{current} {piece}"
+            if len(candidate) <= content_width:
+                current = candidate
+            else:
+                lines.append(current)
+                current = piece
+        lines.append(current)
+    return lines or [""]
+
+
+def _resize_grid_border(line: str, updated_widths: list[int]) -> str:
+    """Resize the final preset column of one RST grid-table border."""
+    indent = line[: len(line) - len(line.lstrip())]
+    stripped = line.strip()
+    fills = [segment[0] if segment else "-" for segment in stripped[1:-1].split("+")]
+    segments = [fill * width for fill, width in zip(fills, updated_widths)]
+    return f"{indent}+{'+'.join(segments)}+"
+
+
+def _render_grid_row(cells: list[list[str]], widths: list[int], indent: str) -> list[str]:
+    """Render one parsed RST grid-table row using the requested widths."""
+    for cell in cells:
+        while len(cell) > 1 and not cell[-1]:
+            cell.pop()
+    height = max((len(cell) for cell in cells), default=1)
+    output = []
+    for line_index in range(height):
+        values = [cell[line_index] if line_index < len(cell) else "" for cell in cells]
+        rendered = [f" {value:<{width - 2}} " for value, width in zip(values, widths)]
+        output.append(f"{indent}|{'|'.join(rendered)}|")
+    return output
 
 
 def get_workflow(entry_point: str) -> str:
@@ -304,6 +531,51 @@ def render_comprehensive_list_table(rows: list[EnvironmentDocRow]) -> str:
         )
 
     return "\n".join(lines)
+
+
+def render_environment_browser_task_rows(rows: list[EnvironmentDocRow]) -> str:
+    """Render concrete core-task selectors for the environment browser."""
+    lines = ["        const taskRows = ["]
+    for row in rows:
+        if not row.task_name.startswith("Isaac-"):
+            continue
+        presets = _parse_formatted_presets(row.presets)
+        values = (
+            row.task_name,
+            ",".join(re.findall(r"\*\*([^*]+)\*\*", row.rl_libraries)),
+            ",".join(sorted(presets["physics"])),
+            ",".join(sorted(presets["renderer"])),
+            ",".join(sorted(presets["presets"])),
+        )
+        rendered_values = ", ".join(json.dumps(value) for value in values)
+        lines.append(f"            [{rendered_values}],")
+    lines.append("        ];")
+    return "\n".join(lines)
+
+
+def patch_environment_browser_javascript(content: str, generated_rows: str) -> str:
+    """Replace the auto-generated task rows in ``environment-browser.js``."""
+    start = content.find(ENVIRONMENT_BROWSER_TASKS_START_MARKER)
+    end_marker_start = content.find(ENVIRONMENT_BROWSER_TASKS_END_MARKER)
+    if start == -1 or end_marker_start == -1 or end_marker_start < start:
+        raise ValueError(
+            "Could not find environment-browser task markers. "
+            f"Expected both '{ENVIRONMENT_BROWSER_TASKS_START_MARKER}' and "
+            f"'{ENVIRONMENT_BROWSER_TASKS_END_MARKER}'."
+        )
+
+    generated_region = content[start + len(ENVIRONMENT_BROWSER_TASKS_START_MARKER) : end_marker_start]
+    task_rows_start = generated_region.find("const taskRows = [")
+    task_rows_end = generated_region.find("];", task_rows_start)
+    if task_rows_start == -1 or task_rows_end == -1 or generated_region[task_rows_end + 2 :].strip():
+        raise ValueError("Environment-browser task markers must contain only the generated taskRows array.")
+
+    end = end_marker_start + len(ENVIRONMENT_BROWSER_TASKS_END_MARKER)
+    indent = content[content.rfind("\n", 0, start) + 1 : start]
+    replacement = (
+        f"{ENVIRONMENT_BROWSER_TASKS_START_MARKER}\n{generated_rows}\n{indent}{ENVIRONMENT_BROWSER_TASKS_END_MARKER}"
+    )
+    return content[:start] + replacement + content[end:]
 
 
 def patch_environments_rst(content: str, generated_table: str) -> str:
