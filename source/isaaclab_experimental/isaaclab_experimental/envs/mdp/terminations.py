@@ -27,11 +27,6 @@ if TYPE_CHECKING:
     from isaaclab.managers.manager_term_cfg import TerminationTermCfg
 
 
-def _threshold_or_unset(threshold: float | None) -> float:
-    """Map an optional success threshold to the kernel's negative-means-unset encoding."""
-    return -1.0 if threshold is None else threshold
-
-
 """
 MDP terminations.
 """
@@ -107,8 +102,10 @@ class pose_command_success(ManagerTermBase):
         command_name = cfg.params["command_name"]
         command = env.command_manager.get_term(command_name)
         # a negative threshold marks "not configured" for the kernel
-        self._position_threshold = _threshold_or_unset(command.cfg.position_success_threshold)
-        self._orientation_threshold = _threshold_or_unset(command.cfg.orientation_success_threshold)
+        position_threshold = command.cfg.position_success_threshold
+        orientation_threshold = command.cfg.orientation_success_threshold
+        self._position_threshold = -1.0 if position_threshold is None else position_threshold
+        self._orientation_threshold = -1.0 if orientation_threshold is None else orientation_threshold
         # matches the stable term: with no threshold configured, no env ever succeeds
         self._any_threshold = self._position_threshold >= 0.0 or self._orientation_threshold >= 0.0
         self._body_idx = command.body_idx
