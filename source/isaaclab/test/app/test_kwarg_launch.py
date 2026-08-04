@@ -64,6 +64,41 @@ def test_explicit_experience_requires_isaac_sim_runtime():
     assert _get_kit_runtime_sources(scan, args)
 
 
+@pytest.mark.parametrize(
+    "launcher_args, expected_headless",
+    [
+        # XR with no CLI visualizer: headless even though the task config asks for Kit.
+        ({"xr": True}, True),
+        # An explicit '--viz kit' is the one way to get a viewport alongside XR.
+        ({"xr": True, "visualizer": ["kit"], "visualizer_explicit": True}, False),
+        ({"xr": True, "visualizer": ["none"], "visualizer_explicit": True}, True),
+        # Without XR the task config still decides.
+        ({}, False),
+    ],
+)
+def test_xr_without_explicit_kit_visualizer_forces_headless(launcher_args: dict, expected_headless: bool):
+    """Test that enabling XR runs headless unless a Kit visualizer is explicitly requested.
+
+    Headless XR auto-starts the AR session because there is no viewport in which to click
+    "Start XR", so ``--xr`` alone must not be left non-headless by a task config that happens to
+    declare a Kit visualizer. Resolution is exercised directly to avoid launching Isaac Sim.
+    """
+    launcher = object.__new__(AppLauncher)
+    launcher._livestream = 0
+    args = {
+        "visualizer_intent": {"has_any_visualizers": True, "has_kit_visualizer": True},
+        **launcher_args,
+    }
+
+    launcher._resolve_visualizer_settings(args)
+    launcher._resolve_xr_settings(args)
+    launcher._resolve_headless_settings(args, livestream_arg=-1, livestream_env=-1)
+
+    assert launcher._headless is expected_headless
+    # The XR session must auto-start exactly when there is no viewport to start it from.
+    assert launcher._xr_auto_start is (bool(launcher_args.get("xr")) and expected_headless)
+
+
 def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.MonkeyPatch):
     close_args = {}
 

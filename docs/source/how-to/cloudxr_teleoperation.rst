@@ -624,17 +624,11 @@ runtime command is needed.
 
       [Error] [carb.scripting-python.plugin] PermissionError: [Errno 13] Permission denied: '/root/.local/share/ov/data/exts'
 
-   followed by a cascade of extension-registry errors that abort the app *before* the XR
-   session can start::
+   followed by a cascade of extension-registry errors::
 
       [Error] [omni.ext.plugin] Syncing with extension registry unavailable.
-      [Error] [omni.ext.plugin] Failed to resolve extension dependencies. Failure hints:
-        * No versions of omni.kit.xr.bundle.generic that satisfies: isaaclab.python.xr.openxr-3.0.0 ...
-      [Error] [omni.kit.app.plugin] Exiting app because of dependency solver failure...
 
-   The XR bundle is not actually missing -- the registry never synced because its cache
-   directory could not be created. To fix it, make the persistent storage writable by
-   uid/gid 1000 before relaunching:
+   To fix it, make the persistent storage writable by uid/gid 1000 before relaunching:
 
    * **Docker Compose:** recreate the named volumes, e.g.
 

@@ -45,8 +45,17 @@ xr.skipInputDeviceUSDWrites = true
 
 # Required for XR instruction widget (CopyFabricPrim)
 "omni.fabric.commands" = {}
+
+# XR extensions shipped on disk with Isaac Sim. Do not depend on the
+# omni.kit.xr.bundle.generic meta-extension: it is absent from the Isaac Sim
+# distribution and resolves only from the Kit SDK registry, so the dependency
+# solver aborts the app wherever that registry is unreachable (containers,
+# air-gapped hosts, proxied networks, or a non-writable extension cache).
+# omni.kit.xr.ui.window.profile supersedes omni.kit.xr.profile.ar, which was
+# removed in Kit 110.
+"omni.kit.xr.core" = {}
 "omni.kit.xr.system.openxr" = {}
-"omni.kit.xr.bundle.generic" = {}
+"omni.kit.xr.ui.window.profile" = {}
 
 [settings.isaaclab]
 # This is used to check that this experience file is loaded when using cameras

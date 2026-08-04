@@ -439,7 +439,7 @@ def main() -> None:  # noqa: C901
     # Optional keyboard for headset-free IsaacTeleop control. Kept in a local so its
     # carb input subscription is not garbage-collected; a headless run auto-starts
     # (in ``run_loop``) without it.
-    control_keyboard = _make_control_keyboard(teleop_interface, use_isaac_teleop, args_cli.headless)  # noqa: F841
+    control_keyboard = _make_control_keyboard(teleop_interface, use_isaac_teleop, app_launcher.headless)  # noqa: F841
 
     def run_loop():
         """Inner function to run the teleop loop with access to nonlocal variables."""

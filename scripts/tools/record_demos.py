@@ -656,7 +656,7 @@ def run_simulation_loop(  # noqa: C901
     # turns it into one env reset) and pauses the session -- binding it straight to
     # ``reset_recording_instance`` would reset the env twice.
     control_keyboard = None
-    if use_isaac_teleop and not args_cli.headless:
+    if use_isaac_teleop and not app_launcher.headless:
         try:
             control_keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
             control_keyboard.add_callback("B", teleop_interface.request_start)

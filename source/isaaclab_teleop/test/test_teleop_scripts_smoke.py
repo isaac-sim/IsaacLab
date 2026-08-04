@@ -14,6 +14,10 @@ asserts it starts up past the regression introduced by the render-flag cleanup i
 * ``record_demos.py`` read the removed ``args_cli.enable_cameras`` attribute, raising
   ``AttributeError``.
 
+They also cover the XR startup regression: the XR experience depended on the
+``omni.kit.xr.bundle.generic`` meta-extension, which Isaac Sim does not ship, so ``--xr`` aborted
+with a dependency solver failure wherever the Kit SDK registry was unreachable.
+
 These follow the Isaac Lab subprocess-integration test convention (see
 ``scripts/benchmarks/test``) rather than the isaacsim-CI methodology, so they run in the Isaac
 Lab CI ``integration`` lane. They live under the ``isaaclab_teleop`` package tests so the CI
@@ -24,6 +28,7 @@ terminated via its process group.
 """
 
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -37,15 +42,22 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 # Repository root: this file lives at source/isaaclab_teleop/test/<file>.py
 ROOT = Path(__file__).resolve().parents[3]
 
+# XR experience file whose dependencies decide whether ``--xr`` can start offline.
+_XR_EXPERIENCE = ROOT / "apps" / "isaaclab.python.xr.openxr.kit"
+
 # Lightweight Franka task that configures an IsaacTeleop pipeline (controllers), so omitting
 # ``--teleop_device`` drives the scripts through the Isaac Teleop stack rather than the legacy
 # native devices.
 _ISAAC_TELEOP_TASK = "IsaacContrib-Stack-Cube-Franka-IK-Abs"
 
-# Exact #6656 regression signatures that must never appear in a script's output.
+# Exact regression signatures that must never appear in a script's output.
 _REGRESSION_SIGNATURES = (
+    # #6656 render-flag cleanup fallout
     "No module named 'omni.replicator'",
     "has no attribute 'enable_cameras'",
+    "has no attribute 'headless'",
+    # Registry-only XR dependency: the app exits before any marker is printed
+    "Exiting app because of dependency solver failure",
 )
 
 # Logged by ``isaaclab_teleop`` when it builds the Isaac Teleop device + retargeting pipeline.
@@ -157,6 +169,60 @@ def test_record_demos_starts(tmp_path):
     ]
     output = _launch_until_marker(argv, [_ISAAC_TELEOP_MARKER], tmp_path / "record_demos.log")
     _assert_started_cleanly(output, [_ISAAC_TELEOP_MARKER], "record_demos.py")
+
+
+def test_xr_experience_declares_only_shipped_extensions():
+    """The XR experience depends on XR extensions Isaac Sim ships, not on a registry-only bundle.
+
+    ``omni.kit.xr.profile.ar`` was removed in Kit 110 and briefly replaced by the
+    ``omni.kit.xr.bundle.generic`` meta-extension, which is absent from the Isaac Sim
+    distribution and resolves only from the Kit SDK registry. That made every ``--xr`` run
+    depend on registry reachability, and abort the app when it was unavailable.
+
+    This check is static on purpose. A machine that can reach the registry downloads the bundle
+    into the user extension cache on first use and loads it from there forever after, so a launch
+    test cannot detect the regression once that cache is warm -- which is exactly why the failure
+    only ever showed up in containers.
+    """
+    dependencies = set(re.findall(r'^\s*"([^"]+)"\s*=', _XR_EXPERIENCE.read_text(encoding="utf-8"), re.MULTILINE))
+
+    assert "omni.kit.xr.system.openxr" in dependencies
+    assert "omni.kit.xr.ui.window.profile" in dependencies, "omni.kit.xr.profile.ar's Kit 110 successor is missing"
+    assert not [name for name in dependencies if name.startswith("omni.kit.xr.bundle.")], (
+        "XR bundle meta-extensions are not shipped with Isaac Sim and resolve only from the Kit SDK registry"
+    )
+
+
+def test_record_demos_starts_headless_xr(tmp_path):
+    """record_demos.py starts under ``--xr`` with no ``--viz kit`` (the QA-reported failure).
+
+    ``--xr`` without an explicit Kit visualizer resolves to headless and selects
+    ``isaaclab.python.xr.openxr.headless.kit``, whose dependency chain aborted the app before any
+    Python ran. Reaching a startup marker proves the XR experience resolved its extensions and the
+    headless XR path runs end-to-end. Either marker is accepted -- env creation already clears the
+    dependency solver, which is what this gates on. The run stops short of the OpenXR session,
+    which needs a headset and a CloudXR runtime that CI does not have.
+
+    The extension registry is disabled so extensions must resolve from what Isaac Sim ships on
+    disk. That keeps the test hermetic and immune to registry outages, and makes it fail on a
+    clean extension cache if a registry-only dependency is ever reintroduced. On a machine whose
+    cache is already warm the bundle would load locally regardless, so
+    :func:`test_xr_experience_declares_only_shipped_extensions` is the portable guard.
+    """
+    argv = [
+        "scripts/tools/record_demos.py",
+        "--task",
+        _ISAAC_TELEOP_TASK,
+        "--dataset_file",
+        str(tmp_path / "dataset.hdf5"),
+        "--xr",
+        *_NO_CLOUDXR,
+        "--kit_args",
+        "--/app/extensions/registryEnabled=false",
+    ]
+    markers = [_ISAAC_TELEOP_MARKER, _ENV_CREATED_MARKER]
+    output = _launch_until_marker(argv, markers, tmp_path / "record_demos_xr.log")
+    _assert_started_cleanly(output, markers, "record_demos.py --xr")
 
 
 def test_teleop_replay_agent_applies_rtx_without_replicator_crash(tmp_path):

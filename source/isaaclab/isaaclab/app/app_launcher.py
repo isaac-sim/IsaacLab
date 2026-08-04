@@ -366,6 +366,17 @@ class AppLauncher:
         else:
             raise RuntimeError("The `AppLauncher.app` member cannot be retrieved until the class is initialized.")
 
+    @property
+    def headless(self) -> bool:
+        """Whether the app was launched without a Kit window.
+
+        This is resolved from the visualizer selection rather than read from a flag: the app runs
+        headless unless ``--visualizer kit`` was requested or livestreaming is enabled. Enabling XR
+        without an explicit ``--visualizer kit`` also forces headless, since the XR session starts
+        on its own.
+        """
+        return self._headless
+
     """
     Operations.
     """
@@ -869,7 +880,15 @@ class AppLauncher:
 
         # Resolve headless from visualizer intent when livestream is disabled.
         if self._livestream == 0:
-            if self._cli_visualizer_explicit:
+            if self._xr_auto_start:
+                # XR without an explicit '--viz kit' runs headless: the AR session starts
+                # automatically, so there is no viewport in which to click "Start XR".
+                if not self._headless:
+                    logger.debug(
+                        "Forcing headless mode because XR is enabled and no Kit visualizer was explicitly requested."
+                    )
+                self._headless = True
+            elif self._cli_visualizer_explicit:
                 # Explicit CLI selection controls headless: only Kit implies non-headless.
                 requested_visualizers = set(self._cli_visualizer_types)
                 if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
@@ -960,11 +979,11 @@ class AppLauncher:
         else:
             self._xr = bool(xr_env)
 
-        # Determine whether XR should auto-inject a KitVisualizer.
-        # When XR is enabled but no Kit visualizer was explicitly requested via
-        # CLI, we auto-inject one so that app.update() and forward() are pumped
-        # each frame -- the XR runtime needs both to receive updated hand/joint
-        # transforms.
+        # Determine whether the XR session should start automatically.
+        # When XR is enabled but no Kit visualizer was explicitly requested via CLI,
+        # there is no viewport in which to click "Start XR", so the session must start
+        # itself. This also forces headless mode in :meth:`_resolve_headless_settings`
+        # and is published as ``/isaaclab/xr/auto_start``.
         if self._xr:
             has_explicit_kit = self._cli_visualizer_explicit and "kit" in set(self._cli_visualizer_types)
             self._xr_auto_start = not has_explicit_kit
@@ -1283,7 +1302,7 @@ class AppLauncher:
         # set setting to indicate XR auto-start mode -- when running headless
         # (no Kit GUI) the AR profile must be enabled programmatically so that
         # the OpenXR session starts without user interaction
-        settings.set_bool("/isaaclab/xr/auto_start", self._headless and self._xr)
+        settings.set_bool("/isaaclab/xr/auto_start", self._xr_auto_start)
         # set setting to indicate video recording mode
         settings.set_bool("/isaaclab/video/enabled", self._video_enabled)
 
