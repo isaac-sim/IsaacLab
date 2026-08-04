@@ -167,6 +167,11 @@ class MockArticulationViewWarp:
         return self._count
 
     @property
+    def max_dofs(self) -> int:
+        """Maximum number of degrees of freedom."""
+        return self._num_dofs
+
+    @property
     def shared_metatype(self) -> MockSharedMetatype:
         """Shared metatype containing articulation structure metadata."""
         return self._shared_metatype

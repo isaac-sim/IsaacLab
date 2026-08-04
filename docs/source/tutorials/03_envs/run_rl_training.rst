@@ -115,7 +115,7 @@ in the workflow and pass ``--video`` to record the agent behavior.
 
       .. code-block:: bash
 
-        uv run isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
+        uv run --extra video isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 

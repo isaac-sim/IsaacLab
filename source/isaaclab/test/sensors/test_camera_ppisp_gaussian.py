@@ -46,6 +46,7 @@ from generate_synthetic_gaussian_asset import (
     assert_ppisp_controller_matches_static,
     assert_ppisp_invariants,
     assert_ppisp_lifts_exposure,
+    assert_tiled_views_match,
     make_aggressive_ppisp_cfg,
     make_neutral_ppisp_cfg,
     make_synthetic_gaussian_usd,
@@ -127,6 +128,7 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians(renderer_cfg_cls
             renderer_cfg=renderer_cfg_cls(),
             data_types=["rgb", "rgb_hdr"],
             sim_dt=SIM_DT,
+            stabilisation_steps=15,
             responsivity=ISAAC_RTX_RESPONSIVITY,
         )
     assert_ppisp_lifts_exposure(output["rgb_hdr"][0], output["rgb"][0], label="isaac_rtx")
@@ -229,6 +231,8 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_multitile(render
         f"Expected {MULTI_TILE_COUNT} tiles, got shape={tuple(rgb.shape)}. "
         f"Check that the camera regex {SYNTHETIC_GAUSSIAN_CAMERA_REGEX} resolves to one camera per env."
     )
+    assert_tiled_views_match(rgb, label=f"{renderer_cfg_cls.__name__} rgb")
+    assert_tiled_views_match(rgb_hdr, max_relative_mean_abs_diff=0.05, label=f"{renderer_cfg_cls.__name__} rgb_hdr")
     for i in range(MULTI_TILE_COUNT):
         assert_ppisp_lifts_exposure(rgb_hdr[i], rgb[i], label=f"isaac_rtx tile {i}")
         assert_ppisp_invariants(rgb[i], label=f"isaac_rtx tile {i}")

@@ -34,7 +34,8 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
-from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
+
+from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -63,74 +64,6 @@ from isaaclab_assets import (  # isort:skip
     FRANKA_PANDA_HIGH_PD_CFG,
     SHADOW_HAND_CFG,
 )
-
-
-def test_cached_read_launch_reuses_command_and_resets(monkeypatch):
-    """The PhysX read path should record once, replay, and discard the command on reset."""
-
-    class FakeCommand:
-        launch_count = 0
-
-        def launch(self):
-            self.launch_count += 1
-
-    class FakeDevice:
-        is_cuda = True
-        is_capturing = False
-
-    device = FakeDevice()
-    command = FakeCommand()
-    launch_calls = []
-
-    def fake_launch(*args, **kwargs):
-        launch_calls.append((args, kwargs))
-        return command
-
-    module = sys.modules[ArticulationData.__module__]
-    monkeypatch.setattr(module.wp, "get_device", lambda device_name: device)
-    monkeypatch.setattr(module.wp, "launch", fake_launch)
-    data = ArticulationData.__new__(ArticulationData)
-    data.device = "cuda:0"
-    data._cached_read_launches = {}
-
-    for _ in range(2):
-        data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
-
-    assert len(launch_calls) == 1
-    assert launch_calls[0][1]["record_cmd"] is True
-    assert command.launch_count == 2
-    data._reset_cached_read_launches()
-    device.is_capturing = True
-    data._launch_cached_read("joint_pos", object(), dim=1, inputs=[], outputs=[])
-    assert "record_cmd" not in launch_calls[-1][1]
-    assert data._cached_read_launches == {}
-
-
-def test_cached_read_launch_ignores_empty_recording(monkeypatch):
-    """PhysX should treat an empty recorded launch as a completed no-op."""
-
-    class FakeDevice:
-        is_cuda = True
-        is_capturing = False
-
-    launch_calls = []
-
-    def fake_launch(*args, **kwargs):
-        launch_calls.append((args, kwargs))
-        return
-
-    module = sys.modules[ArticulationData.__module__]
-    monkeypatch.setattr(module.wp, "get_device", lambda device_name: FakeDevice())
-    monkeypatch.setattr(module.wp, "launch", fake_launch)
-    data = ArticulationData.__new__(ArticulationData)
-    data.device = "cuda:0"
-    data._cached_read_launches = {}
-
-    data._launch_cached_read("joint_pos", object(), dim=0, inputs=[], outputs=[])
-
-    assert len(launch_calls) == 1
-    assert launch_calls[0][1]["record_cmd"] is True
-    assert data._cached_read_launches == {}
 
 
 def generate_articulation_cfg(
@@ -413,6 +346,32 @@ def sim(request):
         yield sim
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
+    """Write joint state with int64 selectors."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+    sim.reset()
+    assert articulation.num_joints >= 2
+
+    env_ids = torch.tensor([1, 0], dtype=torch.int64, device=device)
+    joint_ids = torch.tensor([articulation.num_joints - 1, 0], dtype=torch.int64, device=device)
+    position = torch.tensor([[0.21, 0.11], [0.22, 0.12]], device=device)
+    velocity = torch.tensor([[1.21, 1.11], [1.22, 1.12]], device=device)
+
+    expected_position = articulation.data.joint_pos.torch.clone()
+    expected_velocity = articulation.data.joint_vel.torch.clone()
+
+    articulation.write_joint_state_to_sim_index(
+        position=position, velocity=velocity, env_ids=env_ids, joint_ids=joint_ids
+    )
+    expected_position[env_ids[:, None], joint_ids[None, :]] = position
+    expected_velocity[env_ids[:, None], joint_ids[None, :]] = velocity
+    torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
+    torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(sim, device, gravity_enabled):
@@ -479,8 +438,6 @@ def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(
         _to_device_tensor(articulation.root_view.get_link_transforms(), device),
         body_user_to_backend,
     )
-    if device == "cuda:0":
-        assert articulation.data._cached_read_launches
     _assert_backend_to_user(
         articulation.data.body_com_pose_b.torch,
         _to_device_tensor(articulation.root_view.get_coms(), device),
@@ -493,6 +450,49 @@ def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(
     )
     torch.testing.assert_close(articulation.data.body_pos_w.torch, articulation.data.body_link_pose_w.torch[..., :3])
     torch.testing.assert_close(articulation.data.body_quat_w.torch, articulation.data.body_link_pose_w.torch[..., 3:])
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_enabled):
+    """Keep dynamics tensors consistent with public joint velocity."""
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
+            ),
+            actuators={},
+        )
+    )
+    UsdPhysics.FixedJoint.Define(sim.stage, "/World/Robot/fixed_root").GetBody1Rel().SetTargets(["/World/Robot/base"])
+    joint = UsdPhysics.RevoluteJoint.Get(sim.stage, "/World/Robot/left_elbow")
+    body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
+    joint.GetBody0Rel().SetTargets(body1)
+    joint.GetBody1Rel().SetTargets(body0)
+    sim.reset()
+
+    velocity = torch.zeros((1, articulation.num_joints), device=device)
+    velocity[:, articulation.find_joints("left_shoulder")[0][0]] = 0.4
+    velocity[:, articulation.find_joints("left_elbow")[0][0]] = 0.7
+    articulation.write_joint_velocity_to_sim_index(velocity=velocity)
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    joint_velocity = articulation.data.joint_vel.torch
+    predicted_velocity = torch.einsum("nbij,nj->nbi", articulation.data.body_com_jacobian_w.torch, joint_velocity)
+    torch.testing.assert_close(predicted_velocity, articulation.data.body_com_vel_w.torch[:, 1:], atol=1e-5, rtol=1e-5)
+
+    generalized_energy = 0.5 * torch.einsum(
+        "ni,nij,nj->n", joint_velocity, articulation.data.mass_matrix.torch, joint_velocity
+    )
+    body_velocity = articulation.data.body_com_vel_w.torch
+    body_inertia = articulation.data.body_inertia.torch.reshape(1, articulation.num_bodies, 3, 3)
+    body_energy = 0.5 * (
+        (articulation.data.body_mass.torch.unsqueeze(-1) * body_velocity[..., :3].square()).sum((-1, -2))
+        + torch.einsum("nbi,nbij,nbj->n", body_velocity[..., 3:], body_inertia, body_velocity[..., 3:])
+    )
+    torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

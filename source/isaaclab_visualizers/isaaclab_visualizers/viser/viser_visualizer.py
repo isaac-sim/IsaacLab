@@ -108,7 +108,13 @@ class NewtonViewerViser(ViewerViser):
             metadata: Optional metadata attached to the viewer.
         """
         _disable_viser_runtime_client_rebuild_if_bundled()
-        viser = self._get_viser()
+        try:
+            viser = self._get_viser()
+        except ImportError as exc:
+            raise ImportError(
+                "The Viser visualizer requires the optional 'viser' package. "
+                "Run your command with: uv run --extra viser <command>."
+            ) from exc
         original_viser_server = viser.ViserServer
 
         def _viser_server_with_bind_address(*args, **kwargs):
@@ -534,6 +540,7 @@ class ViserVisualizer(BaseVisualizer):
             )
         num_envs = int((metadata or {}).get("num_envs", 0))
         self._viewer.set_model(self._model)
+        self._viewer.show_particles = self.cfg.show_particles
         # Set up sidebar AFTER set_model() — set_model calls clear_model() internally,
         # which would destroy any GUI elements created before it.
         if server is not None:

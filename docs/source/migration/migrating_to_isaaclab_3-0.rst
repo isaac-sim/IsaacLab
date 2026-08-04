@@ -652,28 +652,35 @@ when no CLI override is given. Other fields are named presets selectable with
 
 .. code-block:: python
 
-   from isaaclab_tasks.utils import PresetCfg
+   from isaaclab.physics import PhysxAutoCfg
    from isaaclab.utils.configclass import configclass
+   from isaaclab_ovphysx.physics import OvPhysxCfg
+   from isaaclab_tasks.utils import PresetCfg
 
    @configclass
    class MyPhysicsCfg(PresetCfg):
-       default: PhysxCfg = PhysxCfg(...)   # used when no override is given
-       physx:   PhysxCfg = PhysxCfg(...)   # selected by physics=physx
+       isaacsim_physx: PhysxCfg = PhysxCfg(...)
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+       default: PhysxCfg = isaacsim_physx  # used when no override is given
        newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by physics=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``physics=newton_mjwarp`` (or ``physics=physx``) on the CLI to swap the entire config section.
-The legacy ``presets=NAME`` form still works for the same values.
+Pass ``physics=newton_mjwarp`` on the CLI to swap the entire config section.
+Use ``physics=physx`` to opt into automatic PhysX-family selection. The legacy
+``presets=NAME`` form still works for the same values.
 
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 physics=newton_mjwarp
+   uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+       --task Isaac-Open-Drawer-Franka-Direct physics=newton_mjwarp
 
-   # Run with default (PhysX) backend
-   python train.py task=Isaac-Franka-Cabinet-v0
+   # Run with default (concrete Isaac Sim PhysX) backend
+   uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+       --task Isaac-Open-Drawer-Franka-Direct
 
 Adding Multi-Backend Support to an Environment
 -----------------------------------------------
@@ -691,18 +698,30 @@ subclass that carries both a PhysX and a Newton variant.
        self.sim.dt = 1 / 60
        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
 
+.. important::
+
+   The ``After`` example below mirrors the current Reach task, which intentionally
+   uses Newton/MJWarp as its default. The ``Before`` snippet only illustrates the
+   older single-backend form, so the default differs between the two snippets.
+   When migrating a task that should retain PhysX by default, use
+   ``default: PhysxCfg = isaacsim_physx`` instead. Adding backend variants should
+   not silently change a task's established default.
+
 *After:*
 
 .. code-block:: python
 
+   from isaaclab.physics import PhysxAutoCfg
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_ovphysx.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
    @configclass
    class ReachPhysicsCfg(PresetCfg):
-       default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-       physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
@@ -712,6 +731,7 @@ subclass that carries both a PhysX and a Newton variant.
            num_substeps=1,
            debug_mode=False,
        )
+       default: NewtonCfg = newton_mjwarp
 
    # In the env cfg __post_init__:
    def __post_init__(self):
@@ -2496,6 +2516,78 @@ updated:
 The class identities are unchanged — only the module path moved. Type hints
 referencing the old path (``omni.physics.tensors.impl.api.ArticulationView``)
 should be similarly updated to ``omni.physics.tensors.api.ArticulationView``.
+
+
+Viewport Camera Configuration (``ViewerCfg`` deprecated)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``viewer`` field (type :class:`~isaaclab.envs.common.ViewerCfg`) is deprecated on
+:class:`~isaaclab.envs.DirectRLEnvCfg`, :class:`~isaaclab.envs.ManagerBasedEnvCfg`, and
+:class:`~isaaclab.envs.DirectMARLEnvCfg`.  A backward-compatibility shim re-routes
+``viewer.*`` assignments for one release, but the field will be removed in a future version.
+Configure the viewport camera through :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+on the sim config instead.
+
+Similarly, :class:`~isaaclab.envs.ui.ViewportCameraController` is deprecated.  A shim class
+remains so existing imports do not break, but it raises a :class:`DeprecationWarning` at
+construction.  Camera tracking is now handled directly by
+:class:`~isaaclab_visualizers.kit.KitVisualizer` via ``origin_type`` and
+``origin_track_path`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env_cfg.viewer.eye = (4.5, 0.0, 6.0)
+   env_cfg.viewer.lookat = (0.0, 0.0, 2.0)
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.visualizers import VisualizerCfg
+   env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
+
+For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body"``), use
+:class:`~isaaclab_visualizers.kit.KitVisualizerCfg` with ``origin_type="asset"`` and
+``origin_track_path``:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env_cfg.viewer.origin_type = "asset_root"
+   env_cfg.viewer.asset_name = "robot"
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.kit import KitVisualizerCfg
+   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]
+
+The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
+tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+
+Video Recording (``gym.wrappers.RecordVideo`` replaced)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``gym.wrappers.RecordVideo`` pattern is no longer supported.  Video recording is now driven
+internally by :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries on the
+environment config, sourcing frames from the active visualizer or a scene sensor.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env = gym.make(task, cfg=env_cfg, render_mode="rgb_array")
+   env = gym.wrappers.RecordVideo(env, video_folder="videos/", step_trigger=lambda s: s == 0)
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+   env_cfg.video_recorders = [
+       VideoRecorderCfg(source="visualizer", output_dir="videos/", video_length=200)
+   ]
+   env = gym.make(task, cfg=env_cfg)
+
+Available sources: ``"visualizer"`` (auto-pick), ``"visualizer:kit"``, ``"visualizer:newton"``,
+``"visualizer:newton:tiled"``, ``"sensor:<name>"``.  The ``eye`` and ``lookat`` fields have been
+removed from ``VideoRecorderCfg``; position the camera via ``sim.default_visualizer_cfg`` instead.
+
+The ``isaaclab.envs.utils.recording_hooks`` module has been removed.  Physics-backend recording
+hooks are now registered via :meth:`~isaaclab.sim.SimulationContext.add_render_callback`.
 
 
 Need Help?

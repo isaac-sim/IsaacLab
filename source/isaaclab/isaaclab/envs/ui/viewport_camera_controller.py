@@ -3,241 +3,162 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Deprecated: ViewportCameraController compatibility shim.
+
+Camera tracking is now built into :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+Configure ``eye``, ``lookat``, ``origin_type``, and ``origin_track_path`` directly on
+:class:`~isaaclab_visualizers.kit.KitVisualizerCfg` and add it to
+:attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
+"""
+
 from __future__ import annotations
 
-import copy
-import weakref
-from collections.abc import Sequence
+import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 
-from isaaclab.assets.articulation.articulation import Articulation
-
 if TYPE_CHECKING:
-    from isaaclab.envs import DirectRLEnv, ManagerBasedEnv, ViewerCfg
+    from isaaclab.envs import ViewerCfg
+
+
+def _warn_method(name: str) -> None:
+    warnings.warn(
+        f"ViewportCameraController.{name}() is deprecated. "
+        "Set cfg fields (origin_type, origin_track_path, eye, lookat) on KitVisualizerCfg and "
+        "call visualizer.reapply_origin() to update at runtime.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
 
 
 class ViewportCameraController:
-    """This class handles controlling the camera associated with a viewport in the simulator.
+    """Deprecated compatibility shim for :class:`ViewportCameraController`.
 
-    It can be used to set the viewpoint camera to track different origin types:
-
-    - **world**: the center of the world (static)
-    - **env**: the center of an environment (static)
-    - **asset_root**: the root of an asset in the scene (e.g. tracking a robot moving in the scene)
-
-    On creation, the camera is set to track the origin type specified in the configuration.
-
-    For the :attr:`asset_root` origin type, the camera is updated at each rendering step to track the asset's
-    root position. For this, it registers a callback to the post update event stream from the simulation app.
+    .. deprecated::
+        :class:`ViewportCameraController` has been removed. Camera tracking is now built into
+        :class:`~isaaclab_visualizers.kit.KitVisualizer`. Set ``origin_type``,
+        ``origin_track_path``, ``eye``, and ``lookat`` directly on
+        :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` and pass it to
+        :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
     """
 
-    def __init__(self, env: ManagerBasedEnv | DirectRLEnv, cfg: ViewerCfg):
-        """Initialize the ViewportCameraController.
-
-        Args:
-            env: The environment.
-            cfg: The configuration for the viewport camera controller.
-
-        Raises:
-            ValueError: If origin type is configured to be "env" but :attr:`cfg.env_index` is out of bounds.
-            ValueError: If origin type is configured to be "asset_root" but :attr:`cfg.asset_name` is unset.
-
-        """
-        # store inputs
-        self._env = env
-        self._cfg = copy.deepcopy(cfg)
-        # cast viewer eye and look-at to numpy arrays
-        self.default_cam_eye = np.array(self._cfg.eye, dtype=float)
-        self.default_cam_lookat = np.array(self._cfg.lookat, dtype=float)
-
-        # set the camera origins
-        if self.cfg.origin_type == "env":
-            # check that the env_index is within bounds
-            self.set_view_env_index(self.cfg.env_index)
-            # set the camera origin to the center of the environment
-            self.update_view_to_env()
-        elif self.cfg.origin_type == "asset_root" or self.cfg.origin_type == "asset_body":
-            # note: we do not yet update camera for tracking an asset origin, as the asset may not yet be
-            # in the scene when this is called. Instead, we subscribe to the post update event to update the camera
-            # at each rendering step.
-            if self.cfg.asset_name is None:
-                raise ValueError(f"No asset name provided for viewer with origin type: '{self.cfg.origin_type}'.")
-            if self.cfg.origin_type == "asset_body":
-                if self.cfg.body_name is None:
-                    raise ValueError(f"No body name provided for viewer with origin type: '{self.cfg.origin_type}'.")
-        else:
-            # set the camera origin to the center of the world
-            self.update_view_to_world()
-
-        # subscribe to post update event so that camera view can be updated at each rendering step
-        import omni.kit.app
-
-        app_interface = omni.kit.app.get_app_interface()
-        app_event_stream = app_interface.get_post_update_event_stream()
-        self._viewport_camera_update_handle = app_event_stream.create_subscription_to_pop(
-            lambda event, obj=weakref.proxy(self): obj._update_tracking_callback(event)
+    def __init__(self, env: object, cfg: ViewerCfg):
+        warnings.warn(
+            "ViewportCameraController is deprecated and has been removed. "
+            "Camera tracking is now built into KitVisualizer — configure "
+            "origin_type, origin_track_path, eye, and lookat directly on KitVisualizerCfg "
+            "and add it to SimulationCfg.visualizer_cfgs.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        self._env = env
+        self._cfg = cfg
+        self.default_cam_eye = np.array(getattr(cfg, "eye", (7.5, 7.5, 7.5)), dtype=float)
+        self.default_cam_lookat = np.array(getattr(cfg, "lookat", (0.0, 0.0, 0.0)), dtype=float)
 
-    def __del__(self):
-        """Unsubscribe from the callback."""
-        # use hasattr to handle case where __init__ has not completed before __del__ is called
-        if hasattr(self, "_viewport_camera_update_handle") and self._viewport_camera_update_handle is not None:
-            self._viewport_camera_update_handle.unsubscribe()
-            self._viewport_camera_update_handle = None
-
-    """
-    Properties
-    """
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
 
     @property
     def cfg(self) -> ViewerCfg:
-        """The configuration for the viewer."""
         return self._cfg
 
-    """
-    Public Functions
-    """
+    # ------------------------------------------------------------------
+    # Public methods (deprecated forwarding stubs)
+    # ------------------------------------------------------------------
 
-    def set_view_env_index(self, env_index: int):
-        """Sets the environment index for the camera view.
-
-        Args:
-            env_index: The index of the environment to set the camera view to.
-
-        Raises:
-            ValueError: If the environment index is out of bounds. It should be between 0 and num_envs - 1.
-        """
-        # check that the env_index is within bounds
-        if env_index < 0 or env_index >= self._env.num_envs:
+    def set_view_env_index(self, env_index: int) -> None:
+        """Deprecated. Update :attr:`~KitVisualizerCfg.origin_env_index` on the visualizer instead."""
+        _warn_method("set_view_env_index")
+        num_envs = getattr(self._env, "num_envs", None)
+        if num_envs is not None and not (0 <= env_index < num_envs):
             raise ValueError(
                 f"Out of range value for attribute 'env_index': {env_index}."
-                f" Expected a value between 0 and {self._env.num_envs - 1} for the current environment."
+                f" Expected a value between 0 and {num_envs - 1}."
             )
-        # update the environment index
-        self.cfg.env_index = env_index
-        # update the camera view if the origin is set to env type (since, the camera view is static)
-        # note: for assets, the camera view is updated at each rendering step
-        if self.cfg.origin_type == "env":
-            self.update_view_to_env()
+        self._cfg.env_index = env_index
+        for viz in self._get_kit_visualizers():
+            viz.cfg.origin_env_index = env_index
+            if getattr(viz.cfg, "origin_type", None) == "env":
+                viz.reapply_origin()
 
-    def update_view_to_world(self):
-        """Updates the viewer's origin to the origin of the world which is (0, 0, 0)."""
-        # set origin type to world
-        self.cfg.origin_type = "world"
-        # update the camera origins
-        self.viewer_origin = torch.zeros(3)
-        # update the camera view
-        self.update_view_location()
+    def update_view_to_world(self) -> None:
+        """Deprecated. Set ``origin_type='world'`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` instead."""
+        _warn_method("update_view_to_world")
+        self._cfg.origin_type = "world"
+        origin = torch.zeros(3)
+        for viz in self._get_kit_visualizers():
+            viz.cfg.origin_type = "world"
+            eye = (origin + torch.tensor(self.default_cam_eye, dtype=torch.float32)).tolist()
+            target = (origin + torch.tensor(self.default_cam_lookat, dtype=torch.float32)).tolist()
+            viz.set_camera_view(tuple(eye), tuple(target))
 
-    def update_view_to_env(self):
-        """Updates the viewer's origin to the origin of the selected environment."""
-        # set origin type to world
-        self.cfg.origin_type = "env"
-        # update the camera origins
-        self.viewer_origin = self._env.scene.env_origins[self.cfg.env_index]
-        # update the camera view
-        self.update_view_location()
+    def update_view_to_env(self) -> None:
+        """Deprecated. Set ``origin_type='env'`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` instead."""
+        _warn_method("update_view_to_env")
+        self._cfg.origin_type = "env"
+        for viz in self._get_kit_visualizers():
+            viz.cfg.origin_type = "env"
+            viz.reapply_origin()
 
-    def update_view_to_asset_root(self, asset_name: str):
-        """Updates the viewer's origin based upon the root of an asset in the scene.
+    def update_view_to_asset_root(self, asset_name: str) -> None:
+        """Deprecated. Set ``origin_type='asset'`` and ``origin_track_path`` on
+        :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` instead."""
+        _warn_method("update_view_to_asset_root")
+        self._cfg.asset_name = asset_name
+        self._cfg.origin_type = "asset_root"
+        for viz in self._get_kit_visualizers():
+            viz.cfg.origin_type = "asset"
+            viz.cfg.origin_track_path = asset_name
+            viz.reapply_origin()
 
-        Args:
-            asset_name: The name of the asset in the scene. The name should match the name of the
-                asset in the scene.
+    def update_view_to_asset_body(self, asset_name: str, body_name: str) -> None:
+        """Deprecated. Set ``origin_type='asset'`` and ``origin_track_path`` on
+        :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` instead."""
+        _warn_method("update_view_to_asset_body")
+        self._cfg.asset_name = asset_name
+        self._cfg.body_name = body_name
+        self._cfg.origin_type = "asset_body"
+        for viz in self._get_kit_visualizers():
+            viz.cfg.origin_type = "asset"
+            viz.cfg.origin_track_path = f"{asset_name}/{body_name}"
+            viz.reapply_origin()
 
-        Raises:
-            ValueError: If the asset is not in the scene.
-        """
-        # check if the asset is in the scene
-        if self.cfg.asset_name != asset_name:
-            asset_entities = [*self._env.scene.rigid_objects.keys(), *self._env.scene.articulations.keys()]
-            if asset_name not in asset_entities:
-                raise ValueError(f"Asset '{asset_name}' is not in the scene. Available entities: {asset_entities}.")
-        # update the asset name
-        self.cfg.asset_name = asset_name
-        # set origin type to asset_root
-        self.cfg.origin_type = "asset_root"
-        # update the camera origins (convert Warp array to torch tensor first, then index)
-        root_pos = self._env.scene[self.cfg.asset_name].data.root_pos_w.torch
-        self.viewer_origin = root_pos[self.cfg.env_index]
-        # update the camera view
-        self.update_view_location()
-
-    def update_view_to_asset_body(self, asset_name: str, body_name: str):
-        """Updates the viewer's origin based upon the body of an asset in the scene.
-
-        Args:
-            asset_name: The name of the asset in the scene. The name should match the name of the
-                asset in the scene.
-            body_name: The name of the body in the asset.
-
-        Raises:
-            ValueError: If the asset is not in the scene or the body is not valid.
-        """
-        # check if the asset is in the scene
-        if self.cfg.asset_name != asset_name:
-            asset_entities = [*self._env.scene.rigid_objects.keys(), *self._env.scene.articulations.keys()]
-            if asset_name not in asset_entities:
-                raise ValueError(f"Asset '{asset_name}' is not in the scene. Available entities: {asset_entities}.")
-        # check if the body is in the asset
-        asset: Articulation = self._env.scene[asset_name]
-        if body_name not in asset.body_names:
-            raise ValueError(
-                f"'{body_name}' is not a body of Asset '{asset_name}'. Available bodies: {asset.body_names}."
-            )
-        # get the body index
-        body_id, _ = asset.find_bodies(body_name)
-        # update the asset name
-        self.cfg.asset_name = asset_name
-        # set origin type to asset_body
-        self.cfg.origin_type = "asset_body"
-        # update the camera origins (convert Warp array to torch tensor first, then index)
-        body_pos = self._env.scene[self.cfg.asset_name].data.body_pos_w.torch
-        self.viewer_origin = body_pos[self.cfg.env_index, body_id].squeeze(0)
-        # update the camera view
-        self.update_view_location()
-
-    def update_view_location(self, eye: Sequence[float] | None = None, lookat: Sequence[float] | None = None):
-        """Updates the camera view pose based on the current viewer origin and the eye and lookat positions.
-
-        Args:
-            eye: The eye position of the camera. If None, the current eye position is used.
-            lookat: The lookat position of the camera. If None, the current lookat position is used.
-        """
-        # store the camera view pose for later use
+    def update_view_location(
+        self,
+        eye: tuple[float, float, float] | None = None,
+        lookat: tuple[float, float, float] | None = None,
+    ) -> None:
+        """Deprecated. Call :meth:`~isaaclab_visualizers.kit.KitVisualizer.set_camera_view` directly instead."""
+        _warn_method("update_view_location")
         if eye is not None:
             self.default_cam_eye = np.asarray(eye, dtype=float)
         if lookat is not None:
             self.default_cam_lookat = np.asarray(lookat, dtype=float)
-        # set the camera locations
-        viewer_origin = self.viewer_origin.detach().cpu().numpy()
-        cam_eye = viewer_origin + self.default_cam_eye
-        cam_target = viewer_origin + self.default_cam_lookat
+        for viz in self._get_kit_visualizers():
+            # Persist relative offsets into the visualizer config so that
+            # subsequent reapply_origin() calls (e.g. from asset tracking) use
+            # the updated offsets rather than the stale original values.
+            viz.cfg.eye = tuple(self.default_cam_eye.tolist())
+            viz.cfg.lookat = tuple(self.default_cam_lookat.tolist())
+            # reapply_origin() adds the current world/env/asset origin and pushes
+            # the result to the viewport, preserving origin-relative behaviour.
+            viz.reapply_origin()
 
-        eye_t = (float(cam_eye[0]), float(cam_eye[1]), float(cam_eye[2]))
-        target_t = (float(cam_target[0]), float(cam_target[1]), float(cam_target[2]))
-        self._env.sim.set_camera_view(eye=eye_t, target=target_t)
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
 
-        # Renderer viewport camera (Isaac RTX / Kit); optional — pure-Newton installs have no isaaclab_physx.
-        try:
-            from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view
-
-            set_kit_renderer_camera_view(eye=cam_eye, target=cam_target, camera_prim_path=self.cfg.cam_prim_path)
-        except (ImportError, ModuleNotFoundError):
-            pass
-
-    """
-    Private Functions
-    """
-
-    def _update_tracking_callback(self, event):
-        """Updates the camera view at each rendering step."""
-        # update the camera view if the origin is set to asset_root
-        # in other cases, the camera view is static and does not need to be updated continuously
-        if self.cfg.origin_type == "asset_root" and self.cfg.asset_name is not None:
-            self.update_view_to_asset_root(self.cfg.asset_name)
-        if self.cfg.origin_type == "asset_body" and self.cfg.asset_name is not None and self.cfg.body_name is not None:
-            self.update_view_to_asset_body(self.cfg.asset_name, self.cfg.body_name)
+    def _get_kit_visualizers(self) -> list:
+        """Return active Kit visualizers from the env's sim, if any."""
+        sim = getattr(self._env, "sim", None)
+        if sim is None:
+            return []
+        return [
+            v
+            for v in getattr(sim, "visualizers", [])
+            if getattr(getattr(v, "cfg", None), "visualizer_type", None) == "kit"
+        ]

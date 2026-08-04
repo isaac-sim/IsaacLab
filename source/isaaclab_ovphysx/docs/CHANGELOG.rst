@@ -1,6 +1,83 @@
 Changelog
 ---------
 
+8.2.3 (2026-08-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OvPhysX missing-runtime error to recommend installing the supported
+  ``ovphysx`` wheel instead of a nonexistent source-package extra.
+
+
+8.2.2 (2026-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OvPhysX environment cloning to preserve nested asset offsets and orientations.
+* Fixed the missing OvPhysX runtime error to recommend the uv-managed ``ovphysx`` extra.
+
+
+8.2.1 (2026-08-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OvPhysX articulation Jacobians, mass matrices, and gravity compensation
+  through the backend-agnostic articulation data API.
+* Added deformable nodal position export on the OVPhysX SceneData backend so soft
+  bodies and cloth can drive Newton Warp / OVRTX shadow visualization.
+* Added OVPhysX articulation Jacobians, mass matrices, and gravity
+  compensation through the backend-agnostic articulation data API.
+* Added the ``as_proxy`` return-mode option to OVPhysX asset finder methods.
+  ``as_proxy=False`` is the default and returns the legacy selector
+  representation, while ``as_proxy=True`` opts into cached
+  :class:`~isaaclab.utils.warp.ProxyArray` selectors. Pass their explicit
+  ``.warp`` or ``.torch`` views to downstream APIs.
+
+Changed
+^^^^^^^
+
+* Cached stable OVPhysX articulation and rigid asset read launches outside CUDA
+  graph capture. No user migration is required.
+
+Fixed
+^^^^^
+
+* Fixed procedural OvPhysX deformables by registering their USD schema before
+  stage creation for the selected backend.
+* Fixed OVPhysX indexed articulation writes to accept signed 32-bit and 64-bit
+  environment and item selectors without Torch conversion tensors.
+* Fixed stale pose-, velocity-, and center-of-mass-derived rigid asset data
+  immediately after simulation state and property writes.
+* Fixed dynamics reads for reversed USD joint relationships.
+
+
+8.2.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added asset method and data property micro-benchmarks for the articulation,
+  rigid object, and rigid object collection classes.
+* Added update and backend-read micro-benchmarks with structured results for
+  contact, frame transformer, IMU, PVA, joint wrench, and ray caster sensors.
+* Added matched plane and deterministic rough-terrain phases to the ray caster
+  sensor micro-benchmark.
+
+Changed
+^^^^^^^
+
+* Changed the ovphysx asset micro-benchmarks from separate method and data scripts
+  to one combined script per asset concept. Run the retained
+  benchmark_<asset>.py script to produce both historical result artifacts.
+
+
 8.1.1 (2026-07-30)
 ~~~~~~~~~~~~~~~~~~
 

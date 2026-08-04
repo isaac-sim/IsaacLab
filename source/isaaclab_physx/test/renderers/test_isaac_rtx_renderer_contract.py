@@ -210,6 +210,34 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
 _MISSING = object()
 
 
+def test_init_enables_replicator_before_applying_global_settings(monkeypatch):
+    """IsaacRtxRenderer enables Replicator before settings can import its module."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    call_order = []
+    settings = MagicMock()
+    settings.get.return_value = False
+
+    def _record_enable(extension_name):
+        assert extension_name == "omni.replicator.core"
+        call_order.append("enable")
+
+    def _record_global_settings(*_args):
+        call_order.append("global_settings")
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "enable_extension", side_effect=_record_enable),
+        patch.object(rtx_renderer, "apply_isaac_rtx_global_settings", side_effect=_record_global_settings),
+        patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
+    ):
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+
+    assert call_order == ["enable", "global_settings"]
+
+
 @pytest.mark.parametrize(
     ("stored", "expected_called"),
     [
@@ -235,6 +263,7 @@ def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, 
 
     with (
         patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "enable_extension"),
         patch.object(rtx_renderer, "apply_isaac_rtx_global_settings"),
         patch.object(rtx_renderer, "apply_isaac_rtx_determinism_settings", determinism_mock),
         patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),

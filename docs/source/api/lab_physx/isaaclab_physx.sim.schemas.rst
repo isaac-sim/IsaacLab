@@ -50,7 +50,6 @@ isaaclab_physx.sim.schemas
   .. autosummary::
 
     OmniPhysicsDeformableBodyPropertiesCfg
-    PhysxDeformableCollisionPropertiesCfg
     PhysxDeformableBodyPropertiesCfg
     DeformableBodyPropertiesCfg
 
@@ -140,11 +139,6 @@ Deformable Body
 ---------------
 
 .. autoclass:: OmniPhysicsDeformableBodyPropertiesCfg
-    :members:
-    :show-inheritance:
-    :exclude-members: __init__
-
-.. autoclass:: PhysxDeformableCollisionPropertiesCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__

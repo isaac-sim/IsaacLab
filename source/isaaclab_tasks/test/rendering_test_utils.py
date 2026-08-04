@@ -10,6 +10,7 @@ import os
 import re
 import tempfile
 from datetime import datetime
+from html import escape
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -53,8 +54,8 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # headroom above that without masking real regressions, which the SSIM gate still catches.
     "shadow_hand": 5.0,
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
-    "dexsuite_kuka_homo": 8.0,
-    "dexsuite_kuka_hetero": 8.0,
+    "lift_kuka_homo": 8.0,
+    "lift_kuka_hetero": 8.0,
 }
 
 # Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled.
@@ -70,8 +71,8 @@ _SSIM_THRESHOLD = 0.985
 # (not globally) to keep the strict gate active everywhere it already passes.
 _SSIM_THRESHOLD_BY_ENV_NAME = {
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
-    "dexsuite_kuka_homo": 0.95,
-    "dexsuite_kuka_hetero": 0.95,
+    "lift_kuka_homo": 0.95,
+    "lift_kuka_hetero": 0.95,
 }
 
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
@@ -158,8 +159,7 @@ _OVRTX_TEXTURE_READINESS_DATA_TYPES = (
 )
 _OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
 _KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
-_DEXSUITE_RENDERER_CRASH_SKIP_REASON = "Dexsuite kitless OVRTX rendering may crash or time out (NVBUG#6524987)."
-_NEWTON_WARP_MISSING_TABLE_XFAIL_REASON = "Missing table in Newton Warp renderer (OMPE-103086)."
+_LIFT_RENDERER_CRASH_SKIP_REASON = "Lift kitless OVRTX rendering may crash or time out (NVBUG#6524987)."
 _OVRTX_CLOTH_MOTION_XFAIL_REASON = "Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754)."
 
 
@@ -315,12 +315,12 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
 )
 
 
-def make_kitless_rendering_params_dexsuite() -> list[pytest.param]:
-    """Create kitless Dexsuite parameters with known native-crash cases skipped."""
+def make_kitless_rendering_params_lift() -> list[pytest.param]:
+    """Create kitless Lift parameters with known native-crash cases skipped."""
     return make_skip_rendering_params(
         make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
         {
-            (variant, "newton", "ovrtx_renderer", data_type): _DEXSUITE_RENDERER_CRASH_SKIP_REASON
+            (variant, "newton", "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
             for variant in _KITLESS_STAGE_VARIANTS
             for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl")
         },
@@ -328,21 +328,17 @@ def make_kitless_rendering_params_dexsuite() -> list[pytest.param]:
 
 
 def make_kitless_rendering_params_franka(*, include_cloth_motion_vectors: bool = False) -> list[pytest.param]:
-    """Create kitless Franka parameters with known content regressions marked."""
+    """Create kitless Franka parameters with the cloth-only motion-vector regression optionally marked."""
     params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
-    expected_failures = {
-        tuple(param.values): _NEWTON_WARP_MISSING_TABLE_XFAIL_REASON
-        for param in params
-        if param.values[1] == "newton" and param.values[2] == "newton_renderer"
-    }
-    if include_cloth_motion_vectors:
-        expected_failures.update(
-            {
-                (variant, "newton", "ovrtx_renderer", "motion_vectors"): _OVRTX_CLOTH_MOTION_XFAIL_REASON
-                for variant in _KITLESS_STAGE_VARIANTS
-            }
-        )
-    return make_xfail_rendering_params(params, expected_failures)
+    if not include_cloth_motion_vectors:
+        return params
+    return make_xfail_rendering_params(
+        params,
+        {
+            (variant, "newton", "ovrtx_renderer", "motion_vectors"): _OVRTX_CLOTH_MOTION_XFAIL_REASON
+            for variant in _KITLESS_STAGE_VARIANTS
+        },
+    )
 
 
 # Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
@@ -674,7 +670,7 @@ def _physics_preset_name(physics_backend: str) -> str:
 
 def _physics_preset_name_deformable(physics_backend: str) -> str:
     """Map deformable-test physics labels to Hydra preset names."""
-    return "newton_mjwarp_vbd" if physics_backend == "newton" else physics_backend
+    return "newton_mjwarp_vbd_proxy" if physics_backend == "newton" else physics_backend
 
 
 def _skip_if_physics_preset_unsupported(env_cfg: Any, physics_preset_name: str) -> None:
@@ -721,12 +717,24 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
 
     os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
     report_path = os.path.join(_COMPARISON_IMAGES_DIR, report_filename)
-    sorted_scores = sorted(comparison_scores, key=lambda e: -e["diff_pct"])
+    sorted_scores = sorted(
+        comparison_scores, key=lambda entry: (0 if entry.get("xfail_reason") else 1, -entry["diff_pct"])
+    )
 
     rows = []
     for entry in sorted_scores:
-        status_class = "pass" if entry["passed"] else "fail"
-        status_text = status_class.upper()
+        xfail_reason = entry.get("xfail_reason") or ""
+        if xfail_reason:
+            if entry.get("xfail_observed", not entry["passed"]):
+                status_class = "unreliable"
+                status_text = "UNRELIABLE (XFAIL)"
+            else:
+                status_class = "xpass"
+                status_text = "XPASS (REVIEW XFAIL)"
+        else:
+            status_class = "pass" if entry["passed"] else "fail"
+            status_text = status_class.upper()
+        reason = escape(xfail_reason)
 
         actual_img_html = ""
         golden_img_html = ""
@@ -763,6 +771,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
             f"<td{ssim_cell_class}{ssim_title}>{entry['ssim']:.4f}</td>"
             f"<td{ssim_cell_class}{ssim_title}>{ssim_threshold_cell}</td>"
             f'<td class="status-{status_class}">{status_text}</td>'
+            f"<td>{reason}</td>"
             f"<td>{actual_img_html}</td>"
             f"<td>{golden_img_html}</td>"
             f'<td class="compare-cell">{compare_html}</td>'
@@ -783,9 +792,13 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: middle; }\n"
         "  th { background: #f0f0f0; white-space: nowrap; }\n"
         "  tr.fail { background: #fff0f0; }\n"
-        "  tr.pass:hover, tr.fail:hover { filter: brightness(0.96); }\n"
+        "  tr.unreliable { background: #fff8e1; }\n"
+        "  tr.xpass { background: #eef5ff; }\n"
+        "  tr.pass:hover, tr.fail:hover, tr.unreliable:hover, tr.xpass:hover { filter: brightness(0.96); }\n"
         "  .status-pass { color: #2a7a2a; font-weight: bold; }\n"
         "  .status-fail { color: #cc0000; font-weight: bold; }\n"
+        "  .status-unreliable { color: #a15c00; font-weight: bold; }\n"
+        "  .status-xpass { color: #0969da; font-weight: bold; }\n"
         "  .ssim-disabled { color: #999; font-style: italic; }\n"
         "  img { display: block; max-width: 120px; height: auto; }\n"
         "  .compare-cell { max-width: 420px; }\n"
@@ -831,6 +844,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "<th>SSIM</th>"
         "<th>SSIM Threshold</th>"
         "<th>Status</th>"
+        "<th>Reason</th>"
         "<th>ACTUAL</th>"
         "<th>GOLDEN</th>"
         "<th>Beyond Compare Command</th>"
@@ -848,8 +862,15 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
 def attach_comparison_properties(
     request: pytest.FixtureRequest, comparison_scores: list[dict], initial_count: int
 ) -> None:
-    """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
-    for entry in comparison_scores[initial_count:]:
+    """Annotate expected HTML outcomes and attach comparison properties to JUnit XML."""
+    xfail_marker = request.node.get_closest_marker("xfail")
+    xfail_reason = xfail_marker.kwargs.get("reason") if xfail_marker is not None else None
+    entries = comparison_scores[initial_count:]
+    xfail_observed = any(not entry["passed"] for entry in entries)
+    for entry in entries:
+        if xfail_reason:
+            entry["xfail_reason"] = xfail_reason
+            entry["xfail_observed"] = xfail_observed
         label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
         request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
         ssim_value = f"{entry['ssim']:.4f}" if entry.get("ssim_checked", True) else f"{entry['ssim']:.4f} (N/A)"
@@ -897,7 +918,7 @@ def make_generate_html_report_fixture(comparison_scores: list[dict], report_file
 
 
 def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
-    """Create an autouse fixture that attaches JUnit properties for one module.
+    """Create a fixture that annotates HTML outcomes and attaches JUnit properties.
 
     Args:
         comparison_scores: Module-local comparison score storage.
@@ -905,9 +926,10 @@ def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
 
     @pytest.fixture(autouse=True)
     def _attach_comparison_properties(request):
-        """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
+        """Annotate expected HTML outcomes and attach image-comparison properties."""
         initial_count = len(comparison_scores)
         yield
+        # Function-scoped teardown runs before the session-scoped HTML report is generated.
         attach_comparison_properties(request, comparison_scores, initial_count)
 
     return _attach_comparison_properties
@@ -1589,7 +1611,7 @@ def rendering_test_cartpole(
             env = None
 
 
-def rendering_test_dexsuite_kuka(
+def rendering_test_lift_kuka(
     physics_backend: str,
     renderer: str,
     data_type: str,
@@ -1602,22 +1624,22 @@ def rendering_test_dexsuite_kuka(
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils.configclass import configclass
 
-    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.camera_cfg import (
+    from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import (
         BASE_CAMERA_CFG,
         BaseTiledCameraCfg,
         SingleCameraObservationsCfg,
     )
-    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_camera_env_cfg import (
+    from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_camera_env_cfg import (
         _SCENE_KWARGS,
-        DexsuiteKukaAllegroLiftCameraEnvCfg,
+        KukaAllegroLiftCameraEnvCfg,
         SingleCameraSceneCfg,
     )
-    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
-        DexsuiteKukaAllegroLiftEnvCfg,
+    from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import (
+        KukaAllegroLiftEnvCfg,
     )
 
     @configclass
-    class _DexsuiteBaseTiledCameraTestCfg(BaseTiledCameraCfg):
+    class _LiftBaseTiledCameraTestCfg(BaseTiledCameraCfg):
         distance_to_camera64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=64, height=64)
         distance_to_camera128 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=128, height=128)
         distance_to_camera256 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=256, height=256)
@@ -1648,13 +1670,13 @@ def rendering_test_dexsuite_kuka(
         motion_vectors256 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=256, height=256)
 
     @configclass
-    class _DexsuiteSingleCameraTestSceneCfg(SingleCameraSceneCfg):
-        base_camera: CameraCfg = _DexsuiteBaseTiledCameraTestCfg()
+    class _LiftSingleCameraTestSceneCfg(SingleCameraSceneCfg):
+        base_camera: CameraCfg = _LiftBaseTiledCameraTestCfg()
 
     @configclass
-    class _DexsuiteKukaAllegroLiftCameraTestEnvCfg(DexsuiteKukaAllegroLiftCameraEnvCfg):
-        single_camera = DexsuiteKukaAllegroLiftEnvCfg(
-            scene=_DexsuiteSingleCameraTestSceneCfg(**_SCENE_KWARGS),
+    class _KukaAllegroLiftCameraTestEnvCfg(KukaAllegroLiftCameraEnvCfg):
+        single_camera = KukaAllegroLiftEnvCfg(
+            scene=_LiftSingleCameraTestSceneCfg(**_SCENE_KWARGS),
             observations=SingleCameraObservationsCfg(),
         )
         default = single_camera
@@ -1666,7 +1688,7 @@ def rendering_test_dexsuite_kuka(
     if setup_homogeneous_envs:
         override_arg += ",cube"
 
-    env_cfg = _DexsuiteKukaAllegroLiftCameraTestEnvCfg()
+    env_cfg = _KukaAllegroLiftCameraTestEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [override_arg])
 
     env_cfg.scene.num_envs = 4
@@ -1691,7 +1713,7 @@ def rendering_test_dexsuite_kuka(
     for marker_cfg in env_cfg.commands.object_pose.success_visualizer_cfg.markers.values():
         marker_cfg.visible = False
 
-    test_name = f"dexsuite_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
+    test_name = f"lift_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
 
     env = None
 
@@ -1716,46 +1738,23 @@ def rendering_test_dexsuite_kuka(
             env = None
 
 
-def _make_franka_cloth_camera_env_cfg(data_type: str):
-    """Create a test-local Franka cloth camera env cfg without exposing a production task."""
-    import isaaclab.sim as sim_utils
+def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
+    """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
     from isaaclab.envs import mdp as env_mdp
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
     from isaaclab.managers import ObservationTermCfg as ObsTerm
     from isaaclab.managers import SceneEntityCfg
-    from isaaclab.sensors import CameraCfg
     from isaaclab.utils.configclass import configclass
 
-    from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg, FrankaClothSceneCfg
-    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
-
     @configclass
-    class TestFrankaClothCameraSceneCfg(FrankaClothSceneCfg):
-        """Franka cloth scene with a test-only camera sensor."""
-
-        tiled_camera: CameraCfg = CameraCfg(
-            prim_path="/World/envs/env_.*/Camera",
-            offset=CameraCfg.OffsetCfg(
-                pos=(0.85, -0.55, 0.42),
-                rot=(0.5080, 0.2114, 0.318, 0.7720),
-                convention="opengl",
-            ),
-            data_types=[data_type],
-            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
-            width=128,
-            height=128,
-            renderer_cfg=MultiBackendRendererCfg(),
-        )
-
-    @configclass
-    class TestFrankaClothCameraObservationsCfg:
-        """Image-only observations for the local rendering test env."""
+    class TestFrankaCameraObservationsCfg:
+        """Image-only observations for Franka golden rendering tests."""
 
         @configclass
         class PolicyCfg(ObsGroup):
             image = ObsTerm(
                 func=env_mdp.image,
-                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type, "permute": True},
+                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_type, "permute": True},
             )
 
             def __post_init__(self) -> None:
@@ -1764,25 +1763,17 @@ def _make_franka_cloth_camera_env_cfg(data_type: str):
 
         policy: ObsGroup = PolicyCfg()
 
-    @configclass
-    class TestFrankaClothCameraEnvCfg(FrankaClothEnvCfg):
-        """Test-only camera variant of ``Isaac-Lift-Cloth-Franka``."""
-
-        scene: TestFrankaClothCameraSceneCfg = TestFrankaClothCameraSceneCfg(
-            num_envs=4, env_spacing=3.0, replicate_physics=True
-        )
-        observations: TestFrankaClothCameraObservationsCfg = TestFrankaClothCameraObservationsCfg()
-
-        def __post_init__(self) -> None:
-            super().__post_init__()
-            self.commands.deformable_pose.debug_vis = False
-            self.events.reset_deformable.params["position_range"] = {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-            }
-
-    return TestFrankaClothCameraEnvCfg()
+    env_cfg.scene.num_envs = 4
+    env_cfg.scene.env_spacing = 3.0
+    env_cfg.scene.replicate_physics = True
+    env_cfg.scene.base_camera.data_types = [data_type]
+    env_cfg.observations = TestFrankaCameraObservationsCfg()
+    env_cfg.commands.deformable_pose.debug_vis = False
+    env_cfg.events.reset_deformable.params["position_range"] = {
+        "x": (0.0, 0.0),
+        "y": (0.0, 0.0),
+        "z": (0.0, 0.0),
+    }
 
 
 def rendering_test_franka_cloth(
@@ -1796,12 +1787,15 @@ def rendering_test_franka_cloth(
 
     from isaaclab.envs import ManagerBasedRLEnv
 
-    env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothCameraEnvCfg
+
+    env_cfg = FrankaClothCameraEnvCfg()
 
     physics_preset_name = _physics_preset_name_deformable(physics_backend)
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
+    _configure_franka_camera_test_env_cfg(env_cfg, data_type)
 
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
@@ -1826,7 +1820,7 @@ def rendering_test_franka_cloth(
             test_name,
             physics_backend,
             renderer,
-            env.scene.sensors["tiled_camera"].data.output,
+            env.scene.sensors["base_camera"].data.output,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
             comparison_scores=comparison_scores,
         )
@@ -1837,75 +1831,6 @@ def rendering_test_franka_cloth(
             # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
             # native code could probably complain about leaks and trigger segmentation fault.
             env = None
-
-
-def _make_franka_soft_camera_env_cfg(data_type: str):
-    """Create a test-local Franka soft camera env cfg without exposing a production task."""
-    import isaaclab.sim as sim_utils
-    from isaaclab.envs import mdp as env_mdp
-    from isaaclab.managers import ObservationGroupCfg as ObsGroup
-    from isaaclab.managers import ObservationTermCfg as ObsTerm
-    from isaaclab.managers import SceneEntityCfg
-    from isaaclab.sensors import CameraCfg
-    from isaaclab.utils.configclass import configclass
-
-    from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
-    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
-
-    @configclass
-    class TestFrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
-        """Franka soft scene with a test-only camera sensor."""
-
-        tiled_camera: CameraCfg = CameraCfg(
-            prim_path="/World/envs/env_.*/Camera",
-            offset=CameraCfg.OffsetCfg(
-                pos=(0.85, -0.55, 0.42),
-                rot=(0.5080, 0.2114, 0.318, 0.7720),
-                convention="opengl",
-            ),
-            data_types=[data_type],
-            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
-            width=128,
-            height=128,
-            renderer_cfg=MultiBackendRendererCfg(),
-        )
-
-    @configclass
-    class TestFrankaSoftCameraObservationsCfg:
-        """Image-only observations for the local rendering test env."""
-
-        @configclass
-        class PolicyCfg(ObsGroup):
-            image = ObsTerm(
-                func=env_mdp.image,
-                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type, "permute": True},
-            )
-
-            def __post_init__(self) -> None:
-                self.enable_corruption = False
-                self.concatenate_terms = True
-
-        policy: ObsGroup = PolicyCfg()
-
-    @configclass
-    class TestFrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
-        """Test-only camera variant of ``Isaac-Lift-Soft-Franka``."""
-
-        scene: TestFrankaSoftCameraSceneCfg = TestFrankaSoftCameraSceneCfg(
-            num_envs=4, env_spacing=3.0, replicate_physics=True
-        )
-        observations: TestFrankaSoftCameraObservationsCfg = TestFrankaSoftCameraObservationsCfg()
-
-        def __post_init__(self) -> None:
-            super().__post_init__()
-            self.commands.deformable_pose.debug_vis = False
-            self.events.reset_deformable.params["position_range"] = {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-            }
-
-    return TestFrankaSoftCameraEnvCfg()
 
 
 def rendering_test_franka_soft(
@@ -1924,12 +1849,15 @@ def rendering_test_franka_soft(
 
     from isaaclab.envs import ManagerBasedRLEnv
 
-    env_cfg = _make_franka_soft_camera_env_cfg(data_type)
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftCameraEnvCfg
+
+    env_cfg = FrankaSoftCameraEnvCfg()
 
     physics_preset_name = _physics_preset_name_deformable(physics_backend)
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
+    _configure_franka_camera_test_env_cfg(env_cfg, data_type)
 
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
@@ -1960,7 +1888,7 @@ def rendering_test_franka_soft(
             test_name,
             physics_backend,
             renderer,
-            env.scene.sensors["tiled_camera"].data.output,
+            env.scene.sensors["base_camera"].data.output,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
             comparison_scores=comparison_scores,
         )
