@@ -19,6 +19,9 @@ _WORKFLOW_MODULES = {
     "runtime": "isaaclab.benchmark.entrypoints.runtime",
     "startup": "isaaclab.benchmark.entrypoints.startup",
 }
+_CLI_WORKFLOW_MODULES = {
+    "training_multigpu": "isaaclab.benchmark.entrypoints.training_multigpu",
+}
 _RL_WORKFLOW_MODULES = {
     "training": {
         "rl_games": "isaaclab.benchmark.entrypoints.backends.rl_games.benchmark_train_rl_games",
@@ -70,10 +73,13 @@ def run_benchmark_cli(argv: list[str] | None = None) -> int:
         argv = sys.argv[1:]
     argv = _fuse_kit_args(argv)
     parser = argparse.ArgumentParser(description="Run an Isaac Lab benchmark.")
-    parser.add_argument("workflow", choices=(*_WORKFLOW_MODULES, *_RL_WORKFLOW_MODULES))
+    parser.add_argument("workflow", choices=(*_WORKFLOW_MODULES, *_RL_WORKFLOW_MODULES, *_CLI_WORKFLOW_MODULES))
     if not argv or argv[0] in ("-h", "--help"):
         parser.parse_args(argv)
     selected = parser.parse_args(argv[:1])
+    if selected.workflow in _CLI_WORKFLOW_MODULES:
+        module = importlib.import_module(_CLI_WORKFLOW_MODULES[selected.workflow])
+        return module.run(argv[1:])
     if selected.workflow in _RL_WORKFLOW_MODULES:
         return _run_rl_cli(selected.workflow, argv[1:])
     module = importlib.import_module(_WORKFLOW_MODULES[selected.workflow])

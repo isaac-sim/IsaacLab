@@ -1,0 +1,20 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Supported launcher for multi-GPU training benchmarks."""
+
+from __future__ import annotations
+
+from isaaclab.benchmark.entrypoints.training_multigpu import (
+    LAUNCHER_SPEC,
+    _build_distributed_command,
+    _parse_args,
+    main,
+)
+
+__all__ = ["LAUNCHER_SPEC", "_build_distributed_command", "_parse_args", "main"]
+
+if __name__ == "__main__":
+    raise SystemExit(main())

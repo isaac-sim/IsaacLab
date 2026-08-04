@@ -6,11 +6,13 @@
 """Tests for the unified benchmark console entry point."""
 
 import sys
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
 
 import isaaclab.cli as cli
+from isaaclab.benchmark import dispatch
 
 
 @pytest.mark.parametrize("command", ["runtime", "startup", "training", "play"])
@@ -34,3 +36,16 @@ def test_benchmark_propagates_nonzero_dispatch_status():
             cli.benchmark(["training"])
 
     assert exc_info.value.code == 2
+
+
+def test_benchmark_dispatch_registers_multi_gpu_training_launcher():
+    """The CLI dispatcher should expose the separate multi-GPU training workflow."""
+    assert dispatch._CLI_WORKFLOW_MODULES["training_multigpu"].endswith("entrypoints.training_multigpu")
+
+
+def test_benchmark_dispatch_propagates_multi_gpu_launcher_status(monkeypatch: pytest.MonkeyPatch):
+    """A distributed launcher failure should become the benchmark command status."""
+    module_name = dispatch._CLI_WORKFLOW_MODULES["training_multigpu"]
+    monkeypatch.setitem(sys.modules, module_name, SimpleNamespace(run=lambda _argv: 7))
+
+    assert dispatch.run_benchmark_cli(["training_multigpu", "--task", "X"]) == 7
