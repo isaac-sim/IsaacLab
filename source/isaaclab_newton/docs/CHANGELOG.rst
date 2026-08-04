@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+2.5.0 (2026-08-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the Newton implementation of :class:`~isaaclab.assets.CableObject` with indexed and masked
+  state writes and Kit/RTX curve synchronization for standalone VBD and named VBD proxy entries.
+
+Changed
+^^^^^^^
+
+* Changed Newton Kit viewport transform sync to call
+  ``IFabricHierarchy.update_world_xforms_gpu_with_options`` with
+  ``FabricHierarchyGpuUpdateOptions.RIGID_BODY | FORCE_UPDATE`` instead of the
+  private ctypes ``omni::cubric::IAdapter`` shim. Older Kit builds without the
+  new API continue to fall back to ``IFabricHierarchy.update_world_xforms``.
+
+Removed
+^^^^^^^
+
+* Removed :mod:`isaaclab_newton.physics._cubric` ctypes bindings for
+  ``omni::cubric::IAdapter``. Use
+  ``IFabricHierarchy.update_world_xforms_gpu_with_options`` instead.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.physics.NewtonManager` sizing its contact buffer from the
+  collision pipeline alone when ``use_mujoco_contacts=False``, which raised
+  ``MuJoCo naconmax (25600) exceeds contacts.rigid_contact_max (3840)`` at reset whenever the
+  MuJoCo Warp solver's ``nconmax`` demanded more contacts than the pipeline estimate. The
+  buffer now grows to the solver's maximum contact count, matching the
+  ``use_mujoco_contacts=True`` path.
+
+
 2.4.3 (2026-08-03)
 ~~~~~~~~~~~~~~~~~~
 
