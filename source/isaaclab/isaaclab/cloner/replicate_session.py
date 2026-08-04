@@ -17,7 +17,6 @@ from isaaclab.utils.version import has_kit
 
 from .clone_plan import make_clone_plan
 from .cloner_strategies import sequential
-from .usd import UsdReplicateContext
 
 if TYPE_CHECKING:
     import torch
@@ -66,6 +65,11 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
             cloning is USD-only; an asset whose contexts are all physics-based is not cloned.
     """
     from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+    # Importing the kit-less ``pxr`` wheel before Kit starts corrupts Kit's own USD
+    # runtime. ``queue_replication`` is resolved while environment configurations are
+    # imported, so keep the USD replication context behind this live-stage boundary.
+    from .usd import UsdReplicateContext  # noqa: PLC0415
 
     queued = REPLICATION_QUEUE.copy()
     REPLICATION_QUEUE.clear()

@@ -543,3 +543,15 @@ def test_cloner_imports_without_kit():
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "False", "importing isaaclab.cloner pulled in pxr"
+
+
+def test_queue_replication_imports_without_kit():
+    """Resolving the replication queue helper before Kit boots must not import pxr."""
+    probe = (
+        "import sys; from isaaclab.cloner import queue_replication; "
+        "print(any(n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
+    )
+    result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "False", "importing queue_replication pulled in pxr"
