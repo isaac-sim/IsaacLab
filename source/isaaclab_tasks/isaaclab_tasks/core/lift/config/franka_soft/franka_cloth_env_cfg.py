@@ -7,25 +7,24 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
-from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
-from . import mdp
+from ... import mdp
 from .franka_soft_env_cfg import (
     FRANKA_CAMERA_CFG,
     FrankaCameraObservationsCfg,
@@ -39,12 +38,6 @@ from .franka_soft_env_cfg import (
 ##
 # Scene definition
 ##
-
-ROBOT_SHAPE_MATERIAL_MU = 100.0
-"""Franka collision-shape friction coefficient [dimensionless] used for Newton cloth contact."""
-
-ROBOT_SHAPE_MATERIAL_BODY_NAMES = ".*"
-"""Franka body-name regex receiving :data:`ROBOT_SHAPE_MATERIAL_MU`."""
 
 
 @configclass
@@ -75,15 +68,18 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        r"/World/envs/env_.*/Robot/panda_hand",
-                        r"/World/envs/env_.*/Robot/panda_(left|right)finger",
+                        r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
+                        r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
                         r"/World/envs/env_.*/Cube",
                     ],
-                    # detect contact every substep so the gripper stops at the cloth surface
                     collide_interval=1,
+                    collision_pipeline=NewtonCollisionPipelineCfg(
+                        enable_rigid_soft_full_surface_contact=True,
+                    ),
                 )
             ],
             iterations=1,
+            model_cfg=NewtonModelCfg(soft_contact_mu=10.0),
         ),
         num_substeps=2,
     )
@@ -100,16 +96,16 @@ class DeformableCfg(PresetCfg):
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.2)),
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
-            resolution=(30, 30),
+            resolution=(10, 10),
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
-                density=50.0,
-                particle_radius=0.005,
+                density=10.0,
+                particle_radius=0.0025,
                 tri_ke=5e2,
                 tri_ka=5e2,
                 tri_kd=1e-3,
-                edge_ke=2.0,
+                edge_ke=0.5,
                 edge_kd=1e-3,
             ),
         ),
@@ -130,7 +126,7 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
         prim_path="{ENV_REGEX_NS}/Cube",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.45, 0.0, 0.04)),
         spawn=sim_utils.CuboidCfg(
-            size=(0.03, 0.01, 0.08),
+            size=(0.01, 0.03, 0.08),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
@@ -138,21 +134,13 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
         ),
     )
 
-    def __post_init__(self) -> None:
-        super().__post_init__()
-
-        # increase franka gripper stiffness
-        self.robot.actuators["panda_hand"].effort_limit_sim = 500.0
-        self.robot.actuators["panda_hand"].stiffness = 2000.0
-        self.robot.actuators["panda_hand"].damping = 100.0
-
 
 @configclass
 class FrankaClothScenePresetCfg(PresetCfg):
     """Preset config for the Franka surface deformable scene."""
 
     newton_mjwarp_vbd_proxy: FrankaClothSceneCfg = FrankaClothSceneCfg(
-        num_envs=128, env_spacing=2.5, replicate_physics=True
+        num_envs=2048, env_spacing=2.5, replicate_physics=True
     )
 
     default = newton_mjwarp_vbd_proxy
@@ -163,30 +151,6 @@ class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
     """Franka cloth scene with a base camera."""
 
     base_camera: CameraCfg = FRANKA_CAMERA_CFG
-
-
-@configclass
-class CurriculumCfg:
-    """Ramp the action-rate penalty once the policy has learned to lift (matches rigid recipe)."""
-
-    action_rate = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-2, "num_steps": 50000}
-    )
-
-    # Since we use 24 steps per env, 20000 steps correspond to 20000/24 = 833.33 learning iterations
-    gravity = CurrTerm(
-        func=mdp.modify_term_cfg,
-        params={
-            "address": "events.variable_gravity.params.gravity_distribution_params",
-            "modify_fn": mdp.gravity_range_linear,
-            "modify_params": {
-                "start_gravity_z": -1.0,
-                "end_gravity_z": -9.81,
-                "start_step": 0,
-                "end_step": 20000,
-            },
-        },
-    )
 
 
 @configclass
@@ -205,18 +169,6 @@ class FrankaClothEventCfg(FrankaSoftEventCfg):
         },
     )
 
-    robot_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=ROBOT_SHAPE_MATERIAL_BODY_NAMES),
-            "static_friction_range": (ROBOT_SHAPE_MATERIAL_MU, ROBOT_SHAPE_MATERIAL_MU),
-            "dynamic_friction_range": (ROBOT_SHAPE_MATERIAL_MU, ROBOT_SHAPE_MATERIAL_MU),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 1,
-        },
-    )
-
 
 ##
 # Environment configuration
@@ -229,7 +181,6 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
 
     scene: FrankaClothScenePresetCfg = FrankaClothScenePresetCfg()
     events: FrankaClothEventCfg = FrankaClothEventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self) -> None:
         super().__post_init__()
