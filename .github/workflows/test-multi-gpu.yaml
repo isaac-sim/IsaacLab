@@ -20,6 +20,14 @@ on:
       - "source/isaaclab/isaaclab/app/app_launcher.py"
       - "source/isaaclab_tasks/isaaclab_tasks/utils/sim_launcher.py"
       - "scripts/reinforcement_learning/train.py"
+      - "scripts/reinforcement_learning/train_multigpu.py"
+      - "scripts/benchmarks/training_multigpu.py"
+      - "source/isaaclab/isaaclab/cli/_multigpu.py"
+      - "source/isaaclab/isaaclab/benchmark/_distributed.py"
+      - "source/isaaclab/isaaclab/benchmark/entrypoints/training_multigpu.py"
+      - "source/isaaclab/isaaclab/benchmark/entrypoints/backends/rl_games/benchmark_train_rl_games.py"
+      - "source/isaaclab/isaaclab/benchmark/entrypoints/backends/rsl_rl/benchmark_train_rsl_rl.py"
+      - "source/isaaclab/isaaclab/benchmark/entrypoints/backends/skrl/benchmark_train_skrl.py"
       - "source/isaaclab_rl/isaaclab_rl/entrypoints/**"
       - ".github/workflows/test-multi-gpu.yaml"
   workflow_dispatch:
@@ -152,3 +160,18 @@ jobs:
           fi
 
           echo "✅ Multi-GPU training completed successfully (${{ matrix.physics }}, ${{ matrix.renderer }})"
+
+      - name: Run multi-GPU training benchmark
+        if: matrix.physics == 'physx' && matrix.renderer == 'none'
+        env:
+          NCCL_DEBUG: WARN
+        run: |
+          ./isaaclab.sh -p scripts/benchmarks/training_multigpu.py \
+            --rl_library rsl_rl --num_gpus 2 \
+            --task Isaac-Cartpole-Direct --max_iterations 3 --num_envs 16 \
+            --benchmark_formatter schema --output_path benchmark_results/multigpu
+
+      - name: Verify multi-GPU benchmark bundle
+        if: matrix.physics == 'physx' && matrix.renderer == 'none'
+        run: |
+          ./isaaclab.sh -p -c "import json; from pathlib import Path; data = json.loads(Path('benchmark_results/multigpu/benchmark_training_multigpu_Isaac-Cartpole-Direct.json').read_text()); assert data['extra']['distributed'] is True; assert data['extra']['world_size'] == 2; assert data['run']['num_envs'] == 32; assert data['runtime']['steps_per_iteration'] > 0; assert data['runtime']['total_fps']['mean'] > 0"

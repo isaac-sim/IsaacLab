@@ -481,3 +481,7 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
 For multi-node torch jobs, pass torchrun settings such as ``--nnodes``, ``--node_rank``,
 ``--rdzv_backend``, ``--rdzv_endpoint``, and ``--rdzv_id`` before the training arguments. For
 skrl JAX multi-node jobs, pass ``--nnodes``, ``--node_rank``, and ``--coordinator_address``.
+
+For aggregate throughput and timing measurements, use the separate experimental
+:ref:`benchmark-multigpu-training`. The benchmark supports RSL-RL, RL-Games, and
+skrl Torch, but not skrl JAX.

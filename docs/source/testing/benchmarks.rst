@@ -330,6 +330,48 @@ Do not treat a faster environment-step rate as proof of faster end-to-end
 training or equivalent learning. Do not compare short training curves as if
 they established final policy quality.
 
+.. _benchmark-multigpu-training:
+
+Multi-GPU Training (Experimental)
+---------------------------------
+
+Use ``training_multigpu`` to benchmark synchronized Torch training across
+multiple GPUs with RSL-RL, RL-Games, or skrl. Each worker process creates its
+own Isaac Lab instance, and ``--num_envs`` is the number of environments per
+rank.
+
+Single-node example:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim isaaclab benchmark training_multigpu \
+       --rl_library rsl_rl --num_gpus 2 \
+       --task Isaac-Lift-KukaAllegro-Camera \
+       presets=isaacsim_physx
+
+For multi-node execution, run the command on every node with a distinct
+``--node_rank``. For example, launch this form on the first node and change
+``--node_rank`` to ``1`` on the second node:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim isaaclab benchmark training_multigpu \
+       --rl_library rsl_rl --nnodes 2 --node_rank 0 --nproc_per_node 8 \
+       --rdzv_backend c10d --rdzv_endpoint host0:29400 --rdzv_id lift-benchmark \
+       --task Isaac-Lift-KukaAllegro-Camera \
+       presets=isaacsim_physx
+
+Only global rank 0 emits the benchmark bundle. Global throughput uses the sum
+of work across ranks divided by the slowest-rank duration. The learning curve
+and checkpoint describe rank 0, while hardware and resource measurements cover
+the rank-0 node. These scopes are recorded in ``TrainingBundle.extra``.
+
+This benchmark is training-only and Torch-only. It does not support skrl JAX,
+SB3, play or runtime benchmarking, video recording, environment sensor capture,
+or success-based early stopping. Multi-node launching is supported but was not
+hardware-validated when this experimental workflow was introduced. See
+:ref:`train-multigpu-command` for the general distributed training launcher.
+
 Startup Profiling
 -----------------
 
