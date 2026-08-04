@@ -46,6 +46,8 @@ def test_launch_simulation_passes_visualizer_intent_to_applauncher(monkeypatch):
     captured: dict[str, object] = {}
 
     class _FakeAppLauncher:
+        is_available = staticmethod(lambda: True)
+
         def __init__(self, launcher_args):
             captured["launcher_args"] = launcher_args
             captured["closed"] = False
@@ -75,6 +77,8 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
     captured = {"types": None, "explicit": None, "disable_all": None}
 
     class _FakeAppLauncher:
+        is_available = staticmethod(lambda: True)
+
         @staticmethod
         def sync_visualizer_cli_settings_to_carb(launcher_args: dict) -> None:
             captured["types"] = " ".join(launcher_args["visualizer"]) if launcher_args.get("visualizer") else ""

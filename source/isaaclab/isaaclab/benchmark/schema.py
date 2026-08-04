@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Public schema for Isaac Lab benchmark bundles (v1.2).
+"""Public schema for Isaac Lab benchmark bundles (v1.3).
 
 Defines the on-disk JSON schema produced by the benchmark workflows
 in :mod:`isaaclab.benchmark.entrypoints`.
@@ -17,7 +17,7 @@ Each bundle is self-contained: every top-level bundle carries its own
 :class:`Versions` and :class:`Hardware` metadata so a reader need not
 cross-reference other files in the bundle directory.
 
-Current version: 1.2
+Current version: 1.3
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.3"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
 PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
@@ -231,6 +231,7 @@ class EnvironmentStepTiming:
         measurement_mode: Timing boundary semantics. ``host_return`` does not
             force device completion. ``serialized_synchronized`` explicitly
             synchronizes every measured boundary.
+        warmup_steps: Number of initial environment-step calls excluded from timing.
     """
 
     environment_step_time_s: MeanStd
@@ -241,9 +242,12 @@ class EnvironmentStepTiming:
     environment_step_calls: int
     simulation_step_calls: int | None
     measurement_mode: Literal["host_return", "serialized_synchronized"]
+    warmup_steps: int = 0
 
     def __post_init__(self) -> None:
         """Validate that the timing fields form one consistent measurement mode."""
+        if self.warmup_steps < 0:
+            raise ValueError("warmup_steps must be non-negative")
         if self.environment_step_calls <= 0:
             raise ValueError("environment_step_calls must be greater than zero")
         if not (
@@ -352,7 +356,7 @@ class Resources:
 
 @dataclass(frozen=True)
 class LearningCurve:
-    """One learning curve (reward or episode length)."""
+    """One learning curve (reward, episode length, or success rate)."""
 
     final_raw: float
     final_ema: float
@@ -361,11 +365,20 @@ class LearningCurve:
 
 @dataclass(frozen=True)
 class Learning:
-    """Learning curves for a training run, plus their EMA smoothing factor."""
+    """Learning curves for a training run, plus their EMA smoothing factor.
+
+    Args:
+        ema_alpha: EMA smoothing factor in ``[0, 1]``.
+        reward: Per-iteration mean-reward learning curve.
+        ep_length: Per-iteration mean episode-length learning curve.
+        success_rate: Per-iteration success-rate learning curve, or ``None``
+            when the task does not report success.
+    """
 
     ema_alpha: float
     reward: LearningCurve
     ep_length: LearningCurve
+    success_rate: LearningCurve | None = None
 
 
 @dataclass(frozen=True)

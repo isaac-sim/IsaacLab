@@ -20,8 +20,8 @@ import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.physics.physics_manager_cfg import _resolve_auto_physx_cfg, _set_physics_preset_selection
+from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
+from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
     resolve_scene_data_requirements,
@@ -33,6 +33,7 @@ from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.visualizer_cfg import _get_visualizer_install_hint
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -46,6 +47,19 @@ logger = logging.getLogger(__name__)
 
 # Visualizer type names (CLI and config). App launcher parses CSV and stores as a space-separated setting.
 _VISUALIZER_TYPES = ("newton", "rerun", "viser", "kit")
+
+
+def _resolve_physics_cfg(physics_cfg: Any, use_isaac_sim: bool) -> PhysicsCfg:
+    """Resolve a simulation physics config to a concrete backend."""
+    if physics_cfg is None:
+        from isaaclab_physx.physics import PhysxCfg
+
+        physics_cfg = PhysxCfg()
+
+    if not hasattr(physics_cfg, "class_type") and hasattr(physics_cfg, "default"):
+        physics_cfg = physics_cfg.default
+
+    return _resolve_physx_auto_cfg(physics_cfg, use_isaac_sim=use_isaac_sim)
 
 
 class SettingsHelper:
@@ -115,6 +129,11 @@ class SimulationContext:
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
 
+        use_isaac_sim = has_kit()
+        self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
+        self.cfg.physics = self._physics
+        self._physics.class_type._prepare_stage_creation()
+
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
         if self.cfg.create_stage_in_memory:
@@ -139,7 +158,7 @@ class SimulationContext:
 
         # When Kit is running, attach the stage to Kit's USD context so that
         # Kit extensions (PhysX views, Articulation, viewport) can discover it.
-        if has_kit():
+        if use_isaac_sim:
             import omni.usd
 
             kit_context = omni.usd.get_context()
@@ -161,40 +180,13 @@ class SimulationContext:
             device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
             self.cfg.device = f"cuda:{device_id}"
 
-        # Set default physics backend if not specified
-        if self.cfg.physics is None:
-            from isaaclab_physx.physics import PhysxCfg
-
-            self.cfg.physics = PhysxCfg()
-        self._physics = self.cfg.physics
-        # If physics is a PresetCfg wrapper (has a 'default' field but no 'class_type'),
-        # resolve to the default preset so downstream code always sees a concrete PhysicsCfg.
-        if not hasattr(self._physics, "class_type") and hasattr(self._physics, "default"):
-            physics_preset = self._physics
-            self._physics = physics_preset.default
-            default_is_physx = getattr(physics_preset, "physx", None) is self._physics
-            class_default_is_physx = getattr(type(physics_preset), "default", None) is getattr(
-                type(physics_preset), "physx", None
-            )
-            if default_is_physx or class_default_is_physx:
-                _set_physics_preset_selection(
-                    self._physics,
-                    "physx",
-                    {
-                        name: getattr(physics_preset, name)
-                        for name in ("physx", "isaacsim_physx", "ovphysx")
-                        if hasattr(physics_preset, name)
-                    },
-                )
-            self.cfg.physics = self._physics
-        self._physics = _resolve_auto_physx_cfg(self._physics, use_isaac_sim=has_kit())
-        self.cfg.physics = self._physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
 
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
+        self._reset_requested: bool = False
         self._scene_data_requirements = SceneDataRequirement()
         # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
         # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
@@ -214,6 +206,8 @@ class SimulationContext:
         # cameras rather than inheriting a stale True from a previously torn-down simulation. RTX
         # cameras created for this instance re-set it to True before it is read.
         self.set_setting("/isaaclab/render/rtx_sensors", False)
+        # Set by camera sensors, which draw visual-only geometry regardless of renderer backend.
+        self._visual_shapes_required = False
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self.vis_marker_registry = VisMarkerRegistry()
 
@@ -315,6 +309,20 @@ class SimulationContext:
         """Return whether the simulation should keep stepping without visualizers or with an active visualizer."""
         return not self._visualizers or any(viz.is_running() and not viz.is_closed for viz in self._visualizers)
 
+    def require_visual_shapes(self) -> None:
+        """Record that something in this simulation draws the physics model's visual-only shapes.
+
+        Camera sensors call this from their constructor, before cloning runs, so backends that
+        import visual geometry lazily (see :attr:`isaaclab_newton.physics.NewtonCfg.load_visual_shapes`)
+        know the geometry is needed even when no viewer or offscreen capture is active.
+        """
+        self._visual_shapes_required = True
+
+    @property
+    def visual_shapes_required(self) -> bool:
+        """Whether :meth:`require_visual_shapes` was called for this simulation."""
+        return self._visual_shapes_required
+
     def can_render_rgb_array(self) -> bool:
         """Return whether rgb-array rendering is currently available."""
         return self.has_gui or self.has_offscreen_render or self.has_active_visualizers()
@@ -385,10 +393,9 @@ class SimulationContext:
                 # isaaclab_visualizers is optional; log once at warning level
                 if "isaaclab_visualizers" in str(exc):
                     logger.warning(
-                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. "
-                        "Install with: pip install isaaclab_visualizers[%s]",
+                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. %s",
                         viz_type,
-                        viz_type,
+                        _get_visualizer_install_hint(viz_type),
                     )
                 else:
                     logger.error(
@@ -502,11 +509,15 @@ class SimulationContext:
             resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             missing = [t for t in cli_requested if t not in resolved_types]
             if missing:
+                install_hints = " ".join(
+                    _get_visualizer_install_hint(visualizer_type)
+                    for visualizer_type in missing
+                    if visualizer_type in _VISUALIZER_TYPES
+                )
                 raise RuntimeError(
                     f"Explicitly requested visualizer(s) {missing} could not be configured. "
                     f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
-                    "Ensure the required package is installed "
-                    "(e.g., pip install isaaclab_visualizers[<type>])."
+                    f"{install_hints}"
                 )
 
         # XR auto-start: auto-inject a KitVisualizer when XR is active and no
@@ -526,9 +537,9 @@ class SimulationContext:
                     logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
                 except (ImportError, ModuleNotFoundError, AttributeError) as exc:
                     logger.warning(
-                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. "
-                        "Install isaaclab_visualizers[kit] or pass --visualizer kit.",
+                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. %s",
                         exc,
+                        _get_visualizer_install_hint("kit"),
                     )
 
         return resolved
@@ -794,6 +805,29 @@ class SimulationContext:
             viz.stop()
         self._is_playing = False
         self._is_stopped = True
+
+    def request_reset(self) -> None:
+        """Request an episode reset from a UI control (e.g. the Kit window button).
+
+        The request is consumed on the next call to :meth:`consume_reset_request`.
+        """
+        self._reset_requested = True
+
+    def consume_reset_request(self) -> bool:
+        """Return ``True`` if any visualizer or UI control requested an episode reset and clear the flag.
+
+        Checks both the simulation-context-level flag (set by :meth:`request_reset`) and
+        each visualizer's own flag. All flags are cleared atomically so a single reset
+        is triggered even when multiple sources fire in the same step.
+
+        Returns:
+            ``True`` once when a reset was requested, then ``False`` until the next request.
+        """
+        requested = self._reset_requested
+        self._reset_requested = False
+        for viz in self._visualizers:
+            requested |= viz.consume_reset_request()
+        return requested
 
     def is_playing(self) -> bool:
         """Returns True if simulation is playing (not paused or stopped)."""

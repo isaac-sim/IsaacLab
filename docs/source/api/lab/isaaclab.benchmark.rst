@@ -34,9 +34,55 @@ isaaclab.benchmark
       MethodBenchmarkDefinition
       MethodBenchmarkRunner
       MethodBenchmarkRunnerConfig
+
+   .. rubric:: Micro-benchmarks
+
+   .. autosummary::
+
+      LatencyBenchmarkRunner
+      LatencySample
+      LatencyStatistics
+      MicrobenchmarkCommand
+      MicrobenchmarkFactory
+      add_latency_measurements
+      measure_latency
+      run_microbenchmark_cli
+      summarize_latency
+
+   .. rubric:: Measurements and metadata
+
+   .. autosummary::
+
+      BooleanMeasurement
+      DictMeasurement
+      DictMetadata
+      FloatMetadata
+      IntMetadata
+      ListMeasurement
+      Measurement
+      MetadataBase
+      SingleMeasurement
+      StatisticalMeasurement
+      StringMetadata
+      TestPhase
+
+   .. rubric:: Result schema
+
+   .. autosummary::
+
+      EnvironmentStepTiming
+      Learning
+      LearningCurve
+      MeanStd
       PlayBundle
+      Resources
+      RunConfig
+      RunIdentity
+      Runtime
       RuntimeBundle
       StartupBundle
+      StartupPhase
+      StartupTime
       TrainingBundle
 
 
@@ -65,6 +111,35 @@ Request and Result Classes
 
 .. autoclass:: BenchmarkTrainingRequest
    :members:
+
+Micro-Benchmark Dispatch
+------------------------
+
+.. autoclass:: MicrobenchmarkCommand
+   :members:
+
+.. autoclass:: MicrobenchmarkFactory
+   :members:
+
+.. autofunction:: run_microbenchmark_cli
+
+Latency Micro-Benchmarks
+------------------------
+
+.. autoclass:: LatencyBenchmarkRunner
+   :members:
+
+.. autoclass:: LatencySample
+   :members:
+
+.. autoclass:: LatencyStatistics
+   :members:
+
+.. autofunction:: add_latency_measurements
+
+.. autofunction:: measure_latency
+
+.. autofunction:: summarize_latency
 
 Workflow Functions
 ------------------

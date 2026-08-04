@@ -106,6 +106,16 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
 )
 
 
+def _create_visualizer_cfgs():
+    """Create demo-specific visualizer configs for requested backends."""
+    if "rerun" not in (args_cli.visualizer or []):
+        return []
+
+    from isaaclab_visualizers.rerun import RerunVisualizerCfg
+
+    return [RerunVisualizerCfg(open_browser=True)]
+
+
 if args_cli.asset_type == "allegro_hand":
     asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
@@ -318,7 +328,12 @@ def main():
         from isaaclab.scene import InteractiveScene
 
         # Initialize the simulation context
-        sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
+        sim_cfg = sim_utils.SimulationCfg(
+            dt=0.005,
+            device=args_cli.device,
+            physics=physics_cfg,
+            visualizer_cfgs=_create_visualizer_cfgs(),
+        )
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])

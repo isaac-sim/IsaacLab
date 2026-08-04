@@ -54,11 +54,14 @@ import statistics
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 
 from .benchmark_core import BaseIsaacLabBenchmark
 from .measurements import StatisticalMeasurement
 
 logger = logging.getLogger(__name__)
+
+PrepareTarget = Callable[[object], None]
 
 
 @dataclass
@@ -103,12 +106,15 @@ class MethodBenchmarkDefinition:
         method_name: Name of the method to benchmark on the target object.
         input_generators: Dict mapping mode names to input generator functions.
         category: Category for grouping results into phases.
+        prepare_target: Optional hook that prepares the target outside the
+            measured operation.
     """
 
     name: str
     method_name: str
     input_generators: dict[str, Callable]
     category: str = "default"
+    prepare_target: PrepareTarget | None = None
 
 
 class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
@@ -126,6 +132,7 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         backend_type: str = "json",
         output_path: str = ".",
         use_recorders: bool = True,
+        physics_variant: str | None = None,
     ):
         """Initialize the method benchmark runner.
 
@@ -135,6 +142,7 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             backend_type: Output backend type ("json", "osmo", "omni_perf").
             output_path: Directory to write output files.
             use_recorders: Whether to collect hardware/version info.
+            physics_variant: Exact physics backend selector, when applicable.
         """
         self._config = config
 
@@ -149,6 +157,8 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
                 {"name": "device", "data": config.device},
             ]
         }
+        if physics_variant is not None:
+            workflow_metadata["metadata"].append({"name": "physics_variant", "data": physics_variant})
 
         super().__init__(
             benchmark_name=benchmark_name,
@@ -215,6 +225,11 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
                     method=method,
                     method_name=bench_name,
                     generator=generator,
+                    prepare_target=(
+                        partial(benchmark.prepare_target, target_object)
+                        if benchmark.prepare_target is not None
+                        else None
+                    ),
                 )
 
                 if result is None:
@@ -241,6 +256,7 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         method: Callable | None,
         method_name: str,
         generator: Callable,
+        prepare_target: Callable[[], None] | None = None,
     ) -> dict | None:
         """Benchmark a single method.
 
@@ -248,6 +264,8 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             method: The method to benchmark (or None if not found).
             method_name: Name of the method for reporting.
             generator: Function that generates input arguments.
+            prepare_target: Optional target preparation performed outside the
+                measured operation.
 
         Returns:
             Dict with timing results, or None if method not found.
@@ -259,6 +277,8 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
 
         def prepare() -> None:
             nonlocal inputs
+            if prepare_target is not None:
+                prepare_target()
             inputs = generator(self._config)
 
         def operation() -> object:

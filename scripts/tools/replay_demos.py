@@ -215,6 +215,9 @@ def replay_episodes_loop(  # noqa: C901
                     else:
                         has_next_action = True
                     actions[env_id] = env_next_action
+                if not has_next_action:
+                    # Stop before stepping once every environment has exhausted its recorded actions.
+                    break
                 if first_loop:
                     first_loop = False
                 else:

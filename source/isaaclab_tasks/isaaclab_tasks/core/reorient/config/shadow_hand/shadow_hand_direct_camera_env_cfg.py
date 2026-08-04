@@ -131,7 +131,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
         # for the depth-only Newton-warp-renderer benchmark path (``presets=newton_renderer``).
         super().__post_init__()
         for backend_cfg in (self.sim.physics, self.robot_cfg, self.object_cfg):
-            backend_cfg.default = backend_cfg.physx
+            backend_cfg.default = backend_cfg.isaacsim_physx
 
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""

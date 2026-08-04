@@ -74,8 +74,11 @@ def test_adapter_wires_video(backend: str) -> None:
 @pytest.mark.parametrize("backend", ("rsl_rl", "rl_games", "skrl"))
 def test_training_reports_the_checkpoint_it_wrote(backend: str) -> None:
     # A chained play step reads this field; a hardcoded None leaves it nothing.
+    # Either resolver satisfies that: get_checkpoint_path is the isaaclab_tasks
+    # utility, latest_checkpoint_path handles the libraries whose checkpoint
+    # names it does not match.
     source = (_ADAPTER_ROOT / backend / f"benchmark_train_{backend}.py").read_text()
-    assert "latest_checkpoint_path(" in source
+    assert "latest_checkpoint_path(" in source or "get_checkpoint_path(" in source
     assert "checkpoint_path = None" not in source
     assert "checkpoint_path=None" not in source
 

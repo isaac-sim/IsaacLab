@@ -54,25 +54,42 @@ def test_uv_run_exposes_centralized_feature_extras():
         "rsl-rl",
         "viser",
         "rerun",
+        "ov",
         "ovphysx",
         "ovrtx",
         "mimic",
         "teleop",
         "rlinf",
+        "tetrahedralization",
         "all",
     }
     assert expected_extras <= set(optional_dependencies)
 
     # The Newton viewer GUI is part of the base install, so there is no ``newton`` extra.
     assert "newton" not in optional_dependencies
-    assert "ov" not in optional_dependencies
     assert "rtx" not in optional_dependencies
 
     # Concrete third-party deps live in the extras (not subpackage self-references).
-    # OVPhysX and OVRTX are separate extras, selectable via ``ov[ovphysx]`` / ``ov[ovrtx]``.
+    # ``ov`` installs both Omniverse backends; ``ovphysx`` / ``ovrtx`` select one.
+    # Every Omniverse extra carries ``ovstage``, which both backends need.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
+    assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
+    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ovphysx"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovphysx"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ovrtx"])
+    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
+
+
+def test_tetrahedralization_is_explicit_and_excluded_from_all():
+    """TetWild and its visualization stack are installed only when requested."""
+    project = _root_pyproject()["project"]
+    optional = project["optional-dependencies"]
+
+    assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
+    assert optional["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
+    assert not any("tetrahedralization" in dep or dep.startswith("pytetwild") for dep in optional["all"])
 
 
 def test_version_single_source_matches_literal_pins():
@@ -147,13 +164,14 @@ def test_public_ov_packages_use_public_pypi_index():
         assert sources[package] == {"index": "pypi-public"}
 
 
-def test_uv_run_isaacsim_extra_is_conflict_forked():
-    """Isaac Sim is an opt-in uv workspace extra, forked away from clashing extras.
+def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
+    """Isaac Sim is an opt-in uv workspace extra with explicit conflict handling.
 
     PhysX/Isaac Sim is never a base dependency, but it must be a real
     ``optional-dependencies`` extra so ``uv run --extra isaacsim`` resolves. Its
-    exact pins clash with several other extras, so it is declared in
-    ``[tool.uv].conflicts`` (forked resolution) rather than co-resolved with them.
+    exact pins clash with several other extras, which are declared in
+    ``[tool.uv].conflicts``. Viser is co-resolved through a compatible WebSockets
+    override so Isaac Sim demos can request both extras in one command.
     """
     pyproject = _root_pyproject()
     project = pyproject["project"]
@@ -167,15 +185,19 @@ def test_uv_run_isaacsim_extra_is_conflict_forked():
     # The legacy wheel-only table is gone (isaacsim now lives in the extras).
     assert "wheel-extras" not in pyproject.get("tool", {}).get("isaaclab", {})
 
-    # isaacsim is forked away from every extra whose pins clash with it.
+    # isaacsim is forked away from extras whose pins cannot be safely overridden.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("teleop", "viser", "mimic", "all", "test"):
+    for extra in ("teleop", "ov", "mimic", "all", "test"):
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
+
+    assert {"isaacsim", "viser"} not in conflict_groups
+    assert "websockets==13.1" in pyproject["tool"]["uv"]["override-dependencies"]
 
     # ovphysx is deliberately absent: its only clash with isaacsim was the
     # packaging cap (ovphysx pinned <24, isaacsim-core ==26.0), resolved by the
     # packaging>=20,<27 override, so the two now co-resolve in one environment.
     assert {"isaacsim", "ovphysx"} not in conflict_groups
+    assert "packaging>=20,<27" in pyproject["tool"]["uv"]["override-dependencies"]
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():

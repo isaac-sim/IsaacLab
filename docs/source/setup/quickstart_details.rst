@@ -32,6 +32,11 @@ options (observation modes, camera configs, etc.). They fold into Hydra override
 
       .. code-block:: bash
 
+         # Default: concrete Isaac Sim PhysX
+         uv run isaaclab train --rl_library rsl_rl \
+           --task=Isaac-Cartpole-Direct \
+           --num_envs=4096
+
          # Kit-less: Newton MJWarp + Newton visualizer
          uv run isaaclab train --rl_library rsl_rl \
            --task=Isaac-Cartpole-Direct \
@@ -80,18 +85,18 @@ Available Presets
 
 **Physics backends** (``physics=NAME``):
 
-- ``physx`` — automatic PhysX-family selection: Isaac Sim PhysX when a Kit renderer or Kit viewer is requested, otherwise OvPhysX
-- ``isaacsim_physx`` — force PhysX via Isaac Sim / Kit
+- ``isaacsim_physx`` — concrete PhysX via Isaac Sim / Kit; this is the default when an environment would otherwise default to automatic PhysX selection
+- ``physx`` — automatic PhysX-family selection: Isaac Sim PhysX when Kit is required, otherwise OvPhysX when the task supports it; tasks without OvPhysX support fall back to Isaac Sim PhysX
 - ``newton_mjwarp`` — Newton with the MuJoCo-Warp solver
 - ``newton_kamino`` — Newton with the Kamino solver (beta, limited tasks)
 - ``ovphysx`` — OV PhysX (kit-less; incompatible with ``--visualizer kit``)
 
 **Renderer backends** (``renderer=NAME``):
 
-- ``isaacsim_rtx`` — Isaac Sim RTX (default with Isaac Sim)
+- ``isaacsim_rtx`` — concrete Isaac Sim RTX; this is the default for cameras that use the multi-backend renderer config
 - ``newton_renderer`` — Newton Warp renderer
 - ``ovrtx`` — OV RTX renderer (kit-less)
-- ``rtx`` — Automatic RTX renderer selection
+- ``rtx`` — automatic RTX renderer selection
 
 Automatic RTX selection is available only when the camera exposes the renderer
 choices with :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg`:
@@ -117,13 +122,14 @@ Then use ``renderer=rtx`` to select the RTX implementation required by the runti
    * - Requires Isaac Sim/Kit, such as ``physics=isaacsim_physx``, ``--visualizer kit``,
        livestreaming, or another Kit camera
      - :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
-   * - Fully kit-less, such as ``physics=physx``, ``physics=newton_mjwarp``, or
-       ``physics=ovphysx`` without a Kit visualizer or camera
+   * - Fully kit-less, such as ``physics=physx`` on a task that supports OvPhysX,
+       ``physics=newton_mjwarp``, or ``physics=ovphysx`` without a Kit visualizer or camera
      - :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`
 
 For example, ``physics=newton_mjwarp renderer=rtx`` selects OVRTX for a
 fully kit-less run, while ``physics=physx renderer=rtx`` selects OvPhysX
-+ OVRTX unless combined with ``--visualizer kit``.
++ OVRTX when the task supports OvPhysX. Otherwise, automatic PhysX falls back
+to Isaac Sim PhysX and ``rtx`` resolves to Isaac RTX.
 
 A camera configured directly with ``renderer_cfg=IsaacRtxRendererCfg()`` does
 not participate in automatic selection and is not overridden by

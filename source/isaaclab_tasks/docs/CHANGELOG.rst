@@ -1,6 +1,168 @@
 Changelog
 ---------
 
+11.0.0 (2026-08-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Merged the ``isaaclab_tasks.core.dexsuite`` package into
+  :mod:`isaaclab_tasks.core.lift`, so the dexterous lift and reorient tasks share one package and
+  MDP module. Task IDs and training behavior were unchanged, but environment configuration entry
+  points moved and the ``Dexsuite`` class-name prefix was removed. For example,
+  ``isaaclab_tasks.core.dexsuite.config.franka.dexsuite_franka_env_cfg:DexsuiteFrankaLiftEnvCfg``
+  became ``isaaclab_tasks.core.lift.config.franka.franka_env_cfg:FrankaLiftEnvCfg``.
+* **Breaking:** Moved the tutorial single-cube Franka lift task to :mod:`isaaclab_tasks.contrib.lift`.
+  Use ``--task IsaacContrib-Lift-Cube-Franka`` instead of
+  ``--task Isaac-Lift-Cube-Franka``. The rigid tutorial MDP terms moved with it; deformable
+  Lift terms remain in :mod:`isaaclab_tasks.core.lift.mdp`.
+* **Breaking:** Renamed the dexterous RSL-RL experiment directories from
+  ``dexsuite_franka`` and ``dexsuite_kuka_allegro*`` to ``lift_franka`` and
+  ``lift_kuka_allegro*``. Update existing checkpoint paths under ``logs/rsl_rl/dexsuite_*``.
+* **Breaking:** Changed environments whose default physics preset was automatic
+  ``physx`` to use concrete ``isaacsim_physx``. Environments with explicit
+  backend defaults, including Newton, remain unchanged. Select
+  ``physics=physx`` to retain automatic PhysX-family resolution between Isaac
+  Sim PhysX and OvPhysX.
+
+Fixed
+^^^^^
+
+* Fixed ineffective joint actuation in direct-workflow PhysX environments by filtering collisions between
+  replicas on all simulation devices.
+
+
+10.2.0 (2026-08-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_tasks.core.dexsuite.config.kuka_allegro.agents.models.SpatialSoftmaxCNNModel`,
+  an RSL-RL actor whose convolutional feature map is reduced to per-channel keypoint coordinates
+  rather than flattened. The latent stays at two numbers per channel whatever the feature-map size,
+  which keeps higher input resolutions affordable and leaves room for a higher learning rate.
+* Added :class:`~isaaclab_tasks.core.dexsuite.mdp.SuccessMonitorCfg` and its
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.SuccessMonitor` implementation, which draws banked
+  reset states by measured success rate so episodes restart from the states the policy solves
+  about half the time.
+* Added :class:`~isaaclab_tasks.core.dexsuite.mdp.GraspTravelDistanceCfg` and
+  :func:`~isaaclab_tasks.core.dexsuite.mdp.grasp_travel_distance`, a reset-bank diversity feature
+  that spreads banked states over hand-to-object and object-to-goal distance.
+* Added ``disable_observation_noise_terms`` to the dexsuite ADR curriculum config, which drops the
+  noise-scheduling terms whose addresses no longer resolve when observation corruption is off.
+
+Changed
+^^^^^^^
+
+* Changed the dexsuite camera presets to a spatial-softmax actor at a fixed learning rate.
+  ``single_camera`` and ``duo_camera`` now reduce the convolutional feature map to per-channel
+  keypoint coordinates
+  (:class:`~isaaclab_tasks.core.dexsuite.config.kuka_allegro.agents.models.SpatialSoftmaxCNNModel`)
+  and run with ``schedule="fixed"`` and ``learning_rate=7e-5``; the adaptive KL schedule does not
+  converge for a camera actor. State-policy optimizer settings were unchanged.
+* Changed the dexsuite camera observation normalization to fixed maps that no longer depend on the
+  frame's own statistics. RGB is rescaled affinely to ``[-0.5, 0.5]`` and depth is squashed with a
+  ``tanh`` transform over the same span, replacing per-frame mean subtraction. Pixel values are now
+  comparable across frames and depth keeps an absolute-distance reference.
+* Changed the dexsuite tracking rewards used by the shipped tasks to
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.position_command_progress` and
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.orientation_command_progress`, which pay a fixed amount
+  per increment of ground gained on the best error so far, so losing and regaining ground earns
+  nothing.
+* Reduced the default training iterations for the camera-based Shadow Hand
+  cube reorientation task from ``50000`` to ``5000`` for the RSL-RL and
+  RL-Games agents. Use ``--max_iterations 50000`` to retain the previous
+  training schedule.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``position_command_error_tanh`` and ``orientation_command_error_tanh`` in favor of
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.position_command_progress` and
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.orientation_command_progress`. Swap the term and set
+  ``min_improvement`` instead of ``std``.
+
+Fixed
+^^^^^
+
+* Fixed the dexsuite progress rewards crediting against a stale reference after the tracked command
+  resampled mid-episode. The baseline is now re-seeded whenever the command changes.
+
+
+10.1.0 (2026-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``diffik_abs`` action preset to ``Isaac-Reach-Franka`` for 7D
+  absolute-pose differential IK with ``physics=isaacsim_physx``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``IsaacContrib-Reach-Franka-IK-Abs``. Use
+  ``--task Isaac-Reach-Franka physics=isaacsim_physx presets=diffik_abs``.
+
+
+10.0.0 (2026-08-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added RGB camera variants of the Franka deformable lift environments.
+* Added the ``ovphysx`` physics preset to the Franka soft-body and cloth lift
+  environments.
+
+* Added rendering-correctness coverage for the OvPhysX Franka deformable
+  environments.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the ``newton_mjwarp_vbd`` preset from
+  ``Isaac-Lift-Soft-Franka`` and ``Isaac-Lift-Cloth-Franka``. Both tasks now
+  default to ``newton_mjwarp_vbd_proxy``, which uses proxy coupling. Select
+  ``presets=newton_mjwarp_vbd_proxy`` explicitly, or import
+  :mod:`isaaclab_contrib.custom_coupling.tasks` and use its
+  ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task, which adds back a
+  ``newton_mjwarp_vbd`` preset for the manual coupler.
+* **Breaking:** Moved the Spot velocity environment from ``isaaclab_tasks.core``
+  to ``isaaclab_tasks.contrib`` and renamed its task ID from
+  ``Isaac-Velocity-Flat-Spot`` to ``IsaacContrib-Velocity-Flat-Spot``. Update
+  Python imports and ``gym.make`` / ``--task`` arguments to use the contributed
+  path and ID.
+* Unified the locomotion velocity physics presets to expose automatic PhysX
+  selection and the supported concrete PhysX and Newton backends.
+* Tuned the Newton and PhysX solver settings for the locomotion velocity
+  environments.
+
+Fixed
+^^^^^
+
+* Fixed the OvPhysX Franka deformable presets to replicate every configured
+  environment.
+
+
+9.3.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``Metrics/success_rate`` metric to the fourbar-pole and DR-Legs (walk and hold-pose) tasks for unified success tracking in the benchmark tools.
+
+Changed
+^^^^^^^
+
+* Changed task ``physics=physx`` presets to use explicit automatic PhysX
+  configurations. Use ``physics=isaacsim_physx`` or, when exposed by the task,
+  ``physics=ovphysx`` to force a concrete implementation.
+
+
 9.2.0 (2026-07-29)
 ~~~~~~~~~~~~~~~~~~
 
