@@ -368,10 +368,10 @@ class AppLauncher:
 
     @property
     def headless(self) -> bool:
-        """Whether the app was launched without a Kit window.
+        """Whether the app was launched without a UI window.
 
-        Resolved from the visualizer selection rather than a flag: headless unless
-        ``--visualizer kit`` was requested or livestreaming is enabled.
+        Resolved from the visualizer selection rather than a flag: headless unless a windowed
+        visualizer (currently ``--visualizer kit``) was requested or livestreaming is enabled.
         """
         return self._headless
 
