@@ -39,6 +39,17 @@ def move_to_target_bonus(
     return torch.where(heading_proj > threshold, 1.0, heading_proj / threshold)
 
 
+def terminated_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """One-off penalty for terminating early, independent of the environment step size.
+
+    :class:`~isaaclab.managers.RewardManager` scales every term by the step interval, which would
+    make a plain terminal penalty depend on ``sim.dt`` and ``decimation``. Dividing by the step
+    interval here cancels that scaling, so the term contributes exactly its weight on the step the
+    episode terminates and stays equal to the death cost the direct workflow applies.
+    """
+    return env.termination_manager.terminated.float() / env.step_dt
+
+
 class progress_reward(ManagerTermBase):
     """Reward for making progress towards the target."""
 

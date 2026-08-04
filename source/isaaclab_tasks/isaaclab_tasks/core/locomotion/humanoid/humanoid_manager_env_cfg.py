@@ -195,9 +195,8 @@ class RewardsCfg:
         weight=-0.25,
         params={"threshold": 0.98, "gear_ratio": JOINT_GEARS},
     )
-    # (8) Penalty for falling over. The manager scales every term by ``step_dt``, so the weight is
-    #     the -1.0 terminal cost divided by the 1/60 s step, giving a one-off -1.0 on the dying step.
-    terminating = RewTerm(func=mdp.is_terminated, weight=-60.0)
+    # (8) Penalty for falling over, applied once on the terminating step
+    terminating = RewTerm(func=mdp.terminated_penalty, weight=-1.0)
     # (9) Survival rate metric (logged only, contributes no reward)
     success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 

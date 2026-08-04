@@ -60,8 +60,8 @@ def get_dones(
 ):
     """Flag per-env fall (torso below height) and time-out termination and their union into the reset buffer."""
     env_index = wp.tid()
-    out_of_bounds[env_index] = wp.abs(torso_pose[env_index][2]) < termination_height
-    time_out[env_index] = episode_length_buf[env_index] >= (max_episode_length - 1)
+    out_of_bounds[env_index] = torso_pose[env_index][2] < termination_height
+    time_out[env_index] = episode_length_buf[env_index] >= max_episode_length
     reset[env_index] = out_of_bounds[env_index] or time_out[env_index]
 
 
@@ -75,13 +75,17 @@ def observations(
     heading_proj: wp.array(dtype=wp.float32),
     dof_pos_scaled: wp.array2d(dtype=wp.float32),
     dof_vel: wp.array2d(dtype=wp.float32),
+    feet_force: wp.array2d(dtype=wp.vec3f),
+    feet_torque: wp.array2d(dtype=wp.vec3f),
+    feet_body_ids: wp.array(dtype=wp.int32),
     actions: wp.array2d(dtype=wp.float32),
     observations: wp.array2d(dtype=wp.float32),
     dof_vel_scale: wp.float32,
     angular_velocity_scale: wp.float32,
+    contact_force_scale: wp.float32,
     num_dof: wp.int32,
 ):
-    """Assemble the humanoid observation vector (height, velocities, heading/up, scaled DOF pos/vel, actions)."""
+    """Assemble the observation vector (height, velocities, heading/up, DOF pos/vel, feet wrench, actions)."""
     env_index = wp.tid()
     observations[env_index, 0] = torso_pose[env_index][2]
     observations[env_index, 1] = velocity[env_index][0]
@@ -98,13 +102,22 @@ def observations(
 
     offset_1 = 12 + num_dof
     offset_2 = offset_1 + num_dof
+    offset_3 = offset_2 + 6 * feet_body_ids.shape[0]
 
     for i in range(num_dof):
         observations[env_index, 12 + i] = dof_pos_scaled[env_index, i]
     for i in range(num_dof):
         observations[env_index, offset_1 + i] = dof_vel[env_index, i] * dof_vel_scale
+    # per foot: the incoming joint force followed by the incoming joint torque
+    for i in range(feet_body_ids.shape[0]):
+        body_index = feet_body_ids[i]
+        force = feet_force[env_index, body_index]
+        torque = feet_torque[env_index, body_index]
+        for axis in range(3):
+            observations[env_index, offset_2 + 6 * i + axis] = force[axis] * contact_force_scale
+            observations[env_index, offset_2 + 6 * i + 3 + axis] = torque[axis] * contact_force_scale
     for i in range(num_dof):
-        observations[env_index, offset_2 + i] = actions[env_index, i]
+        observations[env_index, offset_3 + i] = actions[env_index, i]
 
 
 @wp.func
@@ -146,15 +159,34 @@ def reset_root(
 def reset_joints(
     default_joint_pos: wp.array2d(dtype=wp.float32),
     default_joint_vel: wp.array2d(dtype=wp.float32),
+    dof_pos_limits: wp.array2d(dtype=wp.vec2f),
+    dof_vel_limits: wp.array2d(dtype=wp.float32),
     joint_pos: wp.array2d(dtype=wp.float32),
     joint_vel: wp.array2d(dtype=wp.float32),
+    states: wp.array(dtype=wp.uint32),
+    pos_range_lo: wp.float32,
+    pos_range_hi: wp.float32,
+    vel_range_lo: wp.float32,
+    vel_range_hi: wp.float32,
+    num_dof: wp.int32,
     env_mask: wp.array(dtype=wp.bool),
 ):
-    """Reset masked envs' joint positions and velocities to their default values."""
-    env_index, joint_index = wp.tid()
+    """Reset masked envs' joints to randomized offsets around their defaults, clamped to the limits.
+
+    The kernel is one-dimensional over environments so that each environment advances its own random
+    number generator sequentially; a two-dimensional launch would race on the shared state.
+    """
+    env_index = wp.tid()
     if env_mask[env_index]:
-        joint_pos[env_index, joint_index] = default_joint_pos[env_index, joint_index]
-        joint_vel[env_index, joint_index] = default_joint_vel[env_index, joint_index]
+        state = states[env_index]
+        for joint_index in range(num_dof):
+            position = default_joint_pos[env_index, joint_index] + wp.randf(state, pos_range_lo, pos_range_hi)
+            velocity = default_joint_vel[env_index, joint_index] + wp.randf(state, vel_range_lo, vel_range_hi)
+            limits = dof_pos_limits[env_index, joint_index]
+            velocity_limit = dof_vel_limits[env_index, joint_index]
+            joint_pos[env_index, joint_index] = wp.clamp(position, limits[0], limits[1])
+            joint_vel[env_index, joint_index] = wp.clamp(velocity, -velocity_limit, velocity_limit)
+        states[env_index] = state
 
 
 @wp.func
@@ -201,23 +233,25 @@ def actions_cost(
 def electricity_cost(
     actions: wp.array(dtype=wp.float32),
     dof_vel: wp.array(dtype=wp.float32),
-    dof_vel_scale: wp.float32,
-    motor_effort_ratio: wp.array(dtype=wp.float32),
+    gear_ratio_scaled: wp.array(dtype=wp.float32),
 ) -> wp.float32:
     sum_ = wp.float32(0.0)
     for i in range(len(actions)):
-        sum_ += wp.abs(actions[i] * dof_vel[i] * dof_vel_scale) * motor_effort_ratio[i]
+        sum_ += wp.abs(actions[i] * dof_vel[i] * gear_ratio_scaled[i])
     return sum_
 
 
 @wp.func
 def dof_at_limit_cost(
     dof_pos_scaled: wp.array(dtype=wp.float32),
+    gear_ratio_scaled: wp.array(dtype=wp.float32),
+    threshold: wp.float32,
 ) -> wp.float32:
     sum_ = wp.float32(0.0)
     for i in range(len(dof_pos_scaled)):
-        if dof_pos_scaled[i] > 0.98:
-            sum_ += 1.0
+        magnitude = wp.abs(dof_pos_scaled[i])
+        if magnitude > threshold:
+            sum_ += (magnitude - threshold) / (1.0 - threshold) * gear_ratio_scaled[i]
     return sum_
 
 
@@ -231,31 +265,34 @@ def compute_rewards(
     up_proj: wp.array(dtype=wp.float32),
     potentials: wp.array(dtype=wp.float32),
     prev_potentials: wp.array(dtype=wp.float32),
-    motor_effort_ratio: wp.array(dtype=wp.float32),
+    gear_ratio_scaled: wp.array(dtype=wp.float32),
     up_weight: wp.float32,
     heading_weight: wp.float32,
     actions_cost_scale: wp.float32,
     energy_cost_scale: wp.float32,
-    dof_vel_scale: wp.float32,
+    joint_pos_limits_cost_scale: wp.float32,
+    joint_pos_limits_threshold: wp.float32,
     death_cost: wp.float32,
     alive_reward_scale: wp.float32,
+    step_dt: wp.float32,
     reward: wp.array(dtype=wp.float32),
 ):
-    """Compute the humanoid reward: progress/alive/up/heading bonuses minus action/energy/joint-limit costs."""
+    """Compute the locomotion reward, mirroring the stable direct and manager-based tasks."""
     env_index = wp.tid()
-    if reset_terminated[env_index]:
-        reward[env_index] = death_cost
-    else:
-        reward[env_index] = (
-            progress_reward(potentials[env_index], prev_potentials[env_index])
-            + alive_reward_scale
-            + up_reward(up_proj[env_index], up_weight)
-            + heading_reward(heading_proj[env_index], heading_weight)
-            - actions_cost_scale * actions_cost(actions[env_index])
-            - energy_cost_scale
-            * electricity_cost(actions[env_index], dof_vel[env_index], dof_vel_scale, motor_effort_ratio)
-            - dof_at_limit_cost(dof_pos_scaled[env_index])
-        )
+    alive = wp.where(reset_terminated[env_index], wp.float32(0.0), wp.float32(1.0))
+    # the continuous terms accrue per second, matching the manager's ``step_dt`` scaling
+    total = step_dt * (
+        progress_reward(potentials[env_index], prev_potentials[env_index])
+        + alive_reward_scale * alive
+        + up_reward(up_proj[env_index], up_weight)
+        + heading_reward(heading_proj[env_index], heading_weight)
+        - actions_cost_scale * actions_cost(actions[env_index])
+        - energy_cost_scale * electricity_cost(actions[env_index], dof_vel[env_index], gear_ratio_scaled)
+        - joint_pos_limits_cost_scale
+        * dof_at_limit_cost(dof_pos_scaled[env_index], gear_ratio_scaled, joint_pos_limits_threshold)
+    )
+    # the death cost is a one-off penalty on the step the robot falls over
+    reward[env_index] = total + death_cost * (1.0 - alive)
 
 
 @wp.kernel
@@ -345,6 +382,32 @@ def update_actions(
 
 
 @wp.kernel
+def survival_counts(
+    env_mask: wp.array(dtype=wp.bool),
+    time_outs: wp.array(dtype=wp.bool),
+    counts: wp.array(dtype=wp.int32),
+):
+    """Count the just-reset envs and how many of those timed out rather than fell over."""
+    env_index = wp.tid()
+    if env_mask[env_index]:
+        wp.atomic_add(counts, 0, 1)
+        if time_outs[env_index]:
+            wp.atomic_add(counts, 1, 1)
+
+
+@wp.kernel
+def survival_rate(
+    counts: wp.array(dtype=wp.int32),
+    success_rate: wp.array(dtype=wp.float32),
+):
+    """Compute the survival success rate as the fraction of just-reset envs that timed out."""
+    if counts[0] > 0:
+        success_rate[0] = wp.float32(counts[1]) / wp.float32(counts[0])
+    else:
+        success_rate[0] = 0.0
+
+
+@wp.kernel
 def initialize_state(
     env_origins: wp.array(dtype=wp.vec3f),
     targets: wp.array(dtype=wp.vec3f),
@@ -365,15 +428,23 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.action_scale = self.cfg.action_scale
-        # resolve the gears by joint name, since the joint ordering differs across physics backends
-        # (mirrors the stable LocomotionDirectEnv)
-        joint_gears = [0.0] * self.robot.num_joints
+        # resolve the gears by joint name, since the joint ordering differs across physics backends.
+        # Joints the table does not match keep a unit gear, mirroring the stable LocomotionDirectEnv.
+        joint_gears = [1.0] * self.robot.num_joints
         joint_ids, _, gears = resolve_matching_names_values(self.cfg.joint_gears, self.robot.joint_names)
         for joint_id, gear in zip(joint_ids, gears):
             joint_gears[joint_id] = gear
         self.joint_gears = wp.array(joint_gears, dtype=wp.float32, device=self.sim.device)
-        self.motor_effort_ratio = wp.ones_like(self.joint_gears, device=self.sim.device)
+        # the energy and joint-limit penalties weigh each joint by its gear relative to the largest one
+        largest_gear = max(joint_gears)
+        self.gear_ratio_scaled = wp.array(
+            [gear / largest_gear for gear in joint_gears], dtype=wp.float32, device=self.sim.device
+        )
         self._joint_dof_idx, _ = self.robot.find_joints(".*")
+        # resolve against the sensor's own body list: its ordering is backend-specific and does not
+        # necessarily match the articulation's body ordering
+        feet_body_ids, _ = self.joint_wrench.find_bodies(self.cfg.feet_body_names)
+        self.feet_body_ids = wp.array(feet_body_ids, dtype=wp.int32, device=self.sim.device)
 
         # Simulation bindings
         # Note: these are direct memory views into the Newton simulation data, they should not be modified directly
@@ -382,17 +453,14 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         self.root_pose_w = self.robot.data.root_pose_w.warp
         self.root_vel_w = self.robot.data.root_vel_w.warp
         self.soft_joint_pos_limits = self.robot.data.soft_joint_pos_limits.warp
+        self.soft_joint_vel_limits = self.robot.data.soft_joint_vel_limits.warp
 
-        # The observation kernel writes a fixed proprioceptive layout and has no feet-wrench block,
-        # unlike the stable LocomotionDirectEnv it mirrors. Fail loudly rather than silently leaving
-        # the tail of the buffer zeroed if the shared config expects the richer observation.
-        expected_observation_space = 12 + 3 * self.robot.num_joints
+        # the observation layout must agree with what the observation kernel writes
+        expected_observation_space = 12 + 3 * self.robot.num_joints + 6 * len(feet_body_ids)
         if self.cfg.observation_space != expected_observation_space:
             raise ValueError(
                 f"The warp locomotion frontend produces {expected_observation_space} observations, but"
-                f" {type(self.cfg).__name__} declares observation_space={self.cfg.observation_space}. The warp"
-                " frontend has not been ported to the feet-wrench observations and step_dt-scaled rewards used"
-                " by the stable direct and manager-based locomotion tasks."
+                f" {type(self.cfg).__name__} declares observation_space={self.cfg.observation_space}."
             )
 
         # Buffers
@@ -432,6 +500,13 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
             ],
         )
 
+        # Survival success rate, computed entirely on device so it stays CUDA-graph capturable.
+        # [0] number of just-reset envs, [1] number of those that timed out.
+        self._survival_counts = wp.zeros((2,), dtype=wp.int32, device=self.sim.device)
+        self._success_rate = wp.zeros((1,), dtype=wp.float32, device=self.sim.device)
+        # persistent 0-dim tensor view: the kernels refresh the value on every reset
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = wp.to_torch(self._success_rate)[0]
+
         # Bind torch buffers to warp buffers
         self.torch_obs_buf = wp.to_torch(self.observations)
         self.torch_reward_buf = wp.to_torch(self.rewards)
@@ -449,8 +524,10 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
         plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
-        # add articulation to scene
+        # add articulation and the feet wrench sensor to scene
         self.scene.articulations["robot"] = self.robot
+        self.joint_wrench = self.cfg.joint_wrench.class_type(self.cfg.joint_wrench)
+        self.scene.sensors["joint_wrench"] = self.joint_wrench
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
@@ -473,7 +550,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
             inputs=[
                 self.root_pose_w,
                 self.targets,
-                self.cfg.sim.dt,
+                self.step_dt,
                 self.to_targets,
                 self.up_proj,
                 self.heading_proj,
@@ -519,10 +596,14 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.heading_proj,
                 self.dof_pos_scaled,
                 self.joint_vel,
+                self.joint_wrench.data.force.warp,
+                self.joint_wrench.data.torque.warp,
+                self.feet_body_ids,
                 self.actions,
                 self.observations,
                 self.cfg.dof_vel_scale,
                 self.cfg.angular_velocity_scale,
+                self.cfg.contact_force_scale,
                 self.robot.num_joints,
             ],
         )
@@ -541,14 +622,16 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.up_proj,
                 self.potentials,
                 self.prev_potentials,
-                self.motor_effort_ratio,
+                self.gear_ratio_scaled,
                 self.cfg.up_weight,
                 self.cfg.heading_weight,
                 self.cfg.actions_cost_scale,
                 self.cfg.energy_cost_scale,
-                self.cfg.dof_vel_scale,
+                self.cfg.joint_pos_limits_cost_scale,
+                self.cfg.joint_pos_limits_threshold,
                 self.cfg.death_cost,
                 self.cfg.alive_reward_scale,
+                self.step_dt,
                 self.rewards,
             ],
         )
@@ -574,6 +657,11 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         if mask is None:
             mask = self._ALL_ENV_MASK
 
+        # refresh the survival success rate for the environments about to be reset
+        self._survival_counts.zero_()
+        wp.launch(survival_counts, dim=self.num_envs, inputs=[mask, self.reset_time_outs, self._survival_counts])
+        wp.launch(survival_rate, dim=1, inputs=[self._survival_counts, self._success_rate])
+
         super()._reset_idx(mask)
 
         wp.launch(
@@ -583,7 +671,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.robot.data.default_root_pose.warp,
                 self.robot.data.default_root_vel.warp,
                 self.env_origins,
-                self.cfg.sim.dt,
+                self.step_dt,
                 self.targets,
                 self.to_targets,
                 self.potentials,
@@ -594,12 +682,20 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         )
         wp.launch(
             reset_joints,
-            dim=(self.num_envs, self.robot.num_joints),
+            dim=self.num_envs,
             inputs=[
                 self.robot.data.default_joint_pos.warp,
                 self.robot.data.default_joint_vel.warp,
+                self.soft_joint_pos_limits,
+                self.soft_joint_vel_limits,
                 self.joint_pos,
                 self.joint_vel,
+                self.states,
+                self.cfg.initial_joint_pos_range[0],
+                self.cfg.initial_joint_pos_range[1],
+                self.cfg.initial_joint_vel_range[0],
+                self.cfg.initial_joint_vel_range[1],
+                self.robot.num_joints,
                 mask,
             ],
         )

@@ -13,6 +13,7 @@ __all__ = [
     "power_consumption",
     "progress_reward",
     "survival_success_rate",
+    "terminated_penalty",
     "upright_posture_bonus",
 ]
 
@@ -28,6 +29,7 @@ from isaaclab_tasks.core.locomotion.mdp.rewards import (
     power_consumption,
     progress_reward,
     survival_success_rate,
+    terminated_penalty,
     upright_posture_bonus,
 )
 from isaaclab.envs.mdp import *

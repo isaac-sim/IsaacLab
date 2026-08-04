@@ -202,9 +202,8 @@ class RewardsCfg:
     joint_pos_limits = RewTerm(
         func=mdp.joint_pos_limits_penalty_ratio, weight=-0.1, params={"threshold": 0.99, "gear_ratio": {".*": 15.0}}
     )
-    # (8) Penalty for falling over. The manager scales every term by ``step_dt``, so the weight is
-    #     the -2.0 terminal cost divided by the 1/60 s step, giving a one-off -2.0 on the dying step.
-    terminating = RewTerm(func=mdp.is_terminated, weight=-120.0)
+    # (8) Penalty for falling over, applied once on the terminating step
+    terminating = RewTerm(func=mdp.terminated_penalty, weight=-2.0)
     # (9) Survival rate metric (logged only, contributes no reward)
     success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 

@@ -38,8 +38,10 @@ class LocomotionDirectEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.action_scale = self.cfg.action_scale
-        # resolve the gears by joint name, since the joint ordering differs across physics backends
-        self.joint_gears = torch.zeros(self.robot.num_joints, device=self.sim.device)
+        # resolve the gears by joint name, since the joint ordering differs across physics backends.
+        # joints the table does not match keep a unit gear, matching the manager-based action term
+        # and reward terms, so a partial table produces the same efforts in both workflows.
+        self.joint_gears = torch.ones(self.robot.num_joints, device=self.sim.device)
         joint_ids, _, gears = resolve_matching_names_values(self.cfg.joint_gears, self.robot.joint_names)
         self.joint_gears[joint_ids] = torch.tensor(gears, device=self.sim.device)
         # the energy and joint-limit penalties weigh each joint by its gear relative to the largest one
