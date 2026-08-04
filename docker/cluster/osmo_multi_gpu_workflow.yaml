@@ -6,7 +6,7 @@
 # NVIDIA OSMO workflow for single-node, multi-GPU Isaac Lab training.
 #
 # Submit with:
-#   osmo workflow submit docker/cluster/multi_gpu.yaml \
+#   osmo workflow submit docker/cluster/osmo_multi_gpu_workflow.yaml \
 #     --set num_gpu=4 \
 #     --set args="--task Isaac-Reorient-KukaAllegro --num_envs 4096"
 #
@@ -70,7 +70,7 @@ workflow:
           {% endif %}
 
 default-values:
-  image: nvcr.io/nvidia/isaac-lab:latest
+  image: nvcr.io/nvidia/isaac-lab:3.0.0-beta2
   rl_library: rsl_rl
   num_gpu: 1
   num_cpu: 16

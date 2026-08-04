@@ -23,7 +23,7 @@ repos:
       - id: check-yaml
         # OSMO workflow specs are Jinja templates, so they only become valid
         # YAML once the submission-time parameters have been substituted.
-        exclude: '^docker/cluster/multi_gpu\.yaml$'
+        exclude: '^docker/cluster/osmo_multi_gpu_workflow\.yaml$'
       - id: check-merge-conflict
         # These verbatim license headings contain a literal "=======" separator.
         exclude: '^docs/licenses/dependencies/(mujoco|llvmlite|numba)-license\.txt$'

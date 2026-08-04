@@ -202,8 +202,8 @@ The above will, in addition, also render videos of the training progress and sto
 SLURM and PBS workflows above, it runs the Isaac Lab Docker image directly, so no singularity
 conversion is needed and there is no code copy step -- the image is the unit of deployment.
 
-The workflow definition lives in ``docker/cluster/multi_gpu.yaml``. It requests a single node and
-scales training across the GPUs on that node through the
+The workflow definition lives in ``docker/cluster/osmo_multi_gpu_workflow.yaml``. It requests a
+single node and scales training across the GPUs on that node through the
 :ref:`train_multigpu <train-multigpu-command>` command. The following parameters can be overridden
 at submission time:
 
@@ -214,7 +214,9 @@ at submission time:
    * - Parameter
      - Description
    * - image
-     - The Isaac Lab container image to run. Defaults to ``nvcr.io/nvidia/isaac-lab:latest``.
+     - The Isaac Lab container image to run. Defaults to the released
+       ``nvcr.io/nvidia/isaac-lab:3.0.0-beta2`` image. Note that the repository does not publish a
+       ``latest`` tag, so this must name an explicit version.
    * - rl_library
      - The RL library used for training. Defaults to ``rsl_rl``.
    * - num_gpu
@@ -239,7 +241,7 @@ To submit a job, use the ``osmo`` CLI:
 
 .. code:: bash
 
-    osmo workflow submit docker/cluster/multi_gpu.yaml \
+    osmo workflow submit docker/cluster/osmo_multi_gpu_workflow.yaml \
       --set num_gpu=4 \
       --set args="--task Isaac-Reorient-KukaAllegro --num_envs 4096"
 
