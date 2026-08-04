@@ -37,7 +37,7 @@ from gate_types import FpsMeanThreshold, OracleVerdict  # noqa: E402
 from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
 from omni_github import write_artifact as write_omni_github_artifact  # noqa: E402
 from oracle import compare  # noqa: E402
-from task_config import get_task  # noqa: E402
+from task_config import get_task, load_tasks  # noqa: E402
 
 
 def _parse_args():
@@ -424,7 +424,9 @@ def _write_github_output(**values) -> None:
                 fh.write(f"{key}={value}\n")
 
 
-def _verdict_outputs(rows: list[tuple], *, has_block: bool, has_hard_failure: bool, blocking: bool) -> dict[str, str]:
+def _verdict_outputs(
+    rows: list[tuple], *, has_block: bool, has_hard_failure: bool, blocking: bool, expected_buckets: int | None = None
+) -> dict[str, str]:
     """Derive the reported verdict and the `perf-smoke-test` commit status from the rows.
 
     The verdict is reported through the commit status, the sticky PR comment and
@@ -438,14 +440,32 @@ def _verdict_outputs(rows: list[tuple], *, has_block: bool, has_hard_failure: bo
         has_hard_failure: Whether any bucket failed to produce a usable measurement,
             excluding failures already excused as a stale CI image.
         blocking: The gate's ``blocking`` setting, used only to label the status.
+        expected_buckets: How many buckets the matrix should have produced. When
+            fewer reported, the gate says so instead of grading the survivors.
 
     Returns:
         The ``overall_verdict`` / ``status_state`` / ``status_description`` /
         ``blocking`` step outputs.
     """
+    # Derive from the rows, never from the booleans alone. `has_hard_failure` is
+    # cleared for crashes excused as CI-image skew, and `main` only bails when
+    # there are *zero* artifacts -- so a run where every bucket crashed, or where
+    # most bench jobs never uploaded, would otherwise fall through to an
+    # affirmative "no regression detected" over measurements that never happened.
+    unmeasured = [result for result, _ in rows if result.verdict == OracleVerdict.HARD_FAILURE]
+    missing = max(0, (expected_buckets or 0) - len(rows))
+
     if has_hard_failure:
         verdict = OracleVerdict.HARD_FAILURE
         description = "perf-smoke: a benchmark failed to produce a usable measurement"
+    elif unmeasured:
+        # Excused as a stale CI image: not the change's fault, but nothing was
+        # measured either, so the gate must not claim the change is clean.
+        verdict = OracleVerdict.HARD_FAILURE
+        description = f"perf-smoke: no usable measurement for {len(unmeasured)} bucket(s); CI image looks stale"
+    elif missing or not rows:
+        verdict = OracleVerdict.HARD_FAILURE
+        description = f"perf-smoke: only {len(rows)} of {expected_buckets or '?'} buckets reported a result"
     elif has_block:
         verdict = OracleVerdict.BLOCK
         description = "perf-smoke: blocking-level performance regression detected"
@@ -454,7 +474,7 @@ def _verdict_outputs(rows: list[tuple], *, has_block: bool, has_hard_failure: bo
         description = "perf-smoke: results need attention (see the verdict comment)"
     else:
         verdict = OracleVerdict.PASS
-        description = "perf-smoke: no meaningful performance regression detected"
+        description = f"perf-smoke: no meaningful regression across {len(rows)} buckets"
 
     state = "success" if verdict in (OracleVerdict.PASS, OracleVerdict.WARN) else "failure"
     if not blocking and state == "failure":
@@ -709,9 +729,26 @@ def main() -> int:
             app_config=args.omni_app_config,
         )
 
+    # How many buckets the matrix should have produced. The gate always runs the
+    # full matrix, so a shortfall means bench jobs died without uploading -- which
+    # must not be graded as a pass over the survivors. Left as None (check
+    # disabled) if tasks.json cannot be read, so this can never fail a run by
+    # itself.
+    try:
+        expected_buckets = len(load_tasks())
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"[aggregate] Warning: could not determine expected bucket count: {exc}")
+        expected_buckets = None
+
     output_values = {
         "baseline_read_sha": baseline_read_sha,
-        **_verdict_outputs(rows, has_block=has_block, has_hard_failure=has_hard_failure, blocking=blocking),
+        **_verdict_outputs(
+            rows,
+            has_block=has_block,
+            has_hard_failure=has_hard_failure,
+            blocking=blocking,
+            expected_buckets=expected_buckets,
+        ),
     }
     if baseline_push_result:
         output_values.update(

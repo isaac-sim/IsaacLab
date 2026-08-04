@@ -36,7 +36,15 @@ _SOURCE = _REPO_ROOT / "source"
 # without Isaac Sim; if that ever changes, add the module here.
 _FRAMEWORK_IMPORTERS = ("perf_runtime.py",)
 
-_FRAMEWORK_ROOTS = ("isaaclab", "isaacsim", "omni", "newton", "warp")
+
+def _is_framework_root(name: str) -> bool:
+    """Whether ``name`` is an Isaac Lab package laid out under ``source/``.
+
+    Derived from the tree rather than hard-coded: an explicit tuple silently
+    stopped checking ``isaaclab_tasks`` (it is not ``isaaclab``), which is where
+    ``setup_preset_cli`` and ``resolve_task_config`` come from.
+    """
+    return (_SOURCE / name / name).is_dir()
 
 
 def _module_to_path(dotted: str) -> Path | None:
@@ -100,11 +108,11 @@ def _framework_imports(module: str) -> list[tuple[str, tuple[str, ...], int]]:
     found = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-            if node.module.split(".")[0] in _FRAMEWORK_ROOTS:
+            if _is_framework_root(node.module.split(".")[0]):
                 found.append((node.module, tuple(a.name for a in node.names), node.lineno))
         elif isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name.split(".")[0] in _FRAMEWORK_ROOTS:
+                if _is_framework_root(alias.name.split(".")[0]):
                     found.append((alias.name, (), node.lineno))
     return found
 
