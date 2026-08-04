@@ -212,12 +212,8 @@ class SceneDataProvider:
             paths or if no mapping is needed.
         """
         if input_paths := self.backend.transform_paths:
-            # Build a path -> output-index map once, then resolve each input path
-            # against it.  This replaces an ``paths.index(path)`` linear scan per
-            # input path, which is quadratic overall and took minutes at the ~200k
-            # rigid bodies of an 8192-env scene.  First occurrence wins, preserving
-            # the ``list.index`` semantics for duplicate paths; measured over 200k
-            # paths the guard costs nothing versus an unguarded dict comprehension.
+            # The map keeps resolution linear in the number of paths. For duplicate
+            # paths the first occurrence wins, matching ``list.index``.
             path_to_out: dict[str | None, int] = {}
             for out_idx, out_path in enumerate(paths):
                 if out_path not in path_to_out:
