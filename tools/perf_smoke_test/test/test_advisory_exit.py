@@ -367,3 +367,45 @@ def test_complete_matrix_is_clean_on_both_surfaces(tmp_path, monkeypatch) -> Non
     assert outputs["status_state"] == "success"
     assert "did not report" not in summary
     assert "coverage is incomplete" not in summary
+
+
+def test_a_real_block_is_not_misreported_as_a_stale_image() -> None:
+    """A BLOCK alongside a skew-excused crash must still be named."""
+    rows = _rows(OracleVerdict.HARD_FAILURE, OracleVerdict.BLOCK)
+    out = aggregate._verdict_outputs(
+        rows,
+        has_block=True,
+        has_hard_failure=False,  # cleared by detect_dependency_skew
+        blocking=False,
+        missing=[],
+        expected_total=2,
+    )
+
+    assert out["status_state"] == "failure"
+    assert "stale" in out["status_description"]
+    assert "blocking-level regression was also detected" in out["status_description"]
+
+
+def test_a_real_block_is_not_hidden_behind_a_bucket_shortfall() -> None:
+    """A BLOCK alongside missing buckets must still be named."""
+    out = aggregate._verdict_outputs(
+        _rows(OracleVerdict.BLOCK),
+        has_block=True,
+        has_hard_failure=False,
+        blocking=False,
+        missing=["Task-X/physx"],
+        expected_total=2,
+    )
+
+    assert "only 1 of 2" in out["status_description"]
+    assert "blocking-level regression was also detected" in out["status_description"]
+
+
+def test_a_lone_block_is_not_double_reported() -> None:
+    """The additive note must not duplicate when BLOCK is already the verdict."""
+    out = aggregate._verdict_outputs(
+        _rows(OracleVerdict.BLOCK), has_block=True, has_hard_failure=False, blocking=False, missing=[], expected_total=1
+    )
+
+    assert out["overall_verdict"] == "BLOCK"
+    assert out["status_description"].count("blocking-level") == 1

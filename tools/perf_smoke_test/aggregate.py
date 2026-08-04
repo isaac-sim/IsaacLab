@@ -525,6 +525,13 @@ def _verdict_outputs(
         verdict = OracleVerdict.PASS
         description = f"perf-smoke: no meaningful regression across {len(rows)} buckets"
 
+    # A run can be several things at once -- a stale image on one bucket and a
+    # genuine regression on another. The verdict takes the most severe, but the
+    # description must not misattribute: reporting a real BLOCK as "CI image
+    # looks stale" is the same misattribution the skew excuse already risks.
+    if has_block and verdict != OracleVerdict.BLOCK:
+        description += "; a blocking-level regression was also detected"
+
     state = "success" if verdict in (OracleVerdict.PASS, OracleVerdict.WARN) else "failure"
     if not blocking and state == "failure":
         description += " (advisory)"
