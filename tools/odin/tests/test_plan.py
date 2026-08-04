@@ -46,11 +46,30 @@ def test_every_row_gets_the_one_extras_set() -> None:
     assert plan_rows(task_rows=_ROWS, seeds=[42])[0].uv_extras is UV_EXTRAS
 
 
+def _pyproject() -> dict:
+    import tomllib
+
+    return tomllib.loads((Path(__file__).resolve().parents[3] / "pyproject.toml").read_text())
+
+
 def test_extras_exclude_what_cannot_co_resolve_with_isaacsim() -> None:
-    # teleop, viser, mimic, test and the `all` aggregate conflict with isaacsim
-    # in [tool.uv].conflicts.
-    for forbidden in ("teleop", "viser", "mimic", "test", "all"):
-        assert forbidden not in UV_EXTRAS
+    # Read the conflicts rather than restating them: upstream swapped the
+    # isaacsim pair from `viser` to `ov` in one release, and a hardcoded list
+    # would still have passed while guarding the wrong extra.
+    conflicts = _pyproject()["tool"]["uv"]["conflicts"]
+    for pair in conflicts:
+        names = {entry["extra"] for entry in pair}
+        if "isaacsim" in names:
+            forbidden = (names - {"isaacsim"}).pop()
+            assert forbidden not in UV_EXTRAS, f"'{forbidden}' cannot co-resolve with isaacsim"
+
+
+def test_every_extra_is_declared_in_pyproject() -> None:
+    # An extra that no longer exists is not an error for `uv sync`, so a rename
+    # upstream silently drops whatever it carried -- which is how MoviePy went
+    # missing when `video` became opt-in.
+    declared = set(_pyproject()["project"]["optional-dependencies"])
+    assert not set(UV_EXTRAS) - declared, f"undeclared extras: {set(UV_EXTRAS) - declared}"
 
 
 def test_rows_expand_across_seeds() -> None:

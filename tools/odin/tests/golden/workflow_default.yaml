@@ -51,7 +51,7 @@ workflow:
           OUT="{{output}}/rsl_rl_physx_Isaac-Ant_seed42"
           mkdir -p "$OUT"
           set +e
-          uv run --frozen --extra isaacsim --extra ovphysx --extra ovrtx --extra rsl-rl --extra skrl --extra rl-games --extra sb3 --extra rerun isaaclab benchmark training --rl_library rsl_rl --task Isaac-Ant --seed 42 --output_path "$OUT" --benchmark_formatter schema physics=physx
+          uv run --frozen --extra isaacsim --extra ovphysx --extra ovrtx --extra rsl-rl --extra skrl --extra rl-games --extra sb3 --extra rerun --extra video isaaclab benchmark training --rl_library rsl_rl --task Isaac-Ant --seed 42 --output_path "$OUT" --benchmark_formatter schema physics=physx
 
           rc=$?
           echo "=== odin: training exit_code=$rc ==="

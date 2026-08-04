@@ -49,4 +49,4 @@ RUN test "$(git rev-parse HEAD)" = "abcdef1234567890abcdef1234567890abcdef12"
 ENV UV_HTTP_TIMEOUT=180
 
 RUN --mount=type=cache,target=/opt/uv-cache,sharing=locked \
-    uv sync --frozen --extra isaacsim --extra ovphysx --extra ovrtx --extra rsl-rl --extra skrl --extra rl-games --extra sb3 --extra rerun
+    uv sync --frozen --extra isaacsim --extra ovphysx --extra ovrtx --extra rsl-rl --extra skrl --extra rl-games --extra sb3 --extra rerun --extra video

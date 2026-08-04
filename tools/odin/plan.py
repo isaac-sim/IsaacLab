@@ -45,7 +45,20 @@ _OVERLAY_FIELDS = ("num_envs", "max_iterations", "timeout_s")
 #
 # teleop, viser, mimic, test and the ``all`` aggregate are excluded because they
 # genuinely cannot co-resolve with isaacsim.
-UV_EXTRAS: tuple[str, ...] = ("isaacsim", "ovphysx", "ovrtx", "rsl-rl", "skrl", "rl-games", "sb3", "rerun")
+# ``video`` carries MoviePy, which gymnasium's RecordVideo needs to encode the
+# play rollout. It is an opt-in extra rather than a base dependency, so omitting
+# it fails only at the first recorded frame, after training has already run.
+UV_EXTRAS: tuple[str, ...] = (
+    "isaacsim",
+    "ovphysx",
+    "ovrtx",
+    "rsl-rl",
+    "skrl",
+    "rl-games",
+    "sb3",
+    "rerun",
+    "video",
+)
 
 # Frames recorded during a chained play rollout.
 DEFAULT_VIDEO_LENGTH = 200
