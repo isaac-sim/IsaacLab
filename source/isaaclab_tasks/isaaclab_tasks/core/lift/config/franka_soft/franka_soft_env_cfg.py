@@ -385,7 +385,7 @@ class ActionsCfg(PresetCfg):
 
 @configclass
 class ObservationsCfg:
-    """Policy observations: joint state, deformable COM in robot frame, target, last action."""
+    """Policy observations: relative joint state, sampled deformable points, target command, and last action."""
 
     @configclass
     class PolicyCfg(ObsGroup):
