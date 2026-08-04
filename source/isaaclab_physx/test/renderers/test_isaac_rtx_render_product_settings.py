@@ -60,6 +60,11 @@ def test_camera_local_dlss_settings_are_isolated_after_annotator_attachment():
     """Each camera keeps its local DLSS settings in USD and Fabric after attachment."""
     sim_utils.create_new_stage()
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device="cpu", dt=1.0 / 60.0))
+    global_settings = IsaacRtxRendererGlobalSettingsCfg(
+        dlss_mode=0,
+        enable_dl_denoiser=True,
+        carb_settings={"/rtx/dldenoiser/responsiveDenoising": True},
+    )
     camera = Camera(
         CameraCfg(
             prim_path="/World/Camera",
@@ -68,11 +73,7 @@ def test_camera_local_dlss_settings_are_isolated_after_annotator_attachment():
             data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg(),
             renderer_cfg=IsaacRtxRendererCfg(
-                global_settings=IsaacRtxRendererGlobalSettingsCfg(
-                    dlss_mode=0,
-                    enable_dl_denoiser=True,
-                    carb_settings={"/rtx/dldenoiser/responsiveDenoising": True},
-                ),
+                global_settings=global_settings,
                 enable_dlss_ray_reconstruction=False,
                 dlss_exec_mode="quality",
             ),
@@ -87,6 +88,7 @@ def test_camera_local_dlss_settings_are_isolated_after_annotator_attachment():
             spawn=sim_utils.PinholeCameraCfg(),
             renderer_cfg=IsaacRtxRendererCfg(
                 enable_dlss_ray_reconstruction=True,
+                global_settings=global_settings,
                 dlss_exec_mode="performance",
             ),
         )
