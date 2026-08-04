@@ -4,9 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    # observations
-    "deformable_com_in_robot_root_frame",
-    "DeformableSampledPointsInRobotRootFrame",
     # rewards
     "deformable_lifted",
     "deformable_lifting",
@@ -29,10 +26,6 @@ __all__ = [
 
 from .curriculums import gravity_range_linear
 from .events import reset_deformable_over_support
-from .observations import (
-    DeformableSampledPointsInRobotRootFrame,
-    deformable_com_in_robot_root_frame,
-)
 from .pose_commands import (
     DeformableUniformPoseCommand,
     DeformableUniformPoseCommandCfg,
