@@ -17,6 +17,7 @@ import inspect
 import logging
 import os
 import re
+import sys
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
@@ -922,14 +923,12 @@ class OvPhysxManager(PhysicsManager):
         # ovphysx.check_usd_compatibility() to skip the Python-side version
         # check.  This should go away once ovphysx ships a namespaced USD
         # copy with isolated symbols (same "import pxr" API, no collision).
-        import sys as _sys
-
-        _hidden_pxr = {k: _sys.modules.pop(k) for k in list(_sys.modules) if k == "pxr" or k.startswith("pxr.")}
+        _hidden_pxr = {k: sys.modules.pop(k) for k in list(sys.modules) if k == "pxr" or k.startswith("pxr.")}
         try:
             _ovphysx_bootstrap = import_ovphysx()
             _ovphysx_bootstrap.bootstrap()
         finally:
-            _sys.modules.update(_hidden_pxr)
+            sys.modules.update(_hidden_pxr)
 
         ovphysx = import_ovphysx()
         cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index)
@@ -968,6 +967,21 @@ class OvPhysxManager(PhysicsManager):
             cls._atexit_registered = True
 
     @staticmethod
+    def _cooked_collider_cache_dir() -> str:
+        """Return the canonical Omniverse derived-data cache directory.
+
+        Mirrors the location Kit resolves from its ``${omni_cache}`` token. The kitless
+        OVPhysX runtime cannot resolve that token, and its Carbonite fallback resolves
+        relative to the Python interpreter binary, which is not writable on installs that
+        reuse a system interpreter.
+        """
+        if sys.platform == "win32":
+            base = os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local")
+            return os.path.join(base, "ov", "cache", "DerivedDataCache")
+        base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+        return os.path.join(base, "ov", "DerivedDataCache")
+
+    @staticmethod
     def _create_physx_instance(ovphysx: Any, ovphysx_device: str, gpu_index: int) -> Any:
         """Create a PhysX instance for the declared or current OVPhysX runtime API.
 
@@ -996,7 +1010,11 @@ class OvPhysxManager(PhysicsManager):
         if hasattr(ovphysx.PhysX, "set_cpu_mode"):
             ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
             physx_kwargs = {
-                "config": ovphysx.PhysXConfig(num_threads=8, carbonite_overrides=carbonite_overrides),
+                "config": ovphysx.PhysXConfig(
+                    num_threads=8,
+                    cooked_collider_cache_dir=OvPhysxManager._cooked_collider_cache_dir(),
+                    carbonite_overrides=carbonite_overrides,
+                ),
             }
             if ovphysx_device == "gpu":
                 physx_kwargs["active_cuda_gpus"] = str(gpu_index)
@@ -1011,10 +1029,11 @@ class OvPhysxManager(PhysicsManager):
         if "active_cuda_gpus" in physx_parameters and ovphysx_device == "gpu":
             physx_kwargs["active_cuda_gpus"] = str(gpu_index)
             physx_kwargs["config"] = ovphysx.PhysXConfig(
+                cooked_collider_cache_dir=OvPhysxManager._cooked_collider_cache_dir(),
                 carbonite_overrides={
                     "/physics/suppressReadback": True,
                     "/physics/suppressFabricUpdate": True,
-                }
+                },
             )
         elif "gpu_index" in physx_parameters:
             physx_kwargs["gpu_index"] = gpu_index

@@ -434,6 +434,43 @@ def test_manager_supports_current_runtime_api():
     assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="cache root is LOCALAPPDATA-derived on Windows")
+def test_manager_passes_explicit_cooked_collider_cache_dir(monkeypatch, tmp_path):
+    """Both runtime branches hand OVPhysX an explicit cache directory.
+
+    Without it the bundled Carbonite defaults the UJITSO cache to the directory holding the
+    Python interpreter, which is silently wrong when writable and errors when it is not.
+    """
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    expected = str(tmp_path / "ov" / "DerivedDataCache")
+
+    class LegacyPhysX:
+        def __init__(self, *, device, active_cuda_gpus=None, config=None):
+            self.constructor = {"config": config}
+
+        def set_config_int32(self, key, value):
+            pass
+
+    class CurrentPhysX:
+        @classmethod
+        def set_cpu_mode(cls, enabled):
+            pass
+
+        def __init__(self, *, active_cuda_gpus=None, config=None):
+            self.constructor = {"config": config}
+
+    for physx_cls in (LegacyPhysX, CurrentPhysX):
+        runtime = SimpleNamespace(
+            PhysX=physx_cls,
+            PhysXConfig=lambda **kwargs: SimpleNamespace(**kwargs),
+            ConfigInt32=SimpleNamespace(NUM_THREADS="num_threads"),
+        )
+        physx = OvPhysxManager._create_physx_instance(runtime, "gpu", 0)
+        assert physx.constructor["config"].cooked_collider_cache_dir == expected
+
+
 def test_manager_serializes_env0_only_stage_in_memory(caplog):
     """The OVPhysX input keeps globals and env 0 without writing cloned envs."""
     from isaaclab_ovphysx.physics import OvPhysxManager
