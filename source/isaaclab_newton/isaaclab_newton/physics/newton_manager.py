@@ -1863,6 +1863,22 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
         if cls._contacts is None:
             NewtonManager._contacts = cls._collision_pipeline.contacts()
+            # Grow the collision-pipeline contact buffer to the solver's max when the
+            # solver (e.g. MuJoCo/mujoco_warp) requires more contacts than the pipeline
+            # auto-estimate. Without this, the RSL-RL sensor path (use_mujoco_contacts=
+            # False) sizes _contacts from the pipeline alone and solver.update_contacts()
+            # raises when naconmax (nconmax * num_envs) exceeds rigid_contact_max.
+            # Mirrors the mjwarp_manager.py override for the use_mujoco_contacts=True path.
+            _solver = cls._solver
+            if _solver is not None and hasattr(_solver, "get_max_contact_count"):
+                _need = _solver.get_max_contact_count()
+                if _need > NewtonManager._contacts.rigid_contact_max:
+                    NewtonManager._contacts = Contacts(
+                        rigid_contact_max=_need,
+                        soft_contact_max=0,
+                        device=PhysicsManager._device,
+                        requested_attributes=cls._model.get_requested_contact_attributes(),
+                    )
 
     # ----- Solver construction (subclass contract) ------------------------
 
