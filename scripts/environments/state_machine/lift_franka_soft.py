@@ -17,13 +17,9 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
     # Headless.
     uv run python scripts/environments/state_machine/lift_franka_soft.py --viz none
 
-    # Record a video. Requires Isaac Sim, since RecordVideo goes through the Kit RTX viewport.
-    uv run python scripts/environments/state_machine/lift_franka_soft.py --video
-
 """
 
 import argparse
-import os
 import sys
 from collections.abc import Sequence
 
@@ -44,25 +40,11 @@ parser = argparse.ArgumentParser(description="Pick and lift a deformable with a 
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--num_steps", type=int, default=1000, help="Number of environment steps to run.")
 parser.add_argument("--task", type=str, default="Isaac-Lift-Soft-Franka", help="The task to run.")
-parser.add_argument("--video", action="store_true", default=False, help="Record a video of the rollout.")
-parser.add_argument("--video_length", type=int, default=500, help="Length of the recorded video (in env steps).")
-parser.add_argument(
-    "--video_folder",
-    type=str,
-    default="videos/lift_franka_soft",
-    help="Directory to write recorded videos into.",
-)
 add_launcher_args(parser)
 # the task runs on Newton, so default to the kitless viewer
 parser.set_defaults(visualizer=["newton"])
 args_cli, hydra_args = setup_preset_cli(parser)
 sys.argv = [sys.argv[0]] + hydra_args
-
-# RecordVideo needs an rgb_array render mode, which is the Kit RTX viewport: enable cameras and
-# request the Kit visualizer so launch_simulation starts Isaac Sim.
-if args_cli.video:
-    args_cli.enable_cameras = True
-    args_cli.visualizer = ["kit"]
 
 # initialize warp
 wp.init()
@@ -279,8 +261,6 @@ class PickAndLiftSm:
 
 
 def main():
-    # create environment
-    render_mode = "rgb_array" if args_cli.video else None
     # parse configuration via Hydra, so presets can be selected on the CLI (e.g. presets=isaacsim_physx)
     env_cfg, _ = resolve_task_config(args_cli.task, "")
     env_cfg.sim.device = args_cli.device
@@ -289,27 +269,14 @@ def main():
     # defaults to relative joint targets, which RL trains on.
     env_cfg.actions = ActionsCfg().ik
     # frame the deformable at (0.5, 0.0, 0.05) rather than the world origin. ``viewer`` drives the
-    # Kit viewport and the video recorder; ``default_visualizer_cfg`` drives the Newton/Kit
-    # visualizer window, which otherwise falls back to VisualizerCfg's (4.0, -4.0, 3.0).
+    # Kit viewport; ``default_visualizer_cfg`` drives the Newton/Kit visualizer window, which
+    # otherwise falls back to VisualizerCfg's (4.0, -4.0, 3.0).
     env_cfg.viewer.eye = (1.3, 0.6, 0.5)
     env_cfg.viewer.lookat = (0.5, 0.0, 0.05)
     env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=env_cfg.viewer.eye, lookat=env_cfg.viewer.lookat)
 
     with launch_simulation(env_cfg, args_cli):
-        env = gym.make(args_cli.task, cfg=env_cfg, render_mode=render_mode)
-
-        # wrap for video recording
-        if args_cli.video:
-            video_folder = os.path.abspath(args_cli.video_folder)
-            os.makedirs(video_folder, exist_ok=True)
-            env = gym.wrappers.RecordVideo(
-                env,
-                video_folder=video_folder,
-                step_trigger=lambda step: step == 0,
-                video_length=args_cli.video_length,
-                disable_logger=True,
-            )
-            print(f"[INFO] Recording video to {video_folder} (length={args_cli.video_length} steps)")
+        env = gym.make(args_cli.task, cfg=env_cfg)
 
         # reset environment at start
         env.reset()
