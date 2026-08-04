@@ -148,7 +148,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
 
          # Full Isaac Sim support
          uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct presets=physx
+            --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
@@ -174,7 +174,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
 
          # Full Isaac Sim support
          uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct presets=physx
+            --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
@@ -214,7 +214,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
 
          :: Full Isaac Sim support
          uv run --extra isaacsim isaaclab train --rl_library rsl_rl ^
-            --task Isaac-Cartpole-Direct presets=physx
+            --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          :: Play a policy
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton

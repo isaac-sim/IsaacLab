@@ -148,8 +148,8 @@ see the supported selectors:
      - Newton using the Kamino solver. This backend is beta and supports a limited set of tasks.
    * - ``physics=ovphysx``
      - OV PhysX.
-   * - ``physics=physx``
-     - Automatically selects a compatible PhysX-family backend for the task and runtime.
+   * - ``physics=isaacsim_physx``
+     - Isaac Sim PhysX.
 
 Camera tasks can also take ``renderer=<renderer>``. Common choices are
 ``renderer=newton_renderer`` for the Newton Warp renderer, ``renderer=ovrtx``
