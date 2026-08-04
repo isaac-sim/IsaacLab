@@ -6,6 +6,10 @@
 # region help
 # aarch64 build + marker-gated tests on NVIDIA DGX Spark self-hosted runners.
 #
+# CURRENTLY DISABLED via the ARM_CI_ENABLED kill switch below; the jobs report
+# as skipped. The rest of this header describes the wiring as it behaves once
+# the switch is flipped back on.
+#
 # Split out of build.yaml (Docker + Tests) so this slow arm64 build+render owns
 # its own workflow run. In build.yaml it shared the run with every test-* job,
 # so the whole run stayed open until arm-ci finished (up to its 60-minute
@@ -56,6 +60,22 @@ permissions:
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
 
+  # region kill switch
+  # Master switch for this workflow's arm64 image build and both test steps —
+  # flip to 'true' to restore them, nothing else has to change.
+  #
+  # Off because the self-hosted arm64 pool is saturated and this workflow is its
+  # largest consumer. The cost is accepted: the arm_ci-marked files still run on
+  # x86 under their `unit`/`isaacsim_ci` markers, so what is lost is aarch64
+  # execution of them, not the tests themselves.
+  #
+  # `Installation Tests (ARM)` in install-ci.yml is deliberately NOT covered by
+  # this switch — it is the only aarch64 coverage left. It is a separate
+  # workflow that builds its own container, so it does not need the image built
+  # here.
+  ARM_CI_ENABLED: 'false'
+  # endregion
+
 jobs:
   # Shared change-detection gate. The trigger is unfiltered (see header) so the
   # arm-ci check is always creatable; this decides whether the expensive jobs
@@ -69,6 +89,8 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
+      # Empty while ARM_CI_ENABLED is off, because the kill switch skips
+      # `detect` — which makes every downstream `if:` below evaluate false.
       should_run: ${{ steps.detect.outputs.should_run }}
     steps:
     - uses: actions/checkout@v6
@@ -77,6 +99,11 @@ jobs:
         sparse-checkout: .github/actions/detect-changes
         sparse-checkout-cone-mode: false
     - id: detect
+      # The kill switch lands here, not on the `arm-ci` job's `if:`, because the
+      # `env` context is unavailable in a job-level `if:`. Routing it through
+      # `should_run` also leaves the jobs SKIPPED rather than deleted, keeping
+      # the creatable/skipped-green property the header describes.
+      if: env.ARM_CI_ENABLED == 'true'
       uses: ./.github/actions/detect-changes
       with:
         triggered-jobs-push: arm-ci
