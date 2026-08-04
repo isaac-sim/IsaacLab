@@ -19,6 +19,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
@@ -27,15 +28,8 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
+import isaaclab_tasks.core.cabinet.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
-
-from . import mdp
-
-##
-# Pre-defined configs
-##
-from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-
 
 FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
@@ -78,6 +72,21 @@ class CabinetSimCfg(PresetCfg):
     )
 
 
+@configclass
+class CabinetDecimationCfg(PresetCfg):
+    """Physics steps per policy action.
+
+    Chosen per backend so that the policy always acts at 60 Hz, since the backends step physics at
+    different rates.
+    """
+
+    isaacsim_physx: int = 1
+    physx: int = isaacsim_physx
+    default: int = isaacsim_physx
+    newton_mjwarp: int = 10
+    newton_kamino: int = 10
+
+
 ##
 # Scene definition
 ##
@@ -91,9 +100,8 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     which need to set the robot and end-effector frames
     """
 
-    # robots, Will be populated by agent env cfg
+    # robot and end-effector frames -- set by a robot-specific subclass
     robot: ArticulationCfg = MISSING
-    # End-effector, Will be populated by agent env cfg
     ee_frame: FrameTransformerCfg = MISSING
 
     cabinet = ArticulationCfg(
@@ -128,7 +136,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
         },
     )
 
-    # Frame definitions for the cabinet.
+    # drawer handle frame, aligned with the end-effector frame
     cabinet_frame = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Cabinet/sektion",
         debug_vis=True,
@@ -193,7 +201,9 @@ class ObservationsCfg:
         )
         rel_ee_drawer_distance = ObsTerm(func=mdp.rel_ee_drawer_distance)
 
-        actions = ObsTerm(func=mdp.last_action)
+        # the raw action is unbounded; feeding it back unclipped lets the critic and the policy
+        # inflate each other without limit
+        actions = ObsTerm(func=mdp.last_action, clip=(-5.0, 5.0))
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -244,30 +254,6 @@ class EventCfg:
 
 
 @configclass
-class _CabinetNewtonEventCfg:
-    """Newton-compatible events: excludes material randomization (not implemented in Newton)."""
-
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
-
-    reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "position_range": (-0.1, 0.1),
-            "velocity_range": (0.0, 0.0),
-        },
-    )
-
-
-@configclass
-class CabinetEventCfg(PresetCfg):
-    physx: EventCfg = EventCfg()
-    isaacsim_physx: EventCfg = physx
-    default: EventCfg = isaacsim_physx
-    newton_mjwarp: _CabinetNewtonEventCfg = _CabinetNewtonEventCfg()
-
-
-@configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
 
@@ -289,9 +275,6 @@ class RewardsCfg:
     )
 
     # 3. Open the drawer
-    # ``open_drawer_bonus`` doubles as the success metric host: passing ``success_threshold``
-    # tells the term to flip a sticky per-env bit when the drawer crosses that joint position
-    # and to log the per-env mean as ``Metrics/success_rate`` on episode reset.
     open_drawer_bonus = RewTerm(
         func=mdp.open_drawer_bonus,
         weight=7.5,
@@ -327,8 +310,6 @@ class TerminationsCfg:
 class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cabinet environment."""
 
-    # Sim settings — override base-class SimulationCfg with a preset-aware wrapper so that
-    # Newton can use dt=1/200 while PhysX keeps dt=1/60.
     sim: CabinetSimCfg = CabinetSimCfg()
     # Scene settings
     scene: CabinetSceneCfg = CabinetSceneCfg(num_envs=4096, env_spacing=2.0)
@@ -338,12 +319,13 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: CabinetEventCfg = CabinetEventCfg()
+    events: EventCfg = EventCfg()
+
+    decimation: int = CabinetDecimationCfg()
 
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 1
         self.episode_length_s = 8.0
         self.viewer.eye = (-2.0, 2.0, 2.0)
         self.viewer.lookat = (0.8, 0.0, 0.5)

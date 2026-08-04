@@ -18,6 +18,13 @@ from isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg import CabinetDirectEnvC
 class FrankaCabinetDirectEnvCfg(CabinetDirectEnvCfg):
     """Direct-workflow cabinet (open-drawer) task with a Franka Panda arm."""
 
+    # robot frames the task is defined against
+    hand_body_name: str = "panda_link7"
+    left_finger_body_name: str = "panda_leftfinger"
+    right_finger_body_name: str = "panda_rightfinger"
+    finger_joint_names: str | list[str] = "panda_finger_joint.*"
+    grasp_pos_offset: tuple[float, float, float] = (0.0, 0.04, 0.0)
+
     # robot
     robot: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",

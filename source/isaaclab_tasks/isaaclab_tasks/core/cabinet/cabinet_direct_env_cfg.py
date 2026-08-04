@@ -30,13 +30,11 @@ class CabinetDirectPhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg()
     ovphysx: OvPhysxCfg = OvPhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            integrator="implicitfast",
-        ),
+        solver_cfg=MJWarpSolverCfg(integrator="implicitfast"),
         num_substeps=1,
     )
-    default = isaacsim_physx
 
 
 @configclass
@@ -124,8 +122,35 @@ class CabinetDirectEnvCfg(DirectRLEnvCfg):
         ),
     )
 
+    # robot frames the task is defined against -- set by a robot-specific subclass
+    hand_body_name: str = MISSING
+    left_finger_body_name: str = MISSING
+    right_finger_body_name: str = MISSING
+    finger_joint_names: str | list[str] = MISSING
+    grasp_pos_offset: tuple[float, float, float] = MISSING
+    """Offset [m] from the midpoint between the fingertips to the grasp frame, in the hand frame."""
+
+    # cabinet frames
+    drawer_body_name: str = "drawer_top"
+    drawer_joint_name: str = "drawer_top_joint"
+    drawer_local_grasp_pose: tuple[float, float, float, float, float, float, float] = (
+        0.3,
+        0.01,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+    )
+    """Grasp frame on the drawer as ``[pos(3) [m], quat_xyzw(4)]``, in the drawer body frame."""
+
     action_scale = 7.5
     dof_velocity_scale = 0.1
+    finger_speed_scale: float = 0.1
+    """Fraction of the action scale applied to the finger joints, which move over a much shorter range."""
+
+    # reset
+    initial_joint_pos_range: tuple[float, float] = (-0.125, 0.125)  # [rad]
 
     # reward scales
     dist_reward_scale = 1.5
@@ -133,7 +158,13 @@ class CabinetDirectEnvCfg(DirectRLEnvCfg):
     open_reward_scale = 10.0
     action_penalty_scale = 0.05
     finger_reward_scale = 2.0
+    open_bonus: float = 0.25
+    """Bonus added once for each threshold in :attr:`open_bonus_thresholds` the drawer has passed."""
+    open_bonus_thresholds: tuple[float, ...] = (0.01, 0.2, 0.35)
+    """Drawer joint positions [m] at which the staged opening bonus is granted."""
 
-    # success criteria
+    # success and termination criteria
     success_drawer_pos_threshold: float = 0.30
     """Drawer joint position above which the drawer is considered successfully opened [m]."""
+    termination_drawer_pos: float = 0.39
+    """Drawer joint position above which the episode terminates early [m]."""

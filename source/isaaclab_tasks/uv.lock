@@ -1,0 +1,49 @@
+version = 1
+revision = 3
+requires-python = ">=3.12"
+
+[[package]]
+name = "isaaclab"
+version = "15.1.1"
+source = { editable = "../isaaclab" }
+
+[[package]]
+name = "isaaclab-assets"
+version = "0.6.2"
+source = { editable = "../isaaclab_assets" }
+dependencies = [
+    { name = "isaaclab" },
+    { name = "isaaclab-contrib" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "isaaclab", editable = "../isaaclab" },
+    { name = "isaaclab-contrib", editable = "../isaaclab_contrib" },
+]
+
+[[package]]
+name = "isaaclab-contrib"
+version = "1.0.0"
+source = { editable = "../isaaclab_contrib" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "../isaaclab" }]
+
+[[package]]
+name = "isaaclab-tasks"
+version = "10.2.0"
+source = { editable = "." }
+dependencies = [
+    { name = "isaaclab" },
+    { name = "isaaclab-assets" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "isaaclab", editable = "../isaaclab" },
+    { name = "isaaclab-assets", editable = "../isaaclab_assets" },
+]
