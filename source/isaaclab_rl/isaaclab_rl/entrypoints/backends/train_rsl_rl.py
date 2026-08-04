@@ -206,7 +206,10 @@ def _run(args_cli: argparse.Namespace) -> None:
         dump_train_configs(log_dir, env_cfg, agent_cfg)
 
         try:
-            runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+            runner.learn(
+                num_learning_iterations=agent_cfg.max_iterations,
+                init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
+            )
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
             env.close()
         except KeyboardInterrupt:
