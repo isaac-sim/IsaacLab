@@ -88,13 +88,16 @@ Preset Selectors
 Many environments support multiple physics backends, rendering backends, and observation
 modes. The **Presets** column in each table below is divided into three labeled groups:
 
-* **physics=** — concrete physics-backend name passed as ``physics=NAME``
+* **physics=** — physics-backend name passed as ``physics=NAME``
   (e.g. ``isaacsim_physx``, ``newton_mjwarp``, ``newton_kamino``,
-  ``ovphysx``, ``newton_mjwarp_vbd_proxy``). The tables list concrete backends
-  so that each value identifies the runtime that will be used.
+  ``ovphysx``, ``newton_mjwarp_vbd_proxy``). ``physics=physx`` is also a valid
+  automatic selector that chooses a compatible PhysX backend. The tables list
+  only concrete backends so that each row identifies the runtimes it supports.
 * **renderer=** — renderer-backend name passed as ``renderer=NAME``
   (e.g. ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``). Cameras using the
   multi-backend renderer config default to concrete ``isaacsim_rtx``.
+  ``renderer=rtx`` is also a valid automatic selector that chooses a compatible
+  RTX backend; the tables list only concrete renderer backends.
 * **presets=** — environment-specific (domain) preset name passed as
   ``presets=NAME[,NAME,...]``
   (e.g. ``rgb``, ``depth``, ``single_camera``, ``duo_camera``)
