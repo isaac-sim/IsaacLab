@@ -1,1 +1,0 @@
-CI-only: repoint the nightly image publish target to the NGC org the CI credential can reach.
