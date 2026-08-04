@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -31,6 +32,8 @@ from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton import ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
+from isaaclab.physics import PhysicsManager
+
 from isaaclab_contrib.coupling import (
     CouplerAdmmCfg,
     CouplerCfg,
@@ -41,6 +44,48 @@ from isaaclab_contrib.coupling import (
     coupler,
 )
 from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
+
+
+def test_reset_skips_mpm_entry_but_resets_rigid_entry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep coupled MPM history while resetting compatible entries per world."""
+    world_mask = object()
+    state = object()
+    rigid_solver = MagicMock()
+    mpm_solver = MagicMock()
+    rigid_entry = SimpleNamespace(solver=rigid_solver, state_0=object())
+    mpm_entry = SimpleNamespace(solver=mpm_solver, state_0=object())
+    coupled_solver = SimpleNamespace(
+        _entries={"rigid": rigid_entry, "mpm": mpm_entry},
+        _distribute_state=MagicMock(),
+        _sync_entry_reset_state=MagicMock(),
+        _reconcile_state=MagicMock(),
+        _reset_coupling_state=MagicMock(),
+        _clear_entry_contact_buffers=MagicMock(),
+        _rebuild_entry_solver_state_caches=MagicMock(),
+        _entry_output_state_valid=True,
+    )
+    solver_cfg = CouplerProxyCfg(
+        entries=[
+            CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg()),
+            CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True),
+        ]
+    )
+
+    monkeypatch.setattr(NewtonManager, "_solver", coupled_solver, raising=False)
+    monkeypatch.setattr(NewtonCouplerManager, "_state_0", state, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg), raising=False)
+
+    NewtonCouplerManager._reset_solver_internals(world_mask)
+
+    coupled_solver._distribute_state.assert_called_once_with(state, iteration_restart=True)
+    rigid_solver.reset.assert_called_once_with(rigid_entry.state_0, world_mask=world_mask, flags=0)
+    mpm_solver.reset.assert_not_called()
+    coupled_solver._sync_entry_reset_state.assert_called_once_with(rigid_entry)
+    coupled_solver._reconcile_state.assert_called_once_with(state)
+    coupled_solver._reset_coupling_state.assert_called_once_with(state, world_mask=world_mask, flags=0)
+    coupled_solver._clear_entry_contact_buffers.assert_called_once_with()
+    coupled_solver._rebuild_entry_solver_state_caches.assert_called_once_with()
+    assert coupled_solver._entry_output_state_valid is False
 
 
 @dataclass

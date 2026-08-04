@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 
+import warp as wp
 from isaaclab_newton.physics import (
     KaminoSolverCfg,
     MJWarpSolverCfg,
@@ -208,6 +209,41 @@ class NewtonCouplerManager(NewtonVBDManager):
         super()._initialize_contacts()
         if cls._contacts is not None and hasattr(NewtonManager._solver, "prepare_contacts"):
             NewtonManager._solver.prepare_contacts(cls._contacts)
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Reset compatible coupled entries while preserving implicit MPM history.
+
+        :meth:`SolverCoupled.reset` applies the same world mask to every
+        nested solver. :class:`SolverImplicitMPM` rejects Isaac Lab's
+        per-world mask for its shared topology, and resetting it without a
+        mask would also clear particle history for worlds that did not reset.
+        Reset the remaining entries through the coupled solver's reset
+        lifecycle so their per-world solver state and coupled transient state
+        remain synchronized.
+
+        Args:
+            world_mask: Per-world reset mask, or ``None`` when no simulation
+                state is available.
+        """
+        if world_mask is None:
+            return
+
+        solver = NewtonManager._solver
+        solver._distribute_state(cls._state_0, iteration_restart=True)
+        solver_cfg = PhysicsManager._cfg.solver_cfg
+        for entry_cfg in solver_cfg.entries:
+            if isinstance(entry_cfg.solver_cfg, MPMSolverCfg):
+                continue
+            entry = solver._entries[entry_cfg.name]
+            entry.solver.reset(entry.state_0, world_mask=world_mask, flags=0)
+            solver._sync_entry_reset_state(entry)
+
+        solver._reconcile_state(cls._state_0)
+        solver._reset_coupling_state(cls._state_0, world_mask=world_mask, flags=0)
+        solver._clear_entry_contact_buffers()
+        solver._rebuild_entry_solver_state_caches()
+        solver._entry_output_state_valid = False
 
     @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
