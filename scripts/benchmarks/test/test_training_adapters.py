@@ -212,3 +212,25 @@ def test_skrl_parser_rejects_unimplemented_modes():
             train_skrl._parse_args(["--task", "unused", option, value])
     with pytest.raises(SystemExit):
         train_skrl._parse_args(["--task", "unused", "--distributed"])
+
+
+def test_skrl_parser_accepts_distributed_torch_from_benchmark_launcher():
+    """SKRL distributed benchmarking is limited to the private Torch launcher mode."""
+    args_cli, _remaining = train_skrl._parse_args(
+        ["--task", "unused", "--distributed", "--benchmark_multigpu", "--ml_framework", "torch"]
+    )
+    assert args_cli.distributed
+    assert args_cli.benchmark_multigpu
+    assert args_cli.ml_framework == "torch"
+
+
+def test_skrl_distributed_config_offsets_seed_by_global_rank():
+    """SKRL workers should use the same rank-offset seed convention as regular training."""
+    args_cli = SimpleNamespace(distributed=True)
+    agent_cfg = {"seed": 10}
+    env_cfg = SimpleNamespace(seed=10)
+
+    train_skrl._apply_distributed_config(args_cli, agent_cfg, env_cfg, rank=2)
+
+    assert agent_cfg["seed"] == 12
+    assert env_cfg.seed == 12
