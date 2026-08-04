@@ -136,10 +136,6 @@ class SmokeResult:
 
 OVERRIDES = {
     "scripts/demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting demo with Lee Position Controller"),
-    "scripts/demos/cables.py": ScriptOverride(
-        # Cables are a Newton-only asset, so the demo exposes no --physics flag.
-        fixed_physics_backend="newton_vbd",
-    ),
     "scripts/demos/h1_locomotion.py": ScriptOverride(
         skip_reason="downloads a published policy and requires interactive viewport input",
         visualizers=("kit",),
