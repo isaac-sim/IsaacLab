@@ -15,7 +15,7 @@ Changed
 * Changed the ``teleop`` install extra to bundle Isaac Sim, so ``uv run --extra teleop``
   installs everything the XR teleoperation workflow needs in one flag. Previously the extra
   carried only the Isaac Teleop stack and could not be combined with ``isaacsim`` at all.
-  Because it now pulls Isaac Sim in, ``teleop`` also conflicts with ``ov`` and ``viser``
+  Because it now pulls Isaac Sim in, ``teleop`` also conflicts with ``ov`` and ``ovphysx``
   alongside the existing ``mimic`` and ``all`` conflicts; install those separately.
 
 Fixed
@@ -23,9 +23,10 @@ Fixed
 
 * Fixed the ``uv`` resolution conflict that made Isaac Sim and Isaac Teleop impossible to
   install together. ``isaacsim-kernel`` pins ``websockets==12.0`` while
-  ``isaacteleop[cloudxr]`` requires ``websockets>=14.0``; a ``websockets>=14.0`` override
-  reconciles them. The ``teleop``/``mimic`` and ``teleop``/``all`` conflicts remain because
-  of the ``lxml`` split.
+  ``isaacteleop[cloudxr]`` requires ``websockets>=14.0``, so the existing ``websockets``
+  override was raised to ``>=14.0,<17.0.0`` -- clearing Isaac Teleop's floor while keeping
+  the ceiling Viser needs. The ``teleop``/``mimic`` and ``teleop``/``all`` conflicts remain
+  because of the ``lxml`` split.
 * Fixed ``--extra test`` being unusable with Isaac Sim. ``isaacsim-kernel`` pins
   ``coverage==7.4.4`` while the ``test`` extra needs ``coverage>=7.6.1`` for numba; a
   ``coverage>=7.6.1`` override reconciles them and the ``isaacsim``/``test`` conflict is

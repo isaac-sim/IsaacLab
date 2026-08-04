@@ -196,7 +196,9 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
     assert {"isaacsim", "mimic"} not in conflict_groups
 
     assert {"isaacsim", "viser"} not in conflict_groups
-    assert "websockets==13.1" in pyproject["tool"]["uv"]["override-dependencies"]
+    # The override clears viser's >=13.1 floor and isaacteleop[cloudxr]'s higher >=14.0 floor,
+    # while keeping viser's <17.0.0 ceiling that the override would otherwise discard.
+    assert "websockets>=14.0,<17.0.0" in pyproject["tool"]["uv"]["override-dependencies"]
 
 
 def test_uv_run_teleop_co_resolves_with_isaacsim():
@@ -240,8 +242,10 @@ def test_uv_run_teleop_extra_bundles_isaacsim():
     assert not any(dep.startswith("robomimic") for dep in teleop)
 
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("mimic", "all", "ovphysx", "viser"):
+    for extra in ("mimic", "all", "ov", "ovphysx"):
         assert {"teleop", extra} in conflict_groups, f"teleop must declare a conflict with '{extra}'"
+    # viser is not inherited: the websockets override reconciles it with Isaac Sim.
+    assert {"teleop", "viser"} not in conflict_groups
     # ``--extra teleop --extra test`` must keep working so the teleop suite stays runnable.
     assert {"teleop", "test"} not in conflict_groups
     assert "coverage>=7.6.1" in pyproject["tool"]["uv"]["override-dependencies"]

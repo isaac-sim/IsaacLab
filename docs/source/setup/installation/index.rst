@@ -154,14 +154,6 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          uv run --extra teleop isaaclab teleop run \
             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --visualizer kit --xr
 
-         # XR teleoperation (see the section below for prerequisites)
-         uv run --extra xr isaaclab teleop run \
-            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --visualizer kit --xr
-
-         # XR teleoperation (see the section below for prerequisites)
-         uv run --extra isaacsim,teleop isaaclab teleop \
-            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --visualizer kit --xr
-
          # Play a policy
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
