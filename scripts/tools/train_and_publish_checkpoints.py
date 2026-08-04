@@ -19,23 +19,29 @@ checkpoints are collected into one subdirectory per RL library:
 Each checkpoint is named
 ``<task_name>_<physics_backend>_<render_backend><extension>``. State-only
 tasks use ``none`` as the render backend because their policies do not depend
-on rendering. The core matrix excludes Newton Kamino presets.
+on rendering. This workflow targets core tasks only; other registered tasks do
+not receive published checkpoints from this matrix. The core matrix excludes
+Newton Kamino presets.
 
 Examples:
 
 .. code-block:: shell
 
     # List the preferred core-task training matrix.
-    ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py --list --all --core
+    uv run python scripts/tools/train_and_publish_checkpoints.py \
+        --list --all --core
 
     # Smoke-test every supported core-task backend combination.
-    ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py --smoke --all --core
+    uv run python scripts/tools/train_and_publish_checkpoints.py \
+        --smoke --all --core
 
     # Run full training and collect checkpoints.
-    ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py --train --all --core
+    uv run python scripts/tools/train_and_publish_checkpoints.py \
+        --train --all --core
 
     # Resume collection after training jobs have completed.
-    ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py --collect --all --core
+    uv run python scripts/tools/train_and_publish_checkpoints.py \
+        --collect --all --core
 
     # Select legacy jobs with workflow and task wildcards.
     rl_games:Isaac-Humanoid-*        # Wildcard for any Humanoid version
@@ -367,7 +373,9 @@ def _filter_jobs(jobs: list[CheckpointJob], args: argparse.Namespace) -> list[Ch
 def _training_command(job: CheckpointJob, args: argparse.Namespace, smoke: bool) -> list[str]:
     """Build the unified training command for a checkpoint job."""
     command = [
-        os.path.abspath("isaaclab.sh"),
+        "uv",
+        "run",
+        "isaaclab",
         "train",
         "--rl_library",
         job.workflow,
@@ -395,6 +403,30 @@ def _training_command(job: CheckpointJob, args: argparse.Namespace, smoke: bool)
     return command
 
 
+def _play_command(job: CheckpointJob, args: argparse.Namespace, checkpoint_path: str) -> list[str]:
+    """Build the unified playback command for a checkpoint job."""
+    command = [
+        "uv",
+        "run",
+        "isaaclab",
+        "play",
+        "--rl_library",
+        job.workflow,
+        "--task",
+        job.task_name,
+        "--checkpoint",
+        checkpoint_path,
+    ]
+    if job.agent is not None:
+        command.extend(["--agent", job.agent])
+    if job.algorithm is not None:
+        command.extend(["--algorithm", job.algorithm])
+    if args.num_envs is not None:
+        command.extend(["--num_envs", str(args.num_envs)])
+    command.extend(job.preset_args)
+    return command
+
+
 def _run_command(command: list[str], dry_run: bool) -> int:
     """Print and run a subprocess command."""
     print("Running:", " ".join(command), flush=True)
@@ -410,7 +442,7 @@ def _run_command(command: list[str], dry_run: bool) -> int:
     # can carry the source-compatible revision while Isaac Sim bundles an older
     # release.
     env["VIRTUAL_ENV"] = sys.prefix
-    return subprocess.run(command, check=False, env=env).returncode
+    return subprocess.run(command, check=False, cwd=_REPO_ROOT, env=env).returncode
 
 
 def _has_training_job_completed(job: CheckpointJob) -> bool:
@@ -534,23 +566,10 @@ def review_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) -
         job.physics_backend,
         job.render_backend,
     )
-    command = [
-        os.path.abspath("isaaclab.sh"),
-        "play",
-        "--rl_library",
-        job.workflow,
-        "--task",
-        job.task_name,
-        "--checkpoint",
-        checkpoint_path,
-    ]
-    if job.agent is not None:
-        command.extend(["--agent", job.agent])
-    if job.algorithm is not None:
-        command.extend(["--algorithm", job.algorithm])
-    if args.num_envs is not None:
-        command.extend(["--num_envs", str(args.num_envs)])
-    command.extend(job.preset_args)
+    if checkpoint_path is None:
+        print(f"Skipping review of {job.job_id}; no checkpoint was found")
+        return False
+    command = _play_command(job, args, checkpoint_path)
     if _run_command(command, args.dry_run) != 0:
         return False
     if args.dry_run:

@@ -158,6 +158,11 @@ algorithms, are algorithm choices rather than preset requirements.
 Pretrained checkpoints
 ----------------------
 
+Published pretrained checkpoints are available only for supported core tasks,
+and availability may vary by RL library and backend combination. Other
+registered tasks, including contributed tasks, are not covered by the
+published checkpoint set.
+
 Pass ``--use_pretrained_checkpoint`` to load the published policy matching the
 resolved task configuration. Checkpoints are grouped by RL library and use the
 following filename:
@@ -175,7 +180,7 @@ the checkpoint and policy network agree:
 
 .. code-block:: bash
 
-   ./isaaclab.sh play --rl_library rsl_rl \
+   uv run isaaclab play --rl_library rsl_rl \
        --task Isaac-Cartpole-Camera \
        --use_pretrained_checkpoint \
        physics=newton_mjwarp renderer=isaacsim_rtx
@@ -190,13 +195,13 @@ this matrix; tasks whose only Newton preset is Kamino are skipped for Newton.
 .. code-block:: bash
 
    # Inspect and smoke-test the supported matrix.
-   ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py \
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
        --list --all --core
-   ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py \
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
        --smoke --all --core
 
    # Run each agent config's full schedule and collect the last/best checkpoint.
-   ./isaaclab.sh -p scripts/tools/train_and_publish_checkpoints.py \
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
        --train --all --core
 
 Collected files are written under ``logs/pretrained_checkpoints/<rl_library>/``
