@@ -983,3 +983,24 @@ class TestRePointPrebundlePackages:
 
         assert (prebundle / pkg_name).is_symlink(), f"{pkg_name} should be repointed"
         assert (prebundle / pkg_name).resolve() == (site_pkgs / pkg_name).resolve()
+
+
+class TestInstallRootExtraWithExistingIsaacSim:
+    """``--extra teleop`` carries Isaac Sim, which a binary install already provides."""
+
+    def test_install_root_extra_skips_isaacsim_when_already_available(self, tmp_path):
+        """A downloaded Isaac Sim at ``_isaac_sim`` must not be shadowed by the wheels."""
+        python_exe = str(tmp_path / "python")
+        pip_cmd = [python_exe, "-m", "pip"]
+
+        with (
+            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=python_exe),
+            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
+            mock.patch("isaaclab.cli.commands.install._isaacsim_already_available", return_value=True),
+            mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+        ):
+            install_cmd._install_root_extra("teleop")
+
+        installed = " ".join(" ".join(call.args[0]) for call in mock_run.call_args_list)
+        assert "isaacsim[all,extscache]" not in installed
+        assert "isaacteleop" in installed

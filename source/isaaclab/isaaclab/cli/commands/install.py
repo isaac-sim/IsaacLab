@@ -459,6 +459,17 @@ def _root_extra_dependencies(extra: str) -> list[str]:
     return [requirement for requirement in optional[extra] if not _is_isaaclab_requirement(requirement)]
 
 
+def _isaacsim_already_available(python_exe: str) -> bool:
+    """Return True when Isaac Sim is importable, e.g. from a downloaded package linked at ``_isaac_sim``."""
+    result = run_command(
+        [python_exe, "-c", "from importlib.metadata import version; print(version('isaacsim'))"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0 or (ISAACLAB_ROOT / "_isaac_sim").exists()
+
+
 def _install_root_extra(extra: str) -> None:
     """Install the third-party dependencies of a root ``optional-dependencies`` group."""
     dependencies = _root_extra_dependencies(extra)
@@ -466,6 +477,16 @@ def _install_root_extra(extra: str) -> None:
         return
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
+    # ``teleop`` carries Isaac Sim so ``uv run --extra teleop`` is self-contained, but a
+    # binary or source Isaac Sim already provides it. Installing the wheels on top would
+    # add several GB and shadow the existing install.
+    if _isaacsim_already_available(python_exe):
+        kept = [d for d in dependencies if _normalize_package_name(_requirement_name(d)) != "isaacsim"]
+        if kept != dependencies:
+            print_info("Isaac Sim is already available; skipping its wheels for this extra.")
+        dependencies = kept
+        if not dependencies:
+            return
     print_info(f"Installing '{extra}' extra dependencies from the root pyproject...")
     run_command(pip_cmd + ["install"] + dependencies)
 
