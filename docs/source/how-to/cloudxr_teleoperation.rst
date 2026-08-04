@@ -589,10 +589,10 @@ Requirements:
 
 * Manus gloves with a Manus SDK license
 
-The Manus plugin is included in the ``isaacteleop`` package and activated automatically when
-configured in the environment's retargeting pipeline. Manus tracking data flows through the same
-API as headset-based optical hand tracking in Isaac Teleop, so the same retargeters and pipelines
-work with both input sources.
+The Manus plugin is included in the ``isaacteleop`` package. In Isaac Lab, ``--xr``
+auto-launches CloudXR and enables the same retargeting pipeline used for headset optical
+hand tracking, so no extra Python-side integration is required. The native Manus plugin
+binary still runs as a separate process.
 
 For plugin configuration details, see the `Manus plugin documentation
 <https://nvidia.github.io/IsaacTeleop/main/device/manus.html>`_.
@@ -602,12 +602,14 @@ The recommended workflow:
 #. Start Isaac Lab and click **Start XR**. This auto-launches the CloudXR runtime and
    writes its environment file.
 #. In a separate terminal, source that environment file and launch the Manus plugin
-   (built per the `Manus plugin documentation
+   from your Isaac Teleop checkout (replace ``<isaac_teleop_root>`` with the path
+   where you built the plugin per the `Manus plugin documentation
    <https://nvidia.github.io/IsaacTeleop/main/device/manus.html>`_):
 
    .. code-block:: bash
 
       source ~/.cloudxr/run/cloudxr.env
+      cd <isaac_teleop_root>
       ./install/plugins/manus/manus_hand_plugin
 
    Keep this process running for the duration of the session.
