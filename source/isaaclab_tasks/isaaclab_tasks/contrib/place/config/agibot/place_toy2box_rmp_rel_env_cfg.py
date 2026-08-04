@@ -26,6 +26,7 @@ from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropert
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.place import mdp as place_mdp
 from isaaclab_tasks.contrib.stack import mdp
@@ -261,9 +262,8 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.physics = PhysicsCfg()
 
-        # set viewer to see the whole scene
-        self.viewer.eye = [1.5, -1.0, 1.5]
-        self.viewer.lookat = [0.5, 0.0, 0.0]
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.5, -1.0, 1.5), lookat=(0.5, 0.0, 0.0))
 
     def validate_config(self):
         """Reject backend combinations that the configured robot cannot run on."""
