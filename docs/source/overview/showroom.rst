@@ -426,7 +426,7 @@ A few quick showroom scripts to run and checkout:
 
    .. image:: ../_static/demos/bin_packing.jpg
       :width: 100%
-      :alt: Spawning random number of random asset per env_id using combination of MultiAssetSpawner and RigidObjectCollection
+      :alt: Bins holding a different random subset of grocery objects in every environment
 
 
 
