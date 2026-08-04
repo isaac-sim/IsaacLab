@@ -367,15 +367,15 @@ class AppLauncher:
             raise RuntimeError("The `AppLauncher.app` member cannot be retrieved until the class is initialized.")
 
     @property
-    def headless(self) -> bool:
-        """Whether the app was launched without a local UI window.
+    def has_window(self) -> bool:
+        """Whether a Kit window exists that can render UI and receive input.
 
-        Resolved from the visualizer selection rather than a flag: headless unless a windowed
-        visualizer (currently ``--visualizer kit``) was requested. Livestreaming and XR without
-        an explicit windowed visualizer both force headless, and ``HEADLESS=1`` still applies.
-        Note that a headless host may still drive a remote UI, as livestreaming does.
+        True when a windowed visualizer (currently ``--visualizer kit``) was requested, or when
+        livestreaming, which renders a window and forwards input from the remote client. Use this
+        rather than the headless state to decide whether UI-driven features are available:
+        livestreaming runs the host headless yet still presents an interactive window.
         """
-        return self._headless
+        return not self._headless or self._livestream >= 1
 
     """
     Operations.
@@ -887,7 +887,10 @@ class AppLauncher:
             if self._xr_implies_headless:
                 # XR without an explicit '--viz kit': no viewport to click "Start XR" in.
                 if not self._headless:
-                    logger.debug("Forcing headless mode because XR is enabled without an explicit Kit visualizer.")
+                    logger.info(
+                        "XR is enabled without an explicit Kit visualizer, so running headless. "
+                        "Pass '--viz kit' to also open a local viewport."
+                    )
                 self._headless = True
             elif self._cli_visualizer_explicit:
                 # Explicit CLI selection controls headless: only Kit implies non-headless.

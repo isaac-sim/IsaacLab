@@ -1,8 +1,10 @@
 Added
 ^^^^^
 
-* Added :attr:`~isaaclab.app.AppLauncher.headless` so scripts can query whether the app was
-  launched without a Kit window, replacing reads of the ``--headless`` CLI flag removed in 3.0.
+* Added :attr:`~isaaclab.app.AppLauncher.has_window` so scripts can query whether a Kit window
+  exists to render UI and receive input, replacing reads of the ``--headless`` CLI flag removed
+  in 3.0. Unlike the headless state it is ``True`` when livestreaming, which runs the host
+  headless but still presents an interactive window.
 
 Fixed
 ^^^^^

@@ -68,35 +68,47 @@ _XR_KIT = {"xr": True, "visualizer": ["kit"], "visualizer_explicit": True}
 
 
 @pytest.mark.parametrize(
-    "launcher_args, headless_env, livestream, expected_headless",
+    "launcher_args, headless_env, livestream, expected_headless, expected_has_window",
     [
         # XR with no CLI visualizer: headless even though the task config asks for Kit.
-        ({"xr": True}, 0, 0, True),
+        ({"xr": True}, 0, 0, True, False),
         # An explicit '--viz kit' is the only way to get a viewport alongside XR.
-        (_XR_KIT, 0, 0, False),
-        ({"xr": True, "visualizer": ["none"], "visualizer_explicit": True}, 0, 0, True),
-        # ...but an explicit '--viz kit' cannot override a windowless environment. Both of these
-        # run without a window, so the XR session still has to start itself.
-        (_XR_KIT, 1, 0, True),
-        (_XR_KIT, 0, 1, True),
-        # Without XR the task config still decides.
-        ({}, 0, 0, False),
+        (_XR_KIT, 0, 0, False, True),
+        ({"xr": True, "visualizer": ["none"], "visualizer_explicit": True}, 0, 0, True, False),
+        # ...but an explicit '--viz kit' cannot override HEADLESS=1.
+        (_XR_KIT, 1, 0, True, False),
+        # Livestreaming forces headless yet still presents a window to the remote client.
+        (_XR_KIT, 0, 1, True, True),
+        ({}, 0, 1, True, True),
+        # Without XR or livestream the task config still decides.
+        ({}, 0, 0, False, True),
     ],
 )
 def test_xr_auto_start_tracks_resolved_headless(
-    launcher_args: dict, headless_env: int, livestream: int, expected_headless: bool, monkeypatch
+    launcher_args: dict,
+    headless_env: int,
+    livestream: int,
+    expected_headless: bool,
+    expected_has_window: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     """Test that XR runs headless without an explicit Kit visualizer, and auto-starts when it does.
 
     A task config declaring a Kit visualizer must not leave ``--xr`` non-headless, since the XR
-    session auto-starts. Conversely ``HEADLESS=1`` and livestreaming run windowless even when
+    session auto-starts. Conversely ``HEADLESS=1`` and livestreaming run headless even when
     ``--visualizer kit`` was requested, so auto-start must follow the *resolved* headless state
     rather than the visualizer selection alone -- otherwise the session waits forever for a
     "Start XR" click that no window can deliver. Resolution is exercised directly to avoid
     launching Isaac Sim.
+
+    ``has_window`` is asserted alongside because it is deliberately *not* the negation of
+    headless: livestreaming is headless but windowed.
     """
     monkeypatch.setenv("HEADLESS", str(headless_env))
-    launcher = object.__new__(AppLauncher)
+    # XR is read from the environment too, and is routinely exported by people working on this
+    # feature -- pin it so the parametrization is what decides.
+    monkeypatch.delenv("XR", raising=False)
+    launcher = AppLauncher.__new__(AppLauncher)
     launcher._livestream = livestream
     args = {
         "visualizer_intent": {"has_any_visualizers": True, "has_kit_visualizer": True},
@@ -105,9 +117,10 @@ def test_xr_auto_start_tracks_resolved_headless(
 
     launcher._resolve_visualizer_settings(args)
     launcher._resolve_xr_settings(args)
-    launcher._resolve_headless_settings(args, livestream_arg=-1, livestream_env=-1)
+    launcher._resolve_headless_settings(args, livestream_arg=-1, livestream_env=0)
 
     assert launcher._headless is expected_headless
+    assert launcher.has_window is expected_has_window
     # This is the expression published as ``/isaaclab/xr/auto_start``: the session must start
     # itself exactly when XR is on and no window exists to start it from.
     assert (launcher._xr and launcher._headless) is (bool(launcher_args.get("xr")) and expected_headless)
