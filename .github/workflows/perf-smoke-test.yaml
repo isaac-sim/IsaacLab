@@ -729,6 +729,12 @@ jobs:
         # omni-github artifact carries the same verdicts plus per-task diagnostics
         # (FPS, regression, hardware, software, contract hashes) as custom.perf_smoke.* fields.
         SUMMARY_FILE="${{ github.workspace }}/verdict_summary.md"
+        # Never let a nonzero aggregate exit abort this step before the diagnostics
+        # are published: the step runs under `bash -e`, so without this the job
+        # summary (and, historically, everything after it) was skipped on exactly
+        # the runs that most needed explaining. Capture the status, publish, then
+        # re-raise it as the step's own exit code.
+        set +e
         python3 tools/perf_smoke_test/aggregate.py \
           --artifacts_dir artifacts/ \
           --gpu_model "${GPU_MODEL}" \
@@ -745,7 +751,19 @@ jobs:
           --omni_github_dir "${{ github.workspace }}/omni-github-artifact" \
           --omni_platform "${APP_PLATFORM}" \
           --omni_app_config "${GITHUB_JOB}"
-        cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}" || true
+        AGGREGATE_STATUS=$?
+        set -e
+        if [[ -s "${SUMMARY_FILE}" ]]; then
+          cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
+        else
+          {
+            echo "## Performance smoke test"
+            echo
+            echo "The aggregate step exited ${AGGREGATE_STATUS} without writing a verdict summary."
+            echo "This means the gate itself failed to produce a verdict -- check the step log above."
+          } >> "${GITHUB_STEP_SUMMARY}"
+        fi
+        exit "${AGGREGATE_STATUS}"
 
     # Sanity-check the emitted omni-github result before upload so a malformed
     # payload is caught here (with a clear log) rather than silently dropped by
@@ -799,30 +817,40 @@ jobs:
         compression-level: 9
 
     # Aggregate gate signal as a single stable commit status on the PR head. This
-    # is the status maintainers can mark required: it stays green while the gate is
-    # advisory (gate_config.blocking=false, aggregate.py always exits 0), and turns
-    # red once blocking is enabled and the oracle reports a BLOCK/HARD_FAILURE
-    # (which fails the aggregate step above). Distinct from the per-task
-    # `perf-smoke (...)` statuses, which only report whether each benchmark ran.
+    # is the status maintainers can mark required when the gate graduates to
+    # blocking.
+    #
+    # It carries the VERDICT, independently of whether the aggregate job passed:
+    # in advisory mode a BLOCK/HARD_FAILURE paints this status red while the job
+    # stays green, so the signal is visible without an unexplained red check on an
+    # unrelated pull request. If the aggregate step could not produce a verdict at
+    # all, the status reports that rather than silently claiming success.
+    # Distinct from the per-task `perf-smoke (...)` statuses, which only report
+    # whether each benchmark ran.
     # Skipped for fork pull requests; see the per-task status step for why.
     - name: Report aggregate status
       if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
       uses: actions/github-script@v7
       env:
         AGGREGATE_OUTCOME: ${{ steps.aggregate.outcome }}
+        STATUS_STATE: ${{ steps.aggregate.outputs.status_state }}
+        STATUS_DESCRIPTION: ${{ steps.aggregate.outputs.status_description }}
       with:
         script: |
-          const ok = process.env.AGGREGATE_OUTCOME === 'success';
+          // No verdict emitted => the gate malfunctioned; say so instead of
+          // inferring a pass from a missing output.
+          const state = process.env.STATUS_STATE
+            || (process.env.AGGREGATE_OUTCOME === 'success' ? 'success' : 'failure');
+          const description = process.env.STATUS_DESCRIPTION
+            || 'perf-smoke gate did not produce a verdict';
           const statusSha = context.payload.pull_request?.head?.sha || context.sha;
           await github.rest.repos.createCommitStatus({
             owner: context.repo.owner,
             repo: context.repo.repo,
             sha: statusSha,
-            state: ok ? 'success' : 'failure',
+            state,
             context: 'perf-smoke-test',
-            description: ok
-              ? 'perf-smoke verdicts posted (advisory)'
-              : 'perf-smoke gate reported a regression',
+            description: description.slice(0, 140),
           });
 
     # Post the verdict table as a single sticky comment on the PR (updated in place
@@ -856,6 +884,17 @@ jobs:
           } else {
             await github.rest.issues.createComment({ owner, repo, issue_number, body });
           }
+
+    # Fork pull requests get a read-only GITHUB_TOKEN, so the two reporting steps
+    # above cannot post. Without this, an external contributor sees a perf-smoke
+    # job with no verdict anywhere. The job summary is always written (see the
+    # aggregate step), so point at it explicitly instead of leaving them guessing.
+    - name: Explain skipped reporting (fork pull request)
+      if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+      run: |
+        echo "::notice::perf-smoke ran, but this is a fork pull request so GITHUB_TOKEN is read-only:" \
+             "the verdict comment and commit statuses cannot be posted." \
+             "The full verdict table is in this job's summary, and in the uploaded perf-smoke-results artifact."
 
   # ---------------------------------------------------------------------------
   # Baseline update (trusted writes only)

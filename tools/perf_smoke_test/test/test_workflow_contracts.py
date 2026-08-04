@@ -125,3 +125,62 @@ def test_reseed_passes_only_the_credential_the_seeder_declares() -> None:
     passed = gate["jobs"]["reseed"]["secrets"]
 
     assert set(passed) == set(seed[True]["workflow_call"]["secrets"])
+
+
+# --- diagnostics must survive a nonzero aggregate exit ---------------------
+#
+# The aggregate step runs under `bash -e`. Before this was fixed, a nonzero
+# aggregate.py exit aborted the step at the python call, so the job summary was
+# never written -- on precisely the runs that needed explaining. On a fork PR,
+# where the reporting steps are also skipped, that left a red check with no
+# verdict anywhere: not in a comment, not in a status, not in the summary.
+
+
+def _aggregate_run_block() -> str:
+    return _step(_load(_GATE), "aggregate", "Run aggregate oracle")["run"]
+
+
+def test_aggregate_step_does_not_abort_before_publishing_diagnostics() -> None:
+    """`set +e` must wrap the aggregate call so the summary is still written."""
+    run = _aggregate_run_block()
+    call = run.index("aggregate.py")
+    assert "set +e" in run[:call], "aggregate.py must be invoked with errexit disabled"
+    assert "AGGREGATE_STATUS=$?" in run, "the aggregate exit code must be captured, not swallowed"
+
+
+def test_aggregate_step_still_reports_its_exit_code() -> None:
+    """Disabling errexit must not silently turn every aggregate run green."""
+    run = _aggregate_run_block()
+    assert 'exit "${AGGREGATE_STATUS}"' in run, "the captured aggregate exit code must be re-raised"
+    assert run.index("AGGREGATE_STATUS=$?") < run.index('exit "${AGGREGATE_STATUS}"')
+
+
+def test_summary_is_written_on_every_path() -> None:
+    """Both branches (summary produced, or not) must append to the step summary."""
+    run = _aggregate_run_block()
+    assert run.count("GITHUB_STEP_SUMMARY") >= 2, (
+        "the step must write to the job summary whether or not aggregate produced a verdict table"
+    )
+    status_write = run.index("GITHUB_STEP_SUMMARY")
+    assert status_write < run.index('exit "${AGGREGATE_STATUS}"'), "diagnostics must be published before exiting"
+
+
+def test_aggregate_status_reports_the_verdict_not_the_step_outcome() -> None:
+    """The commit status must carry the verdict, so advisory mode still signals."""
+    step = _step(_load(_GATE), "aggregate", "Report aggregate status")
+    env = step.get("env") or {}
+    assert "steps.aggregate.outputs.status_state" in env.get("STATUS_STATE", ""), (
+        "the aggregate commit status must be driven by the emitted verdict"
+    )
+    script = step["with"]["script"]
+    assert "STATUS_STATE" in script and "STATUS_DESCRIPTION" in script
+    # A missing verdict must not be read as success.
+    assert "did not produce a verdict" in script
+
+
+def test_fork_pull_requests_are_told_where_the_verdict_is() -> None:
+    """Fork PRs cannot get a comment or a status, so point them at the summary."""
+    gate = _load(_GATE)
+    step = _step(gate, "aggregate", "Explain skipped reporting (fork pull request)")
+    assert "head.repo.full_name != github.repository" in step["if"]
+    assert "summary" in step["run"].lower()

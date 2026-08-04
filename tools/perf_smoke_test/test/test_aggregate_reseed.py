@@ -176,7 +176,11 @@ def test_reseed_not_flagged_without_valid_measurement(tmp_path, monkeypatch) -> 
         tmp_path, monkeypatch, _bench_result(fps=None, info_present=False), baseline_count=0
     )
 
-    assert exit_code == 2
+    # Advisory mode (the shipped default): the crash is reported through the
+    # verdict outputs, not through the exit code. See test_advisory_exit.py.
+    assert exit_code == 0
+    assert outputs.get("overall_verdict") == "HARD_FAILURE"
+    assert outputs.get("status_state") == "failure"
     assert "reseed_tasks" not in outputs
 
 

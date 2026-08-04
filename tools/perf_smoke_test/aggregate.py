@@ -370,7 +370,10 @@ def _build_summary_markdown(rows: list[tuple], *, blocking: bool) -> str:
     mode = (
         "**Blocking:** BLOCK and HARD FAILURE results fail the check."
         if blocking
-        else "**Advisory:** results are reported for review but do not fail the PR."
+        else (
+            "**Advisory:** this job stays green whatever the verdict. A BLOCK or HARD FAILURE still shows up"
+            " as a red `perf-smoke-test` commit status and in this table -- it just does not fail the PR."
+        )
     )
 
     contexts = {_runtime_context(bench_result) for _, bench_result in rows}
@@ -419,6 +422,86 @@ def _write_github_output(**values) -> None:
         for key, value in values.items():
             if value is not None:
                 fh.write(f"{key}={value}\n")
+
+
+def _verdict_outputs(rows: list[tuple], *, has_block: bool, has_hard_failure: bool, blocking: bool) -> dict[str, str]:
+    """Derive the reported verdict and the `perf-smoke-test` commit status from the rows.
+
+    The verdict is reported through the commit status, the sticky PR comment and
+    the job summary -- never through the process exit code. Emitting it as a step
+    output is what lets the workflow paint the status red on a real regression
+    while the aggregate job itself stays green in advisory mode.
+
+    Args:
+        rows: ``(OracleResult, BenchResult)`` pairs for every scored bucket.
+        has_block: Whether any bucket crossed a blocking threshold.
+        has_hard_failure: Whether any bucket failed to produce a usable measurement,
+            excluding failures already excused as a stale CI image.
+        blocking: The gate's ``blocking`` setting, used only to label the status.
+
+    Returns:
+        The ``overall_verdict`` / ``status_state`` / ``status_description`` /
+        ``blocking`` step outputs.
+    """
+    if has_hard_failure:
+        verdict = OracleVerdict.HARD_FAILURE
+        description = "perf-smoke: a benchmark failed to produce a usable measurement"
+    elif has_block:
+        verdict = OracleVerdict.BLOCK
+        description = "perf-smoke: blocking-level performance regression detected"
+    elif any(result.verdict == OracleVerdict.WARN for result, _ in rows):
+        verdict = OracleVerdict.WARN
+        description = "perf-smoke: results need attention (see the verdict comment)"
+    else:
+        verdict = OracleVerdict.PASS
+        description = "perf-smoke: no meaningful performance regression detected"
+
+    state = "success" if verdict in (OracleVerdict.PASS, OracleVerdict.WARN) else "failure"
+    if not blocking and state == "failure":
+        description += " (advisory)"
+
+    return {
+        "overall_verdict": verdict.value,
+        "status_state": state,
+        "status_description": description,
+        "blocking": "true" if blocking else "false",
+    }
+
+
+def _exit_code(*, baseline_update_failed: bool, has_block: bool, has_hard_failure: bool, blocking: bool) -> int:
+    """Decide the process exit code.
+
+    The exit code answers "did the gate run?", never "what did the gate
+    conclude?". The conclusion travels through the ``perf-smoke-test`` commit
+    status, the sticky PR comment, the job summary and the omni-github artifact.
+
+    In advisory mode (``blocking: false``) every verdict, including
+    HARD_FAILURE, exits 0. A crashed benchmark is still reported loudly -- the
+    commit status goes red and the summary names the bucket that died. What
+    advisory mode buys is that a registry outage or image drift unrelated to the
+    change under test does not paint an unexplained red check on somebody else's
+    pull request.
+
+    Flipping ``blocking: true`` is the deliberate rollout step: HARD_FAILURE
+    then exits 2 and BLOCK exits 1, failing the aggregate job itself.
+
+    Gate malfunctions are the exception and stay fatal in both modes: a failed
+    baseline push here, and (in :func:`main`) no bench artifacts at all or an
+    unreadable baseline branch. Those mean no trustworthy verdict was produced.
+
+    Returns:
+        ``0`` to pass, ``1`` for a gate malfunction or a blocking regression,
+        ``2`` for a blocking execution failure.
+    """
+    if baseline_update_failed:
+        return 1
+    if not blocking:
+        return 0
+    if has_hard_failure:
+        return 2
+    if has_block:
+        return 1
+    return 0
 
 
 def main() -> int:
@@ -626,7 +709,10 @@ def main() -> int:
             app_config=args.omni_app_config,
         )
 
-    output_values = {"baseline_read_sha": baseline_read_sha}
+    output_values = {
+        "baseline_read_sha": baseline_read_sha,
+        **_verdict_outputs(rows, has_block=has_block, has_hard_failure=has_hard_failure, blocking=blocking),
+    }
     if baseline_push_result:
         output_values.update(
             {
@@ -647,17 +733,12 @@ def main() -> int:
         print(f"[aggregate] Under-filled buckets flagged for reseed: {reseed_tasks}")
     _write_github_output(**output_values)
 
-    if baseline_update_failed:
-        return 1
-
-    # Benchmark execution health is never advisory. A crash, missing result, or
-    # invalid benchmark must fail even while FPS regressions are being rolled out
-    # in advisory mode.
-    if has_hard_failure:
-        return 2
-    if blocking and has_block:
-        return 1
-    return 0
+    return _exit_code(
+        baseline_update_failed=baseline_update_failed,
+        has_block=has_block,
+        has_hard_failure=has_hard_failure,
+        blocking=blocking,
+    )
 
 
 if __name__ == "__main__":
