@@ -32,6 +32,55 @@ def _close_rl_games_writer(observer: Any) -> None:
         print(f"[WARNING] rl_games TensorBoard writer cleanup failed: {exc!r}", file=sys.stderr)
 
 
+class _RlGamesTimingObserver:
+    """Record collection and complete epoch durations while delegating observer callbacks."""
+
+    def __init__(self, observer: Any) -> None:
+        self._observer = observer
+        self._iteration_start_s: float | None = None
+        self._collection_recorded = False
+        self.collection_times_s: list[float] = []
+        self.iteration_times_s: list[float] = []
+
+    def __getattr__(self, name: str) -> Any:
+        """Forward observer state such as ``algo`` and ``tracker``."""
+        return getattr(self._observer, name)
+
+    def before_init(self, base_name: str, config: dict, experiment_name: str) -> None:
+        """Delegate pre-initialization."""
+        self._observer.before_init(base_name, config, experiment_name)
+
+    def after_init(self, algo: Any) -> None:
+        """Delegate initialization and start the first epoch timer."""
+        self._observer.after_init(algo)
+        self._iteration_start_s = time.perf_counter()
+
+    def process_infos(self, infos: Any, done_indices: Any) -> None:
+        """Delegate environment information processing."""
+        self._observer.process_infos(infos, done_indices)
+
+    def after_steps(self) -> None:
+        """Record collection time and delegate the rollout boundary."""
+        if self._iteration_start_s is None:
+            raise RuntimeError("RL-Games collection timing started before observer initialization")
+        self.collection_times_s.append(time.perf_counter() - self._iteration_start_s)
+        self._collection_recorded = True
+        self._observer.after_steps()
+
+    def after_clear_stats(self) -> None:
+        """Delegate statistics reset."""
+        self._observer.after_clear_stats()
+
+    def after_print_stats(self, frame: int, epoch_num: int, total_time: float) -> None:
+        """Record complete epoch time and begin timing the next epoch."""
+        if self._iteration_start_s is None or not self._collection_recorded:
+            raise RuntimeError("RL-Games epoch timing completed without a collection boundary")
+        self.iteration_times_s.append(time.perf_counter() - self._iteration_start_s)
+        self._observer.after_print_stats(frame, epoch_num, total_time)
+        self._iteration_start_s = time.perf_counter()
+        self._collection_recorded = False
+
+
 def _parse_args(argv: list[str]):
     """Parse CLI arguments and forward the remaining Hydra preset tokens via ``sys.argv``.
 
@@ -58,7 +107,7 @@ def _parse_args(argv: list[str]):
         parser,
         agent_default="rl_games_cfg_entry_point",
         agent_help="Name of the RL agent configuration entry point.",
-        include_distributed=False,
+        include_distributed=True,
         max_iterations_type=parse_positive_int,
     )
     add_launcher_args(parser)
@@ -98,21 +147,21 @@ def _parse_args(argv: list[str]):
         help="Omit per-iteration series data from the bundle to reduce file size.",
     )
 
+    from isaaclab.benchmark._distributed import add_multigpu_benchmark_args, validate_multigpu_benchmark_args
     from isaaclab.benchmark.entrypoints.early_stop import add_success_cli_args
 
     add_success_cli_args(parser)
-
-    if "--distributed" in argv:
-        parser.error("Distributed training benchmarks are not supported.")
+    add_multigpu_benchmark_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
+    validate_multigpu_benchmark_args(parser, args_cli)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args
 
 
-def run(argv: list[str]) -> BenchmarkResult:
+def run(argv: list[str]) -> BenchmarkResult | None:
     """Run the RL-Games training benchmark and write a :class:`~isaaclab.benchmark.TrainingBundle`.
 
     Args:
@@ -133,6 +182,11 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark._distributed import (
+        DistributedContext,
+        LocalTrainingTiming,
+        aggregate_training_timing,
+    )
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
@@ -185,6 +239,14 @@ def run(argv: list[str]) -> BenchmarkResult:
             if args_cli.max_iterations is not None:
                 agent_cfg["params"]["config"]["max_epochs"] = args_cli.max_iterations
 
+            _common.validate_distributed_device(args_cli)
+            distributed = DistributedContext.from_env(enabled=args_cli.distributed)
+            if distributed.enabled:
+                agent_cfg["params"]["seed"] += distributed.rank
+                agent_cfg["params"]["config"]["device"] = env_cfg.sim.device
+                agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
+                agent_cfg["params"]["config"]["multi_gpu"] = True
+
             env_cfg.seed = agent_cfg["params"]["seed"]
 
             cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
@@ -197,12 +259,16 @@ def run(argv: list[str]) -> BenchmarkResult:
                 output_path=args_cli.output_path,
                 use_recorders=True,
                 frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
-                output_prefix=f"benchmark_training_{args_cli.task}",
+                output_prefix=(
+                    f"benchmark_training_multigpu_{args_cli.task}"
+                    if distributed.enabled
+                    else f"benchmark_training_{args_cli.task}"
+                ),
                 workflow_metadata={
                     "metadata": [
                         {"name": "task", "data": args_cli.task},
                         {"name": "seed", "data": agent_cfg["params"]["seed"]},
-                        {"name": "num_envs", "data": env_cfg.scene.num_envs},
+                        {"name": "num_envs", "data": env_cfg.scene.num_envs * distributed.world_size},
                         {"name": "max_iterations", "data": agent_cfg["params"]["config"].get("max_epochs")},
                         {
                             "name": "environment_step_measurement_mode",
@@ -222,9 +288,10 @@ def run(argv: list[str]) -> BenchmarkResult:
             agent_cfg["params"]["config"]["train_dir"] = log_root_path
             agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
             run_log_dir = os.path.join(log_root_path, log_dir)
-            _common.write_run_manifest(
-                run_log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent}
-            )
+            if distributed.is_main:
+                _common.write_run_manifest(
+                    run_log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent}
+                )
             env_cfg.log_dir = run_log_dir
             _common.apply_video_recording(env_cfg, run_log_dir, args_cli, subdir="benchmark")
 
@@ -251,7 +318,8 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
 
-            observer = RlGamesEarlyStopObserver(IsaacAlgoObserver(), **build_success_kwargs(args_cli))
+            early_stop_observer = RlGamesEarlyStopObserver(IsaacAlgoObserver(), **build_success_kwargs(args_cli))
+            observer = _RlGamesTimingObserver(early_stop_observer)
             cleanup.callback(_close_rl_games_writer, observer)
             runner = Runner(observer)
             runner.load(agent_cfg)
@@ -273,6 +341,37 @@ def run(argv: list[str]) -> BenchmarkResult:
             if writer is not None:
                 writer.flush()
 
+            horizon_length = agent_cfg["params"]["config"].get("horizon_length", 16)
+            local_num_envs = env.unwrapped.num_envs
+            aggregated_timing = None
+            if distributed.enabled:
+                startup = StartupTime(
+                    app_launch=(app_t1 - app_t0) / 1e9,
+                    env_creation=(env_t1 - env_t0) / 1e9,
+                    first_step=(observer.iteration_times_s[0] if observer.iteration_times_s else 0.0),
+                    python_imports=(imports_t1 - imports_t0) / 1e9,
+                    task_config=(config_t1 - config_t0) / 1e9,
+                )
+                aggregated_timing = aggregate_training_timing(
+                    LocalTrainingTiming(
+                        startup_time_s=startup,
+                        iteration_times_s=tuple(observer.iteration_times_s),
+                        collection_times_s=tuple(observer.collection_times_s),
+                        environment_step_times_s=tuple(environment_step_timer.step_times_s),
+                        simulation_step_times_s=(
+                            tuple(environment_step_timer.simulation_step_times_s)
+                            if environment_step_timer.simulation_step_times_s is not None
+                            else None
+                        ),
+                        simulation_step_calls=environment_step_timer.simulation_step_calls,
+                        num_envs=local_num_envs,
+                        steps_per_iteration=local_num_envs * horizon_length,
+                    ),
+                    distributed,
+                )
+                if not distributed.is_main:
+                    return None
+
             desc = RL_LIBRARY_DESCRIPTORS["rl_games"]
             tb_dir = run_log_dir
             log_data = parse_tf_logs(tb_dir, desc.tfevents_pattern)
@@ -284,20 +383,33 @@ def run(argv: list[str]) -> BenchmarkResult:
                     file=sys.stderr,
                 )
 
-            # RL-Games logs FPS directly; iteration time is steps divided by total FPS.
-            horizon_length = agent_cfg["params"]["config"].get("horizon_length", 16)
-            steps_per_iteration = env.unwrapped.num_envs * horizon_length
-            total_fps_series = list(log_data.get("performance/step_inference_rl_update_fps", []))
-            collection_fps_series = list(log_data.get("performance/step_inference_fps", []))
-            iteration_times_s = [steps_per_iteration / f for f in total_fps_series if f > 0]
-
-            startup = StartupTime(
-                app_launch=(app_t1 - app_t0) / 1e9,
-                env_creation=(env_t1 - env_t0) / 1e9,
-                first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
-                python_imports=(imports_t1 - imports_t0) / 1e9,
-                task_config=(config_t1 - config_t0) / 1e9,
-            )
+            if aggregated_timing is not None:
+                iteration_times_s = list(aggregated_timing.iteration_times_s)
+                collection_fps_series = list(aggregated_timing.collection_fps)
+                total_fps_series = list(aggregated_timing.total_fps)
+                startup = aggregated_timing.startup_time_s
+                runtime_num_envs = aggregated_timing.num_envs
+                steps_per_iteration = aggregated_timing.steps_per_iteration
+                environment_step_times_s = aggregated_timing.environment_step_times_s
+                simulation_step_times_s = aggregated_timing.simulation_step_times_s
+                simulation_step_calls = aggregated_timing.simulation_step_calls
+            else:
+                # RL-Games logs FPS directly; iteration time is steps divided by total FPS.
+                runtime_num_envs = local_num_envs
+                steps_per_iteration = runtime_num_envs * horizon_length
+                total_fps_series = list(log_data.get("performance/step_inference_rl_update_fps", []))
+                collection_fps_series = list(log_data.get("performance/step_inference_fps", []))
+                iteration_times_s = [steps_per_iteration / f for f in total_fps_series if f > 0]
+                startup = StartupTime(
+                    app_launch=(app_t1 - app_t0) / 1e9,
+                    env_creation=(env_t1 - env_t0) / 1e9,
+                    first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
+                    python_imports=(imports_t1 - imports_t0) / 1e9,
+                    task_config=(config_t1 - config_t0) / 1e9,
+                )
+                environment_step_times_s = environment_step_timer.step_times_s
+                simulation_step_times_s = environment_step_timer.simulation_step_times_s
+                simulation_step_calls = environment_step_timer.simulation_step_calls
 
             runtime = builders.build_runtime(
                 startup_time_s=startup,
@@ -305,11 +417,11 @@ def run(argv: list[str]) -> BenchmarkResult:
                 collection_fps=collection_fps_series,
                 total_fps=total_fps_series,
                 steps_per_iteration=steps_per_iteration,
-                frames_per_environment_step=env.unwrapped.num_envs,
+                frames_per_environment_step=runtime_num_envs,
                 environment_step_warmup_steps=args_cli.warmup_steps,
-                environment_step_times_s=environment_step_timer.step_times_s,
-                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
-                simulation_step_calls=environment_step_timer.simulation_step_calls,
+                environment_step_times_s=environment_step_times_s,
+                simulation_step_times_s=simulation_step_times_s,
+                simulation_step_calls=simulation_step_calls,
             )
 
             tracker = get_success_tracker(args_cli, observer.tracker, log_data)
@@ -338,12 +450,16 @@ def run(argv: list[str]) -> BenchmarkResult:
                 seed=seed,
                 start_utc=start_utc,
                 end_utc=end_utc,
-                num_envs=env.unwrapped.num_envs,
+                num_envs=runtime_num_envs,
                 max_iterations=agent_cfg["params"]["config"].get("max_epochs"),
             )
 
             checkpoint_path = None
-            video_path = os.path.join(run_log_dir, "videos") if getattr(args_cli, "video", False) else None
+            video_path = (
+                os.path.join(run_log_dir, "videos")
+                if getattr(args_cli, "video", False) and not distributed.enabled
+                else None
+            )
 
             bundle = builders.build_training_bundle(
                 run=run_identity,
@@ -355,6 +471,19 @@ def run(argv: list[str]) -> BenchmarkResult:
                 success_rate=success_rate,
                 checkpoint_path=checkpoint_path,
                 video_path=video_path,
+                extra=(
+                    {
+                        "distributed": True,
+                        "world_size": distributed.world_size,
+                        "local_world_size": distributed.local_world_size,
+                        "num_nodes": distributed.num_nodes,
+                        "num_envs_per_rank": local_num_envs,
+                        "learning_scope": "rank0",
+                        "resource_scope": "rank0_node",
+                    }
+                    if distributed.enabled
+                    else None
+                ),
             )
 
             benchmark.attach_bundle(bundle)

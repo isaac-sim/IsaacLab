@@ -12,6 +12,7 @@ import torch
 
 from isaaclab.benchmark import dispatch
 from isaaclab.benchmark.entrypoints.backends.rl_games import benchmark_play_rl_games as play_rl_games
+from isaaclab.benchmark.entrypoints.backends.rl_games import benchmark_train_rl_games as train_rl_games
 from isaaclab.benchmark.entrypoints.backends.rsl_rl import benchmark_play_rsl_rl as play_rsl_rl
 from isaaclab.benchmark.entrypoints.backends.rsl_rl import benchmark_train_rsl_rl as train_rsl_rl
 from isaaclab.benchmark.entrypoints.backends.sb3 import benchmark_play_sb3 as play_sb3
@@ -80,6 +81,59 @@ def test_rsl_rl_parser_only_accepts_distributed_from_benchmark_launcher():
     args_cli, _remaining, _cli_args = train_rsl_rl._parse_args(
         ["--task", "unused", "--distributed", "--benchmark_multigpu"]
     )
+    assert args_cli.distributed
+    assert args_cli.benchmark_multigpu
+
+
+def test_rl_games_timing_observer_captures_epoch_durations(monkeypatch: pytest.MonkeyPatch):
+    """RL-Games timing should wrap its observer lifecycle without losing callbacks."""
+
+    class FakeObserver:
+        def __init__(self):
+            self.after_steps_calls = 0
+            self.after_print_stats_calls = 0
+
+        def before_init(self, *_args) -> None:
+            pass
+
+        def after_init(self, _algo) -> None:
+            pass
+
+        def process_infos(self, _infos, _done_indices) -> None:
+            pass
+
+        def after_steps(self) -> None:
+            self.after_steps_calls += 1
+
+        def after_clear_stats(self) -> None:
+            pass
+
+        def after_print_stats(self, _frame: int, _epoch_num: int, _total_time: float) -> None:
+            self.after_print_stats_calls += 1
+
+    timestamps = iter([1.0, 2.0, 3.0, 3.0, 4.5, 6.0, 6.0])
+    monkeypatch.setattr(train_rl_games.time, "perf_counter", lambda: next(timestamps))
+    delegated = FakeObserver()
+    observer = train_rl_games._RlGamesTimingObserver(delegated)
+
+    observer.after_init(SimpleNamespace())
+    observer.after_steps()
+    observer.after_print_stats(0, 1, 0.0)
+    observer.after_steps()
+    observer.after_print_stats(0, 2, 0.0)
+
+    assert observer.collection_times_s == [1.0, 1.5]
+    assert observer.iteration_times_s == [2.0, 3.0]
+    assert delegated.after_steps_calls == 2
+    assert delegated.after_print_stats_calls == 2
+
+
+def test_rl_games_parser_only_accepts_distributed_from_benchmark_launcher():
+    """The regular benchmark remains single-process while the private launcher mode is accepted."""
+    with pytest.raises(SystemExit):
+        train_rl_games._parse_args(["--task", "unused", "--distributed"])
+
+    args_cli, _remaining = train_rl_games._parse_args(["--task", "unused", "--distributed", "--benchmark_multigpu"])
     assert args_cli.distributed
     assert args_cli.benchmark_multigpu
 
