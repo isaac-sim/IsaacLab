@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -24,16 +25,14 @@ from isaaclab.utils.configclass import configclass
 import isaaclab_tasks.core.locomotion.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.ant import ANT_CFG  # isort: skip
+from isaaclab_assets.robots.ant import ANT_CFG
 
 
 @configclass
 class AntPhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default: PhysxAutoCfg = physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
@@ -111,7 +110,9 @@ class AntSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=7.5)
+    # the effort is clipped at the gear magnitude, i.e. to a unit action: unbounded joint efforts
+    # drive the solver to NaN
+    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=7.5, clip={".*": (-7.5, 7.5)})
 
 
 @configclass
@@ -201,6 +202,11 @@ class RewardsCfg:
     joint_pos_limits = RewTerm(
         func=mdp.joint_pos_limits_penalty_ratio, weight=-0.1, params={"threshold": 0.99, "gear_ratio": {".*": 15.0}}
     )
+    # (8) Penalty for falling over. The manager scales every term by ``step_dt``, so the weight is
+    #     the -2.0 terminal cost divided by the 1/60 s step, giving a one-off -2.0 on the dying step.
+    terminating = RewTerm(func=mdp.is_terminated, weight=-120.0)
+    # (9) Survival rate metric (logged only, contributes no reward)
+    success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
 @configclass

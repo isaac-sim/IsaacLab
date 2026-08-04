@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
-from isaaclab_newton.physics import NewtonCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.utils.string import resolve_matching_names_values
 
 
 @wp.func
@@ -365,17 +365,12 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.action_scale = self.cfg.action_scale
-        # Resolve the joint gears based on the physics type, since they do not have the same
-        # joint ordering (mirrors the stable LocomotionDirectEnv). The warp frontend is Newton-only.
-        if isinstance(self.cfg.joint_gears, dict):
-            if isinstance(self.cfg.sim.physics, NewtonCfg):
-                joint_gears = self.cfg.joint_gears["newton"]
-            else:
-                raise ValueError(
-                    f"Warp frontend supports Newton physics only; got {type(self.cfg.sim.physics).__name__}"
-                )
-        else:
-            joint_gears = self.cfg.joint_gears
+        # resolve the gears by joint name, since the joint ordering differs across physics backends
+        # (mirrors the stable LocomotionDirectEnv)
+        joint_gears = [0.0] * self.robot.num_joints
+        joint_ids, _, gears = resolve_matching_names_values(self.cfg.joint_gears, self.robot.joint_names)
+        for joint_id, gear in zip(joint_ids, gears):
+            joint_gears[joint_id] = gear
         self.joint_gears = wp.array(joint_gears, dtype=wp.float32, device=self.sim.device)
         self.motor_effort_ratio = wp.ones_like(self.joint_gears, device=self.sim.device)
         self._joint_dof_idx, _ = self.robot.find_joints(".*")
@@ -387,6 +382,18 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         self.root_pose_w = self.robot.data.root_pose_w.warp
         self.root_vel_w = self.robot.data.root_vel_w.warp
         self.soft_joint_pos_limits = self.robot.data.soft_joint_pos_limits.warp
+
+        # The observation kernel writes a fixed proprioceptive layout and has no feet-wrench block,
+        # unlike the stable LocomotionDirectEnv it mirrors. Fail loudly rather than silently leaving
+        # the tail of the buffer zeroed if the shared config expects the richer observation.
+        expected_observation_space = 12 + 3 * self.robot.num_joints
+        if self.cfg.observation_space != expected_observation_space:
+            raise ValueError(
+                f"The warp locomotion frontend produces {expected_observation_space} observations, but"
+                f" {type(self.cfg).__name__} declares observation_space={self.cfg.observation_space}. The warp"
+                " frontend has not been ported to the feet-wrench observations and step_dt-scaled rewards used"
+                " by the stable direct and manager-based locomotion tasks."
+            )
 
         # Buffers
         self.observations = wp.zeros(
