@@ -184,3 +184,29 @@ def test_fork_pull_requests_are_told_where_the_verdict_is() -> None:
     step = _step(gate, "aggregate", "Explain skipped reporting (fork pull request)")
     assert "head.repo.full_name != github.repository" in step["if"]
     assert "summary" in step["run"].lower()
+
+
+# --- protected-branch runs must not cancel each other ----------------------
+#
+# The push run is the only thing that appends to perf-baselines. develop lands
+# ~10 commits a day (median gap ~45 min) against a perf run that takes over an
+# hour, so a shared concurrency group cancelled the majority of baseline runs
+# and the window could never reach MIN_BASELINE_SAMPLES.
+
+
+def test_push_runs_are_not_cancelled_by_the_next_push() -> None:
+    concurrency = _load(_GATE)["concurrency"]
+    assert "github.sha" in concurrency["group"], (
+        "protected-branch pushes must get a per-commit concurrency group, "
+        "otherwise the next merge cancels the run that publishes baselines"
+    )
+    assert "github.ref" not in concurrency["group"]
+
+
+def test_pull_request_runs_still_supersede_each_other() -> None:
+    """Cancelling a stale PR run is the useful half of cancel-in-progress."""
+    concurrency = _load(_GATE)["concurrency"]
+    cancel = str(concurrency["cancel-in-progress"])
+    assert "pull_request" in cancel, "cancel-in-progress must remain enabled for pull requests"
+    assert cancel.strip() != "true", "cancel-in-progress must not apply unconditionally to pushes"
+    assert "github.event.pull_request.number" in concurrency["group"]

@@ -41,9 +41,16 @@ on:
     branches: [main, develop, 'release/**']
   workflow_dispatch:
 
+# Supersede an outdated run for the same pull request, but never cancel a
+# protected-branch push: that run is the only thing that appends to
+# perf-baselines, and develop lands ~10 commits a day with a median gap of about
+# 45 minutes. Sharing one group across pushes cancelled the majority of baseline
+# runs before they could publish, so the window could never reach
+# MIN_BASELINE_SAMPLES and every bucket stayed stuck on NO_BASELINE /
+# INSUFFICIENT_WINDOW. Keying pushes by SHA gives each commit its own group.
 concurrency:
-  group: perf-smoke-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: perf-smoke-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Read-only by default. A same-repo PR runs its own checked-out Python on the
 # host, so write scopes are granted per job and only where a job actually calls
