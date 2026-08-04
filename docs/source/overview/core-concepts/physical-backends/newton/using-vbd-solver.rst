@@ -272,7 +272,7 @@ The core Franka soft-body task demonstrates the proxy configuration:
 .. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
     :language: python
     :start-at: newton_mjwarp_vbd_proxy: NewtonCfg
-    :end-before: isaacsim_physx: PhysxCfg = PhysxCfg()
+    :end-before: isaacsim_physx: PhysxCfg = PhysxCfg(
     :dedent: 4
 
 What the selectors do:

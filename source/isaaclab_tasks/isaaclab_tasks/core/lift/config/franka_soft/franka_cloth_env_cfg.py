@@ -10,9 +10,6 @@ from __future__ import annotations
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
-from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
-from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -91,8 +88,6 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
     )
 
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
-
     default = newton_mjwarp_vbd_proxy
 
 
@@ -116,28 +111,6 @@ class DeformableCfg(PresetCfg):
                 tri_kd=1e-3,
                 edge_ke=2.0,
                 edge_kd=1e-3,
-            ),
-        ),
-    )
-
-    ovphysx: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Deformable",
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.2)),
-        spawn=sim_utils.MeshRectangleCfg(
-            size=(0.2, 0.2),
-            resolution=(30, 30),
-            deformable_props=PhysxDeformableBodyPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
-            physics_material=PhysxSurfaceDeformableBodyMaterialCfg(
-                density=50.0,
-                youngs_modulus=2000.0,
-                poissons_ratio=0.25,
-                surface_thickness=0.005,
-                surface_stretch_stiffness=0.8,
-                surface_shear_stiffness=0.7,
-                surface_bend_stiffness=0.6,
-                elasticity_damping=0.03,
-                bend_damping=0.04,
             ),
         ),
     )
@@ -182,8 +155,6 @@ class FrankaClothScenePresetCfg(PresetCfg):
         num_envs=128, env_spacing=2.5, replicate_physics=True
     )
 
-    ovphysx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
-
     default = newton_mjwarp_vbd_proxy
 
 
@@ -219,16 +190,6 @@ class CurriculumCfg:
 
 
 @configclass
-class CurriculumPresetCfg(PresetCfg):
-    """Preset config for Franka cloth curricula."""
-
-    newton_mjwarp_vbd_proxy: CurriculumCfg = CurriculumCfg()
-    ovphysx: CurriculumCfg = CurriculumCfg().replace(gravity=None)
-
-    default = newton_mjwarp_vbd_proxy
-
-
-@configclass
 class FrankaClothEventCfg(FrankaSoftEventCfg):
     """Reset and startup events for the Franka cloth environment."""
 
@@ -257,24 +218,6 @@ class FrankaClothEventCfg(FrankaSoftEventCfg):
     )
 
 
-def _make_ovphysx_event_cfg() -> FrankaClothEventCfg:
-    """Create cloth events that select all robot shapes on OvPhysX."""
-    cfg = FrankaClothEventCfg()
-    cfg.robot_physics_material.params["asset_cfg"] = SceneEntityCfg("robot")
-    cfg.variable_gravity = None
-    return cfg
-
-
-@configclass
-class EventPresetCfg(PresetCfg):
-    """Preset config for Franka cloth startup and reset events."""
-
-    newton_mjwarp_vbd_proxy: FrankaClothEventCfg = FrankaClothEventCfg()
-    ovphysx: FrankaClothEventCfg = _make_ovphysx_event_cfg()
-
-    default = newton_mjwarp_vbd_proxy
-
-
 ##
 # Environment configuration
 ##
@@ -285,8 +228,8 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a surface deformable."""
 
     scene: FrankaClothScenePresetCfg = FrankaClothScenePresetCfg()
-    events: EventPresetCfg = EventPresetCfg()
-    curriculum: CurriculumPresetCfg = CurriculumPresetCfg()
+    events: FrankaClothEventCfg = FrankaClothEventCfg()
+    curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self) -> None:
         super().__post_init__()

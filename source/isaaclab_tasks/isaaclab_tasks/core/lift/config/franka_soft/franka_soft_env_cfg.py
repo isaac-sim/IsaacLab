@@ -14,7 +14,6 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
@@ -137,8 +136,6 @@ class DeformableCfg(PresetCfg):
     )
     isaacsim_physx = physx
 
-    ovphysx: DeformableObjectCfg = physx
-
     default = newton_mjwarp_vbd_proxy
 
 
@@ -187,8 +184,8 @@ class PhysicsCfg(PresetCfg):
         friction_offset_threshold=0.005,
         friction_correlation_distance=0.01,
     )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
     default = newton_mjwarp_vbd_proxy
 
@@ -556,32 +553,6 @@ class CurriculumCfg:
 
 
 @configclass
-class EventPresetCfg(PresetCfg):
-    """Backend presets for soft-lift events. Ovphysx does not support variable gravity, so the event is disabled."""
-
-    newton_mjwarp_vbd_proxy: EventCfg = EventCfg()
-    physx: EventCfg = EventCfg()
-    isaacsim_physx: EventCfg = EventCfg()
-    ovphysx: EventCfg = EventCfg()
-    ovphysx.variable_gravity = None
-
-    default = newton_mjwarp_vbd_proxy
-
-
-@configclass
-class CurriculumPresetCfg(PresetCfg):
-    """Backend presets that omit OVPhysX gravity scheduling."""
-
-    newton_mjwarp_vbd_proxy: CurriculumCfg = CurriculumCfg()
-    physx: CurriculumCfg = CurriculumCfg()
-    isaacsim_physx: CurriculumCfg = CurriculumCfg()
-    ovphysx: CurriculumCfg = CurriculumCfg()
-    ovphysx.gravity = None
-
-    default = newton_mjwarp_vbd_proxy
-
-
-@configclass
 class TerminationsCfg:
     """Time out + workspace bounds termination."""
 
@@ -623,8 +594,6 @@ class FrankaSoftSceneCfg(PresetCfg):
     physx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
     isaacsim_physx = physx
 
-    ovphysx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
-
     default = newton_mjwarp_vbd_proxy
 
 
@@ -653,8 +622,8 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventPresetCfg = EventPresetCfg()
-    curriculum: CurriculumPresetCfg = CurriculumPresetCfg()
+    events: EventCfg = EventCfg()
+    curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self) -> None:
         # general settings

@@ -14,3 +14,9 @@ Changed
   ``franka_soft``. Update log and checkpoint paths that refer to ``logs/rsl_rl/franka_deformable``.
 * Re-tuned the robot, scenes, contact handling, control rate, and ``rsl_rl`` configuration for stable
   gravity-based training across the supported physics backends.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the unsupported ``ovphysx`` preset from the Franka soft-beam and cloth lift
+  environments. Use ``isaacsim_physx`` for the soft-beam task or ``newton_mjwarp_vbd_proxy`` for either task.
