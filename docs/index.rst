@@ -90,6 +90,7 @@ Table of Contents
    source/setup/ecosystem
    source/setup/installation/index
    source/setup/environments
+   source/setup/quickstart
    source/refs/reference_architecture/index
 
 
@@ -98,7 +99,6 @@ Table of Contents
    :caption: Getting Started
    :titlesonly:
 
-   source/setup/quickstart
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
