@@ -483,20 +483,29 @@ def test_manager_passes_explicit_cooked_collider_cache_dir(monkeypatch, tmp_path
         def __init__(self, *, active_cuda_gpus=None, config=None):
             self.config = config
 
-    for physx_cls in (LegacyCudaPhysX, LegacyIndexPhysX):
+    def via_override(config):
+        return config.carbonite_overrides["/UJITSO/datastore/localCachePath"]
+
+    def via_typed_field(config):
+        return config.cooked_collider_cache_dir
+
+    # The route follows what ``PhysXConfig`` accepts, not which PhysX API is in play -- hence the
+    # last row, a current-style PhysX whose config predates the typed field.
+    runtimes = [
+        (LegacyCudaPhysX, legacy_config, via_override),
+        (LegacyIndexPhysX, legacy_config, via_override),
+        (CurrentPhysX, current_config, via_typed_field),
+        (CurrentPhysX, legacy_config, via_override),
+    ]
+    for physx_cls, config_factory, resolve in runtimes:
         for device in ("gpu", "cpu"):
             runtime = SimpleNamespace(
                 PhysX=physx_cls,
-                PhysXConfig=legacy_config,
+                PhysXConfig=config_factory,
                 ConfigInt32=SimpleNamespace(NUM_THREADS="num_threads"),
             )
             physx = OvPhysxManager._create_physx_instance(runtime, device, 0)
-            assert physx.config.carbonite_overrides["/UJITSO/datastore/localCachePath"] == expected
-
-    for device in ("gpu", "cpu"):
-        runtime = SimpleNamespace(PhysX=CurrentPhysX, PhysXConfig=current_config)
-        physx = OvPhysxManager._create_physx_instance(runtime, device, 0)
-        assert physx.config.cooked_collider_cache_dir == expected
+            assert resolve(physx.config) == expected
 
 
 def test_manager_serializes_env0_only_stage_in_memory(caplog):

@@ -990,6 +990,28 @@ class OvPhysxManager(PhysicsManager):
         return cache_dir
 
     @staticmethod
+    def _apply_cooked_collider_cache_dir(ovphysx: Any, config_kwargs: dict[str, Any]) -> None:
+        """Point the UJITSO cache at the user cache directory in ``config_kwargs``.
+
+        The declared runtime's ``PhysXConfig`` predates ``cooked_collider_cache_dir`` and takes
+        the location through the generic override, while the current runtime rejects that key as
+        conflicting with the typed field. The accepted route is selected per runtime.
+
+        Args:
+            ovphysx: Imported OVPhysX runtime module.
+            config_kwargs: ``PhysXConfig`` keyword arguments, updated in place.
+        """
+        try:
+            config_parameters = inspect.signature(ovphysx.PhysXConfig).parameters
+        except (TypeError, ValueError):
+            config_parameters = {}
+        cache_dir = OvPhysxManager._cooked_collider_cache_dir()
+        if "cooked_collider_cache_dir" in config_parameters:
+            config_kwargs["cooked_collider_cache_dir"] = cache_dir
+        else:
+            config_kwargs.setdefault("carbonite_overrides", {})["/UJITSO/datastore/localCachePath"] = cache_dir
+
+    @staticmethod
     def _create_physx_instance(ovphysx: Any, ovphysx_device: str, gpu_index: int) -> Any:
         """Create a PhysX instance for the declared or current OVPhysX runtime API.
 
@@ -1017,13 +1039,9 @@ class OvPhysxManager(PhysicsManager):
             )
         if hasattr(ovphysx.PhysX, "set_cpu_mode"):
             ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
-            physx_kwargs = {
-                "config": ovphysx.PhysXConfig(
-                    num_threads=8,
-                    cooked_collider_cache_dir=OvPhysxManager._cooked_collider_cache_dir(),
-                    carbonite_overrides=carbonite_overrides,
-                ),
-            }
+            config_kwargs: dict[str, Any] = {"num_threads": 8, "carbonite_overrides": carbonite_overrides}
+            OvPhysxManager._apply_cooked_collider_cache_dir(ovphysx, config_kwargs)
+            physx_kwargs = {"config": ovphysx.PhysXConfig(**config_kwargs)}
             if ovphysx_device == "gpu":
                 physx_kwargs["active_cuda_gpus"] = str(gpu_index)
             return ovphysx.PhysX(**physx_kwargs)
@@ -1034,18 +1052,17 @@ class OvPhysxManager(PhysicsManager):
         except (TypeError, ValueError):
             # C-extension constructors may not expose a Python-visible signature
             physx_parameters = {}
-        # The declared runtime's PhysXConfig predates ``cooked_collider_cache_dir``, so the cache
-        # path goes through the generic override here rather than the typed field used above.
-        legacy_overrides: dict[str, bool | int | float | str] = {
-            "/UJITSO/datastore/localCachePath": OvPhysxManager._cooked_collider_cache_dir(),
-        }
+        legacy_config_kwargs: dict[str, Any] = {}
         if "active_cuda_gpus" in physx_parameters and ovphysx_device == "gpu":
             physx_kwargs["active_cuda_gpus"] = str(gpu_index)
-            legacy_overrides["/physics/suppressReadback"] = True
-            legacy_overrides["/physics/suppressFabricUpdate"] = True
+            legacy_config_kwargs["carbonite_overrides"] = {
+                "/physics/suppressReadback": True,
+                "/physics/suppressFabricUpdate": True,
+            }
         elif "gpu_index" in physx_parameters:
             physx_kwargs["gpu_index"] = gpu_index
-        physx_kwargs["config"] = ovphysx.PhysXConfig(carbonite_overrides=legacy_overrides)
+        OvPhysxManager._apply_cooked_collider_cache_dir(ovphysx, legacy_config_kwargs)
+        physx_kwargs["config"] = ovphysx.PhysXConfig(**legacy_config_kwargs)
 
         physx = ovphysx.PhysX(**physx_kwargs)
         if hasattr(physx, "set_setting"):
