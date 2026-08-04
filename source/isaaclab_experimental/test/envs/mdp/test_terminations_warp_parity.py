@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 import torch
@@ -33,11 +35,13 @@ from parity_helpers import (
     MockCommandTerm,
     MockContactSensor,
     MockContactSensorData,
+    MockPoseCommandManager,
     MockScene,
     MockSceneEntityCfg,
     MockSensorCfg,
     MockTerminationManager,
     assert_equal,
+    make_pose_command_term,
     mutate_art_data,
     mutate_body_data,
     run_warp_term,
@@ -266,6 +270,37 @@ class TestTerminationParityNewTerms:
         )
         assert_equal(actual, expected)
         assert_equal(actual_cap, expected)
+
+
+class TestPoseCommandSuccessParity:
+    """The warp twin recomputes the pose error in a kernel, so it is checked against the
+    stable term for every threshold combination — a frame or quaternion-convention slip
+    would otherwise resolve cleanly and silently train against a different MDP."""
+
+    @pytest.mark.parametrize(
+        ("position_threshold", "orientation_threshold"),
+        [(0.5, 1.0), (0.5, None), (None, 1.0), (None, None)],
+        ids=["both", "position_only", "orientation_only", "neither"],
+    )
+    def test_pose_command_success(self, scene_bodies, position_threshold, orientation_threshold):
+        command = make_pose_command_term(
+            scene_bodies["robot"],
+            position_success_threshold=position_threshold,
+            orientation_success_threshold=orientation_threshold,
+        )
+        env = SimpleNamespace(
+            scene=scene_bodies,
+            command_manager=MockPoseCommandManager(command),
+            num_envs=NUM_ENVS,
+            device=DEVICE,
+        )
+        expected = stable_term.pose_command_success(env, command_name="ee_pose")
+        # a degenerate all-False expectation would pass against almost any kernel
+        if position_threshold is not None or orientation_threshold is not None:
+            assert expected.any(), "thresholds produced no successes; the comparison would be vacuous"
+
+        assert_equal(run_warp_term(warp_term.pose_command_success, env, command_name="ee_pose"), expected)
+        assert_equal(run_warp_term_captured(warp_term.pose_command_success, env, command_name="ee_pose"), expected)
 
 
 # ============================================================================

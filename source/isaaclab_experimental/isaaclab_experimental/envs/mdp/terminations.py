@@ -49,6 +49,81 @@ def time_out(env: ManagerBasedRLEnv, out) -> None:
     )
 
 
+@wp.kernel
+def _pose_command_success_kernel(
+    root_pos_w: wp.array(dtype=wp.vec3f),
+    root_quat_w: wp.array(dtype=wp.quatf),
+    body_pos_w: wp.array(dtype=wp.vec3f, ndim=2),
+    body_quat_w: wp.array(dtype=wp.quatf, ndim=2),
+    cmd: wp.array(dtype=wp.float32, ndim=2),
+    body_idx: int,
+    position_threshold: float,
+    orientation_threshold: float,
+    out: wp.array(dtype=wp.bool),
+):
+    """Flag envs whose body pose is within every configured threshold. A negative threshold is unset."""
+    i = wp.tid()
+    success = bool(True)
+    if position_threshold >= 0.0:
+        des_b = wp.vec3f(cmd[i, 0], cmd[i, 1], cmd[i, 2])
+        des_w = root_pos_w[i] + wp.quat_rotate(root_quat_w[i], des_b)
+        cur_w = body_pos_w[i, body_idx]
+        dx = cur_w[0] - des_w[0]
+        dy = cur_w[1] - des_w[1]
+        dz = cur_w[2] - des_w[2]
+        if wp.sqrt(dx * dx + dy * dy + dz * dz) >= position_threshold:
+            success = False
+    if orientation_threshold >= 0.0:
+        des_q_b = wp.quatf(cmd[i, 3], cmd[i, 4], cmd[i, 5], cmd[i, 6])
+        des_q_w = root_quat_w[i] * des_q_b
+        q_err = wp.quat_inverse(body_quat_w[i, body_idx]) * des_q_w
+        if 2.0 * wp.acos(wp.clamp(wp.abs(q_err[3]), 0.0, 1.0)) >= orientation_threshold:
+            success = False
+    out[i] = success
+
+
+def pose_command_success(env: ManagerBasedRLEnv, out, command_name: str) -> None:
+    """Terminate environments whose pose command satisfies all configured success thresholds.
+
+    Warp-first override of :func:`isaaclab.envs.mdp.terminations.pose_command_success`.
+
+    Note:
+        The stable term also ORs the result into the command's per-episode success tracker. That
+        tracker is already maintained by ``UniformPoseCommand._update_metrics`` on every step, so
+        recomputing the thresholds here keeps ``Metrics/success_rate`` intact.
+    """
+    fn = pose_command_success
+    command = env.command_manager.get_term(command_name)
+    position_threshold = command.cfg.position_success_threshold
+    orientation_threshold = command.cfg.orientation_success_threshold
+    # matches the stable term: with no threshold configured, no env ever succeeds
+    if position_threshold is None and orientation_threshold is None:
+        out.zero_()
+        return
+    # cache the warp view of the command tensor on first call (zero-copy)
+    if not hasattr(fn, "_cmd_wp") or fn._cmd_name != command_name:
+        cmd = env.command_manager.get_command(command_name)
+        fn._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
+        fn._cmd_name = command_name
+    asset: Articulation = command.robot
+    wp.launch(
+        kernel=_pose_command_success_kernel,
+        dim=env.num_envs,
+        inputs=[
+            asset.data.root_pos_w.warp,
+            asset.data.root_quat_w.warp,
+            asset.data.body_pos_w.warp,
+            asset.data.body_quat_w.warp,
+            fn._cmd_wp,
+            command.body_idx,
+            -1.0 if position_threshold is None else position_threshold,
+            -1.0 if orientation_threshold is None else orientation_threshold,
+            out,
+        ],
+        device=env.device,
+    )
+
+
 """
 Root terminations.
 """
