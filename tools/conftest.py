@@ -23,6 +23,13 @@ from isaaclab.test.utils import resolve_test_sim_device
 # Local imports
 import test_settings as test_settings  # isort: skip
 from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
+from _kit_batching import (  # isort: skip
+    BATCH_TIMEOUT_CUTOFF,
+    batch_size,
+    batching_enabled,
+    group_test_files,
+    split_batch_status,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -1079,6 +1086,111 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
     return failed_tests, test_status, xml_reports
 
 
+def _batching_exclusions(test_files, test_node_ids_by_file, sources):
+    """Files that must keep a process to themselves even when batching is on.
+
+    Batching only changes how files are grouped, so anything whose current behaviour depends
+    on process isolation, on its own timeout, or on being invoked more than once is left on
+    the per-file path.
+    """
+    excluded = set()
+    for path in test_files:
+        name = os.path.basename(path)
+        source = sources.get(path, "")
+        if name in PROCESS_FAILURE_RETRIES_BY_FILE:
+            excluded.add(path)  # retried in a fresh process after stale render state
+        elif os.path.normpath(path) in test_node_ids_by_file:
+            excluded.add(path)  # node-ID selection is expressed per file
+        elif is_device_split_file(path, source=source):
+            excluded.add(path)  # already invoked once per device with different -k
+        elif test_settings.PER_TEST_TIMEOUTS.get(name, 0) >= BATCH_TIMEOUT_CUTOFF:
+            excluded.add(path)  # a batch timeout is the sum of its members'
+        elif name in getattr(test_settings, "NEVER_BATCH", ()):
+            excluded.add(path)
+    return excluded
+
+
+def run_batched_tests(batches, workspace_root, ci_marker, cold_cache_applied=False):
+    """Run each batch as a single pytest invocation and split the results per file.
+
+    Args:
+        batches: Batches to run; each must contain more than one file.
+        workspace_root: Repository root, passed to pytest's ``--config-file``.
+        ci_marker: Optional marker expression applied to every invocation.
+        cold_cache_applied: Whether the cold-shader-cache buffer was already granted.
+
+    Returns:
+        A 4-tuple ``(failed_tests, test_status, xml_reports, leftovers)``. ``leftovers`` are
+        files the batch never reached because the shared process died; the caller re-runs
+        them on the per-file path, which is the floor this can degrade to.
+    """
+    failed_tests, test_status, xml_reports, leftovers = [], {}, [], []
+    global_k_expr = os.environ.get("TEST_K_EXPR", "").strip() or None
+
+    for batch in batches:
+        logger.info(f"\n\n🚀 Running {len(batch.files)} '{batch.profile}' files in one Kit process...\n")
+        for path in batch.files:
+            logger.info(f"    {path}")
+
+        env = os.environ.copy()
+        env["PYTHONFAULTHANDLER"] = "1"
+
+        # A batch's budget is the sum of its members', so no file gets less time than it
+        # would have had alone.
+        timeout = sum(
+            test_settings.PER_TEST_TIMEOUTS.get(os.path.basename(p), test_settings.DEFAULT_TIMEOUT) for p in batch.files
+        )
+        is_cold_cache = not cold_cache_applied and batch.profile == "kit_cameras"
+        if is_cold_cache:
+            timeout += COLD_CACHE_BUFFER
+            cold_cache_applied = True
+            logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
+        startup_deadline = min(timeout, STARTUP_DEADLINE + (COLD_CACHE_BUFFER if is_cold_cache else 0))
+
+        ctx = _PassContext(
+            test_file=batch.label,
+            file_name=batch.label,
+            workspace_root=workspace_root,
+            ci_marker=ci_marker,
+            timeout=timeout,
+            startup_deadline=startup_deadline,
+            env=env,
+            inject_shard_select=False,
+            pytest_targets=list(batch.files),
+        )
+
+        report, status, _ = _run_one_pass(ctx, k_expr=global_k_expr, suffix="")
+        if report is not None:
+            xml_reports.append(report)
+
+        if report is None:
+            # Nothing landed, so nothing can be attributed; hand the whole batch back.
+            logger.warning(f"⚠️  batch {batch.label} produced no report; re-running its files individually")
+            leftovers.extend(batch.files)
+            continue
+
+        per_file = split_batch_status(
+            report, batch.files, wall_time=status.get("wall_time", 0.0), batch_result=status.get("result", "CRASHED")
+        )
+        unreached = []
+        for path, file_status in per_file.items():
+            if file_status["result"] in ("CRASHED", "TIMEOUT", "STARTUP_HANG"):
+                unreached.append(path)
+                continue
+            test_status[path] = file_status
+            if file_status["result"] == "FAILED":
+                failed_tests.append(path)
+
+        if unreached:
+            logger.warning(
+                f"⚠️  batch {batch.label} ended at {unreached[0]} ({status.get('result')});"
+                f" re-running {len(unreached)} remaining file(s) individually"
+            )
+            leftovers.extend(unreached)
+
+    return failed_tests, test_status, xml_reports, leftovers
+
+
 def _collect_test_files(
     source_dirs,
     filter_pattern,
@@ -1367,9 +1479,46 @@ def pytest_sessionstart(session):
     # vars are set; falls back to "isaacsim_ci" when only ISAACSIM_CI_SHORT
     # is set. The pytest -m flag only accepts one expression.
     effective_marker = ci_marker or ("isaacsim_ci" if isaacsim_ci else "")
+
+    # Files migrated to launch_kit() share one Kit app when they land in the same process, so
+    # group them and pay startup once per group instead of once per file. Off unless
+    # ISAACLAB_TEST_BATCH_KIT is set, and disabled under the work queue, which hands out files
+    # one at a time across containers and so cannot offer coherent groups.
+    batched_files, batch_results = [], ([], {}, [])
+    if batching_enabled() and not os.environ.get("ISAACLAB_TEST_QUEUE"):
+        sources = {}
+        for path in test_files:
+            try:
+                with open(path) as fh:
+                    sources[path] = fh.read()
+            except OSError:
+                pass  # left out of `sources`, which group_test_files treats as unbatchable
+        batches = group_test_files(
+            test_files,
+            sources,
+            unbatchable=_batching_exclusions(test_files, test_node_ids_by_file, sources),
+            max_size=batch_size(),
+        )
+        multi = [b for b in batches if b.is_batched]
+        if multi:
+            batched_files = [f for b in multi for f in b.files]
+            logger.info(
+                f"⚡ Kit batching: {len(batched_files)} of {len(test_files)} files grouped into"
+                f" {len(multi)} process(es); the rest run individually"
+            )
+            failed, status, reports, leftovers = run_batched_tests(multi, workspace_root, effective_marker)
+            batch_results = (failed, status, reports)
+            # Files a batch never reached fall back to the per-file path, so batching can
+            # never do worse than the behaviour it replaces.
+            batched_files = [f for f in batched_files if f not in leftovers]
+
+    remaining = [f for f in test_files if f not in batched_files]
     failed_tests, test_status, xml_reports = run_individual_tests(
-        test_files, workspace_root, effective_marker, test_node_ids_by_file
+        remaining, workspace_root, effective_marker, test_node_ids_by_file
     )
+    failed_tests = batch_results[0] + failed_tests
+    test_status = {**batch_results[1], **test_status}
+    xml_reports = batch_results[2] + xml_reports
 
     # In work-queue mode this container ran only the files it claimed; report on those.
     if os.environ.get("ISAACLAB_TEST_QUEUE"):
