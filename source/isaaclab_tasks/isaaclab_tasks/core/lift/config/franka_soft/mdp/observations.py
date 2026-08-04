@@ -15,8 +15,6 @@ import torch
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.math import subtract_frame_transforms
 
-from .utils import _com_w, _finite
-
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, DeformableObject
     from isaaclab.envs import ManagerBasedRLEnv
@@ -38,7 +36,7 @@ def deformable_com_in_robot_root_frame(
     """
     asset: DeformableObject = env.scene[asset_cfg.name]
     robot: Articulation = env.scene[robot_cfg.name]
-    com_w = _com_w(asset)
+    com_w = asset.data.root_pos_w.torch
     com_b, _ = subtract_frame_transforms(robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, com_w)
     return com_b
 
@@ -105,7 +103,6 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
 
         nodal_pos_w = asset.data.nodal_pos_w.torch
         sampled_points_w = nodal_pos_w.gather(1, self.node_ids.unsqueeze(-1).expand(-1, -1, 3))
-        sampled_points_w = _finite(sampled_points_w)
 
         flat_sampled_points_w = sampled_points_w.reshape(-1, 3)
         root_pos_w = robot.data.root_pos_w.torch.unsqueeze(1).expand(-1, num_points, -1)
