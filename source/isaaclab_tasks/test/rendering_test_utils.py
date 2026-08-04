@@ -1810,12 +1810,12 @@ def rendering_test_franka_cloth(
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
-        # Step once for other AOVs and twice for motion vectors so the cloth falls uniformly without hitting the cube.
+        # Step twice only for Isaac RTX motion vectors so the cloth falls uniformly without hitting the cube.
         # This is to limit the inconsistent nodal poses and pixels from run to run due to solver scheduling and
         # numerical precision.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         env.step(zero_actions)
-        if data_type == "motion_vectors":
+        if renderer == "isaacsim_rtx_renderer" and data_type == "motion_vectors":
             env.step(zero_actions)
 
         validate_camera_outputs(
