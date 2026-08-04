@@ -146,9 +146,25 @@ def test_broken_imports_are_not_mistaken_for_rejected_presets() -> None:
     # the CLI then blames the operator's filters for the empty row set.
     assert ImportError in discover._INFRASTRUCTURE_ERRORS
     assert AttributeError in discover._INFRASTRUCTURE_ERRORS
+    # Calling the validator with the wrong argument type raises TypeError. That
+    # silently dropped every OvPhysX mode from discovery, which reads as a
+    # smaller matrix rather than as a failure.
+    assert TypeError in discover._INFRASTRUCTURE_ERRORS
     # A rejected preset combination raises these; they must stay swallowed.
     assert ValueError not in discover._INFRASTRUCTURE_ERRORS
     assert RuntimeError not in discover._INFRASTRUCTURE_ERRORS
+
+
+def test_runtime_validation_receives_kit_sources_not_parsed_args() -> None:
+    # _validate_runtime(scan, kit_sources) treats a truthy second argument as
+    # "Kit is in this process", so passing the argparse Namespace made every
+    # OvPhysX mode look like the illegal OvPhysX+Kit pairing and vanish from the
+    # matrix. Asserted on the source because isaaclab is not importable here.
+    import inspect
+
+    source = inspect.getsource(discover._mode_resolves)
+    assert "_get_kit_runtime_sources(config_scan, args)" in source
+    assert "_validate_runtime(scan(env_cfg, args), args)" not in source
 
 
 def test_provenance_header_is_ignored_by_the_planner(tmp_path: Path) -> None:

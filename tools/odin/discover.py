@@ -306,7 +306,10 @@ def _legal_modes(
 # Errors that mean the validator itself could not run, rather than that the
 # combination under test was rejected. Swallowing these marks every mode illegal
 # and leaves the CLI blaming the operator's filters for an empty row set.
-_INFRASTRUCTURE_ERRORS = (ImportError, AttributeError, NameError, SyntaxError)
+# ``TypeError`` is included because calling the validator with the wrong argument
+# type is indistinguishable from a rejected combination otherwise: it silently
+# dropped every OvPhysX mode from discovery until the signature was checked.
+_INFRASTRUCTURE_ERRORS = (ImportError, AttributeError, NameError, SyntaxError, TypeError)
 
 
 def _mode_resolves(task_id: str, physics: str | None, renderer: str | None, presets: str | None = None) -> bool:
@@ -323,7 +326,7 @@ def _mode_resolves(task_id: str, physics: str | None, renderer: str | None, pres
     import argparse
     import sys
 
-    from isaaclab.app.sim_launcher import _validate_runtime, scan
+    from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, scan
 
     from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
@@ -343,7 +346,11 @@ def _mode_resolves(task_id: str, physics: str | None, renderer: str | None, pres
         args, remaining = setup_preset_cli(parser, argv)
         sys.argv = [sys.argv[0]] + remaining
         env_cfg, _ = resolve_task_config(args.task, args.agent)
-        _validate_runtime(scan(env_cfg, args), args)
+        # ``_validate_runtime`` takes the resolved Kit sources, not the parsed args.
+        # Passing args made every scan look Kit-backed, so the OvPhysX guard fired
+        # for every OvPhysX mode and marked them all undispatchable.
+        config_scan = scan(env_cfg, args)
+        _validate_runtime(config_scan, _get_kit_runtime_sources(config_scan, args))
         return True
     except _INFRASTRUCTURE_ERRORS as exc:
         raise DiscoveryError(
