@@ -393,7 +393,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the RigidObjectCollection spawn and view manipulation to demonstrate bin-packing example:
 
-   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
