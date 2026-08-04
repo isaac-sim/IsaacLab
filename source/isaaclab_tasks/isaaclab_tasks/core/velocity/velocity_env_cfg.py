@@ -318,7 +318,6 @@ class TerminationsCfg:
         func=mdp.illegal_contact,
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
     )
-    body_speed = DoneTerm(func=mdp.body_lin_vel_out_of_manual_limit, params={"max_speed": 20.0})
 
 
 @configclass
