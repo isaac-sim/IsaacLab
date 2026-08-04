@@ -70,7 +70,8 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
         "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
         "Run your command with: uv run --extra ovrtx <command> "
-        "(or, manually: pip install --extra-index-url https://pypi.nvidia.com -e 'source/isaaclab_ov[ovrtx]')."
+        "(or, manually: python -m pip install --extra-index-url https://pypi.nvidia.com "
+        "'ovrtx>=0.4.0,<0.5.0')."
     ) from exc
 
 from isaaclab.cloner.clone_plan import ClonePlan
@@ -178,7 +179,9 @@ def ovrtx_use_ovstage_enabled() -> bool:
     if value == "1" and not _OVSTAGE_AVAILABLE:
         raise RuntimeError(
             f"`{_USE_OVSTAGE_ENV}=1` requests the ovstage scene-ownership path, but the 'ovstage' "
-            "package is not installed. Install it with: ./isaaclab.sh -i 'ov[ovstage]' "
+            "package is not installed. Run your command with: uv run --extra ovrtx <command> "
+            "(or, manually: python -m pip install --extra-index-url https://pypi.nvidia.com "
+            "'ovstage>=0.1.0,<0.2.0')."
         )
     return value == "1"
 

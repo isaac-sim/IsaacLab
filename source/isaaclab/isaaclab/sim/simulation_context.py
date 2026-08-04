@@ -33,6 +33,7 @@ from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.visualizer_cfg import _get_visualizer_install_hint
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -392,10 +393,9 @@ class SimulationContext:
                 # isaaclab_visualizers is optional; log once at warning level
                 if "isaaclab_visualizers" in str(exc):
                     logger.warning(
-                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. "
-                        "Install with: pip install isaaclab_visualizers[%s]",
+                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. %s",
                         viz_type,
-                        viz_type,
+                        _get_visualizer_install_hint(viz_type),
                     )
                 else:
                     logger.error(
@@ -509,11 +509,15 @@ class SimulationContext:
             resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             missing = [t for t in cli_requested if t not in resolved_types]
             if missing:
+                install_hints = " ".join(
+                    _get_visualizer_install_hint(visualizer_type)
+                    for visualizer_type in missing
+                    if visualizer_type in _VISUALIZER_TYPES
+                )
                 raise RuntimeError(
                     f"Explicitly requested visualizer(s) {missing} could not be configured. "
                     f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
-                    "Ensure the required package is installed "
-                    "(e.g., pip install isaaclab_visualizers[<type>])."
+                    f"{install_hints}"
                 )
 
         # XR auto-start: auto-inject a KitVisualizer when XR is active and no
@@ -533,9 +537,9 @@ class SimulationContext:
                     logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
                 except (ImportError, ModuleNotFoundError, AttributeError) as exc:
                     logger.warning(
-                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. "
-                        "Install isaaclab_visualizers[kit] or pass --visualizer kit.",
+                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. %s",
                         exc,
+                        _get_visualizer_install_hint("kit"),
                     )
 
         return resolved

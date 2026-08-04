@@ -176,6 +176,7 @@ below shows only the physics-related fields:
 .. code-block:: python
 
     from isaaclab.envs import DirectRLEnvCfg
+    from isaaclab.physics import PhysxAutoCfg
     from isaaclab.sim import SimulationCfg
     from isaaclab.utils.configclass import configclass
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -185,12 +186,16 @@ below shows only the physics-related fields:
 
     @configclass
     class CartpolePhysicsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
-        physx: PhysxCfg = PhysxCfg()
+        isaacsim_physx: PhysxCfg = PhysxCfg()
+        ovphysx: OvPhysxCfg = OvPhysxCfg()
+        physx: PhysxAutoCfg = PhysxAutoCfg(
+            isaacsim_physx=isaacsim_physx,
+            ovphysx=ovphysx,
+        )
+        default: PhysxCfg = isaacsim_physx
         newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3)
         )
-        ovphysx: OvPhysxCfg = OvPhysxCfg()
 
     @configclass
     class CartpoleEnvCfg(DirectRLEnvCfg):
@@ -204,8 +209,11 @@ Users then select a physics backend at the command line:
 
       .. code-block:: bash
 
-          # Default (PhysX)
+          # Default (concrete Isaac Sim PhysX)
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+
+          # Automatic PhysX-family selection
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=physx
 
           # MJWarp (Newton backend)
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
@@ -217,14 +225,25 @@ Users then select a physics backend at the command line:
 
       .. code-block:: bash
 
-          # Default (PhysX)
+          # Default (concrete Isaac Sim PhysX)
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+
+          # Automatic PhysX-family selection
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=physx
 
           # MJWarp (Newton backend)
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
           # OvPhysX backend
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
+
+When a task's default would otherwise be automatic ``PhysxAutoCfg`` selection,
+its ``default`` variant is the concrete ``isaacsim_physx`` configuration.
+Explicit defaults such as Newton remain unchanged. The ``physics=physx``
+selector is opt-in and chooses between Isaac Sim PhysX and OvPhysX at launch
+time according to whether the resolved runtime requires Kit. This mirrors
+renderer presets: the default is concrete ``isaacsim_rtx``, while
+``renderer=rtx`` opts into automatic selection.
 
 The Physics Manager
 -------------------

@@ -353,7 +353,7 @@ def test_ovrtx_use_ovstage_raises_when_requested_but_unavailable(monkeypatch):
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
     monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", False)
 
-    with pytest.raises(RuntimeError, match="ov\\[ovstage\\]"):
+    with pytest.raises(RuntimeError, match="uv run --extra ovrtx"):
         ovrtx_use_ovstage_enabled()
 
 
