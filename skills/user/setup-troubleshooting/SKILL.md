@@ -17,7 +17,7 @@ Do not duplicate installation or troubleshooting docs in this skill. The officia
 
 ## Workflow
 
-1. Identify the install mode: automatic uv, XR teleoperation, legacy installer script, managed Python environment, Python package, downloaded Isaac Sim package, source build, Docker, cloud, or backend-specific setup. For a new full-feature Isaac Sim setup, prefer the automatic uv installation guide.
+1. Identify the install mode: automatic uv, legacy installer script, managed Python environment, Python package, downloaded Isaac Sim package, source build, Docker, cloud, or backend-specific setup. For a new full-feature Isaac Sim setup, prefer the automatic uv installation guide.
 2. Identify OS, Python environment, GPU/driver context, Isaac Sim source, and target backend.
 3. Read the matching installation guide and troubleshooting reference before prescribing commands.
 4. From the Isaac Lab checkout, use documented uv commands such as `uv run python`, `uv run isaaclab train`, and `uv run isaaclab play` for Python, verification, and RL entry points. XR teleoperation entry points are `uv run --extra teleop isaaclab teleop run|record|replay`; `teleop` cannot be combined with the `mimic` or `all` extras in one command.
@@ -25,7 +25,8 @@ Do not duplicate installation or troubleshooting docs in this skill. The officia
 6. Ask for the smallest relevant error output when the failure mode is unclear.
 7. Prefer a minimal verification command before running examples, training, or rendering workflows.
 8. Route backend-specific setup to the relevant PhysX or Newton docs.
-9. If the docs are incomplete or stale, update the docs rather than expanding this skill.
+9. For XR teleoperation setup, which is a separate workflow from the base installation, route to the CloudXR how-to rather than the installation guide.
+10. If the docs are incomplete or stale, update the docs rather than expanding this skill.
 
 ## Validation
 

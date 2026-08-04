@@ -159,14 +159,11 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
+# XR teleoperation: carries Isaac Sim for the Kit XR runtime, and isaaclab_mimic because
+# ``isaaclab teleop record`` imports it (robomimic stays in ``mimic``).
 teleop = [
-    # XR teleoperation needs the Kit XR runtime, so the extra carries Isaac Sim itself.
-    # Referenced through the isaacsim extra so the pin stays in one place.
-    "isaaclab-dev[isaacsim]",
+    "isaacsim[all,extscache]==6.0.1.0",
     "isaaclab-teleop",
-    # ``isaaclab teleop record`` imports isaaclab_mimic.envs for the mimic env registrations
-    # and its subtask instruction UI. Only the source package is needed; robomimic stays in
-    # the ``mimic`` extra because its lxml<5.0.0 pin is what clashes with dex-retargeting.
     "isaaclab-mimic",
     # IsaacTeleop is Linux x86_64 only
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
@@ -398,31 +395,20 @@ override-dependencies = [
     "torchaudio==2.11.0",
     # Isaac Sim 6.0 pins 4.12.2, which lacks Sentinel required by the Newton viewer stack.
     "typing-extensions>=4.15.0",
-    # Isaac Sim 6.0 pins ==12.0, viser needs >=13.1, and isaacteleop[cloudxr] needs >=14.0,
-    # so the override must clear the highest floor. Overrides replace a requirement for every
-    # requester, so carry viser's <17.0.0 ceiling here too -- without it, a future websockets
-    # 17 would satisfy this override and silently break viser.
+    # Isaac Sim pins ==12.0; isaacteleop[cloudxr] needs >=14.0. Ceiling keeps viser's <17.
     "websockets>=14.0,<17.0.0",
-    # isaacsim-kernel pins ==7.4.4; numba subclasses coverage.types.Tracer at import and
-    # needs >=7.6.1. Without this override the ``test`` extra cannot co-resolve with Isaac
-    # Sim, which would make the teleop package's own test suite uninstallable.
+    # Isaac Sim pins ==7.4.4; numba subclasses coverage.types.Tracer and needs >=7.6.1.
     "coverage>=7.6.1",
 ]
-# ovphysx pins packaging>=20,<24 while isaacsim-core pins packaging==26.0, so those two
-# genuinely cannot co-resolve; declaring the conflict lets uv fork the resolution instead
-# of failing. ``teleop`` bundles isaacsim for the Kit XR runtime, so it inherits that.
-# ``mimic`` is deliberately absent from the isaacsim pairs: robomimic no longer constrains
-# lxml, so the imitation-learning stack co-resolves with Isaac Sim and the robomimic
-# training scripts, which need Kit, are runnable via ``--extra isaacsim --extra mimic``.
-# Viser is absent for the same reason -- the websockets override reconciles it.
+# ovphysx pins packaging>=20,<24 while isaacsim-core pins packaging==26.0: a genuine
+# two-sided incompatibility, so uv forks the resolution instead of failing. ``teleop``
+# bundles isaacsim, so it inherits that pair. Every other historical conflict was an
+# over-strict pin that the overrides above now reconcile.
 conflicts = [
-    [{ extra = "teleop" }, { extra = "mimic" }],
-    [{ extra = "teleop" }, { extra = "all" }],
     [{ extra = "teleop" }, { extra = "ov" }],
     [{ extra = "teleop" }, { extra = "ovphysx" }],
     [{ extra = "isaacsim" }, { extra = "ov" }],
     [{ extra = "isaacsim" }, { extra = "ovphysx" }],
-    [{ extra = "isaacsim" }, { extra = "all" }],
 ]
 python-preference = "only-managed"
 package = false

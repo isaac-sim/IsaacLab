@@ -22,7 +22,7 @@ teleoperation session. For additional details see the `Isaac Teleop Quick Start
 Prerequisites
 -------------
 
-* **Isaac Lab** installed with the ``teleop`` extra (see :ref:`installation-method-teleop`).
+* **Isaac Lab** installed with the ``teleop`` extra (see :ref:`install-isaac-teleop` below).
   That section also covers the system libraries the CloudXR runtime needs.
 
 * **Isaac Lab workstation**
@@ -125,8 +125,48 @@ To use the check on its own -- for example to qualify a machine before setting u
 Install Isaac Teleop
 --------------------
 
-#. Complete :ref:`installation-method-teleop` first. It installs the ``libvulkan1`` and
-   ``libbsd0`` system libraries and shows how to activate the ``teleop`` extra.
+Use this path to teleoperate robots from an XR headset and to record demonstrations for
+imitation learning. It uses the ``teleop`` extra, which carries `Isaac Teleop
+<https://github.com/NVIDIA/IsaacTeleop>`__ with its CloudXR streaming runtime, and Isaac Sim
+itself for the Kit XR runtime that renders the stereo view. One flag covers the whole
+workflow.
+
+XR teleoperation is supported on **Linux x86_64 only**. The ``teleop`` extra gates
+``isaacteleop`` and ``dex-retargeting`` behind platform markers, so on Windows or aarch64 the
+extra resolves but installs nothing usable. It is also not supported on DGX Spark.
+
+Once the steps below are done, run a teleoperation session from the repository root:
+
+.. code-block:: bash
+
+   uv run --extra teleop isaaclab teleop run \
+      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+      --visualizer kit \
+      --xr
+
+``isaaclab teleop`` groups the three workflow scripts: ``run`` for a live session, ``record``
+to capture demonstrations, and ``replay`` to play a dataset back.
+
+.. code-block:: bash
+
+   uv run --extra teleop isaaclab teleop record \
+      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+      --num_demos 5 --dataset_file ./datasets/dataset.hdf5 \
+      --visualizer kit --xr
+
+   uv run --extra teleop isaaclab teleop replay \
+      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+      --dataset_file ./datasets/dataset.hdf5 --visualizer kit
+
+.. note::
+
+   ``teleop`` cannot be combined with ``ov`` or ``ovphysx`` in a single ``uv run``: the
+   bundled Isaac Sim pins ``packaging==26.0`` while those runtimes require ``<24``. Install
+   the OV runtimes separately when you need them.
+
+The commands start the CloudXR runtime and open the Kit viewport. Complete these steps first:
+
+#. Install the system libraries required by the CloudXR runtime:
 
    .. code-block:: bash
 

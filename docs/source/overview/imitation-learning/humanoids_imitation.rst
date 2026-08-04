@@ -181,7 +181,7 @@ Use `Robomimic <https://robomimic.github.io/>`__ to train a policy for the gener
 
 .. code:: bash
 
-   uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/train.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --algo bc \
    --normalize_training_actions \
@@ -201,7 +201,7 @@ Visualize the results of the trained policy by running the following command, us
 
 .. code:: bash
 
-   uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/play.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --device cpu \
@@ -316,7 +316,7 @@ Use `Robomimic <https://robomimic.github.io/>`__ to train a visuomotor BC agent 
 
 .. code:: bash
 
-   uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/train.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
    --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
    --algo bc \
    --normalize_training_actions \
@@ -342,7 +342,7 @@ Visualize the results of the trained policy by running the following command, us
 
 .. code:: bash
 
-   uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/play.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
    --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
    --visualizer kit \
    --device cpu \
@@ -479,7 +479,7 @@ At this point you can train a policy that only performs manipulation tasks using
 
 .. code:: bash
 
-   uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/train.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
    --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --algo bc \
    --normalize_training_actions \
    --dataset ./datasets/generated_dataset_g1_locomanip.hdf5
@@ -491,7 +491,7 @@ Visualize the trained policy performance:
 
 .. code:: bash
 
-   uv run --extra isaacsim --extra mimic python scripts/imitation_learning/robomimic/play.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
    --device cpu \
    --visualizer kit \
    --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \

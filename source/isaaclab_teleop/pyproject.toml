@@ -24,10 +24,6 @@ dependencies = [
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
 
-# No [tool.isaaclab] pip_upgrade_dependencies here: ``isaacteleop`` is declared by the
-# root ``teleop`` extra, not by this package, so a targeted upgrade keyed off this
-# package's installed metadata would never find it.
-
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"

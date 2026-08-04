@@ -41,7 +41,7 @@ Extras compose freely except where their pins genuinely clash. ``teleop`` cannot
 ``mimic`` or ``all`` (Isaac Teleop needs ``lxml>=5.2.2``, the imitation-learning stack needs
 ``lxml<5.0.0``), and because it bundles Isaac Sim it also conflicts with ``ov`` and ``viser``.
 ``uv`` reports an error rather than installing a broken environment. See
-:ref:`installation-method-teleop` for the teleoperation prerequisites.
+:ref:`install-isaac-teleop` for the teleoperation prerequisites.
 
 
 .. rubric:: Play / Evaluation

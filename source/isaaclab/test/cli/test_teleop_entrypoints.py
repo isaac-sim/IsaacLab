@@ -26,8 +26,8 @@ TELEOP_WORKFLOWS = {
 
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
-def test_teleop_dispatches_to_requested_script(command, script_parts):
-    """The ``isaaclab teleop`` command forwards arguments to the requested script."""
+def test_teleop_dispatches_to_an_existing_script(command, script_parts):
+    """``isaaclab teleop`` forwards the remaining arguments to a script that exists."""
     args = [command, "--task", "IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "--xr"]
 
     with (
@@ -36,13 +36,9 @@ def test_teleop_dispatches_to_requested_script(command, script_parts):
     ):
         cli.cli()
 
-    run_python.assert_called_once_with(cli.ISAACLAB_ROOT.joinpath(*script_parts), args[1:], check=True)
-
-
-@pytest.mark.parametrize("script_parts", TELEOP_WORKFLOWS.values())
-def test_teleop_workflow_script_exists(script_parts):
-    """The dispatched scripts must exist so the documented commands are runnable."""
-    assert cli.ISAACLAB_ROOT.joinpath(*script_parts).is_file()
+    script = cli.ISAACLAB_ROOT.joinpath(*script_parts)
+    run_python.assert_called_once_with(script, args[1:], check=True)
+    assert script.is_file()
 
 
 def _requirement_names(requirements: list[str]) -> set[str]:

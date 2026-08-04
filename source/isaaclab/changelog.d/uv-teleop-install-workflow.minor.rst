@@ -15,8 +15,8 @@ Changed
 * Changed the ``teleop`` install extra to bundle Isaac Sim, so ``uv run --extra teleop``
   installs everything the XR teleoperation workflow needs in one flag. Previously the extra
   carried only the Isaac Teleop stack and could not be combined with ``isaacsim`` at all.
-  Because it now pulls Isaac Sim in, ``teleop`` also conflicts with ``ov`` and ``ovphysx``
-  alongside the existing ``mimic`` and ``all`` conflicts; install those separately.
+  Because it now pulls Isaac Sim in, ``teleop`` conflicts with ``ov`` and ``ovphysx``;
+  install those runtimes separately.
 
 Fixed
 ^^^^^
@@ -25,15 +25,15 @@ Fixed
   install together. ``isaacsim-kernel`` pins ``websockets==12.0`` while
   ``isaacteleop[cloudxr]`` requires ``websockets>=14.0``, so the existing ``websockets``
   override was raised to ``>=14.0,<17.0.0`` -- clearing Isaac Teleop's floor while keeping
-  the ceiling Viser needs. The ``teleop``/``mimic`` and ``teleop``/``all`` conflicts remain
-  because of the ``lxml`` split.
+  the ceiling Viser needs.
 * Fixed ``--extra test`` being unusable with Isaac Sim. ``isaacsim-kernel`` pins
   ``coverage==7.4.4`` while the ``test`` extra needs ``coverage>=7.6.1`` for numba; a
   ``coverage>=7.6.1`` override reconciles them and the ``isaacsim``/``test`` conflict is
   removed, so ``uv run --extra teleop --extra test`` can run the teleop test suite.
 * Fixed the imitation-learning training scripts being unrunnable under ``uv``. The
-  ``isaacsim``/``mimic`` conflict was stale -- ``robomimic`` no longer constrains ``lxml``, so
-  the two extras co-resolve. ``scripts/imitation_learning/robomimic/train.py``, ``play.py``,
+  ``isaacsim``/``mimic``, ``teleop``/``mimic``, ``teleop``/``all``, and ``isaacsim``/``all``
+  conflicts were all stale -- ``robomimic`` no longer constrains ``lxml``, so those extras
+  co-resolve and only the genuine ``packaging`` split with the OV runtimes remains. ``scripts/imitation_learning/robomimic/train.py``, ``play.py``,
   and ``robust_eval.py`` need both ``robomimic`` and the Kit runtime, and now run via
   ``uv run --extra isaacsim --extra mimic``.
 * Fixed ``ModuleNotFoundError: No module named 'isaaclab_mimic'`` when recording

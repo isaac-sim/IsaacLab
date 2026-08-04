@@ -108,8 +108,9 @@ def test_version_single_source_matches_literal_pins():
     assert versions["ovphysx"] == "0.5.9"
     assert "omniverseclient==2.72.3" in dependencies
 
-    # Isaac Sim extra mirrors the table.
+    # Isaac Sim extra mirrors the table, and the teleop extra repeats the same pin.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
+    assert f"isaacsim[all,extscache]=={versions['isaacsim']}" in optional["teleop"]
 
     # OV extras mirror the table. Table values may be an exact version ("1.2.3",
     # mirrored as ``pkg==1.2.3``) or a range spec (">=1.2.3", mirrored as ``pkg>=1.2.3``).
@@ -187,8 +188,9 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
 
     # isaacsim is forked away from extras whose pins cannot be safely overridden.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("ov", "ovphysx", "all"):
+    for extra in ("ov", "ovphysx"):
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
+    assert {"isaacsim", "all"} not in conflict_groups
     # ``test`` is no longer forked away: the coverage override reconciles it with Isaac Sim.
     assert {"isaacsim", "test"} not in conflict_groups
     # ``mimic`` is no longer forked away either: robomimic dropped its lxml constraint, so
@@ -217,9 +219,10 @@ def test_uv_run_teleop_co_resolves_with_isaacsim():
     assert {"isaacsim", "teleop"} not in conflict_groups
     assert "websockets>=14.0,<17.0.0" in tool_uv["override-dependencies"]
 
-    # The lxml split between Isaac Teleop and the imitation-learning stack is real and stays.
-    assert {"teleop", "mimic"} in conflict_groups
-    assert {"teleop", "all"} in conflict_groups
+    # The historical lxml split is gone: robomimic no longer constrains lxml, so the teleop
+    # and imitation-learning stacks co-resolve.
+    assert {"teleop", "mimic"} not in conflict_groups
+    assert {"teleop", "all"} not in conflict_groups
 
 
 def test_uv_run_teleop_extra_bundles_isaacsim():
@@ -234,18 +237,18 @@ def test_uv_run_teleop_extra_bundles_isaacsim():
     optional_dependencies = pyproject["project"]["optional-dependencies"]
     teleop = optional_dependencies["teleop"]
 
-    # Isaac Sim comes in by reference so [tool.isaaclab.versions] stays the single source.
-    assert "isaaclab-dev[isaacsim]" in teleop
-    assert not any(dep.startswith("isaacsim[") for dep in teleop)
+    # Isaac Sim is listed explicitly; test_version_single_source keeps the pin from drifting.
+    assert any(dep.startswith("isaacsim[all,extscache]==") for dep in teleop)
     # record_demos.py imports isaaclab_mimic at module level; robomimic stays in ``mimic``.
     assert "isaaclab-mimic" in teleop
     assert not any(dep.startswith("robomimic") for dep in teleop)
 
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("mimic", "all", "ov", "ovphysx"):
+    # Only the packaging split is real; the overrides reconcile everything else.
+    for extra in ("ov", "ovphysx"):
         assert {"teleop", extra} in conflict_groups, f"teleop must declare a conflict with '{extra}'"
-    # viser is not inherited: the websockets override reconciles it with Isaac Sim.
-    assert {"teleop", "viser"} not in conflict_groups
+    for extra in ("mimic", "all", "viser", "test"):
+        assert {"teleop", extra} not in conflict_groups
     # ``--extra teleop --extra test`` must keep working so the teleop suite stays runnable.
     assert {"teleop", "test"} not in conflict_groups
     assert "coverage>=7.6.1" in pyproject["tool"]["uv"]["override-dependencies"]
