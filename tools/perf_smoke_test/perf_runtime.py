@@ -5,14 +5,17 @@
 
 """Perf-smoke-test runtime benchmark driver (random actions, no policy).
 
-Thin wrapper over the merged Isaac Lab benchmark core (benchmark refactor
-Part 1/5, PR #6197) that produces a schema-v1
-:class:`~isaaclab.test.benchmark.schema.RuntimeBundle`.  It intentionally does
-**not** depend on the still-unmerged ``scripts/benchmarks/runtime.py`` (Part 2/5,
-PR #6198); it only imports the stable, merged building blocks
-(:mod:`~isaaclab.test.benchmark.stepping`, :mod:`~isaaclab.test.benchmark.builders`,
-:mod:`~isaaclab.test.benchmark.capture`) so the perf gate can adopt the typed
-bundle schema before the rest of the refactor lands.
+Thin wrapper over the public Isaac Lab benchmark library that produces a
+schema-v1 :class:`~isaaclab.benchmark.schema.RuntimeBundle`.  It imports only
+the stable building blocks (:mod:`~isaaclab.benchmark.stepping`,
+:mod:`~isaaclab.benchmark.builders`, :mod:`~isaaclab.benchmark.capture`) rather
+than driving ``isaaclab benchmark runtime``, so the gate controls its own
+warmup handling and output layout.
+
+The benchmark framework was promoted to the public ``isaaclab.benchmark``
+namespace in #6564; the previous internal namespace no longer exists.  See
+``docs/source/migration/migrating_to_isaaclab_3-0.rst``.  The import guards in
+``test/test_framework_imports.py`` keep this file honest against the checkout.
 
 Difference from the upstream runtime script: the perf gate discards a
 configurable number of leading **warmup** steps *before* aggregation, so the
@@ -85,8 +88,8 @@ import contextlib
 import gymnasium as gym
 
 from isaaclab.app import launch_simulation
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture, stepping
-from isaaclab.test.benchmark.schema import StartupTime
+from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture, stepping
+from isaaclab.benchmark.schema import StartupTime
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config

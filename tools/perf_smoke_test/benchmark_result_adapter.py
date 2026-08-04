@@ -6,9 +6,9 @@
 """Adapter: schema-v1 ``RuntimeBundle`` JSON -> perf-gate normalized fields.
 
 ``perf_runtime.py`` emits a
-:class:`~isaaclab.test.benchmark.schema.RuntimeBundle` (Isaac Lab benchmark
+:class:`~isaaclab.benchmark.schema.RuntimeBundle` (Isaac Lab benchmark
 refactor Part 1, PR #6197) serialized by
-:func:`~isaaclab.test.benchmark.serialize.write_bundle_file`.  This module is the
+:func:`~isaaclab.benchmark.serialize.write_bundle_file`.  This module is the
 single point that reads that JSON and projects it into the flat
 ``provenance`` / ``runtime_resources`` / fps / ``benchmark_info`` shapes the gate's
 :mod:`oracle` and :mod:`build_bench_result` consume, replacing the legacy

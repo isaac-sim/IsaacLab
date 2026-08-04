@@ -118,7 +118,7 @@ def _normalize_benchmark_output(artifact_dir: Path, task_id: str) -> bool:
     """Copy the timestamped runtime bundle to ``perf_smoke_test_info.json``.
 
     ``perf_runtime.py`` writes ``benchmark_runtime_{task_id}_{timestamp}.json``
-    (a schema-v1 :class:`~isaaclab.test.benchmark.schema.RuntimeBundle`). The gate
+    (a schema-v1 :class:`~isaaclab.benchmark.schema.RuntimeBundle`). The gate
     reads the canonical ``perf_smoke_test_info.json``; this bridges the gap.
 
     Returns True if perf_smoke_test_info.json exists after call

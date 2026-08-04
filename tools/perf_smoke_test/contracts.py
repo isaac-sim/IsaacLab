@@ -5,7 +5,7 @@
 
 """Typed contracts for the perf-gate's own artifacts (schema v1).
 
-The gate's analogue of :mod:`isaaclab.test.benchmark.schema`: the fields the gate
+The gate's analogue of :mod:`isaaclab.benchmark.schema`: the fields the gate
 computes on are typed dataclass attributes, while open pass-through sub-structures
 (``benchmark_info``, ``provenance``, ``launch_config``, the compatibility contracts)
 stay as ``dict`` fields — mirroring ``RuntimeBundle``'s typed fields + ``extra: dict``.
