@@ -21,6 +21,8 @@ Changed
 Added
 ^^^^^
 
+* Added RSL-RL agent configurations for the contributed Franka cabinet absolute and relative
+  inverse-kinematics tasks.
 * Added ``Metrics/drawer_pos`` to manager-based cabinet tasks and changed the direct-workflow metric
   to report the furthest drawer position reached during the episode. The contributed OpenArm task
   now reports both ``Metrics/success_rate`` and ``Metrics/drawer_pos``.
