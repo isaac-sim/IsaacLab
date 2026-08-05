@@ -92,6 +92,94 @@ def test_apply_video_recording_patches_existing_recorders():
     assert rec.video_interval == 500  # CLI override applied
 
 
+def test_apply_video_recording_injects_kit_visualizer_when_kit_is_running():
+    """When Kit is running and --video given without --viz, KitVisualizerCfg is injected."""
+    import sys
+    from types import ModuleType
+    from unittest.mock import MagicMock, patch
+
+    kit_cfg_instance = object()
+    MockKitVisualizerCfg = MagicMock(return_value=kit_cfg_instance)
+
+    fake_kit_module = ModuleType("isaaclab_visualizers.kit")
+    fake_kit_module.KitVisualizerCfg = MockKitVisualizerCfg
+    fake_visualizers_module = ModuleType("isaaclab_visualizers")
+
+    sim_cfg = SimpleNamespace(visualizer_cfgs=[])
+    env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
+
+    # Patch omni.kit.app into sys.modules so that has_kit() returns True,
+    # simulating the Kit/Isaac Sim runtime being active.
+    # has_kit() calls mod.get_app() and returns True only when it is not None.
+    fake_omni_kit_app = ModuleType("omni.kit.app")
+    fake_omni_kit_app.get_app = lambda: object()  # type: ignore[attr-defined]
+    with patch.dict(
+        sys.modules,
+        {
+            "isaaclab_visualizers": fake_visualizers_module,
+            "isaaclab_visualizers.kit": fake_kit_module,
+            "omni.kit.app": fake_omni_kit_app,
+        },
+    ):
+        apply_video_recording(env_cfg, "/my/log", _args())
+
+    # KitVisualizerCfg() must have been appended to sim_cfg.visualizer_cfgs
+    assert len(sim_cfg.visualizer_cfgs) == 1
+    assert sim_cfg.visualizer_cfgs[0] is kit_cfg_instance
+    MockKitVisualizerCfg.assert_called_once_with()
+    # The default recorder must reference the injected kit visualizer
+    assert len(env_cfg.video_recorders) == 1
+    assert env_cfg.video_recorders[0].source == "visualizer:kit"
+
+
+def test_apply_video_recording_injects_newton_gl_when_kit_not_running():
+    """When Kit is NOT running and --video given without --viz, Newton GL is injected instead."""
+    import sys
+    from types import ModuleType
+    from unittest.mock import MagicMock, patch
+
+    newton_gl_cfg_instance = object()
+    MockNewtonGLVisualizerCfg = MagicMock(return_value=newton_gl_cfg_instance)
+
+    fake_newton_module = ModuleType("isaaclab_visualizers.newton")
+    fake_newton_module.NewtonGLVisualizerCfg = MockNewtonGLVisualizerCfg
+    fake_visualizers_module = ModuleType("isaaclab_visualizers")
+
+    sim_cfg = SimpleNamespace(visualizer_cfgs=[])
+    env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
+
+    # Do NOT patch omni.kit.app so that has_kit() returns False (kitless path).
+    with patch.dict(
+        sys.modules,
+        {
+            "isaaclab_visualizers": fake_visualizers_module,
+            "isaaclab_visualizers.newton": fake_newton_module,
+        },
+    ):
+        # Ensure omni.kit.app is absent so has_kit() correctly returns False.
+        sys.modules.pop("omni.kit.app", None)
+        apply_video_recording(env_cfg, "/my/log", _args())
+
+    # NewtonGLVisualizerCfg(headless=True) must have been appended
+    assert len(sim_cfg.visualizer_cfgs) == 1
+    assert sim_cfg.visualizer_cfgs[0] is newton_gl_cfg_instance
+    MockNewtonGLVisualizerCfg.assert_called_once_with(headless=True)
+    # The default recorder must reference the injected newton_gl visualizer
+    assert len(env_cfg.video_recorders) == 1
+    assert env_cfg.video_recorders[0].source == "visualizer:newton_gl"
+
+
+def test_apply_video_recording_rejects_viz_none_with_video():
+    """--viz none combined with --video raises ValueError with a clear message."""
+    sim_cfg = SimpleNamespace(visualizer_cfgs=[])
+    env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
+
+    import pytest
+
+    with pytest.raises(ValueError, match="--video is not compatible with --viz none"):
+        apply_video_recording(env_cfg, "/my/log", _args(visualizer=["none"]))
+
+
 def test_wrap_record_video_is_noop_stub(caplog):
     """wrap_record_video returns the env unchanged and warns only when video=True."""
     env = MagicMock()

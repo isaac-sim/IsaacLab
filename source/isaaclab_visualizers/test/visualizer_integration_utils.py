@@ -37,12 +37,11 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonVisualizer
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
 from isaaclab.sim import SimulationContext
-from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
@@ -78,7 +77,7 @@ _CARTPOLE_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (2.25, 0.0, 3
 """Passed to :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses (``eye``)."""
 
 _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.25)
-"""Passed to visualizer cfgs (``lookat``); also applied to the env's visualizer configuration."""
+"""Passed to visualizer cfgs (``lookat``); also applied to :class:`~isaaclab.envs.common.ViewerCfg` for the env."""
 
 _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(
     eye - lookat for eye, lookat in zip(_CARTPOLE_INTEGRATION_VISUALIZER_EYE, _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT)
@@ -90,7 +89,7 @@ _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit: Replicator ``render_product`` (width, height) for viewport RGB in the motion check."""
 
 _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
-"""Newton: ``NewtonVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
+"""Newton: ``NewtonGLVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
 
 _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (400, 400)
 """Tiled camera per-env tile width/height (preset default is 96×96); keeps ``observation_space`` consistent."""
@@ -311,11 +310,11 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False):
     cam = _cartpole_integration_visualizer_camera_kwargs()
     tiled_cam = (
         {
-            "tiled_cam_view": True,
-            "tiled_cam_num": _CARTPOLE_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "tiled_cam_prim_path": None,
-            "tiled_cam_eye": _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "tiled_cam_target_prim_path": _CARTPOLE_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+            "streaming_view": True,
+            "streaming_envs": _CARTPOLE_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "streaming_sensor_prim_path": None,
+            "streaming_cam_eye": _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "streaming_cam_target_prim_path": _CARTPOLE_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -324,7 +323,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False):
         __import__("newton")
         nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
         return (
-            NewtonVisualizerCfg(
+            NewtonGLVisualizerCfg(
                 headless=True,
                 window_width=nw,
                 window_height=nh,
@@ -1540,11 +1539,11 @@ def _make_shadow_hand_env(
     cam = {"eye": _SHADOW_HAND_INTEGRATION_VISUALIZER_EYE, "lookat": _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT}
     tiled_cam = (
         {
-            "tiled_cam_view": True,
-            "tiled_cam_num": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "tiled_cam_prim_path": None,
-            "tiled_cam_eye": _SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "tiled_cam_target_prim_path": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+            "streaming_view": True,
+            "streaming_envs": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "streaming_sensor_prim_path": None,
+            "streaming_cam_eye": _SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "streaming_cam_target_prim_path": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -1556,7 +1555,7 @@ def _make_shadow_hand_env(
             __import__("newton")
             nw, nh = _SHADOW_HAND_NEWTON_INTEGRATION_WINDOW_SIZE
             visualizer_cfgs.append(
-                NewtonVisualizerCfg(
+                NewtonGLVisualizerCfg(
                     headless=True,
                     window_width=nw,
                     window_height=nh,
@@ -1600,11 +1599,11 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     cam = {"eye": _ANYMAL_D_INTEGRATION_VISUALIZER_EYE, "lookat": _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT}
     tiled_cam = (
         {
-            "tiled_cam_view": True,
-            "tiled_cam_num": _ANYMAL_D_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "tiled_cam_prim_path": None,
-            "tiled_cam_eye": _ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "tiled_cam_target_prim_path": _ANYMAL_D_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+            "streaming_view": True,
+            "streaming_envs": _ANYMAL_D_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "streaming_sensor_prim_path": None,
+            "streaming_cam_eye": _ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "streaming_cam_target_prim_path": _ANYMAL_D_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -1616,7 +1615,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
             __import__("newton")
             nw, nh = _ANYMAL_D_NEWTON_INTEGRATION_WINDOW_SIZE
             visualizer_cfgs.append(
-                NewtonVisualizerCfg(
+                NewtonGLVisualizerCfg(
                     headless=True,
                     window_width=nw,
                     window_height=nh,
@@ -1773,11 +1772,11 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
     cam = {"eye": _FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE, "lookat": _FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT}
     tiled_cam = (
         {
-            "tiled_cam_view": True,
-            "tiled_cam_num": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "tiled_cam_prim_path": None,
-            "tiled_cam_eye": _FRANKA_CLOTH_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "tiled_cam_target_prim_path": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+            "streaming_view": True,
+            "streaming_envs": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "streaming_sensor_prim_path": None,
+            "streaming_cam_eye": _FRANKA_CLOTH_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "streaming_cam_target_prim_path": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -1795,7 +1794,7 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
             __import__("newton")
             nw, nh = _FRANKA_CLOTH_NEWTON_INTEGRATION_WINDOW_SIZE
             visualizer_cfgs.append(
-                NewtonVisualizerCfg(
+                NewtonGLVisualizerCfg(
                     headless=True,
                     window_width=nw,
                     window_height=nh,
@@ -1835,9 +1834,8 @@ def _make_cartpole_camera_env(
     env_cfg.scene.num_envs = (
         _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _CARTPOLE_INTEGRATION_NUM_ENVS
     )
-    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(
-        eye=_CARTPOLE_INTEGRATION_VISUALIZER_EYE, lookat=_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT
-    )
+    env_cfg.viewer.eye = _CARTPOLE_INTEGRATION_VISUALIZER_EYE
+    env_cfg.viewer.lookat = _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT
     tw, th = _CARTPOLE_TILED_CAMERA_INTEGRATION_WH
     env_cfg.tiled_camera.width = tw
     env_cfg.tiled_camera.height = th

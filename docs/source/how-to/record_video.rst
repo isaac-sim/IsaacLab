@@ -140,7 +140,7 @@ The ``source`` string selects what to capture:
 
 The camera angle, resolution, and other visualizer settings are configured on the
 corresponding :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` or
-:class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg`, not on the recorder.
+:class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`, not on the recorder.
 
 
 Clip control
@@ -201,11 +201,11 @@ To open a headless Newton visualizer at a different angle alongside an interacti
 .. code-block:: python
 
     from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     env_cfg.sim.visualizer_cfgs = [
         KitVisualizerCfg(eye=(4.0, 4.0, 2.0)),
-        NewtonVisualizerCfg(eye=(12.0, 0.0, 6.0), headless=True),
+        NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0), headless=True),
     ]
     env_cfg.video_recorders = [
         VideoRecorderCfg(source="visualizer:newton", output_dir="videos/"),
@@ -223,12 +223,15 @@ Requirements
   (both are already in Isaac Lab's dependencies).
 
 * For ``source="visualizer:kit"`` or ``"visualizer:kit:tiled"``: the Kit app is launched
-  automatically by :class:`~isaaclab.app.AppLauncher`; cameras are auto-enabled when a
-  Kit visualizer is configured.
+  automatically by :class:`~isaaclab.app.AppLauncher`.  In **headless mode** (``--headless``),
+  you must also pass ``--enable_cameras`` (or set ``ENABLE_CAMERAS=1``) to activate the
+  Replicator offscreen render pipeline; without it, captured frames are black.  The ``--video``
+  flag sets ``--enable_cameras`` automatically when no explicit recorder source is configured.
 
-* For ``source="visualizer:newton"`` or ``"visualizer:newton:tiled"``: an active
-  :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` must be in
-  ``env_cfg.sim.visualizer_cfgs``.
+* For ``source="visualizer:newton"`` or ``"visualizer:newton_gl"`` / ``"visualizer:newton:tiled"``:
+  an active :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` must be in
+  ``env_cfg.sim.visualizer_cfgs``.  Newton GL uses pyglet's EGL backend and works headlessly
+  without ``--enable_cameras``.
 
 * For ``source="sensor:<name>"``: the named field must exist on the scene config and
   have ``"rgb"`` in its ``data_types``.
@@ -243,7 +246,7 @@ Limitations
   guaranteed capture with Newton physics.
 
 * ``source="visualizer:newton:tiled"`` captures the Newton GL window framebuffer when
-  ``tiled_cam_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg`.
+  ``streaming_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`.
   Newton does not implement a separate ``render_tiled_rgb_array()`` path.
 
 

@@ -155,7 +155,16 @@ class VideoRecorder:
         visualizers = getattr(sim, "visualizers", [])
 
         if viz_type:
-            candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == viz_type]
+            # "newton" is a backward-compatible alias for the newton_gl visualizer type.
+            # The canonical visualizer_type on NewtonGLVisualizerCfg is "newton_gl", but
+            # source strings in tutorials and docs use the shorter "newton" form.
+            # Note: newton_rtx is intentionally excluded because render_rgb_array() returns
+            # None for that backend (ViewerRTX does not yet expose framebuffer readback).
+            _newton_aliases = ("newton_gl",)
+            if viz_type == "newton":
+                candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) in _newton_aliases]
+            else:
+                candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == viz_type]
             if not candidates:
                 active = [getattr(v.cfg, "visualizer_type", "unknown") for v in visualizers]
                 raise RuntimeError(
@@ -188,11 +197,6 @@ class VideoRecorder:
 
         viz = candidates[0]
         if sub == "tiled":
-            if viz_type == "newton":
-                # Newton captures its entire GL viewport (which shows the tiled camera panel
-                # when tiled_cam_view=True on NewtonVisualizerCfg).  There is no separate
-                # render_tiled_rgb_array() path for Newton.
-                return viz.render_rgb_array()
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(
                     f"[VideoRecorder] source='visualizer:{viz_type}:tiled' requested but the "
@@ -200,7 +204,34 @@ class VideoRecorder:
                 )
             return viz.render_tiled_rgb_array()
 
-        return viz.render_rgb_array()
+        # Validate that the selected visualizer actually supports direct RGB capture.
+        # Rerun and Viser only expose render_tiled_rgb_array(); calling render_rgb_array()
+        # on them would raise AttributeError.  Promote to tiled automatically with a warning
+        # so that source='visualizer:rerun' works without forcing users to add ':tiled'.
+        if not hasattr(viz, "render_rgb_array"):
+            if hasattr(viz, "render_tiled_rgb_array"):
+                logger.warning(
+                    "[VideoRecorder] source='visualizer:%s' does not implement render_rgb_array(); "
+                    "falling back to render_tiled_rgb_array(). "
+                    "Use source='visualizer:%s:tiled' to silence this warning.",
+                    viz_type or "<auto>",
+                    viz_type or "<auto>",
+                )
+                return viz.render_tiled_rgb_array()
+            raise RuntimeError(
+                f"[VideoRecorder] source='visualizer:{viz_type or '<auto>'}' does not support frame "
+                "capture: the visualizer has neither render_rgb_array() nor render_tiled_rgb_array()."
+            )
+
+        frame = viz.render_rgb_array()
+        if frame is None:
+            viz_type_name = getattr(getattr(viz, "cfg", None), "visualizer_type", "unknown")
+            raise RuntimeError(
+                f"[VideoRecorder] render_rgb_array() returned None for '{viz_type_name}' visualizer. "
+                "Newton RTX does not yet support framebuffer readback. "
+                "Use source='visualizer:newton_gl' or source='visualizer:<type>:tiled' instead."
+            )
+        return frame
 
     def _frame_from_sensor(self, name: str) -> np.ndarray | None:
         # Note: only the "rgb" channel is currently supported for sensor sources.

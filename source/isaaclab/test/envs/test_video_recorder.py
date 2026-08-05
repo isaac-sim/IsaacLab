@@ -239,6 +239,15 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
     assert kit_viz.render_calls == 1
 
 
+def test_visualizer_newton_alias_resolves_newton_gl():
+    """source='visualizer:newton' should match a visualizer with visualizer_type='newton_gl'."""
+    viz = _FakeViz("newton_gl")
+    recorder = VideoRecorder(_cfg(source="visualizer:newton"), _make_env(visualizers=[viz]))
+    frame = recorder._get_frame()
+    assert viz.render_calls == 1
+    assert frame is not None
+
+
 # ---------------------------------------------------------------------------
 # Sensor frame routing
 # ---------------------------------------------------------------------------

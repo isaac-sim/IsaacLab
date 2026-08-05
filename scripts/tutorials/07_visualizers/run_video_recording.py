@@ -150,12 +150,12 @@ def _build_env_cfg_example_3(num_envs: int):
     """Shadow Hand + Kit viewport + Kit tiled grid + Newton viewport + sensor: four simultaneous streams.
 
     Note: ``source='visualizer:newton'`` captures the full Newton GL window. When
-    ``tiled_cam_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg`,
-    the GL window displays the tiled per-environment camera panel, so this effectively records
-    a Newton tiled view without a separate ``render_tiled_rgb_array()`` call.
+    ``streaming_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`,
+    the GL window displays the per-environment camera panel, so this effectively records
+    a Newton streaming view without a separate ``render_tiled_rgb_array()`` call.
     """
     from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
     env_cfg.sim.physics = env_cfg.sim.physics.default
@@ -163,13 +163,13 @@ def _build_env_cfg_example_3(num_envs: int):
     kit_cfg = KitVisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
-        tiled_cam_view=True,
-        tiled_cam_num=min(num_envs, 16),
-        # Reuse the existing scene camera sensor so the tiled panel shows
+        streaming_view=True,
+        streaming_envs=min(num_envs, 16),
+        # Reuse the existing scene camera sensor so the streaming panel shows
         # the same RTX-rendered views as source="sensor:tiled_camera".
-        tiled_cam_prim_path="/World/envs/env_.*/Camera",
+        streaming_sensor_prim_path="/World/envs/env_.*/Camera",
     )
-    newton_cfg = NewtonVisualizerCfg(
+    newton_cfg = NewtonGLVisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
         window_width=1280,
