@@ -101,7 +101,7 @@ def reset_dataset_validate_runtime(
     Dataset generation and calibration are external workflows. This validator checks the immutable
     runtime boundary: envelope integrity, production provenance, metadata consumed by replay, and
     the tensors restored by the environment. When supplied, :paramref:`expected_task_contract`
-    compares only its keys so callers can bind the artifact to a compact compatibility contract.
+    compares only its keys so callers can bind the artifact to the current task contract.
 
     Args:
         payload: Safely loaded reset-dataset payload.
@@ -115,7 +115,7 @@ def reset_dataset_validate_runtime(
 
     Raises:
         TypeError: If a required container or tensor has the wrong type.
-        ValueError: If the artifact is incompatible, malformed, or not production-calibrated.
+        ValueError: If the artifact does not match the task, is malformed, or is not production-calibrated.
     """
     if not isinstance(payload, Mapping):
         raise TypeError("Reset dataset payload must be a mapping.")

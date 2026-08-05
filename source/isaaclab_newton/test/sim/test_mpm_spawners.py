@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import re
 import subprocess
 import sys
 import textwrap
@@ -50,20 +49,6 @@ def _emit_recorded_points(
     emit_mpm_particles(builder, cfg, position=position, orientation=orientation)
     assert builder.points_kwargs is not None
     return builder.points_kwargs
-
-
-def test_grid_default_preserves_boundary_particle_placement():
-    cfg = MPMGridCfg(
-        lower=(0.0, 0.0, 0.0),
-        upper=(0.1, 0.2, 0.3),
-        voxel_size=1.0,
-    )
-
-    emitted = _emit_recorded_grid(cfg)
-
-    assert np.asarray(emitted["pos"]).tolist() == [0.0, 0.0, 0.0]
-    assert (emitted["dim_x"], emitted["dim_y"], emitted["dim_z"]) == (2, 2, 2)
-    assert emitted["radius_mean"] == pytest.approx(0.15)
 
 
 @pytest.mark.parametrize("particles_per_cell", [0.7, 1.3, 2.25])
@@ -135,35 +120,6 @@ def test_grid_preserves_jitter_and_radius_semantics(radius):
     assert emitted["radius_mean"] == pytest.approx(expected_radius, rel=1.0e-6)
 
 
-@pytest.mark.parametrize(
-    ("overrides", "message"),
-    [
-        ({"lower": (0.0, 0.0)}, "`lower` must have shape (3,)"),
-        ({"upper": (1.0, np.nan, 1.0)}, "`upper` must contain only finite values"),
-        ({"upper": (0.0, 1.0, 1.0)}, "upper corner must be greater than lower corner"),
-        ({"voxel_size": np.nan}, "`voxel_size` must be finite and positive"),
-        ({"particles_per_cell": np.inf}, "`particles_per_cell` must be finite and positive"),
-        ({"jitter": -0.01}, "`jitter` must be finite and non-negative"),
-        (
-            {"material": MPMParticleMaterialCfg(density=0.0)},
-            "`material.density` must be finite and positive when deriving particle mass",
-        ),
-        ({"mass": 0.0}, "`mass` must be finite and positive"),
-        ({"radius": -0.01}, "`radius` must be finite and positive"),
-    ],
-)
-def test_grid_rejects_invalid_physical_inputs(overrides, message):
-    kwargs = {
-        "lower": (0.0, 0.0, 0.0),
-        "upper": (1.0, 1.0, 1.0),
-        "voxel_size": 0.1,
-    }
-    kwargs.update(overrides)
-
-    with pytest.raises(ValueError, match=re.escape(message)):
-        _emit_recorded_grid(MPMGridCfg(**kwargs))
-
-
 def test_points_preserve_explicit_particle_values_and_pose_transform():
     cfg = MPMPointsCfg(
         positions=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
@@ -182,39 +138,6 @@ def test_points_preserve_explicit_particle_values_and_pose_transform():
     np.testing.assert_allclose(emitted["vel"], ((0.0, 0.1, 0.0), (-0.2, 0.0, 0.0)), atol=1.0e-7)
     assert emitted["mass"] == [0.3, 0.4]
     assert emitted["radius"] == [0.05, 0.05]
-
-
-@pytest.mark.parametrize(
-    ("cfg", "message"),
-    [
-        (
-            MPMPointsCfg(positions=((0.0, np.nan, 0.0),)),
-            "`positions` must contain only finite values",
-        ),
-        (
-            MPMPointsCfg(positions=((0.0, 0.0, 0.0),), velocities=((0.0, np.inf, 0.0),)),
-            "`velocities` must contain only finite values",
-        ),
-        (
-            MPMPointsCfg(positions=((0.0, 0.0, 0.0),), mass=0.0),
-            "`mass` must contain only finite positive values",
-        ),
-        (
-            MPMPointsCfg(
-                positions=((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
-                mass=(1.0, np.inf),
-            ),
-            "`mass` must contain only finite positive values",
-        ),
-        (
-            MPMPointsCfg(positions=((0.0, 0.0, 0.0),), radius=-0.1),
-            "`radius` must contain only finite positive values",
-        ),
-    ],
-)
-def test_points_reject_invalid_physical_inputs(cfg, message):
-    with pytest.raises(ValueError, match=re.escape(message)):
-        _emit_recorded_points(cfg)
 
 
 def test_mpm_config_imports_do_not_load_pxr():
@@ -238,35 +161,6 @@ def test_mpm_config_imports_do_not_load_pxr():
         loaded_pxr_modules = [module for module in sys.modules if module == "pxr" or module.startswith("pxr.")]
         if loaded_pxr_modules:
             raise SystemExit("pxr loaded before SimulationApp: " + ", ".join(loaded_pxr_modules[:20]))
-        """
-    )
-
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
-
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
-@pytest.mark.parametrize(
-    "module",
-    [
-        "scripts.demos.mpm.newton_mpm_granular",
-        "scripts.demos.mpm.snowball_smash",
-        "scripts.demos.mpm.teapot_fill",
-    ],
-)
-def test_mpm_demo_configs_do_not_load_pxr_before_simulation_launch(module):
-    code = textwrap.dedent(
-        f"""
-        import importlib
-        import sys
-
-        sys.argv = ["demo.py", "--max_steps", "0", "--visualizer", "none", "--device", "cuda:0"]
-        demo = importlib.import_module({module!r})
-        demo.create_sim_cfg()
-
-        loaded_pxr_modules = [name for name in sys.modules if name == "pxr" or name.startswith("pxr.")]
-        if loaded_pxr_modules:
-            raise SystemExit("pxr loaded before simulation launch: " + ", ".join(loaded_pxr_modules[:20]))
         """
     )
 

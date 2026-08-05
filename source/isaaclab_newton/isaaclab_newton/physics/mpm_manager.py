@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import warnings
-
 import warp as wp
 from newton import (
     BodyFlags,
@@ -29,25 +27,12 @@ from .newton_manager import NewtonManager
 
 def _make_solver_config(solver_cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
     """Build Newton's implicit MPM solver config from Isaac Lab's cfg."""
-    collider_velocity_mode = solver_cfg.collider_velocity_mode
-    deprecated_velocity_modes = {
-        "instantaneous": "forward",
-        "finite_difference": "backward",
-    }
-    if replacement := deprecated_velocity_modes.get(collider_velocity_mode):
-        warnings.warn(
-            f"collider_velocity_mode={collider_velocity_mode!r} is deprecated; use {replacement!r} instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        collider_velocity_mode = replacement
-
     return SolverImplicitMPM.Config(
         max_iterations=solver_cfg.max_iterations,
         tolerance=solver_cfg.tolerance,
         solver=solver_cfg.solver,
         warmstart_mode=solver_cfg.warmstart_mode,
-        collider_velocity_mode=collider_velocity_mode,
+        collider_velocity_mode=solver_cfg.collider_velocity_mode,
         voxel_size=solver_cfg.voxel_size,
         grid_type=solver_cfg.grid_type,
         grid_padding=solver_cfg.grid_padding,

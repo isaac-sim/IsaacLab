@@ -35,7 +35,6 @@ class FrankaPourResetDatasetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     clip_actions = 1.0
     logger = "tensorboard"
     obs_groups = {"actor": ["policy", "media"], "critic": ["policy", "media", "privileged"]}
-    # Keep the 8-action relative-joint policy separate from incompatible Cartesian checkpoints.
     experiment_name = "franka_pour_reset_dataset_particle_state_joint_rel"
     run_name = "reset_dataset_particle_state_joint_rel"
     actor = RslRlMLPModelCfg(

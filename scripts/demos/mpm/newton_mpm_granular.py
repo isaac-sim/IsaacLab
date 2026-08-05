@@ -28,8 +28,6 @@ from isaaclab.app import add_launcher_args, launch_simulation
 parser = argparse.ArgumentParser(description="Newton implicit MPM granular demo.")
 parser.add_argument(
     "--max_steps",
-    "--max-steps",
-    dest="max_steps",
     type=int,
     default=-1,
     help="Stop after this many frames; negative runs forever.",
@@ -37,8 +35,6 @@ parser.add_argument(
 parser.add_argument("--collider", default="cube", choices=["cube", "wedge", "concave", "none"], help="Collider set.")
 parser.add_argument(
     "--voxel_size",
-    "--voxel-size",
-    dest="voxel_size",
     type=float,
     default=0.1,
     help="MPM grid voxel size [m].",

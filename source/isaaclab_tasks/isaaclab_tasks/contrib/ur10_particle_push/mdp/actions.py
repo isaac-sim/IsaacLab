@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Checkpoint-compatible UR10 joint-delta action."""
+"""UR10 joint-delta action applied once per policy step."""
 
 from __future__ import annotations
 

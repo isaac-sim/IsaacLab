@@ -274,22 +274,6 @@ def test_mpm_solver_cfg_maps_only_newton_solver_fields():
     assert not hasattr(newton_cfg, "project_outside_colliders")
 
 
-@pytest.mark.parametrize(
-    "deprecated_value, replacement",
-    [
-        ("instantaneous", "forward"),
-        ("finite_difference", "backward"),
-    ],
-)
-def test_mpm_solver_cfg_translates_deprecated_collider_velocity_modes(deprecated_value, replacement):
-    """Deprecated collider velocity modes warn and map to Newton's current values."""
-
-    with pytest.warns(DeprecationWarning, match=f"use {replacement!r}"):
-        newton_cfg = _make_solver_config(MPMSolverCfg(collider_velocity_mode=deprecated_value))
-
-    assert newton_cfg.collider_velocity_mode == replacement
-
-
 # Tuples of ``(field_name, non_default_value)`` covering every solver-tunable
 # field on :class:`MPMSolverCfg`. Each entry exercises the implementation-side
 # SolverImplicitMPM.Config construction so a Newton field rename or accidental

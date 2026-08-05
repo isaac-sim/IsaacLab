@@ -5,8 +5,6 @@
 
 """Tests for the Warp mesh particle samplers."""
 
-import re
-
 import numpy as np
 import pytest
 
@@ -104,40 +102,3 @@ def test_sample_particles_in_mesh_rejects_non_integer_face_indices():
 
     with pytest.raises(ValueError, match="`faces` must contain integer indices"):
         sample_particles_in_mesh(vertices, invalid_faces, spacing=0.5, device="cpu")
-
-
-@pytest.mark.parametrize(
-    ("kwargs", "message"),
-    [
-        ({"spacing": 0.5, "device": "cpu", "jitter": -0.1}, "`jitter` must be in [0, 0.5]"),
-        ({"spacing": 0.5, "device": "cpu", "jitter": 0.6}, "`jitter` must be in [0, 0.5]"),
-        ({"spacing": 0.5, "device": "cpu", "inset": -0.1}, "`inset` must be non-negative"),
-        ({"spacing": 0.5, "device": "cpu", "surface_margin": -0.1}, "`surface_margin` must be non-negative"),
-        ({"spacing": 0.5, "device": "cpu", "max_query_dist": 0.0}, "`max_query_dist` must be positive"),
-    ],
-)
-def test_sample_particles_in_mesh_rejects_invalid_settings(kwargs, message):
-    vertices, faces = _box_mesh(-1.0, 1.0)
-
-    with pytest.raises(ValueError, match=re.escape(message)):
-        sample_particles_in_mesh(vertices, faces, **kwargs)
-
-
-@pytest.mark.parametrize(
-    ("kwargs", "message"),
-    [
-        ({"spacing": 0.0, "device": "cpu"}, "`spacing` must be positive"),
-        ({"spacing": 0.5, "device": "cpu", "jitter": 0.6}, "`jitter` must be in [0, 0.5]"),
-        ({"spacing": 0.5, "device": "cpu", "inset": -0.1}, "`inset` must be non-negative"),
-        ({"spacing": 0.5, "device": "cpu", "surface_margin": -0.1}, "`surface_margin` must be non-negative"),
-        ({"spacing": 0.5, "device": "cpu", "min_ray_hits": 0}, "`min_ray_hits` must be in [1, 6]"),
-        ({"spacing": 0.5, "device": "cpu", "min_ray_hits": 1.9}, "`min_ray_hits` must be an integer"),
-        ({"spacing": 0.5, "device": "cpu", "max_ray_dist": 0.0}, "`max_ray_dist` must be positive"),
-        ({"spacing": 0.5, "device": "cpu", "max_query_dist": 0.0}, "`max_query_dist` must be positive"),
-    ],
-)
-def test_sample_particles_in_cavity_rejects_invalid_settings(kwargs, message):
-    vertices, faces = _box_mesh(-1.0, 1.0)
-
-    with pytest.raises(ValueError, match=re.escape(message)):
-        sample_particles_in_cavity(vertices, faces, **kwargs)

@@ -70,10 +70,8 @@ _RESET_DATASET_STATE_NAMES = (
 # Its remaining inset is represented as a contact skin after accounting for the source skin.
 _SEATTLELAB_TABLETOP_COLLISION_INSET = 0.003
 
-# Newton documents force-space shape gains through the ``mujoco:solref_mode``
-# builder attribute, but does not expose the corresponding enum. Keep the
-# numeric adapter local to this task; its runtime compatibility test verifies
-# that latest Newton main still interprets zero as FORCE_SPACE.
+# Newton exposes force-space shape gains through the numeric ``mujoco:solref_mode``
+# builder attribute but does not currently publish the corresponding enum.
 _MJWARP_SOLREF_MODE_FORCE_SPACE = 0
 
 

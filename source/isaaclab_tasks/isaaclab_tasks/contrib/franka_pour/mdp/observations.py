@@ -186,17 +186,12 @@ def normalized_cup_velocity_obs(
 
 
 def particle_fractions_obs(env: FrankaPourEnv) -> torch.Tensor:
-    """Source, target, spill, and legacy held-delivery fractions.
-
-    The final checkpoint-facing channel is retained as zero for compatibility. The original held-
-    delivery tracker was never updated by the task and therefore produced the same value.
-    """
+    """Fractions of particles in the source, target, and spill regions."""
     scale = max(env.num_particles, 1)
     source = env.count_in_source() / scale
     target = env.count_in_target() / scale
     spilled = env.count_spilled() / scale
-    held_target = torch.zeros_like(source)
-    return torch.stack((source, target, spilled, held_target), dim=-1)
+    return torch.stack((source, target, spilled), dim=-1)
 
 
 def particle_source_state_obs(env: FrankaPourEnv) -> torch.Tensor:
@@ -253,8 +248,3 @@ def particle_transfer_obs(env: FrankaPourEnv) -> torch.Tensor:
     fraction = count / max(env.num_particles, 1)
     summary = torch.cat((centroid_relative / 0.30, velocity / 2.0, fraction), dim=-1)
     return torch.nan_to_num(summary).clamp_(-2.0, 2.0)
-
-
-def held_delivery_history_obs(env: FrankaPourEnv) -> torch.Tensor:
-    """Return the legacy zero held-delivery channel retained for checkpoint compatibility."""
-    return torch.zeros((env.num_envs, 1), device=env.device, dtype=torch.float32)

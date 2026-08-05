@@ -536,7 +536,7 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """Checkpoint-compatible actor image/vector groups and privileged critic state."""
+    """Actor image/vector groups and privileged critic state."""
 
     @configclass
     class PolicyCfg(ObsGroup):

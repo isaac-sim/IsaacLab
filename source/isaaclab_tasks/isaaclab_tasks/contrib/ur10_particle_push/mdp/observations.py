@@ -43,7 +43,7 @@ def build_bin_goal_mask(
 
 
 def policy_observation(env: UR10ParticlePushEnv) -> torch.Tensor:
-    """Return checkpoint-compatible robot and task observations for the actor."""
+    """Return robot and task observations for the actor."""
     return env.policy_observation()
 
 

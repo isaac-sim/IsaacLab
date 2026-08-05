@@ -17,7 +17,6 @@ from isaaclab.envs.mdp.actions import BinaryJointPositionAction, RelativeJointPo
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from .actions_cfg import (
         CurriculumGripperPositionActionCfg,
@@ -64,18 +63,13 @@ class CurriculumGripperPositionAction(BinaryJointPositionAction):
         binary_cfg.close_command_expr = {".*": float(cfg.close_position)}
         super().__init__(binary_cfg, env)
         self._joint_ids_torch, _ = self._asset.find_joints(cfg.joint_names, preserve_order=True)
-        self._scale = float(cfg.scale)
         self._alpha = float(cfg.alpha)
         close_position = float(cfg.close_position)
         self._neutral_position = float(cfg.neutral_position)
         default_position = close_position if cfg.default_position is None else float(cfg.default_position)
         self._contact_min_deflection = float(cfg.contact_min_deflection)
-        if not math.isfinite(self._scale) or self._scale <= 0.0:
-            raise ValueError("Curriculum gripper action scale must be finite and positive.")
         if not 0.0 < self._alpha <= 1.0:
             raise ValueError(f"Moving-average weight must lie in (0, 1], got {self._alpha}.")
-        if isinstance(cfg.binary_threshold, bool) or float(cfg.binary_threshold) != 0.0:
-            raise ValueError("The checkpoint-facing binary gripper threshold must be zero.")
         if (
             not math.isfinite(close_position)
             or not math.isfinite(self._neutral_position)
@@ -126,12 +120,6 @@ class CurriculumGripperPositionAction(BinaryJointPositionAction):
         deflection_quality = torch.clamp(deflection.amin(dim=-1) / self._contact_min_deflection, 0.0, 1.0)
         command_valid = self._processed_actions.amax(dim=-1) <= (self._neutral_position + _GRIPPER_POSITION_TOLERANCE)
         return deflection_quality * command_valid.float()
-
-    @property
-    def IO_descriptor(self) -> GenericActionIODescriptor:
-        descriptor = super().IO_descriptor
-        descriptor.scale = self._scale
-        return descriptor
 
     def set_reset_position(
         self,

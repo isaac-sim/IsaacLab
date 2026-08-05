@@ -80,7 +80,7 @@ FRANKA_POUR_ARM_DRIVE_DAMPING = {
     "panda_joint[3-4]": 4.0,
     "panda_joint[5-7]": 2.0,
 }
-# Keep compatibility independent of whether the canonical asset is streamed or materialized.
+# Identify the canonical asset consistently whether it is streamed or materialized.
 FRANKA_POUR_ROBOT_USD_PATH = os.environ.get("ISAACLAB_FRANKA_POUR_ROBOT_USD_PATH", FRANKA_POUR_ROBOT_ASSET_ID)
 FRANKA_POUR_ARM_COLLISION_PROXIES = frozenset(
     {
@@ -270,7 +270,7 @@ class PourSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class ActionsCfg:
-    """Checkpoint-compatible filtered arm deltas and binary gripper command."""
+    """Filtered arm deltas and a binary gripper command."""
 
     arm_action = mdp.EMARelativeJointPositionActionCfg(
         asset_name="robot",
@@ -283,9 +283,7 @@ class ActionsCfg:
     gripper_action = mdp.CurriculumGripperPositionActionCfg(
         asset_name="robot",
         joint_names=["panda_finger.*"],
-        scale=0.016,
         alpha=1.0 - (1.0 - 0.2) ** (1.0 / 3.0),
-        binary_threshold=0.0,
         close_position=0.021,
         neutral_position=0.04,
         default_position=0.024,
@@ -295,7 +293,7 @@ class ActionsCfg:
 
 @configclass
 class ResetDatasetObservationsCfg:
-    """Checkpoint-compatible policy history and compact MPM state."""
+    """Policy history and compact MPM state."""
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -354,7 +352,6 @@ class ResetDatasetObservationsCfg:
 
         success_dwell = ObsTerm(func=mdp.success_dwell_obs)
         lost_grasp_dwell = ObsTerm(func=mdp.lost_grasp_dwell_obs)
-        held_delivery_history = ObsTerm(func=mdp.held_delivery_history_obs)
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -679,7 +676,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics.use_cuda_graph = self.use_cuda_graph
 
     def _validate_values(self) -> None:
-        """Validate the compact physical and checkpoint-facing configuration."""
+        """Validate the physical, control, task, and reset-dataset configuration."""
         self._validate_physics_values()
         self._validate_action_values()
         self._validate_task_values()
@@ -764,7 +761,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
             raise ValueError("cup_grasp_tcp_quat_c must be a finite unit quaternion.")
 
     def _validate_action_values(self) -> None:
-        """Validate the checkpoint-facing action contract."""
+        """Validate the task action contract."""
         arm_action = self.actions.arm_action
         gripper_action = self.actions.gripper_action
         if arm_action.joint_names != [f"panda_joint{index}" for index in range(1, 8)]:
@@ -989,10 +986,8 @@ def _reset_dataset_task_contract(cfg: FrankaPourResetDatasetEnvCfg) -> dict[str,
                 "class_type": _action_class_identifier(gripper_action.class_type),
                 "asset_name": str(gripper_action.asset_name),
                 "joint_names": tuple(str(name) for name in gripper_action.joint_names),
-                "scale": float(gripper_action.scale),
                 "clip": _action_clip_contract(getattr(gripper_action, "clip", None)),
                 "alpha": float(gripper_action.alpha),
-                "binary_threshold": _action_value_contract(gripper_action.binary_threshold),
                 "close_position": float(gripper_action.close_position),
                 "neutral_position": float(gripper_action.neutral_position),
                 "default_position": _action_value_contract(gripper_action.default_position),

@@ -56,16 +56,12 @@ def _unit_interval_float(value: str) -> float:
 parser = argparse.ArgumentParser(description="Newton implicit MPM teapot-fill demo.")
 parser.add_argument(
     "--max_steps",
-    "--max-steps",
-    dest="max_steps",
     type=int,
     default=3000,
     help="Stop after this many frames; negative runs forever.",
 )
 parser.add_argument(
     "--voxel_size",
-    "--voxel-size",
-    dest="voxel_size",
     type=_positive_finite_float,
     default=DEFAULT_VOXEL_SIZE,
     help=f"MPM grid voxel size in meters. Defaults to {DEFAULT_VOXEL_SIZE:g}.",
@@ -109,8 +105,6 @@ parser.add_argument(
 )
 parser.add_argument(
     "--container_usd",
-    "--container-usd",
-    dest="container_usd",
     type=str,
     default=f"{ISAAC_NUCLEUS_DIR}/Props/Teapot/utah_teapot.usdc",
     help="USD asset used as the pouring container (rigid collider).",

@@ -30,7 +30,7 @@ The calibrated 20,000-row v12 production artifact is generated and supplied exte
 expected content digest is
 `93e1f86a5145812a412c4e3c0d5873bff765bce9d236e4e2f0893e190c4a75bf`. Place the artifact at
 `datasets/franka_pour/reset_dataset.pt`; the environment validates its schema, provenance, pinned
-content digest, and task compatibility when it starts. The `datasets/` directory is intentionally
+content digest, and task contract when it starts. The `datasets/` directory is intentionally
 ignored by Git.
 
 The canonical artifact download location has not yet been published. Consequently, a clean
@@ -56,7 +56,7 @@ agent_cfg = FrankaPourResetDatasetPPORunnerCfg()
 
 The configuration pins the production digest by default. Set
 `env_cfg.reset_dataset_content_sha256` explicitly only when intentionally using another trusted,
-compatible artifact.
+matching artifact.
 
 Reset-dataset play mode uses one bounded sparse-grid world, disables observation corruption,
 freezes the sampler, and moves the interactive viewer closer.

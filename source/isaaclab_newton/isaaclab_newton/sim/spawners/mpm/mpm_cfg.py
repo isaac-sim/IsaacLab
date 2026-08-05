@@ -131,7 +131,7 @@ class MPMGridCfg(MPMParticleSpawnerCfg):
 
     If ``None``, cell-centered placement uses the equal-volume radius whose
     represented cube volume matches the lattice-cell volume. Boundary placement
-    preserves the legacy default of half the largest lattice-cell size.
+    uses half the largest lattice-cell size.
     """
 
 

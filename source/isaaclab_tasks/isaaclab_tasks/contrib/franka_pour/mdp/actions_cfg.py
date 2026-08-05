@@ -38,12 +38,8 @@ class CurriculumGripperPositionActionCfg(BinaryJointPositionActionCfg):
     """Populated from :attr:`neutral_position` when the action term is constructed."""
     close_command_expr: dict[str, float] = field(default_factory=dict)
     """Populated from :attr:`close_position` when the action term is constructed."""
-    scale: float = 0.04
-    """Checkpoint compatibility metadata exposed in the action descriptor [m]."""
     alpha: float = 0.2
     """Interpolation weight applied to the selected finger target."""
-    binary_threshold: float = 0.0
-    """Compatibility metadata. The checkpoint-facing binary action uses a zero threshold."""
     close_position: float = 0.0
     """Per-finger closed command [m]."""
     neutral_position: float = 0.025

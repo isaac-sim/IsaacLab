@@ -565,7 +565,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
 
     @property
     def arm_action(self) -> mdp.ClampedRelativeJointPositionAction:
-        """Checkpoint-compatible arm action term."""
+        """Arm joint-delta action term."""
         return self.action_manager.get_term("arm_action")
 
     @property
