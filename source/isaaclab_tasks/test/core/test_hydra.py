@@ -9,6 +9,7 @@ These tests verify the REPLACE-only preset system without depending on
 external environment configurations.
 """
 
+import logging
 import warnings
 
 import pytest
@@ -1532,6 +1533,36 @@ def test_resolve_active_presets_no_physics_hit_for_scalar_preset():
     # physics=newton_mjwarp (typed selector) must error.
     with pytest.raises(ValueError, match="physics=newton_mjwarp"):
         hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)
+
+
+def test_resolve_task_config_logs_and_retains_resolved_newton_preset(monkeypatch, caplog):
+    """Task resolution retains and logs its Newton preset without launching simulation."""
+
+    @configclass
+    class PhysicsPresetCfg(PresetCfg):
+        default: _PhysxPhysicsCfg = _PhysxPhysicsCfg()
+        newton_mjwarp: _NewtonPhysicsCfg = _NewtonPhysicsCfg()
+
+    @configclass
+    class EnvCfg:
+        physics: PhysicsPresetCfg = PhysicsPresetCfg()
+
+    from isaaclab_tasks.utils import parse_cfg as parse_cfg_mod
+
+    monkeypatch.setattr(parse_cfg_mod, "load_cfg_from_registry", lambda _task, _entry: EnvCfg())
+    monkeypatch.setattr("sys.argv", ["train.py", "physics=newton_mjwarp"])
+    caplog.set_level(logging.INFO, logger=hydra_mod.__name__)
+
+    env_cfg, agent_cfg = hydra_mod.resolve_task_config("Test-Resolved-Presets", "")
+
+    assert agent_cfg is None
+    assert getattr(env_cfg, "__resolved_presets__") == (("env.physics", "newton_mjwarp", "_NewtonPhysicsCfg"),)
+    assert "__resolved_presets__" not in env_cfg.to_dict()
+    assert [record.getMessage() for record in caplog.records if record.name == hydra_mod.__name__] == [
+        "---------------- Resolved task presets ----------------",
+        "env.physics = newton_mjwarp -> _NewtonPhysicsCfg",
+        "-------------------------------------------------------",
+    ]
 
 
 # =============================================================================

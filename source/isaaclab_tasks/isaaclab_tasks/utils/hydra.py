@@ -28,6 +28,7 @@ Example usage::
 
 import ast
 import functools
+import logging
 import sys
 import warnings
 from collections import deque
@@ -44,6 +45,10 @@ from isaaclab.utils.configclass import configclass
 from .preset_target import PresetTarget
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
+_PRESET_BANNER_HEADER = "---------------- Resolved task presets ----------------"
+_PRESET_BANNER_FOOTER = "-" * len(_PRESET_BANNER_HEADER)
+
+logger = logging.getLogger(__name__)
 
 
 def _user_stacklevel() -> int:
@@ -282,6 +287,7 @@ def _pick_alternative(
     explicit_name: str | None = None,
     consumed_selected: set[str] | None = None,
     typed_hits: dict[str, set[PresetTarget]] | None = None,
+    resolved_presets: list[tuple[str, str, str]] | None = None,
 ):
     """Choose the best alternative from a PresetCfg.
 
@@ -292,11 +298,17 @@ def _pick_alternative(
         ValueError: If no matching name and no ``default`` field exists.
     """
     fields = _preset_fields(preset_obj)
+
+    def record(name: str, value):
+        if resolved_presets is not None:
+            resolved_presets.append((path, name, type(value).__name__))
+        return value
+
     field_names = set(fields)
     if explicit_name is not None:
         explicit_name = _normalize_preset_name(explicit_name, field_names)
         if explicit_name in fields:
-            return fields[explicit_name]
+            return record(explicit_name, fields[explicit_name])
         avail = list(fields)
         hint = ""
         if explicit_name in PresetTarget.all_legacy_aliases():
@@ -330,9 +342,9 @@ def _pick_alternative(
                 )
         match_name, match_value = name, val
     if match_name is not None:
-        return match_value
+        return record(match_name, match_value)
     if "default" in fields:
-        return fields["default"]
+        return record("default", fields["default"])
     raise ValueError(
         f"PresetCfg {type(preset_obj).__name__} at '{path}' has no 'default' field "
         f"and none of the selected presets {selected} match its fields {set(fields.keys())}."
@@ -349,6 +361,7 @@ def _resolve_active_presets(
     consumed_selected: set[str] | None = None,
     typed_hits: dict[str, set[PresetTarget]] | None = None,
     consumed_explicit: set[str] | None = None,
+    resolved_presets: list[tuple[str, str, str]] | None = None,
 ):
     """Resolve presets by walking only the currently active tree.
 
@@ -375,6 +388,7 @@ def _resolve_active_presets(
                 explicit_name=explicit.get(path),
                 consumed_selected=consumed_selected,
                 typed_hits=typed_hits,
+                resolved_presets=resolved_presets,
             )
         return val
 
@@ -438,10 +452,22 @@ def resolve_presets(cfg, selected=()):
 # ============================================================================
 
 
+def _log_resolved_presets(env_cfg) -> None:
+    """Log preset choices retained on a resolved environment configuration."""
+    resolved_presets = getattr(env_cfg, "__resolved_presets__", ())
+    if not resolved_presets:
+        return
+    logger.info(_PRESET_BANNER_HEADER)
+    for path, name, replacement_type in resolved_presets:
+        logger.info("%s = %s -> %s", path, name, replacement_type)
+    logger.info(_PRESET_BANNER_FOOTER)
+
+
 def _run_hydra(task, env_cfg, agent_cfg, hydra_args, callback):
     """Shared Hydra entry point for :func:`resolve_task_config` and :func:`hydra_task_config`."""
     if not hydra_args:
         env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
+        _log_resolved_presets(env_cfg)
         callback(env_cfg, agent_cfg)
         return
 
@@ -456,6 +482,7 @@ def _run_hydra(task, env_cfg, agent_cfg, hydra_args, callback):
             agent_cfg = hydra_cfg["agent"]
         else:
             agent_cfg.from_dict(hydra_cfg["agent"])
+        _log_resolved_presets(env_cfg)
         callback(env_cfg, agent_cfg)
 
     try:
@@ -629,6 +656,7 @@ def register_task(task_name: str, agent_entry: str, play_mode: bool = False) -> 
     consumed_presets: set[str] = set()
     typed_hits: dict[str, set[PresetTarget]] = {}
     consumed_explicit: set[str] = set()
+    resolved_presets: list[tuple[str, str, str]] = []
     env_explicit = {path: name for path, name in explicit.items() if path == "env" or path.startswith("env.")}
     agent_explicit = {path: name for path, name in explicit.items() if path == "agent" or path.startswith("agent.")}
     env_cfg = _resolve_active_presets(
@@ -640,6 +668,7 @@ def register_task(task_name: str, agent_entry: str, play_mode: bool = False) -> 
         consumed_selected=consumed_presets,
         typed_hits=typed_hits,
         consumed_explicit=consumed_explicit,
+        resolved_presets=resolved_presets,
     )
     if agent_cfg is not None:
         agent_cfg = _resolve_active_presets(
@@ -651,6 +680,7 @@ def register_task(task_name: str, agent_entry: str, play_mode: bool = False) -> 
             consumed_selected=consumed_presets,
             typed_hits=typed_hits,
             consumed_explicit=consumed_explicit,
+            resolved_presets=resolved_presets,
         )
 
     unknown_presets = set(global_presets) - consumed_presets
@@ -691,6 +721,8 @@ def register_task(task_name: str, agent_entry: str, play_mode: bool = False) -> 
             _setattr(cfgs[sec], path, _parse_val(val))
         else:
             hydra_args.append(arg)
+
+    setattr(env_cfg, "__resolved_presets__", tuple(resolved_presets))
 
     if not hydra_args:
         return env_cfg, agent_cfg, hydra_args
