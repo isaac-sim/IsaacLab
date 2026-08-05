@@ -22,7 +22,7 @@ Example (recommended shipping task, RSL-RL checkpoint):
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play_displayport_insertion.py \\
+    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
         --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \\
         --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run>/model_1500.pt \\
         --num_envs 1 \\
@@ -36,7 +36,7 @@ LEAPP-exported policy (ONNX + deploy YAML). Pass a YAML path or the export direc
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play_displayport_insertion.py \\
+    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
         --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \\
         --leapp_model logs/rsl_rl/dp_exps/displayport_default_model900 \\
         --num_envs 1 \\
@@ -49,11 +49,26 @@ Open-loop replay of a real (or sim) ``policy_io`` CSV:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play_displayport_insertion.py \\
+    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
         --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \\
         --replay_csv rollouts/sim_real_compare/real_policy.csv \\
         --socket_pos 0.475 0.125 0.07 \\
         --log_dir rollouts/sim_real_compare/replay_run \\
+        --visualizer kit
+
+Closed-loop policy with the **exact** first observation from a real/sim CSV
+(``obs_*`` from the chosen row replaces the first vector fed to the policy):
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
+        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \\
+        --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run>/model_1500.pt \\
+        --init_obs_csv rollouts/sim_real_compare/real_policy_gt_sock.csv \\
+        --socket_pos 0.475 0.125 0.07 \\
+        --num_envs 1 \\
+        --max_steps 200 \\
+        --log_dir logs/dp_init_obs_runs \\
         --visualizer kit
 
 Pose conventions
@@ -71,6 +86,12 @@ Pose conventions
   same ``policy_io.csv`` logging path is used. Checkpoint is optional in this
   mode. When init overrides are omitted, row 0 of the CSV seeds
   ``--robot_joint_pos`` and ``--observed_socket_*``.
+* ``--init_obs_csv`` closed-loop only: for the **first** policy step, feed the
+  flat ``obs_*`` vector from the CSV (default row ``--init_obs_step 0``) instead
+  of the sim-computed observation. Later steps use live sim observations.
+  Unset ``--robot_joint_pos`` / ``--observed_socket_*`` are seeded from that
+  same row so the physical scene starts aligned. Compatible with ``--checkpoint``
+  and ``--leapp_model``; mutually exclusive with ``--replay_csv``.
 * ``--leapp_model`` runs a LEAPP-exported ONNX policy (``InferenceManager``)
   instead of an RSL-RL ``.pt`` checkpoint. Accepts the deploy ``.yaml`` or the
   export directory containing it. Pose overrides and ``policy_io.csv`` logging
@@ -218,6 +239,24 @@ parser.add_argument(
         "(e.g. logs/rsl_rl/dp_exps/displayport_default_model900). Runs the exported "
         "ONNX policy via InferenceManager instead of an RSL-RL .pt checkpoint."
     ),
+)
+parser.add_argument(
+    "--init_obs_csv",
+    type=str,
+    default=None,
+    metavar="PATH",
+    help=(
+        "Closed-loop: feed the exact flat obs_* vector from this policy_io CSV as the "
+        "first policy observation (see --init_obs_step). Also seeds unset "
+        "--robot_joint_pos / --observed_socket_* from that row. Not compatible with "
+        "--replay_csv."
+    ),
+)
+parser.add_argument(
+    "--init_obs_step",
+    type=int,
+    default=0,
+    help="Row index in --init_obs_csv used for the first policy observation (default: 0).",
 )
 
 # Run control / logging
@@ -384,10 +423,10 @@ def _extract_lstm_hidden_state(policy) -> tuple[np.ndarray | None, np.ndarray | 
 
 
 def _pack_rnn_state(h: np.ndarray | None, c: np.ndarray | None) -> np.ndarray | None:
-    """Pack LSTM state into the real-robot ``rnn_*`` flatten order.
+    """Pack LSTM state into the real-robot ``rnn_in_*`` / ``rnn_out_*`` flatten order.
 
     Matches ``policy_io_csv_schema.md``: for each layer, concatenate hidden then
-    cell (ONNX ``actor_state_L_out`` with shape ``[2, 1, H]``), then stack layers.
+    cell (ONNX ``actor_state_L_{in,out}`` with shape ``[2, 1, H]``), then stack layers.
     DisplayPort (2 x 256 LSTM) → 1024 floats: ``[h0, c0, h1, c1]``.
     """
     if h is None:
@@ -480,7 +519,10 @@ def load_replay_trajectory(path: str | Path, num_arm_joints: int = 7) -> ReplayT
 
     Column priority (see ``policy_io_csv_schema.md``):
     1. ``blend_cmd_*`` — absolute blended/safety-limited command written to hardware (real).
-    2. ``target_joint_pos_{i}`` — absolute commands (sim logger extra).
+       In sim this is the policy-intent target (``q + scale * raw``), which is the
+       faithful thing to replay.
+    2. ``target_joint_pos_{i}`` — sim logger extra; the applied ``joint_pos_target``,
+       re-anchored on the last physics substep, so replaying it overshoots slightly.
     3. measured ``joint_*_pos`` + ``safety_cmd_*`` — real pre-blend path when
        ``safety_cmd`` is a scaled delta (``joint + safety_cmd``).
     4. ``action_{i}`` — policy output; for this DisplayPort deploy the values are
@@ -607,6 +649,154 @@ def load_replay_trajectory(path: str | Path, num_arm_joints: int = 7) -> ReplayT
     )
 
 
+@dataclass
+class InitPolicyObs:
+    """Flat policy observation (and optional RNN) taken from a policy_io CSV row."""
+
+    path: Path
+    step: int
+    obs: np.ndarray  # (D,)
+    rnn_in: np.ndarray | None = None  # (K,) packed layout, if present
+    joint_pos: np.ndarray | None = None  # (num_arm,) from obs[0:num_arm]
+    observed_socket_pos: np.ndarray | None = None  # (3,)
+    observed_socket_rot: np.ndarray | None = None  # (4,) xyzw
+
+
+def load_init_policy_obs(
+    path: str | Path,
+    step: int = 0,
+    num_arm_joints: int = 7,
+) -> InitPolicyObs:
+    """Load flat ``obs_*`` (and optional ``rnn_in_*``) from one CSV row.
+
+    Expected NoJointVel layout: ``[joint_pos(7), socket_pos(3), socket_quat(4)]``.
+    With joint velocity in the actor: ``[joint_pos(7), joint_vel(7), socket_pos(3),
+    socket_quat(4)]``. Socket slices are taken from the end of the vector.
+    """
+    csv_path = Path(path).expanduser().resolve()
+    if not csv_path.is_file():
+        raise FileNotFoundError(f"--init_obs_csv not found: {csv_path}")
+    if step < 0:
+        raise ValueError(f"--init_obs_step must be >= 0, got {step}")
+
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames is None:
+            raise ValueError(f"--init_obs_csv has no header: {csv_path}")
+        header = list(reader.fieldnames)
+        rows = list(reader)
+    if not rows:
+        raise ValueError(f"--init_obs_csv is empty: {csv_path}")
+    if step >= len(rows):
+        raise ValueError(
+            f"--init_obs_step={step} out of range for {csv_path} ({len(rows)} rows)."
+        )
+
+    obs_keys = sorted([k for k in header if re.fullmatch(r"obs_\d+", k)], key=_trailing_int)
+    if not obs_keys:
+        raise ValueError(f"--init_obs_csv {csv_path} has no obs_* columns.")
+    row = rows[step]
+    obs = np.asarray([float(row[k]) for k in obs_keys], dtype=np.float64)
+
+    rin_keys = sorted([k for k in header if re.fullmatch(r"rnn_in_\d+", k)], key=_trailing_int)
+    rnn_in = (
+        np.asarray([float(row[k]) for k in rin_keys], dtype=np.float64) if rin_keys else None
+    )
+
+    joint_pos = obs[:num_arm_joints].copy() if obs.size >= num_arm_joints else None
+    observed_socket_pos = observed_socket_rot = None
+    # Prefer explicit goal_* columns when present (real logger), else obs tail.
+    if all(k in header for k in ("goal_px", "goal_py", "goal_pz")):
+        observed_socket_pos = np.asarray(
+            [float(row["goal_px"]), float(row["goal_py"]), float(row["goal_pz"])],
+            dtype=np.float64,
+        )
+    elif obs.size >= num_arm_joints + 7:
+        # socket_pos/quat are always the last 7 entries of the actor obs.
+        observed_socket_pos = obs[-7:-4].copy()
+    if all(k in header for k in ("goal_qx", "goal_qy", "goal_qz", "goal_qw")):
+        observed_socket_rot = np.asarray(
+            [
+                float(row["goal_qx"]),
+                float(row["goal_qy"]),
+                float(row["goal_qz"]),
+                float(row["goal_qw"]),
+            ],
+            dtype=np.float64,
+        )
+    elif obs.size >= 4:
+        observed_socket_rot = obs[-4:].copy()
+
+    print(
+        f"[INFO] Loaded init policy obs from {csv_path} row {step}: "
+        f"obs_dim={obs.size}"
+        + (f", rnn_in_dim={rnn_in.size}" if rnn_in is not None else ", rnn_in=absent")
+    )
+    return InitPolicyObs(
+        path=csv_path,
+        step=step,
+        obs=obs,
+        rnn_in=rnn_in,
+        joint_pos=joint_pos,
+        observed_socket_pos=observed_socket_pos,
+        observed_socket_rot=observed_socket_rot,
+    )
+
+
+def _seed_cli_from_init_obs(seed: InitPolicyObs):
+    """Fill unset pose CLI args from the init-obs CSV row."""
+    if args_cli.robot_joint_pos is None and seed.joint_pos is not None:
+        args_cli.robot_joint_pos = [f"{v:.6f}" for v in seed.joint_pos.tolist()]
+        print(f"[INFO] --robot_joint_pos seeded from init obs: {args_cli.robot_joint_pos}")
+    if args_cli.observed_socket_pos is None and seed.observed_socket_pos is not None:
+        args_cli.observed_socket_pos = [float(v) for v in seed.observed_socket_pos.tolist()]
+        print(f"[INFO] --observed_socket_pos seeded from init obs: {args_cli.observed_socket_pos}")
+    if args_cli.observed_socket_rot is None and seed.observed_socket_rot is not None:
+        args_cli.observed_socket_rot = [float(v) for v in seed.observed_socket_rot.tolist()]
+        print(f"[INFO] --observed_socket_rot seeded from init obs: {args_cli.observed_socket_rot}")
+
+
+def _replace_policy_obs_vector(obs, flat: np.ndarray, num_envs: int, device):
+    """Return a copy of ``obs`` whose policy vector is replaced by ``flat``.
+
+    Supports TensorDict / mapping with a ``policy`` key, or a bare ``(N, D)`` tensor.
+    """
+    flat_t = torch.as_tensor(flat, device=device, dtype=torch.float32).reshape(-1)
+    tiled = flat_t.unsqueeze(0).expand(num_envs, -1).contiguous()
+
+    # TensorDict / dict-like
+    if isinstance(obs, dict) or hasattr(obs, "keys"):
+        try:
+            keys = list(obs.keys())
+        except Exception:
+            keys = []
+        if "policy" in keys:
+            pol = obs["policy"]
+            if torch.is_tensor(pol) and pol.shape[-1] != flat_t.numel():
+                raise ValueError(
+                    f"--init_obs_csv obs dim {flat_t.numel()} != live policy obs dim {pol.shape[-1]}. "
+                    "Use a CSV recorded with the same task / observation layout."
+                )
+            # TensorDict supports item assignment; fall back to clone+set.
+            try:
+                obs = obs.clone()
+            except Exception:
+                pass
+            obs["policy"] = tiled.to(device=pol.device if torch.is_tensor(pol) else device)
+            return obs
+
+    if torch.is_tensor(obs):
+        if obs.shape[-1] != flat_t.numel():
+            raise ValueError(
+                f"--init_obs_csv obs dim {flat_t.numel()} != live obs dim {obs.shape[-1]}."
+            )
+        out = obs.clone()
+        out[:] = tiled.to(device=obs.device, dtype=obs.dtype)
+        return out
+
+    raise TypeError(f"Unsupported observation container for --init_obs_csv: {type(obs)}")
+
+
 def _seed_cli_from_replay(traj: ReplayTrajectory):
     """Fill unset pose CLI args from the first CSV row so replay starts matched."""
     if args_cli.robot_joint_pos is None and traj.init_joint_pos is not None:
@@ -647,6 +837,11 @@ def _absolute_targets_to_relative_actions(
 
     ``apply_actions`` does ``target = action * scale + q``, so
     ``action = (target - q) / scale``.
+
+    Note that the action term re-evaluates ``q`` at every physics substep, so the
+    target actually applied at the end of the step is anchored later than the ``q``
+    read here. This inverse uses the policy-time ``q``, matching how the real robot
+    anchors its command once per control cycle.
     """
     base = env.unwrapped
     robot = base.scene["robot"]
@@ -738,9 +933,24 @@ class LeappDisplayportPolicy:
         self._joint_ids = self._resolve_arm_joint_ids()
         self.last_outputs: dict[str, torch.Tensor] = {}
         self.last_absolute_targets: np.ndarray | None = None
+        self.last_rnn_in: np.ndarray | None = None
+        self.last_rnn_out: np.ndarray | None = None
+        # One-shot override: when set, next __call__ uses these structured inputs
+        # (from a flat policy_io obs_*) instead of live scene terms.
+        self._forced_flat_obs: np.ndarray | None = None
 
         print(f"[INFO] LEAPP policy loaded from: {self.yaml_path}")
         print(f"[INFO] LEAPP node='{self.node_name}', inputs={self.input_names}")
+        # Feedback lives in InferenceManager.value_dict (not run_policy return).
+        fb = self._read_feedback_packed()
+        if fb is not None:
+            print(f"[INFO] LEAPP feedback state dim={fb.size} (will log rnn_in_*/rnn_out_*).")
+        else:
+            print("[WARNING] LEAPP export has no readable actor_state_*_in feedback buffers.")
+
+    def force_flat_obs_once(self, flat: np.ndarray):
+        """Use ``flat`` (policy_io ``obs_*``) as structured LEAPP inputs for the next call only."""
+        self._forced_flat_obs = np.asarray(flat, dtype=np.float64).reshape(-1)
 
     def _resolve_arm_joint_ids(self) -> list[int] | None:
         robot = self.base.scene["robot"]
@@ -770,12 +980,51 @@ class LeappDisplayportPolicy:
         return out
 
     def _gather_inputs(self) -> dict[str, torch.Tensor]:
+        n = self.base.num_envs
+        device = self.base.device
+        forced = self._forced_flat_obs
+        if forced is not None:
+            # Consume one-shot override. Layout matches NoJointVel ROS obs_order:
+            # joint_pos (7) [+ optional joint_vel (7)] + socket_pos (3) + socket_quat (4).
+            flat = torch.as_tensor(forced, device=device, dtype=torch.float32).reshape(-1)
+            self._forced_flat_obs = None
+            if flat.numel() < 7 + 3 + 4:
+                raise ValueError(
+                    f"Forced LEAPP obs dim {flat.numel()} too small; need at least 14 "
+                    "(joint_pos + socket_pos + socket_quat)."
+                )
+            socket_quat = flat[-4:].unsqueeze(0).expand(n, -1).contiguous()
+            socket_pos = flat[-7:-4].unsqueeze(0).expand(n, -1).contiguous()
+            remainder = flat[:-7]
+            joint_pos = remainder[:7].unsqueeze(0).expand(n, -1).contiguous()
+            values: dict[str, torch.Tensor] = {}
+            for name in self.input_names:
+                if name in ("robot_joint_pos", "arm_dof_pos", "joint_pos"):
+                    values[name] = joint_pos
+                elif name in ("socket_pos",):
+                    values[name] = socket_pos
+                elif name in ("socket_quat",):
+                    values[name] = socket_quat
+                elif name in ("robot_joint_vel", "arm_dof_vel", "joint_vel"):
+                    if remainder.numel() >= 14:
+                        values[name] = remainder[7:14].unsqueeze(0).expand(n, -1).contiguous()
+                    else:
+                        values[name] = torch.zeros(n, 7, device=device, dtype=torch.float32)
+                elif name.startswith("actor_state_"):
+                    continue
+                else:
+                    raise KeyError(
+                        f"Unsupported LEAPP input '{name}' under forced obs. "
+                        "Expected robot_joint_pos / socket_pos / socket_quat."
+                    )
+            return {f"{self.node_name}/{name}": tensor for name, tensor in values.items()}
+
         robot = self.base.scene["robot"]
         joint_pos = _to_torch(robot.data.joint_pos)
         if self._joint_ids is not None:
             joint_pos = joint_pos[:, self._joint_ids]
 
-        values: dict[str, torch.Tensor] = {}
+        values = {}
         for name in self.input_names:
             if name in ("robot_joint_pos", "arm_dof_pos", "joint_pos"):
                 values[name] = joint_pos
@@ -794,12 +1043,79 @@ class LeappDisplayportPolicy:
 
         return {f"{self.node_name}/{name}": tensor for name, tensor in values.items()}
 
+    def _feedback_layer_names(self) -> list[str]:
+        """Ordered ``actor_state_{i}_in`` names present in the LEAPP value buffers."""
+        buf = getattr(self.inference, "value_dict", {}).get(self.node_name, {})
+        names: list[str] = []
+        for i in range(16):
+            name = f"actor_state_{i}_in"
+            if name not in buf:
+                break
+            names.append(name)
+        return names
+
+    def _pack_layer_states(self, layer_states: list[torch.Tensor]) -> np.ndarray | None:
+        """Pack per-layer ``[2, B, H]`` (h/c) tensors into the flat deploy rnn layout."""
+        if not layer_states:
+            return None
+        h_layers: list[np.ndarray] = []
+        c_layers: list[np.ndarray | None] = []
+        has_cell = True
+        for state in layer_states:
+            t = state
+            if t.ndim == 3:
+                if t.shape[0] >= 2:
+                    h_layers.append(_as_numpy_1d(t[0, 0]))
+                    c_layers.append(_as_numpy_1d(t[1, 0]))
+                else:
+                    h_layers.append(_as_numpy_1d(t[0, 0]))
+                    c_layers.append(None)
+                    has_cell = False
+            elif t.ndim == 2:
+                h_layers.append(_as_numpy_1d(t[0]))
+                c_layers.append(None)
+                has_cell = False
+            else:
+                h_layers.append(_as_numpy_1d(t))
+                c_layers.append(None)
+                has_cell = False
+        if not h_layers or any(h is None for h in h_layers):
+            return None
+        h = np.stack(h_layers, axis=0)
+        if not has_cell or any(c is None for c in c_layers):
+            return _pack_rnn_state(h, None)
+        c = np.stack(c_layers, axis=0)
+        return _pack_rnn_state(h, c)
+
+    def _read_feedback_packed(self) -> np.ndarray | None:
+        """Read packed LSTM feedback from ``InferenceManager.value_dict`` input slots.
+
+        Feedback outs are written back into the ``actor_state_*_in`` buffers after each
+        ``run_policy`` call, so:
+        - before ``run_policy`` → ``rnn_in``
+        - after ``run_policy`` → ``rnn_out`` (also next step's ``rnn_in``)
+        """
+        buf = getattr(self.inference, "value_dict", {}).get(self.node_name, {})
+        names = self._feedback_layer_names()
+        if not names:
+            return None
+        return self._pack_layer_states([buf[n] for n in names])
+
     def __call__(self, obs=None) -> torch.Tensor:
         """Run one LEAPP inference step; ``obs`` is ignored (inputs are re-read)."""
         del obs  # LEAPP graph takes structured I/O, not the flat RSL-RL vector.
         inputs = self._gather_inputs()
+
+        # Capture rnn_in from feedback buffers BEFORE inference updates them.
+        rin = self._read_feedback_packed()
+        self.last_rnn_in = None if rin is None else rin.copy()
+
         with torch.inference_mode():
             self.last_outputs = self.inference.run_policy(inputs)
+
+        # After run_policy, feedback outs have been copied into the *_in slots.
+        rout = self._read_feedback_packed()
+        self.last_rnn_out = None if rout is None else rout.copy()
 
         abs_key = f"{self.node_name}/arm_action"
         if abs_key not in self.last_outputs:
@@ -816,57 +1132,45 @@ class LeappDisplayportPolicy:
         if abs_np is None:
             raise RuntimeError("Failed to read LEAPP arm_action tensor.")
         self.last_absolute_targets = abs_np.copy()
+
         return _absolute_targets_to_relative_actions(self.env, abs_np, self.clip_actions)
 
     def reset(self, dones=None):
         """Reset LEAPP recurrent state when any env episode ends."""
-        if dones is None:
-            self.inference.reset()
-            return
-        dones_b = torch.as_tensor(dones).bool().view(-1)
-        if bool(dones_b.any()):
+        do_reset = dones is None
+        if not do_reset:
+            dones_b = torch.as_tensor(dones).bool().view(-1)
+            do_reset = bool(dones_b.any())
+        if do_reset:
             self.inference.reset()
 
     def extract_lstm_state(self) -> tuple[np.ndarray | None, np.ndarray | None]:
-        """Return ``(h, c)`` with shape ``(num_layers, hidden)`` from LEAPP outputs."""
-        layer_states: list[torch.Tensor] = []
-        for i in range(8):
-            key = f"{self.node_name}/actor_state_{i}_out"
-            if key not in self.last_outputs:
-                # Some InferenceManager builds keep feedback only internally.
-                alt = [k for k in self.last_outputs if k.endswith(f"/actor_state_{i}_out")]
-                if not alt:
-                    break
-                key = alt[0]
-            layer_states.append(self.last_outputs[key])
-        if not layer_states:
+        """Return ``(h, c)`` for the current feedback buffers (post-inference if after run)."""
+        buf = getattr(self.inference, "value_dict", {}).get(self.node_name, {})
+        names = self._feedback_layer_names()
+        if not names:
             return None, None
-
-        # Each layer is typically [2, num_envs, hidden] for LSTM (h/c), or [1, ...] for GRU.
+        packed = self._pack_layer_states([buf[n] for n in names])
+        if packed is None:
+            return None, None
+        # Unpack is not needed by callers anymore; keep API for compatibility.
+        # Reconstruct (h, c) from flat packing: per layer [h, c] then layers.
+        # Prefer reading raw tensors when available.
         h_layers = []
         c_layers = []
         has_cell = True
-        for state in layer_states:
-            t = state
-            if t.ndim == 3:
-                # [2, B, H] or [1, B, H]
-                if t.shape[0] >= 2:
-                    h_layers.append(_as_numpy_1d(t[0, 0]))
-                    c_layers.append(_as_numpy_1d(t[1, 0]))
-                else:
-                    h_layers.append(_as_numpy_1d(t[0, 0]))
-                    has_cell = False
-            elif t.ndim == 2:
-                h_layers.append(_as_numpy_1d(t[0]))
-                has_cell = False
+        for name in names:
+            t = buf[name]
+            if t.ndim == 3 and t.shape[0] >= 2:
+                h_layers.append(_as_numpy_1d(t[0, 0]))
+                c_layers.append(_as_numpy_1d(t[1, 0]))
             else:
-                h_layers.append(_as_numpy_1d(t))
+                h_layers.append(_as_numpy_1d(t[0] if t.ndim >= 2 else t))
                 has_cell = False
-
         if not h_layers or any(h is None for h in h_layers):
             return None, None
         h = np.stack(h_layers, axis=0)
-        if not has_cell or any(c is None for c in c_layers):
+        if not has_cell:
             return h, None
         c = np.stack(c_layers, axis=0)
         return h, c
@@ -986,21 +1290,31 @@ class InferenceLogger:
 
     CSV layout mirrors ``policy_io_csv_schema.md`` / real-robot ``policy_io.csv``:
 
-    ``wall_time, ros_time, step, joint_<name>_pos, obs_*, action_*, rnn_*,
+    ``wall_time, ros_time, step, controller_step, policy_ros_time,
+    joint_<name>_pos, obs_*, action_*, rnn_in_*, rnn_out_*,
     goal_p*/q*, eef_p*/q*, blend_cmd_<name>`` (+ sim-only extras).
 
-    Column convention (aligned with the real logger for this DisplayPort deploy):
+    Column convention (aligned with the real synced-bundle logger):
 
-    * ``action_{i}`` — absolute arm joint target [rad] produced by the policy
-      (``joint_pos_target`` after the action term). Matches real ``action_*``,
-      which for this LEAPP export already lives in joint-angle space.
+    * ``action_{i}`` — absolute arm joint target [rad] the policy asked for,
+      decoded as ``q_at_policy_time + scale * action_raw``. Matches real
+      ``action_*``, which for this LEAPP export already lives in joint-angle
+      space and is likewise anchored once on the measured joint position.
     * ``action_raw_{i}`` — sim-only: normalized network output before the action
       term scales/decodes it.
-    * ``rnn_{i}`` — concatenated LSTM ``_out`` state this step, per-layer
-      ``[h, c]`` then layers (1024 floats for 2x256). Same as real ``rnn_*``.
+    * ``rnn_in_{i}`` — LSTM state fed into this inference step (zeros after reset).
+    * ``rnn_out_{i}`` — LSTM state produced by this inference step. Next step's
+      ``rnn_in_*`` equals this step's ``rnn_out_*``.
+    * ``controller_step`` / ``policy_ros_time`` — sim aliases of ``step`` /
+      ``ros_time`` so columns align with the real bundle logger.
     * ``blend_cmd_<name>`` — absolute command applied this cycle. In sim there is
-      no safety blend, so this equals ``action_*`` / ``joint_pos_target``.
-    * ``target_joint_pos_{i}`` — sim-only alias of the absolute target (plot tools).
+      no safety blend, so this equals ``action_*``.
+    * ``target_joint_pos_{i}`` — sim-only: ``joint_pos_target`` as it stands after
+      ``env.step()``. :class:`RelativeJointPositionAction` re-anchors on the live
+      joint position at every one of the ``decimation`` physics substeps, so this
+      is anchored on the *last* substep and is larger than ``action_*``. Use it to
+      see what the articulation was actually commanded; use ``action_*`` to
+      compare against real.
 
     Extra sim-only columns (plug/socket GT, success metrics, episode) are appended.
     """
@@ -1016,6 +1330,10 @@ class InferenceLogger:
         self.csv_path = (log_dir / "policy_io.csv") if log_dir is not None else None
         self._fieldnames: list[str] | None = None
         self._t0 = time.time()
+        self._action_scale = _action_scale(env)
+        # Arm joint positions sampled when the policy ran, carried from
+        # begin_step() to end_step() to decode action_* the way real does.
+        self._arm_q_at_policy: np.ndarray | None = None
         if self.log_dir is not None:
             self.log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1025,17 +1343,22 @@ class InferenceLogger:
         actions,
         step: int,
         episode: int,
-        lstm_h: np.ndarray | None = None,
-        lstm_c: np.ndarray | None = None,
+        rnn_in: np.ndarray | None = None,
+        rnn_out: np.ndarray | None = None,
     ) -> dict[str, Any]:
         """Snapshot the state the policy acted on, before the action is applied."""
         scene = self.base.scene
         # Timing: Unix epoch wall clock (matches real logger); ros_time := sim time.
         sim_dt = float(getattr(self.base, "step_dt", 0.0) or 0.0)
+        # Real synced logger is 1-indexed for step/controller_step; keep sim 0-indexed
+        # ``step`` for existing plots, and mirror it into controller_step.
+        ros_time = step * sim_dt
         row: dict[str, Any] = {
             "wall_time": time.time(),
-            "ros_time": step * sim_dt,
+            "ros_time": ros_time,
             "step": step,
+            "controller_step": step,
+            "policy_ros_time": ros_time,
             "episode": episode,
         }
 
@@ -1052,16 +1375,19 @@ class InferenceLogger:
             for i, val in enumerate(act.tolist()):
                 row[f"action_raw_{i}"] = float(val)
 
-        # Recurrent state as deploy ``rnn_*`` (per-layer [h, c], layers concatenated).
-        rnn = _pack_rnn_state(lstm_h, lstm_c)
-        if rnn is not None:
-            for i, val in enumerate(rnn.reshape(-1).tolist()):
-                row[f"rnn_{i}"] = float(val)
+        # Recurrent in/out (matches real ``rnn_in_*`` / ``rnn_out_*``).
+        if rnn_in is not None:
+            for i, val in enumerate(np.asarray(rnn_in, dtype=np.float64).reshape(-1).tolist()):
+                row[f"rnn_in_{i}"] = float(val)
+        if rnn_out is not None:
+            for i, val in enumerate(np.asarray(rnn_out, dtype=np.float64).reshape(-1).tolist()):
+                row[f"rnn_out_{i}"] = float(val)
 
         robot = scene["robot"]
         joint_names = list(_get_attr(robot.data, "joint_names") or _get_attr(robot, "joint_names") or [])
 
         joint_pos = _as_numpy_1d(_to_torch(robot.data.joint_pos)[0])
+        self._arm_q_at_policy = None if joint_pos is None else joint_pos.copy()
         if joint_pos is not None:
             names = joint_names if joint_names else [str(i) for i in range(len(joint_pos))]
             for name, val in zip(names, joint_pos.tolist()):
@@ -1152,6 +1478,8 @@ class InferenceLogger:
         success_info: dict | None,
         lstm_h: np.ndarray | None = None,
         lstm_c: np.ndarray | None = None,
+        rnn_in: np.ndarray | None = None,
+        rnn_out: np.ndarray | None = None,
     ):
         if not self.print_enabled or (step % self.print_every) != 0:
             return
@@ -1182,13 +1510,15 @@ class InferenceLogger:
         except Exception:
             pass
 
-        if lstm_h is not None:
-            rnn = _pack_rnn_state(lstm_h, lstm_c)
-            if rnn is not None:
-                print(f"[rnn] dim={rnn.size} ||rnn||={np.linalg.norm(rnn):.4f}")
-            else:
-                h = np.asarray(lstm_h, dtype=np.float64).reshape(-1)
-                print(f"[lstm] h dim={h.size} ||h||={np.linalg.norm(h):.4f}")
+        if rnn_in is None and lstm_h is not None:
+            # Legacy path: only post-forward state was provided.
+            rnn_out = _pack_rnn_state(lstm_h, lstm_c) if rnn_out is None else rnn_out
+        if rnn_in is not None:
+            rin = np.asarray(rnn_in, dtype=np.float64).reshape(-1)
+            print(f"[rnn_in] dim={rin.size} ||rnn_in||={np.linalg.norm(rin):.4f}")
+        if rnn_out is not None:
+            rout = np.asarray(rnn_out, dtype=np.float64).reshape(-1)
+            print(f"[rnn_out] dim={rout.size} ||rnn_out||={np.linalg.norm(rout):.4f}")
 
         eef_name = getattr(self.base.cfg, "end_effector_body_name", "flange")
         body_names = _get_attr(robot.data, "body_names") or _get_attr(robot, "body_names")
@@ -1222,18 +1552,18 @@ class InferenceLogger:
         actions,
         step: int,
         episode: int,
-        lstm_h: np.ndarray | None = None,
-        lstm_c: np.ndarray | None = None,
+        rnn_in: np.ndarray | None = None,
+        rnn_out: np.ndarray | None = None,
     ) -> dict[str, Any] | None:
         """Snapshot pre-step state. Call after ``policy(obs)`` but before ``env.step``.
 
         Keeps ``obs_*`` and the action columns on the same row time-aligned (the action is
         the one the policy produced from that observation), matching the real-robot logger.
-        ``lstm_h`` / ``lstm_c`` are packed into ``rnn_*`` (deploy recurrent-state layout).
+        ``rnn_in`` / ``rnn_out`` are packed deploy recurrent-state layouts.
         """
         if self.csv_path is None:
             return None
-        return self._collect_row(obs, actions, step, episode, lstm_h=lstm_h, lstm_c=lstm_c)
+        return self._collect_row(obs, actions, step, episode, rnn_in=rnn_in, rnn_out=rnn_out)
 
     def end_step(self, row: dict[str, Any] | None, success_info: dict | None):
         """Attach post-step command / metrics to a row from :meth:`begin_step`."""
@@ -1250,13 +1580,31 @@ class InferenceLogger:
         if target is not None:
             arm_n = min(num_arm, len(target))
             for i in range(arm_n):
-                # action_* = absolute policy target (matches real DisplayPort logs).
-                row[f"action_{i}"] = float(target[i])
-                # Sim-only alias used by some plot helpers.
+                # joint_pos_target as left by the action term. RelativeJointPositionAction
+                # re-anchors on live joint_pos every physics substep, so this reflects the
+                # last substep's joint position, not the one the policy saw.
                 row[f"target_joint_pos_{i}"] = float(target[i])
-            # blend_cmd_* = command applied this cycle. No safety controller in sim,
-            # so this equals the absolute policy target (real blend_cmd may differ).
+
+        # action_* / blend_cmd_* = the absolute target the policy asked for, anchored
+        # once on the joint position it observed: q + scale * raw. This is the real
+        # robot's convention (single command per control cycle), so the columns stay
+        # comparable across sim and hardware.
+        q0 = self._arm_q_at_policy
+        arm_n = min(num_arm, 0 if q0 is None else len(q0))
+        raw = [row.get(f"action_raw_{i}") for i in range(arm_n)]
+        if arm_n and all(v is not None for v in raw):
+            policy_target = q0[:arm_n] + self._action_scale * np.asarray(raw, dtype=np.float64)
             names = joint_names[:arm_n] if joint_names else [f"joint{i + 1}" for i in range(arm_n)]
+            for i, val in enumerate(policy_target.tolist()):
+                row[f"action_{i}"] = float(val)
+            for name, val in zip(names, policy_target.tolist()):
+                row[f"blend_cmd_{name}"] = float(val)
+        elif target is not None:
+            # Replay mode has no action_raw_*; fall back to the applied target.
+            arm_n = min(num_arm, len(target))
+            names = joint_names[:arm_n] if joint_names else [f"joint{i + 1}" for i in range(arm_n)]
+            for i in range(arm_n):
+                row[f"action_{i}"] = float(target[i])
             for name, val in zip(names, target[:arm_n].tolist()):
                 row[f"blend_cmd_{name}"] = float(val)
 
@@ -1277,6 +1625,8 @@ class InferenceLogger:
             "wall_time",
             "ros_time",
             "step",
+            "controller_step",
+            "policy_ros_time",
             "episode",
         ]
         keys: list[str] = []
@@ -1291,6 +1641,9 @@ class InferenceLogger:
             lambda k: k.startswith("joint_"),
             lambda k: re.fullmatch(r"obs_\d+", k) is not None,
             lambda k: re.fullmatch(r"action_\d+", k) is not None,
+            lambda k: re.fullmatch(r"rnn_in_\d+", k) is not None,
+            lambda k: re.fullmatch(r"rnn_out_\d+", k) is not None,
+            # Legacy flat rnn_* (kept last among rnn groups for old CSVs if mixed).
             lambda k: re.fullmatch(r"rnn_\d+", k) is not None,
             lambda k: k.startswith("goal_"),
             lambda k: k.startswith("eef_"),
@@ -1466,6 +1819,7 @@ def _write_run_metadata(
     pose_meta: dict[str, Any],
     replay: ReplayTrajectory | None = None,
     leapp_model: str | None = None,
+    init_obs: InitPolicyObs | None = None,
 ):
     payload = {
         "task": args_cli.task,
@@ -1474,6 +1828,9 @@ def _write_run_metadata(
         "replay_csv": str(replay.path) if replay is not None else None,
         "replay_source": replay.source if replay is not None else None,
         "replay_num_steps": replay.num_steps if replay is not None else None,
+        "init_obs_csv": str(init_obs.path) if init_obs is not None else None,
+        "init_obs_step": init_obs.step if init_obs is not None else None,
+        "init_obs_dim": int(init_obs.obs.size) if init_obs is not None else None,
         "num_envs": args_cli.num_envs,
         "max_steps": args_cli.max_steps,
         "num_episodes": args_cli.num_episodes,
@@ -1501,13 +1858,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         train_task_name = task_name.replace("-Play", "").replace("-ROS-Inference", "")
         replay_mode = args_cli.replay_csv is not None
         leapp_mode = args_cli.leapp_model is not None
+        init_obs_mode = args_cli.init_obs_csv is not None
 
         if leapp_mode and replay_mode:
             raise ValueError("Use only one of --leapp_model and --replay_csv.")
+        if init_obs_mode and replay_mode:
+            raise ValueError("Use only one of --init_obs_csv and --replay_csv.")
         if leapp_mode and (args_cli.checkpoint or args_cli.use_pretrained_checkpoint):
             print("[WARNING] --leapp_model set; ignoring --checkpoint / --use_pretrained_checkpoint.")
         if replay_mode and (args_cli.checkpoint or args_cli.use_pretrained_checkpoint):
             print("[WARNING] --replay_csv set; checkpoint will not be used for actions.")
+        if init_obs_mode and not leapp_mode and not (args_cli.checkpoint or args_cli.use_pretrained_checkpoint):
+            # Still allow hydra default checkpoint resolution below; just note the feature.
+            print("[INFO] --init_obs_csv set: first policy step will use CSV obs_* verbatim.")
 
         agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
         env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
@@ -1516,13 +1879,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
         replay_traj: ReplayTrajectory | None = None
+        init_obs_seed: InitPolicyObs | None = None
+        num_arm = int(getattr(env_cfg, "num_arm_joints", 7) or 7)
         if replay_mode:
-            num_arm = int(getattr(env_cfg, "num_arm_joints", 7) or 7)
             replay_traj = load_replay_trajectory(args_cli.replay_csv, num_arm_joints=num_arm)
             _seed_cli_from_replay(replay_traj)
             # Avoid mid-replay resets wiping the open-loop track.
             if hasattr(env_cfg, "episode_length_s"):
                 env_cfg.episode_length_s = max(float(env_cfg.episode_length_s), replay_traj.num_steps * 10.0)
+        if init_obs_mode:
+            init_obs_seed = load_init_policy_obs(
+                args_cli.init_obs_csv,
+                step=int(args_cli.init_obs_step),
+                num_arm_joints=num_arm,
+            )
+            _seed_cli_from_init_obs(init_obs_seed)
 
         _apply_robot_joint_override(env_cfg)
         pose_meta = _apply_socket_override(env_cfg)
@@ -1569,6 +1940,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 pose_meta,
                 replay=replay_traj,
                 leapp_model=str(leapp_yaml) if leapp_yaml is not None else None,
+                init_obs=init_obs_seed,
             )
 
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
@@ -1612,6 +1984,30 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         success_tracker = SuccessTracker(env)
 
         obs = env.get_observations()
+        pending_init_obs = init_obs_seed
+        if pending_init_obs is not None:
+            sim_obs = _flatten_policy_obs(obs)
+            if sim_obs is not None:
+                if sim_obs.size != pending_init_obs.obs.size:
+                    raise ValueError(
+                        f"--init_obs_csv obs dim {pending_init_obs.obs.size} != live sim obs dim "
+                        f"{sim_obs.size}. Record the CSV with the same task observation layout."
+                    )
+                delta = float(np.max(np.abs(sim_obs - pending_init_obs.obs)))
+                print(
+                    f"[INFO] Injecting CSV init obs for first policy step "
+                    f"(max |csv - sim_obs| before inject = {delta:.6g})."
+                )
+            else:
+                print("[INFO] Injecting CSV init obs for first policy step.")
+            obs = _replace_policy_obs_vector(
+                obs,
+                pending_init_obs.obs,
+                num_envs=env.unwrapped.num_envs,
+                device=env.unwrapped.device,
+            )
+            if leapp_policy is not None:
+                leapp_policy.force_flat_obs_once(pending_init_obs.obs)
         step_count = 0
         episode_count = 0
         lstm_logged_once = False
@@ -1619,6 +2015,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             while True:
                 start_time = time.time()
                 with torch.inference_mode():
+                    rnn_in = rnn_out = None
                     if replay_mode:
                         assert replay_traj is not None
                         if step_count >= replay_traj.num_steps:
@@ -1629,36 +2026,47 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                             replay_traj.targets[step_count],
                             clip_actions=agent_cfg.clip_actions,
                         )
-                    else:
-                        actions = policy(obs)
-
-                    # Post-forward LSTM state (None in replay mode / non-recurrent policies).
-                    if replay_mode:
-                        lstm_h, lstm_c = None, None
                     elif leapp_policy is not None:
-                        lstm_h, lstm_c = leapp_policy.extract_lstm_state()
+                        actions = leapp_policy(obs)
+                        rnn_in = leapp_policy.last_rnn_in
+                        rnn_out = leapp_policy.last_rnn_out
+                        pending_init_obs = None
                     else:
-                        lstm_h, lstm_c = _extract_lstm_hidden_state(policy)
-                        if lstm_h is None and policy_nn is not None:
-                            lstm_h, lstm_c = _extract_lstm_hidden_state(policy_nn)
+                        # Capture LSTM state fed into this step, then post-forward out.
+                        h_in, c_in = _extract_lstm_hidden_state(policy)
+                        if h_in is None and policy_nn is not None:
+                            h_in, c_in = _extract_lstm_hidden_state(policy_nn)
+                        actions = policy(obs)
+                        pending_init_obs = None
+                        h_out, c_out = _extract_lstm_hidden_state(policy)
+                        if h_out is None and policy_nn is not None:
+                            h_out, c_out = _extract_lstm_hidden_state(policy_nn)
+                        rnn_out = _pack_rnn_state(h_out, c_out)
+                        rnn_in = _pack_rnn_state(h_in, c_in)
+                        if rnn_out is not None and rnn_in is None:
+                            # First step / inaccessible pre-state: zeros match real reset.
+                            rnn_in = np.zeros_like(rnn_out)
 
                     if not replay_mode and not lstm_logged_once:
-                        if lstm_h is not None:
-                            rnn = _pack_rnn_state(lstm_h, lstm_c)
-                            dim = int(rnn.size) if rnn is not None else int(np.asarray(lstm_h).size)
-                            print(f"[INFO] Logging recurrent state as rnn_* (dim={dim}).")
+                        if rnn_out is not None:
+                            print(
+                                f"[INFO] Logging recurrent state as rnn_in_*/rnn_out_* "
+                                f"(dim={int(np.asarray(rnn_out).size)})."
+                            )
                         else:
                             print(
                                 "[WARNING] Policy has no accessible LSTM hidden state; "
-                                "rnn_* will not be written."
+                                "rnn_in_*/rnn_out_* will not be written."
                             )
                         lstm_logged_once = True
 
                     # Snapshot the state the policy/replay actually saw, before the action lands.
                     pending_row = logger.begin_step(
-                        obs, actions, step_count, episode_count, lstm_h=lstm_h, lstm_c=lstm_c
+                        obs, actions, step_count, episode_count, rnn_in=rnn_in, rnn_out=rnn_out
                     )
-                    logger.print_step(obs, actions, step_count, None, lstm_h=lstm_h, lstm_c=lstm_c)
+                    logger.print_step(
+                        obs, actions, step_count, None, rnn_in=rnn_in, rnn_out=rnn_out
+                    )
 
                     obs, _, dones, _ = env.step(actions)
                     success_info = success_tracker.update(dones)
