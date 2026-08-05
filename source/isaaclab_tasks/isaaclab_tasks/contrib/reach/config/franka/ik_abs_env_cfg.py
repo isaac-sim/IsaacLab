@@ -20,4 +20,5 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
         self.scene.robot.spawn.rigid_props.disable_gravity = (
             self.scene.robot.spawn.rigid_props.disable_gravity.diffik_abs
         )
+        self.rewards.action_magnitude.weight = self.rewards.action_magnitude.weight.diffik_abs
         self.actions.arm_action = self.actions.arm_action.diffik_abs
