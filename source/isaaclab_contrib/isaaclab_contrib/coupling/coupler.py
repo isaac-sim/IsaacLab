@@ -211,6 +211,14 @@ class NewtonCouplerManager(NewtonVBDManager):
             NewtonManager._solver.prepare_contacts(cls._contacts)
 
     @classmethod
+    def _supports_cuda_graph_capture(cls) -> bool:
+        """Reject capture when a nested MPM solver has dynamic storage."""
+        return all(
+            NewtonMPMManager._solver_supports_cuda_graph_capture(solver)
+            for solver in NewtonMPMManager._implicit_mpm_solvers()
+        )
+
+    @classmethod
     def _defer_standard_graph_capture(cls) -> bool:
         """Defer capture when the coupled solver contains sparse implicit MPM."""
         return any(solver.grid_type == "sparse" for solver in NewtonMPMManager._implicit_mpm_solvers())
@@ -219,12 +227,13 @@ class NewtonCouplerManager(NewtonVBDManager):
     def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
         """Promote a selected single MPM world to the solver's full-reset path."""
         model = NewtonManager._model
-        if world_mask is not None and model is not None and model.world_count == 1:
+        mpm_solvers = NewtonMPMManager._implicit_mpm_solvers()
+        if world_mask is not None and model is not None and model.world_count == 1 and mpm_solvers:
             selected = world_mask.numpy()
             if not selected.any():
                 return
-            if selected[0] and not selected[-1] and NewtonMPMManager._implicit_mpm_solvers():
-                NewtonManager._solver.reset(NewtonManager._state_0, world_mask=None, flags=0)
+            if selected[0] and not selected[-1]:
+                NewtonMPMManager.reset_solver_state(world_mask=None, flags=0)
                 return
         super()._reset_solver_internals(world_mask)
 

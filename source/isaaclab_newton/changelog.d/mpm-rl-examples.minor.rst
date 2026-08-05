@@ -36,5 +36,7 @@ Fixed
 * Fixed stale solver-owned history during task-driven resets on both active
   state buffers through Newton's shared local/global reset-mask contract.
 * Prevented the first deferred CUDA graph capture from advancing physics twice.
+* Preserved eager fallback for dense and unbounded sparse MPM grids when CUDA
+  graphs are enabled.
 * Deferred automatic coupled MPM history resets until tasks finish rewriting
   state, while allowing isolated-world tasks to reset selected worlds exactly.
