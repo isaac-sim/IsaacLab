@@ -182,7 +182,7 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-# Aggregate of the compatible extras. Omits teleop (lxml clash with mimic) and ovphysx
+# Aggregate of the compatible extras. Omits teleop (would pull Isaac Sim in) and ovphysx
 # (packaging<24 clash with isaacsim); install those via their own extra.
 # Also omits tetrahedralization and video because their dependencies are large and
 # narrowly used; request either extra explicitly when needed.

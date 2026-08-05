@@ -107,7 +107,7 @@ the environment by quitting the script with Ctrl+C.
 
 .. code:: bash
 
-   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run --extra teleop isaaclab teleop run \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
@@ -138,7 +138,7 @@ To use a SpaceMouse, simply change ``--teleop_device`` accordingly:
 
 .. code:: bash
 
-   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run --extra teleop isaaclab teleop run \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
@@ -194,7 +194,7 @@ variant of the task (``IsaacContrib-Stack-Cube-Franka-IK-Abs``):
 
 .. code:: bash
 
-   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run --extra teleop isaaclab teleop run \
    --task IsaacContrib-Stack-Cube-Franka-IK-Abs \
    --viz kit \
    --xr
@@ -225,7 +225,7 @@ Select the tab that matches your input device:
 
       .. code:: bash
 
-         uv run python scripts/tools/record_demos.py \
+         uv run --extra teleop isaaclab teleop record \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --viz kit \
          --dataset_file ./datasets/dataset.hdf5 \
@@ -236,7 +236,7 @@ Select the tab that matches your input device:
 
       .. code:: bash
 
-         uv run python scripts/tools/record_demos.py \
+         uv run --extra teleop isaaclab teleop record \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --viz kit \
          --dataset_file ./datasets/dataset.hdf5 \
@@ -251,7 +251,7 @@ Select the tab that matches your input device:
 
       .. code:: bash
 
-         uv run python scripts/tools/record_demos.py \
+         uv run --extra teleop isaaclab teleop record \
          --task IsaacContrib-Stack-Cube-Franka-IK-Abs \
          --viz kit \
          --dataset_file ./datasets/dataset.hdf5 \
@@ -279,7 +279,7 @@ You can replay the collected demonstrations by running:
 
 .. code:: bash
 
-   uv run python scripts/tools/replay_demos.py \
+   uv run --extra teleop isaaclab teleop replay \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
@@ -337,7 +337,7 @@ Annotate the subtasks in the recording:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
          --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 \
          --viz kit \
          --auto \
@@ -349,7 +349,7 @@ Annotate the subtasks in the recording:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
          --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0 \
          --viz kit \
          --auto \
@@ -367,7 +367,7 @@ Next, use Isaac Lab Mimic to generate some additional demonstrations:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --viz kit \
          --num_envs 20 \
          --generation_num_trials 10 \
@@ -379,7 +379,7 @@ Next, use Isaac Lab Mimic to generate some additional demonstrations:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --viz kit \
          --num_envs 20 \
          --generation_num_trials 10 \
@@ -408,7 +408,7 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --num_envs 1000 \
          --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 \
@@ -419,7 +419,7 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --num_envs 300 \
          --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 \

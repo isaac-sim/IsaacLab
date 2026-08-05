@@ -117,7 +117,7 @@ To use the check on its own -- for example to qualify a machine before setting u
 
 .. code-block:: bash
 
-   uv run python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
+   uv run --extra teleop python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
 
 
 .. _install-isaac-teleop:
@@ -135,28 +135,9 @@ XR teleoperation is supported on **Linux x86_64 only**. The ``teleop`` extra gat
 ``isaacteleop`` and ``dex-retargeting`` behind platform markers, so on Windows or aarch64 the
 extra resolves but installs nothing usable. It is also not supported on DGX Spark.
 
-Once the steps below are done, run a teleoperation session from the repository root:
-
-.. code-block:: bash
-
-   uv run --extra teleop isaaclab teleop run \
-      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-      --visualizer kit \
-      --xr
-
 ``isaaclab teleop`` groups the three workflow scripts: ``run`` for a live session, ``record``
-to capture demonstrations, and ``replay`` to play a dataset back.
-
-.. code-block:: bash
-
-   uv run --extra teleop isaaclab teleop record \
-      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-      --num_demos 5 --dataset_file ./datasets/dataset.hdf5 \
-      --visualizer kit --xr
-
-   uv run --extra teleop isaaclab teleop replay \
-      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-      --dataset_file ./datasets/dataset.hdf5 --visualizer kit
+to capture demonstrations, and ``replay`` to play a dataset back. :ref:`The next section
+<run-isaac-lab-with-the-cloudxr-runtime>` walks through a session once setup is complete.
 
 .. note::
 
@@ -164,7 +145,7 @@ to capture demonstrations, and ``replay`` to play a dataset back.
    bundled Isaac Sim pins ``packaging==26.0`` while those runtimes require ``<24``. Install
    the OV runtimes separately when you need them.
 
-The commands start the CloudXR runtime and open the Kit viewport. Complete these steps first:
+Complete these steps first:
 
 #. Install the system libraries required by the CloudXR runtime:
 

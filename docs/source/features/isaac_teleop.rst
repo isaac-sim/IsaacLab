@@ -423,7 +423,7 @@ on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`
 
       .. code-block:: bash
 
-         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+         uv run --extra teleop isaaclab teleop run \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
              --visualizer kit
@@ -450,7 +450,7 @@ only controls whether the scene is rendered to the headset. Follow the connectio
 
       .. code-block:: bash
 
-         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+         uv run --extra teleop isaaclab teleop run \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
              --visualizer kit --xr

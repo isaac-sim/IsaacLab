@@ -28,7 +28,7 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
 
       .. code:: bash
 
-          uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+          uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
           --device cpu --num_envs 10 --generation_num_trials 1000 \
           --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
           --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0

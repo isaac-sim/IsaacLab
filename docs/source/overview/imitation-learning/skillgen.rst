@@ -199,7 +199,7 @@ Download and Setup
 
          .. code:: bash
 
-            uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+            uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
             --device cpu \
             --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
             --input_file ./datasets/dataset_skillgen.hdf5 \
@@ -313,7 +313,7 @@ Start with a small dataset to verify everything works:
 
       .. code:: bash
 
-         uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cpu \
          --num_envs 1 \
          --generation_num_trials 10 \
@@ -346,7 +346,7 @@ Once satisfied with small-scale results, generate a full training dataset:
 
       .. code:: bash
 
-         uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cpu \
          --num_envs 1 \
          --generation_num_trials 1000 \
@@ -400,7 +400,7 @@ Test the adaptive stacking setup:
 
       .. code:: bash
 
-         uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cpu \
          --num_envs 1 \
          --generation_num_trials 10 \
@@ -433,7 +433,7 @@ Generate the complete adaptive stacking dataset:
 
       .. code:: bash
 
-         uv run --extra teleop python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cpu \
          --num_envs 1 \
          --generation_num_trials 1000 \
