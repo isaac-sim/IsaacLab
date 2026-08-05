@@ -97,10 +97,6 @@ class IsaacRtxRendererCfg(RendererCfg):
     Holds the Replicator/RTX-specific knobs (semantic segmentation, instance
     segmentation, semantic filtering, depth clipping) used by the RTX rendering
     pipeline.
-    :attr:`enable_dlss_ray_reconstruction` and :attr:`dlss_exec_mode` are authored
-    on each USD ``RenderProduct`` prim through ``ApplyAPI``, not as process-global
-    carb settings like :attr:`global_settings`, so they do not affect other render
-    products, including XR headset views, in the same Kit process.
     """
 
     renderer_type: str = "isaac_rtx"
@@ -108,23 +104,6 @@ class IsaacRtxRendererCfg(RendererCfg):
 
     global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
     """Global Kit/RTX quality settings applied before RTX Hydra attach."""
-
-    enable_dlss_ray_reconstruction: bool | None = None
-    """Enable DLSS Ray Reconstruction for this renderer's render products.
-
-    Set to ``False`` to use classic DLSS while leaving other render products,
-    such as XR headset views, on their process-global setting. ``None``
-    preserves Kit's render-product default. On Isaac Sim versions before 6.1,
-    ``True`` falls back to classic DLSS because responsive denoising is unavailable.
-    """
-
-    dlss_exec_mode: Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"] | None = None
-    """Optional render-product-local DLSS execution mode.
-
-    ``None`` preserves Kit's render-product default. Unlike
-    :attr:`global_settings`, this setting affects only cameras using this
-    renderer configuration.
-    """
 
     semantic_filter: str | list[str] = "*:*"
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.

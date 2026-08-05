@@ -28,6 +28,8 @@ def test_xr_camera_reference_tasks_select_recorded_camera(env_cfg_type, camera_p
     assert hasattr(cfg.observations.policy, "robot_pov_cam")
     assert cfg.scene.robot_pov_cam.prim_path == camera_prim_path
     assert isinstance(cfg.scene.robot_pov_cam.renderer_cfg, MultiBackendRendererCfg)
+    assert cfg.isaac_teleop.xr_camera_feeds[0].enable_dlss_ray_reconstruction is True
+    assert cfg.isaac_teleop.xr_camera_feeds[0].dlss_exec_mode == "quality"
     assert cfg.num_rerenders_on_reset == 3
 
 
@@ -58,10 +60,7 @@ def test_xr_camera_reference_renderer_resolves_for_supported_backends(env_cfg_ty
         selected=("isaacsim_rtx",),
     )
     ovrtx = resolve_presets(env_cfg_type().scene.robot_pov_cam.renderer_cfg, selected=("ovrtx",))
-    expected_rtx = IsaacRtxRendererCfg(
-        enable_dlss_ray_reconstruction=True,
-        dlss_exec_mode="quality",
-    )
+    expected_rtx = IsaacRtxRendererCfg()
 
     assert default == expected_rtx
     assert isaacsim_rtx == expected_rtx

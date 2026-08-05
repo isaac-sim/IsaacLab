@@ -20,12 +20,16 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
+from isaaclab.utils.version import get_isaac_sim_version
+
 from .isaac_teleop_cfg import XrCameraFeedCfg, XrCameraFeedLayoutCfg
 
 if TYPE_CHECKING:
     from isaaclab.sensors import Camera
 
 logger = logging.getLogger(__name__)
+
+_DLSS_EXEC_MODES = frozenset({"performance", "balanced", "quality", "auto", "rtxaa", "manual"})
 
 
 @lru_cache(maxsize=1)
@@ -64,6 +68,17 @@ def _prepare_camera_feed_cfgs(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> list
     if scene is None:
         raise ValueError("XR camera feeds require an environment configuration with a scene.")
     for cfg in enabled_cfgs:
+        if cfg.enable_dlss_ray_reconstruction is not None and type(cfg.enable_dlss_ray_reconstruction) is not bool:
+            raise TypeError(
+                f"enable_dlss_ray_reconstruction for XR camera feed {cfg.camera_name!r} must be bool or None."
+            )
+        if cfg.dlss_exec_mode is not None and (
+            not isinstance(cfg.dlss_exec_mode, str) or cfg.dlss_exec_mode not in _DLSS_EXEC_MODES
+        ):
+            raise ValueError(
+                f"dlss_exec_mode for XR camera feed {cfg.camera_name!r} must be one of "
+                f"{sorted(_DLSS_EXEC_MODES)} or None."
+            )
         camera_cfg = getattr(scene, cfg.camera_name, None)
         if camera_cfg is None:
             raise ValueError(f"XR camera feed {cfg.camera_name!r} is not present in the scene.")
@@ -75,12 +90,20 @@ def _prepare_camera_feed_cfgs(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> list
     return prepared
 
 
-def _feeds_require_responsive_denoising(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> bool:
-    scene = env_cfg.scene
-    return any(
-        getattr(getattr(getattr(scene, cfg.camera_name), "renderer_cfg", None), "enable_dlss_ray_reconstruction", None)
-        is True
-        for cfg in cfgs
+def _apply_ray_reconstruction_compatibility(cfgs: list[XrCameraFeedCfg]) -> None:
+    """Resolve the effective PiP Ray Reconstruction policy for this runtime."""
+    if not any(cfg.enable_dlss_ray_reconstruction is True for cfg in cfgs):
+        return
+    isaac_sim_version = get_isaac_sim_version()
+    if (isaac_sim_version.major, isaac_sim_version.minor) >= (6, 1):
+        return
+    for cfg in cfgs:
+        if cfg.enable_dlss_ray_reconstruction is True:
+            cfg.enable_dlss_ray_reconstruction = False
+    logger.warning(
+        "DLSS Ray Reconstruction was requested for XR camera PiP, but Isaac Sim %s predates responsive "
+        "denoising. Falling back to classic DLSS for the selected feeds.",
+        isaac_sim_version,
     )
 
 
@@ -145,11 +168,12 @@ class XrCameraFeedSession:
         if int(env_cfg.scene.num_envs) != 1:
             raise ValueError("XR camera PiP supports exactly one environment; set --num_envs 1 or disable PiP feeds.")
         cfgs = _prepare_camera_feed_cfgs(env_cfg, requested)
+        _apply_ray_reconstruction_compatibility(cfgs)
         return cls(
             cfgs,
             teleop_cfg.xr_camera_feed_layout,
             presenter,
-            requires_responsive_denoising=_feeds_require_responsive_denoising(env_cfg, cfgs),
+            requires_responsive_denoising=any(cfg.enable_dlss_ray_reconstruction is True for cfg in cfgs),
         )
 
     @property
@@ -190,7 +214,11 @@ class XrCameraFeedSession:
             self._manager.refresh()
 
     def close(self) -> None:
-        """Close all feed resources and allow the session to be rebound."""
+        """Close feed display resources and allow the session to be rebound.
+
+        Render-product policy authored while binding persists for the selected
+        camera render product's lifetime.
+        """
         if self._manager is not None:
             self._manager.close()
             self._manager = None
@@ -342,7 +370,7 @@ class _XrCameraFeedManager:
             image_sizes = [(int(image.shape[1]), int(image.shape[0])) for _, image in bound_feeds]
             resolved_cfgs = _layout_feed_cfgs(cfgs, image_sizes, self._layout_cfg)
             for cfg, (camera, fallback_image) in zip(resolved_cfgs, bound_feeds, strict=True):
-                image_source = self._presenter.create_image_source(cfg.camera_name, camera)
+                image_source = self._presenter.create_image_source(cfg.camera_name, camera, cfg)
                 try:
                     image = image_source.get_image(tuple(fallback_image.shape)) if image_source is not None else None
                     if image is None:
@@ -419,7 +447,7 @@ class _XrCameraFeedManager:
         replacement_source = feed.image_source
         replacement_panel = feed.panel
         if camera_changed:
-            replacement_source = self._presenter.create_image_source(feed.cfg.camera_name, camera)
+            replacement_source = self._presenter.create_image_source(feed.cfg.camera_name, camera, feed.cfg)
         try:
             if tuple(fallback_image.shape) != tuple(feed.fallback_image.shape):
                 replacement_panel = self._presenter.create_panel(

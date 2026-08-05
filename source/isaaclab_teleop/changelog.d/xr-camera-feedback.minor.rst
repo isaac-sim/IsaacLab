@@ -6,6 +6,8 @@ Added
   placement.
 * Added a PiP-owned CUDA Replicator source with staged camera-buffer fallback so camera feedback works
   with CPU physics without changing the core camera output device.
+* Added optional feed-local DLSS Ray Reconstruction and execution-mode settings, applied by the
+  PiP adapter without extending the core camera or renderer configuration APIs.
 * Added lazy Kit Scene UI loading so kitless teleoperation warns and continues without PiP.
 * Added :class:`~isaaclab_teleop.XrCameraFeedSession` as the supported camera-feedback lifecycle
   API for teleoperation entry points.
@@ -21,3 +23,5 @@ Fixed
 ^^^^^
 
 * Fixed camera feedback so it refreshes immediately after environment resets.
+* Fixed pre-6.1 PiP compatibility by falling back to classic DLSS when a selected feed requests
+  Ray Reconstruction on a runtime without responsive denoising.

@@ -668,6 +668,8 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             xr_camera_feeds=[
                 XrCameraFeedCfg(
                     camera_name="robot_pov_cam",
+                    enable_dlss_ray_reconstruction=True,
+                    dlss_exec_mode="quality",
                     offset_m=(0.0, -0.15),
                     max_update_hz=0.0,
                 )

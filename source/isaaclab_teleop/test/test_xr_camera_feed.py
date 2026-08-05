@@ -11,8 +11,8 @@ from unittest.mock import Mock
 import isaaclab_teleop.camera_feed as camera_feed
 import pytest
 import torch
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_teleop import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg, XrCameraFeedSession
+from packaging import version
 
 from isaaclab.sensors import CameraCfg
 
@@ -108,10 +108,12 @@ class _FakePresenter:
         self.prepare_calls = []
         self.source_images = source_images or {}
         self.sources = []
+        self.source_cfgs = []
 
-    def create_image_source(self, name, _camera):
+    def create_image_source(self, name, _camera, cfg=None):
         source = _FakeImageSource(self.source_images.get(name))
         self.sources.append(source)
+        self.source_cfgs.append(cfg)
         return source
 
     def prepare_upload_image(self, name, image, previous_source=None, previous_upload=None):
@@ -226,16 +228,64 @@ def test_empty_camera_feed_selection_skips_pip(monkeypatch):
     assert vars(env_cfg.scene) == {"num_envs": 1}
 
 
-def test_existing_camera_is_selected_without_replacement(monkeypatch):
-    selected = _camera_cfg(IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=True))
-    env_cfg = _teleop_env_cfg([XrCameraFeedCfg(camera_name="robot_pov_cam")], camera=selected)
+@pytest.mark.parametrize(
+    ("isaac_sim_version", "expected_ray_reconstruction", "requires_responsive_denoising"),
+    [
+        pytest.param("6.0.0", False, False, id="pre-responsive-denoising"),
+        pytest.param("6.1.0", True, True, id="responsive-denoising"),
+    ],
+)
+def test_existing_camera_uses_effective_feed_render_policy(
+    monkeypatch,
+    isaac_sim_version,
+    expected_ray_reconstruction,
+    requires_responsive_denoising,
+):
+    selected = _camera_cfg()
+    requested = XrCameraFeedCfg(
+        camera_name="robot_pov_cam",
+        enable_dlss_ray_reconstruction=True,
+        dlss_exec_mode="quality",
+    )
+    env_cfg = _teleop_env_cfg([requested], camera=selected)
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", _FakePresenter)
+    monkeypatch.setattr(camera_feed, "get_isaac_sim_version", lambda: version.parse(isaac_sim_version))
 
     session = XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
 
     assert session.enabled
     assert env_cfg.scene.robot_pov_cam is selected
-    assert session.requires_responsive_denoising
+    assert session.requires_responsive_denoising is requires_responsive_denoising
+    assert session._cfgs[0] is not requested
+    assert session._cfgs[0].enable_dlss_ray_reconstruction is expected_ray_reconstruction
+    assert session._cfgs[0].dlss_exec_mode == "quality"
+    assert requested.enable_dlss_ray_reconstruction is True
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value", "expected_error"),
+    [
+        pytest.param("enable_dlss_ray_reconstruction", 1, TypeError, id="non-bool-ray-reconstruction"),
+        pytest.param("dlss_exec_mode", "ultra", ValueError, id="unknown-dlss-mode"),
+    ],
+)
+def test_existing_camera_rejects_invalid_feed_render_policy_before_version_query(
+    monkeypatch,
+    field_name,
+    value,
+    expected_error,
+):
+    requested = XrCameraFeedCfg(camera_name="robot_pov_cam")
+    setattr(requested, field_name, value)
+    env_cfg = _teleop_env_cfg([requested], camera=_camera_cfg())
+    get_isaac_sim_version = Mock()
+    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", _FakePresenter)
+    monkeypatch.setattr(camera_feed, "get_isaac_sim_version", get_isaac_sim_version)
+
+    with pytest.raises(expected_error, match=field_name):
+        XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
+
+    get_isaac_sim_version.assert_not_called()
 
 
 def test_session_refresh_publishes_buffer_refreshed_by_env_reset():
@@ -405,7 +455,12 @@ def test_manager_refresh_rebinds_reset_camera_output(monkeypatch):
 
 
 def test_manager_rebinds_source_when_camera_instance_changes(monkeypatch):
-    cfg = XrCameraFeedCfg(camera_name="robot_pov_cam", max_update_hz=0.0)
+    cfg = XrCameraFeedCfg(
+        camera_name="robot_pov_cam",
+        enable_dlss_ray_reconstruction=True,
+        dlss_exec_mode="quality",
+        max_update_hz=0.0,
+    )
     before = _FakeImage(data_ptr=100)
     after = _FakeImage(data_ptr=200)
     manager, presenter, cameras = _manager(monkeypatch, [cfg], {"robot_pov_cam": before})
@@ -416,6 +471,7 @@ def test_manager_rebinds_source_when_camera_instance_changes(monkeypatch):
 
     assert old_source.closed
     assert len(presenter.sources) == 2
+    assert presenter.source_cfgs == [cfg, cfg]
     assert presenter.sources[1].expected_shapes == [after.shape]
     assert presenter.panels[0].uploads == [after]
     manager.close()

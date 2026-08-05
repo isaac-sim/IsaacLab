@@ -1192,9 +1192,12 @@ XR camera PiP currently supports exactly one environment. When a task has enable
 startup rejects ``--num_envs`` values other than ``1``; IsaacTeleop XR behavior without PiP is
 unchanged.
 
-On Isaac Sim 6.1 and newer, camera-feed setup enables responsive DLSS Ray Reconstruction denoising
-automatically. For every camera consumer, the Isaac RTX renderer falls back to classic DLSS on
-earlier runtimes to avoid the temporal ghosting in their Ray Reconstruction implementation.
+The reference feeds request render-product-local DLSS Ray Reconstruction and ``quality`` execution
+mode through :class:`~isaaclab_teleop.XrCameraFeedCfg`. The private PiP adapter authors those two
+attributes only on the selected camera render product. On Isaac Sim 6.1 and newer, Ray
+Reconstruction also requires the process-global responsive-denoising setting, which the session
+enables before environment construction. On earlier versions, selected PiP feeds fall back to
+classic DLSS because responsive denoising is unavailable.
 
 Camera selection
 ~~~~~~~~~~~~~~~~
@@ -1208,7 +1211,11 @@ Tasks declare their default selection through ``IsaacTeleopCfg.xr_camera_feeds``
    self.isaac_teleop = IsaacTeleopCfg(
        pipeline_builder=_build_my_pipeline,
        xr_camera_feeds=[
-           XrCameraFeedCfg(camera_name="left_wrist_camera"),
+           XrCameraFeedCfg(
+               camera_name="left_wrist_camera",
+               enable_dlss_ray_reconstruction=True,
+               dlss_exec_mode="quality",
+           ),
            XrCameraFeedCfg(camera_name="overview_camera", enabled=False),
        ],
    )
@@ -1299,7 +1306,9 @@ PiP presentation uses Kit Scene UI and ``SpatialSource`` placement. Kit imports 
 an enabled feed is requested. If the Scene UI modules cannot be imported, the scripts log a warning
 and continue without PiP; task-owned cameras and recording observations remain unchanged. This keeps
 the camera selection configuration usable when a future kitless entry point no longer provides
-Scene UI. Configuration, camera-buffer, and panel-initialization errors still fail during startup.
+Scene UI. Render-product tuning is also best-effort: backends without a compatible render product
+keep the Camera-buffer path, and schema-authoring failures warn while PiP continues. Other
+configuration, camera-buffer, and panel-initialization errors still fail during startup.
 
 
 .. _isaac-teleop-haptics:

@@ -38,6 +38,27 @@ class _TransformSource:
         self.source = matrix
 
 
+class _EditContext:
+    def __init__(self, stage, edit_target):
+        self._stage = stage
+        self._edit_target = edit_target
+        self._previous_edit_target = None
+
+    def __enter__(self):
+        self._previous_edit_target = self._stage._test_edit_target
+        self._stage._test_edit_target = self._edit_target
+        events = getattr(self._stage, "_test_edit_context_events", None)
+        if isinstance(events, list):
+            events.append(("enter", self._edit_target))
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._stage._test_edit_target = self._previous_edit_target
+        events = getattr(self._stage, "_test_edit_context_events", None)
+        if isinstance(events, list):
+            events.append(("exit", self._previous_edit_target))
+
+
 class _SpatialSource:
     @staticmethod
     def new_transform_matrix_source(matrix: Gf.Matrix4d) -> _TransformSource:
@@ -252,6 +273,7 @@ def scene_ui_module(monkeypatch):
     loaded_module = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, module_name, loaded_module)
     spec.loader.exec_module(loaded_module)
+    loaded_module.Usd = SimpleNamespace(EditContext=_EditContext)
     return loaded_module
 
 
@@ -654,6 +676,150 @@ def test_image_source_attaches_rgb_cuda_annotator_and_detaches(scene_ui_module, 
     annotator.detach.assert_called_once_with(["/Render/ExistingCamera"])
 
 
+def test_image_source_authors_feed_settings_after_annotator_attach(scene_ui_module, monkeypatch):
+    events = []
+    edit_context_events = []
+    annotator = Mock()
+    annotator.attach.side_effect = lambda paths: events.append(("attach", paths))
+    _install_replicator(monkeypatch, annotator)
+    camera = SimpleNamespace(_render_data=SimpleNamespace(render_product=SimpleNamespace(path="/Render/Camera")))
+    cfg = SimpleNamespace(enable_dlss_ray_reconstruction=False, dlss_exec_mode="quality")
+    stage = Mock()
+    root_edit_target = object()
+    session_edit_target = object()
+    stage._test_edit_target = root_edit_target
+    stage._test_edit_context_events = edit_context_events
+    stage.GetSessionLayer.return_value = session_edit_target
+    render_product = stage.GetPrimAtPath.return_value
+    render_product.IsValid.return_value = True
+    render_product.GetTypeName.return_value = "RenderProduct"
+
+    def apply_schema(schema):
+        assert stage._test_edit_target is session_edit_target
+        events.append(("apply", schema))
+        return True
+
+    render_product.ApplyAPI.side_effect = apply_schema
+    attributes = {}
+    for name in ("omni:rtx:newDenoiser:enabled", "omni:rtx:post:dlss:execMode"):
+        attribute = Mock()
+        attribute.IsValid.return_value = True
+
+        def set_attribute(value, attribute_name=name):
+            assert stage._test_edit_target is session_edit_target
+            events.append(("set", attribute_name, value))
+            return True
+
+        attribute.Set.side_effect = set_attribute
+        attributes[name] = attribute
+    render_product.GetAttribute.side_effect = attributes.__getitem__
+    monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
+    presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
+
+    source = presenter.create_image_source("robot_pov_cam", camera, cfg)
+
+    assert source is not None
+    assert events == [
+        ("attach", ["/Render/Camera"]),
+        ("apply", "OmniRtxDebugSettingsAPI_1"),
+        ("set", "omni:rtx:newDenoiser:enabled", False),
+        ("apply", "OmniRtxSettingsRtAPI_1"),
+        ("set", "omni:rtx:post:dlss:execMode", "quality"),
+    ]
+    assert edit_context_events == [("enter", session_edit_target), ("exit", root_edit_target)]
+    assert stage._test_edit_target is root_edit_target
+    stage.GetSessionLayer.assert_called_once_with()
+    source.close()
+
+
+def test_image_source_default_policy_does_not_access_stage(scene_ui_module, monkeypatch):
+    annotator = Mock()
+    _install_replicator(monkeypatch, annotator)
+    camera = SimpleNamespace(_render_data=SimpleNamespace(render_product=SimpleNamespace(path="/Render/Camera")))
+    get_current_stage = Mock()
+    monkeypatch.setattr(scene_ui_module, "get_current_stage", get_current_stage)
+    presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
+
+    source = presenter.create_image_source(
+        "robot_pov_cam",
+        camera,
+        SimpleNamespace(enable_dlss_ray_reconstruction=None, dlss_exec_mode=None),
+    )
+
+    assert source is not None
+    get_current_stage.assert_not_called()
+    source.close()
+
+
+def test_image_source_keeps_cuda_source_when_optional_policy_fails(scene_ui_module, monkeypatch, caplog):
+    annotator = Mock()
+    _install_replicator(monkeypatch, annotator)
+    camera = SimpleNamespace(_render_data=SimpleNamespace(render_product=SimpleNamespace(path="/Render/Camera")))
+    stage = Mock()
+    root_edit_target = object()
+    session_edit_target = object()
+    stage._test_edit_target = root_edit_target
+    stage.GetSessionLayer.return_value = session_edit_target
+    render_product = stage.GetPrimAtPath.return_value
+    render_product.IsValid.return_value = True
+    render_product.GetTypeName.return_value = "RenderProduct"
+
+    def reject_schema(_schema):
+        assert stage._test_edit_target is session_edit_target
+        return False
+
+    render_product.ApplyAPI.side_effect = reject_schema
+    monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
+    presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
+
+    source = presenter.create_image_source(
+        "robot_pov_cam",
+        camera,
+        SimpleNamespace(enable_dlss_ray_reconstruction=False, dlss_exec_mode=None),
+    )
+
+    assert source is not None
+    assert "could not apply render-product settings" in caplog.text
+    assert stage._test_edit_target is root_edit_target
+    annotator.detach.assert_not_called()
+    source.close()
+    annotator.detach.assert_called_once_with(["/Render/Camera"])
+
+
+def test_image_source_keeps_successful_partial_policy_when_second_field_fails(
+    scene_ui_module,
+    monkeypatch,
+    caplog,
+):
+    annotator = Mock()
+    _install_replicator(monkeypatch, annotator)
+    camera = SimpleNamespace(_render_data=SimpleNamespace(render_product=SimpleNamespace(path="/Render/Camera")))
+    stage = Mock()
+    render_product = stage.GetPrimAtPath.return_value
+    render_product.IsValid.return_value = True
+    render_product.GetTypeName.return_value = "RenderProduct"
+    render_product.ApplyAPI.side_effect = [True, False]
+    ray_reconstruction_attribute = render_product.GetAttribute.return_value
+    ray_reconstruction_attribute.IsValid.return_value = True
+    ray_reconstruction_attribute.Set.return_value = True
+    monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
+    presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
+
+    source = presenter.create_image_source(
+        "robot_pov_cam",
+        camera,
+        SimpleNamespace(enable_dlss_ray_reconstruction=False, dlss_exec_mode="quality"),
+    )
+
+    assert source is not None
+    ray_reconstruction_attribute.Set.assert_called_once_with(False)
+    assert "ray_reconstruction=False, dlss_exec_mode='quality'" in caplog.text
+    assert "OmniRtxSettingsRtAPI_1" in caplog.text
+    annotator.detach.assert_not_called()
+    source.close()
+    annotator.detach.assert_called_once_with(["/Render/Camera"])
+
+
 def test_presenter_keeps_cpu_image_and_warns_once_when_no_render_product_gpu_is_known(scene_ui_module, caplog):
     presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
     image = torch.empty((8, 12, 4), dtype=torch.uint8)
@@ -750,6 +916,47 @@ def test_image_source_falls_back_when_replicator_attach_fails(scene_ui_module, m
     assert source is None
     annotator.detach.assert_called_once_with(["/Render/Camera"])
     assert "Falling back to the Camera RGBA buffer" in caplog.text
+
+
+def test_image_source_authors_feed_policy_when_replicator_attach_falls_back(
+    scene_ui_module,
+    monkeypatch,
+):
+    events = []
+    annotator = Mock()
+
+    def fail_attach(paths):
+        events.append(("attach", paths))
+        raise RuntimeError("attach failed")
+
+    annotator.attach.side_effect = fail_attach
+    annotator.detach.side_effect = lambda paths: events.append(("detach", paths))
+    _install_replicator(monkeypatch, annotator)
+    camera = SimpleNamespace(_render_data=SimpleNamespace(render_product=SimpleNamespace(path="/Render/Camera")))
+    stage = Mock()
+    render_product = stage.GetPrimAtPath.return_value
+    render_product.IsValid.return_value = True
+    render_product.GetTypeName.return_value = "RenderProduct"
+    render_product.ApplyAPI.side_effect = lambda schema: events.append(("apply", schema)) or True
+    attribute = render_product.GetAttribute.return_value
+    attribute.IsValid.return_value = True
+    attribute.Set.side_effect = lambda value: events.append(("set", value)) or True
+    monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
+    presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
+
+    source = presenter.create_image_source(
+        "robot_pov_cam",
+        camera,
+        SimpleNamespace(enable_dlss_ray_reconstruction=False, dlss_exec_mode=None),
+    )
+
+    assert source is None
+    assert events == [
+        ("attach", ["/Render/Camera"]),
+        ("detach", ["/Render/Camera"]),
+        ("apply", "OmniRtxDebugSettingsAPI_1"),
+        ("set", False),
+    ]
 
 
 def test_image_source_falls_back_when_replicator_read_fails(scene_ui_module, monkeypatch, caplog):

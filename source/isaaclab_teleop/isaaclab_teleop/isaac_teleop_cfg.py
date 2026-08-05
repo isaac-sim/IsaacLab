@@ -41,13 +41,36 @@ if TYPE_CHECKING:
 
 @configclass
 class XrCameraFeedCfg:
-    """Configuration for one camera image panel shown in XR."""
+    """Configuration for one camera image panel shown in XR.
+
+    Render-product policy authored for a feed remains on the selected camera
+    render product until that prim is replaced or destroyed. Closing the PiP
+    panel releases display resources but does not restore prior policy values.
+    """
 
     camera_name: str = MISSING
     """Name of the :class:`~isaaclab.sensors.Camera` in the interactive scene."""
 
     enabled: bool = True
     """Whether to create and update this feed."""
+
+    enable_dlss_ray_reconstruction: bool | None = None
+    """Enable DLSS Ray Reconstruction on this feed's RTX render product.
+
+    ``None`` preserves the render-product default. On Isaac Sim versions before
+    6.1, ``True`` falls back to classic DLSS because responsive denoising is
+    unavailable. The private PiP adapter applies this setting on a best-effort
+    basis when binding to a compatible render product. Backends without one keep
+    using the Camera-buffer fallback.
+    """
+
+    dlss_exec_mode: Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"] | None = None
+    """Optional DLSS execution mode for this feed's RTX render product.
+
+    ``None`` preserves the render-product default. The private PiP adapter applies
+    this setting on a best-effort basis when binding to a compatible render product;
+    it does not author the value on other render products.
+    """
 
     panel_width_m: float = 0.48
     """Physical panel width [m]."""

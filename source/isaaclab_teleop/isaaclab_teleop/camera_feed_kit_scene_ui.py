@@ -20,8 +20,9 @@ import omni.ui as ui
 from omni.kit.scene_view.xr import XRSceneView
 from omni.kit.scene_view.xr_utils import SpatialSource, UiContainer, UpdatePolicy, WidgetComponent
 from omni.kit.xr.core import XRCore, XRCoreEventType, XRPoseValidityFlags
-from pxr import Gf
+from pxr import Gf, Usd
 
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.array import convert_to_torch
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,79 @@ def _replicator_output_to_torch(output: Any) -> torch.Tensor:
     if hasattr(output, "__dlpack__"):
         return torch.utils.dlpack.from_dlpack(output)
     return convert_to_torch(output)
+
+
+def _set_render_product_schema_attribute(
+    render_product: Any,
+    api_schema: str,
+    attribute_name: str,
+    value: bool | str,
+) -> None:
+    """Apply one RTX API schema and author its validated RenderProduct attribute."""
+    if not render_product.ApplyAPI(api_schema):
+        raise RuntimeError(f"Failed to apply RTX API schema {api_schema!r} to {render_product.GetPath()!s}.")
+    attribute = render_product.GetAttribute(attribute_name)
+    if not attribute.IsValid():
+        raise RuntimeError(
+            f"RTX API schema {api_schema!r} does not provide attribute {attribute_name!r} "
+            f"on {render_product.GetPath()!s}."
+        )
+    if not attribute.Set(value):
+        raise RuntimeError(f"Failed to set RTX attribute {attribute_name!r} on {render_product.GetPath()!s}.")
+
+
+def _apply_feed_render_product_settings(render_product_path: Any, cfg: Any | None) -> None:
+    """Author optional PiP settings while binding the selected render product."""
+    if cfg is None:
+        return
+    ray_reconstruction = getattr(cfg, "enable_dlss_ray_reconstruction", None)
+    dlss_exec_mode = getattr(cfg, "dlss_exec_mode", None)
+    if ray_reconstruction is None and dlss_exec_mode is None:
+        return
+    stage = get_current_stage()
+    if stage is None:
+        raise RuntimeError("The USD stage is unavailable while configuring an XR camera feed.")
+    render_product = stage.GetPrimAtPath(render_product_path)
+    if not render_product.IsValid():
+        raise RuntimeError(f"Render product {render_product_path!s} was not materialized on the USD stage.")
+    if render_product.GetTypeName() != "RenderProduct":
+        raise RuntimeError(f"Prim {render_product_path!s} is not a RenderProduct.")
+    # Keep transient feed-local opinions stronger than legacy RTX synchronization
+    # without persisting presentation policy to the environment's USD layers.
+    with Usd.EditContext(stage, stage.GetSessionLayer()):
+        if ray_reconstruction is not None:
+            _set_render_product_schema_attribute(
+                render_product,
+                "OmniRtxDebugSettingsAPI_1",
+                "omni:rtx:newDenoiser:enabled",
+                ray_reconstruction,
+            )
+        if dlss_exec_mode is not None:
+            _set_render_product_schema_attribute(
+                render_product,
+                "OmniRtxSettingsRtAPI_1",
+                "omni:rtx:post:dlss:execMode",
+                dlss_exec_mode,
+            )
+
+
+def _try_apply_feed_render_product_settings(camera_name: str, render_product_path: Any, cfg: Any | None) -> None:
+    """Apply optional feed settings without disabling PiP when tuning is unavailable."""
+    try:
+        _apply_feed_render_product_settings(render_product_path, cfg)
+    except Exception as exc:
+        ray_reconstruction = getattr(cfg, "enable_dlss_ray_reconstruction", None)
+        dlss_exec_mode = getattr(cfg, "dlss_exec_mode", None)
+        logger.warning(
+            "XR camera feed %r could not apply render-product settings to %r "
+            "(ray_reconstruction=%r, dlss_exec_mode=%r; %s: %s).",
+            camera_name,
+            render_product_path,
+            ray_reconstruction,
+            dlss_exec_mode,
+            type(exc).__name__,
+            exc,
+        )
 
 
 def _meters_per_unit(coordinate_system: Any, name: str) -> float:
@@ -369,7 +443,7 @@ class _ReplicatorCameraFeedSource:
         self._ready_reported = False
 
     @classmethod
-    def try_create(cls, camera_name: str, camera: Any) -> _ReplicatorCameraFeedSource | None:
+    def try_create(cls, camera_name: str, camera: Any, cfg: Any | None = None) -> _ReplicatorCameraFeedSource | None:
         """Attach to a camera's existing RTX render product when one is available."""
         # Keep renderer-private discovery contained in this optional presentation adapter.
         # Backends without this RTX render-product shape use the Camera buffer fallback.
@@ -395,6 +469,10 @@ class _ReplicatorCameraFeedSource:
             if annotator is not None:
                 with suppress(Exception):
                     annotator.detach([render_product_path])
+            # Camera-buffer fallback still displays pixels from this render product.
+            # A failed attach may have synchronized legacy settings, so restore the
+            # feed-local policy just as on the successful CUDA-source path below.
+            _try_apply_feed_render_product_settings(camera_name, render_product_path, cfg)
             logger.warning(
                 "XR camera feed %r could not attach a CUDA annotator to render product %r "
                 "(%s: %s). Falling back to the Camera RGBA buffer.",
@@ -404,6 +482,7 @@ class _ReplicatorCameraFeedSource:
                 exc,
             )
             return None
+        _try_apply_feed_render_product_settings(camera_name, render_product_path, cfg)
         return cls(camera_name, annotator, render_product_path)
 
     def get_image(self, expected_shape: tuple[int, ...]) -> torch.Tensor | None:
@@ -480,9 +559,13 @@ class _KitSceneUiCameraFeedPresenter:
             raise ValueError(f"Camera {camera_name!r} RGBA image must be contiguous.")
 
     @staticmethod
-    def create_image_source(camera_name: str, camera: Any) -> _ReplicatorCameraFeedSource | None:
+    def create_image_source(
+        camera_name: str,
+        camera: Any,
+        cfg: Any | None = None,
+    ) -> _ReplicatorCameraFeedSource | None:
         """Create an opportunistic CUDA source from the camera's existing render product."""
-        return _ReplicatorCameraFeedSource.try_create(camera_name, camera)
+        return _ReplicatorCameraFeedSource.try_create(camera_name, camera, cfg)
 
     def prepare_upload_image(
         self,
