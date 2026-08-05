@@ -649,14 +649,14 @@ def run_simulation_loop(  # noqa: C901
             haptic_update, haptic_stop = _haptic_driver.update, _haptic_driver.stop
 
     # Optional keyboard for headset-free IsaacTeleop control (start / pause / reset).
-    # Captured through the Kit app window, so only wired when a UI is present; a
-    # headless run still auto-starts in ``inner_loop``. Kept in a local so its carb
+    # Captured through the app window, so only wired when one is present; a
+    # windowless run still auto-starts in ``inner_loop``. Kept in a local so its carb
     # input subscription is not garbage-collected. ``R`` is an operator reset:
     # ``reset(pause=True)`` injects a single RESET pulse (the control-event handler
     # turns it into one env reset) and pauses the session -- binding it straight to
     # ``reset_recording_instance`` would reset the env twice.
     control_keyboard = None
-    if use_isaac_teleop and not args_cli.headless:
+    if use_isaac_teleop and app_launcher.has_window:
         try:
             control_keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
             control_keyboard.add_callback("B", teleop_interface.request_start)
