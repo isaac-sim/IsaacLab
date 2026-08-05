@@ -19,12 +19,6 @@ from isaaclab.utils.io import dump_yaml
 
 logger = logging.getLogger(__name__)
 
-# name of the variant set the URDF and MJCF importers author, and of its deliberately empty variant
-_PHYSICS_VARIANT_SET = "Physics"
-_EMPTY_PHYSICS_VARIANT = "none"
-# both "physx" and "mujoco" sublayer this one, so it is present whenever any physics was authored
-_NEUTRAL_PHYSICS_VARIANT = "physics"
-
 
 class AssetConverterBase(abc.ABC):
     """Base class for converting an asset file from different formats into USD format.
@@ -195,9 +189,9 @@ class AssetConverterBase(abc.ABC):
 
         stage = Usd.Stage.Open(self.usd_path)
         prim = stage.GetDefaultPrim()
-        if not prim or _PHYSICS_VARIANT_SET not in prim.GetVariantSets().GetNames():
+        if not prim or "Physics" not in prim.GetVariantSets().GetNames():
             return
-        variant_set = prim.GetVariantSets().GetVariantSet(_PHYSICS_VARIANT_SET)
+        variant_set = prim.GetVariantSets().GetVariantSet("Physics")
         if variant_set.GetVariantSelection():
             return
         selection = self._resolve_physics_variant(variant, variant_set.GetVariantNames())
@@ -216,9 +210,9 @@ class AssetConverterBase(abc.ABC):
         """Pick the physics variant to select from those the asset offers.
 
         Importers omit variants they have nothing to write. A URDF with only fixed joints, for
-        instance, yields ``["none", "physics"]`` and no ``"physx"``. Falling back to the neutral
-        ``"physics"`` variant keeps such an asset usable, since the backend-specific variants
-        sublayer it and therefore only add tuning on top of it.
+        instance, yields ``["none", "physics"]`` and no ``"physx"``. Falling back to
+        :attr:`~isaaclab.sim.converters.AssetConverterBaseCfg.PhysicsVariant.PHYSICS` keeps such an
+        asset usable, since the backend-specific variants sublayer it and only add tuning on top.
 
         Args:
             variant: The requested variant.
@@ -229,9 +223,9 @@ class AssetConverterBase(abc.ABC):
         """
         if variant in available:
             return variant
-        candidates = [name for name in available if name != _EMPTY_PHYSICS_VARIANT]
-        if _NEUTRAL_PHYSICS_VARIANT in candidates:
-            return _NEUTRAL_PHYSICS_VARIANT
+        candidates = [name for name in available if name != AssetConverterBaseCfg.PhysicsVariant.NONE]
+        if AssetConverterBaseCfg.PhysicsVariant.PHYSICS in candidates:
+            return AssetConverterBaseCfg.PhysicsVariant.PHYSICS
         return candidates[0] if candidates else None
 
     @staticmethod

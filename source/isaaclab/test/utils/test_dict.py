@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import enum
 import random
 
 import pytest
@@ -116,3 +117,33 @@ def test_update_class_from_dict_does_not_rewrap_resolvable_string():
     dict_utils.update_class_from_dict(cfg, {"class_type": existing})
 
     assert cfg.class_type is existing
+
+
+class _Flavor(enum.StrEnum):
+    VANILLA = "vanilla"
+
+
+class _Level(enum.IntEnum):
+    LOW = 1
+
+
+class _EnumCfg:
+    """Config holding enum members, which carry a ``__dict__`` of enum internals."""
+
+    flavor: _Flavor = _Flavor.VANILLA
+    level: _Level = _Level.LOW
+
+    def __init__(self):
+        self.flavor = _Flavor.VANILLA
+        self.level = _Level.LOW
+
+
+def test_class_to_dict_serializes_enums_as_values():
+    """Enum members should serialize to the value they stand for, not to their internals."""
+    data = dict_utils.class_to_dict(_EnumCfg())
+
+    assert data["flavor"] == "vanilla"
+    assert data["level"] == 1
+    # the enum internals must not leak into the output
+    assert not isinstance(data["flavor"], dict)
+    assert not isinstance(data["level"], dict)

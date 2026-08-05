@@ -9,6 +9,7 @@ import collections.abc
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sized
+from enum import Enum
 from typing import Any
 
 import torch
@@ -42,6 +43,9 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     # ResolvableString is a str subclass — serialize as plain str so OmegaConf accepts it.
     if isinstance(obj, ResolvableString):
         return str(obj)
+    # Enum members carry a ``__dict__`` of internals, so serialize the value they stand for.
+    if isinstance(obj, Enum):
+        return obj.value
     # convert object to dictionary
     if isinstance(obj, dict):
         obj_dict = obj
