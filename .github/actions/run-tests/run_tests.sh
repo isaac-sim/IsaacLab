@@ -121,8 +121,8 @@ run_tests() {
     -e GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
     -e TEST_RESULT_FILE=$result_file"
   # TODO: Remove once usd-core>=26.5 is the minimum - that release fixes the race condition.
-  # PXR_WORK_THREAD_LIMIT must be set before the process starts; setting it from Python after
-  # the pxr library loads has no effect because OpenUSD reads it at C++ init time.
+  # Limit OpenUSD's work-thread pool to one thread to avoid race condition in usd-core<26.5
+  # PXR_WORK_THREAD_LIMIT must be set before the process startse.
   docker_env_vars="$docker_env_vars -e PXR_WORK_THREAD_LIMIT=1"
 
   if [ "$curobo_only" = "true" ]; then
