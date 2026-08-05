@@ -192,7 +192,7 @@ class FrankaClothRewardsCfg(FrankaSoftRewardsCfg):
 
     lifting_deformable = RewTerm(
         func=mdp.deformable_lifting,
-        params={"std": 0.1, "minimal_height": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
+        params={"std": 0.1, "minimal_height": 0.08, "asset_cfg": SceneEntityCfg("deformable")},
         weight=5.0,
     )
 

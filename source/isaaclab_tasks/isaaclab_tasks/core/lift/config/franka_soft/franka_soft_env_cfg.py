@@ -621,6 +621,12 @@ class FrankaSoftCameraSceneCfg(PresetCfg):
 
 
 @configclass
+class _FrankaSoftVisualizerCfg(VisualizerCfg):
+    window_width: int = 1920
+    window_height: int = 1080
+
+
+@configclass
 class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a soft beam to a target pose."""
 
@@ -648,10 +654,10 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
 
         self.viewer.eye = (0.75, 0.25, 0.65)
         self.viewer.lookat = (0.0, 0.75, 0.4)
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=self.viewer.eye, lookat=self.viewer.lookat)
-
-        self.video_recorder.window_width = 1920
-        self.video_recorder.window_height = 1080
+        self.sim.default_visualizer_cfg = _FrankaSoftVisualizerCfg(
+            eye=self.viewer.eye,
+            lookat=self.viewer.lookat,
+        )
 
     def play_mode(self):
         super().play_mode()
