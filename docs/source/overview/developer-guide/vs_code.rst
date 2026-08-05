@@ -24,7 +24,7 @@ Setting up Visual Studio Code
 
    The following instructions on setting up Visual Studio Code only work with
    :ref:`Isaac Sim Binaries Installation <isaaclab-binaries-installation>` and not with
-   :ref:`Pip Installation <isaaclab-pip-installation>`.
+   :ref:`Python Environment with Isaac Sim <installation-method-python-env>`.
 
 
 To setup the IDE, please follow these instructions:
