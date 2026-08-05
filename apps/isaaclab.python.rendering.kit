@@ -80,6 +80,9 @@ rtx.raytracing.subpixel.mode = 1
 # Set the DLSS model
 rtx.post.dlss.execMode = 2 # can be 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto)
 
+# Responsive denoising does not settle temporally, so renders are not reproducible
+rtx.dldenoiser.responsiveDenoising = false
+
 # Force synchronous rendering to improve training results
 omni.replicator.asyncRendering = false
 
