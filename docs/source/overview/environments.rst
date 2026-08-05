@@ -251,6 +251,10 @@ for the lift-cube environment:
     |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |franka-pour|           | |franka-pour-link|           | Pour granular media from a source cup into a receiver with the Franka robot |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |ur10-particle-push|    | |ur10-particle-push-link|    | Push granular media from randomized piles into a bin with the UR10 robot    |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |stack-cube|            | |stack-cube-link|            | Stack three cubes (bottom to top: blue, red, green) with the Franka robot.  | **physics=** ``isaacsim_physx``,        |
     |                         |                              | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       | ``newton_mjwarp``                       |
     |                         | |stack-cube-bp-link|         | manipulation motion generation                                              |                                         |
@@ -389,6 +393,8 @@ for the lift-cube environment:
 .. |lift-cube| image:: ../_static/tasks/manipulation/franka_lift.jpg
 .. |lift-soft-franka| image:: ../_static/newton/franka-mjwarp-vbd-coupling.png
 .. |lift-cloth-franka| image:: ../_static/tasks/manipulation/franka_lift_cloth.jpg
+.. |franka-pour| image:: ../_static/tasks/manipulation/franka_pour.png
+.. |ur10-particle-push| image:: ../_static/tasks/manipulation/ur10_particle_push.png
 .. |cabi-franka| image:: ../_static/tasks/manipulation/franka_open_drawer.jpg
 .. |cube-allegro| image:: ../_static/tasks/manipulation/allegro_cube.jpg
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
@@ -420,6 +426,8 @@ for the lift-cube environment:
 .. |lift-cloth-franka-link| replace:: :isaaclab-source:`Isaac-Lift-Cloth-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cloth_env_cfg.py>`
 .. |lift-soft-franka-cam-link| replace:: :isaaclab-source:`Isaac-Lift-Soft-Franka-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py>`
 .. |lift-cloth-franka-cam-link| replace:: :isaaclab-source:`Isaac-Lift-Cloth-Franka-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cloth_env_cfg.py>`
+.. |franka-pour-link| replace:: :isaaclab-source:`IsaacContrib-Franka-Pour <source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pour/pour_env_cfg.py>`
+.. |ur10-particle-push-link| replace:: :isaaclab-source:`IsaacContrib-UR10-Particle-Push <source/isaaclab_tasks/isaaclab_tasks/contrib/ur10_particle_push/ur10_particle_push_env_cfg.py>`
 .. |cabi-franka-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/config/franka/joint_pos_env_cfg.py>`
 .. |franka-direct-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka-Direct <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`
 .. |cube-allegro-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Allegro <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_manager_env_cfg.py>`
