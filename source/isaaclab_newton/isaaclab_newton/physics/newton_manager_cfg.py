@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
@@ -269,20 +268,6 @@ class NewtonCfg(PhysicsCfg):
             from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
-
-        legacy_model_cfg = getattr(self.solver_cfg, "model_cfg", None)
-        if legacy_model_cfg is not None:
-            if self.soft_contact_cfg is not None:
-                raise ValueError(
-                    "Cannot set soft-contact configuration through both NewtonCfg.soft_contact_cfg "
-                    "and solver_cfg.model_cfg."
-                )
-            warnings.warn(
-                "solver_cfg.model_cfg is deprecated; use NewtonCfg.soft_contact_cfg instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            self.soft_contact_cfg = legacy_model_cfg
 
         self.class_type = self.solver_cfg.class_type
 

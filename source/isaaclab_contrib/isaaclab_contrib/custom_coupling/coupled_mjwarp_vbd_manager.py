@@ -110,11 +110,11 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         cls._coupling_mode = None
 
     @classmethod
-    def _pre_physics_step(cls) -> None:
-        """Rebuild the coupled VBD particle BVH before collision detection."""
-        super()._pre_physics_step()
-        if cls._model.particle_count > 0 and hasattr(cls._soft_solver, "rebuild_bvh"):
+    def _simulate_physics_only(cls) -> None:
+        # Rebuild the BVH before stepping solvers that require it, such as VBD cloth.
+        if hasattr(cls._soft_solver, "rebuild_bvh"):
             cls._soft_solver.rebuild_bvh(cls._state_0)
+        super()._simulate_physics_only()
 
     @classmethod
     def _step_one_way(cls, state_in: State, state_out: State, control: Control, dt: float) -> None:

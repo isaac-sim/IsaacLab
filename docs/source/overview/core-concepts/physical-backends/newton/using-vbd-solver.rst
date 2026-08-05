@@ -8,21 +8,19 @@ simulation. In Isaac Lab, VBD is enabled by selecting a
 :class:`~isaaclab_newton.physics.NewtonCfg` whose ``solver_cfg`` is a
 :class:`~isaaclab_newton.physics.VBDSolverCfg`.
 
-VBD support is experimental. The solver managers, configuration fields, and
-recommended tuning values may change while Newton deformable support is under
-active development. A task that works with PhysX or with Newton's MuJoCo-Warp
-solver may still need deformable assets, materials, contacts, and coupling tuned
-before it works well with VBD.
+A task that works with PhysX or with Newton's MuJoCo-Warp solver may still need
+deformable assets, materials, contacts, and coupling tuned before it works well
+with VBD.
 
 VBD is usually exposed through a task-specific physics preset rather than a
 general ``newton_vbd`` preset. Deformable-only scenes can use
 :class:`~isaaclab_newton.physics.VBDSolverCfg` directly. Robot or
-rigid-body scenes can use either:
+rigid-body scenes can use:
 
 * :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` for the proxy coupling
   used by the core Franka tasks.
-* :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` for the
-  opt-in shared-model example with custom substep ordering.
+* :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` for linearized ADMM
+  coupling between named solver entries.
 
 Start from a Supported Deformable Task
 --------------------------------------
@@ -42,8 +40,7 @@ Start from a Supported Deformable Task
 
       ./isaaclab.sh -i tetrahedralization
 
-Before adding VBD to a new task, first run one of the experimental Franka
-deformable tasks:
+Before adding VBD to a new task, first run one of the Franka deformable tasks:
 
 .. tab-set::
 
@@ -88,7 +85,7 @@ Tasks that support multiple physics options usually store ``SimulationCfg.physic
 as a :class:`~isaaclab_tasks.utils.hydra.PresetCfg`. For deformable Newton tasks,
 the preset is a plain :class:`~isaaclab_newton.physics.NewtonCfg`. Standalone
 VBD and soft-contact configuration live in :mod:`isaaclab_newton.physics`, while
-proxy and custom solver coupling remain in :mod:`isaaclab_contrib`.
+proxy and ADMM coupling live in :mod:`isaaclab_contrib.coupling`.
 
 The Franka soft-body and cloth tasks define task-specific proxy presets.
 
@@ -221,45 +218,10 @@ Self-Contact
       - Default: ``0.0`` [m]. Filters self-contact candidates whose rest-configuration distance is shorter than this distance. Increase it when rest-neighbor contacts produce unwanted resistance.
 
 
-Custom MJWarp + VBD Parameters
-------------------------------
-
-The opt-in
-:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` runs
-MJWarp and VBD over one shared model. Import
-:mod:`isaaclab_contrib.custom_coupling.tasks` explicitly before using its
-registered task.
-
-.. list-table::
-    :header-rows: 1
-    :widths: 30 70
-
-    * - Parameter
-      - Description
-    * - ``rigid_solver_cfg``
-      - MJWarp configuration for rigid bodies.
-    * - ``soft_solver_cfg``
-      - VBD configuration. Set ``integrate_with_external_rigid_solver=True``
-        so VBD advances only particles.
-    * - ``coupling_mode="one_way"``
-      - Advance rigid bodies first, then particles without rigid reaction
-        forces.
-    * - ``coupling_mode="two_way"``
-      - Inject particle reactions before MJWarp, then advance VBD with the same
-        contacts.
-
-MJWarp ``nconmax`` and ``njmax`` must cover the rigid contacts and constraints
-in the scene. ``ccd_iterations`` can affect fast rigid contacts near
-deformables. See :doc:`mjwarp-solver` for the rigid-solver parameters.
-
-Use the custom manager for direct shared-model substep ordering. Use proxy
-coupling when deformable contact is localized to selected rigid bodies.
-
-
 .. _newton-vbd-proxy-coupling:
 
-Proxy-Coupled MJWarp + VBD
---------------------------
+Coupled MJWarp + VBD
+--------------------
 
 :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` is the coupling used by
 the core Franka tasks. It partitions the model between named solver entries and
@@ -346,6 +308,11 @@ Key proxy-specific parameters:
 
 Body selectors must use full Newton body-label regexes, such as
 ``/World/envs/env_.*/Robot``. Proxy mappings also accept raw Newton body ids.
+
+:class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` provides linearized ADMM
+coupling between the same named solver entries. Set ``contact_pairs`` to select
+entry pairs explicitly, or leave it as ``None`` to detect every distinct pair.
+Use ``iterations`` and ``rho`` to tune the ADMM solve.
 
 Try the demo:
 

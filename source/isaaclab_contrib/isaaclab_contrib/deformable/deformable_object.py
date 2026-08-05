@@ -240,16 +240,11 @@ def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]
 
 def install_deformable_builder_hooks() -> None:
     """Install deformable builder hooks without removing hooks owned by other extensions."""
-    if not hasattr(SimulationManager, "_deformable_registry"):
-        SimulationManager._deformable_registry = []
+    SimulationManager._deformable_registry = []
     if not hasattr(SimulationManager, "_per_world_builder_hooks"):
         SimulationManager._per_world_builder_hooks = []
-    if not hasattr(SimulationManager, "_post_start_simulation_hooks"):
-        SimulationManager._post_start_simulation_hooks = []
     if add_registered_deformables_to_builder not in SimulationManager._per_world_builder_hooks:
         SimulationManager._per_world_builder_hooks.append(add_registered_deformables_to_builder)
-    if setup_registered_deformable_fabric_sync not in SimulationManager._post_start_simulation_hooks:
-        SimulationManager._post_start_simulation_hooks.append(setup_registered_deformable_fabric_sync)
 
 
 def clear_deformable_builder_hooks() -> None:
@@ -260,12 +255,6 @@ def clear_deformable_builder_hooks() -> None:
             hook
             for hook in SimulationManager._per_world_builder_hooks
             if hook is not add_registered_deformables_to_builder
-        ]
-    if hasattr(SimulationManager, "_post_start_simulation_hooks"):
-        SimulationManager._post_start_simulation_hooks = [
-            hook
-            for hook in SimulationManager._post_start_simulation_hooks
-            if hook is not setup_registered_deformable_fabric_sync
         ]
 
 
@@ -300,7 +289,6 @@ class DeformableObject(BaseDeformableObject):
         self._deformable_type: str | None = None
 
         # Read mesh from the spawned USD prim and register in the deformable registry.
-        install_deformable_builder_hooks()
         self._registry_entry = self._register_deformable()
 
         # Register custom vec6f type for nodal state validation.
@@ -1012,10 +1000,6 @@ class DeformableObject(BaseDeformableObject):
         if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
             self._physics_ready_handle.deregister()
             self._physics_ready_handle = None
-        if hasattr(self, "_registry_entry"):
-            SimulationManager._deformable_registry = [
-                entry for entry in SimulationManager._deformable_registry if entry is not self._registry_entry
-            ]
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""

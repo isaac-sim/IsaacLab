@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.utils.configclass import configclass
 
-from .newton_manager_cfg import NewtonSoftContactCfg, NewtonSolverCfg
+from .newton_manager_cfg import NewtonSolverCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
@@ -23,12 +23,6 @@ class VBDSolverCfg(NewtonSolverCfg):
 
     class_type: type[NewtonManager] | str = "{DIR}.vbd_manager:NewtonVBDManager"
     """Manager class for the VBD solver."""
-
-    model_cfg: NewtonSoftContactCfg | None = None
-    """Deprecated global soft-contact configuration.
-
-    Use :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg` instead.
-    """
 
     iterations: int = 10
     """Number of VBD iterations per substep."""

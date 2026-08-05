@@ -9,11 +9,6 @@ isaaclab_contrib.deformable
 
     deformable_object.DeformableObject
     deformable_object_data.DeformableObjectData
-    newton_manager_cfg.NewtonModelCfg
-    newton_manager_cfg.NewtonModelSolverCfg
-    newton_manager_cfg.VBDSolverCfg
-    newton_manager_cfg.CoupledMJWarpVBDSolverCfg
-    vbd_manager.NewtonVBDManager
 
 Deformable Object
 -----------------
@@ -28,45 +23,3 @@ Deformable Object
   :inherited-members:
   :show-inheritance:
   :exclude-members: __init__
-
-Newton Solver Configurations
-----------------------------
-
-.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelSolverCfg
-  :members:
-  :show-inheritance:
-  :exclude-members: __init__
-
-.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.CoupledMJWarpVBDSolverCfg
-  :members:
-  :show-inheritance:
-  :exclude-members: __init__
-
-Deprecated Compatibility Aliases
---------------------------------
-
-``NewtonModelCfg`` and ``VBDSolverCfg`` remain available from
-``isaaclab_contrib.deformable`` for compatibility. ``NewtonVBDManager`` remains
-available from ``isaaclab_contrib.deformable.vbd_manager``. Use
-:class:`isaaclab_newton.physics.NewtonSoftContactCfg`,
-:class:`isaaclab_newton.physics.VBDSolverCfg`, and
-:class:`isaaclab_newton.physics.NewtonVBDManager` for new code. Pass the
-soft-contact configuration through
-:attr:`isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`.
-
-.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelCfg
-  :members:
-  :no-index:
-  :show-inheritance:
-  :exclude-members: __init__
-
-.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.VBDSolverCfg
-  :members:
-  :no-index:
-  :show-inheritance:
-  :exclude-members: __init__
-
-.. autoclass:: isaaclab_contrib.deformable.vbd_manager.NewtonVBDManager
-  :members:
-  :no-index:
-  :show-inheritance:

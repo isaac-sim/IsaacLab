@@ -135,6 +135,7 @@ SOLVER_MATRIX = [
 
 RIGID_BODY_FORCE_INPUT_SUPPORT = {
     NewtonMJWarpManager: True,
+    NewtonVBDManager: True,
     NewtonXPBDManager: True,
     NewtonFeatherstoneManager: True,
     NewtonKaminoManager: True,
@@ -994,6 +995,7 @@ def test_clear_resets_rigid_body_force_capability(monkeypatch):
     for manager in (
         NewtonMJWarpManager,
         NewtonXPBDManager,
+        NewtonVBDManager,
         NewtonFeatherstoneManager,
         NewtonKaminoManager,
         NewtonMPMManager,

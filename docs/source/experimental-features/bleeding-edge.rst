@@ -62,11 +62,10 @@ The following features are currently available in ``isaaclab_contrib``:
      - Geometric controllers for multirotor attitude, velocity, acceleration, and position tracking
        on SO(3) (Lee et al.). Suitable for both trajectory following and RL baselines.
      - API reference: :mod:`~isaaclab_contrib.controllers`
-   * - **Newton VBD Deformable Objects**
-     - Extended deformable object support with proxy and custom coupling between MJWarp and VBD.
-       Standalone VBD is provided by :mod:`isaaclab_newton.physics`.
-     - API reference: :mod:`~isaaclab_contrib.deformable`, :mod:`~isaaclab_contrib.coupling`,
-       :mod:`~isaaclab_contrib.custom_coupling`
+   * - **Newton Rigid-Deformable Coupling**
+     - Proxy and ADMM coupling between Newton solvers, including MJWarp and VBD.
+       Custom coupling examples are also available in contrib.
+     - API reference: :mod:`~isaaclab_contrib.coupling`
 
 Contributing
 ------------

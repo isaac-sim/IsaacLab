@@ -5,11 +5,9 @@
 
 """Franka soft lifting environment using the custom coupling manager."""
 
-from isaaclab_newton.physics import MJWarpSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
 
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg

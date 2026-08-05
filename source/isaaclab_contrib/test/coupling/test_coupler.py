@@ -25,6 +25,7 @@ from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCollisionPipelineCfg,
+    VBDSolverCfg,
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.newton_manager import NewtonManager
@@ -40,8 +41,6 @@ from isaaclab_contrib.coupling import (
     NewtonCouplerManager,
     coupler,
 )
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
-from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 
 @dataclass
@@ -168,7 +167,6 @@ def test_config_validation_requires_newton_solver_config():
     ("solver_cfg", "entry_kwargs", "error_type", "match"),
     [
         (CouplerProxyCfg(), {}, ValueError, "nested CouplerCfg"),
-        (VBDSolverCfg(model_cfg=NewtonModelCfg()), {}, ValueError, "model parameters are global"),
         (KaminoPADMMSolverCfg(), {}, NotImplementedError, "FK/reset lifecycle"),
         (
             MPMSolverCfg(project_outside_colliders=True),
@@ -558,7 +556,7 @@ def test_coupler_clear_releases_nested_manager_state(monkeypatch):
 def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
     """Coupled MPM entries register attributes and normalize kinematic colliders."""
     events: list[tuple[str, object]] = []
-    builder = SimpleNamespace(color=lambda: None)
+    builder = object()
     solver_cfg = CouplerProxyCfg(
         entries=[CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg())],
     )

@@ -141,11 +141,6 @@ class NewtonCouplerManager(NewtonVBDManager):
                 raise ValueError(
                     f"CouplerEntryCfg {entry.name!r} contains a nested CouplerCfg; nested couplers are not supported."
                 )
-            if getattr(nested_cfg, "model_cfg", None) is not None:
-                raise ValueError(
-                    f"CouplerEntryCfg {entry.name!r} sets solver_cfg.model_cfg, but model parameters are global. "
-                    "Set soft_contact_cfg on the outer NewtonCfg instead."
-                )
             manager = nested_cfg.class_type
             factory = getattr(manager, "_create_solver", None)
             if not callable(factory) or getattr(factory, "__func__", factory) is NewtonManager._create_solver.__func__:
