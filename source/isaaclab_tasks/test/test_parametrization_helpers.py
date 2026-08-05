@@ -107,18 +107,19 @@ def test_kitless_matrix_marks_ovphysx_texture_readiness_xfail() -> None:
 
 
 def test_lift_factory_applies_shared_native_crash_policy() -> None:
-    """Newton MDL stays skipped for crashes; OVPhysX MDL keeps the texture-readiness xfail."""
+    """Both backends skip the crash-prone MDL AOVs; albedo keeps the texture-readiness xfail."""
     params = {param.id: param for param in make_kitless_rendering_params_lift()}
 
     for variant in ("legacy", "ovstage"):
-        for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
-            newton_param = params[f"{variant}-newton-ovrtx-{data_type}"]
-            assert [mark.name for mark in newton_param.marks] == ["skip"]
-            assert "NVBUG#6524987" in newton_param.marks[0].kwargs["reason"]
+        for physics_backend in ("newton", "ovphysx"):
+            for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
+                param = params[f"{variant}-{physics_backend}-ovrtx-{data_type}"]
+                assert [mark.name for mark in param.marks] == ["skip"]
+                assert "NVBUG#6524987" in param.marks[0].kwargs["reason"]
 
-            ovphysx_param = params[f"{variant}-ovphysx-ovrtx-{data_type}"]
-            assert [mark.name for mark in ovphysx_param.marks] == ["xfail"]
-            assert "NVBUG#6505191" in ovphysx_param.marks[0].kwargs["reason"]
+            albedo_param = params[f"{variant}-{physics_backend}-ovrtx-albedo"]
+            assert [mark.name for mark in albedo_param.marks] == ["xfail"]
+            assert "NVBUG#6505191" in albedo_param.marks[0].kwargs["reason"]
 
 
 def test_franka_factory_adds_cloth_only_motion_policy() -> None:

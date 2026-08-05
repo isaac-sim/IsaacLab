@@ -159,7 +159,7 @@ _OVRTX_TEXTURE_READINESS_DATA_TYPES = (
 )
 _OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
 _KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
-_LIFT_RENDERER_CRASH_SKIP_REASON = "Lift kitless OVRTX rendering may crash or time out (NVBUG#6524987)."
+_LIFT_RENDERER_CRASH_SKIP_REASON = "Lift kitless OVRTX MDL rendering can kill the test process (NVBUG#6524987)."
 _OVRTX_CLOTH_MOTION_XFAIL_REASON = "Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754)."
 
 
@@ -318,13 +318,15 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
 
 def make_kitless_rendering_params_lift() -> list[pytest.param]:
     """Create kitless Lift parameters with known native-crash cases skipped."""
-    # Newton MDL paths can SIGSEGV (NVBUG#6524987). OVPhysX MDL mismatches stay under the shared
-    # NVBUG#6505191 texture-readiness xfail so assertion failures are reported as expected.
+    # Both backends can SIGSEGV on the MDL AOVs, which loses the JUnit report for the whole file,
+    # so xfail cannot express these. ``albedo`` only mismatches and stays under the shared
+    # NVBUG#6505191 texture-readiness xfail.
     return make_skip_rendering_params(
         make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
         {
-            (variant, "newton", "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
+            (variant, physics_backend, "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
             for variant in _KITLESS_STAGE_VARIANTS
+            for physics_backend in ("newton", "ovphysx")
             for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl")
         },
     )
