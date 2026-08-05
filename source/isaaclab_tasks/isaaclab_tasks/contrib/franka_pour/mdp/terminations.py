@@ -201,15 +201,23 @@ def lost_lifted_grasp(
     tcp_distance = torch.linalg.vector_norm(env.tcp_pos_e() - env.cup_grasp_point_e(), dim=-1)
     gripper_width_error = torch.abs(env.gripper_width() - float(env.gripper_grasp_width))
     gripper = env.action_manager.get_term("gripper_action")
-    preloaded_grasp = (
-        (tcp_distance <= float(max_tcp_distance))
+    reached_grasp = tcp_distance <= float(max_tcp_distance)
+    bilateral_grasp = (
+        reached_grasp
         & (gripper_width_error <= float(max_gripper_width_error))
         & (gripper.commanded_position[:, 0] <= float(max_gripper_command) + _GRIPPER_POSITION_TOLERANCE)
         & gripper.bilateral_contact
     )
-    lifted_grasp = preloaded_grasp & (cup_lift >= max(float(env.cfg.success_min_lift_height), 1.0e-6))
+    lifted_grasp = bilateral_grasp & (cup_lift >= max(float(env.cfg.success_min_lift_height), 1.0e-6))
+    episode_latches = (
+        (env._episode_reached_grasp_point, reached_grasp),
+        (env._episode_bilateral_grasp, bilateral_grasp),
+        (env._episode_lifted_grasp, lifted_grasp),
+    )
+    for latch, milestone in episode_latches:
+        latch |= milestone
     env._lifted_grasp_seen |= lifted_grasp
-    lost = env._lifted_grasp_seen & ~preloaded_grasp
+    lost = env._lifted_grasp_seen & ~bilateral_grasp
     dwell_steps = max(1, math.ceil(float(dwell_time_s) / max(float(env.step_dt), 1.0e-6)))
     env._lost_grasp_dwell_count[:] = torch.where(
         lost,

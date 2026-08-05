@@ -31,6 +31,7 @@ _STATE_TENSOR_SPECS = {
     "target_root_velocity": (torch.float32, (6,)),
     "category": (torch.int8, ()),
     "objective": (torch.float32, ()),
+    "reset_region": (torch.int8, ()),
     "difficulty": (torch.float32, ()),
     "particle_layout_id": (torch.int32, ()),
 }
@@ -346,6 +347,9 @@ def _validate_state_tensors(states: Mapping[str, Any], state_count: int):
     category = states["category"]
     if not bool(torch.all((category == 0) | (category == 1))):
         raise ValueError("states.category must contain only non-grasping and grasping identifiers.")
+    reset_region = states["reset_region"]
+    if not bool(torch.all((reset_region >= 0) & (reset_region < 4))):
+        raise ValueError("states.reset_region must contain only reaching through near-goal identifiers.")
 
 
 def _validate_particle_layouts(particle_layouts: Mapping[str, Any]) -> int:

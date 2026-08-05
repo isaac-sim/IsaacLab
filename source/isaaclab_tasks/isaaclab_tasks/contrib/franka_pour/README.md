@@ -7,8 +7,8 @@ SPDX-License-Identifier: BSD-3-Clause
 
 # Franka Pour
 
-This package provides one checkpoint-backed learning workflow: the artifact-owned reset-dataset
-task, `IsaacContrib-Franka-Pour`.
+This package provides one artifact-owned reset-dataset learning workflow,
+`IsaacContrib-Franka-Pour`.
 
 The reset-dataset task follows the same separation of concerns as Franka Stack:
 
@@ -16,6 +16,10 @@ The reset-dataset task follows the same separation of concerns as Franka Stack:
 - one offline cache supplies a connected path through the task;
 - a separate Boolean local-progress signal trains the reset sampler; and
 - terminal particle transfer remains the policy-success and evaluation metric.
+
+The actor receives one current timestep of robot, cup, target, gripper, and previous-action state,
+plus compact permutation-invariant MPM summaries. Its 84 inputs contain no temporal stack or
+constant padding. The asymmetric critic adds two task-state inputs for a total of 86.
 
 The artifact is still required for the reset-dataset task because it is the reset curriculum, not
 a cache of simulated fluid outcomes. It amortizes NewtonIK and static collision rejection, gives
@@ -100,12 +104,16 @@ curriculum evidence. This curriculum-only Boolean never contributes policy rewar
 
 Each row retains its exact 50 most recent local-progress outcomes. Adaptive priority is
 `sqrt(p * (1 - p)) + epsilon`, so uncertain rows near 50% progress are emphasized without starving
-rows at 0% or 100%. A shuffled cyclic stream receives 50% of assignments until every row has been
-visited once, then 25%. There are no runtime stages or region probabilities.
+rows at 0% or 100%. A shuffled cyclic stream receives 50% of assignments throughout training,
+which keeps persistently difficult reaching and grasp-acquisition rows represented alongside the
+adaptive competence frontier. There are no runtime stages or region probabilities.
 
-The sampler reports its effective pool size, concentration, cyclic-replay fraction, and first-sweep
-coverage. Evaluate frozen policies separately rather than inferring performance from training-time
-samples.
+The sampler reports its effective pool size, concentration, cyclic-replay fraction, first-sweep
+coverage, and the assignment fraction for each offline reset region. Completed episodes also log
+terminal success, local progress, reaching, bilateral grasp, and lift rates by reset region. The
+regions are diagnostics for the sampled distribution; they do not gate policy behavior or change
+the sampler objective. Evaluate frozen policies separately rather than inferring performance from
+training-time samples.
 
 Each worker applies completed outcomes immediately to its own sampler. In distributed training,
 the curriculum therefore adapts independently on each rank while PPO still learns from all rank

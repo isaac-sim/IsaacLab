@@ -63,11 +63,11 @@ _RESET_DATASET_STATE_NAMES = (
     "target_root_velocity",
     "category",
     "objective",
+    "reset_region",
     "difficulty",
     "particle_layout_id",
 )
 # The SeattleLab tabletop collision cube ends 3 mm below the task's z=0 support plane.
-# Its remaining inset is represented as a contact skin after accounting for the source skin.
 _SEATTLELAB_TABLETOP_COLLISION_INSET = 0.003
 
 # Newton exposes force-space shape gains through the numeric ``mujoco:solref_mode``
@@ -210,10 +210,17 @@ class FrankaPourEnv(ManagerBasedRLEnv):
                 f"found ids={table_colliders}, labels={labels}."
             )
         table_collider = table_colliders[0]
-        builder.shape_margin[table_collider] = max(
-            0.0,
-            _SEATTLELAB_TABLETOP_COLLISION_INSET - self._rigid_contact_margin,
+        table_xform = builder.shape_transform[table_collider]
+        table_position = wp.transform_get_translation(table_xform)
+        builder.shape_transform[table_collider] = wp.transform(
+            wp.vec3(
+                table_position[0],
+                table_position[1],
+                table_position[2] + _SEATTLELAB_TABLETOP_COLLISION_INSET,
+            ),
+            wp.transform_get_rotation(table_xform),
         )
+        builder.shape_margin[table_collider] = 0.0
         self._configure_mjwarp_force_space_shape(builder, table_collider)
 
         world_xform = wp.transform(
@@ -314,7 +321,9 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     def _configure_grasp_proxy(self, builder, shape_id: int) -> None:
         """Keep the imported grasp proxy rigid-only, invisible, and contact-tuned."""
         self._set_shape_roles(builder, shape_id, rigid=True, particles=False, visible=False)
-        builder.shape_margin[shape_id] = self._rigid_contact_margin
+        # The source cup starts in physical contact with the aligned tabletop. A contact margin
+        # here would make its resting support margin-only and destabilize the contact manifold.
+        builder.shape_margin[shape_id] = 0.0
         self._configure_mjwarp_force_space_shape(builder, shape_id)
         builder.shape_material_kf[shape_id] = self._grasp_contact_kf
         builder.shape_material_mu[shape_id] = self._grasp_contact_mu
@@ -438,6 +447,9 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self.episode_succeeded = torch.zeros(self.num_envs, device=dev, dtype=torch.bool)
         self._success_dwell_count = torch.zeros(self.num_envs, device=dev, dtype=torch.long)
         self._lost_grasp_dwell_count = torch.zeros(self.num_envs, device=dev, dtype=torch.long)
+        self._episode_reached_grasp_point = torch.zeros(self.num_envs, device=dev, dtype=torch.bool)
+        self._episode_bilateral_grasp = torch.zeros_like(self._episode_reached_grasp_point)
+        self._episode_lifted_grasp = torch.zeros_like(self._episode_reached_grasp_point)
         self._lifted_grasp_seen = torch.zeros(self.num_envs, device=dev, dtype=torch.bool)
         self._source_inner_lo_t = torch.as_tensor(self._source_inner_lo, device=dev)
         self._source_inner_hi_t = torch.as_tensor(self._source_inner_hi, device=dev)
@@ -755,6 +767,9 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self.episode_succeeded[env_ids] = False
         self._success_dwell_count[env_ids] = 0
         self._lost_grasp_dwell_count[env_ids] = 0
+        self._episode_reached_grasp_point[env_ids] = False
+        self._episode_bilateral_grasp[env_ids] = False
+        self._episode_lifted_grasp[env_ids] = False
         # A grasping cache row is an offline-validated demonstrated grasp. Seed the latch from the
         # row category so opening the hand immediately after reset cannot evade dropped-cup
         # termination before the first runtime grasp observation. Non-grasping rows remain

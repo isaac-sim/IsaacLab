@@ -293,7 +293,7 @@ class ActionsCfg:
 
 @configclass
 class ResetDatasetObservationsCfg:
-    """Policy history and compact MPM state."""
+    """Current robot and task state with compact MPM summaries."""
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -326,7 +326,7 @@ class ResetDatasetObservationsCfg:
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
-            self.history_length = 13
+            self.history_length = 0
 
     @configclass
     class MediaCfg(ObsGroup):
@@ -547,7 +547,9 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         kappa=1.0,
         epsilon=1.0e-4,
         uniform_fraction_initial=0.50,
-        uniform_fraction=0.25,
+        # Keep half of all assignments on exact cyclic replay so persistently failing reaching and
+        # grasp-acquisition rows remain represented beside the adaptive competence frontier.
+        uniform_fraction=0.50,
     )
     curriculum_freeze: bool = False
 
@@ -576,7 +578,9 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                         solver_cfg=MJWarpSolverCfg(
                             use_mujoco_contacts=False,
                             integrator="implicitfast",
-                            njmax=510,
+                            # Contact-rich resets reached 1,994 constraint rows per world in the
+                            # production sweep. Retain bounded headroom without changing nconmax.
+                            njmax=2560,
                             nconmax=400,
                         ),
                         bodies=[
@@ -620,7 +624,9 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                         destination=MPM_ENTRY,
                         bodies=[r"/World/envs/env_.*/SourceCup", r"/World/envs/env_.*/TargetCup"],
                         mass_scale=self.proxy_mass_scale,
-                        mode="lagged",
+                        # Synchronize MPM colliders from the rigid solver's end pose so particle
+                        # reactions do not lag behind a cup resting on the table.
+                        mode="staggered",
                         collision_pipeline=None,
                     )
                 ],
