@@ -306,7 +306,7 @@ Physics backend selection uses the same preset system. A task can define a
 
 .. code-block:: python
 
-    from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, kamino_padmm_solver_cfg
     from isaaclab_ovphysx.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
@@ -329,11 +329,10 @@ Physics backend selection uses the same preset system. A task can define a
             num_substeps=1,
         )
         newton_kamino: NewtonCfg = NewtonCfg(
-            solver_cfg=KaminoSolverCfg(
+            solver_cfg=kamino_padmm_solver_cfg(
                 integrator="moreau",
                 use_collision_detector=True,
                 sparse_jacobian=True,
-                padmm_max_iterations=100,
             ),
             num_substeps=1,
             debug_mode=False,

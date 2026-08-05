@@ -1340,6 +1340,35 @@ def test_scalar_override_within_preset_path(class_presets):
     assert env_cfg.backend.substeps == 4
 
 
+def test_scalar_override_kamino_dynamics_solver():
+    """Nested Kamino solver fields can be overridden through Hydra scalar paths."""
+    from isaaclab_newton.physics import NewtonCfg, kamino_padmm_solver_cfg
+
+    @configclass
+    class KaminoPhysicsPreset(PresetCfg):
+        default: NewtonCfg = NewtonCfg()
+        newton_kamino: NewtonCfg = NewtonCfg(solver_cfg=kamino_padmm_solver_cfg())
+
+    @configclass
+    class KaminoEnvCfg:
+        physics: KaminoPhysicsPreset = KaminoPhysicsPreset()
+
+    env_cfg = KaminoEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(
+        env_cfg,
+        agent_cfg,
+        hydra_cfg,
+        ["newton_kamino"],
+        [],
+        [("env.physics.solver_cfg.dynamics_solver", "dvi")],
+        presets,
+    )
+    assert env_cfg.physics.solver_cfg.dynamics_solver == "dvi"
+
+
 # =============================================================================
 # Tests: resolve_presets idempotency
 # =============================================================================

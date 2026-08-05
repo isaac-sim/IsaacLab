@@ -8,7 +8,7 @@
 The robot must keep its pelvis upright at a target height.
 """
 
-from isaaclab_newton.physics import KaminoSolverCfg, NewtonCfg, NewtonShapeCfg
+from isaaclab_newton.physics import NewtonCfg, NewtonShapeCfg, kamino_dvi_solver_cfg, kamino_padmm_solver_cfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -49,27 +49,27 @@ _PHYSICS_MATERIAL = sim_utils.RigidBodyMaterialCfg(
 
 
 def _kamino_newton_cfg() -> NewtonCfg:
-    """Kamino solver preset for DR Legs (closed-loop, implicit PD)."""
+    """Kamino P-ADMM solver preset for DR Legs."""
     return NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
-            integrator="moreau",
-            sparse_jacobian=True,
-            sparse_dynamics=False,
-            use_collision_detector=False,
-            collision_detector_pipeline="unified",
-            collision_detector_max_contacts_per_pair=8,
+        solver_cfg=kamino_padmm_solver_cfg(
             use_fk_solver=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_primal_tolerance=1.0e-5,
-            padmm_dual_tolerance=1.0e-5,
-            padmm_compl_tolerance=1.0e-5,
-            padmm_rho_0=0.02,
-            padmm_eta=1.0e-5,
-            padmm_use_acceleration=True,
-            padmm_warmstart_mode="containers",
-            padmm_contact_warmstart_method="geom_pair_net_force",
-            padmm_use_graph_conditionals=False,
+            max_contacts_per_world=32,
+            padmm__primal_tolerance=1.0e-5,
+            padmm__dual_tolerance=1.0e-5,
+            padmm__compl_tolerance=1.0e-5,
+            padmm__rho_0=0.02,
+        ),
+        use_cuda_graph=True,
+        default_shape_cfg=NewtonShapeCfg(margin=0.0, gap=0.001),
+    )
+
+
+def _kamino_dvi_newton_cfg() -> NewtonCfg:
+    """Kamino DVI preset for DR Legs."""
+    return NewtonCfg(
+        solver_cfg=kamino_dvi_solver_cfg(
+            use_collision_detector=False,
+            use_fk_solver=True,
             max_contacts_per_world=32,
         ),
         use_cuda_graph=True,
@@ -83,6 +83,7 @@ class DrLegsPhysicsCfg(PresetCfg):
 
     default: NewtonCfg = _kamino_newton_cfg()
     newton_kamino: NewtonCfg = _kamino_newton_cfg()
+    newton_kamino_dvi: NewtonCfg = _kamino_dvi_newton_cfg()
     isaacsim_physx: PhysxCfg = PhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
