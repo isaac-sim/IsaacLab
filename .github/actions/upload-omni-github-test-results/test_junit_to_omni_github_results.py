@@ -165,7 +165,7 @@ def test_convert_junit_writes_one_artifact_relative_log_per_test(tmp_path: Path)
         for log_path in row["log_paths"]:
             # omni-github resolves log_paths against the artifact root, so the path must stay
             # relative (no scheme, no leading slash, no backslash) and the file must exist.
-assert "://" not in log_path and not Path(log_path).is_absolute()
+            assert "://" not in log_path and not Path(log_path).is_absolute()
             assert "\\" not in log_path
             assert (output_dir / log_path).is_file()
 
