@@ -301,11 +301,50 @@ class TestPoseCommandSuccessParity:
             assert expected.any(), "thresholds produced no successes; the comparison would be vacuous"
 
         params = {"command_name": "ee_pose"}
+        command._succeeded.zero_()
         warp_fn = warp_term.pose_command_success(
             TerminationTermCfg(func=warp_term.pose_command_success, params=params), env
         )
         assert_equal(run_warp_term(warp_fn, env, **params), expected)
+        # the stable term ORs into the sticky tracker; the twin must too, or the terminating
+        # step is never recorded before ``reset()`` reads and clears it
+        assert_equal(command._succeeded, expected)
         assert_equal(run_warp_term_captured(warp_fn, env, **params), expected)
+
+    def _run_both(self, scene_bodies, **thresholds):
+        """Return ``(stable, warp)`` results for one threshold configuration."""
+        command = make_pose_command_term(scene_bodies["robot"], **thresholds)
+        env = SimpleNamespace(
+            scene=scene_bodies,
+            command_manager=MockPoseCommandManager(command),
+            num_envs=NUM_ENVS,
+            device=DEVICE,
+        )
+        params = {"command_name": "ee_pose"}
+        expected = stable_term.pose_command_success(env, **params)
+        warp_fn = warp_term.pose_command_success(
+            TerminationTermCfg(func=warp_term.pose_command_success, params=params), env
+        )
+        return expected, run_warp_term(warp_fn, env, **params), command
+
+    def test_non_finite_error_denies_success(self, scene_bodies):
+        """A diverged env must not be reported as successful (and rewarded for it)."""
+        art_data = scene_bodies["robot"].data
+        art_data.body_pos_w.torch[:8, 0, :] = float("nan")
+
+        expected, actual, _ = self._run_both(scene_bodies)
+
+        assert not expected[:8].any(), "stable must deny success on NaN"
+        assert_equal(actual, expected)
+
+    def test_negative_threshold_is_configured_not_unset(self, scene_bodies):
+        """A negative threshold is a real (unsatisfiable) bound, not an absent one."""
+        expected, actual, _ = self._run_both(
+            scene_bodies, position_success_threshold=-0.5, orientation_success_threshold=None
+        )
+
+        assert not expected.any(), "no distance is below a negative threshold"
+        assert_equal(actual, expected)
 
 
 # ============================================================================

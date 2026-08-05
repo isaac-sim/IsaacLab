@@ -58,29 +58,40 @@ def _pose_command_success_kernel(
     body_quat_w: wp.array(dtype=wp.quatf, ndim=2),
     cmd: wp.array(dtype=wp.float32, ndim=2),
     body_idx: int,
+    check_position: bool,
     position_threshold: float,
+    check_orientation: bool,
     orientation_threshold: float,
+    succeeded: wp.array(dtype=wp.bool),
     out: wp.array(dtype=wp.bool),
 ):
-    """Flag envs whose body pose is within every configured threshold. A negative threshold is unset."""
+    """Flag envs whose body pose is within every configured threshold.
+
+    Each threshold is an accept predicate, matching the stable term's ``error < threshold``: a
+    non-finite error compares false and denies success, where a reject form would let it through.
+    """
     i = wp.tid()
     success = bool(True)
-    if position_threshold >= 0.0:
+    if check_position:
         des_b = wp.vec3f(cmd[i, 0], cmd[i, 1], cmd[i, 2])
         des_w = root_pos_w[i] + wp.quat_rotate(root_quat_w[i], des_b)
         cur_w = body_pos_w[i, body_idx]
         dx = cur_w[0] - des_w[0]
         dy = cur_w[1] - des_w[1]
         dz = cur_w[2] - des_w[2]
-        if wp.sqrt(dx * dx + dy * dy + dz * dz) >= position_threshold:
-            success = False
-    if orientation_threshold >= 0.0:
+        success = success and (wp.sqrt(dx * dx + dy * dy + dz * dz) < position_threshold)
+    if check_orientation:
         des_q_b = wp.quatf(cmd[i, 3], cmd[i, 4], cmd[i, 5], cmd[i, 6])
         des_q_w = root_quat_w[i] * des_q_b
         q_err = wp.quat_inverse(body_quat_w[i, body_idx]) * des_q_w
-        if 2.0 * wp.acos(wp.clamp(wp.abs(q_err[3]), 0.0, 1.0)) >= orientation_threshold:
-            success = False
+        angle = 2.0 * wp.acos(wp.clamp(wp.abs(q_err[3]), 0.0, 1.0))
+        success = success and (angle < orientation_threshold)
     out[i] = success
+    # sticky per-episode tracker, mirroring the stable term's ``self._succeeded |= success``.
+    # It must be written here rather than after the launch: the termination manager runs
+    # graph-captured by default, and host-side work between launches is not replayed.
+    if success:
+        succeeded[i] = True
 
 
 class pose_command_success(ManagerTermBase):
@@ -88,30 +99,35 @@ class pose_command_success(ManagerTermBase):
 
     Warp-first override of :func:`isaaclab.envs.mdp.terminations.pose_command_success`.
 
-    The command term, its thresholds, the tracked body index and the warp view of the command
-    buffer are all resolved at init, leaving :meth:`__call__` a single kernel launch.
+    The command term, its thresholds, the tracked body index and the warp views of the command
+    and success buffers are all resolved at init, leaving :meth:`__call__` a single kernel launch.
 
     Note:
-        The stable term also ORs the result into the command's per-episode success tracker. That
-        tracker is already maintained by ``UniformPoseCommand._update_metrics`` on every step, so
-        recomputing the thresholds here keeps ``Metrics/success_rate`` intact.
+        Thresholds are read once. A curriculum that mutates ``position_success_threshold`` or
+        ``orientation_success_threshold`` at runtime is not honoured here: the termination manager
+        runs graph-captured by default, and a kernel scalar is baked into the graph at capture.
     """
 
     def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         command_name = cfg.params["command_name"]
         command = env.command_manager.get_term(command_name)
-        # a negative threshold marks "not configured" for the kernel
+        # carry "configured" as its own flag: a threshold is any float, so no value can encode absence
         position_threshold = command.cfg.position_success_threshold
         orientation_threshold = command.cfg.orientation_success_threshold
-        self._position_threshold = -1.0 if position_threshold is None else position_threshold
-        self._orientation_threshold = -1.0 if orientation_threshold is None else orientation_threshold
+        self._check_position = position_threshold is not None
+        self._check_orientation = orientation_threshold is not None
+        self._position_threshold = float(position_threshold or 0.0)
+        self._orientation_threshold = float(orientation_threshold or 0.0)
         # matches the stable term: with no threshold configured, no env ever succeeds
-        self._any_threshold = self._position_threshold >= 0.0 or self._orientation_threshold >= 0.0
+        self._any_threshold = self._check_position or self._check_orientation
         self._body_idx = command.body_idx
         self._asset: Articulation = command.robot
         cmd = env.command_manager.get_command(command_name)
         self._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
+        # zero-copy alias of the command's persistent sticky-success buffer (allocated once, never
+        # reallocated), so the kernel's write lands in the tensor ``reset()`` reads and clears.
+        self._succeeded_wp = wp.from_torch(command._succeeded) if self._any_threshold else None
 
     def __call__(self, env: ManagerBasedRLEnv, out: wp.array(dtype=wp.bool), command_name: str) -> None:
         if not self._any_threshold:
@@ -127,8 +143,11 @@ class pose_command_success(ManagerTermBase):
                 self._asset.data.body_quat_w.warp,
                 self._cmd_wp,
                 self._body_idx,
+                self._check_position,
                 self._position_threshold,
+                self._check_orientation,
                 self._orientation_threshold,
+                self._succeeded_wp,
                 out,
             ],
             device=env.device,
