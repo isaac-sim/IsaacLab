@@ -137,8 +137,10 @@ def _runtime_rows(bundle: RuntimeBundle | TrainingBundle) -> list[tuple[str, str
         ("steps_per_iteration", f"{runtime.steps_per_iteration:,}"),
         ("total_wall_time", f"{runtime.total_wall_time_s:,.2f} s"),
         None,
-        ("startup (launch/env/step)", f"{startup.app_launch:.2f} / {startup.env_creation:.2f} /"
-         f" {startup.first_step:.2f} s"),
+        (
+            "startup (launch/env/step)",
+            f"{startup.app_launch:.2f} / {startup.env_creation:.2f} / {startup.first_step:.2f} s",
+        ),
         ("gpu_util", _metric(resources.gpu_util_pct, "%", decimals=1)),
         ("gpu_mem", _metric(resources.gpu_mem_gb, "GB", decimals=2)),
     ]
