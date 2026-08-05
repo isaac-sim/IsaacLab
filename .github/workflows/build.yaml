@@ -810,7 +810,7 @@ jobs:
     name: "rendering-correctness-kitless (${{ matrix.variant }})"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
-    continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+    continue-on-error: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && matrix.variant == 'ovstage') }}
     needs: [build, config]
     if: needs.build.result == 'success'
     strategy:
