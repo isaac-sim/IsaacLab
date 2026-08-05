@@ -319,8 +319,8 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
 def make_kitless_rendering_params_lift() -> list[pytest.param]:
     """Create kitless Lift parameters with known native-crash cases skipped."""
     # Both backends can SIGSEGV on the MDL AOVs, which loses the JUnit report for the whole file,
-    # so xfail cannot express these. ``albedo`` only mismatches and stays under the shared
-    # NVBUG#6505191 texture-readiness xfail.
+    # so xfail cannot express these. Albedo does not crash, so it keeps whatever the shared matrix
+    # assigns it.
     return make_skip_rendering_params(
         make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
         {
