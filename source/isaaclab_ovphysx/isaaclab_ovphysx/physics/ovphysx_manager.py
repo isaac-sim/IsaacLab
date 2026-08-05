@@ -405,6 +405,71 @@ class OvPhysxManager(PhysicsManager):
         return root
 
     @classmethod
+    def _normalize_self_referencing_root_joints(cls, stage: Any) -> None:
+        """Clear ``body0`` on root joints that target their own articulation-root prim.
+
+        Some converted assets (e.g. the MuJoCo Menagerie Franka) anchor a fixed-base
+        articulation with a joint whose ``body0`` targets the ``UsdPhysics.ArticulationRootAPI``
+        prim itself -- a plain Xform that is not a rigid body -- rather than leaving ``body0``
+        empty, which is the conventional spelling for "attached to the world". The OVPhysX
+        parser does not recognize that form and builds no articulation anywhere on the stage,
+        so every ``ARTICULATION_*`` tensor binding comes back with ``count == 0``.
+
+        This rewrites the joint to the empty-``body0`` spelling in place, before the stage is
+        serialized for the wheel. It is deliberately narrow: the predicate it matches is
+        exactly the topology that currently fails to parse at all, so no stage that OVPhysX
+        can already ingest is affected.
+
+        .. warning::
+            Temporary workaround. It only fires when the joint's ``body0`` frame is the
+            identity, because clearing ``body0`` reinterprets ``localPos0``/``localRot0`` as
+            world-relative; joints with an authored ``body0`` frame are left alone so the
+            anchor pose can never be silently moved.
+
+        Args:
+            stage: The USD stage to normalize, mutated in place.
+        """
+        # TODO(ovphysx): remove this workaround, and its call site in ``_warmup_and_load``,
+        # once the OVPhysX USD parser accepts a root joint whose ``body0`` targets the
+        # articulation-root prim itself.
+        for prim in stage.Traverse():
+            joint = UsdPhysics.Joint(prim)
+            if not joint:
+                continue
+            body0_targets = joint.GetBody0Rel().GetTargets()
+            body1_targets = joint.GetBody1Rel().GetTargets()
+            if len(body0_targets) != 1 or len(body1_targets) != 1:
+                continue
+            # ``body0`` must be the articulation root itself: an ancestor of the jointed link
+            # that carries the root API but is not a rigid body.
+            if not body1_targets[0].HasPrefix(body0_targets[0]):
+                continue
+            body0_prim = stage.GetPrimAtPath(body0_targets[0])
+            if not body0_prim.IsValid():
+                continue
+            if not body0_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                continue
+            if body0_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                continue
+            # Only rewrite when ``body0``'s joint frame is the identity, so dropping the
+            # relationship cannot move the anchor.
+            local_pos0 = joint.GetLocalPos0Attr().Get()
+            local_rot0 = joint.GetLocalRot0Attr().Get()
+            if local_pos0 is not None and tuple(local_pos0) != (0.0, 0.0, 0.0):
+                continue
+            if local_rot0 is not None and (
+                local_rot0.GetReal() != 1.0 or tuple(local_rot0.GetImaginary()) != (0.0, 0.0, 0.0)
+            ):
+                continue
+            joint.GetBody0Rel().SetTargets([])
+            logger.info(
+                "Cleared body0 on joint '%s': it targeted its own articulation root '%s', which the OVPhysX"
+                " parser does not recognize as a world attachment.",
+                prim.GetPath().pathString,
+                body0_targets[0],
+            )
+
+    @classmethod
     def register_clone(
         cls, source: str, targets: list[str], parent_positions: list[tuple[float, float, float]] | None = None
     ) -> None:
@@ -869,6 +934,7 @@ class OvPhysxManager(PhysicsManager):
         # binding fast path expects). Features that need distinct authored
         # physics in every environment request the full stage; missing
         # heterogeneous clone targets are materialized in its flattened layer.
+        cls._normalize_self_referencing_root_joints(sim.stage)
         cls._rearm_pending_clones()
         stage_usda = cls._serialize_selected_stage(sim.stage)
         cls._stage_usda = stage_usda
