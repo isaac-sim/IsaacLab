@@ -17,11 +17,11 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
     ("env_cfg_type", "camera_prim_path"),
     [
         (PickPlaceGR1T2EnvCfg, "{ENV_REGEX_NS}/Robot/base_link/RobotPOVCam"),
-        (LocomanipulationG1EnvCfg, "{ENV_REGEX_NS}/Robot/head_link/RobotHeadCam"),
+        (LocomanipulationG1EnvCfg, "{ENV_REGEX_NS}/Robot/torso_link/head_link/RobotHeadCam"),
     ],
 )
 def test_xr_camera_reference_tasks_select_recorded_camera(env_cfg_type, camera_prim_path):
-    """Reference tasks record and present a camera attached to a physical robot link."""
+    """Reference tasks use a camera beneath a prim that inherits physical-body motion."""
     cfg = env_cfg_type()
 
     assert cfg.isaac_teleop.xr_camera_feeds[0].camera_name == "robot_pov_cam"
@@ -37,7 +37,7 @@ def test_g1_xr_camera_uses_calibration_and_head_locked_panel():
     camera_cfg = cfg.scene.robot_pov_cam
     feed_cfg = cfg.isaac_teleop.xr_camera_feeds[0]
 
-    assert camera_cfg.prim_path == "{ENV_REGEX_NS}/Robot/head_link/RobotHeadCam"
+    assert camera_cfg.prim_path == "{ENV_REGEX_NS}/Robot/torso_link/head_link/RobotHeadCam"
     assert (camera_cfg.width, camera_cfg.height) == (640, 480)
     assert camera_cfg.spawn.focal_length == 15.0
     assert camera_cfg.spawn.horizontal_aperture == 20.955

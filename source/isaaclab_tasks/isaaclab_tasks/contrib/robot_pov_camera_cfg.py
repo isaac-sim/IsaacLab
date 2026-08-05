@@ -31,10 +31,10 @@ def robot_pov_camera_cfg(
     offset_pos: tuple[float, float, float],
     offset_rot: tuple[float, float, float, float],
 ) -> CameraCfg:
-    """Return a recorded robot-PoV camera attached to a robot body.
+    """Return a recorded robot-PoV camera under a prim that follows physical-body motion.
 
     Args:
-        parent_prim_path: Path of the physical robot body that the camera follows.
+        parent_prim_path: Path of the robot prim whose transform inherits physical-body motion.
         offset_pos: Camera position in the parent body frame.
         offset_rot: Camera XYZW quaternion in the parent body frame using the ROS camera convention.
     """

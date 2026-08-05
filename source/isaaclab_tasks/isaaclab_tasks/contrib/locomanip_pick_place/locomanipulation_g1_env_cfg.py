@@ -300,11 +300,11 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
 
     # Use the calibrated G1 head-camera view shared with IsaacLab-Arena.
     robot_pov_cam = robot_pov_camera_cfg(
-        parent_prim_path="{ENV_REGEX_NS}/Robot/head_link",
+        parent_prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link",
         offset_pos=(0.04485, 0.0, 0.35325),
         offset_rot=(-0.62721, 0.62721, -0.32651, 0.32651),
     ).replace(
-        prim_path="{ENV_REGEX_NS}/Robot/head_link/RobotHeadCam",
+        prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link/RobotHeadCam",
         height=480,
         width=640,
         spawn=sim_utils.PinholeCameraCfg(focal_length=15.0, horizontal_aperture=20.955, clipping_range=(0.1, 5.0)),
