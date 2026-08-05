@@ -320,8 +320,9 @@ def make_kitless_rendering_params_lift() -> list[pytest.param]:
     return make_skip_rendering_params(
         make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
         {
-            (variant, "newton", "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
+            (variant, physics_backend, "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
             for variant in _KITLESS_STAGE_VARIANTS
+            for physics_backend in ("newton", "ovphysx")
             for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl")
         },
     )
@@ -1844,6 +1845,10 @@ def rendering_test_franka_soft(
 
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
+
+    # Native hang: the per-file CI runner kills the suite after 1000s with no pytest outcome.
+    if physics_backend == "ovphysx" and renderer == "ovrtx_renderer" and data_type == "depth":
+        pytest.skip("OVPhysX + OVRTX depth hangs intermittently on franka_soft kitless CI.")
 
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 

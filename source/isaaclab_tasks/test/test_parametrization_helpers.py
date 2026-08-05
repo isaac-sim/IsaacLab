@@ -95,14 +95,15 @@ def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
 
 
 def test_lift_factory_applies_shared_native_crash_policy() -> None:
-    """Both stage variants should share the ticketed Lift MDL skips."""
+    """Both stage variants should share the ticketed Lift MDL skips for Newton and OVPhysX."""
     params = {param.id: param for param in make_kitless_rendering_params_lift()}
 
     for variant in ("legacy", "ovstage"):
-        for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
-            param = params[f"{variant}-newton-ovrtx-{data_type}"]
-            assert [mark.name for mark in param.marks] == ["skip"]
-            assert "NVBUG#6524987" in param.marks[0].kwargs["reason"]
+        for physics_backend in ("newton", "ovphysx"):
+            for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
+                param = params[f"{variant}-{physics_backend}-ovrtx-{data_type}"]
+                assert [mark.name for mark in param.marks] == ["skip"]
+                assert "NVBUG#6524987" in param.marks[0].kwargs["reason"]
 
 
 def test_franka_factory_adds_cloth_only_motion_policy() -> None:
