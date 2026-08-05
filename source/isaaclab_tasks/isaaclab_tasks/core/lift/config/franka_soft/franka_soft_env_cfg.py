@@ -630,7 +630,6 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1.0 / 120
         self.sim.render_interval = self.decimation
-        self.sim.gravity = (0.0, 0.0, -9.81)
         self.sim.physics = PhysicsCfg()
 
         self.viewer.eye = (0.75, 0.25, 0.65)
