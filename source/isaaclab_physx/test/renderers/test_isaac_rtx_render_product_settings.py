@@ -23,6 +23,7 @@ from pxr import UsdUtils
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.utils.version import get_isaac_sim_version
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
@@ -55,10 +56,15 @@ def _read_dlss_settings(prim) -> tuple[str, bool]:
     return str(exec_mode), bool(ray_reconstruction)
 
 
-def test_camera_local_dlss_settings_survive_annotator_attachment():
-    """Per-camera settings override conflicting globals in both USD and Fabric after attachment."""
+def test_camera_local_dlss_settings_are_isolated_after_annotator_attachment():
+    """Each camera keeps its local DLSS settings in USD and Fabric after attachment."""
     sim_utils.create_new_stage()
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device="cpu", dt=1.0 / 60.0))
+    global_settings = IsaacRtxRendererGlobalSettingsCfg(
+        dlss_mode=0,
+        enable_dl_denoiser=True,
+        carb_settings={"/rtx/dldenoiser/responsiveDenoising": True},
+    )
     camera = Camera(
         CameraCfg(
             prim_path="/World/Camera",
@@ -67,13 +73,23 @@ def test_camera_local_dlss_settings_survive_annotator_attachment():
             data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg(),
             renderer_cfg=IsaacRtxRendererCfg(
-                global_settings=IsaacRtxRendererGlobalSettingsCfg(
-                    dlss_mode=0,
-                    enable_dl_denoiser=True,
-                    carb_settings={"/rtx/dldenoiser/responsiveDenoising": True},
-                ),
+                global_settings=global_settings,
                 enable_dlss_ray_reconstruction=False,
                 dlss_exec_mode="quality",
+            ),
+        )
+    )
+    bystander_camera = Camera(
+        CameraCfg(
+            prim_path="/World/BystanderCamera",
+            height=96,
+            width=96,
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(),
+            renderer_cfg=IsaacRtxRendererCfg(
+                enable_dlss_ray_reconstruction=True,
+                global_settings=global_settings,
+                dlss_exec_mode="performance",
             ),
         )
     )
@@ -83,21 +99,30 @@ def test_camera_local_dlss_settings_survive_annotator_attachment():
         for _ in range(2):
             sim.step()
             camera.update(sim.cfg.dt)
+            bystander_camera.update(sim.cfg.dt)
 
         stage = sim_utils.get_current_stage()
-        render_product_path = camera._render_data.render_product.path
-        usd_prim = stage.GetPrimAtPath(render_product_path)
+        camera_render_product_path = camera._render_data.render_product.path
+        bystander_render_product_path = bystander_camera._render_data.render_product.path
+        camera_usd_prim = stage.GetPrimAtPath(camera_render_product_path)
+        bystander_usd_prim = stage.GetPrimAtPath(bystander_render_product_path)
 
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         fabric_stage = UsdRtUsd.Stage.Attach(stage_id)
-        fabric_prim = fabric_stage.GetPrimAtPath(render_product_path)
+        camera_fabric_prim = fabric_stage.GetPrimAtPath(camera_render_product_path)
+        bystander_fabric_prim = fabric_stage.GetPrimAtPath(bystander_render_product_path)
 
-        expected = ("quality", False)
-        assert _read_dlss_settings(usd_prim) == expected
-        assert _read_dlss_settings(fabric_prim) == expected
+        camera_expected = ("quality", False)
+        isaac_sim_version = get_isaac_sim_version()
+        bystander_expected = ("performance", (isaac_sim_version.major, isaac_sim_version.minor) >= (6, 1))
+        assert _read_dlss_settings(camera_usd_prim) == camera_expected
+        assert _read_dlss_settings(camera_fabric_prim) == camera_expected
+        assert _read_dlss_settings(bystander_usd_prim) == bystander_expected
+        assert _read_dlss_settings(bystander_fabric_prim) == bystander_expected
         assert get_settings_manager().get("/rtx/dldenoiser/responsiveDenoising") is True
     finally:
         camera._invalidate_initialize_callback(None)
+        bystander_camera._invalidate_initialize_callback(None)
         rep.vp_manager.destroy_hydra_textures("Replicator")
         sim.stop()
         sim.clear_instance()

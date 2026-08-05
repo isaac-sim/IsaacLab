@@ -1,0 +1,1 @@
+Test-only: adjusted renderer and controller coverage for XR camera picture-in-picture feedback (no public core API change).

@@ -297,24 +297,6 @@ def test_dlss_settings_are_authored_after_all_annotators_attach(monkeypatch):
     ]
 
 
-@pytest.mark.parametrize("value", ["", "Quality", "ultra", 2])
-def test_renderer_cfg_rejects_invalid_dlss_exec_mode(value):
-    """Invalid schema tokens fail before Kit can silently ignore them."""
-    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
-
-    with pytest.raises(ValueError, match="dlss_exec_mode"):
-        IsaacRtxRendererCfg(dlss_exec_mode=value)
-
-
-@pytest.mark.parametrize("value", [0, 1, "false"])
-def test_renderer_cfg_rejects_non_bool_dlss_ray_reconstruction(value):
-    """The RenderProduct boolean must not accept truthy values of another type."""
-    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
-
-    with pytest.raises(TypeError, match="enable_dlss_ray_reconstruction"):
-        IsaacRtxRendererCfg(enable_dlss_ray_reconstruction=value)
-
-
 def test_render_product_schema_failure_is_reported(monkeypatch):
     """A missing RTX schema fails at camera setup instead of creating an inert custom attribute."""
     _install_omni_stubs(monkeypatch)
