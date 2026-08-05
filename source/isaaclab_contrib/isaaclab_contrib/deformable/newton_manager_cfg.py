@@ -119,7 +119,7 @@ class VBDSolverCfg(NewtonModelSolverCfg):
     """Initial stiffness seed for all rigid body contacts [N/m]."""
 
     rigid_body_particle_contact_buffer_size: int = 256
-    """Per-body capacity of the body-particle soft-contact list.
+    """Per-body capacity of the particle, edge, and face soft-contact list.
 
     Contacts past this count are dropped from the body's reaction list: the particles are still
     pushed but the body does not recoil, injecting energy. Newton prints ``Per-body particle

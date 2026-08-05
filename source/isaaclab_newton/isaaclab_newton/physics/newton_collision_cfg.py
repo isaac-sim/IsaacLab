@@ -151,7 +151,7 @@ class NewtonCollisionPipelineCfg:
     """
 
     enable_rigid_soft_full_surface_contact: bool = False
-    """Whether to generate soft contacts over the full soft-mesh surface against rigid SDFs.
+    """Whether to generate soft contacts against full-surface-capable rigid colliders.
 
     When ``True``, Newton adds edge and triangle-interior soft contacts (in addition to the
     per-vertex particle contacts) so rigid features that pass between soft vertices are caught.
