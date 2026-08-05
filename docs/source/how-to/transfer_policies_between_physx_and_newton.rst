@@ -279,6 +279,19 @@ PhysX:
        physics=isaacsim_physx
 
 
+Other validated tasks
+~~~~~~~~~~~~~~~~~~~~~
+
+The same PhysX-to-Newton and Newton-to-PhysX transfer pattern applies to any task that satisfies
+the environment contract requirements. The following locomotion tasks have been validated in
+addition to the Franka lift example above:
+
+* ``Isaac-Velocity-Rough-G1`` — G1 rough-terrain velocity tracking.
+* ``Isaac-Velocity-Rough-AnymalD`` — ANYmal-D rough-terrain velocity tracking.
+
+Substitute the task name in the commands above.
+
+
 See also
 --------
 
