@@ -15,6 +15,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
@@ -34,6 +35,9 @@ from .franka_soft_env_cfg import (
 from .franka_soft_env_cfg import (
     EventCfg as FrankaSoftEventCfg,
 )
+from .franka_soft_env_cfg import (
+    RewardsCfg as FrankaSoftRewardsCfg,
+)
 
 ##
 # Scene definition
@@ -42,7 +46,6 @@ from .franka_soft_env_cfg import (
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    # Newton physics: MJWarp rigid + VBD soft, coupled through lagged proxies
     newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
         solver_cfg=CouplerProxyCfg(
             entries=[
@@ -93,15 +96,15 @@ class DeformableCfg(PresetCfg):
 
     newton_mjwarp_vbd_proxy: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Deformable",
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.2)),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.1)),
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
-            resolution=(10, 10),
+            resolution=(8, 8),
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
                 density=10.0,
-                particle_radius=0.0025,
+                particle_radius=0.001,
                 tri_ke=5e2,
                 tri_ka=5e2,
                 tri_kd=1e-3,
@@ -124,12 +127,14 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
     # reset event can move it under the randomized cloth without it being simulated.
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.45, 0.0, 0.04)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.05, 0.04)),
         spawn=sim_utils.CuboidCfg(
             size=(0.01, 0.03, 0.08),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
+            # low friction so the cloth slides off the cube easily when lifted
+            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
         ),
     )
@@ -140,7 +145,7 @@ class FrankaClothScenePresetCfg(PresetCfg):
     """Preset config for the Franka surface deformable scene."""
 
     newton_mjwarp_vbd_proxy: FrankaClothSceneCfg = FrankaClothSceneCfg(
-        num_envs=2048, env_spacing=2.5, replicate_physics=True
+        num_envs=2048, env_spacing=2.0, replicate_physics=True
     )
 
     default = newton_mjwarp_vbd_proxy
@@ -176,11 +181,29 @@ class FrankaClothEventCfg(FrankaSoftEventCfg):
 
 
 @configclass
+class FrankaClothRewardsCfg(FrankaSoftRewardsCfg):
+    """Rewards for the Franka cloth environment."""
+
+    reaching_deformable = RewTerm(
+        func=mdp.deformable_ee_distance,
+        params={"std": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
+        weight=5.0,
+    )
+
+    lifting_deformable = RewTerm(
+        func=mdp.deformable_lifting,
+        params={"std": 0.1, "minimal_height": 0.1, "asset_cfg": SceneEntityCfg("deformable")},
+        weight=5.0,
+    )
+
+
+@configclass
 class FrankaClothEnvCfg(FrankaSoftEnvCfg):
     """Manager-based RL environment: Franka Panda lifting a surface deformable."""
 
     scene: FrankaClothScenePresetCfg = FrankaClothScenePresetCfg()
     events: FrankaClothEventCfg = FrankaClothEventCfg()
+    rewards: FrankaClothRewardsCfg = FrankaClothRewardsCfg()
 
     def __post_init__(self) -> None:
         super().__post_init__()
