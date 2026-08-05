@@ -121,6 +121,10 @@ run_tests() {
     -e PYTHONIOENCODING=utf-8 \
     -e GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
     -e TEST_RESULT_FILE=$result_file"
+  # TODO: Remove once usd-core>=26.5 is the minimum - that release fixes the race condition.
+  # PXR_WORK_THREAD_LIMIT must be set before the process starts; setting it from Python after
+  # the pxr library loads has no effect because OpenUSD reads it at C++ init time.
+  docker_env_vars="$docker_env_vars -e PXR_WORK_THREAD_LIMIT=1"
 
   if [ "$curobo_only" = "true" ]; then
     docker_env_vars="$docker_env_vars -e TEST_CUROBO_ONLY=true"
