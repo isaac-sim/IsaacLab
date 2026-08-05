@@ -150,7 +150,7 @@
         populateSelect(fields.physics, task.physics, [fields.physics.value, "newton_mjwarp", "isaacsim_physx", "ovphysx", "newton_kamino"]);
         const preferredRenderer = fields.physics.value.startsWith("newton") ? "newton_renderer" : "isaacsim_rtx";
         populateSelect(fields.renderer, task.renderer, [fields.renderer.value, preferredRenderer, "ovrtx"]);
-        populateSelect(fields.presets, task.presets, [fields.presets.value, "rgb", "cube", "single_camera"]);
+        populateSelect(fields.presets, task.presets, [fields.presets.value, "joint", "ik", "rgb", "cube", "single_camera"]);
     };
 
     const currentCommand = () => {
