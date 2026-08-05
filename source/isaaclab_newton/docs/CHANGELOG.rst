@@ -1,6 +1,65 @@
 Changelog
 ---------
 
+2.5.0 (2026-08-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the Newton implementation of :class:`~isaaclab.assets.CableObject` with indexed and masked
+  state writes and Kit/RTX curve synchronization for standalone VBD and named VBD proxy entries.
+
+Changed
+^^^^^^^
+
+* Changed Newton Kit viewport transform sync to call
+  ``IFabricHierarchy.update_world_xforms_gpu_with_options`` with
+  ``FabricHierarchyGpuUpdateOptions.RIGID_BODY | FORCE_UPDATE`` instead of the
+  private ctypes ``omni::cubric::IAdapter`` shim. Older Kit builds without the
+  new API continue to fall back to ``IFabricHierarchy.update_world_xforms``.
+
+Removed
+^^^^^^^
+
+* Removed :mod:`isaaclab_newton.physics._cubric` ctypes bindings for
+  ``omni::cubric::IAdapter``. Use
+  ``IFabricHierarchy.update_world_xforms_gpu_with_options`` instead.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.physics.NewtonManager` sizing its contact buffer from the
+  collision pipeline alone when ``use_mujoco_contacts=False``, which raised
+  ``MuJoCo naconmax (25600) exceeds contacts.rigid_contact_max (3840)`` at reset whenever the
+  MuJoCo Warp solver's ``nconmax`` demanded more contacts than the pipeline estimate. The
+  buffer now grows to the solver's maximum contact count, matching the
+  ``use_mujoco_contacts=True`` path.
+
+
+2.4.3 (2026-08-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_newton.physics.NewtonCfg.load_visual_shapes` to control whether Newton
+  replication imports visual-only USD geometry. It defaults to ``None``, which imports the geometry
+  only when a viewer, an offscreen ``rgb_array`` capture, or a camera sensor is active, so headless
+  training no longer pays the USD parse time and memory for shapes nothing draws. Set it to ``True``
+  to always import them, which is required when a ray-cast sensor must hit geometry that carries no
+  collider.
+
+Changed
+^^^^^^^
+
+* Changed Newton cloning to compose per-world transforms in bulk with NumPy and to pre-normalize
+  destination prim paths, reducing per-world Python work during scene replication.
+* Changed the garbage-collector pause used around CUDA graph capture in
+  :class:`~isaaclab_newton.physics.NewtonManager` to collect only generation 0 afterwards,
+  avoiding a full-heap walk once the replicated model exists.
+
+
 2.4.2 (2026-08-02)
 ~~~~~~~~~~~~~~~~~~
 

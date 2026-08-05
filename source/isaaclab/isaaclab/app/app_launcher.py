@@ -366,6 +366,21 @@ class AppLauncher:
         else:
             raise RuntimeError("The `AppLauncher.app` member cannot be retrieved until the class is initialized.")
 
+    @property
+    def has_window(self) -> bool:
+        """Whether a window exists that can render UI and receive input.
+
+        True when a windowed visualizer was requested, or when livestreaming, which renders a
+        window and forwards input from the remote client. Use this rather than the headless
+        state to decide whether UI-driven features are available: livestreaming runs the host
+        headless yet still presents an interactive window.
+
+        Distinct from :meth:`has_gui`, which also counts an XR session as interactive. A
+        windowless XR run has somewhere to display but no window to click in or type into, so
+        prefer this for keyboard bindings, viewport widgets, and other window-bound features.
+        """
+        return not self._headless or self._livestream >= 1
+
     """
     Operations.
     """
@@ -507,11 +522,12 @@ class AppLauncher:
             parser._option_string_actions.pop("-h")
             parser._option_string_actions.pop("--help")
 
-        # Parse known args for potential name collisions/type mismatches
-        # between the config fields SimulationApp expects and the ArgParse
-        # arguments that the user passed.
-        known, _ = parser.parse_known_args()
-        config = vars(known)
+        # Collect the declared arguments for potential name collisions/type mismatches between the
+        # config fields SimulationApp expects and the ArgParse arguments that the user added. Read
+        # from the parser rather than by parsing the command line: parsing exits the process when a
+        # required argument is missing, which is the case for any script with required positionals
+        # invoked with '--help', and the launcher arguments would never reach the help output.
+        config = {action.dest: action.default for action in parser._actions if action.dest != argparse.SUPPRESS}
         if len(config) == 0:
             logger.warning(
                 "[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object."
@@ -636,6 +652,10 @@ class AppLauncher:
     Internal functions.
     """
 
+    # Set by :meth:`_resolve_xr_settings`. Defaulted here so :meth:`_resolve_headless_settings`
+    # stays independent of resolver call order and of whether XR was resolved at all.
+    _xr_implies_headless: bool = False
+
     _APPLAUNCHER_CFG_INFO: dict[str, tuple[list[type], Any]] = {
         "headless": ([bool], False),
         "livestream": ([int], -1),
@@ -680,6 +700,7 @@ class AppLauncher:
         "open_usd": [str, type(None)],
         "livesync_usd": [str, type(None)],
         "fast_shutdown": [bool],
+        "limit_cpu_threads": [int],
         "experience": [str],
     }
     """A dictionary containing the type of arguments passed to SimulationApp.
@@ -867,7 +888,15 @@ class AppLauncher:
 
         # Resolve headless from visualizer intent when livestream is disabled.
         if self._livestream == 0:
-            if self._cli_visualizer_explicit:
+            if self._xr_implies_headless:
+                # XR without an explicit windowed visualizer: no viewport to start the session from.
+                if not self._headless:
+                    logger.info(
+                        "XR is enabled without an explicit windowed visualizer, so running headless. "
+                        "To also open a local viewport, pass '--viz <names>' (for example '--viz kit')."
+                    )
+                self._headless = True
+            elif self._cli_visualizer_explicit:
                 # Explicit CLI selection controls headless: only Kit implies non-headless.
                 requested_visualizers = set(self._cli_visualizer_types)
                 if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
@@ -958,16 +987,14 @@ class AppLauncher:
         else:
             self._xr = bool(xr_env)
 
-        # Determine whether XR should auto-inject a KitVisualizer.
-        # When XR is enabled but no Kit visualizer was explicitly requested via
-        # CLI, we auto-inject one so that app.update() and forward() are pumped
-        # each frame -- the XR runtime needs both to receive updated hand/joint
-        # transforms.
+        # Whether XR alone should force headless. Without an explicit windowed visualizer there
+        # is no viewport to start the session from, so a window would serve no purpose. This only
+        # adds to the headless decision below; it never makes a run non-headless.
         if self._xr:
             has_explicit_kit = self._cli_visualizer_explicit and "kit" in set(self._cli_visualizer_types)
-            self._xr_auto_start = not has_explicit_kit
+            self._xr_implies_headless = not has_explicit_kit
         else:
-            self._xr_auto_start = False
+            self._xr_implies_headless = False
 
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
@@ -1195,6 +1222,11 @@ class AppLauncher:
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
                 self._kit_args.append(argument)
 
+        argument = "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false"
+        setting = argument.partition("=")[0]
+        if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+            self._kit_args.append(argument)
+
         sys.argv += self._kit_args
 
     def _create_app(self):
@@ -1273,10 +1305,12 @@ class AppLauncher:
 
         # set setting to indicate XR mode is enabled
         settings.set_bool("/isaaclab/xr/enabled", self._xr)
-        # set setting to indicate XR auto-start mode -- when running headless
-        # (no Kit GUI) the AR profile must be enabled programmatically so that
-        # the OpenXR session starts without user interaction
-        settings.set_bool("/isaaclab/xr/auto_start", self._headless and self._xr)
+        # set setting to indicate XR auto-start mode -- with no window to start the
+        # session from, the AR profile must be enabled programmatically so that the
+        # OpenXR session starts without user interaction. This must key off the
+        # resolved headless state: HEADLESS=1 and livestreaming both run windowless
+        # even when a Kit visualizer was explicitly requested.
+        settings.set_bool("/isaaclab/xr/auto_start", self._xr and self._headless)
         # set setting to indicate video recording mode
         settings.set_bool("/isaaclab/video/enabled", self._video_enabled)
 

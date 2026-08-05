@@ -195,9 +195,60 @@ ANYmal rough terrain locomotion training can be executed with the following comm
 
 The above will, in addition, also render videos of the training progress and store them under ``isaaclab/logs`` directory.
 
+
+.. rubric:: For OSMO
+
+`NVIDIA OSMO`_ is a cloud-native orchestration platform for scheduling robotics workloads. Unlike the
+SLURM and PBS workflows above, it runs the Isaac Lab Docker image directly, so no singularity
+conversion is needed and there is no code copy step -- the image is the unit of deployment.
+
+The workflow definition lives in ``docker/cluster/osmo_multi_gpu_workflow.yaml``. It requests a
+single node and scales training across the GPUs on that node through the
+:ref:`train_multigpu <train-multigpu-command>` command. The following parameters can be overridden
+at submission time:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Parameter
+     - Description
+   * - image
+     - The Isaac Lab container image to run. Defaults to the released
+       ``nvcr.io/nvidia/isaac-lab:3.0.0-beta2`` image. Note that the repository does not publish a
+       ``latest`` tag, so this must name an explicit version.
+   * - rl_library
+     - The RL library used for training. Defaults to ``rsl_rl``.
+   * - num_gpu
+     - The number of GPUs to train on. When set to ``1``, the single-process ``train`` entry point
+       is used instead of ``train_multigpu``.
+   * - num_cpu
+     - The number of CPUs requested for the node. These are split evenly across the per-GPU worker
+       processes via ``OMP_NUM_THREADS``.
+   * - memory
+     - The amount of memory requested for the node, in GiB.
+   * - storage
+     - The amount of scratch storage requested for the node, in GiB.
+   * - platform
+     - The OSMO platform (node type) to schedule on, e.g. ``dgx-h100``.
+   * - master_port
+     - The port used by the torchrun rendezvous. Only relevant when ``num_gpu`` is greater than 1.
+   * - args
+     - The arguments forwarded to the training script, e.g. ``--task <task-name> --num_envs 4096``.
+       No visualizer is requested by the workflow, so training runs headless.
+
+To submit a job, use the ``osmo`` CLI:
+
+.. code:: bash
+
+    osmo workflow submit docker/cluster/osmo_multi_gpu_workflow.yaml \
+      --set num_gpu=4 \
+      --set args="--task Isaac-Reorient-KukaAllegro --num_envs 4096"
+
 .. _Singularity: https://docs.sylabs.io/guides/2.6/user-guide/index.html
 .. _ETH Zurich Euler: https://www.gdc-docs.ethz.ch/EulerManual/site/overview/
 .. _PBS Official Site: https://openpbs.org/
 .. _apptainer: https://apptainer.org/
 .. _documentation: https://www.apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages
 .. _SLURM documentation: https://www.slurm.schedmd.com/sbatch.html
+.. _NVIDIA OSMO: https://developer.nvidia.com/osmo

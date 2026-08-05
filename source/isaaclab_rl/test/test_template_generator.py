@@ -25,7 +25,7 @@ from generator import generate, get_algorithms_per_rl_library  # noqa: E402
 
 _SINGLE_AGENT_RL_LIBRARIES = [
     {"name": "rl_games", "algorithms": ["ppo"]},
-    {"name": "rsl_rl", "algorithms": ["ppo"]},
+    {"name": "rsl_rl", "algorithms": ["distillation", "ppo"]},
     {"name": "skrl", "algorithms": ["amp", "ppo"]},
     {"name": "sb3", "algorithms": ["ppo"]},
 ]
@@ -106,7 +106,7 @@ def _unregister(task_id: str) -> None:
             False,
             {
                 "rl_games": ["PPO"],
-                "rsl_rl": ["PPO"],
+                "rsl_rl": ["DISTILLATION", "PPO"],
                 "skrl": ["AMP", "PPO"],
                 "sb3": ["PPO"],
             },
@@ -126,7 +126,7 @@ def _unregister(task_id: str) -> None:
             True,
             {
                 "rl_games": ["PPO"],
-                "rsl_rl": ["PPO"],
+                "rsl_rl": ["DISTILLATION", "PPO"],
                 "skrl": ["AMP", "IPPO", "MAPPO", "PPO"],
                 "sb3": ["PPO"],
             },
@@ -181,6 +181,10 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
 
         assert spec.kwargs["env_cfg_entry_point"] == f"{module_name}.{task_folder}_env_cfg:{task_class}EnvCfg"
         assert spec.kwargs["rl_games_cfg_entry_point"] == f"{agents_module}:rl_games_ppo_cfg.yaml"
+        assert (
+            spec.kwargs["rsl_rl_distillation_cfg_entry_point"]
+            == f"{agents_module}.rsl_rl_distillation_cfg:DistillationRunnerCfg"
+        )
         assert spec.kwargs["rsl_rl_cfg_entry_point"] == f"{agents_module}.rsl_rl_ppo_cfg:PPORunnerCfg"
         assert spec.kwargs["skrl_amp_cfg_entry_point"] == f"{agents_module}:skrl_amp_cfg.yaml"
         assert spec.kwargs["skrl_cfg_entry_point"] == f"{agents_module}:skrl_ppo_cfg.yaml"

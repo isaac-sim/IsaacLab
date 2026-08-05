@@ -16,6 +16,11 @@ __all__ = [
     "get_articulation_name_ordering",
     "AssetBase",
     "AssetBaseCfg",
+    "BaseCableObject",
+    "BaseCableObjectData",
+    "CableObject",
+    "CableObjectCfg",
+    "CableObjectData",
     "BaseRigidObject",
     "BaseRigidObjectData",
     "RigidObject",
@@ -47,6 +52,13 @@ from .articulation import (
 )
 from .asset_base import AssetBase
 from .asset_base_cfg import AssetBaseCfg
+from .cable_object import (
+    BaseCableObject,
+    BaseCableObjectData,
+    CableObject,
+    CableObjectCfg,
+    CableObjectData,
+)
 from .rigid_object import (
     BaseRigidObject,
     BaseRigidObjectData,

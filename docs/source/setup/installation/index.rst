@@ -1,10 +1,3 @@
-.. seealso::
-
-   Installation docs are the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
-   (`skills/user/setup-troubleshooting/ <../../../../skills/user/setup-troubleshooting/SKILL.md>`__).
-   When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
-
 .. _isaaclab-installation-root:
 
 Installation
@@ -19,8 +12,8 @@ Installation
    :alt: Python 3.12
 
 .. image:: https://img.shields.io/badge/platform-linux--64-orange.svg
-   :target: https://releases.ubuntu.com/22.04/
-   :alt: Ubuntu 22.04
+   :target: https://releases.ubuntu.com/24.04/
+   :alt: Ubuntu 24.04
 
 .. image:: https://img.shields.io/badge/platform-windows--64-orange.svg
    :target: https://www.microsoft.com/en-ca/windows/windows-11
@@ -88,7 +81,7 @@ Choose an installation path
 System requirements
 -------------------
 
-Full Isaac Sim workflows require Python 3.12 on Ubuntu 22.04 or Windows 11. Use a recent NVIDIA
+Full Isaac Sim workflows require Python 3.12 on Ubuntu 22.04+ or Windows 11. Use a recent NVIDIA
 production driver and a workstation with at least 32 GB RAM and 16 GB GPU VRAM. Rendering can
 require additional VRAM. Confirm your machine against the `Isaac Sim system requirements
 <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`__ and
@@ -126,45 +119,115 @@ unsupported host configurations.
 Automatic setup with uv (recommended)
 -------------------------------------
 
-Use this path for the fastest setup from an Isaac Lab checkout. ``uv`` resolves the project
-environment on each invocation, so you do not need to create or activate an environment manually.
+Use this path for the fastest setup from an Isaac Lab checkout. ``uv`` resolves the
+project environment on each invocation, so you do not need to create or activate an environment manually.
 
-Install ``uv`` and clone Isaac Lab:
+Install ``uv``, clone Isaac Lab, and start a workflow:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   curl -LsSf https://astral.sh/uv/install.sh | sh
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux x86_64
+      :sync: linux-x86_64
 
-.. isaaclab-clone-commands::
+      .. code-block:: bash
 
-Run the workflow you need from the repository root:
+         curl -LsSf https://astral.sh/uv/install.sh | sh
 
-.. code-block:: bash
+      .. isaaclab-clone-commands::
 
-   # Newton backend without Isaac Sim
-   uv run isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct physics=newton_mjwarp
+      .. code-block:: bash
 
-   # Add OVRTX and OVPhysX only when needed
-   uv run --extra ovphysx --extra ovrtx isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct physics=newton_mjwarp
+         # Newton backend without Isaac Sim
+         uv run isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
-   # Full Isaac Sim support
-   uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct presets=physx
+         # Add OV PhysX and OVRTX only when needed
+         uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
-Evaluate a policy with:
+         # Full Isaac Sim support
+         uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
-.. code-block:: bash
+         # Play a policy
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
-   uv run isaaclab play --rl_library rsl_rl --task <task_name>
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
+      :sync: linux-aarch64
 
-Supported values for ``--rl_library`` are ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``, and
-``rlinf``.
+      .. code-block:: bash
 
-.. dropdown:: Detailed ``uv run`` setup
+         curl -LsSf https://astral.sh/uv/install.sh | sh
 
-   .. include:: uv_run_details.inc
+      .. isaaclab-clone-commands::
+
+      .. code-block:: bash
+
+         # Newton backend
+         uv run isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+         # Add OV PhysX and OVRTX only when needed
+         uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+         # Full Isaac Sim support
+         uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct physics=isaacsim_physx
+
+         # Play a policy
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+
+      .. note::
+
+         For direct Python commands that import Isaac Sim on aarch64, prefix the
+         command with ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1``.
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      Enable Windows long-path support before cloning. In an elevated PowerShell window, run:
+
+      .. code-block:: powershell
+
+         New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force
+
+      Then open a new Command Prompt window and run:
+
+      .. code-block:: batch
+
+         powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+      .. isaaclab-clone-https::
+         :platform: windows
+
+      .. code-block:: batch
+
+         :: Newton backend without Isaac Sim
+         uv run isaaclab train --rl_library rsl_rl ^
+            --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+         :: Add OV PhysX and OVRTX only when needed
+         uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl ^
+            --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+         :: Full Isaac Sim support
+         uv run --extra isaacsim isaaclab train --rl_library rsl_rl ^
+            --task Isaac-Cartpole-Direct physics=isaacsim_physx
+
+         :: Play a policy
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+
+``uv run`` installs the core dependencies automatically. Add ``--extra <name>``
+before ``isaaclab`` when a command needs an optional integration. Pass a
+comma-separated list to enable several extras, or repeat ``--extra``. For example,
+``--extra ovphysx,ovrtx`` enables both OV backends. Use ``--extra all`` for a
+larger compatible bundle.
+
+You are now ready to use Isaac Lab. Continue with the :doc:`/source/setup/quickstart`,
+which starts with your first task and introduces the available commands, RL libraries,
+backends, optional extras, and visualizers.
 
 .. _installation-legacy-installer:
 
@@ -620,3 +683,10 @@ review the `Linux troubleshooting guide
 <https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`__, or report the
 issue through the `Isaac Sim forums
 <https://docs.isaacsim.omniverse.nvidia.com/latest/common/feedback.html>`__.
+
+.. seealso::
+
+   Installation docs are the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
+   (`skills/user/setup-troubleshooting/ <../../../../skills/user/setup-troubleshooting/SKILL.md>`__).
+   When you change this page, update the skill so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.

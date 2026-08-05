@@ -17,6 +17,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.app.logging_utils import force_log_level
 from isaaclab.cloner import queue_replication
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
@@ -172,6 +173,13 @@ class Camera(SensorBase):
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
         queue_replication(self._source_cfg)
+
+        # Every renderer backend draws the visual-only geometry, so it must survive cloning even
+        # when the run is otherwise headless. This has to happen before the replication queue is
+        # drained, which is why it is here rather than in ``_initialize_impl``.
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.require_visual_shapes()
 
         # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
         # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
@@ -505,7 +513,8 @@ class Camera(SensorBase):
         if sim_ctx is None:
             raise RuntimeError("SimulationContext is not initialized.")
         self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
-        logger.info("Using renderer: %s", type(self._renderer).__name__)
+        with force_log_level(logging.INFO):
+            logger.info("Using renderer: %s", type(self._renderer).__name__)
 
         # Build the render spec early — both the wrapper ISP (which delegates
         # any renderer-side per-camera setup) and ``create_render_data`` consume

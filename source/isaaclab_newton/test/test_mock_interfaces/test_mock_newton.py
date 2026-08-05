@@ -17,3 +17,5 @@ def test_mock_newton_model_derives_articulation_topology() -> None:
     assert model.max_dofs_per_articulation == 12
     assert model.joint_dof_count == 36
     assert model.body_count == 21
+    assert model.world_count == 3
+    assert model.gravity.shape == (4,)

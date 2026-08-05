@@ -2,6 +2,19 @@
 
 This reference follows the sections in the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst).
 
+## Contents
+
+- Multi-Backend Asset Importing Pipeline
+- Use Per-Solver Asset Configuration Classes
+- Audit The Authored Mechanical Model
+- Match Contact And Friction Behavior
+- Velocity Limits Distinction
+- Why MJWarp Often Needs More Armature
+- Retune Damping With Armature
+- Choose An MJWarp Starting Profile
+- Diagnose MJWarp-Only Failures
+- Cable Assets
+
 ## Multi-Backend Asset Importing Pipeline
 
 - Use provided Isaac Lab assets directly in PhysX and MJWarp. Newton parses their supported authored USD Physics and PhysX properties; verify support rather than assuming every authored field is used.
@@ -98,3 +111,9 @@ actions. Classify it before tuning:
 
 Use `NewtonCfg.debug_mode` for iteration-cap evidence. Raise overflowing capacity first and change
 convergence work only after the model, reset, controller, contact path, and capacities are valid.
+
+## Cable Assets
+
+- Cables are authored fresh as Newton deformables (`CableCfg` + `CableMaterialCfg`, or an external USD via `UsdFileCfg`), not converted from a PhysX rigid asset, so nothing in this migration reference applies to them.
+- They are Newton + VBD only.
+- For the authoring contract, material fields, and collision behavior, see the [Using Cables guide](../../../docs/source/overview/core-concepts/physical-backends/newton/using-cables.rst).

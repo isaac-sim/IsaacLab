@@ -237,10 +237,8 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 2
         self.episode_length_s = 5
-        # viewer settings
-        self.viewer.eye = (12.0, 0.0, 4.0)
         # Match Newton GL / --video camera to the task viewport when --viz newton creates the visualizer.
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=self.viewer.eye, lookat=self.viewer.lookat)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(12.0, 0.0, 4.0))
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation

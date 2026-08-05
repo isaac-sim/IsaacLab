@@ -8,7 +8,6 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.envs.common import ViewerCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
@@ -17,6 +16,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.datasets import EpisodeData
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGInputData
 from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap
@@ -122,10 +122,6 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
 class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGEnvCfg):
     """Configuration for the G1 29DoF environment."""
 
-    viewer: ViewerCfg = ViewerCfg(
-        eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5), origin_type="asset_body", asset_name="robot", body_name="pelvis"
-    )
-
     # Scene settings
     scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(
         num_envs=1, env_spacing=2.5, replicate_physics=False
@@ -145,6 +141,7 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 6
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5))
 
         # Set the URDF and mesh paths for the IK controller
         urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
