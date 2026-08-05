@@ -38,7 +38,6 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
-# RecordVideo needs an rgb_array render mode, which in turn requires cameras to be enabled.
 if args_cli.video:
     args_cli.enable_cameras = True
 
@@ -61,6 +60,8 @@ import torch
 import warp as wp
 
 from isaaclab.assets.deformable_object.deformable_object_data import DeformableObjectData
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -280,29 +281,28 @@ class PickAndLiftSm:
 
 
 def main():
-    # create environment
-    render_mode = "rgb_array" if args_cli.video else None
     # parse configuration
     env_cfg = parse_env_cfg(
         args_cli.task,
         device=args_cli.device,
         num_envs=args_cli.num_envs,
     )
-    env_cfg.viewer.eye = (2.1, 1.0, 1.3)
-    env = gym.make(args_cli.task, cfg=env_cfg, render_mode=render_mode)
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(2.1, 1.0, 1.3))
 
-    # wrap for video recording
+    # attach internal video recorder when --video is requested
     if args_cli.video:
         video_folder = os.path.abspath(args_cli.video_folder)
-        os.makedirs(video_folder, exist_ok=True)
-        env = gym.wrappers.RecordVideo(
-            env,
-            video_folder=video_folder,
-            step_trigger=lambda step: step == 0,
-            video_length=args_cli.video_length,
-            disable_logger=True,
-        )
+        env_cfg.video_recorders = [
+            VideoRecorderCfg(
+                source="visualizer",
+                output_dir=video_folder,
+                video_length=args_cli.video_length,
+                video_interval=0,
+            )
+        ]
         print(f"[INFO] Recording video to {video_folder} (length={args_cli.video_length} steps)")
+
+    env = gym.make(args_cli.task, cfg=env_cfg)
 
     # reset environment at start
     env.reset()

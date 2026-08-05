@@ -63,7 +63,7 @@ the following ways:
 
 1. Design your assets or robot in Isaac Sim and export the USD file.
 
-2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim converters. Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_, etc. More details are found in the `Importing Assets section`_ in the `Isaac Sim Reference Architecture`_.
+2. Design your assets or robot in any software of your choice and export it to USD using Isaac Sim converters. Isaac Sim supports the different converters/importers to USD such as the `CAD Converter`_, `URDF Importer`_, `MJCF Importer`_, `Onshape Importer`_, etc. More details are found in the `Importing Assets section`_ in the `Isaac Sim Reference Architecture`_. Isaac Lab's URDF and MJCF command-line converters can also run without Isaac Sim using the standalone importer wheel.
 
 3. If you already have the URDF or MJCF file of your robot, you do not need to convert to USD as Isaac Lab takes URDF and MJCF XML.
 

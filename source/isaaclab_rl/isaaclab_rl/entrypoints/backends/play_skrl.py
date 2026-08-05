@@ -17,20 +17,20 @@ import random
 import sys
 import time
 
-import gymnasium as gym
 import skrl
 import torch
 from packaging import version
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
-from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_frontend_args,
+    apply_video_recording,
     create_isaaclab_env,
+    preserve_attribute,
     resolve_checkpoint_selector,
     resolve_play_task_name,
 )
@@ -52,13 +52,23 @@ SKRL_VERSION = "2.1.0"
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from skrl.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
-parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
+parser.add_argument(
+    "--video_length",
+    type=int,
+    default=None,
+    help="Length of each recorded video clip in env steps. Overrides the value in VideoRecorderCfg.",
+)
+parser.add_argument(
+    "--video_interval",
+    type=int,
+    default=None,
+    help="Interval between video clips in env steps. Overrides the value in VideoRecorderCfg.",
+)
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-add_frontend_args(parser)
 parser.add_argument(
     "--agent",
     type=str,
@@ -97,6 +107,7 @@ parser.add_argument(
     help="Play with the training environment configuration as-is, skipping play-mode overrides.",
 )
 add_launcher_args(parser)
+add_frontend_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser, agent_library="skrl")
 args_cli.task = resolve_play_task_name(args_cli.task)
 
@@ -122,7 +133,18 @@ else:
 
 
 def main():
-    """Play with skrl agent."""
+    """Play with SKRL while restoring the caller's global settings."""
+    state_context = (
+        preserve_attribute(skrl.config.jax, "backend")
+        if args_cli.ml_framework.startswith("jax")
+        else contextlib.nullcontext()
+    )
+    with state_context:
+        _main()
+
+
+def _main():
+    """Execute SKRL playback."""
     env_cfg, experiment_cfg = resolve_task_config(
         args_cli.task, agent_cfg_entry_point, play_mode=not args_cli.train_env_cfg
     )
@@ -181,6 +203,7 @@ def main():
         log_dir = os.path.dirname(os.path.dirname(resume_path))
 
         env_cfg.log_dir = log_dir
+        apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
         env = create_isaaclab_env(
             args_cli.task,
@@ -193,17 +216,6 @@ def main():
             dt = env.step_dt
         except AttributeError:
             dt = env.unwrapped.step_dt
-
-        if args_cli.video:
-            video_kwargs = {
-                "video_folder": os.path.join(log_dir, "videos", "play"),
-                "step_trigger": lambda step: step == 0,
-                "video_length": args_cli.video_length,
-                "disable_logger": True,
-            }
-            print("[INFO] Recording videos during play.")
-            print_dict(video_kwargs, nesting=4)
-            env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
         env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
 
@@ -236,7 +248,11 @@ def main():
                     states = env.state()
                 if args_cli.video:
                     timestep += 1
-                    if timestep == args_cli.video_length:
+                    video_stop = args_cli.video_length
+                    if video_stop is None:
+                        recorders = getattr(env_cfg, "video_recorders", [])
+                        video_stop = recorders[0].video_length if recorders else None
+                    if video_stop is not None and timestep >= video_stop:
                         break
 
                 sleep_time = dt - (time.time() - start_time)

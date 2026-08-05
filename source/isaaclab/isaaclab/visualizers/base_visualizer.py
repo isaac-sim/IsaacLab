@@ -47,6 +47,7 @@ class BaseVisualizer(ABC):
         self._live_plot_sources: list = []
         self._live_plot_env_idx: int = 0
         self._live_plots_step_counter: int = 0
+        self._reset_requested: bool = False
 
     @abstractmethod
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
@@ -102,6 +103,24 @@ class BaseVisualizer(ABC):
             ``True`` if rendering is paused, otherwise ``False``.
         """
         return False
+
+    def is_reset_requested(self) -> bool:
+        """Check if an episode reset was requested from visualizer controls.
+
+        Returns:
+            ``True`` if a reset was requested, otherwise ``False``.
+        """
+        return self._reset_requested
+
+    def consume_reset_request(self) -> bool:
+        """Return whether an episode reset was requested and clear the flag.
+
+        Returns:
+            ``True`` once when a reset was requested, then ``False`` until the next request.
+        """
+        requested = self._reset_requested
+        self._reset_requested = False
+        return requested
 
     @property
     def is_initialized(self) -> bool:
@@ -182,9 +201,15 @@ class BaseVisualizer(ABC):
         if scalars:
             for group_name, scalar_dict in scalars.items():
                 self._live_plot_sources.append(DirectScalarLivePlots(group_name, scalar_dict))
-        self._live_plot_sources += [
-            ManagerLivePlots(name, mgr, (term_names or {}).get(name)) for name, mgr in managers.items()
-        ]
+        for name, mgr in managers.items():
+            # Skip managers that have no active terms — they contribute nothing to plots
+            # and would create empty panels in Rerun, Viser, and the Kit live-plot window.
+            active = getattr(mgr, "active_terms", None)
+            if active is not None:
+                has_terms = bool(active) if not isinstance(active, dict) else any(v for v in active.values())
+                if not has_terms:
+                    continue
+            self._live_plot_sources.append(ManagerLivePlots(name, mgr, (term_names or {}).get(name)))
         self._live_plot_env_idx = env_idx
 
     def _render_live_plots(self) -> None:

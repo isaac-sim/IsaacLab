@@ -192,6 +192,8 @@ class _RandomizeRigidBodyMaterialPhysx:
             for link_path in asset.root_view.link_paths[0]:
                 link_physx_view = asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
                 self.num_shapes_per_body.append(link_physx_view.max_shapes)
+            # ``body_ids`` are public IDs; convert once before deriving backend-ordered shape ranges.
+            self._backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
             # ensure the parsing is correct
             num_shapes = sum(self.num_shapes_per_body)
             expected_shapes = asset.root_view.max_shapes
@@ -203,6 +205,7 @@ class _RandomizeRigidBodyMaterialPhysx:
         else:
             # in this case, we don't need to do special indexing
             self.num_shapes_per_body = None
+            self._backend_body_ids = None
 
     def __call__(
         self,
@@ -232,7 +235,7 @@ class _RandomizeRigidBodyMaterialPhysx:
         # update material buffer with new samples
         if self.num_shapes_per_body is not None:
             # sample material properties from the given ranges
-            for body_id in self.asset_cfg.body_ids:
+            for body_id in self._backend_body_ids:
                 # obtain indices of shapes for the body
                 start_idx = sum(self.num_shapes_per_body[:body_id])
                 end_idx = start_idx + self.num_shapes_per_body[body_id]
@@ -295,9 +298,12 @@ class _RandomizeRigidBodyMaterialNewton:
 
         # compute shape indices for body-specific randomization
         if isinstance(asset, NewtonArticulation) and asset_cfg.body_ids != slice(None):
-            num_shapes_per_body = asset.num_shapes_per_body
+            # ``body_ids`` are public IDs, while shape bindings use backend order; convert the
+            # selected IDs once and index the backend-ordered shape counts directly.
+            num_shapes_per_body = asset.backend_num_shapes_per_body
             shape_indices_list = []
-            for body_id in asset_cfg.body_ids:
+            backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
+            for body_id in backend_body_ids:
                 start_idx = sum(num_shapes_per_body[:body_id])
                 end_idx = start_idx + num_shapes_per_body[body_id]
                 shape_indices_list.extend(range(start_idx, end_idx))
@@ -366,6 +372,13 @@ class _RandomizeRigidBodyMaterialNewton:
         self._newton_manager.add_model_change(self._notify_shape_properties)
 
 
+def _is_all_body_selection(body_ids: list[int] | slice, num_bodies: int) -> bool:
+    """Return whether a body selector covers the entire asset."""
+    if body_ids == slice(None):
+        return True
+    return sorted(body_ids) == list(range(num_bodies))
+
+
 class _RandomizeRigidBodyMaterialOvPhysx:
     """OVPhysX backend implementation for material randomization.
 
@@ -389,7 +402,7 @@ class _RandomizeRigidBodyMaterialOvPhysx:
 
         # OVPhysX cannot map body ids to shape ranges (no per-body shape counts), so a
         # per-body subset cannot be indexed -- fail loud rather than silently randomize all.
-        if asset_cfg.body_ids != slice(None):
+        if not _is_all_body_selection(asset_cfg.body_ids, asset.num_bodies):
             raise NotImplementedError(
                 "randomize_rigid_body_material on the OVPhysX backend randomizes all shapes only; "
                 "per-body selection via 'asset_cfg.body_ids' is not supported because the ovphysx "
@@ -451,6 +464,9 @@ class randomize_rigid_body_material(ManagerTermBase):
 
     This function creates a set of physics materials with random static friction, dynamic friction, and restitution
     values and assigns them to the geometries of the asset.
+
+    For articulations, :attr:`SceneEntityCfg.body_ids` selects bodies in public articulation order. The backend
+    implementations convert those IDs to backend shape ranges; callers must not pre-swizzle body IDs.
 
     Automatically detects the active physics backend (PhysX, Newton, or OVPhysX) and delegates
     to the appropriate backend-specific implementation:
@@ -1455,10 +1471,10 @@ class randomize_joint_parameters(ManagerTermBase):
         self.default_joint_armature = self.asset.data.joint_armature.torch.clone()
         self.default_joint_pos_limits = self.asset.data.joint_pos_limits.torch.clone()
 
-        # cache dynamic/viscous friction (PhysX only - Newton only has static friction)
+        # Newton supports static friction and passive viscous damping but not dynamic friction.
+        self.default_viscous_joint_friction_coeff = self.asset.data.joint_viscous_friction_coeff.torch.clone()
         if self._backend == "physx":
             self.default_dynamic_joint_friction_coeff = (self.asset.data.joint_dynamic_friction_coeff.torch).clone()
-            self.default_viscous_joint_friction_coeff = (self.asset.data.joint_viscous_friction_coeff.torch).clone()
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
@@ -1517,15 +1533,29 @@ class randomize_joint_parameters(ManagerTermBase):
             # Always set static friction (indexed once)
             static_friction_coeff = friction_coeff[env_ids_for_slice, joint_ids]
 
+            viscous_friction_coeff = _randomize_prop_by_op(
+                self.default_viscous_joint_friction_coeff.clone(),
+                friction_distribution_params,
+                env_ids,
+                joint_ids,
+                operation=operation,
+                distribution=distribution,
+            )
+            viscous_friction_coeff = torch.clamp(viscous_friction_coeff, min=0.0)
+            viscous_friction_coeff = viscous_friction_coeff[env_ids_for_slice, joint_ids]
+
             if self._backend == "newton":
-                # Newton only supports static friction coefficient
                 self.asset.write_joint_friction_coefficient_to_sim_index(
                     joint_friction_coeff=static_friction_coeff,
                     joint_ids=joint_ids,
                     env_ids=env_ids,
                 )
+                self.asset.write_joint_viscous_friction_coefficient_to_sim_index(
+                    joint_viscous_friction_coeff=viscous_friction_coeff,
+                    joint_ids=joint_ids,
+                    env_ids=env_ids,
+                )
             else:
-                # Randomize raw tensors
                 dynamic_friction_coeff = _randomize_prop_by_op(
                     self.default_dynamic_joint_friction_coeff.clone(),
                     friction_distribution_params,
@@ -1534,25 +1564,14 @@ class randomize_joint_parameters(ManagerTermBase):
                     operation=operation,
                     distribution=distribution,
                 )
-                viscous_friction_coeff = _randomize_prop_by_op(
-                    self.default_viscous_joint_friction_coeff.clone(),
-                    friction_distribution_params,
-                    env_ids,
-                    joint_ids,
-                    operation=operation,
-                    distribution=distribution,
-                )
-
                 # Clamp to non-negative
                 dynamic_friction_coeff = torch.clamp(dynamic_friction_coeff, min=0.0)
-                viscous_friction_coeff = torch.clamp(viscous_friction_coeff, min=0.0)
 
                 # Ensure dynamic ≤ static (same shape before indexing)
                 dynamic_friction_coeff = torch.minimum(dynamic_friction_coeff, friction_coeff)
 
                 # Index once at the end
                 dynamic_friction_coeff = dynamic_friction_coeff[env_ids_for_slice, joint_ids]
-                viscous_friction_coeff = viscous_friction_coeff[env_ids_for_slice, joint_ids]
 
                 # Single write call for all versions
                 self.asset.write_joint_friction_coefficient_to_sim_index(
@@ -2376,6 +2395,12 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
         if reset_joint_targets:
             articulation_asset.set_joint_position_target_index(target=default_joint_pos, env_ids=env_ids)
             articulation_asset.set_joint_velocity_target_index(target=default_joint_vel, env_ids=env_ids)
+    # cable objects
+    for cable_object in env.scene.cable_objects.values():
+        segment_pose = cable_object.data.default_segment_pose_w.torch[env_ids].clone()
+        segment_velocity = cable_object.data.default_segment_velocity_w.torch[env_ids].clone()
+        cable_object.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
+        cable_object.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
     # deformable objects
     for deformable_object in env.scene.deformable_objects.values():
         # obtain default and set into the physics simulation

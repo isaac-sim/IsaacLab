@@ -8,8 +8,9 @@ from __future__ import annotations
 import inspect
 import weakref
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 import warp as wp
@@ -19,11 +20,38 @@ from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from pxr import Usd
 
     from .asset_base_cfg import AssetBaseCfg
+
+
+_SELECTOR_CACHE_CAPACITY = 128
+
+
+class _AssetSelectorCache:
+    """Per-asset LRU cache for device-local finder selectors."""
+
+    def __init__(self, capacity: int = _SELECTOR_CACHE_CAPACITY):
+        self._capacity = capacity
+        self._entries: OrderedDict[tuple[str, tuple[int, ...]], ProxyArray] = OrderedDict()
+
+    def get(self, domain: str, indices: Sequence[int], device: str) -> ProxyArray:
+        """Return the cached Warp ``int32`` selector for an ordered index sequence."""
+        key = (domain, tuple(int(index) for index in indices))
+        selector = self._entries.pop(key, None)
+        if selector is None:
+            selector = ProxyArray(wp.array(key[1], dtype=wp.int32, device=device))
+        self._entries[key] = selector
+        if len(self._entries) > self._capacity:
+            self._entries.popitem(last=False)
+        return selector
+
+    def clear(self) -> None:
+        """Release all cached selectors."""
+        self._entries.clear()
 
 
 class AssetBase(ABC):
@@ -223,6 +251,38 @@ class AssetBase(ABC):
         # return success
         return True
 
+    def _resolve_finder_indices(
+        self,
+        indices: Sequence[int],
+        *,
+        proxy_indices: Sequence[int] | None = None,
+        domain: str,
+        as_proxy: bool = False,
+        legacy_type: Literal["list", "tensor"],
+    ) -> list[int] | torch.Tensor | ProxyArray:
+        """Return cached proxy indices or the legacy container."""
+        if not isinstance(as_proxy, bool):
+            raise TypeError(f"as_proxy must be a bool, got {type(as_proxy).__name__}.")
+
+        normalized_indices = tuple(int(index) for index in indices)
+        if as_proxy:
+            normalized_proxy_indices = normalized_indices if proxy_indices is None else tuple(map(int, proxy_indices))
+            selector_cache = getattr(self, "_selector_cache", None)
+            if selector_cache is None:
+                selector_cache = _AssetSelectorCache()
+                self._selector_cache = selector_cache
+            return selector_cache.get(domain, normalized_proxy_indices, self.device)
+
+        if legacy_type == "list":
+            return list(normalized_indices)
+        return torch.tensor(normalized_indices, dtype=torch.int32, device=self.device)
+
+    def _clear_selector_cache(self) -> None:
+        """Release all cached finder selectors owned by this asset."""
+        selector_cache = getattr(self, "_selector_cache", None)
+        if selector_cache is not None:
+            selector_cache.clear()
+
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets all internal buffers of selected environments.
@@ -265,9 +325,16 @@ class AssetBase(ABC):
         wp.transformf: (7,),
         wp.spatial_vectorf: (6,),
     }
+    _SHAPE_AXIS_LIMITS = (("env_ids", "num_instances"),)
 
     def assert_shape_and_dtype(
-        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
+        self,
+        tensor: float | torch.Tensor | wp.array,
+        shape: tuple[int, ...],
+        dtype: type,
+        name: str = "",
+        *,
+        axis_sizes: tuple[int, ...] | None = None,
     ) -> None:
         """Assert the shape and dtype of a tensor or warp array.
 
@@ -279,10 +346,14 @@ class AssetBase(ABC):
             shape: The expected leading dimensions (e.g. ``(num_envs, num_joints)``).
             dtype: The expected warp dtype.
             name: Optional parameter name for error messages.
+            axis_sizes: Optional selector sizes. Defaults to the expected leading dimensions.
         """
         if self._check_shapes:
             cls = type(self).__name__
             prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            for size, (axis_name, limit_name) in zip(axis_sizes or shape, self._SHAPE_AXIS_LIMITS):
+                limit = getattr(self, limit_name)
+                assert size <= limit, f"{prefix}{axis_name} size exceeds asset dimension: {size} > {limit}"
             if isinstance(tensor, (int, float)):
                 return
             elif isinstance(tensor, wp.array):
@@ -408,6 +479,7 @@ class AssetBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
+        self._clear_selector_cache()
         sim_ctx = SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)

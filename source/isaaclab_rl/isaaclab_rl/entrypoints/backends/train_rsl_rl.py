@@ -25,11 +25,13 @@ from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
     apply_env_overrides,
+    apply_video_recording,
     configure_io_descriptors,
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
     resolve_checkpoint_selector,
+    scoped_torch_backend_flags,
     set_hydra_args,
     validate_distributed_device,
     wrap_training_capture,
@@ -96,8 +98,19 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def run(argv: list[str]) -> None:
-    """Train an RSL-RL agent."""
-    import torch
+    """Train an RSL-RL agent while restoring the caller's Torch backend settings."""
+    args_cli = _parse_args(argv)
+    with scoped_torch_backend_flags(
+        cuda_matmul_allow_tf32=True,
+        cudnn_allow_tf32=True,
+        cudnn_deterministic=False,
+        cudnn_benchmark=False,
+    ):
+        _run(args_cli)
+
+
+def _run(args_cli: argparse.Namespace) -> None:
+    """Execute RSL-RL training with parsed arguments."""
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.app import launch_simulation
@@ -108,12 +121,6 @@ def run(argv: list[str]) -> None:
 
     from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
 
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
-    torch.backends.cudnn.deterministic = False
-    torch.backends.cudnn.benchmark = False
-
-    args_cli = _parse_args(argv)
     installed_version = _check_rsl_rl_version()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
 
@@ -153,6 +160,7 @@ def run(argv: list[str]) -> None:
 
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = log_dir
+        apply_video_recording(env_cfg, log_dir, args_cli)
 
         env = create_isaaclab_env(
             args_cli.task,
@@ -198,7 +206,10 @@ def run(argv: list[str]) -> None:
         dump_train_configs(log_dir, env_cfg, agent_cfg)
 
         try:
-            runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+            runner.learn(
+                num_learning_iterations=agent_cfg.max_iterations,
+                init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
+            )
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
             env.close()
         except KeyboardInterrupt:

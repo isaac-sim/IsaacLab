@@ -60,4 +60,4 @@ Keep this skill synchronized with `source/isaaclab_tasks/isaaclab_tasks/utils/hy
 - [Preset CLI source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/preset_cli.py)
 - [Preset targets source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/preset_target.py)
 - [Environment catalog](../../../docs/source/overview/environments.rst)
-- [Quickstart preset details](../../../docs/source/setup/quickstart_details.rst)
+- [Quickstart](../../../docs/source/setup/quickstart.rst)

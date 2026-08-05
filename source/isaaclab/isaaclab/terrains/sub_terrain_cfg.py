@@ -90,10 +90,11 @@ class SubTerrainBaseCfg:
     """
 
     convert_to_heightfield: bool = False
-    """Whether the sub-terrain should be converted to a heightfield.
+    """Whether the sub-terrain should be converted to a heightfield. Defaults to False.
 
-    If True, the sub-terrain will be converted to a heightfield, and only if all sub-terrains in the terrain
-    generator are marked for conversion.
+    Conversion only happens if this flag is set for ALL sub-terrains, and is currently only supported by
+    the Newton backend. It is lossy for mesh sub-terrains, which may contain vertical faces (e.g. stair
+    risers) that a heightfield cannot represent.
     """
 
     flat_patch_sampling: dict[str, FlatPatchSamplingCfg] | None = None

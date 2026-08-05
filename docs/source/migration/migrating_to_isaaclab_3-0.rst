@@ -652,28 +652,35 @@ when no CLI override is given. Other fields are named presets selectable with
 
 .. code-block:: python
 
-   from isaaclab_tasks.utils import PresetCfg
+   from isaaclab.physics import PhysxAutoCfg
    from isaaclab.utils.configclass import configclass
+   from isaaclab_ovphysx.physics import OvPhysxCfg
+   from isaaclab_tasks.utils import PresetCfg
 
    @configclass
    class MyPhysicsCfg(PresetCfg):
-       default: PhysxCfg = PhysxCfg(...)   # used when no override is given
-       physx:   PhysxCfg = PhysxCfg(...)   # selected by physics=physx
+       isaacsim_physx: PhysxCfg = PhysxCfg(...)
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+       default: PhysxCfg = isaacsim_physx  # used when no override is given
        newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by physics=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``physics=newton_mjwarp`` (or ``physics=physx``) on the CLI to swap the entire config section.
-The legacy ``presets=NAME`` form still works for the same values.
+Pass ``physics=newton_mjwarp`` on the CLI to swap the entire config section.
+Use ``physics=physx`` to opt into automatic PhysX-family selection. The legacy
+``presets=NAME`` form still works for the same values.
 
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 physics=newton_mjwarp
+   uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+       --task Isaac-Open-Drawer-Franka-Direct physics=newton_mjwarp
 
-   # Run with default (PhysX) backend
-   python train.py task=Isaac-Franka-Cabinet-v0
+   # Run with default (concrete Isaac Sim PhysX) backend
+   uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+       --task Isaac-Open-Drawer-Franka-Direct
 
 Adding Multi-Backend Support to an Environment
 -----------------------------------------------
@@ -691,18 +698,30 @@ subclass that carries both a PhysX and a Newton variant.
        self.sim.dt = 1 / 60
        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
 
+.. important::
+
+   The ``After`` example below mirrors the current Reach task, which intentionally
+   uses Newton/MJWarp as its default. The ``Before`` snippet only illustrates the
+   older single-backend form, so the default differs between the two snippets.
+   When migrating a task that should retain PhysX by default, use
+   ``default: PhysxCfg = isaacsim_physx`` instead. Adding backend variants should
+   not silently change a task's established default.
+
 *After:*
 
 .. code-block:: python
 
+   from isaaclab.physics import PhysxAutoCfg
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_ovphysx.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
    @configclass
    class ReachPhysicsCfg(PresetCfg):
-       default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-       physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
@@ -712,6 +731,7 @@ subclass that carries both a PhysX and a Newton variant.
            num_substeps=1,
            debug_mode=False,
        )
+       default: NewtonCfg = newton_mjwarp
 
    # In the env cfg __post_init__:
    def __post_init__(self):
@@ -958,7 +978,7 @@ Here's a complete example showing how to update your code:
 
 
 Quaternion Format
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 **The quaternion format changed from WXYZ to XYZW.**
 
@@ -1946,11 +1966,11 @@ directly in your code, update your configuration:
    )
 
 
-Benchmark Scripts
-~~~~~~~~~~~~~~~~~
+Benchmark Workflows
+~~~~~~~~~~~~~~~~~~~
 
 Isaac Lab 3.0 consolidates the per-backend environment benchmark entry points and their
-wrapper shell runners into a small set of unified, backend-agnostic scripts. The physics
+wrapper shell runners into library-owned, backend-agnostic workflows. The physics
 backend is now selected at launch time through the ``presets=`` system — the same pattern
 used for environment configurations (see "Multi-Backend Support: PresetCfg Pattern" above)
 — rather than by choosing a backend-specific script.
@@ -1958,24 +1978,29 @@ used for environment configurations (see "Multi-Backend Support: PresetCfg Patte
 What Changed
 ------------
 
-The standalone environment benchmark entry-point scripts have been removed and replaced by
-unified scripts:
+The environment benchmark entry points are now exposed through ``isaaclab benchmark`` and
+the typed :mod:`isaaclab.benchmark` Python API:
 
-* ``runtime.py`` — steps an environment with random actions (no policy) and emits a
+* ``isaaclab benchmark runtime`` — steps an environment with random actions (no policy) and emits a
   ``RuntimeBundle``.
-* ``training.py`` — dispatches a real training run for the RL library selected with
+* ``isaaclab benchmark training`` — dispatches a real training run for the RL library selected with
   ``--rl_library`` and emits a ``TrainingBundle``.
-* ``startup.py`` — profiles the five startup phases (``app_launch``, ``python_imports``,
+* ``isaaclab benchmark startup`` — profiles the five startup phases (``app_launch``, ``python_imports``,
   ``task_config``, ``env_creation``, ``first_step``) with ``cProfile`` and emits a
   ``StartupBundle``.
-* ``play.py`` — **new in 3.0** — loads a trained checkpoint and benchmarks policy inference
+* ``isaaclab benchmark play`` — **new in 3.0** — loads a trained checkpoint and benchmarks policy inference
   for the RL library selected with ``--rl_library``, emitting a ``PlayBundle`` (inference
   throughput plus the policy's reward, episode length, and success rate). It consumes the
-  checkpoints produced by ``training.py``; 2.x had no per-backend play benchmark.
+  checkpoints produced by the training workflow; 2.x had no per-backend play benchmark.
 
 The wrapper shell runners that drove these benchmarks — ``run_non_rl_benchmarks.sh`` and
 ``run_training_benchmarks.sh`` — were removed as well; their behavior is now expressed
-directly through script arguments and ``presets=`` tokens.
+directly through command arguments and ``presets=`` tokens.
+
+The benchmark framework itself moved from :mod:`isaaclab.test.benchmark` to
+:mod:`isaaclab.benchmark`. The old namespace and the transitional runtime, startup,
+training, and play scripts were removed; update imports and invocations to the public
+module and unified command.
 
 .. note::
 
@@ -2001,30 +2026,30 @@ Map each old invocation to its replacement:
    * - Isaac Lab 2.x
      - Isaac Lab 3.0
    * - ``benchmark_non_rl.py``
-     - ``runtime.py`` (no ``--rl_library`` dispatch)
+     - ``isaaclab benchmark runtime`` (no ``--rl_library`` dispatch)
    * - ``benchmark_startup.py``
-     - ``startup.py``
+     - ``isaaclab benchmark startup``
    * - ``benchmark_rsl_rl.py``
-     - ``training.py --rl_library rsl_rl``
+     - ``isaaclab benchmark training --rl_library rsl_rl``
    * - ``benchmark_rlgames.py``
-     - ``training.py --rl_library rl_games``
+     - ``isaaclab benchmark training --rl_library rl_games``
    * - *(newly supported)*
-     - ``training.py --rl_library skrl``
+     - ``isaaclab benchmark training --rl_library skrl``
    * - *(newly supported)*
-     - ``training.py --rl_library sb3``
+     - ``isaaclab benchmark training --rl_library sb3``
    * - *(newly supported)*
-     - ``play.py --rl_library {rsl_rl,rl_games,skrl,sb3}``
+     - ``isaaclab benchmark play --rl_library {rsl_rl,rl_games,skrl,sb3}``
 
 SKRL and Stable-Baselines3 had no dedicated benchmark script in 2.x; both are now supported
-through the same ``--rl_library`` dispatch on ``training.py``. ``play.py`` is likewise new in
-3.0: it benchmarks inference of a checkpoint trained by ``training.py`` for any of the four
+through the same ``--rl_library`` dispatch on ``isaaclab benchmark training``. ``isaaclab benchmark play`` is likewise new in
+3.0: it benchmarks inference of a checkpoint trained by the training workflow for any of the four
 RL libraries.
 
 Running Benchmarks
 ------------------
 
 The physics (and rendering) backend is selected with Hydra preset tokens — ``presets=``,
-exactly as for ``train.py``. There is no ``--physics`` or ``--render`` flag; pass
+exactly as for the training workflow. There is no ``--physics`` or ``--render`` flag; pass
 ``presets=physx``, ``presets=newton_mjwarp``, etc. to choose the backend.
 
 **Before (Isaac Lab 2.x):**
@@ -2061,47 +2086,23 @@ exactly as for ``train.py``. There is no ``--physics`` or ``--render`` flag; pas
 
 **After (Isaac Lab 3.0):**
 
-.. tab-set::
+.. code-block:: bash
 
-   .. tab-item:: uv (Recommended)
+   # Non-RL (random-action) runtime benchmark — PhysX (default)
+   uv run isaaclab benchmark runtime --task Isaac-Cartpole-Direct
 
-      .. code-block:: bash
+   # Same benchmark on Newton/MJWarp — select the backend via presets=
+   uv run isaaclab benchmark runtime --task Isaac-Cartpole-Direct presets=newton_mjwarp
 
-         # Non-RL (random-action) runtime benchmark — PhysX (default)
-         uv run python scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct
+   # Training benchmark — choose the RL library with --rl_library
+   uv run isaaclab benchmark training --task Isaac-Cartpole-Direct --rl_library rsl_rl
+   uv run isaaclab benchmark training --task Isaac-Cartpole-Direct --rl_library skrl presets=newton_mjwarp
 
-         # Same benchmark on Newton/MJWarp — select the backend via presets=
-         uv run python scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
+   # Play (inference) benchmark — loads a checkpoint produced by training
+   uv run isaaclab benchmark play --task Isaac-Cartpole-Direct --rl_library rsl_rl --checkpoint /path/to/model.pt
 
-         # Training benchmark — choose the RL library with --rl_library
-         uv run python scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library rsl_rl
-         uv run python scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library skrl presets=newton_mjwarp
-
-         # Play (inference) benchmark — loads a checkpoint produced by training.py
-         uv run python scripts/benchmarks/play.py --task Isaac-Cartpole-Direct --rl_library rsl_rl --checkpoint /path/to/model.pt
-
-         # Startup profiling
-         uv run python scripts/benchmarks/startup.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Non-RL (random-action) runtime benchmark — PhysX (default)
-         ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct
-
-         # Same benchmark on Newton/MJWarp — select the backend via presets=
-         ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
-
-         # Training benchmark — choose the RL library with --rl_library
-         ./isaaclab.sh -p scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library rsl_rl
-         ./isaaclab.sh -p scripts/benchmarks/training.py --task Isaac-Cartpole-Direct --rl_library skrl presets=newton_mjwarp
-
-         # Play (inference) benchmark — loads a checkpoint produced by training.py
-         ./isaaclab.sh -p scripts/benchmarks/play.py --task Isaac-Cartpole-Direct --rl_library rsl_rl --checkpoint /path/to/model.pt
-
-         # Startup profiling
-         ./isaaclab.sh -p scripts/benchmarks/startup.py --task Isaac-Cartpole-Direct presets=newton_mjwarp
+   # Startup profiling
+   uv run isaaclab benchmark startup --task Isaac-Cartpole-Direct presets=newton_mjwarp
 
 Output Format
 -------------
@@ -2112,46 +2113,37 @@ comma-separated list to emit several formats at once. Supported values are ``sch
 ``omniperf``, ``osmo``, ``json``, and ``summary`` (legacy long-form aliases such as
 ``OmniPerfKPIFile`` are still accepted).
 
-.. tab-set::
+.. code-block:: bash
 
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         # Emit the typed schema bundle and an OmniPerf KPI file in one run
-         uv run python scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct \
-             --benchmark_formatter schema,omniperf
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Emit the typed schema bundle and an OmniPerf KPI file in one run
-         ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct \
-             --benchmark_formatter schema,omniperf
+   # Emit the typed schema bundle and an OmniPerf KPI file in one run
+   uv run isaaclab benchmark runtime --task Isaac-Cartpole-Direct \
+       --benchmark_formatter schema,omniperf
 
 Migration Steps
 ---------------
 
 If you have custom benchmark scripts or CI based on Isaac Lab 2.x:
 
-1. **Replace the old entry points** — swap ``benchmark_non_rl.py`` for ``runtime.py``,
-   ``benchmark_startup.py`` for ``startup.py``, and the per-library training scripts for
-   ``training.py --rl_library <lib>``.
+1. **Replace the old entry points** — swap ``benchmark_non_rl.py`` for ``isaaclab benchmark runtime``,
+   ``benchmark_startup.py`` for ``isaaclab benchmark startup``, and the per-library training scripts for
+   ``isaaclab benchmark training --rl_library <lib>``.
 
-2. **Drop the wrapper runners** — ``run_non_rl_benchmarks.sh`` and
+2. **Update benchmark imports** — replace ``isaaclab.test.benchmark`` with
+   ``isaaclab.benchmark``. The old namespace is no longer available.
+
+3. **Drop the wrapper runners** — ``run_non_rl_benchmarks.sh`` and
    ``run_training_benchmarks.sh`` no longer exist; express their behavior with script
    arguments and ``presets=`` tokens. ``run_physx_benchmarks.sh`` is also gone — invoke the
    PhysX micro-benchmarks under ``source/isaaclab_physx/benchmark/`` directly instead.
 
-3. **Select the backend with** ``presets=`` — replace any per-backend script choice with a
+4. **Select the backend with** ``presets=`` — replace any per-backend script choice with a
    ``presets=`` (and, if needed, rendering) token on a single unified script. Update custom
    benchmark configs to the ``PresetCfg`` pattern.
 
-4. **Pick the output format with** ``--benchmark_formatter`` — default ``schema``; pass a
+5. **Pick the output format with** ``--benchmark_formatter`` — default ``schema``; pass a
    comma-separated list for multiple formats.
 
-5. **Test both backends** — verify your benchmarks pass with ``presets=physx`` (default) and
+6. **Test both backends** — verify your benchmarks pass with ``presets=physx`` (default) and
    ``presets=newton_mjwarp``.
 
 For a complete guide to multi-backend support, see the "Multi-Backend Support: PresetCfg
@@ -2524,6 +2516,78 @@ updated:
 The class identities are unchanged — only the module path moved. Type hints
 referencing the old path (``omni.physics.tensors.impl.api.ArticulationView``)
 should be similarly updated to ``omni.physics.tensors.api.ArticulationView``.
+
+
+Viewport Camera Configuration (``ViewerCfg`` deprecated)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``viewer`` field (type :class:`~isaaclab.envs.common.ViewerCfg`) is deprecated on
+:class:`~isaaclab.envs.DirectRLEnvCfg`, :class:`~isaaclab.envs.ManagerBasedEnvCfg`, and
+:class:`~isaaclab.envs.DirectMARLEnvCfg`.  A backward-compatibility shim re-routes
+``viewer.*`` assignments for one release, but the field will be removed in a future version.
+Configure the viewport camera through :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+on the sim config instead.
+
+Similarly, :class:`~isaaclab.envs.ui.ViewportCameraController` is deprecated.  A shim class
+remains so existing imports do not break, but it raises a :class:`DeprecationWarning` at
+construction.  Camera tracking is now handled directly by
+:class:`~isaaclab_visualizers.kit.KitVisualizer` via ``origin_type`` and
+``origin_track_path`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env_cfg.viewer.eye = (4.5, 0.0, 6.0)
+   env_cfg.viewer.lookat = (0.0, 0.0, 2.0)
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.visualizers import VisualizerCfg
+   env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
+
+For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body"``), use
+:class:`~isaaclab_visualizers.kit.KitVisualizerCfg` with ``origin_type="asset"`` and
+``origin_track_path``:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env_cfg.viewer.origin_type = "asset_root"
+   env_cfg.viewer.asset_name = "robot"
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.kit import KitVisualizerCfg
+   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]
+
+The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
+tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+
+Video Recording (``gym.wrappers.RecordVideo`` replaced)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``gym.wrappers.RecordVideo`` pattern is no longer supported.  Video recording is now driven
+internally by :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries on the
+environment config, sourcing frames from the active visualizer or a scene sensor.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env = gym.make(task, cfg=env_cfg, render_mode="rgb_array")
+   env = gym.wrappers.RecordVideo(env, video_folder="videos/", step_trigger=lambda s: s == 0)
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+   env_cfg.video_recorders = [
+       VideoRecorderCfg(source="visualizer", output_dir="videos/", video_length=200)
+   ]
+   env = gym.make(task, cfg=env_cfg)
+
+Available sources: ``"visualizer"`` (auto-pick), ``"visualizer:kit"``, ``"visualizer:newton"``,
+``"visualizer:newton:tiled"``, ``"sensor:<name>"``.  The ``eye`` and ``lookat`` fields have been
+removed from ``VideoRecorderCfg``; position the camera via ``sim.default_visualizer_cfg`` instead.
+
+The ``isaaclab.envs.utils.recording_hooks`` module has been removed.  Physics-backend recording
+hooks are now registered via :meth:`~isaaclab.sim.SimulationContext.add_render_callback`.
 
 
 Need Help?

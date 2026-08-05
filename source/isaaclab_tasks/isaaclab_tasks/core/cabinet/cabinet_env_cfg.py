@@ -19,12 +19,14 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -45,19 +47,16 @@ class CabinetSimCfg(PresetCfg):
     """Simulation configuration presets for the cabinet environment.
 
     Wraps the full :class:`~isaaclab.sim.SimulationCfg` so that Newton can run at a
-    finer physics timestep (1/200 s) while PhysX keeps its default (1/60 s).
+    finer physics timestep (1/600 s) while PhysX keeps its default (1/60 s).
     """
 
-    default: SimulationCfg = SimulationCfg(
+    isaacsim_physx: SimulationCfg = SimulationCfg(
         dt=1 / 60,
         render_interval=1,
         physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
     )
-    physx: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
-        render_interval=1,
-        physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
-    )
+    physx: SimulationCfg = isaacsim_physx.replace(physics=PhysxAutoCfg(isaacsim_physx=isaacsim_physx.physics))
+    default: SimulationCfg = isaacsim_physx
     newton_mjwarp: SimulationCfg = SimulationCfg(
         dt=1 / 600,
         render_interval=1,
@@ -263,8 +262,9 @@ class _CabinetNewtonEventCfg:
 
 @configclass
 class CabinetEventCfg(PresetCfg):
-    default: EventCfg = EventCfg()
     physx: EventCfg = EventCfg()
+    isaacsim_physx: EventCfg = physx
+    default: EventCfg = isaacsim_physx
     newton_mjwarp: _CabinetNewtonEventCfg = _CabinetNewtonEventCfg()
 
 
@@ -346,6 +346,5 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 1
         self.episode_length_s = 8.0
-        self.viewer.eye = (-2.0, 2.0, 2.0)
-        self.viewer.lookat = (0.8, 0.0, 0.5)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5))
         # simulation settings are defined in CabinetSimCfg (dt/physics vary per backend)

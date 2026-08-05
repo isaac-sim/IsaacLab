@@ -3,65 +3,106 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder`.
-
-Captures a single wide-angle perspective view of the scene. Newton backends use the
-Newton GL viewer; Kit backends use the ``/OmniverseKit_Persp`` camera via
-``omni.replicator.core``.
-"""
+"""Configuration for video recording from visualizers and scene sensors."""
 
 from __future__ import annotations
 
-from typing import Literal
-
 from isaaclab.utils.configclass import configclass
-
-from .video_recorder import VideoRecorder
 
 
 @configclass
 class VideoRecorderCfg:
-    """Configuration for :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder`."""
+    """Configuration for one video recording stream.
 
-    class_type: type = VideoRecorder
-    """Recorder class to instantiate; must accept ``(cfg, scene)``."""
+    A recording stream captures frames from a *source* — either an active visualizer
+    (interactive or tiled camera) or a named scene sensor — and writes them to an mp4
+    clip file.  Multiple ``VideoRecorderCfg`` entries on an env cfg produce independent
+    simultaneous streams.
 
-    env_render_mode: str | None = None
-    """Gym render mode forwarded from the environment constructor (``"rgb_array"`` when ``--video`` is active).
+    Source string format
+    --------------------
+    Fields are colon-separated: ``"<kind>:<type>:<sub>"``.
 
-    Set automatically by the environment base classes; do not set manually.
+    * ``"visualizer"``              – first active recording-capable visualizer, interactive camera.
+    * ``"visualizer:kit"``          – Kit visualizer, interactive viewport camera.
+    * ``"visualizer:newton"``       – Newton GL visualizer, interactive camera.
+    * ``"visualizer:newton:tiled"`` – Newton GL visualizer, tiled camera panel.
+    * ``"sensor:<name>"``           – ``env.scene.sensors[<name>]``, rgb channel.
+
+    The camera position and window resolution are configured on the visualizer cfg
+    (e.g. :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`), not here.
     """
 
-    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
-    """Perspective camera position in world space (metres).
+    source: str = "visualizer"
+    """Recording source.  See class docstring for the source string format."""
 
-    Direct RL / MARL and manager-based RL environments overwrite this from
-    :attr:`~isaaclab.envs.common.ViewerCfg.eye`. Kit and renderer-selected Newton capture use this
-    value. Visualizer-selected Newton capture uses the active visualizer camera instead.
+    output_dir: str | None = None
+    """Directory for output mp4 files (created on demand).
+
+    ``None`` (default): when recording is enabled via ``--video``, the RL entrypoint sets
+    this to ``<log_dir>/videos/<subdir>`` automatically.  Set an explicit path to override.
     """
 
-    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Perspective camera look-at target in world space (metres).
+    fps: int | None = None
+    """Output video frame rate in frames per second.
 
-    Visualizer-selected Newton capture uses the active visualizer camera instead.
+    ``None`` (default): resolved automatically from the environment at recording time
+    using ``env.metadata["render_fps"]`` when available, falling back to
+    ``round(1.0 / env.step_dt)``.  Set an explicit integer to override.
     """
 
-    backend_source: Literal["visualizer", "renderer"] = "visualizer"
-    """Source used to resolve the video capture backend.
+    video_length: int = 200
+    """Number of env steps captured per clip."""
 
-    ``"visualizer"`` records from the active Kit or Newton visualizer when one is enabled, and falls back to the
-    physics/renderer stack otherwise. ``"renderer"`` ignores active visualizers and records from the backend implied by
-    the physics/renderer stack.
+    video_interval: int = 0
+    """Start a new clip every ``video_interval`` env steps after :attr:`step_offset`.
+
+    ``0`` means a single clip starts at :attr:`step_offset` and the recorder is inactive
+    afterwards.  Set to a positive integer to record recurring clips at that cadence.
     """
 
-    window_width: int = 1280
-    """Width of the recorded frame in pixels.
-
-    Visualizer-selected Newton capture uses the active visualizer width instead.
+    step_offset: int = 0
+    """Number of env steps to skip before the first clip starts.  Defaults to 0 (record
+    from the very first step).  Applies to both one-shot and recurring recordings.
     """
 
-    window_height: int = 720
-    """Height of the recorded frame in pixels.
+    frame_stride: int = 1
+    """Capture one frame every ``frame_stride`` env steps within a clip.  Defaults to 1
+    (capture every step).  Increase to sub-sample the recording — e.g. ``frame_stride=2``
+    records half as many frames, halving file size at the cost of temporal resolution.
+    A clip that captures ``video_length // frame_stride`` unique frames is still triggered
+    and closed after ``video_length`` env steps.
+    """
 
-    Visualizer-selected Newton capture uses the active visualizer height instead.
+    output_filename_prefix: str = "clip"
+    """Prefix for output clip filenames.  Each clip is written as
+    ``<output_dir>/<output_filename_prefix>_<index>.mp4``.
+
+    Defaults to ``"clip"`` → ``clip_0000.mp4``, ``clip_0001.mp4``, …
+
+    Set a descriptive prefix when multiple recorders share the same ``output_dir`` so their
+    clips do not overwrite each other.  For example, with two recorders::
+
+        VideoRecorderCfg(source="visualizer:kit",    output_dir="videos", output_filename_prefix="viewport"),
+        VideoRecorderCfg(source="sensor:wrist_cam",  output_dir="videos", output_filename_prefix="wrist"),
+
+    produces ``videos/viewport_0000.mp4`` and ``videos/wrist_0000.mp4`` side-by-side.
+    """
+
+    keep_last_n_clips: int | None = None
+    """If set, delete older clips so that at most this many clips are kept on disk at any
+    time.  Older clips (by index) are removed immediately after a new one is written.
+
+    Defaults to ``None`` (keep all clips).
+
+    Useful during long training runs with a recurring ``video_interval`` where retaining
+    every clip would fill the disk.  For example, ``keep_last_n_clips=3`` with
+    ``video_interval=1000`` keeps only the three most recently recorded clips::
+
+        VideoRecorderCfg(
+            source="visualizer:newton",
+            video_interval=1000,
+            video_length=200,
+            keep_last_n_clips=3,
+        )
     """

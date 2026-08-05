@@ -311,8 +311,11 @@ To install the robomimic framework, use the following commands:
 
    # install the dependencies
    sudo apt install cmake build-essential
-   # install python module (for robomimic)
-   ./isaaclab.sh -i robomimic
+   # resolve and verify Robomimic in the uv-managed environment
+   uv run --extra mimic python -c "import robomimic"
+
+For a legacy environment, install the same dependencies with
+``./isaaclab.sh -i mimic``.
 
 Training an agent
 ^^^^^^^^^^^^^^^^^
@@ -325,7 +328,7 @@ Using the generated data, we can now train a visuomotor BC agent for ``IsaacCont
 
       .. code:: bash
 
-          uv run python scripts/imitation_learning/robomimic/train.py \
+          uv run --extra mimic python scripts/imitation_learning/robomimic/train.py \
           --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos --algo bc \
           --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
           --name bc_rnn_image_franka_stack_mimic_cosmos
@@ -417,7 +420,7 @@ Example usage for the cube stacking task:
 
       .. code:: bash
 
-          uv run python scripts/imitation_learning/robomimic/robust_eval.py \
+          uv run --extra mimic python scripts/imitation_learning/robomimic/robust_eval.py \
           --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
           --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
           --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \

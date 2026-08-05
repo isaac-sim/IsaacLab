@@ -1,0 +1,133 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Kit-less image for GPU-accelerated training without Isaac Sim or Kit:
+# Newton physics, OVRTX rendering, and every core RL framework.
+ARG BASE_IMAGE_ARG=ubuntu:24.04
+
+FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv
+
+FROM ${BASE_IMAGE_ARG} AS builder
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
+ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+ENV VIRTUAL_ENV=${ISAACLAB_PATH_ARG}/.venv
+ENV PATH=${ISAACLAB_PATH_ARG}/.venv/bin:/usr/local/bin:${PATH}
+ENV UV_NO_CACHE=1
+
+# Native build tools remain confined to this stage.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      ca-certificates \
+      cmake \
+      git \
+      libglib2.0-0 \
+      python3 \
+      python3-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+# Copy uv from its official versioned image instead of executing a mutable
+# installer URL during the build.
+COPY --from=uv /uv /uvx /usr/local/bin/
+
+WORKDIR ${ISAACLAB_PATH}
+
+# Copy the install inputs before the rest of the runtime tree so dependency
+# installation remains cached when only scripts or application code changes.
+COPY pyproject.toml uv.lock VERSION LICENSE LICENSE-mimic README.md ./
+COPY source/ source/
+COPY isaaclab.sh ./
+
+# Same entry point as Dockerfile.base. The selector is explicit because OVRTX
+# lives in the `ov` feature a bare --install excludes; OVPhysX stays out until
+# its OmniClient pin is compatible. The venv pins python3.12 to match the
+# runtime stage's libpython3.12, and isaaclab.sh resolves VIRTUAL_ENV first.
+RUN uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
+ && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
+ && "${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[ovrtx] \
+ && python -c "import importlib.metadata as m; \
+      names = {d.metadata['Name'].lower() for d in m.distributions()}; \
+      assert 'isaacsim' not in names; \
+      assert 'ovphysx' not in names; \
+      assert 'ovrtx' in names" \
+ && test ! -e "${ISAACLAB_PATH}/_isaac_sim"
+
+# isaaclab.utils.assets parses apps/isaaclab.python.kit at import time to
+# resolve the Nucleus asset root, so apps/ is required even without Kit.
+COPY apps/ apps/
+COPY scripts/ scripts/
+COPY docs/licenses/ docs/licenses/
+COPY docker/docker-compose.yaml docker/docker-compose.yaml
+COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py
+
+
+FROM ${BASE_IMAGE_ARG} AS runtime
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
+ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+# Build arg like Dockerfile.base, so the image home and the Compose mounts
+# derived from DOCKER_USER_HOME cannot drift apart.
+ARG DOCKER_USER_HOME_ARG=/home/isaaclab
+ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
+ENV HOME=${DOCKER_USER_HOME}
+ENV VIRTUAL_ENV=${ISAACLAB_PATH_ARG}/.venv
+ENV PATH=${ISAACLAB_PATH_ARG}/.venv/bin:/usr/local/bin:${PATH}
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
+
+# Libraries ovrtx loads at init. GLVND splits these: libgl1 gives libGL.so.1,
+# but libOpenGL.so.0 and libEGL.so.1 need libopengl0 and libegl1.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      git \
+      libegl1 \
+      libgl1 \
+      libglib2.0-0 \
+      libgomp1 \
+      libopengl0 \
+      libpython3.12 \
+      libvulkan1 \
+      libx11-6 \
+      libxext6 \
+      python3 \
+ && rm -rf /var/lib/apt/lists/* \
+ && if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
+ && if getent group ubuntu >/dev/null; then groupdel ubuntu; fi \
+ && groupadd --gid 1000 isaaclab \
+ && useradd --uid 1000 --gid 1000 --home-dir "${HOME}" --create-home --shell /bin/bash isaaclab \
+ && mkdir -p "${HOME}" \
+ && chown -R isaaclab:isaaclab "${HOME}" \
+ && chmod 750 "${HOME}"
+
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx
+COPY --from=builder --chown=isaaclab:isaaclab ${ISAACLAB_PATH} ${ISAACLAB_PATH}
+
+# A fresh named volume inherits ownership from the image directory at its mount
+# path, so pre-create and chown them; derived from Compose to avoid duplication.
+RUN set -o pipefail \
+ && export DOCKER_ISAACLAB_PATH="${ISAACLAB_PATH}" \
+           DOCKER_USER_HOME="${HOME}" \
+ && dirs="$(python ${ISAACLAB_PATH}/docker/utils/volume_mounts.py \
+      --volumes_key x-kitless-isaac-lab-volumes | grep '^/')" \
+ && mkdir -p ${dirs} \
+ && chown -R isaaclab:isaaclab ${dirs}
+
+USER isaaclab
+WORKDIR ${ISAACLAB_PATH}
+
+CMD ["bash"]

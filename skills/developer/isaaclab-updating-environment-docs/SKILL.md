@@ -35,13 +35,13 @@ Run:
 ```bash
 uv run python tools/update_environments_rst.py --check
 uv run python scripts/environments/list_envs.py --show_presets
-uv run isaaclab -d
+uv run --isolated --extra test -- make -C docs current-docs
 uv run --no-project python tools/skills/cli.py check
 ```
 
-Require ``uv run isaaclab -d`` to exit successfully with no warnings or errors. Inspect the compiled
-environment catalog page in the documentation build output and verify that every new image and
-substitution target renders correctly.
+Require the combined test and documentation build to exit successfully with no warnings or errors. Inspect the
+compiled environment catalog page in the documentation build output and verify that every new
+image and substitution target renders correctly.
 
 ## Maintenance
 

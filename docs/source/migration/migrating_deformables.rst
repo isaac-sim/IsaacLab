@@ -89,6 +89,10 @@ The following properties have been **removed** from
 - ``vertex_velocity_damping`` — replaced by the more general ``linear_damping`` property from the
   `PhysX deformable schema`_.
 - ``sleep_damping`` — replaced by ``settling_damping`` in the `PhysX deformable schema`_.
+- ``contact_offset`` and ``rest_offset``, along with the ``PhysxDeformableCollisionPropertiesCfg`` class that
+  contributed them: PhysX reads collision offsets off the collider, which for a deformable is its simulation
+  mesh, so authoring them on the body prim never reached the solver. Set them on the mesh spawner's
+  ``collision_props`` instead: ``collision_props=[PhysxCollisionCfg(rest_offset=0.0005, contact_offset=0.005)]``.
 
 Added Properties
 ^^^^^^^^^^^^^^^^

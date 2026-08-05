@@ -24,10 +24,7 @@ def base_yaw_roll(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     # extract euler angles (in world frame)
     roll, _, yaw = math_utils.euler_xyz_from_quat(asset.data.root_quat_w.torch)
     # normalize angle to [-pi, pi]
-    roll = torch.atan2(torch.sin(roll), torch.cos(roll))
-    yaw = torch.atan2(torch.sin(yaw), torch.cos(yaw))
-
-    return torch.cat((yaw.unsqueeze(-1), roll.unsqueeze(-1)), dim=-1)
+    return torch.cat((math_utils.wrap_to_pi(yaw).unsqueeze(-1), math_utils.wrap_to_pi(roll).unsqueeze(-1)), dim=-1)
 
 
 def base_up_proj(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -40,6 +37,15 @@ def base_up_proj(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     return base_up_vec[:, 2].unsqueeze(-1)
 
 
+def walk_target_w(env: ManagerBasedEnv, target_pos: tuple[float, float, float]) -> torch.Tensor:
+    """World-frame walk target [m], offset by each environment's origin.
+
+    The target is specified relative to the environment origin so that every robot walks along the
+    same direction in its own frame, independently of where its environment sits in the grid.
+    """
+    return env.scene.env_origins + torch.tensor(target_pos, device=env.device)
+
+
 def base_heading_proj(
     env: ManagerBasedEnv, target_pos: tuple[float, float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
@@ -47,7 +53,7 @@ def base_heading_proj(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute desired heading direction
-    to_target_pos = torch.tensor(target_pos, device=env.device) - asset.data.root_pos_w.torch[:, :3]
+    to_target_pos = walk_target_w(env, target_pos) - asset.data.root_pos_w.torch[:, :3]
     to_target_pos = torch.cat((to_target_pos[:, :2], torch.zeros_like(to_target_pos[:, 2:3])), dim=-1)
     to_target_dir = math_utils.normalize(to_target_pos)
     # compute base forward vector
@@ -65,12 +71,9 @@ def base_angle_to_target(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute desired heading direction
-    to_target_pos = torch.tensor(target_pos, device=env.device) - asset.data.root_pos_w.torch[:, :3]
+    to_target_pos = walk_target_w(env, target_pos) - asset.data.root_pos_w.torch[:, :3]
     walk_target_angle = torch.atan2(to_target_pos[:, 1], to_target_pos[:, 0])
     # compute base forward vector
     _, _, yaw = math_utils.euler_xyz_from_quat(asset.data.root_quat_w.torch)
     # normalize angle to target to [-pi, pi]
-    angle_to_target = walk_target_angle - yaw
-    angle_to_target = torch.atan2(torch.sin(angle_to_target), torch.cos(angle_to_target))
-
-    return angle_to_target.unsqueeze(-1)
+    return math_utils.wrap_to_pi(walk_target_angle - yaw).unsqueeze(-1)

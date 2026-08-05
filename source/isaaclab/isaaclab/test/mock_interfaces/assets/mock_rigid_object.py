@@ -14,6 +14,7 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.assets.asset_base import AssetBase
 from isaaclab.utils.warp import ProxyArray
 
 try:
@@ -694,7 +695,13 @@ class MockRigidObject:
 
     # -- Finder methods --
 
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies by name regex patterns."""
         if isinstance(name_keys, str):
             name_keys = [name_keys]
@@ -718,7 +725,16 @@ class MockRigidObject:
                         matched_names.append(name)
                         break
 
-        return matched_indices, matched_names
+        return (
+            AssetBase._resolve_finder_indices(
+                self,
+                matched_indices,
+                domain="body",
+                as_proxy=as_proxy,
+                legacy_type="list",
+            ),
+            list(matched_names),
+        )
 
     # -- State writer methods (no-op for mock) --
 

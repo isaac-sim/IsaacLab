@@ -169,6 +169,7 @@ def check_initial_state_recorder_term(env):
         assert are_states_equal, output_log
 
 
+@pytest.mark.parametrize("task_name", ["IsaacContrib-Lift-Cube-Franka"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 2])
 def test_action_state_recorder_terms(device, num_envs, temp_dir):
