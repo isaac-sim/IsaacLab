@@ -1,9 +1,10 @@
 Added
 ^^^^^
 
-* Added a compact per-phase startup summary printed to the console at the end of the
-  ``isaaclab benchmark startup`` workflow, including a breakdown of the timers that ran
-  during environment creation. The full profile remains in the JSON output.
+* Added console summaries printed at the end of the startup, runtime, and training benchmark
+  workflows: per-phase wall clock (including the timers that ran during environment creation)
+  for startup, and throughput, resources, and learning curves for runtime and training. The
+  full result remains in the JSON output.
 
 Changed
 ^^^^^^^
@@ -11,6 +12,9 @@ Changed
 * Changed the benchmark entrypoints to disable Warp adjoint code generation
   (``warp.config.enable_backward``), matching the training and play scripts. This reduces
   cold-start kernel build time.
+* Changed the startup benchmark output filename prefix from ``startup_<task>`` to
+  ``benchmark_startup_<task>``, matching the runtime, training, and play workflows. Update
+  any tooling that globs ``startup_*.json`` to use ``benchmark_startup_*.json``.
 
 Fixed
 ^^^^^

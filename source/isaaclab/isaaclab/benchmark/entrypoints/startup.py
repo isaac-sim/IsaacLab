@@ -31,10 +31,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from isaaclab.benchmark import BenchmarkResult
-    from isaaclab.benchmark.schema import StartupBundle
 
 import argparse
 import cProfile
@@ -193,43 +190,6 @@ def _timer_totals(since: dict[str, float] | None = None) -> dict[str, float]:
     return {name: seconds for name, seconds in elapsed.items() if seconds > 1e-6}
 
 
-def _print_summary(bundle: StartupBundle, output_paths: tuple[Path, ...], detail: dict[str, float]) -> None:
-    """Print a compact per-phase wall-clock breakdown; the full profile stays in the JSON output.
-
-    Args:
-        bundle: Completed startup bundle.
-        output_paths: Files written by the benchmark formatters.
-        detail: Elapsed seconds of the timers that ran during ``env_creation``.
-    """
-    width = 64
-    phase_order = [name for name in _PHASE_ORDER if name in bundle.phases]
-    phase_order += [name for name in bundle.phases if name not in _PHASE_ORDER]
-    total_s = sum(bundle.phases[name].total_time_s for name in phase_order)
-    label_width = max(len(name) for name in phase_order)
-
-    print()
-    print("=" * width)
-    envs = f"{bundle.run.num_envs} envs" if bundle.run.num_envs is not None else "default envs"
-    print(f" Startup summary: {bundle.run.task} ({envs}, {bundle.run.config.physics_backend})")
-    print("=" * width)
-    longest_s = max(bundle.phases[name].total_time_s for name in phase_order)
-    for name in phase_order:
-        seconds = bundle.phases[name].total_time_s
-        share = seconds / total_s if total_s > 0 else 0.0
-        bar = "#" * round(20 * seconds / longest_s) if longest_s > 0 else ""
-        print(f" {name:<{label_width}}  {seconds:7.2f} s  {share:5.1%}  {bar}".rstrip())
-        if name != "env_creation":
-            continue
-        # Nested timers: they overlap each other and the phase, so no share is shown.
-        for timer_name, timer_s in sorted(detail.items(), key=lambda item: -item[1]):
-            print(f"   {timer_name:<{label_width + 22}} {timer_s:7.2f} s")
-    print("-" * width)
-    print(f" {'total':<{label_width}}  {total_s:7.2f} s")
-    for path in output_paths:
-        print(f" report: {path}")
-    print("=" * width)
-
-
 def run(argv: list[str]) -> BenchmarkResult:
     """Run the startup benchmark and write the selected formatter outputs.
 
@@ -247,7 +207,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     import torch
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkResult, builders, capture, console, stepping
     from isaaclab.benchmark.profiling import parse_cprofile_stats
     from isaaclab.benchmark.schema import CProfileFunction, StartupPhase
 
@@ -324,10 +284,11 @@ def run(argv: list[str]) -> BenchmarkResult:
             first_step_time_end = time.perf_counter_ns()
             end_utc = capture.now_utc_iso()
 
+            # Ordered chronologically: the bundle and the console summary preserve this order.
             phase_profiles: dict[str, tuple[cProfile.Profile, float]] = {
-                "app_launch": (app_launch_profile, (app_launch_time_end - app_launch_time_begin) / 1e6),
                 "python_imports": (imports_profile, (imports_time_end - imports_time_begin) / 1e6),
                 "task_config": (task_config_profile, (task_config_time_end - task_config_time_begin) / 1e6),
+                "app_launch": (app_launch_profile, (app_launch_time_end - app_launch_time_begin) / 1e6),
                 "env_creation": (env_creation_profile, (env_creation_time_end - env_creation_time_begin) / 1e6),
                 "first_step": (first_step_profile, (first_step_time_end - first_step_time_begin) / 1e6),
             }
@@ -371,7 +332,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 formatter_type=args.benchmark_formatter,
                 output_path=args.output_path,
                 use_recorders=True,
-                output_prefix=f"startup_{args.task}",
+                output_prefix=f"benchmark_startup_{args.task}",
                 workflow_metadata={
                     "metadata": [
                         {"name": "task", "data": args.task},
@@ -396,7 +357,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             benchmark.attach_bundle(bundle)
             output_paths = benchmark.finalize()
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
-            _print_summary(bundle, output_paths, env_creation_detail)
+            console.print_startup_report(bundle, output_paths, env_creation_detail)
         finally:
             if env is not None:
                 env.close()

@@ -89,6 +89,9 @@ step supplies that diagnostic without being removed from the measured window.
 Read The Result
 ~~~~~~~~~~~~~~~
 
+A throughput and resource summary is printed to the console when the run
+finishes. The JSON output holds the full result.
+
 Read ``runtime.environment_step_timing.environment_step_fps`` for the aggregate
 environment-step rate. Runtime samples random actions before starting the
 ``env.step()`` timer, so random-action generation is outside this timing. For a
@@ -312,6 +315,9 @@ time.
 Read The Result
 ~~~~~~~~~~~~~~~
 
+A throughput, resource, and learning summary is printed to the console when the
+run finishes. The JSON output holds the full result.
+
 Use ``runtime.collection_fps`` for rollout collection without policy update,
 ``runtime.total_fps`` for collection plus update, and
 ``runtime.environment_step_timing.environment_step_fps`` for environment-only
@@ -464,7 +470,7 @@ typed schema paths:
 
    jq '.run, .runtime.collection_fps, .runtime.total_fps' benchmark_*_schema.json
    jq '.runtime.environment_step_timing' benchmark_*_schema.json
-   jq '.phases' startup_*_schema.json
+   jq '.phases' benchmark_startup_*_schema.json
 
 With multiple formatters, the ``_schema`` suffix identifies the typed bundle.
 
