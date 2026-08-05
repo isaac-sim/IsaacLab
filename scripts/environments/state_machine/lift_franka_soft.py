@@ -300,7 +300,12 @@ def main():
             # run everything in inference mode
             with torch.inference_mode():
                 # step environment
-                dones = env.step(actions)[-2]
+                _, _, terminated, time_outs, _ = env.step(actions)
+                dones = terminated | time_outs
+
+                # reset state machine
+                if dones.any():
+                    pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
 
                 # observations
                 # -- end-effector frame
@@ -323,10 +328,6 @@ def main():
                     torch.cat([object_position, object_grasp_orientation], dim=-1),
                     torch.cat([desired_position, desired_orientation], dim=-1),
                 )
-
-                # reset state machine
-                if dones.any():
-                    pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
 
         # close the environment
         env.close()
