@@ -97,9 +97,10 @@ class IsaacRtxRendererCfg(RendererCfg):
     Holds the Replicator/RTX-specific knobs (semantic segmentation, instance
     segmentation, semantic filtering, depth clipping) used by the RTX rendering
     pipeline.
-    Render-product-local settings stay separate from :attr:`global_settings` so
-    one camera can be configured without changing other render products in the
-    Kit process.
+    :attr:`enable_dlss_ray_reconstruction` and :attr:`dlss_exec_mode` are authored
+    on each USD ``RenderProduct`` prim through ``ApplyAPI``, not as process-global
+    carb settings like :attr:`global_settings`, so they do not affect other render
+    products, including XR headset views, in the same Kit process.
     """
 
     renderer_type: str = "isaac_rtx"

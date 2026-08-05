@@ -668,8 +668,6 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             xr_camera_feeds=[
                 XrCameraFeedCfg(
                     camera_name="robot_pov_cam",
-                    # The 0.48 m-wide 720x450 image is 0.30 m tall; lower its
-                    # center so its top edge starts at viewer eye height.
                     offset_m=(0.0, -0.15),
                     max_update_hz=0.0,
                 )

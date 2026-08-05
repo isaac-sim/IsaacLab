@@ -17,11 +17,11 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
     ("env_cfg_type", "camera_prim_path"),
     [
         (PickPlaceGR1T2EnvCfg, "{ENV_REGEX_NS}/Robot/base_link/RobotPOVCam"),
-        (LocomanipulationG1EnvCfg, "{ENV_REGEX_NS}/Robot/pelvis/RobotPOVCam"),
+        (LocomanipulationG1EnvCfg, "{ENV_REGEX_NS}/Robot/head_link/RobotHeadCam"),
     ],
 )
 def test_xr_camera_reference_tasks_select_recorded_camera(env_cfg_type, camera_prim_path):
-    """Reference tasks record and present a camera attached to the physical robot root."""
+    """Reference tasks record and present a camera attached to a physical robot link."""
     cfg = env_cfg_type()
 
     assert cfg.isaac_teleop.xr_camera_feeds[0].camera_name == "robot_pov_cam"
@@ -29,6 +29,24 @@ def test_xr_camera_reference_tasks_select_recorded_camera(env_cfg_type, camera_p
     assert cfg.scene.robot_pov_cam.prim_path == camera_prim_path
     assert isinstance(cfg.scene.robot_pov_cam.renderer_cfg, MultiBackendRendererCfg)
     assert cfg.num_rerenders_on_reset == 3
+
+
+def test_g1_xr_camera_uses_calibration_and_head_locked_panel():
+    """G1 uses its calibrated head camera and a centered head-locked panel."""
+    cfg = LocomanipulationG1EnvCfg()
+    camera_cfg = cfg.scene.robot_pov_cam
+    feed_cfg = cfg.isaac_teleop.xr_camera_feeds[0]
+
+    assert camera_cfg.prim_path == "{ENV_REGEX_NS}/Robot/head_link/RobotHeadCam"
+    assert (camera_cfg.width, camera_cfg.height) == (640, 480)
+    assert camera_cfg.spawn.focal_length == 15.0
+    assert camera_cfg.spawn.horizontal_aperture == 20.955
+    assert camera_cfg.spawn.clipping_range == (0.1, 5.0)
+    assert camera_cfg.offset.pos == (0.04485, 0.0, 0.35325)
+    assert camera_cfg.offset.rot == (-0.62721, 0.62721, -0.32651, 0.32651)
+    assert camera_cfg.offset.convention == "ros"
+    assert cfg.isaac_teleop.xr_camera_feed_layout.placement == "head_locked"
+    assert feed_cfg.offset_m == (0.0, 0.0)
 
 
 @pytest.mark.parametrize("env_cfg_type", [PickPlaceGR1T2EnvCfg, LocomanipulationG1EnvCfg])
