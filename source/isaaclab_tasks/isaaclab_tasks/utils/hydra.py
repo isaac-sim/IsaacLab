@@ -45,8 +45,6 @@ from isaaclab.utils.configclass import configclass
 from .preset_target import PresetTarget
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
-_PRESET_BANNER_HEADER = "---------------- Resolved task presets ----------------"
-_PRESET_BANNER_FOOTER = "-" * len(_PRESET_BANNER_HEADER)
 
 logger = logging.getLogger(__name__)
 
@@ -457,10 +455,12 @@ def _log_resolved_presets(env_cfg) -> None:
     resolved_presets = getattr(env_cfg, "__resolved_presets__", ())
     if not resolved_presets:
         return
-    logger.info(_PRESET_BANNER_HEADER)
+    banner_header = "---------------- Resolved task presets ----------------"
+    banner_footer = "-" * len(banner_header)
+    logger.info(banner_header)
     for path, name, replacement_type in resolved_presets:
         logger.info("%s = %s -> %s", path, name, replacement_type)
-    logger.info(_PRESET_BANNER_FOOTER)
+    logger.info(banner_footer)
 
 
 def _run_hydra(task, env_cfg, agent_cfg, hydra_args, callback):
