@@ -109,8 +109,8 @@ class AssetConverterBase(abc.ABC):
                 f.write(self._asset_hash)
             # convert the asset to USD
             self._convert_asset(cfg)
-            # the importers emit the physics payloads behind a "Physics" variant set but leave it
-            # unselected, which composes the asset with geometry only
+            # importers put the physics payloads behind a "Physics" variant set and disagree on
+            # which variant to select, so settle it here
             self._select_physics_variant(cfg.physics_variant)
             # dump the configuration to a file
             dump_yaml(os.path.join(self.usd_dir, "config.yaml"), cfg.to_dict())
@@ -172,14 +172,14 @@ class AssetConverterBase(abc.ABC):
     def _select_physics_variant(self, variant: str):
         """Author a selection for the ``"Physics"`` variant set on the converted asset.
 
-        The URDF and MJCF importers write the physics description into a ``"Physics"`` variant set
-        without selecting a variant, so opening the asset composes it without joints, articulation
-        roots, or mass properties. Selecting a variant here restores physics for every consumer. The
-        selection is authored on the asset, so a spawner that selects a different variant on the
-        referencing prim still wins.
+        Importers put the physics description behind a ``"Physics"`` variant set, and which variant
+        they select is not consistent: the Isaac Sim importer extensions leave the set unselected,
+        which composes the asset without joints, articulation roots, or mass properties, while the
+        standalone importer wheel selects one of its own. Authoring the configured variant here makes
+        the outcome the same either way. The selection is authored on the asset, so a spawner that
+        selects a different variant on the referencing prim still wins.
 
-        Does nothing when the asset has no such variant set or the importer already authored a
-        selection.
+        Does nothing when the asset has no such variant set.
 
         Args:
             variant: The variant to select. Resolved against the variants the asset offers by
@@ -192,10 +192,8 @@ class AssetConverterBase(abc.ABC):
         if not prim or "Physics" not in prim.GetVariantSets().GetNames():
             return
         variant_set = prim.GetVariantSets().GetVariantSet("Physics")
-        if variant_set.GetVariantSelection():
-            return
         selection = self._resolve_physics_variant(variant, variant_set.GetVariantNames())
-        if selection is None:
+        if selection is None or selection == variant_set.GetVariantSelection():
             return
         if selection != variant:
             logger.warning(

@@ -69,9 +69,11 @@ class AssetConverterBaseCfg:
     """The ``"Physics"`` variant to select on the generated USD file. Defaults to
     :attr:`PhysicsVariant.PHYSICS`.
 
-    The URDF and MJCF importers emit physics as payloads behind a ``"Physics"`` variant set that they
-    leave unselected, which composes the asset without joints, articulation roots, or mass properties.
-    The converter authors this selection so that the asset carries physics on its own.
+    The URDF and MJCF importers emit physics as payloads behind a ``"Physics"`` variant set, and
+    disagree on which variant to select: the Isaac Sim importer extensions leave the set unselected,
+    which composes the asset without joints, articulation roots, or mass properties, while the
+    standalone importer wheel picks one of its own. The converter authors this selection so that the
+    asset carries the same physics either way.
 
     The default holds the backend-portable description, and :attr:`PhysicsVariant.PHYSX` /
     :attr:`PhysicsVariant.MUJOCO` sublayer it, so select one of those to author an asset for a
