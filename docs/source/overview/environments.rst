@@ -605,8 +605,9 @@ Environments based on legged locomotion tasks.
     | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot             | **physics=**                 |
     |                              |                                              |                                                                              | ``isaacsim_physx``,          |
     |                              |                                              |                                                                              | ``newton_kamino``,           |
-    |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
     |                              |                                              |                                                                              | ``ovphysx``                  |
+    |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            | **physics=**                 |
     |                              |                                              |                                                                              | ``isaacsim_physx``,          |
