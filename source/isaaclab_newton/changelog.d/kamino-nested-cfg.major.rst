@@ -1,5 +1,5 @@
 Changed
-^^^^^
+^^^^^^^
 
 * **Breaking:** Restructured :class:`~isaaclab_newton.physics.KaminoSolverCfg` into
   nested sub-configs (:class:`~isaaclab_newton.physics.KaminoPADMMCfg`,
