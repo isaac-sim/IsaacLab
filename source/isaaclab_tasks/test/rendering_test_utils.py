@@ -1852,7 +1852,7 @@ def rendering_test_franka_soft(
 
     # Native hang: the per-file CI runner kills the suite after 1000s with no pytest outcome.
     if physics_backend == "ovphysx" and renderer == "ovrtx_renderer" and data_type == "depth":
-        pytest.skip("OVPhysX + OVRTX depth hangs intermittently on franka_soft kitless CI.")
+        pytest.skip("OVPhysX + OVRTX depth hangs intermittently on franka_soft kitless CI (NVBUG#6564917).")
 
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
