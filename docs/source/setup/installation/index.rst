@@ -570,6 +570,35 @@ Preserve the ``state`` directory because it contains the deployment metadata.
 See :ref:`docker-cloud-cloud` for credentials, provider options, connection methods, data transfer,
 and the complete workstation lifecycle.
 
+.. _installation-standalone-importers:
+
+Standalone URDF/MJCF importers
+------------------------------
+
+The URDF and MJCF converter scripts can run without Isaac Sim when the standalone
+``isaacsim-asset-isolated`` wheel is installed in the active environment. This applies to any
+installation method above:
+
+.. code-block:: bash
+
+   uv pip install isaacsim-asset-isolated
+
+After installing the wheel, run conversion in the kitless environment. Optionally pass
+``--viz newton`` (or ``rerun`` / ``viser``) to preview the converted asset in a kitless
+Isaac Lab visualizer:
+
+.. code-block:: bash
+
+   python scripts/tools/convert_urdf.py \
+     path/to/robot.urdf path/to/output_dir --merge_joints
+
+   python scripts/tools/convert_mjcf.py \
+     path/to/model.xml path/to/output.usd --merge_mesh
+
+If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim importer
+extensions first. The standalone wheel is used only when the full Isaac Sim runtime is not
+available.
+
 Asset caching
 -------------
 
