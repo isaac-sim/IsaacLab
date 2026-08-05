@@ -345,7 +345,7 @@ class KaminoSolverCfg(NewtonSolverCfg):
         )
         from newton.solvers import SolverKamino
 
-        # Kamino Manager will set the automatic value before calling this method. 
+        # Kamino Manager will set the automatic value before calling this method.
         # This is a fallback to true if that mechanism was bypassed.
         use_fk_solver = self.use_fk_solver
         if use_fk_solver is None:
