@@ -1208,7 +1208,9 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         count = max(1, len(env_ids))
-        tile_w, tile_h = compute_tile_resolution(self.cfg.window_width, self.cfg.window_height, count)
+        tile_w, tile_h = compute_tile_resolution(
+            self.cfg.window_width, self.cfg.window_height, count, n_gt=len(gt_types)
+        )
         result = create_visualizer_camera(
             num_envs=num_envs,
             width=tile_w,
@@ -1521,6 +1523,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
                 n_envs,
                 self.cfg.streaming_envs,
                 max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
+                sample_from=self._resolved_visible_env_ids,
             )
             self._camera_is_owned = False
 

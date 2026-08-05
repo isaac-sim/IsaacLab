@@ -27,6 +27,10 @@ def _args(**kwargs) -> SimpleNamespace:
 def _env_cfg():
     cfg = MagicMock()
     cfg.video_recorders = []
+    # Simulate an env with no concrete visualizer configured so that apply_video_recording
+    # uses the fallback "visualizer" source string rather than resolving a MagicMock type.
+    cfg.sim.visualizer_cfgs = []
+    cfg.sim.default_visualizer_cfg.visualizer_type = None
     return cfg
 
 
@@ -42,14 +46,13 @@ def test_apply_video_recording_noop_when_video_false():
 
 def test_apply_video_recording_injects_correct_recorder():
     """video=True with no pre-configured recorders creates a default with log_dir output_dir."""
-    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     env_cfg = _env_cfg()
     apply_video_recording(env_cfg, "/my/log", _args(video_length=42, video_interval=500), subdir="play")
     assert len(env_cfg.video_recorders) == 1
-    defaults = VideoRecorderCfg()
     rec = env_cfg.video_recorders[0]
-    assert rec.source == defaults.source  # default source preserved
+    # Kit not running → Newton GL auto-created; source is the concrete backend type.
+    assert rec.source == "visualizer:newton_gl"
     assert rec.video_length == 42  # CLI override applied
     assert rec.video_interval == 500  # CLI override applied
     assert rec.output_dir == os.path.join("/my/log", "videos", "play")
@@ -126,7 +129,7 @@ def test_apply_video_recording_injects_kit_visualizer_when_kit_is_running():
     # KitVisualizerCfg() must have been appended to sim_cfg.visualizer_cfgs
     assert len(sim_cfg.visualizer_cfgs) == 1
     assert sim_cfg.visualizer_cfgs[0] is kit_cfg_instance
-    MockKitVisualizerCfg.assert_called_once_with()
+    MockKitVisualizerCfg.assert_called_once_with(headless=True)
     # The default recorder must reference the injected kit visualizer
     assert len(env_cfg.video_recorders) == 1
     assert env_cfg.video_recorders[0].source == "visualizer:kit"
@@ -170,14 +173,18 @@ def test_apply_video_recording_injects_newton_gl_when_kit_not_running():
 
 
 def test_apply_video_recording_rejects_viz_none_with_video():
-    """--viz none combined with --video raises ValueError with a clear message."""
+    """--viz none combined with --video raises ValueError with a clear message.
+
+    AppLauncher._parse_visualizer_csv("none") returns None (not ["none"]), and
+    ExplicitAction sets visualizer_explicit=True.  Simulate that parsed state.
+    """
     sim_cfg = SimpleNamespace(visualizer_cfgs=[])
     env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
 
     import pytest
 
     with pytest.raises(ValueError, match="--video is not compatible with --viz none"):
-        apply_video_recording(env_cfg, "/my/log", _args(visualizer=["none"]))
+        apply_video_recording(env_cfg, "/my/log", _args(visualizer=None, visualizer_explicit=True))
 
 
 def test_wrap_record_video_is_noop_stub(caplog):

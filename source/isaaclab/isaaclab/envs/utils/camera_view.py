@@ -410,13 +410,26 @@ def compose_rgb_grid_tensor(rgb_batch: torch.Tensor) -> torch.Tensor:
     return rgb.reshape(rows, cols, h, w, 3).permute(0, 2, 1, 3, 4).reshape(rows * h, cols * w, 3).contiguous()
 
 
-def compute_tile_resolution(window_width: int, window_height: int, num_tiles: int) -> tuple[int, int]:
-    """Derive a conservative per-tile resolution from the visualizer window."""
+def compute_tile_resolution(window_width: int, window_height: int, num_tiles: int, n_gt: int = 1) -> tuple[int, int]:
+    """Derive a conservative per-tile resolution from the visualizer window.
+
+    Args:
+        window_width: Visualizer window width in pixels.
+        window_height: Visualizer window height in pixels.
+        num_tiles: Number of environment tiles (one per env).
+        n_gt: Number of GT data types per tile (e.g. 2 for rgb+depth).  The composite
+            image is ``env_cols * n_gt`` tiles wide, so each tile gets
+            ``window_width // (env_cols * n_gt)`` pixels of horizontal space.
+
+    Returns:
+        Per-tile ``(width, height)`` in pixels.
+    """
     if window_width <= 0 or window_height <= 0:
         raise ValueError(f"Window dimensions must be positive, got {window_width}x{window_height}.")
+    n_gt = max(1, int(n_gt))
     cols = max(1, math.ceil(math.sqrt(max(1, num_tiles))))
     rows = math.ceil(max(1, num_tiles) / cols)
-    return max(1, int(window_width) // cols), max(1, int(window_height) // rows)
+    return max(1, int(window_width) // (cols * n_gt)), max(1, int(window_height) // rows)
 
 
 def _normalize_env0_path(path_template: str) -> str:

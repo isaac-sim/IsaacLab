@@ -416,11 +416,9 @@ class KitVisualizer(BaseVisualizer):
             RuntimeError: If streaming_view is not enabled on this visualizer.
         """
         if self._camera_sensor is None:
-            raise RuntimeError(
-                "[KitVisualizer] render_tiled_rgb_array() requires streaming_view=True on "
-                "KitVisualizerCfg. Set streaming_view=True and configure streaming_sensor_prim_path "
-                "or streaming_cam_target_prim_path."
-            )
+            # No camera set up — either streaming_view=False, or streaming_view=True but
+            # --enable_cameras was not passed (Kit skips camera creation without it).
+            return None
         return self._last_streaming_composite
 
     def reapply_origin(self) -> None:

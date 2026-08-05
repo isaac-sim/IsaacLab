@@ -453,13 +453,14 @@ class RerunVisualizer(BaseVisualizer):
             try:
                 if self._state is not None:
                     body_q = getattr(self._state, "body_q", None)
-                    if hasattr(body_q, "shape") and body_q.shape[0] == 0:
-                        return
-                    self._viewer.log_state(self._state)
-                    if self.cfg.enable_markers:
-                        render_newton_visualization_markers(
-                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
-                        )
+                    # Skip log_state for empty body arrays but do not return: _push_streaming_frame
+                    # must still run after end_frame() so the streaming panel stays live.
+                    if not (hasattr(body_q, "shape") and body_q.shape[0] == 0):
+                        self._viewer.log_state(self._state)
+                        if self.cfg.enable_markers:
+                            render_newton_visualization_markers(
+                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                            )
                 self._render_live_plots()
             finally:
                 self._viewer.end_frame()
@@ -658,6 +659,11 @@ class RerunVisualizer(BaseVisualizer):
             return
         cam_pos, cam_target = pose
         self._viewer._camera_pose = pose
+        # Do not send a Spatial3DView blueprint when the streaming composite is active:
+        # the streaming blueprint (Spatial2DView) from _get_blueprint() would be replaced
+        # by a 3D view, hiding the streaming composite panel entirely.
+        if self._streaming_view_active:
+            return
         rr.send_blueprint(
             rrb.Blueprint(
                 rrb.Vertical(

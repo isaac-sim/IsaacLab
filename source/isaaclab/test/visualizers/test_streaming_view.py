@@ -142,10 +142,11 @@ def test_sensor_keys_for_gt_types_deduplication():
 
 
 def test_layout_single_gt_square_grid():
-    # 16 envs × 1 GT, 240h×320w frame → 16:9 target picks 5 cols (5×4 = 1600w×960h → ~1.67 ≈ 16/9)
-    # rather than 4 cols (4×4 = 1280w×960h → 1.33, farther from 16/9)
+    # 16 envs × 1 GT, 240h×320w frame → balanced-grid algorithm picks 4 cols (4×4, no ragged row)
+    # over 5 cols (5 cols → 5+5+5+1 = ragged last row) because completeness is prioritised
+    # over aspect-ratio optimisation.
     cols = _best_streaming_cols(16, 1, 240, 320)
-    assert cols == 5
+    assert cols == 4
 
 
 def test_layout_multi_gt_rows_envs():

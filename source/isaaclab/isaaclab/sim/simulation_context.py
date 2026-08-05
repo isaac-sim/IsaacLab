@@ -460,8 +460,12 @@ class SimulationContext:
             if base_defaults is not None and hasattr(base_defaults, field.name):
                 if default_val == getattr(base_defaults, field.name):
                     continue
-            # Preserve explicitly customised fields on cfg.
-            if factory_defaults is not None and getattr(cfg, field.name) != getattr(factory_defaults, field.name):
+            # Preserve explicitly customised fields on cfg.  When factory_defaults is None
+            # (backend cfg constructor raised), skip the field rather than overwriting it
+            # unconditionally — we cannot tell whether the caller customised it.
+            if factory_defaults is None:
+                continue
+            if getattr(cfg, field.name) != getattr(factory_defaults, field.name):
                 continue
             setattr(cfg, field.name, default_val)
 

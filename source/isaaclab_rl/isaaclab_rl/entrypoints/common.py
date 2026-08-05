@@ -692,7 +692,12 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
         # so there is nothing to record from.  The user must either remove --viz none, pick a
         # capture-capable visualizer type, or configure video_recorders in the env cfg to use
         # a sensor source instead.
-        if cli_visualizers and all(v == "none" for v in cli_visualizers):
+        # NOTE: _parse_visualizer_csv("none") returns None (not ["none"]), so cli_visualizers
+        # is [] even when --viz none was passed.  Use the ExplicitAction sentinel instead.
+        viz_explicitly_none = (
+            getattr(args_cli, "visualizer_explicit", False) and getattr(args_cli, "visualizer", "not_none") is None
+        )
+        if viz_explicitly_none:
             raise ValueError(
                 "--video is not compatible with --viz none: there is no active visualizer to record from. "
                 "Remove --viz none so that video recording can auto-create a visualizer, "
