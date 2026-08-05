@@ -22,7 +22,7 @@
 /apps/ @kellyguo11 @hujc7 @matthewtrepte @StafaH
 
 # Core framework
-/source/isaaclab/ @ooctipus @AntoineRichard @kellyguo11 @StafaH @pbarejko
+/source/isaaclab/ @ooctipus @AntoineRichard @kellyguo11 @StafaH @pbarejko @fatimaanes
 /source/isaaclab/isaaclab/envs/mimic_* @peterd-NV @kellyguo11
 /source/isaaclab/isaaclab/envs/manager_based_rl_mimic_env.py @peterd-NV @kellyguo11
 /source/isaaclab/isaaclab/envs/leapp_deployment_env.py @frlai @StafaH @kellyguo11
