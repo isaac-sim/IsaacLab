@@ -19,6 +19,7 @@ from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPr
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
@@ -245,9 +246,8 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         super().__post_init__()
         # MDP settings
 
-        # set viewer to see the robot and objects on the table
-        self.viewer.eye = [1.8, 0.0, 1.8]
-        self.viewer.lookat = [0.3, 0.0, 0.8]
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.8, 0.0, 1.8), lookat=(0.3, 0.0, 0.8))
 
         # Set events
         self.events = EventCfg()
