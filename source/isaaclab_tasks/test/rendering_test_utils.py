@@ -58,8 +58,9 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "lift_kuka_hetero": 8.0,
 }
 
-# Allow Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled.
-_CARTPOLE_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
+# Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled. The
+# deterministic Warp rasterizer and the Isaac RTX reference path keep the stricter env-wide threshold.
+_CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
 # robust to uniform per-pixel noise that penalises structural changes (geometry shifts, swapped colours, missing
@@ -309,8 +310,7 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
         ),
     ],
     {
-        (physics_backend, "ovrtx_renderer", data_type): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
-        for physics_backend in ("newton", "ovphysx")
+        ("newton", "ovrtx_renderer", data_type): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
         for data_type in _OVRTX_TEXTURE_READINESS_DATA_TYPES
     },
 )
@@ -1573,8 +1573,8 @@ def rendering_test_cartpole(
             compare_golden=compare_golden and data_type == "rgb",
         )
         max_different_pixels_percentage = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"]
-        if data_type in ("rgb", "rgba"):
-            max_different_pixels_percentage = _CARTPOLE_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
+        if renderer == "ovrtx_renderer" and data_type in ("rgb", "rgba"):
+            max_different_pixels_percentage = _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
         validate_camera_outputs(
             "cartpole",
             physics_backend,

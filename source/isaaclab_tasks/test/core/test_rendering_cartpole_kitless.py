@@ -21,11 +21,21 @@ from rendering_test_utils import (
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
+_OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
 _OVSTAGE_OVPHYSX_MOTION_XFAIL_REASON = (
     "OVStage-backed OVRTX motion vectors do not yet match the legacy OVRTX path with OVPhysX."
 )
+_BASE_RENDERING_PARAMS = make_kitless_rendering_params(
+    make_xfail_rendering_params(
+        KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+        {
+            ("ovphysx", "ovrtx_renderer", data_type): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
+            for data_type in ("albedo", "simple_shading_diffuse_mdl", "simple_shading_full_mdl")
+        },
+    )
+)
 _RENDERING_PARAMS = make_xfail_rendering_params(
-    make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
+    _BASE_RENDERING_PARAMS,
     {("ovstage", "ovphysx", "ovrtx_renderer", "motion_vectors"): _OVSTAGE_OVPHYSX_MOTION_XFAIL_REASON},
 )
 _COMPARISON_SCORES: list[dict] = []
