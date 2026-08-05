@@ -517,6 +517,16 @@ Test fixtures.
 """
 
 
+def test_dataclass_transform_metadata():
+    """Test that configclass exposes standard dataclass transform metadata."""
+    metadata = getattr(configclass, "__dataclass_transform__", None)
+
+    assert metadata is not None
+    assert metadata["eq_default"] is True
+    assert metadata["order_default"] is False
+    assert metadata["kw_only_default"] is False
+
+
 def test_str():
     """Test printing the configuration."""
     cfg = BasicDemoCfg()
