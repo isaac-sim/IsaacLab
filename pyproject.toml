@@ -393,15 +393,6 @@ override-dependencies = [
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
-    # Isaac Sim 6.0 pins 4.12.2, which lacks Sentinel required by the Newton viewer stack.
-    "typing-extensions>=4.15.0",
-    # The three overrides below are temporary. Isaac Sim relaxed these pins to ranges in
-    # omni_isaac_sim 1f799b4d (websockets>=12,<15; coverage>=7.4.4,<8; typing_extensions
-    # >=4.12.2,<5); drop all three once a wheel carrying that lands on pypi.nvidia.com.
-    # Isaac Sim pins ==12.0; isaacteleop[cloudxr] needs >=14.0. Ceiling keeps viser's <17.
-    "websockets>=14.0,<17.0.0",
-    # Isaac Sim pins ==7.4.4; numba subclasses coverage.types.Tracer and needs >=7.6.1.
-    "coverage>=7.6.1",
 ]
 # ovphysx pins packaging>=20,<24 while isaacsim-core pins packaging==26.0: a genuine
 # two-sided incompatibility, so uv forks the resolution instead of failing. ``teleop``

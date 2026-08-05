@@ -6,6 +6,3 @@ newton-usd-schemas>=0.4.0
 torch==2.11.0
 torchvision==0.26.0
 torchaudio==2.11.0
-typing-extensions>=4.15.0
-websockets>=14.0,<17.0.0
-coverage>=7.6.1

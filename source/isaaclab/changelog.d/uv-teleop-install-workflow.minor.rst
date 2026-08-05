@@ -22,14 +22,12 @@ Fixed
 ^^^^^
 
 * Fixed the ``uv`` resolution conflict that made Isaac Sim and Isaac Teleop impossible to
-  install together. ``isaacsim-kernel`` pins ``websockets==12.0`` while
-  ``isaacteleop[cloudxr]`` requires ``websockets>=14.0``, so the existing ``websockets``
-  override was raised to ``>=14.0,<17.0.0`` -- clearing Isaac Teleop's floor while keeping
-  the ceiling Viser needs.
-* Fixed ``--extra test`` being unusable with Isaac Sim. ``isaacsim-kernel`` pins
-  ``coverage==7.4.4`` while the ``test`` extra needs ``coverage>=7.6.1`` for numba; a
-  ``coverage>=7.6.1`` override reconciles them and the ``isaacsim``/``test`` conflict is
-  removed, so ``uv run --extra teleop --extra test`` can run the teleop test suite.
+  install together. Isaac Sim 6.1 declares ``websockets``, ``coverage``, and
+  ``typing-extensions`` as ranges rather than exact pins, so the corresponding
+  ``[tool.uv].override-dependencies`` entries were removed and ``isaacteleop[cloudxr]``,
+  the ``test`` extra, and the Newton viewer stack now co-resolve with Isaac Sim directly.
+* Fixed ``--extra test`` being unusable with Isaac Sim, so
+  ``uv run --extra teleop --extra test`` can run the teleop test suite.
 * Fixed the imitation-learning training scripts being unrunnable under ``uv``. The
   ``isaacsim``/``mimic``, ``teleop``/``mimic``, ``teleop``/``all``, and ``isaacsim``/``all``
   conflicts were all stale -- ``robomimic`` no longer constrains ``lxml``, so those extras

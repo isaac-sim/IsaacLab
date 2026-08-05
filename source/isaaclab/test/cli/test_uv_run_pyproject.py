@@ -198,26 +198,21 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
     assert {"isaacsim", "mimic"} not in conflict_groups
 
     assert {"isaacsim", "viser"} not in conflict_groups
-    # The override clears viser's >=13.1 floor and isaacteleop[cloudxr]'s higher >=14.0 floor,
-    # while keeping viser's <17.0.0 ceiling that the override would otherwise discard.
-    assert "websockets>=14.0,<17.0.0" in pyproject["tool"]["uv"]["override-dependencies"]
+    assert not any(dep.startswith("websockets") for dep in pyproject["tool"]["uv"]["override-dependencies"])
 
 
 def test_uv_run_teleop_co_resolves_with_isaacsim():
     """The teleop extra bundles Isaac Sim, so the two must co-resolve.
 
     ``uv run --extra teleop`` is the documented teleoperation command, and it pulls Isaac
-    Sim in. It only resolves because the ``websockets`` override relaxes
-    ``isaacsim-kernel``'s ``==12.0`` pin to the ``>=14.0`` line ``isaacteleop[cloudxr]``
-    requires. Declaring the pair in ``[tool.uv].conflicts``, or dropping the override,
-    would break the command.
+    Sim in. Declaring the pair in ``[tool.uv].conflicts`` would break the command.
     """
     pyproject = _root_pyproject()
     tool_uv = pyproject["tool"]["uv"]
 
     conflict_groups = [{entry["extra"] for entry in group} for group in tool_uv["conflicts"]]
     assert {"isaacsim", "teleop"} not in conflict_groups
-    assert "websockets>=14.0,<17.0.0" in tool_uv["override-dependencies"]
+    assert not any(dep.startswith("websockets") for dep in tool_uv["override-dependencies"])
 
     # The historical lxml split is gone: robomimic no longer constrains lxml, so the teleop
     # and imitation-learning stacks co-resolve.
@@ -251,7 +246,7 @@ def test_uv_run_teleop_extra_bundles_isaacsim():
         assert {"teleop", extra} not in conflict_groups
     # ``--extra teleop --extra test`` must keep working so the teleop suite stays runnable.
     assert {"teleop", "test"} not in conflict_groups
-    assert "coverage>=7.6.1" in pyproject["tool"]["uv"]["override-dependencies"]
+    assert not any(dep.startswith("coverage") for dep in pyproject["tool"]["uv"]["override-dependencies"])
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
