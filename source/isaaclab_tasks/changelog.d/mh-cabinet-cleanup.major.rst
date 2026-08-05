@@ -2,10 +2,10 @@ Changed
 ^^^^^^^
 
 * **Breaking:** Aligned the direct-workflow Franka cabinet environment with its manager-based twin,
-  so ``Isaac-Franka-Cabinet-Direct`` and ``Isaac-Franka-Cabinet`` now define the same MDP. The
-  direct action space changed from nine incremental joint-position commands to seven absolute arm
-  commands and one binary gripper command. Its observation space changed from 23 to 31 values to
-  match the manager observation terms and include the previous action. Existing direct-workflow
+  so ``Isaac-Open-Drawer-Franka-Direct`` and ``Isaac-Open-Drawer-Franka`` now define the same MDP.
+  The direct action space changed from nine incremental joint-position commands to seven absolute
+  arm commands and one binary gripper command. Its observation space changed from 23 to 31 values
+  to match the manager observation terms and include the previous action. Existing direct-workflow
   checkpoints are not compatible with the new action and observation spaces.
 * **Breaking:** Changed the robot-specific fields on
   :class:`~isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg.CabinetDirectEnvCfg` to describe the

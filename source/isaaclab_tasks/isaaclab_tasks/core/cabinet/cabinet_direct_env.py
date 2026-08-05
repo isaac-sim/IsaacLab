@@ -67,6 +67,20 @@ class CabinetDirectEnv(DirectRLEnv):
 
         self._episode_succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._best_drawer_pos = torch.zeros(self.num_envs, device=self.device)
+        self._episode_reward_sums = {
+            name: torch.zeros(self.num_envs, device=self.device)
+            for name in (
+                "approach_ee_handle",
+                "align_ee_handle",
+                "approach_gripper_handle",
+                "align_grasp_around_handle",
+                "grasp_handle",
+                "open_drawer_bonus",
+                "multi_stage_open_drawer",
+                "action_rate_l2",
+                "joint_vel",
+            )
+        }
 
     def _setup_scene(self) -> None:
         self._robot = self.scene["robot"]
@@ -150,18 +164,23 @@ class CabinetDirectEnv(DirectRLEnv):
         action_rate = torch.sum(torch.square(self.actions - self.previous_actions), dim=-1)
         joint_vel = torch.sum(torch.square(self._robot.data.joint_vel.torch), dim=-1)
 
-        reward = (
-            self.cfg.approach_ee_handle_reward_scale * approach_ee_handle
-            + self.cfg.align_ee_handle_reward_scale * align_ee_handle
-            + self.cfg.approach_gripper_handle_reward_scale * approach_gripper_handle
-            + self.cfg.align_grasp_around_handle_reward_scale * align_grasp_around_handle
-            + self.cfg.grasp_handle_reward_scale * grasp_handle
-            + self.cfg.open_drawer_reward_scale * open_drawer
-            + self.cfg.multi_stage_open_drawer_reward_scale * multi_stage_open_drawer
-            + self.cfg.action_rate_reward_scale * action_rate
-            + self.cfg.joint_vel_reward_scale * joint_vel
-        )
-        return reward * self.step_dt
+        reward_terms = {
+            "approach_ee_handle": self.cfg.approach_ee_handle_reward_scale * approach_ee_handle,
+            "align_ee_handle": self.cfg.align_ee_handle_reward_scale * align_ee_handle,
+            "approach_gripper_handle": self.cfg.approach_gripper_handle_reward_scale * approach_gripper_handle,
+            "align_grasp_around_handle": (self.cfg.align_grasp_around_handle_reward_scale * align_grasp_around_handle),
+            "grasp_handle": self.cfg.grasp_handle_reward_scale * grasp_handle,
+            "open_drawer_bonus": self.cfg.open_drawer_reward_scale * open_drawer,
+            "multi_stage_open_drawer": (self.cfg.multi_stage_open_drawer_reward_scale * multi_stage_open_drawer),
+            "action_rate_l2": self.cfg.action_rate_reward_scale * action_rate,
+            "joint_vel": self.cfg.joint_vel_reward_scale * joint_vel,
+        }
+        reward = torch.zeros_like(drawer_pos)
+        for name, value in reward_terms.items():
+            value = value * self.step_dt
+            reward += value
+            self._episode_reward_sums[name] += value
+        return reward
 
     def _reset_idx(self, env_ids: Sequence[int] | None) -> None:
         if env_ids is None:
@@ -170,6 +189,9 @@ class CabinetDirectEnv(DirectRLEnv):
         log = self.extras.setdefault("log", {})
         log["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean().item()
         log["Metrics/drawer_pos"] = self._best_drawer_pos[env_ids].mean().item()
+        for name, episode_sum in self._episode_reward_sums.items():
+            log[f"Episode_Reward/{name}"] = torch.mean(episode_sum[env_ids]) / self.max_episode_length_s
+            episode_sum[env_ids] = 0.0
 
         super()._reset_idx(env_ids)
 
