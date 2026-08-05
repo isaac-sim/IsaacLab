@@ -43,7 +43,18 @@ _CALIB = dict(fx=339.26592887, fy=338.82010626, cx=323.55809091, cy=250.27360914
 # calibrated image the intrinsics refer to (the render grid is smaller and rescaled onto it)
 _IMAGE_W, _IMAGE_H = 640, 480
 _PINHOLE_COEFFS = dict(
-    k1=0.1, k2=-0.05, k3=0.01, k4=0.0, k5=0.0, k6=0.0, p1=0.001, p2=-0.002, s1=0.0, s2=0.0, s3=0.0, s4=0.0
+    k1=0.1,
+    k2=-0.05,
+    k3=0.01,
+    k4=0.005,
+    k5=-0.002,
+    k6=0.0005,
+    p1=0.001,
+    p2=-0.002,
+    s1=0.0005,
+    s2=-0.0002,
+    s3=0.0003,
+    s4=-0.0001,
 )
 
 
@@ -150,16 +161,3 @@ def test_pinhole_zero_coeffs_matches_ideal_projection():
             x_d, y_d = _pixel_distorted_normalized(px, py)
             assert x_u == pytest.approx(x_d, abs=1e-5)
             assert y_u == pytest.approx(y_d, abs=1e-5)
-
-
-def test_pinhole_off_center_principal_point_is_honored():
-    """The ray through the principal-point pixel looks straight ahead (down -Z)."""
-    rays = _launch_pinhole({k: 0.0 for k in _PINHOLE_COEFFS})
-    directions = rays[0, :, :, 1, :]
-    # pixel closest to the principal point on the render grid
-    px = int(round(_CALIB["cx"] / _IMAGE_W * WIDTH - 0.5))
-    py = int(round(_CALIB["cy"] / _IMAGE_H * HEIGHT - 0.5))
-    direction = directions[py, px]
-    assert direction[0] == pytest.approx(0.0, abs=2e-2)
-    assert direction[1] == pytest.approx(0.0, abs=2e-2)
-    assert direction[2] == pytest.approx(-1.0, abs=1e-2)

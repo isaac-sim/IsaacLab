@@ -131,7 +131,7 @@ class RenderData:
         # Camera clipping planes [m] from ``spawn.clipping_range`` (``[0]`` near, ``[1]`` far).
         # Newton's ray tracer has no near-plane parameter, so only the far plane is enforced (through
         # the sensor's ``max_distance``); ``near_clip`` is captured for consumers but not applied.
-        spawn = getattr(spec.cfg, "spawn", None)
+        spawn = spec.cfg.spawn
         clipping_range = getattr(spawn, "clipping_range", None)
         self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
         self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
@@ -148,7 +148,7 @@ class RenderData:
 
         # OpenCV lens-distortion model (``spawn.distortion``), consumed by :meth:`_build_distortion_rays`
         # to trace distorted per-pixel rays instead of the centered, square-pixel pinhole field.
-        self._distortion = getattr(spawn, "distortion", None)
+        self._distortion = spawn.distortion if spawn is not None else None
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -404,8 +404,7 @@ class RenderData:
                 k2=_coeff("k2"),
                 k3=_coeff("k3"),
                 k4=_coeff("k4"),
-                # Match the PR kernel's forward-facing camera hemisphere and avoid validating the
-                # OpenCV polynomial outside its physically meaningful calibration range.
+                # Limit fisheye rays to the forward hemisphere.
                 max_fov=math.pi,
             )
 
@@ -550,9 +549,6 @@ class NewtonWarpRenderer(BaseRenderer):
         Also captures the USD ``stage`` so the segmentation mapper can read the scene's
         :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
 
-        OpenCV lens distortion (``spawn.distortion``) needs no preparation here: it is consumed at
-        ray-generation time by :meth:`RenderData._build_distortion_rays`, which inverts the OpenCV
-        forward model per pixel to trace the distorted camera-space rays.
         """
         self._stage = stage
         if spec.cfg.isp_cfg is None:

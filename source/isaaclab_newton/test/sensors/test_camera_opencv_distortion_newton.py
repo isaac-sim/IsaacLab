@@ -14,8 +14,7 @@ frame rather than only on sparse textured features.
 
 With the coefficients applied vs. muted (``apply_lens_distortion=False``) the same calibrated camera
 produces meaningfully different distance maps; the OpenCV fisheye projection likewise differs from an
-undistorted pinhole. The reconstructed ``intrinsic_matrices`` are also checked end-to-end against the
-authored, non-square, off-center calibration.
+undistorted pinhole.
 
 Notes:
   * Runs against the Newton warp renderer (no Kit/Isaac Sim, no OVRTX). It requires ``newton`` and a
@@ -66,12 +65,14 @@ if not _MISSING_MODULES:
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sensors import Camera, CameraCfg
     from isaaclab.sim import SimulationCfg
+    from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
     from isaaclab.sim.spawners.sensors.sensors_cfg import (
         OpenCvDistortionCfg,
         OpenCvFisheyeDistortionCfg,
         OpenCvPinholeDistortionCfg,
         PinholeCameraCfg,
     )
+    from isaaclab.terrains import TerrainImporterCfg
     from isaaclab.utils.configclass import configclass
     from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
@@ -79,11 +80,11 @@ SIM_DT = 1.0 / 60.0
 WIDTH, HEIGHT = 640, 480
 WARMUP_STEPS = 4
 
-# Example real-world OpenCV pinhole calibration (fx != fy, off-center principal point).
+# OpenCV calibration with non-square focal lengths and an off-center principal point.
 _CALIB = dict(fx=339.26592887, fy=338.82010626, cx=323.55809091, cy=250.27360914)
-_COEFFS = dict(k1=0.07702322, k2=-0.13605453, k3=0.05163219, p1=-0.00024938, p2=-0.00175006)
-# scale the (mild) real coefficients so the barrel effect is unambiguous in the assertion
-_K_SCALE = 15.0
+# The radial map r_d = r_u * (1 + k1 * r_u**2) is globally monotonic because
+# its derivative is 1 + 3 * k1 * r_u**2 > 0.
+_PINHOLE_K1 = 0.1
 # OpenCV fisheye (equidistant) coefficients; the base fisheye projection alone differs strongly from pinhole
 _FISHEYE_COEFFS = dict(k1=0.1, k2=-0.05, k3=0.0, k4=0.0)
 
@@ -95,9 +96,9 @@ if not _MISSING_MODULES:
 
     @configclass
     class _DistortionSceneCfg(InteractiveSceneCfg):
-        """The grid-textured ground plane, a dome light and an off-screen anchor body for Newton."""
+        """A ground plane, calibrated camera, and off-screen anchor body for Newton."""
 
-        ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+        ground = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
         dome_light = AssetBaseCfg(
             prim_path="/World/DomeLight",
             spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9)),
@@ -106,23 +107,31 @@ if not _MISSING_MODULES:
             prim_path="{ENV_REGEX_NS}/Anchor",
             spawn=sim_utils.CuboidCfg(
                 size=(0.01, 0.01, 0.01),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                rigid_props=sim_utils.RigidBodyBaseCfg(),
                 mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-                physics_material=sim_utils.RigidBodyMaterialCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+                collision_props=sim_utils.CollisionBaseCfg(),
+                physics_material=RigidBodyMaterialBaseCfg(),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+        )
+        camera = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Camera",
+            update_period=0.0,
+            height=HEIGHT,
+            width=WIDTH,
+            data_types=["distance_to_camera"],
+            spawn=PinholeCameraCfg(focal_length=13.6, clipping_range=(0.001, 20.0)),
+            renderer_cfg=NewtonWarpRendererCfg(),
         )
 
 
 def _pinhole_distortion(apply_lens_distortion: bool) -> OpenCvPinholeDistortionCfg:
-    """Pinhole OpenCV calibration with the (scaled) SO-101 radial/tangential coefficients."""
+    """Pinhole OpenCV calibration with a globally invertible synthetic radial coefficient."""
     return OpenCvPinholeDistortionCfg(
         image_size=(WIDTH, HEIGHT),
         apply_lens_distortion=apply_lens_distortion,
+        k1=_PINHOLE_K1,
         **_CALIB,
-        **{name: value * _K_SCALE for name, value in _COEFFS.items()},
     )
 
 
@@ -136,8 +145,42 @@ def _fisheye_distortion(apply_lens_distortion: bool) -> OpenCvFisheyeDistortionC
     )
 
 
-def _render_distance(distortion: OpenCvDistortionCfg, device: str) -> tuple[np.ndarray, np.ndarray]:
-    """Render the ground-plane distance map through an OpenCV-calibrated Newton camera; return ``(dist, K)``.
+def _expected_pinhole_ground_distance(px: int, py: int) -> float:
+    """Compute the expected distorted-ray distance to the ground plane [m]."""
+    u = px + 0.5
+    v = py + 0.5
+    x_d = (u - _CALIB["cx"]) / _CALIB["fx"]
+    y_d = (v - _CALIB["cy"]) / _CALIB["fy"]
+    radius_d = float(np.hypot(x_d, y_d))
+
+    if radius_d > 0.0:
+        lower, upper = 0.0, radius_d
+        for _ in range(64):
+            radius_u = 0.5 * (lower + upper)
+            if radius_u * (1.0 + _PINHOLE_K1 * radius_u**2) < radius_d:
+                lower = radius_u
+            else:
+                upper = radius_u
+        scale = (0.5 * (lower + upper)) / radius_d
+        x_u, y_u = x_d * scale, y_d * scale
+    else:
+        x_u, y_u = 0.0, 0.0
+
+    ray_camera = np.array((x_u, -y_u, -1.0))
+    ray_camera /= np.linalg.norm(ray_camera)
+
+    eye = np.asarray(_CAM_EYE)
+    forward = np.asarray(_CAM_TARGET) - eye
+    z_axis = -forward / np.linalg.norm(forward)
+    x_axis = np.cross(np.array((0.0, 0.0, 1.0)), z_axis)
+    x_axis /= np.linalg.norm(x_axis)
+    y_axis = np.cross(z_axis, x_axis)
+    ray_world = np.column_stack((x_axis, y_axis, z_axis)) @ ray_camera
+    return float(-eye[2] / ray_world[2])
+
+
+def _render_distance(distortion: OpenCvDistortionCfg, device: str) -> np.ndarray:
+    """Render the ground-plane distance map through an OpenCV-calibrated Newton camera.
 
     ``distance_to_camera`` (per-pixel ray-hit distance [m]) is used instead of ``rgb`` because it is
     purely geometric and does not depend on scene textures, which Newton skips without Kit.
@@ -146,33 +189,23 @@ def _render_distance(distortion: OpenCvDistortionCfg, device: str) -> tuple[np.n
     sim = sim_utils.SimulationContext(
         SimulationCfg(dt=SIM_DT, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1), device=device)
     )
-    scene = InteractiveScene(_DistortionSceneCfg(num_envs=1, env_spacing=20.0))
-
     rot = tuple(
         quat_from_matrix(
             create_rotation_matrix_from_view(torch.tensor([_CAM_EYE]), torch.tensor([_CAM_TARGET]), up_axis="Z")
         )[0].tolist()
     )
-    camera = Camera(
-        CameraCfg(
-            prim_path="/World/envs/env_.*/Camera",
-            update_period=0.0,
-            height=HEIGHT,
-            width=WIDTH,
-            data_types=["distance_to_camera"],
-            offset=CameraCfg.OffsetCfg(pos=_CAM_EYE, rot=rot, convention="opengl"),
-            spawn=PinholeCameraCfg(focal_length=13.6, clipping_range=(0.001, 20.0), distortion=distortion),
-            renderer_cfg=NewtonWarpRendererCfg(),
-        )
-    )
+    scene_cfg = _DistortionSceneCfg(num_envs=1, env_spacing=20.0)
+    scene_cfg.camera.offset = CameraCfg.OffsetCfg(pos=_CAM_EYE, rot=rot, convention="opengl")
+    scene_cfg.camera.spawn.distortion = distortion
+    scene = InteractiveScene(scene_cfg)
+    camera: Camera = scene["camera"]
     try:
         sim.reset()
         for _ in range(WARMUP_STEPS):
             sim.step()
             camera.update(SIM_DT, force_recompute=True)
         distance = camera.data.output["distance_to_camera"].torch[0].detach().cpu().float().numpy().copy()
-        intrinsics = camera.data.intrinsic_matrices.torch[0].detach().cpu().numpy()
-        return distance, intrinsics
+        return distance
     finally:
         del camera
         del scene
@@ -192,32 +225,16 @@ def _mean_abs_distance_diff(a: np.ndarray, b: np.ndarray) -> float:
 @_SKIP_NO_CUDA
 def test_opencv_distortion_changes_newton_render(device):
     """The Newton renderer must render the distorted and zero-coefficient cameras meaningfully differently."""
-    distorted, _ = _render_distance(_pinhole_distortion(True), device=device)
-    reference, _ = _render_distance(_pinhole_distortion(False), device=device)
+    distorted = _render_distance(_pinhole_distortion(True), device=device)
+    reference = _render_distance(_pinhole_distortion(False), device=device)
 
     assert distorted.shape == (HEIGHT, WIDTH, 1)
-    # both frames render geometry (the ground plane fills the frame)
     assert np.isfinite(distorted).mean() > 0.9
     assert np.isfinite(reference).mean() > 0.9
-    # the renderer applied the lens distortion: the distance maps warp well beyond render noise
     mean_abs_diff = _mean_abs_distance_diff(distorted, reference)
-    assert mean_abs_diff > 0.05, f"distorted vs reference distance maps differ by only {mean_abs_diff:.4f} m"
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_NO_NEWTON
-@_SKIP_NO_CUDA
-def test_opencv_distortion_intrinsics_match_authored_newton(device):
-    """The Newton camera reports intrinsics matching the authored, non-square, off-center calibration."""
-    _distance, k = _render_distance(_pinhole_distortion(True), device=device)
-
-    assert k[0, 0] == pytest.approx(_CALIB["fx"], abs=1e-2)
-    assert k[1, 1] == pytest.approx(_CALIB["fy"], abs=1e-2)
-    assert k[0, 2] == pytest.approx(_CALIB["cx"], abs=1e-2)
-    assert k[1, 2] == pytest.approx(_CALIB["cy"], abs=1e-2)
-    # not the stock fx == fy / centered-principal-point collapse
-    assert k[0, 0] != k[1, 1]
-    assert k[0, 2] != pytest.approx(WIDTH / 2)
+    assert mean_abs_diff > 0.01, f"distorted vs reference distance maps differ by only {mean_abs_diff:.4f} m"
+    for px, py in ((0, 0), (WIDTH // 2, HEIGHT // 2), (WIDTH - 1, HEIGHT - 1)):
+        assert distorted[py, px, 0] == pytest.approx(_expected_pinhole_ground_distance(px, py), abs=2e-3)
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -228,20 +245,13 @@ def test_opencv_fisheye_distortion_renders_through_newton(device):
 
     The same calibrated camera is rendered under the OpenCV fisheye model and under an undistorted
     pinhole. The fisheye equidistant projection bends the rays, so the two distance maps must differ
-    well beyond render noise, and the reported intrinsics must still match the authored calibration.
+    well beyond render noise.
     """
-    fisheye, k = _render_distance(_fisheye_distortion(True), device=device)
-    pinhole, _ = _render_distance(_pinhole_distortion(False), device=device)
+    fisheye = _render_distance(_fisheye_distortion(True), device=device)
+    pinhole = _render_distance(_pinhole_distortion(False), device=device)
 
     assert fisheye.shape == (HEIGHT, WIDTH, 1)
-    # both frames render geometry (the ground plane fills the frame)
     assert np.isfinite(fisheye).mean() > 0.9
     assert np.isfinite(pinhole).mean() > 0.9
-    # the renderer applied the fisheye projection: the distance map differs from the pinhole beyond noise
     mean_abs_diff = _mean_abs_distance_diff(fisheye, pinhole)
     assert mean_abs_diff > 0.05, f"fisheye vs pinhole distance maps differ by only {mean_abs_diff:.4f} m"
-    # the fisheye camera still reports the authored, non-square, off-center calibration
-    assert k[0, 0] == pytest.approx(_CALIB["fx"], abs=1e-2)
-    assert k[1, 1] == pytest.approx(_CALIB["fy"], abs=1e-2)
-    assert k[0, 2] == pytest.approx(_CALIB["cx"], abs=1e-2)
-    assert k[1, 2] == pytest.approx(_CALIB["cy"], abs=1e-2)

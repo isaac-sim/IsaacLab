@@ -3,30 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp ray generation for OpenCV pinhole lens distortion under the Newton renderer.
-
-The Newton tiled camera renders by tracing an explicit per-pixel ray field of shape
-``(camera_count, height, width, 2)`` (``wp.vec3f``): index ``0`` holds the ray origin in camera
-space (always ``wp.vec3f(0.0)``) and index ``1`` the normalized ray direction in camera space.
-Newton uses the OpenGL camera convention (``+X`` right, ``+Y`` up, looking down ``-Z``).
-
-To honor an OpenCV ``fx/fy/cx/cy`` + distortion-coefficient calibration, for each output pixel the
-kernel below inverts the OpenCV forward distortion model to recover the *undistorted* normalized
-image coordinates ``(x_u, y_u)`` (OpenCV image ``y`` points down), then emit the camera-space ray
-``normalize(vec3(x_u, -y_u, -1))`` -- the negation of ``y`` and ``z`` maps OpenCV camera space
-(``+Z`` forward, ``+Y`` down) onto Newton's OpenGL camera space.
-
-OpenCV fisheye ray generation is provided directly by Newton's
-``SensorTiledCamera.utils.compute_camera_rays_fisheye_opencv`` helper.
-"""
+"""Warp ray generation for OpenCV pinhole lens distortion under the Newton renderer."""
 
 from __future__ import annotations
 
 import warp as wp
 
-# Number of fixed-point iterations used to invert the distortion model. OpenCV's own
-# ``undistortPoints`` defaults to a similar iteration budget; the inversion converges well within
-# this for realistic calibrations.
+# Number of fixed-point iterations used to invert the distortion model.
 _INVERSION_ITERATIONS = 20
 
 
@@ -89,6 +72,7 @@ def compute_camera_rays_opencv_pinhole(
     camera_index, py, px = wp.tid()
 
     # Map the render pixel onto the calibrated image grid, then to distorted normalized coordinates.
+    # Match Newton's OpenCV fisheye pixel-grid sampling convention.
     # OpenCV image y points down.
     u = ((wp.float32(px) + 0.5) / wp.float32(width)) * image_width
     v = ((wp.float32(py) + 0.5) / wp.float32(height)) * image_height
