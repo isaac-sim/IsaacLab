@@ -30,9 +30,8 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 
-from .common import VecEnvObs, VecEnvStepReturn
+from .common import VecEnvObs, VecEnvStepReturn, _apply_deprecated_viewer_cfg
 from .direct_rl_env_cfg import DirectRLEnvCfg
-from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder
 
@@ -109,6 +108,10 @@ class DirectRLEnv(gym.Env):
         else:
             logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
+        # Backwards-compat: if the deprecated viewer field has non-default eye/lookat, apply
+        # them to sim.default_visualizer_cfg so the scene camera still matches user intent.
+        _apply_deprecated_viewer_cfg(self.cfg)
+
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
             self.sim: SimulationContext = SimulationContext(self.cfg.sim)
@@ -160,18 +163,6 @@ class DirectRLEnv(gym.Env):
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
-        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
-        has_visualizers = self.sim.has_active_visualizers()
-        if (self.sim.has_gui or has_visualizers) and has_kit():
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
-
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
@@ -182,19 +173,7 @@ class DirectRLEnv(gym.Env):
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
 
-        # Instantiate the video recorder before sim.reset() so that any fallback Camera
-        # (used for state-based envs without an observation camera) is spawned into the USD
-        # stage and registered for the PHYSICS_READY callback before physics initialises.
-        # Forward render_mode so VideoRecorder only spawns fallback cameras when --video is active.
-        if self.cfg.video_recorder is not None:
-            self.cfg.video_recorder.env_render_mode = render_mode
-            # Perspective --video uses same eye/lookat as task viewer (Kit persp + Newton GL).
-            vr = self.cfg.video_recorder
-            vr.eye = tuple(float(x) for x in self.cfg.viewer.eye)
-            vr.lookat = tuple(float(x) for x in self.cfg.viewer.lookat)
-            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
-        else:
-            self.video_recorder = None
+        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
@@ -510,6 +489,10 @@ class DirectRLEnv(gym.Env):
             if "interval" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="interval", dt=self.step_dt)
 
+        # advance video recorders (after render, before obs)
+        for recorder in self.video_recorders:
+            recorder.step()
+
         # update observations
         self.obs_buf = self._get_observations()
 
@@ -547,15 +530,18 @@ class DirectRLEnv(gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
-          x-by-y pixel image, suitable for turning into a video.
+
+        .. note::
+            ``render_mode="rgb_array"`` is no longer supported.  Use
+            :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` on
+            ``env_cfg.video_recorders`` instead.
 
         Args:
             recompute: Whether to force a render even if the simulator has already rendered the scene.
                 Defaults to False.
 
         Returns:
-            The rendered image as a numpy array if mode is "rgb_array". Otherwise, returns None.
+            None.
 
         Raises:
             RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
@@ -568,12 +554,18 @@ class DirectRLEnv(gym.Env):
         if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
+        if self.render_mode == "rgb_array":
+            import warnings
+
+            warnings.warn(
+                "render_mode='rgb_array' is deprecated and will be removed in a future release. "
+                "Use VideoRecorderCfg on env_cfg.video_recorders to capture frames instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return None
         if self.render_mode == "human" or self.render_mode is None:
             return None
-        elif self.render_mode == "rgb_array":
-            if self.video_recorder is None:
-                return None
-            return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
@@ -613,13 +605,15 @@ class DirectRLEnv(gym.Env):
             if isinstance(getattr(self, "obs_buf", None), dict):
                 self.obs_buf.clear()
 
+            # flush any buffered video frames
+            for recorder in getattr(self, "video_recorders", []):
+                recorder.close()
+
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
                 del self.event_manager
             del self.scene
-            if self.viewport_camera_controller is not None:
-                del self.viewport_camera_controller
 
             self.sim.clear_instance()
 

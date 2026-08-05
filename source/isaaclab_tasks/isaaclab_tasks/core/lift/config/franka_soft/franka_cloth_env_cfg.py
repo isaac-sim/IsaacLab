@@ -271,6 +271,14 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.sim.dt = 1 / 60.0
         self.sim.render_interval = self.decimation
 
+        # Hint for the viewport camera when running interactively with --viz kit.
+        # Using default_visualizer_cfg rather than visualizer_cfgs avoids forcing
+        # Kit viewport creation in kitless/headless contexts.
+        from isaaclab_visualizers.kit import KitVisualizerCfg
+
+        self.sim.default_visualizer_cfg = KitVisualizerCfg(
+            origin_type="asset", origin_track_path="robot", origin_env_index=0, eye=(1.25, -1.5, 0.6)
+        )
         self.sim.physics = PhysicsCfg()
 
 

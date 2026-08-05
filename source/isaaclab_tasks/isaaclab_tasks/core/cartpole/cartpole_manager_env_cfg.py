@@ -21,6 +21,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -230,8 +231,8 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 2
         self.episode_length_s = 5
-        # viewer settings
-        self.viewer.eye = (8.0, 0.0, 5.0)
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation

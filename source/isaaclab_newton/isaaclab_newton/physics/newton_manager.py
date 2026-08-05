@@ -601,6 +601,11 @@ class NewtonManager(PhysicsManager):
         cls._mark_sensor_state_dirty()
 
     @classmethod
+    def video_capture_backend(cls) -> str:
+        """Newton GL headless perspective video capture."""
+        return "newton_gl"
+
+    @classmethod
     def pre_render(cls) -> None:
         """Refresh derived Newton state before cameras and visualizers read it."""
         if cls._fk_reset_mask is not None:

@@ -226,6 +226,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 run_log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent}
             )
             env_cfg.log_dir = run_log_dir
+            _common.apply_video_recording(env_cfg, run_log_dir, args_cli, subdir="benchmark")
 
             rl_device = agent_cfg["params"]["config"]["device"]
             clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
@@ -234,7 +235,6 @@ def run(argv: list[str]) -> BenchmarkResult:
             env_t0 = time.perf_counter_ns()
             env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
-            env = _common.wrap_record_video(env, run_log_dir, args_cli)
             env_t1 = time.perf_counter_ns()
 
             env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
