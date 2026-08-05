@@ -20,3 +20,5 @@ Removed
 
 * **Breaking:** Removed the unsupported ``ovphysx`` preset from the Franka soft-beam and cloth lift
   environments. Use ``isaacsim_physx`` for the soft-beam task or ``newton_mjwarp_vbd_proxy`` for either task.
+* **Breaking:** Removed :func:`~isaaclab_tasks.core.lift.mdp.deformable_lifted`. Use
+  :func:`~isaaclab_tasks.core.lift.mdp.deformable_lifting` for a smooth ``tanh``-shaped lifting reward.
