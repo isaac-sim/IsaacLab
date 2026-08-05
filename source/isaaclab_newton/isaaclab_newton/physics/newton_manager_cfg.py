@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
@@ -51,6 +52,20 @@ class NewtonSolverCfg:
         retained as metadata for logging and debugging only.  Do not branch on
         ``solver_type`` in new code.
     """
+
+
+@configclass
+class NewtonSoftContactCfg:
+    """Global soft-contact parameters applied to the finalized Newton model."""
+
+    soft_contact_ke: float = 1.0e3
+    """Body-particle and particle self-contact stiffness [N/m]."""
+
+    soft_contact_kd: float = 10.0
+    """Body-particle contact damping [N*s/m]."""
+
+    soft_contact_mu: float = 0.5
+    """Body-particle contact friction coefficient [dimensionless]."""
 
 
 @configclass
@@ -158,6 +173,12 @@ class NewtonCfg(PhysicsCfg):
     solver_cfg: NewtonSolverCfg | None = None
     """Solver configuration. If None (default), MJWarpSolverCfg is used by default."""
 
+    soft_contact_cfg: NewtonSoftContactCfg | None = None
+    """Global soft-contact parameters applied after model finalization.
+
+    If ``None``, Newton model defaults are preserved.
+    """
+
     collision_cfg: NewtonCollisionPipelineCfg | None = None
     """Newton collision pipeline configuration.
 
@@ -168,6 +189,7 @@ class NewtonCfg(PhysicsCfg):
     - :class:`KaminoPADMMSolverCfg` or :class:`KaminoDVISolverCfg` with
       ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
+    - :class:`VBDSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
     :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
@@ -247,6 +269,21 @@ class NewtonCfg(PhysicsCfg):
             from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
+
+        legacy_model_cfg = getattr(self.solver_cfg, "model_cfg", None)
+        if legacy_model_cfg is not None:
+            if self.soft_contact_cfg is not None:
+                raise ValueError(
+                    "Cannot set soft-contact configuration through both NewtonCfg.soft_contact_cfg "
+                    "and solver_cfg.model_cfg."
+                )
+            warnings.warn(
+                "solver_cfg.model_cfg is deprecated; use NewtonCfg.soft_contact_cfg instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.soft_contact_cfg = legacy_model_cfg
+
         self.class_type = self.solver_cfg.class_type
 
         # Mid-tick re-collide is silently disabled when collision_decimation >= num_substeps.

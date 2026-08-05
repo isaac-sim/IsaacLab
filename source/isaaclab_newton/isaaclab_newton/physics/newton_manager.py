@@ -499,6 +499,7 @@ class NewtonManager(PhysicsManager):
     _cl_protos: dict[str, ModelBuilder] = {}
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, list[float], list[float]], None]] = []
+    _post_start_simulation_hooks: list[Callable[[type[NewtonManager]], None]] = []
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -1108,6 +1109,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._mpm_object_registry = []
         NewtonManager._deformable_registry = []
         NewtonManager._per_world_builder_hooks = []
+        NewtonManager._post_start_simulation_hooks = []
         NewtonManager._up_axis = "Z"
         NewtonManager._scene_data = None
         NewtonManager._scene_data_mapping = None
@@ -1193,6 +1195,11 @@ class NewtonManager(PhysicsManager):
         builder data before :meth:`ModelBuilder.finalize` allocates model arrays.
         The default implementation is a no-op.
         """
+
+    @classmethod
+    def _get_usd_ignore_paths(cls) -> list[str]:
+        """Return prim paths excluded from USD import."""
+        return []
 
     @classmethod
     def cl_register_site(cls, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
@@ -1542,6 +1549,11 @@ class NewtonManager(PhysicsManager):
         cls._prepare_builder_for_finalize(cls._builder)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", activity="Finalizing physics model"):
             NewtonManager._model = cls._builder.finalize(device=device)
+            cfg = PhysicsManager._cfg
+            if isinstance(cfg, NewtonCfg) and cfg.soft_contact_cfg is not None:
+                cls._model.soft_contact_ke = float(cfg.soft_contact_cfg.soft_contact_ke)
+                cls._model.soft_contact_kd = float(cfg.soft_contact_cfg.soft_contact_kd)
+                cls._model.soft_contact_mu = float(cfg.soft_contact_cfg.soft_contact_mu)
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
@@ -1599,6 +1611,9 @@ class NewtonManager(PhysicsManager):
             cls.sync_transforms_to_usd()
             cls.sync_cables_to_usd()
             cls.sync_particles_to_usd()
+
+        for hook in cls._post_start_simulation_hooks:
+            hook(cls)
 
     @staticmethod
     def _initialize_fabric_body_prims(stage, fabric_hierarchy, usdrt, body_bindings: Sequence[tuple[str, int]]) -> None:
@@ -1789,6 +1804,7 @@ class NewtonManager(PhysicsManager):
         builder = cls.create_builder(up_axis=up_axis)
 
         schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+        usd_ignore_paths = cls._get_usd_ignore_paths()
 
         # NOTE: None of the add_usd calls below pass joint_ordering or
         # bodies_follow_joint_ordering, so the live articulation's native
@@ -1804,7 +1820,8 @@ class NewtonManager(PhysicsManager):
 
         if not env_paths:
             # No env Xforms — flat loading
-            import_result = builder.add_usd(stage, ignore_paths=hf_ignore_paths, schema_resolvers=schema_resolvers)
+            ignore_paths = [*hf_ignore_paths, *usd_ignore_paths]
+            import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
@@ -1813,7 +1830,7 @@ class NewtonManager(PhysicsManager):
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             # and any terrain colliders already added as heightfields above.
-            ignore_paths = [path for _, path in env_paths] + hf_ignore_paths
+            ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + usd_ignore_paths
             import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
@@ -1821,7 +1838,10 @@ class NewtonManager(PhysicsManager):
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
             import_result = source_builders[proto_path].add_usd(
-                stage, root_path=proto_path, schema_resolvers=schema_resolvers
+                stage,
+                root_path=proto_path,
+                ignore_paths=usd_ignore_paths,
+                schema_resolvers=schema_resolvers,
             )
             _restore_visible_colliders_without_visual_shapes(
                 source_builders[proto_path], stage, import_result["path_shape_map"]
@@ -2377,6 +2397,10 @@ class NewtonManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     @classmethod
+    def _pre_physics_step(cls) -> None:
+        """Run solver-specific work before collision detection."""
+
+    @classmethod
     def _simulate_full(cls) -> None:
         """Run ``decimation x (actuators + solver substeps)``, then sensors.
 
@@ -2387,6 +2411,7 @@ class NewtonManager(PhysicsManager):
         contacts = cls._contacts if cls._needs_collision_pipeline else None
 
         for _ in range(cls._decimation):
+            cls._pre_physics_step()
             if cls._needs_collision_pipeline:
                 cls._collision_pipeline.collide(cls._state_0, cls._contacts)
 
@@ -2408,6 +2433,7 @@ class NewtonManager(PhysicsManager):
         Used when actuators are stepped eagerly outside the graph, or when
         there are no actuators at all.
         """
+        cls._pre_physics_step()
         if cls._needs_collision_pipeline:
             cls._collision_pipeline.collide(cls._state_0, cls._contacts)
             contacts = cls._contacts

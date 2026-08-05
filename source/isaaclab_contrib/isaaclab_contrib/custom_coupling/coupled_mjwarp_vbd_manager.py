@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import Contacts, Control, Model, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
-
-from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 from .kernels import _kernel_body_particle_reaction
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
@@ -111,11 +110,11 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         cls._coupling_mode = None
 
     @classmethod
-    def _simulate_physics_only(cls) -> None:
-        # Rebuild the BVH before stepping solvers that require it, such as VBD cloth.
-        if hasattr(cls._soft_solver, "rebuild_bvh"):
+    def _pre_physics_step(cls) -> None:
+        """Rebuild the coupled VBD particle BVH before collision detection."""
+        super()._pre_physics_step()
+        if cls._model.particle_count > 0 and hasattr(cls._soft_solver, "rebuild_bvh"):
             cls._soft_solver.rebuild_bvh(cls._state_0)
-        super()._simulate_physics_only()
 
     @classmethod
     def _step_one_way(cls, state_in: State, state_out: State, control: Control, dt: float) -> None:

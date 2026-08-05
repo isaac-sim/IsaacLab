@@ -56,6 +56,8 @@ isaaclab
 isaaclab_newton
 ^^^^^^^^^^^^^^^^
 
+* Standalone VBD deformable solver
+
 * Implicit Material Point Method (MPM) solver and declarative particle assets
 * Fixed and capture-compatible capacity-bounded sparse MPM grids
 * Standard visual-material binding for MPM particle visualization
@@ -63,9 +65,8 @@ isaaclab_newton
 isaaclab_contrib
 ^^^^^^^^^^^^^^^^
 
-* Experimental Newton deformable objects
-* VBD deformable solver (see :doc:`using-vbd-solver`)
-* MJWarp and VBD proxy coupling
+* Newton deformable object integration
+* MJWarp and VBD proxy and ADMM coupling
 * Proxy-based coupling for rigid and particle solvers, including MJWarp + MPM
 
 The following sensors are backend-agnostic (implemented in ``isaaclab`` core)
@@ -112,10 +113,10 @@ Solver Coverage
 * **Kamino solver**: beta. Currently validated on ``Isaac-Cartpole-Direct``,
   ``Isaac-Ant-Direct``, ``Isaac-Cartpole``, and ``Isaac-Ant``. See
   :doc:`kamino-solver`.
-* **VBD solver**: experimental, exposed through :mod:`isaaclab_contrib.deformable`
-  for cloth, soft-body, and cable simulation. Rigid and deformable scenes can use
-  proxy coupling from :mod:`isaaclab_contrib.coupling` so MJWarp advances rigid
-  bodies and VBD advances deformable particles. Cable objects work with standalone
+* **VBD solver**: experimental, exposed through :mod:`isaaclab_newton.physics`
+  for standalone cloth, soft-body, and cable simulation. Rigid and deformable
+  scenes can use proxy or ADMM coupling from :mod:`isaaclab_contrib.coupling` so
+  MJWarp advances rigid bodies and VBD advances deformable particles. Cable objects work with standalone
   VBD and with :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` when a named VBD
   entry owns the cable. See :doc:`using-vbd-solver` and
   :doc:`newton-manager-abstraction`.

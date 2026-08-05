@@ -32,17 +32,7 @@ Deformable Object
 Newton Solver Configurations
 ----------------------------
 
-.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelCfg
-  :members:
-  :show-inheritance:
-  :exclude-members: __init__
-
 .. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelSolverCfg
-  :members:
-  :show-inheritance:
-  :exclude-members: __init__
-
-.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.VBDSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
@@ -52,10 +42,31 @@ Newton Solver Configurations
   :show-inheritance:
   :exclude-members: __init__
 
-Newton Solver Managers
-----------------------
+Deprecated Compatibility Aliases
+--------------------------------
+
+``NewtonModelCfg`` and ``VBDSolverCfg`` remain available from
+``isaaclab_contrib.deformable`` for compatibility. ``NewtonVBDManager`` remains
+available from ``isaaclab_contrib.deformable.vbd_manager``. Use
+:class:`isaaclab_newton.physics.NewtonSoftContactCfg`,
+:class:`isaaclab_newton.physics.VBDSolverCfg`, and
+:class:`isaaclab_newton.physics.NewtonVBDManager` for new code. Pass the
+soft-contact configuration through
+:attr:`isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`.
+
+.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelCfg
+  :members:
+  :no-index:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: isaaclab_contrib.deformable.newton_manager_cfg.VBDSolverCfg
+  :members:
+  :no-index:
+  :show-inheritance:
+  :exclude-members: __init__
 
 .. autoclass:: isaaclab_contrib.deformable.vbd_manager.NewtonVBDManager
   :members:
-  :inherited-members:
+  :no-index:
   :show-inheritance:

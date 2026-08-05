@@ -5,6 +5,7 @@
 
 """Unit tests for the custom coupling manager."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -145,6 +146,26 @@ def test_step_preserves_input_forces(mode: str, monkeypatch: pytest.MonkeyPatch)
         reactions.assert_called_once_with(state_in, state_out, 0.01)
     else:
         reactions.assert_not_called()
+
+
+def test_pre_physics_step_rebuilds_soft_solver(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Rebuild the real VBD solver through the shared pre-step hook."""
+    base_hook = MagicMock()
+    soft_solver = MagicMock()
+    state = object()
+    monkeypatch.setattr(
+        manager_module.NewtonVBDManager,
+        "_pre_physics_step",
+        classmethod(lambda cls: base_hook()),
+    )
+    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_model", SimpleNamespace(particle_count=1))
+    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_soft_solver", soft_solver)
+    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_state_0", state)
+
+    NewtonCoupledMJWarpVBDManager._pre_physics_step()
+
+    base_hook.assert_called_once_with()
+    soft_solver.rebuild_bvh.assert_called_once_with(state)
 
 
 def test_solver_specific_clear_releases_subsolvers(monkeypatch: pytest.MonkeyPatch) -> None:

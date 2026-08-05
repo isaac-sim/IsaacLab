@@ -35,7 +35,6 @@ class PhysicsCfg(CorePhysicsCfg):
             soft_solver_cfg=VBDSolverCfg(
                 integrate_with_external_rigid_solver=True,
             ),
-            model_cfg=CorePhysicsCfg().newton_mjwarp_vbd_proxy.solver_cfg.model_cfg,
         ),
     )
 

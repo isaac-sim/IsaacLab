@@ -63,9 +63,10 @@ The following features are currently available in ``isaaclab_contrib``:
        on SO(3) (Lee et al.). Suitable for both trajectory following and RL baselines.
      - API reference: :mod:`~isaaclab_contrib.controllers`
    * - **Newton VBD Deformable Objects**
-     - Extended deformable object support using the Newton physics backend with Vertex Block Descent (VBD),
-       including proxy coupling between MJWarp and VBD.
-     - API reference: :mod:`~isaaclab_contrib.deformable`, :mod:`~isaaclab_contrib.coupling`
+     - Extended deformable object support with proxy and custom coupling between MJWarp and VBD.
+       Standalone VBD is provided by :mod:`isaaclab_newton.physics`.
+     - API reference: :mod:`~isaaclab_contrib.deformable`, :mod:`~isaaclab_contrib.coupling`,
+       :mod:`~isaaclab_contrib.custom_coupling`
 
 Contributing
 ------------

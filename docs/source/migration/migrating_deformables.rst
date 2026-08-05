@@ -71,6 +71,29 @@ from the physics backend package:
      - ``from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg``
    * - ``from isaaclab_physx.assets import DeformableObjectCfg``
      - ``from isaaclab.assets import DeformableObjectCfg``
+   * - ``from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager``
+     - ``from isaaclab_newton.physics import NewtonVBDManager``
+   * - ``from isaaclab_contrib.deformable import VBDSolverCfg``
+     - ``from isaaclab_newton.physics import VBDSolverCfg``
+   * - ``from isaaclab_contrib.deformable import NewtonModelCfg``
+     - ``from isaaclab_newton.physics import NewtonSoftContactCfg``
+
+The contrib VBD configuration names remain as compatibility aliases. New code
+should use the core imports above. Global soft-contact configuration also moved
+from ``solver_cfg.model_cfg`` to the outer
+:attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg` field.
+
+The ``soft_contact_kd`` default also changed from ``0.01`` to ``10.0`` to match
+Newton. Set ``soft_contact_kd=0.01`` explicitly to retain the previous behavior:
+
+.. code-block:: python
+
+   from isaaclab_newton.physics import NewtonCfg, NewtonSoftContactCfg, VBDSolverCfg
+
+   physics_cfg = NewtonCfg(
+       solver_cfg=VBDSolverCfg(iterations=10),
+       soft_contact_cfg=NewtonSoftContactCfg(soft_contact_kd=0.01),  # retain legacy damping
+   )
 
 
 Removed Properties
@@ -245,9 +268,10 @@ Limitations
   deformable will raise a ``ValueError``.
 - **Surface-specific solver properties** (``collision_pair_update_frequency``,
   ``collision_iteration_multiplier``) have no effect on volume deformables.
-- **Newton deformables are experimental.** They are implemented in
-  :mod:`isaaclab_contrib.deformable` and currently target VBD-based solvers and
-  coupled rigid-deformable workflows.
+- **Newton deformables are experimental.** Standalone VBD configuration and its
+  manager live in :mod:`isaaclab_newton.physics`. The deformable object
+  integration and coupled rigid-deformable configurations remain in
+  :mod:`isaaclab_contrib.deformable`.
 
 
 .. _Omni Physics documentation: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/110.0/dev_guide/deformables/deformable_bodies.html

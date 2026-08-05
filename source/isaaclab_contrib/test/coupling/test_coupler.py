@@ -558,7 +558,7 @@ def test_coupler_clear_releases_nested_manager_state(monkeypatch):
 def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
     """Coupled MPM entries register attributes and normalize kinematic colliders."""
     events: list[tuple[str, object]] = []
-    builder = object()
+    builder = SimpleNamespace(color=lambda: None)
     solver_cfg = CouplerProxyCfg(
         entries=[CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg())],
     )
