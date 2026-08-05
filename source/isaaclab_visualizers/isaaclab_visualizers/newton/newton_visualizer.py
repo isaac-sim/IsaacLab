@@ -176,44 +176,35 @@ class _NewtonViewerUIMixin:
         _viewer_ref = self  # capture for closure — used to read composite dimensions
 
         def _draw_large(self_logger: object) -> None:
-            entry = self_logger._images.get(self_logger._selected)
-            if entry is not None and not entry.window_initialized:
-                from imgui_bundle import imgui as _imgui
-
-                vp = _imgui.get_main_viewport()
-                sidebar_w = float(self_logger._sidebar_width_px)
-                margin = 20.0
-                avail_w = max(320.0, vp.work_size.x - sidebar_w - 2.0 * margin)
-                avail_h = max(240.0, vp.work_size.y - 2.0 * margin)
-                title_h = 40.0
-
-                # Use actual composite dimensions tracked by the visualizer.
-                # Newton's entry.tile_aspect is unreliable after the 1×1 placeholder
-                # log, so we bypass it entirely when dimensions are known.
+            # Use our own flag (not Newton's entry.window_initialized) so Newton cannot
+            # pre-empt our sizing by marking the window as initialized via the placeholder.
+            if getattr(_viewer_ref, "_streaming_panel_needs_sizing", False):
                 comp_w = getattr(_viewer_ref, "_streaming_composite_w", 0)
                 comp_h = getattr(_viewer_ref, "_streaming_composite_h", 0)
                 if comp_w > 0 and comp_h > 0:
+                    from imgui_bundle import imgui as _imgui
+
+                    vp = _imgui.get_main_viewport()
+                    sidebar_w = float(self_logger._sidebar_width_px)
+                    margin = 20.0
+                    avail_w = max(320.0, vp.work_size.x - sidebar_w - 2.0 * margin)
+                    avail_h = max(240.0, vp.work_size.y - 2.0 * margin)
+                    title_h = 40.0
                     composite_wh = comp_w / comp_h
-                else:
-                    n_tiles = max(1, int(entry.n))
-                    tile_aspect = float(entry.tile_aspect) if float(entry.tile_aspect) > 0 else 1.0
-                    cols = max(1, math.ceil(math.sqrt(n_tiles)))
-                    rows = math.ceil(n_tiles / cols)
-                    composite_wh = cols / (rows * tile_aspect)
 
-                # Fit within available space preserving the composite aspect ratio.
-                if avail_w / composite_wh + title_h <= avail_h:
-                    w = avail_w
-                    h = avail_w / composite_wh + title_h
-                else:
-                    h = avail_h
-                    w = (avail_h - title_h) * composite_wh
+                    if avail_w / composite_wh + title_h <= avail_h:
+                        w = avail_w
+                        h = avail_w / composite_wh + title_h
+                    else:
+                        h = avail_h
+                        w = (avail_h - title_h) * composite_wh
 
-                x = sidebar_w + margin + (avail_w - w) * 0.5
-                y = margin + (avail_h - h) * 0.5
-                _imgui.set_next_window_pos(_imgui.ImVec2(float(x), float(y)), _imgui.Cond_.once)
-                _imgui.set_next_window_size(_imgui.ImVec2(float(w), float(h)), _imgui.Cond_.once)
-                entry.window_initialized = True  # prevent Newton's own sizing
+                    x = sidebar_w + margin + (avail_w - w) * 0.5
+                    y = margin + (avail_h - h) * 0.5
+                    # Cond_.always overrides whatever size Newton or imgui.ini gave the window.
+                    _imgui.set_next_window_pos(_imgui.ImVec2(float(x), float(y)), _imgui.Cond_.always)
+                    _imgui.set_next_window_size(_imgui.ImVec2(float(w), float(h)), _imgui.Cond_.always)
+                    _viewer_ref._streaming_panel_needs_sizing = False
             return _orig_draw(self_logger)
 
         image_logger.draw = types.MethodType(_draw_large, image_logger)
@@ -467,11 +458,14 @@ class _NewtonViewerUIMixin:
         if changed:
             new_selected = None if new_idx == 0 else names[new_idx - 1]
             image_logger._selected = new_selected
-            # Reset window layout so the panel reopens at 75 % size.
+            # Signal the image-logger draw hook to resize to the composite aspect ratio.
             if new_selected is not None:
                 entry = image_logger._images.get(new_selected)
                 if entry is not None:
                     entry.window_initialized = False
+                # Set our flag so _draw_large applies correct aspect-ratio sizing.
+                viewer = getattr(self, "_viewer", None) or self
+                viewer._streaming_panel_needs_sizing = True
 
     def _coerce_color3(self, color) -> tuple[float, float, float]:
         """Normalize color values from imgui/renderer into an RGB tuple."""
@@ -979,6 +973,15 @@ class NewtonVisualizer(BaseVisualizer):
                 self._pump_paused()
         except Exception:
             logger.exception("[%s] Viewer update failed.", type(self).__name__)
+            # Subclasses that cannot recover from a viewer failure (e.g. RTX when OVRTX is
+            # unavailable) set _disable_viewer_on_step_exception = True so the viewer is
+            # permanently disabled after the first failure instead of spamming the log.
+            if getattr(self, "_disable_viewer_on_step_exception", False):
+                logger.error(
+                    "[%s] Permanently disabling viewer after unrecoverable initialization failure.",
+                    type(self).__name__,
+                )
+                self._viewer = None
 
     def is_reset_requested(self) -> bool:
         """Return whether an episode reset was requested via the viewer UI."""
@@ -1473,6 +1476,8 @@ class NewtonGLVisualizer(NewtonVisualizer):
                     entry = image_logger._images.get(new_selected)
                     if entry is not None:
                         entry.window_initialized = False
+                    # Signal _draw_large to apply aspect-ratio sizing.
+                    self_viewer._streaming_panel_needs_sizing = True
 
             # Source Camera selector — inside the accordion, below Open/Hide.
             if _vis._streaming_camera_choices:
@@ -1551,6 +1556,119 @@ class NewtonGLVisualizer(NewtonVisualizer):
     def supports_live_plots(self) -> bool:
         """Newton GL supports live scalar/array plots via the ImGui sidebar."""
         return True
+
+    def add_live_plots(
+        self,
+        managers: dict,
+        scalars: dict | None = None,
+        term_names: dict[str, list[str]] | None = None,
+        env_idx: int = 0,
+    ) -> None:
+        """Register managers for live plotting and add per-manager sidebar toggles.
+
+        Calls the base implementation to populate :attr:`_live_plot_sources`, then registers
+        the Live Plots collapsing section in the Newton viewer sidebar.
+
+        Args:
+            managers: Mapping of manager name to manager instance.
+            scalars: Optional mapping of group name to a dict of ``{term_name: callable}``.
+            term_names: Optional per-manager allowlists of term names to include.
+            env_idx: Environment index to sample each step.  Defaults to ``0``.
+        """
+        super().add_live_plots(managers, scalars=scalars, term_names=term_names, env_idx=env_idx)
+        if not self._live_plot_sources or self._viewer is None:
+            return
+        self._live_plots_manager_visible = {source.manager_name: True for source in self._live_plot_sources}
+        self._viewer._live_plots_callback = self._live_plots_panel_imgui
+
+    def _live_plots_panel_imgui(self, imgui) -> None:
+        """Render a Live Plots collapsing section in the Newton GL sidebar."""
+        if not self._live_plot_sources or self._viewer is None:
+            return
+        viewer = self._viewer
+        scalar_buffers = getattr(viewer, "_scalar_buffers", None)
+        array_buffers = getattr(viewer, "_array_buffers", None)
+        if not scalar_buffers and not array_buffers:
+            return
+
+        _ip = getattr(viewer, "_implot", None)
+        if not hasattr(viewer, "_scalar_arrays"):
+            viewer._scalar_arrays = {}
+        scalar_arrays = viewer._scalar_arrays
+        n = getattr(viewer, "_plot_history_size", 250)
+        s = viewer.gui.ui.dpi_scale
+        plot_h = 180 * s
+
+        groups: dict[str, list[str]] = {}
+        for name in scalar_buffers or {}:
+            base = _newton_scalar_base_name(name)
+            groups.setdefault(base, []).append(name)
+
+        episode_keys = [k for k in groups if k.startswith("episode/")]
+        other_keys = [k for k in groups if not k.startswith("episode/")]
+        groups = {k: groups[k] for k in episode_keys + other_keys}
+
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
+        if not imgui.collapsing_header("Live Plots"):
+            return
+        imgui.separator()
+
+        for base_name, names in groups.items():
+            term_label = base_name.rsplit("/", 1)[-1]
+            if not imgui.collapsing_header(term_label):
+                continue
+            for name in names:
+                buf = scalar_buffers.get(name, [])
+                arr = scalar_arrays.get(name)
+                if arr is None:
+                    arr = np.full(n, np.nan, dtype=np.float32)
+                    arr[n - len(buf) :] = np.array(buf, dtype=np.float32)
+                    scalar_arrays[name] = arr
+            if _ip is not None and _ip.begin_plot(f"##{base_name}", imgui.ImVec2(-1, plot_h)):
+                _auto = _ip.AxisFlags_.auto_fit.value
+                _ip.setup_axes("", "", _auto, _auto)
+                _ip.setup_finish()
+                for name in names:
+                    arr = scalar_arrays.get(name)
+                    if arr is not None:
+                        suffix = name[len(base_name) :]
+                        label = suffix if suffix else term_label
+                        _ip.plot_line(label, arr)
+                _ip.end_plot()
+            else:
+                graph_size = imgui.ImVec2(-1, 80 * s)
+                for name in names:
+                    arr = scalar_arrays.get(name)
+                    if arr is not None:
+                        buf = scalar_buffers.get(name, [])
+                        overlay = f"{buf[-1]:.4g}" if buf else ""
+                        imgui.plot_lines(f"##{name}", arr, graph_size=graph_size, overlay_text=overlay)
+
+        render_heatmap = getattr(viewer, "_render_array_heatmap", None)
+        if render_heatmap is not None:
+            panel_width = imgui.get_content_region_avail().x
+            for name, array in (array_buffers or {}).items():
+                if imgui.collapsing_header(name):
+                    render_heatmap(name, array, panel_width - 20.0 * s, dpi_scale=s)
+
+    def _render_live_plots(self) -> None:
+        """Push manager-term scalars to the Newton viewer's built-in plot panel."""
+        if self._viewer is None or not self._live_plot_sources:
+            return
+        if getattr(self, "_runtime_headless", False):
+            return
+        self._live_plots_step_counter += 1
+        if self._live_plots_step_counter % max(1, getattr(self.cfg, "live_plots_update_interval", 10)) != 0:
+            return
+        for source in self._live_plot_sources:
+            if not self._live_plots_manager_visible.get(source.manager_name, True):
+                continue
+            for term_name, values in source.collect(self._live_plot_env_idx).items():
+                if len(values) == 1:
+                    self._viewer.log_scalar(f"{source.manager_name}/{term_name}", values[0])
+                else:
+                    for i, v in enumerate(values):
+                        self._viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
 
     def _apply_viewer_post_init(self) -> None:
         """Apply GL-specific renderer settings after viewer construction."""
@@ -1724,6 +1842,9 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         super().__init__(cfg)
         self.cfg: NewtonRTXVisualizerCfg = cfg
         self._rtx_fov_pending = False
+        # OVRTX loads lazily on first begin_frame(); disable permanently on first failure
+        # so a missing/broken OVRTX install doesn't spam the log every step.
+        self._disable_viewer_on_step_exception = True
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
         return NewtonViewerRTX(
