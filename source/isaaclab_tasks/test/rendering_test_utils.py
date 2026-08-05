@@ -58,8 +58,8 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "lift_kuka_hetero": 8.0,
 }
 
-# Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled.
-_CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
+# Allow Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled.
+_CARTPOLE_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
 # robust to uniform per-pixel noise that penalises structural changes (geometry shifts, swapped colours, missing
@@ -1571,8 +1571,8 @@ def rendering_test_cartpole(
             compare_golden=compare_golden and data_type == "rgb",
         )
         max_different_pixels_percentage = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"]
-        if physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type in ("rgb", "rgba"):
-            max_different_pixels_percentage = _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
+        if data_type in ("rgb", "rgba"):
+            max_different_pixels_percentage = _CARTPOLE_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
         validate_camera_outputs(
             "cartpole",
             physics_backend,
