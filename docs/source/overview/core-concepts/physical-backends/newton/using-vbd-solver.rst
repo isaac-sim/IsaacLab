@@ -218,6 +218,41 @@ Self-Contact
       - Default: ``0.0`` [m]. Filters self-contact candidates whose rest-configuration distance is shorter than this distance. Increase it when rest-neighbor contacts produce unwanted resistance.
 
 
+Custom MJWarp + VBD Parameters
+------------------------------
+
+The opt-in
+:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` runs
+MJWarp and VBD over one shared model. Import
+:mod:`isaaclab_contrib.custom_coupling.tasks` explicitly before using its
+registered task.
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 70
+
+    * - Parameter
+      - Description
+    * - ``rigid_solver_cfg``
+      - MJWarp configuration for rigid bodies.
+    * - ``soft_solver_cfg``
+      - VBD configuration. Set ``integrate_with_external_rigid_solver=True``
+        so VBD advances only particles.
+    * - ``coupling_mode="one_way"``
+      - Advance rigid bodies first, then particles without rigid reaction
+        forces.
+    * - ``coupling_mode="two_way"``
+      - Inject particle reactions before MJWarp, then advance VBD with the same
+        contacts.
+
+MJWarp ``nconmax`` and ``njmax`` must cover the rigid contacts and constraints
+in the scene. ``ccd_iterations`` can affect fast rigid contacts near
+deformables. See :doc:`mjwarp-solver` for the rigid-solver parameters.
+
+Use the custom manager for direct shared-model substep ordering. Use proxy
+coupling when deformable contact is localized to selected rigid bodies.
+
+
 .. _newton-vbd-proxy-coupling:
 
 Coupled MJWarp + VBD
