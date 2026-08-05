@@ -39,6 +39,10 @@ class Test_Uv_Run_Teleop_Imports_Isaac_Teleop:
     ``--frozen`` so the extras resolve from ``pyproject.toml`` rather than requiring the
     committed ``uv.lock`` to already carry them. The environment goes to a temporary
     directory via ``UV_PROJECT_ENVIRONMENT`` so the repository checkout stays clean.
+
+    Marked ``docker`` and ``gpu`` like the other ``uv_run`` tests: importing ``isaacsim``
+    loads Kit's native bindings, which abort on a signal rather than raising when no GPU
+    is present.
     """
 
     @classmethod
@@ -49,8 +53,10 @@ class Test_Uv_Run_Teleop_Imports_Isaac_Teleop:
         if platform.system() != "Linux" or platform.machine().lower() not in ("x86_64", "amd64"):
             pytest.skip("Isaac Teleop is only supported on Linux x86_64")
 
+    @pytest.mark.docker
     @pytest.mark.uv
     @pytest.mark.slow
+    @pytest.mark.gpu
     @pytest.mark.timeout(3600)
     def test_uv_run_teleop_extra_imports_the_teleop_stack(self, isaaclab_root, tmp_path):
         """Verify the teleop extra installs Isaac Sim and Isaac Teleop together."""
@@ -76,8 +82,10 @@ class Test_Uv_Run_Teleop_Imports_Isaac_Teleop:
         )
         assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
 
+    @pytest.mark.docker
     @pytest.mark.uv
     @pytest.mark.slow
+    @pytest.mark.gpu
     @pytest.mark.timeout(3600)
     def test_uv_run_teleop_exposes_the_teleop_entry_point(self, isaaclab_root, tmp_path):
         """Verify ``isaaclab teleop`` runs from the teleop environment."""
