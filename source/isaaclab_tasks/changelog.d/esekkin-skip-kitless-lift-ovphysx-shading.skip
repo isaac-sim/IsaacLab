@@ -1,0 +1,1 @@
+Test-only: skipped the crash-prone kitless Lift OVPhysX MDL renders and the hanging franka_soft OVPhysX depth case, and extended the Cartpole OVRTX RGB tolerance to OVPhysX (NVBUG#6524987, NVBUG#6564917, NVBUG#6152566).
