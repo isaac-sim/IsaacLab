@@ -23,6 +23,7 @@ from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 import isaaclab_tasks.contrib.deploy.mdp.terminations as gear_assembly_terminations
@@ -312,7 +313,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.episode_length_s = 6.66
-        self.viewer.eye = (3.5, 3.5, 3.5)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(3.5, 3.5, 3.5))
         # simulation settings
         self.decimation = 4
         self.sim.render_interval = self.decimation

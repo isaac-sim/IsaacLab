@@ -26,6 +26,7 @@ from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -345,6 +346,5 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 1
         self.episode_length_s = 8.0
-        self.viewer.eye = (-2.0, 2.0, 2.0)
-        self.viewer.lookat = (0.8, 0.0, 0.5)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5))
         # simulation settings are defined in CabinetSimCfg (dt/physics vary per backend)

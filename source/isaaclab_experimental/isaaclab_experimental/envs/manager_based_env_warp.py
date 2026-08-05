@@ -28,13 +28,11 @@ import warp as wp
 
 from isaaclab.envs.common import VecEnvObs
 from isaaclab.envs.manager_based_env_cfg import ManagerBasedEnvCfg
-from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.io_descriptors import export_articulations_data, export_scene_data
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
@@ -76,6 +74,14 @@ class ManagerBasedEnvWarp:
         cfg.validate()
         # store inputs to class
         self.cfg = cfg
+        # Video recording is not supported on Warp environments.
+        if getattr(cfg, "video_recorders", None):
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning(
+                "cfg.video_recorders is set but ManagerBasedEnvWarp does not support VideoRecorder. "
+                "No clips will be written. Use ManagerBasedEnv for video recording support."
+            )
         # initialize internal variables
         self._is_closed = False
         # temporary debug runtime config for manager source/call switching.
@@ -156,17 +162,6 @@ class ManagerBasedEnvWarp:
 
         # Persistent scalar buffer for global env step count (stable pointer for capture).
         self._global_env_step_count_wp = wp.zeros((1,), dtype=wp.int32, device=self.device)
-
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
-        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
-        if (self.sim.has_gui or self.sim.has_active_visualizers()) and has_kit():
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -597,7 +592,6 @@ class ManagerBasedEnvWarp:
         """Cleanup for the environment."""
         if not self._is_closed:
             # destructor is order-sensitive
-            del self.viewport_camera_controller
             del self.action_manager
             del self.observation_manager
             del self.event_manager
