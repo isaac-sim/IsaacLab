@@ -253,7 +253,6 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
                 joint_names_expr=["panda_joint[1-7]"],
                 effort_limit_sim={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
                 velocity_limit_sim={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
-                # velocity_limit_sim={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
                 stiffness={
                     "panda_joint[1-4]": 600.0,
                     "panda_joint5": 250.0,
@@ -462,10 +461,23 @@ class FrankaCameraObservationsCfg:
 class EventCfg:
     """Reset events: robot to default joint config, deformable with small position randomization."""
 
-    reset_robot_joints = EventTerm(
+    reset_robot_arm_joints = EventTerm(
         func=mdp.reset_joints_by_scale,
         mode="reset",
-        params={"position_range": (0.9, 1.1), "velocity_range": (0.0, 0.0)},
+        params={
+            "position_range": (0.9, 1.1),
+            "velocity_range": (0.0, 0.0),
+            "asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint.*"),
+        },
+    )
+
+    reset_robot_gripper_joints = EventTerm(
+        func=mdp.reset_joints_shared_offset,
+        mode="reset",
+        params={
+            "position_range": (-0.02, 0.0),
+            "asset_cfg": SceneEntityCfg("robot", joint_names="panda_finger_joint.*"),
+        },
     )
 
     reset_deformable = EventTerm(
