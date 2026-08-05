@@ -153,12 +153,12 @@ full:
       duration: 4000
   # Manipulation tasks - Franka
   Isaac-Open-Drawer-Franka-Direct:
-    max_iterations: 300
+    max_iterations: 200
     lower_thresholds:
-      reward: 2000
-      episode_length: 400
+      reward: 60
+      episode_length: 150
     upper_thresholds:
-      duration: 1000
+      duration: 3000
   IsaacContrib-Lift-Cube-Franka:
     max_iterations: 300
     lower_thresholds:

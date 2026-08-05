@@ -12,8 +12,18 @@ Changed
   arm and finger joints, end-effector and fingertip frames, and gripper commands required by the
   manager-equivalent MDP. Derived configurations must provide the new joint, frame, offset, and
   gripper-command fields used by their robot.
+* **Breaking:** Changed :class:`~isaaclab_tasks.core.cabinet.mdp.rewards.open_drawer_bonus` to
+  require ``success_threshold``. Configurations that use the term must now pass their drawer
+  position threshold for episode success, for example ``success_threshold=0.30``.
 * Changed :class:`~isaaclab_tasks.core.cabinet.mdp.rewards.align_grasp_around_handle` to return a
   float tensor instead of a bool tensor, matching the other reward terms.
+
+Added
+^^^^^
+
+* Added ``Metrics/drawer_pos`` to manager-based cabinet tasks and changed the direct-workflow metric
+  to report the furthest drawer position reached during the episode. The contributed OpenArm task
+  now reports both ``Metrics/success_rate`` and ``Metrics/drawer_pos``.
 
 Removed
 ^^^^^^^
@@ -41,8 +51,3 @@ Fixed
   now use the manager-based task definition while retaining their respective environment frontends.
 * Fixed the direct RSL-RL, RL Games, and SKRL configurations using different training behavior from
   their manager counterparts. Only their experiment names remain different.
-* Fixed the OpenArm cabinet configuration omitting the success threshold required by
-  :class:`~isaaclab_tasks.core.cabinet.mdp.rewards.open_drawer_bonus`.
-* Fixed cabinet success metrics losing successful episodes whose drawer moved back before reset.
-  Both workflows now report the fraction of episodes that ever crossed the success threshold and
-  the furthest drawer position reached during each episode.
