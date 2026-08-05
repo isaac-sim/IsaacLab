@@ -3,7 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Franka Panda robot preset. Activate with ``presets=franka``."""
+"""Franka Panda robot bindings.
+
+The task ships a single robot, so these bind the ``default`` of each robot preset
+rather than a named variant -- ``IsaacContrib-Factory-Franka`` needs no
+``presets=franka`` to select it.
+"""
 
 from __future__ import annotations
 
@@ -26,14 +31,14 @@ from ..factory_presets import (
     RobotArticulationCfg,
 )
 
-EndEffectorBodyCfg.franka = "panda_fingertip_centered"
-GripperJointNamesCfg.franka = ["panda_finger.*"]
-IKJointNamesCfg.franka = ["panda_joint.*"]
-GripperGraspOffsetCfg.franka = PANDA_HAND.gripper_center_grasp_point
-JointEffortNamesCfg.franka = "(?!panda_joint7$|panda_finger_.*$).*"
+EndEffectorBodyCfg.default = "panda_fingertip_centered"
+GripperJointNamesCfg.default = ["panda_finger.*"]
+IKJointNamesCfg.default = ["panda_joint.*"]
+GripperGraspOffsetCfg.default = PANDA_HAND.gripper_center_grasp_point
+JointEffortNamesCfg.default = "(?!panda_joint7$|panda_finger_.*$).*"
 
 
-RobotArticulationCfg.franka = preset(
+RobotArticulationCfg.default = preset(
     default=FRANKA_PANDA_PHYSX_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot"),
     physx=FRANKA_PANDA_PHYSX_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot"),
     newton_mjwarp=FRANKA_PANDA_NEWTON_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot"),
@@ -57,4 +62,4 @@ class FrankaActionsCfg:
     )
 
 
-RobotActionsCfg.franka = FrankaActionsCfg()
+RobotActionsCfg.default = FrankaActionsCfg()

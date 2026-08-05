@@ -26,9 +26,9 @@ from .factory_presets import (
 class FactorySceneBase(InteractiveSceneCfg):
     """Shared scene assets for all Factory tasks.
 
-    The ``robot`` and gripper-finger contact sensors are resolved from the
-    active robot preset (e.g. ``presets=franka``); see
-    :mod:`.factory_presets` for how to add a robot.
+    The ``robot`` is resolved from the active robot preset, which the shipped
+    task binds as the default; see :mod:`.factory_presets` for how to add a
+    robot.
     """
 
     ground = assets.GROUND_CFG

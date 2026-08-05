@@ -5,11 +5,12 @@
 
 """Factory task registration.
 
-A single gym environment is registered.  The robot (and every robot-specific
-override) is chosen declaratively through the preset system -- e.g.::
+A single gym environment is registered.  The task ships one robot, so the
+robot-specific fields bind the ``default`` of each robot preset and need no
+selector; the assembly is chosen through the preset system -- e.g.::
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-        --task IsaacContrib-Factory-Franka presets=franka,peg_insert_4mm
+    uv run isaaclab train --task IsaacContrib-Factory-Franka \
+        presets=peg_insert_4mm physics=newton_mjwarp
 
 See :mod:`..factory_presets` for the robot registry and how to add new robots.
 """
@@ -19,9 +20,9 @@ import gymnasium as gym
 from . import agents
 
 # Imported for its side effect: the module sets each robot-specific field on the
-# ``..factory_presets`` classes at import time, and ``presets=franka`` cannot resolve until
-# it has run. Keeping it here rather than in ``factory_presets`` leaves that module free of
-# any reference to a particular robot.
+# ``..factory_presets`` classes at import time, and the robot cannot resolve until it has
+# run. Keeping it here rather than in ``factory_presets`` leaves that module free of any
+# reference to a particular robot.
 from . import franka_factory_cfg as _franka_factory_cfg  # noqa: F401
 
 gym.register(
