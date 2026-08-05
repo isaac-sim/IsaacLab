@@ -2518,6 +2518,78 @@ referencing the old path (``omni.physics.tensors.impl.api.ArticulationView``)
 should be similarly updated to ``omni.physics.tensors.api.ArticulationView``.
 
 
+Viewport Camera Configuration (``ViewerCfg`` deprecated)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``viewer`` field (type :class:`~isaaclab.envs.common.ViewerCfg`) is deprecated on
+:class:`~isaaclab.envs.DirectRLEnvCfg`, :class:`~isaaclab.envs.ManagerBasedEnvCfg`, and
+:class:`~isaaclab.envs.DirectMARLEnvCfg`.  A backward-compatibility shim re-routes
+``viewer.*`` assignments for one release, but the field will be removed in a future version.
+Configure the viewport camera through :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+on the sim config instead.
+
+Similarly, :class:`~isaaclab.envs.ui.ViewportCameraController` is deprecated.  A shim class
+remains so existing imports do not break, but it raises a :class:`DeprecationWarning` at
+construction.  Camera tracking is now handled directly by
+:class:`~isaaclab_visualizers.kit.KitVisualizer` via ``origin_type`` and
+``origin_track_path`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env_cfg.viewer.eye = (4.5, 0.0, 6.0)
+   env_cfg.viewer.lookat = (0.0, 0.0, 2.0)
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.visualizers import VisualizerCfg
+   env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
+
+For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body"``), use
+:class:`~isaaclab_visualizers.kit.KitVisualizerCfg` with ``origin_type="asset"`` and
+``origin_track_path``:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env_cfg.viewer.origin_type = "asset_root"
+   env_cfg.viewer.asset_name = "robot"
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.kit import KitVisualizerCfg
+   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]
+
+The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
+tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+
+Video Recording (``gym.wrappers.RecordVideo`` replaced)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``gym.wrappers.RecordVideo`` pattern is no longer supported.  Video recording is now driven
+internally by :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries on the
+environment config, sourcing frames from the active visualizer or a scene sensor.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env = gym.make(task, cfg=env_cfg, render_mode="rgb_array")
+   env = gym.wrappers.RecordVideo(env, video_folder="videos/", step_trigger=lambda s: s == 0)
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+   env_cfg.video_recorders = [
+       VideoRecorderCfg(source="visualizer", output_dir="videos/", video_length=200)
+   ]
+   env = gym.make(task, cfg=env_cfg)
+
+Available sources: ``"visualizer"`` (auto-pick), ``"visualizer:kit"``, ``"visualizer:newton"``,
+``"visualizer:newton:tiled"``, ``"sensor:<name>"``.  The ``eye`` and ``lookat`` fields have been
+removed from ``VideoRecorderCfg``; position the camera via ``sim.default_visualizer_cfg`` instead.
+
+The ``isaaclab.envs.utils.recording_hooks`` module has been removed.  Physics-backend recording
+hooks are now registered via :meth:`~isaaclab.sim.SimulationContext.add_render_callback`.
+
+
 Need Help?
 ~~~~~~~~~~
 

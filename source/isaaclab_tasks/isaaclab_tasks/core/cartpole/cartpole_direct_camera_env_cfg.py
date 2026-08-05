@@ -10,10 +10,10 @@ import math
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs import ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 from isaaclab_tasks.utils import PresetCfg
@@ -66,14 +66,14 @@ class CartpoleCameraEnvCfg(PresetCfg):
         observation_space = [3, 96, 96]
         state_space = 4
 
-        # change viewer settings
-        viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
-
         # scene: fewer, more-spaced envs and no fabric cloning so the camera renders cleanly
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
 
         # reset: smaller initial pole angle than the proprioceptive task
         initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
+
+        def __post_init__(self):
+            self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
     default = BaseCartpoleCameraEnvCfg()
     depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 96, 96])

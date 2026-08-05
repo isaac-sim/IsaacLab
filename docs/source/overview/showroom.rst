@@ -125,8 +125,9 @@ A few quick showroom scripts to run and checkout:
 
             isaaclab.bat -p scripts\demos\cables.py
 
-   Use ``--num_cables`` and ``--num_segments`` to change the pile size and cable resolution.
-   Cables are a Newton-only asset; see :doc:`core-concepts/physical-backends/newton/using-cables`.
+   Select the listed options with ``--physics`` and ``--visualizer``. Use ``--num_cables`` and
+   ``--num_segments`` to change the pile size and cable resolution. Cables are a Newton-only asset;
+   see :doc:`core-concepts/physical-backends/newton/using-cables`.
 
    .. image:: ../_static/demos/cables.jpg
       :width: 100%
@@ -392,7 +393,7 @@ A few quick showroom scripts to run and checkout:
 
 -  Use the RigidObjectCollection spawn and view manipulation to demonstrate bin-packing example:
 
-   **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
+   **Physics:** ``isaacsim_physx``
 
    **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
@@ -425,7 +426,7 @@ A few quick showroom scripts to run and checkout:
 
    .. image:: ../_static/demos/bin_packing.jpg
       :width: 100%
-      :alt: Spawning random number of random asset per env_id using combination of MultiAssetSpawner and RigidObjectCollection
+      :alt: Bins holding a different random subset of grocery objects in every environment
 
 
 

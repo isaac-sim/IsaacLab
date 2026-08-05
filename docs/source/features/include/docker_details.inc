@@ -283,19 +283,16 @@ and their profile-specific environment file, if any. The standalone ``kitless`` 
 
 .. rubric:: Published Kit-less Image
 
-Building the kit-less image locally is not required. It is published alongside the Isaac Lab base image
-in the same registry repository, distinguished by a ``-kitless`` tag suffix, and follows the same branch
-tagging scheme: a moving tag per branch (``latest`` for ``main``, ``v<version>`` for a tagged release,
-``latest-develop``, ``latest-release-<branch>``) alongside an immutable per-commit tag that appends the
-full commit hash. Pin the immutable tag for reproducible runs and use the moving tag to follow a branch.
+Building the kit-less image locally is not required. It is published alongside the Isaac Lab release
+image in the same registry repository, distinguished by a ``-kitless`` tag suffix and carrying the same
+release version tag.
 
 .. code:: bash
 
-    # moving tag, follows the newest develop build
-    docker pull nvcr.io/nvidian/isaac-lab:latest-develop-kitless
+    docker pull nvcr.io/nvidia/isaac-lab:<version>-kitless
 
     docker run --rm --gpus all --network host \
-        nvcr.io/nvidian/isaac-lab:latest-develop-kitless \
+        nvcr.io/nvidia/isaac-lab:<version>-kitless \
         isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
         --num_envs 16 presets=newton_mjwarp --max_iterations 5
 

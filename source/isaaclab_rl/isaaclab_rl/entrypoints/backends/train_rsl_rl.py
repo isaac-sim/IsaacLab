@@ -25,6 +25,7 @@ from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
     apply_env_overrides,
+    apply_video_recording,
     configure_io_descriptors,
     create_isaaclab_env,
     dump_train_configs,
@@ -159,6 +160,7 @@ def _run(args_cli: argparse.Namespace) -> None:
 
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = log_dir
+        apply_video_recording(env_cfg, log_dir, args_cli)
 
         env = create_isaaclab_env(
             args_cli.task,
@@ -204,7 +206,10 @@ def _run(args_cli: argparse.Namespace) -> None:
         dump_train_configs(log_dir, env_cfg, agent_cfg)
 
         try:
-            runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+            runner.learn(
+                num_learning_iterations=agent_cfg.max_iterations,
+                init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
+            )
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
             env.close()
         except KeyboardInterrupt:
