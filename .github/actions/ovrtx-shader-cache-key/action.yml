@@ -1,0 +1,62 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'OVRTX Shader Cache Key'
+description: >
+  Computes the OVRTX shader cache collection prefix, per-run write key, and host
+  directory for both the writer (warm-ovrtx-cache) and the readers (test jobs).
+  One action so they cannot drift; if they do, every read misses. Requires a
+  prior checkout.
+
+  The host directory has two sub-directories:
+    kit/      — nv_shadercache for Kit / AppLauncher-based rendering
+                (bind-mounted over /isaac-sim/kit/cache/nv_shadercache inside
+                the test container so the existing kit/cache tmpdir mount does
+                not discard the warm PSO blob)
+    kitless/  — nv_shadercache for the standalone OVRTXRenderer path
+                (mounted at OVRTX_SHADER_CACHE_PATH and redirected via carb
+                settings before Renderer construction)
+
+outputs:
+  collection:
+    description: 'Collection prefix shared by every entry that is mutually compatible'
+    value: ${{ steps.compute.outputs.collection }}
+  key:
+    description: 'Write key, unique per run so each cumulative snapshot gets its own immutable entry'
+    value: ${{ steps.compute.outputs.key }}
+  restore-keys:
+    description: 'Collection prefix used to restore the newest compatible snapshot'
+    value: ${{ steps.compute.outputs.restore-keys }}
+  host-dir:
+    description: 'Host directory holding both shader cache sub-trees; bind-mounted into the test container'
+    value: ${{ steps.compute.outputs.host-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute OVRTX shader cache key
+      id: compute
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # ovrtx version pins the shader permutation set. The NV driver PSO blob
+        # (nv_shadercache/GLCache) is GPU-architecture and driver-version
+        # specific — both must be in the key so different runner configurations
+        # never share an incompatible blob.
+        ovrtx_ver="$(python3 .github/actions/ovrtx-shader-cache-key/collection_id.py)"
+
+        # Full driver version: even minor updates can change PSO compilation.
+        # nvidia-smi must be available on every runner that has a GPU.
+        driver_ver="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || echo unknown)"
+
+        collection="ovrtx-v1-${RUNNER_OS}-${RUNNER_ARCH}-${ovrtx_ver}-drv${driver_ver}"
+
+        echo "collection=${collection}" >> "$GITHUB_OUTPUT"
+        echo "key=${collection}-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+        echo "restore-keys=${collection}-" >> "$GITHUB_OUTPUT"
+        echo "host-dir=${RUNNER_TEMP}/isaaclab-ovrtx-shader-cache" >> "$GITHUB_OUTPUT"
+
+        echo "OVRTX shader cache collection: ${collection} (driver ${driver_ver})"

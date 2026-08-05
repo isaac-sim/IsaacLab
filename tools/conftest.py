@@ -36,10 +36,18 @@ def pytest_ignore_collect(collection_path, config):
 COLD_CACHE_BUFFER = 700
 """Extra seconds added to the first camera-enabled test's hard timeout.
 
-The first test that uses ``enable_cameras=True`` may compile shaders during its
-run (~600 s).  This buffer prevents that from being misreported as a test
-timeout.  Only the first such test gets the extension — after it runs, the
-on-disk cache is populated.
+The first test that uses ``enable_cameras=True`` may compile NVIDIA Vulkan
+driver PSO shaders (nv_shadercache/GLCache) during its run (~600 s on a cold
+runner).  This buffer prevents that from being misreported as a test timeout.
+Only the first such test gets the extension — after it runs, the on-disk cache
+inside the container is populated and subsequent tests are fast.
+
+When the CI OVRTX shader cache is warm (i.e. ``ovrtx-shader-cache: restore``
+pre-populated ``/isaac-sim/kit/cache/nv_shadercache/`` before the container
+started), compilation is skipped and the first test completes within the normal
+budget.  The buffer is intentionally kept so cold runs — first push after an
+ovrtx upgrade, new GPU arch, driver update — still succeed without manual
+intervention.
 """
 
 STARTUP_DEADLINE = 120

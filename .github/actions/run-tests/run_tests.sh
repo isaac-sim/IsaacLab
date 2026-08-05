@@ -37,6 +37,7 @@ run_tests() {
   local standalone_script_runtime_group="${24}"
   local warp_cache_host_dir="${25}"
   local extra_uv_packages="${26}"
+  local ovrtx_shader_cache_host_dir="${27}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -268,6 +269,21 @@ run_tests() {
       -e WARP_CACHE_PATH=/tmp/isaaclab-warp-cache"
   fi
 
+  if [ -n "$ovrtx_shader_cache_host_dir" ]; then
+    # kit/ sub-tree: nested bind mount that overlays the nv_shadercache directory
+    # that the kit/cache tmpdir mount would otherwise present as empty.  Docker
+    # processes mounts in declaration order, so this more-specific path takes
+    # precedence over the enclosing kit/cache tmpdir mount above.
+    kit_cache_dir="${ovrtx_shader_cache_host_dir}/kit"
+    kitless_cache_dir="${ovrtx_shader_cache_host_dir}/kitless"
+    mkdir -p "$kit_cache_dir" "$kitless_cache_dir"
+    docker_volume_args="$docker_volume_args \
+      -v ${kit_cache_dir}:/isaac-sim/kit/cache/nv_shadercache:rw \
+      -v ${kitless_cache_dir}:/tmp/isaaclab-ovrtx-kitless-cache:rw"
+    docker_env_vars="$docker_env_vars \
+      -e OVRTX_SHADER_CACHE_PATH=/tmp/isaaclab-ovrtx-kitless-cache"
+  fi
+
   if [ -n "$wheelhouse_host_dir" ]; then
     if [ -z "$wheelhouse_packages" ]; then
       echo "::error::wheelhouse-host-dir was provided but wheelhouse-packages is empty"
@@ -328,6 +344,9 @@ run_tests() {
       ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flaky \"coverage>=7.6.1\"
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
         ./isaaclab.sh -p tools/verify_warp_cache.py
+      fi
+      if [ -n \"\${OVRTX_SHADER_CACHE_PATH:-}\" ]; then
+        ./isaaclab.sh -p tools/verify_ovrtx_shader_cache.py
       fi
       if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
         if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
