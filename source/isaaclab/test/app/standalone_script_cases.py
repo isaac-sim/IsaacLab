@@ -155,13 +155,18 @@ OVERRIDES = {
         }
     ),
     "scripts/demos/mpm/newton_mpm_granular.py": ScriptOverride(
-        args=("--max-steps", "20"),
+        args=("--max_steps", "20"),
         readiness_pattern=r"Newton granular MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
-    "scripts/demos/mpm/particle_pour.py": ScriptOverride(
-        args=("--max-steps", "200"),
-        readiness_pattern=r"particle-pour MPM demo ready",
+    "scripts/demos/mpm/snowball_smash.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        readiness_pattern=r"Newton snowball-smash demo ready",
+        fixed_physics_backend="newton_mpm",
+    ),
+    "scripts/demos/mpm/teapot_fill.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        readiness_pattern=r"Newton teapot-fill MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
     "scripts/demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),

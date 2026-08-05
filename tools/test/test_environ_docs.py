@@ -66,6 +66,25 @@ def test_is_training_task_filters_inference_variants():
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0")
 
 
+def test_collect_environment_doc_rows_applies_workflow_override():
+    specs = [
+        EnvSpec(
+            id="IsaacContrib-Franka-Pour",
+            entry_point="isaaclab_tasks.contrib.franka_pour.pour_env:FrankaPourEnv",
+            kwargs={"env_cfg_entry_point": "cfg:FrankaPourResetDatasetEnvCfg"},
+        ),
+        EnvSpec(
+            id="IsaacContrib-UR10-Particle-Push",
+            entry_point="isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env:UR10ParticlePushEnv",
+            kwargs={"env_cfg_entry_point": "cfg:UR10ParticlePushEnvCfg"},
+        ),
+    ]
+
+    rows = collect_environment_doc_rows(specs)
+
+    assert all(row.workflow == "Manager Based" for row in rows)
+
+
 def test_parse_rl_libraries_from_kwargs_handles_multi_agent_and_amp():
     kwargs = {
         "env_cfg_entry_point": "ignored",

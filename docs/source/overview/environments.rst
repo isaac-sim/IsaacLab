@@ -1332,6 +1332,10 @@ including disabling runtime perturbations used for training.
       - Direct
       - **rl_games** (PPO)
       -
+    * - IsaacContrib-Franka-Pour
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
     * - IsaacContrib-Humanoid-AMP-Dance-Direct
       - Direct
       - **skrl** (AMP)
@@ -1527,6 +1531,10 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``isaacsim_physx``
+    * - IsaacContrib-UR10-Particle-Push
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
     * - IsaacContrib-Velocity-Flat-AnymalB
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)

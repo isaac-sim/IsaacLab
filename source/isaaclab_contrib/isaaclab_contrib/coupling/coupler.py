@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 
+import warp as wp
 from isaaclab_newton.physics import (
     KaminoSolverCfg,
     MJWarpSolverCfg,
@@ -210,13 +211,22 @@ class NewtonCouplerManager(NewtonVBDManager):
             NewtonManager._solver.prepare_contacts(cls._contacts)
 
     @classmethod
-    def _supports_cuda_graph_capture(cls) -> bool:
-        """Reject graph capture when a nested MPM entry uses a dynamic grid."""
-        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
-        return all(
-            not isinstance(entry.solver_cfg, MPMSolverCfg) or entry.solver_cfg.grid_type == "fixed"
-            for entry in getattr(solver_cfg, "entries", ())
-        )
+    def _defer_standard_graph_capture(cls) -> bool:
+        """Defer capture when the coupled solver contains sparse implicit MPM."""
+        return any(solver.grid_type == "sparse" for solver in NewtonMPMManager._implicit_mpm_solvers())
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Promote a selected single MPM world to the solver's full-reset path."""
+        model = NewtonManager._model
+        if world_mask is not None and model is not None and model.world_count == 1:
+            selected = world_mask.numpy()
+            if not selected.any():
+                return
+            if selected[0] and not selected[-1] and NewtonMPMManager._implicit_mpm_solvers():
+                NewtonManager._solver.reset(NewtonManager._state_0, world_mask=None, flags=0)
+                return
+        super()._reset_solver_internals(world_mask)
 
     @classmethod
     def _resolve_entry(

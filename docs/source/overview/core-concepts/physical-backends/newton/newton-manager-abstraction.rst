@@ -107,11 +107,17 @@ solver actually needs it:
   :class:`~isaaclab_newton.physics.NewtonMPMManager` uses this to clear mass and
   inertia on kinematic bodies so implicit MPM treats them as massless colliders.
 * ``_supports_cuda_graph_capture()``: return ``False`` to opt the solver out of
-  CUDA graph capture and fall back to eager execution. Defaults to ``True``;
-  :class:`~isaaclab_newton.physics.NewtonMPMManager` returns ``True`` only for a
-  fixed grid, since sparse/dense MPM grids reallocate as particles move.
+  CUDA graph capture and fall back to eager execution. Defaults to ``True``.
+* ``_defer_standard_graph_capture()``: delay headless CUDA graph capture until
+  the first post-reset step when solver resources depend on reset-authored state.
 * ``_solver_specific_clear()``: release any class-level state owned by the
   solver manager.
+
+Isaac Lab does not reconstruct solver-private CUDA graph capability predicates.
+When a manager keeps the default, enabling ``NewtonCfg.use_cuda_graph`` attempts
+capture, and unsupported solver configurations fail during capture. For
+implicit MPM, follow Newton's capture requirements and use a positive
+``max_active_cell_count`` with a fixed or rebuildable sparse grid.
 
 Keep the manager name prefixed with ``Newton`` and the solver config grouped
 with the other Newton solver configs so autocomplete and backend discovery stay

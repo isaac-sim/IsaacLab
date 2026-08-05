@@ -60,6 +60,12 @@ RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
     "IsaacContrib-Assemble-Trocar-G129-Dex3": {"rlinf": ["PPO"]},
 }
 
+# Custom environment subclasses whose workflow is not encoded in their entry-point name.
+_WORKFLOW_OVERRIDES = {
+    "IsaacContrib-Franka-Pour": "Manager Based",
+    "IsaacContrib-UR10-Particle-Push": "Manager Based",
+}
+
 # Marker comments that delimit the auto-generated section in environments.rst.
 COMPREHENSIVE_LIST_START_MARKER = ".. START-AUTO-GENERATED: comprehensive-environment-list"
 COMPREHENSIVE_LIST_END_MARKER = ".. END-AUTO-GENERATED: comprehensive-environment-list"
@@ -483,10 +489,13 @@ def collect_environment_doc_rows(
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
 
+        workflow = _WORKFLOW_OVERRIDES.get(spec.id)
+        if workflow is None:
+            workflow = get_workflow(spec.entry_point)
         rows.append(
             EnvironmentDocRow(
                 task_name=spec.id,
-                workflow=get_workflow(spec.entry_point),
+                workflow=workflow,
                 rl_libraries=agents,
                 presets=preset_map,
             )

@@ -16,6 +16,8 @@ excluded here to avoid duplication:
 - Teleop: ``test_teleop_environments.py``
 - AutoMate: ``test_environments_automate.py``
 - Skillgen: ``test_environments_skillgen.py``
+- Franka Pour: requires an external reset-dataset artifact and is covered by the dedicated
+  ``test_franka_pour_*.py`` tests
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -52,5 +54,8 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
     ),
 )
 def test_contrib_environments_smoke(task_name, num_envs, device):
+    if task_name == "IsaacContrib-Franka-Pour":
+        pytest.skip("Requires an external reset-dataset artifact; covered by the dedicated Franka Pour tests.")
+
     # run a short rollout with random actions to verify the environment loads and steps
     _run_environments(task_name, device, num_envs, create_stage_in_memory=False)

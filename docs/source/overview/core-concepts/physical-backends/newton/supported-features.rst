@@ -9,17 +9,47 @@ available once the integration reaches an official release.
 Discovering Newton-Supported Tasks
 ----------------------------------
 
-A task supports the Newton backend when its physics ``PresetCfg`` declares a
-``newton_mjwarp`` (or ``newton_kamino``) entry. To list every task that
-currently supports Newton:
+Most multi-backend tasks support Newton when their physics ``PresetCfg``
+declares a ``newton_mjwarp`` (or ``newton_kamino``) entry. To list tasks with
+a selectable Newton preset:
 
 .. code-block:: bash
 
     grep -rln "newton_mjwarp" source/isaaclab_tasks/
 
-Passing ``physics=newton_mjwarp`` to a task without that preset will raise an
-error at launch. The :doc:`mjwarp-solver` page covers how to add a Newton
+Tasks built specifically for Newton can instead assign
+:class:`~isaaclab_newton.physics.NewtonCfg` directly. The coupled-MPM
+``IsaacContrib-Franka-Pour`` artifact-backed task and
+``IsaacContrib-UR10-Particle-Push`` use this fixed-Newton pattern and should be launched
+without a ``physics=`` selector. Passing
+``physics=newton_mjwarp`` to a task without that preset will raise an error at
+launch. The :doc:`mjwarp-solver` page covers how to add a selectable Newton
 preset to your own task.
+
+Implicit MPM Demos
+------------------
+
+Start with the compact granular example for the minimal declarative
+:class:`~isaaclab_newton.assets.MPMObjectCfg` and
+:class:`~isaaclab_newton.sim.MPMGridCfg` setup:
+
+.. code-block:: bash
+
+    uv run python scripts/demos/mpm/newton_mpm_granular.py --device cuda:0 --visualizer newton
+
+The following advanced showcases add sparse-grid capture, rigid-MPM proxy
+coupling, mesh-cavity sampling, and particle rendering:
+
+.. code-block:: bash
+
+    uv run python scripts/demos/mpm/snowball_smash.py --device cuda:0 --visualizer newton
+    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer kit
+
+The advanced showcases use a capacity-bounded rebuildable sparse grid with
+zero padding and the P0/S2/Q1 bases for CUDA graph capture by default.
+Snowball smash couples MPM to MuJoCo-Warp rigid bodies through
+:class:`~isaaclab_contrib.coupling.CouplerProxyCfg`; teapot fill uses a
+demo-local cavity sampler and an explicit particle render material.
 
 
 Supported APIs
@@ -41,12 +71,20 @@ isaaclab
 * Newton-Warp visualizer (kit-less)
 * Tiled rendering via the Newton-Warp renderer
 
+isaaclab_newton
+^^^^^^^^^^^^^^^^
+
+* Implicit Material Point Method (MPM) solver and declarative particle assets
+* Fixed and capture-compatible capacity-bounded sparse MPM grids
+* Standard visual-material binding for MPM particle visualization
+
 isaaclab_contrib
 ^^^^^^^^^^^^^^^^
 
 * Experimental Newton deformable objects
 * VBD deformable solver (see :doc:`using-vbd-solver`)
 * MJWarp and VBD proxy coupling
+* Proxy-based coupling for rigid and particle solvers, including MJWarp + MPM
 
 The following sensors are backend-agnostic (implemented in ``isaaclab`` core)
 and work transparently with Newton:
@@ -82,6 +120,7 @@ Manager-based workflows:
 * Manipulation: reach (Franka, UR10), cabinet, lift and reorient (Franka, KukaAllegro)
 * Manipulation lift with deformable objects: Franka soft-body lift, Franka cloth
   lift (via MJWarp and VBD proxy coupling)
+* Coupled MPM manipulation: Franka pour and UR10 particle push (MJWarp + MPM)
 
 
 Solver Coverage
@@ -98,14 +137,17 @@ Solver Coverage
   VBD and with :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` when a named VBD
   entry owns the cable. See :doc:`using-vbd-solver` and
   :doc:`newton-manager-abstraction`.
+* **Implicit MPM solver**: experimental, supporting standalone particle
+  materials and proxy-coupled rigid-MPM scenes. Capacity-bounded sparse grids
+  and fixed grids support CUDA graph capture.
 
 
 Known Gaps
 ----------
 
-* Soft bodies and particles are available through the experimental VBD path in
-  :mod:`isaaclab_contrib.deformable`; other non-rigid PhysX features are not
-  yet covered.
+* Soft bodies are available through the experimental VBD path, while particle
+  materials are available through implicit MPM; other non-rigid PhysX features
+  are not yet covered.
 * Behaviour on stiff contact stacks can diverge from PhysX; expect to retune
   contact and substep parameters when porting tasks across backends.
 * Multi-agent and self-play workflows are not yet wired up for Newton.

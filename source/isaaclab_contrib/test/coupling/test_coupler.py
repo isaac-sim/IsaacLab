@@ -506,21 +506,6 @@ def test_mpm_entry_does_not_request_external_contacts():
     assert NewtonCouplerManager._requires_external_contacts(MPMSolverCfg()) is False
 
 
-@pytest.mark.parametrize(("grid_type", "expected"), [("fixed", True), ("sparse", False), ("dense", False)])
-def test_mpm_grid_controls_cuda_graph_support(monkeypatch, grid_type, expected):
-    cfg = CouplerAdmmCfg(
-        entries=[
-            CouplerEntryCfg(
-                name="media",
-                solver_cfg=MPMSolverCfg(grid_type=grid_type),
-                in_place=True,
-            )
-        ]
-    )
-    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=cfg))
-    assert NewtonCouplerManager._supports_cuda_graph_capture() is expected
-
-
 def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
     """Coupled MPM entries register attributes and normalize kinematic colliders."""
     events: list[tuple[str, object]] = []

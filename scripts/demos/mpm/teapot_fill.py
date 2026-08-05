@@ -3,18 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton implicit MPM particle-pour demo.
+"""Fill and pour water from the Utah teapot with Newton implicit MPM.
 
-This demo shows the Isaac Lab MPM scene path:
-
-* configure :class:`~isaaclab_newton.physics.MPMSolverCfg`;
-* add fluid as an :class:`~isaaclab_newton.assets.mpm_object.MPMObject`;
-* use standard Isaac Lab USD and mesh assets as MPM colliders;
-* drive the pouring container through the standard rigid-object API.
+The teapot is a hollow, double-walled shell, so the fluid is seeded in its enclosed air cavity with
+:func:`~isaaclab.utils.warp.sample_particles_in_cavity` instead of using a winding-number volume fill.
 
 .. code-block:: bash
 
-    uv run python scripts/demos/mpm/particle_pour.py --device cuda:0 --visualizer newton
+    # Fast Newton visualizer (the default):
+    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer newton
+    # The translucent water material needs the RTX/Kit visualizer:
+    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer kit
+    # Fuller / coarser (faster) fill:
+    uv run python scripts/demos/mpm/teapot_fill.py --fill_level 1.0 --fill_spacing 0.003
 """
 
 from __future__ import annotations
@@ -28,64 +29,121 @@ import numpy as np
 import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 DEFAULT_VOXEL_SIZE = 0.003
+DEFAULT_PARTICLES_PER_CELL = 1.2
+DEFAULT_FILL_LEVEL = 0.85
+DEFAULT_MIN_RAY_HITS = 5
 
-parser = argparse.ArgumentParser(description="Newton implicit MPM particle-pour demo.")
-parser.add_argument("--max-steps", type=int, default=3000, help="Stop after this many frames; negative runs forever.")
+
+def _positive_finite_float(value: str) -> float:
+    """Parse a positive finite floating-point argument."""
+    resolved = float(value)
+    if not math.isfinite(resolved) or resolved <= 0.0:
+        raise argparse.ArgumentTypeError(f"expected a positive finite value, got {value!r}")
+    return resolved
+
+
+def _unit_interval_float(value: str) -> float:
+    """Parse a finite floating-point argument in the closed unit interval."""
+    resolved = float(value)
+    if not math.isfinite(resolved) or not 0.0 <= resolved <= 1.0:
+        raise argparse.ArgumentTypeError(f"expected a value in [0, 1], got {value!r}")
+    return resolved
+
+
+parser = argparse.ArgumentParser(description="Newton implicit MPM teapot-fill demo.")
 parser.add_argument(
+    "--max_steps",
+    "--max-steps",
+    dest="max_steps",
+    type=int,
+    default=3000,
+    help="Stop after this many frames; negative runs forever.",
+)
+parser.add_argument(
+    "--voxel_size",
     "--voxel-size",
-    type=float,
+    dest="voxel_size",
+    type=_positive_finite_float,
     default=DEFAULT_VOXEL_SIZE,
     help=f"MPM grid voxel size in meters. Defaults to {DEFAULT_VOXEL_SIZE:g}.",
 )
 parser.add_argument(
+    "--grid_type",
+    type=str,
+    default="sparse",
+    choices=["fixed", "sparse"],
+    help="MPM grid topology. Sparse uses a bounded rebuildable grid over active voxels and is "
+    "CUDA-graph-capturable (fastest); fixed pre-allocates a frozen padded grid.",
+)
+parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable Newton CUDA graph capture.")
+parser.add_argument(
+    "--fill_spacing",
+    type=_positive_finite_float,
+    default=None,
+    help=(
+        "Particle spacing used to sample the cavity volume [m]."
+        f" Defaults to voxel_size / {DEFAULT_PARTICLES_PER_CELL:g}."
+    ),
+)
+parser.add_argument(
+    "--fill_level",
+    type=_unit_interval_float,
+    default=DEFAULT_FILL_LEVEL,
+    help=(
+        "Water line as a fraction [0, 1] of the teapot height to fill the cavity up to."
+        f" Defaults to {DEFAULT_FILL_LEVEL:g}; use 1.0 to fill to the brim."
+    ),
+)
+parser.add_argument(
+    "--min_ray_hits",
+    type=int,
+    default=DEFAULT_MIN_RAY_HITS,
+    choices=range(1, 7),
+    help=(
+        "Enclosure strictness for cavity detection: how many of the 6 axis rays must hit the shell"
+        f" (1-6). Higher drops thin features like the spout/handle. Defaults to {DEFAULT_MIN_RAY_HITS}."
+    ),
+)
+parser.add_argument(
+    "--container_usd",
     "--container-usd",
+    dest="container_usd",
     type=str,
     default=f"{ISAAC_NUCLEUS_DIR}/Props/Teapot/utah_teapot.usdc",
-    help="USD asset used as the pouring container (kinematic mesh collider).",
+    help="USD asset used as the pouring container (rigid collider).",
 )
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 
-FPS = 200
-VOXEL_SIZE = float(args_cli.voxel_size)
-NEWTON_VISUAL_UPDATE_FREQUENCY = 1
-KIT_PARTICLE_VISUAL_UPDATE_FREQUENCY = 4
+# A 400 Hz outer step keeps the moving spout within the MPM contact band between collider updates.
+FPS = 400
+VOXEL_SIZE = args_cli.voxel_size
+FILL_SPACING = args_cli.fill_spacing if args_cli.fill_spacing is not None else VOXEL_SIZE / DEFAULT_PARTICLES_PER_CELL
+FILL_LEVEL = args_cli.fill_level
+MIN_RAY_HITS = args_cli.min_ray_hits
 
-GRID_TYPE = "fixed"
-GRID_PADDING = 64
-MAX_ACTIVE_CELL_COUNT = 1 << 17
-# With a fixed grid the solver loop is captured in a CUDA graph, so the rheology
-# solve always runs exactly ``max_iterations`` (the convergence tolerance cannot
-# trigger an early exit inside the graph). 100 iterations measures ~1.6x faster
-# than the 250 default with an end state identical to within noise.
-MPM_MAX_ITERATIONS = 100
+# Sparse grids reserve capture-stable storage; fixed grids need padding for the full pour trajectory.
+GRID_TYPE = args_cli.grid_type
+GRID_PADDING = 0 if GRID_TYPE == "sparse" else 64
+MAX_ACTIVE_CELL_COUNT = (1 << 16) if GRID_TYPE == "sparse" else (1 << 18)
+MPM_SUBSTEPS = 2
 
-PARTICLES_PER_CELL = 2.0
 PARTICLE_DENSITY = 1000.0
+# Small lattice jitter breaks up the regular sampling grid for a more natural fill.
+FILL_JITTER = 0.2
+FILL_SEED = 7
+PARTICLE_RADIUS = 0.5 * FILL_SPACING
+PARTICLE_MASS = FILL_SPACING**3 * PARTICLE_DENSITY
 
-PIPE_EMITTER_CENTER_XY = (0.0, 0.0)
-PIPE_EMITTER_RADIUS = 0.035
-PIPE_EMITTER_Z_RANGE = (0.018, 0.064)
-PIPE_EMITTER_LO = (
-    PIPE_EMITTER_CENTER_XY[0] - PIPE_EMITTER_RADIUS,
-    PIPE_EMITTER_CENTER_XY[1] - PIPE_EMITTER_RADIUS,
-    PIPE_EMITTER_Z_RANGE[0],
-)
-PIPE_EMITTER_HI = (
-    PIPE_EMITTER_CENTER_XY[0] + PIPE_EMITTER_RADIUS,
-    PIPE_EMITTER_CENTER_XY[1] + PIPE_EMITTER_RADIUS,
-    PIPE_EMITTER_Z_RANGE[1],
-)
-
-COLLIDER_MARGIN = 0.0003
-CONTAINER_MARGIN = 0.001
+COLLIDER_MARGIN = 0.5 * VOXEL_SIZE
+CONTAINER_MARGIN = 0.00125
+PARTICLE_SURFACE_CLEARANCE = CONTAINER_MARGIN + 0.5 * FILL_SPACING
 CONTAINER_FRICTION = 0.0
-BOWL_MARGIN = 0.0025
 BOWL_FRICTION = 0.05
 TABLE_FRICTION = 0.5
 
@@ -99,16 +157,16 @@ TABLE_TOP_Z = 0.255
 TABLE_HALF_EXTENTS = (0.255, 0.165, 0.009)
 BOWL_BASE_POS = (0.066, 0.0, TABLE_TOP_Z + 0.006)
 BOWL_HEIGHT = 0.039
-BOWL_RIM_Z = BOWL_BASE_POS[2] + BOWL_HEIGHT
-CONTAINER_BASE_POS = (-0.105, 0.0, BOWL_RIM_Z + 0.115)
+CONTAINER_BASE_POS = (-0.105, 0.0, BOWL_BASE_POS[2] + BOWL_HEIGHT + 0.115)
 
 BOWL_INNER_BOTTOM_RADIUS = 0.0135
 BOWL_INNER_TOP_RADIUS = 0.057
 BOWL_WALL_THICKNESS = 0.0075
 BOWL_BOTTOM_THICKNESS = 0.0075
 BOWL_COLOR = (1.0, 1.0, 1.0)
+CONTAINER_COLOR = (0.70, 0.35, 0.16)
 TABLE_COLOR = (0.48, 0.38, 0.26)
-PARTICLE_COLOR = (0.12, 0.35, 0.78)
+WATER_COLOR = (0.12, 0.35, 0.78)
 
 CAMERA_EYE = (0.0, -0.36, 0.46)
 CAMERA_TARGET = (-0.01, 0.0, 0.38)
@@ -124,8 +182,7 @@ def create_visualizer_cfgs():
     return [
         NewtonVisualizerCfg(
             show_particles=True,
-            particle_color=PARTICLE_COLOR,
-            update_frequency=NEWTON_VISUAL_UPDATE_FREQUENCY,
+            particle_color=WATER_COLOR,
         )
     ]
 
@@ -136,17 +193,17 @@ def quat_y(angle_rad: float) -> tuple[float, float, float, float]:
     return (0.0, math.sin(half), 0.0, math.cos(half))
 
 
-def smoothstep(value: float) -> float:
-    """Smoothly remap a 0..1 value for the scripted tilt."""
-    t = max(0.0, min(1.0, value))
-    return t * t * (3.0 - 2.0 * t)
-
-
-def container_pose_at_time(sim_time: float):
+def container_pose_at_time(
+    sim_time: float,
+) -> tuple[
+    tuple[float, float, float],
+    tuple[float, float, float, float],
+    tuple[float, float, float, float, float, float],
+]:
     """Return teapot ``(position, orientation, twist)`` for the scripted pour."""
     raw = (sim_time - HOLD_TIME) / TILT_TIME
     clamped = max(0.0, min(1.0, raw))
-    alpha = smoothstep(clamped)
+    alpha = clamped * clamped * (3.0 - 2.0 * clamped)
     alpha_dot = (6.0 * clamped * (1.0 - clamped)) / TILT_TIME if 0.0 < raw < 1.0 else 0.0
 
     lift_raw = (sim_time - HOLD_TIME - TILT_TIME) / CONTAINER_LIFT_TIME
@@ -165,7 +222,7 @@ def container_pose_at_time(sim_time: float):
     return pos, quat_y(angle), twist
 
 
-def create_demo_bowl_mesh(num_segments: int = 96):
+def create_demo_bowl_mesh(num_segments: int = 96) -> tuple[np.ndarray, np.ndarray]:
     """Build one local-space open bowl mesh used by the catch-bowl collider."""
     theta = np.linspace(0.0, 2.0 * math.pi, num_segments, endpoint=False)
     cos_t = np.cos(theta)
@@ -173,7 +230,7 @@ def create_demo_bowl_mesh(num_segments: int = 96):
     outer_bottom_radius = BOWL_INNER_BOTTOM_RADIUS + BOWL_WALL_THICKNESS
     outer_top_radius = BOWL_INNER_TOP_RADIUS + BOWL_WALL_THICKNESS
 
-    def ring(radius: float, z: float):
+    def ring(radius: float, z: float) -> np.ndarray:
         return np.column_stack([radius * cos_t, radius * sin_t, np.full(num_segments, z)])
 
     vertices = np.vstack(
@@ -200,17 +257,17 @@ def create_demo_bowl_mesh(num_segments: int = 96):
         indices.extend([it_i, ot_i, it_j, it_j, ot_i, ot_j])
         indices.extend([inner_center_id, ib_i, ib_j, outer_center_id, ob_j, ob_i])
 
-    return vertices, np.asarray(indices, dtype=np.int32).reshape((-1, 3))
+    return vertices, np.asarray(indices, dtype=np.int32).reshape(-1, 3)
 
 
-def spawn_demo_bowl_mesh(
+def spawn_demo_mesh(
     prim_path: str,
     cfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
 ):
-    """Spawn the demo bowl as a standard Isaac Lab mesh asset."""
+    """Spawn an exact triangle mesh with standard Isaac Lab rigid/collision schemas."""
     from isaaclab.sim import schemas
     from isaaclab.sim.utils import bind_physics_material, bind_visual_material, create_prim, get_current_stage
 
@@ -238,6 +295,8 @@ def spawn_demo_bowl_mesh(
         schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
     if cfg.mesh_collision_props is not None:
         schemas.define_mesh_collision_properties(mesh_prim_path, cfg.mesh_collision_props, stage=stage)
+    if cfg.rigid_props is not None:
+        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
 
     if cfg.visual_material is not None:
         material_path = cfg.visual_material_path
@@ -256,32 +315,83 @@ def spawn_demo_bowl_mesh(
     return stage.GetPrimAtPath(prim_path)
 
 
-def create_fluid_particles():
-    """Return local-space MPM particle points seeded inside the teapot."""
-    center_xy = np.array(PIPE_EMITTER_CENTER_XY, dtype=np.float32)
-    particle_lo = np.asarray(PIPE_EMITTER_LO, dtype=np.float32)
-    particle_hi = np.asarray(PIPE_EMITTER_HI, dtype=np.float32)
-    resolution = np.maximum(np.ceil(PARTICLES_PER_CELL * (particle_hi - particle_lo) / VOXEL_SIZE), 1).astype(int)
-    cell_size = (particle_hi - particle_lo) / resolution
-    cell_volume = float(np.prod(cell_size))
-    radius = float(np.max(cell_size) * 0.45)
-    mass = float(cell_volume * PARTICLE_DENSITY)
+def load_container_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
+    """Read the container USD and return its triangulated geometry in the asset's local frame.
 
-    px = np.arange(int(resolution[0]) + 1) * cell_size[0]
-    py = np.arange(int(resolution[1]) + 1) * cell_size[1]
-    pz = np.arange(int(resolution[2]) + 1) * cell_size[2]
-    points = np.stack(np.meshgrid(px, py, pz, indexing="ij")).reshape(3, -1).T
+    Meshes are concatenated, transformed into the asset frame, and fan-triangulated so sampled
+    particles align with the rigid teapot collider.
+    """
+    from pxr import Usd, UsdGeom
 
-    rng = np.random.default_rng(7)
-    points += (rng.random(points.shape) - 0.5) * (0.10 * np.max(cell_size))
-    points += particle_lo
+    stage = Usd.Stage.Open(usd_path)
+    if stage is None:
+        raise RuntimeError(f"Could not open container USD for cavity sampling: {usd_path}")
 
-    normalized_xy = (points[:, :2] - center_xy) / PIPE_EMITTER_RADIUS
-    points = points[np.sum(normalized_xy * normalized_xy, axis=1) < 1.0]
+    xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+    vertices_list: list[np.ndarray] = []
+    triangles_list: list[np.ndarray] = []
+    vertex_offset = 0
+    for prim in stage.Traverse():
+        if not prim.IsA(UsdGeom.Mesh):
+            continue
+        mesh = UsdGeom.Mesh(prim)
+        points = mesh.GetPointsAttr().Get()
+        face_vertex_counts = mesh.GetFaceVertexCountsAttr().Get()
+        face_vertex_indices = mesh.GetFaceVertexIndicesAttr().Get()
+        if not points or not face_vertex_counts or not face_vertex_indices:
+            continue
+
+        points = np.asarray(points, dtype=np.float64)
+        face_vertex_counts = np.asarray(face_vertex_counts, dtype=np.int64)
+        face_vertex_indices = np.asarray(face_vertex_indices, dtype=np.int64)
+        # Bake the local-to-root transform (USD uses row-vector convention: v' = v * M).
+        matrix = np.asarray(xform_cache.GetLocalToWorldTransform(prim), dtype=np.float64).reshape(4, 4)
+        homogeneous = np.concatenate([points, np.ones((points.shape[0], 1))], axis=1)
+        transformed_points = (homogeneous @ matrix)[:, :3]
+
+        triangles: list[tuple[int, int, int]] = []
+        cursor = 0
+        for count in face_vertex_counts:
+            for k in range(1, count - 1):
+                triangles.append(
+                    (
+                        face_vertex_indices[cursor],
+                        face_vertex_indices[cursor + k],
+                        face_vertex_indices[cursor + k + 1],
+                    )
+                )
+            cursor += count
+        if not triangles:
+            continue
+        vertices_list.append(transformed_points.astype(np.float32))
+        triangles_list.append(np.asarray(triangles, dtype=np.int64) + vertex_offset)
+        vertex_offset += points.shape[0]
+
+    if not vertices_list:
+        raise RuntimeError(f"No meshes found in container USD for cavity sampling: {usd_path}")
+    return np.concatenate(vertices_list), np.concatenate(triangles_list).astype(np.int32)
+
+
+def create_fluid_particles(vertices: np.ndarray, faces: np.ndarray) -> tuple[np.ndarray, float, float]:
+    """Sample local-space MPM particles in the teapot's enclosed cavity."""
+    from isaaclab.utils.warp import sample_particles_in_cavity
+
+    water_level = float(vertices[:, 2].min() + FILL_LEVEL * (vertices[:, 2].max() - vertices[:, 2].min()))
+    points = sample_particles_in_cavity(
+        vertices,
+        faces,
+        spacing=FILL_SPACING,
+        device=args_cli.device,
+        jitter=FILL_JITTER,
+        seed=FILL_SEED,
+        surface_margin=PARTICLE_SURFACE_CLEARANCE,
+        min_ray_hits=MIN_RAY_HITS,
+        water_level=water_level,
+    )
     if points.shape[0] == 0:
-        raise RuntimeError("Particle initialization produced no particles; reduce --voxel-size.")
+        raise RuntimeError("Teapot cavity sampling produced no particles; reduce --fill_spacing or --min_ray_hits.")
 
-    return points.astype(np.float32, copy=False), radius, mass
+    return points.astype(np.float32, copy=False), PARTICLE_RADIUS, PARTICLE_MASS
 
 
 def create_sim_cfg():
@@ -301,12 +411,21 @@ def create_sim_cfg():
                 grid_type=GRID_TYPE,
                 grid_padding=GRID_PADDING,
                 max_active_cell_count=MAX_ACTIVE_CELL_COUNT,
-                max_iterations=MPM_MAX_ITERATIONS,
+                max_iterations=100,
+                tolerance=1.0e-4,
+                # Use the stable S2/P0/APIC configuration shared by the MPM demos.
+                collider_basis="S2",
+                strain_basis="P0",
+                transfer_scheme="apic",
+                integration_scheme="pic",
                 air_drag=0.2,
-                collider_velocity_mode="backward",
-                project_outside_colliders=True,
+                collider_velocity_mode="forward",
+                # Grid contact avoids impulses from projecting particles out of colliders.
+                project_outside_colliders=False,
             ),
-            use_cuda_graph=True,
+            # Resolve the material at 800 Hz while refreshing the kinematic collider at 400 Hz.
+            num_substeps=MPM_SUBSTEPS,
+            use_cuda_graph=not args_cli.disable_cuda_graph,
             simplify_meshes=False,
         ),
     )
@@ -323,8 +442,8 @@ def preview_material(color):
 
 
 def create_scene_cfg():
-    """Create the particle-pour scene using declarative Isaac Lab assets."""
-    from isaaclab_newton.assets.mpm_object import MPMObjectCfg
+    """Create the teapot-fill scene using declarative Isaac Lab assets."""
+    from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 
     import isaaclab.sim as sim_utils
@@ -334,21 +453,22 @@ def create_scene_cfg():
     from isaaclab.utils.configclass import configclass
 
     container_pos, container_rot, _ = container_pose_at_time(0.0)
-    fluid_points, particle_radius, particle_mass = create_fluid_particles()
+    container_vertices, container_faces = load_container_mesh(args_cli.container_usd)
+    fluid_points, particle_radius, particle_mass = create_fluid_particles(container_vertices, container_faces)
     bowl_vertices, bowl_faces = create_demo_bowl_mesh()
 
     @configclass
-    class DemoBowlMeshCfg(sim_utils.MeshCfg):
-        """Demo-local arbitrary mesh asset config for the catch bowl."""
+    class DemoMeshCfg(sim_utils.MeshCfg):
+        """Demo-local exact triangle-mesh asset config."""
 
-        func: Callable | str = clone(spawn_demo_bowl_mesh)
+        func: Callable | str = clone(spawn_demo_mesh)
         vertices: list[list[float]] = MISSING
         faces: list[list[int]] = MISSING
         mesh_collision_props: sim_utils.NewtonMeshCollisionPropertiesCfg | None = None
 
     @configclass
-    class PourSceneCfg(InteractiveSceneCfg):
-        """Scene containing MPM colliders and one MPM fluid object."""
+    class TeapotFillSceneCfg(InteractiveSceneCfg):
+        """Scene containing MPM colliders and one MPM fluid object sampled inside the teapot."""
 
         table = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
@@ -373,12 +493,12 @@ def create_scene_cfg():
 
         catch_bowl = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/CatchBowl",
-            spawn=DemoBowlMeshCfg(
+            spawn=DemoMeshCfg(
                 vertices=bowl_vertices.tolist(),
                 faces=bowl_faces.tolist(),
                 collision_props=sim_utils.NewtonCollisionPropertiesCfg(
                     collision_enabled=True,
-                    contact_margin=BOWL_MARGIN,
+                    contact_margin=COLLIDER_MARGIN,
                 ),
                 mesh_collision_props=sim_utils.NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="none"),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
@@ -396,8 +516,12 @@ def create_scene_cfg():
         # (Univ. of Utah); provided "as is", no warranty.
         container = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/PourContainer",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=args_cli.container_usd,
+            # Re-spawn the source geometry as one exact triangle mesh. The USD
+            # asset's authored convex decomposition is unsuitable for a hollow
+            # MPM collider and SolverImplicitMPM does not accept convex meshes.
+            spawn=DemoMeshCfg(
+                vertices=container_vertices.tolist(),
+                faces=container_faces.tolist(),
                 rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
                     rigid_body_enabled=True,
                     kinematic_enabled=True,
@@ -407,11 +531,14 @@ def create_scene_cfg():
                     collision_enabled=True,
                     contact_margin=CONTAINER_MARGIN,
                 ),
+                mesh_collision_props=sim_utils.NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="none"),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=CONTAINER_FRICTION,
                     dynamic_friction=CONTAINER_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
+                visual_material=preview_material(CONTAINER_COLOR),
+                visual_material_path="visualMaterial",
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=container_pos, rot=container_rot),
         )
@@ -429,8 +556,12 @@ def create_scene_cfg():
                     yield_pressure=1.0e15,
                     tensile_yield_ratio=5.0,
                 ),
-                visual_color=PARTICLE_COLOR,
-                visual_update_frequency=KIT_PARTICLE_VISUAL_UPDATE_FREQUENCY,
+                visual_color=WATER_COLOR,
+                visual_material=sim_utils.GlassMdlCfg(
+                    glass_color=WATER_COLOR,
+                    glass_ior=1.333,
+                    thin_walled=False,
+                ),
             ),
             init_state=MPMObjectCfg.InitialStateCfg(pos=container_pos),
         )
@@ -445,7 +576,7 @@ def create_scene_cfg():
             spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
         )
 
-    return PourSceneCfg(num_envs=1, env_spacing=0.0)
+    return TeapotFillSceneCfg(num_envs=1, env_spacing=0.0)
 
 
 def particle_count(scene) -> int:
@@ -463,15 +594,15 @@ def keep_running(sim, count: int) -> bool:
 
 def write_container_state(container, sim_time: float) -> None:
     """Write the scripted container pose and velocity through the rigid-object API."""
-    pos, quat, qd = container_pose_at_time(sim_time)
-    pose = torch.tensor([tuple(pos) + tuple(quat)], dtype=torch.float32, device=container.device)
-    velocity = torch.tensor([qd], dtype=torch.float32, device=container.device)
+    pos, quat, twist = container_pose_at_time(sim_time)
+    pose = torch.tensor([pos + quat], dtype=torch.float32, device=container.device)
+    velocity = torch.tensor([twist], dtype=torch.float32, device=container.device)
     container.write_root_link_pose_to_sim_index(root_pose=pose)
     container.write_root_link_velocity_to_sim_index(root_velocity=velocity)
 
 
 def run_simulator(sim, scene) -> None:
-    """Run the scripted particle-pour MPM loop."""
+    """Run the scripted teapot-fill MPM loop."""
     sim_dt = sim.get_physics_dt()
     container = scene["container"]
     count = 0
@@ -486,9 +617,21 @@ def run_simulator(sim, scene) -> None:
 
 
 def main() -> None:
-    """Set up and run the Isaac Lab Newton MPM particle-pour demo."""
+    """Set up and run the Isaac Lab Newton MPM teapot-fill demo."""
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
+        if "kit" in (args_cli.visualizer or []):
+            from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+
+            apply_isaac_rtx_global_settings(
+                IsaacRtxRendererGlobalSettingsCfg(enable_translucency=True),
+            )
+
+        # Resolve after launching so Kit runs never import USD modules before
+        # AppLauncher; Newton-only runs still use standalone omni.client.
+        args_cli.container_usd = retrieve_file_path(args_cli.container_usd)
+
         import isaaclab.sim as sim_utils
         from isaaclab.scene import InteractiveScene
 
@@ -498,9 +641,9 @@ def main() -> None:
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
 
         print(
-            "[INFO]: Isaac Lab Newton particle-pour MPM demo ready."
-            f" Spawned {particle_count(scene)} MPM particles;"
-            f" voxel size {VOXEL_SIZE:.4g} m;"
+            "[INFO]: Isaac Lab Newton teapot-fill MPM demo ready."
+            f" Sampled {particle_count(scene)} MPM particles inside the teapot;"
+            f" fill spacing {FILL_SPACING:.4g} m;"
             f" the teapot will tilt after {HOLD_TIME:.2f}s.",
             flush=True,
         )
