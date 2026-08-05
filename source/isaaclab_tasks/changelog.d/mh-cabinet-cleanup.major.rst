@@ -15,7 +15,7 @@ Changed
 * **Breaking:** Changed :class:`~isaaclab_tasks.core.cabinet.mdp.rewards.open_drawer_bonus` to
   require ``success_threshold``. Configurations that use the term must now pass their drawer
   position threshold for episode success, for example ``success_threshold=0.30``.
-* Changed :class:`~isaaclab_tasks.core.cabinet.mdp.rewards.align_grasp_around_handle` to return a
+* Changed :func:`~isaaclab_tasks.core.cabinet.mdp.rewards.align_grasp_around_handle` to return a
   float tensor instead of a bool tensor, matching the other reward terms.
 
 Added
@@ -48,6 +48,6 @@ Fixed
   other until the value loss overflows.
 * Fixed the direct and manager Franka cabinet workflows using different simulation settings, scene
   assets, actions, observations, rewards, terminations, resets, and episode timing. Both workflows
-  now use the manager-based task definition while retaining their respective environment frontends.
+  now define the same MDP while retaining their respective environment frontends.
 * Fixed the direct RSL-RL, RL Games, and SKRL configurations using different training behavior from
   their manager counterparts. Only their experiment names remain different.

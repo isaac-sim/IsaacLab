@@ -11,7 +11,6 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
-from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import (
     CABINET_CFG,
@@ -93,7 +92,3 @@ class CabinetDirectEnvCfg(DirectRLEnvCfg):
     multi_stage_open_drawer_reward_scale: float = 1.0
     action_rate_reward_scale: float = -1e-2
     joint_vel_reward_scale: float = -1e-4
-
-    def __post_init__(self) -> None:
-        """Set manager-equivalent visualization defaults."""
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5))
