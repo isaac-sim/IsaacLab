@@ -198,7 +198,7 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
     assert {"isaacsim", "mimic"} not in conflict_groups
 
     assert {"isaacsim", "viser"} not in conflict_groups
-    assert not any(dep.startswith("websockets") for dep in pyproject["tool"]["uv"]["override-dependencies"])
+    assert "websockets>=14.0,<17.0.0" in pyproject["tool"]["uv"]["override-dependencies"]
 
 
 def test_uv_run_teleop_co_resolves_with_isaacsim():
@@ -212,7 +212,7 @@ def test_uv_run_teleop_co_resolves_with_isaacsim():
 
     conflict_groups = [{entry["extra"] for entry in group} for group in tool_uv["conflicts"]]
     assert {"isaacsim", "teleop"} not in conflict_groups
-    assert not any(dep.startswith("websockets") for dep in tool_uv["override-dependencies"])
+    assert "websockets>=14.0,<17.0.0" in tool_uv["override-dependencies"]
 
     # The historical lxml split is gone: robomimic no longer constrains lxml, so the teleop
     # and imitation-learning stacks co-resolve.
@@ -246,7 +246,7 @@ def test_uv_run_teleop_extra_bundles_isaacsim():
         assert {"teleop", extra} not in conflict_groups
     # ``--extra teleop --extra test`` must keep working so the teleop suite stays runnable.
     assert {"teleop", "test"} not in conflict_groups
-    assert not any(dep.startswith("coverage") for dep in pyproject["tool"]["uv"]["override-dependencies"])
+    assert "coverage>=7.6.1" in pyproject["tool"]["uv"]["override-dependencies"]
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():

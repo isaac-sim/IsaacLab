@@ -22,10 +22,11 @@ Fixed
 ^^^^^
 
 * Fixed the ``uv`` resolution conflict that made Isaac Sim and Isaac Teleop impossible to
-  install together. Isaac Sim 6.1 declares ``websockets``, ``coverage``, and
-  ``typing-extensions`` as ranges rather than exact pins, so the corresponding
-  ``[tool.uv].override-dependencies`` entries were removed and ``isaacteleop[cloudxr]``,
-  the ``test`` extra, and the Newton viewer stack now co-resolve with Isaac Sim directly.
+  install together. Isaac Sim 6.0 pins ``websockets``, ``coverage``, and
+  ``typing-extensions`` exactly, so ``[tool.uv].override-dependencies`` relaxes all three
+  and ``isaacteleop[cloudxr]``, the ``test`` extra, and the Newton viewer stack co-resolve
+  with Isaac Sim. Isaac Sim 6.1 declares them as ranges, so the overrides can be dropped
+  once it is published.
 * Fixed ``--extra test`` being unusable with Isaac Sim, so
   ``uv run --extra teleop --extra test`` can run the teleop test suite.
 * Fixed the imitation-learning training scripts being unrunnable under ``uv``. The

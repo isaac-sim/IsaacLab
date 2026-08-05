@@ -393,6 +393,10 @@ override-dependencies = [
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
+    # Isaac Sim 6.0 pins these exactly; drop all three once Isaac Sim 6.1 is published.
+    "typing-extensions>=4.15.0",
+    "websockets>=14.0,<17.0.0",
+    "coverage>=7.6.1",
 ]
 # ovphysx pins packaging>=20,<24 while isaacsim-core pins packaging==26.0: a genuine
 # two-sided incompatibility, so uv forks the resolution instead of failing. ``teleop``
