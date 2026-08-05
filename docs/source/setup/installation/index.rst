@@ -519,6 +519,7 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
          uv add isaaclab
 
    .. tab-item:: Standalone uv environment
+
       .. tab-set::
          :sync-group: pip-platform
 
