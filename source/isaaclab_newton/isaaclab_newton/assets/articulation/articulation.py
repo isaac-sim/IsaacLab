@@ -402,7 +402,10 @@ class Articulation(BaseArticulation):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            # Newton's ``body_f`` external-wrench buffer is expressed in the world frame at the
+            # body's CoM, so compose into world frame (rotating body-frame contributions out) rather
+            # than the body frame used by PhysX's ``apply_forces_and_torques_at_position``.
+            composer.compose_to_world_frame()
             # Kept separate from the joint-target gather below: this scatter runs
             # over bodies while the target gather runs over joints (mismatched
             # item axes), and it must precede ``_apply_actuator_model``, which
@@ -419,8 +422,8 @@ class Articulation(BaseArticulation):
                     dim=(self.num_instances, self.num_bodies),
                     device=self.device,
                     inputs=[
-                        composer.out_force_b.warp,
-                        composer.out_torque_b.warp,
+                        composer.out_force_w.warp,
+                        composer.out_torque_w.warp,
                         self._body_user_to_backend_map(),
                         self._data._sim_bind_body_external_wrench,
                         self._ALL_ENV_MASK,
@@ -433,8 +436,8 @@ class Articulation(BaseArticulation):
                     dim=(self.num_instances, self.num_bodies),
                     device=self.device,
                     inputs=[
-                        composer.out_force_b,
-                        composer.out_torque_b,
+                        composer.out_force_w,
+                        composer.out_torque_w,
                         self._data._sim_bind_body_external_wrench,
                         self._ALL_ENV_MASK,
                         self._ALL_BODY_MASK,

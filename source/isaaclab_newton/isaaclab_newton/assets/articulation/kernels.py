@@ -63,10 +63,10 @@ def update_wrench_array_with_force_and_torque_ordered(
     when no body ordering is active, so this kernel always applies the body map.
 
     Args:
-        forces: Body-frame forces [N], shaped [num_envs, num_bodies], in public
-            body order.
-        torques: Body-frame torques [N*m], shaped [num_envs, num_bodies], in
-            public body order.
+        forces: World-frame forces [N] at the body's CoM, shaped
+            [num_envs, num_bodies], in public body order.
+        torques: World-frame torques [N*m] about the body's CoM, shaped
+            [num_envs, num_bodies], in public body order.
         user_to_backend: Read-only map shaped [num_bodies] from each public body
             index to its backend body index.
         wrench: Backend-order wrench destination [N, N*m], shaped

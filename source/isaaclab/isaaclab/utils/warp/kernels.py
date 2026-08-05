@@ -657,6 +657,43 @@ def compose_wrench_to_body_frame(
 
 
 @wp.kernel
+def compose_wrench_to_world_frame(
+    global_force_w: wp.array2d(dtype=wp.vec3f),
+    global_torque_w: wp.array2d(dtype=wp.vec3f),
+    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
+    local_force_b: wp.array2d(dtype=wp.vec3f),
+    local_torque_b: wp.array2d(dtype=wp.vec3f),
+    com_pos_w: wp.array2d(dtype=wp.vec3f),
+    link_quat_w: wp.array2d(dtype=wp.quatf),
+    out_force_w: wp.array2d(dtype=wp.vec3f),
+    out_torque_w: wp.array2d(dtype=wp.vec3f),
+):
+    """Compose global and local wrench buffers into a single world-frame output.
+
+    World-frame counterpart of :func:`compose_wrench_to_body_frame`. Global buffers are already
+    world frame and are kept as-is; global torques store the moment of positional forces about the
+    world origin (``cross(P, F)``), corrected to be about the body's CoM via
+    ``cross(P, F) - cross(com_pos_w, F) = cross(P - com_pos_w, F)``. Local body-frame forces and
+    torques are rotated into the world frame using ``quat_rotate(link_quat_w, ...)`` and added. The
+    resulting wrench is expressed in world frame about the body's CoM, matching the reference frame
+    that solvers such as Newton use for their external-wrench (``body_f``) buffer.
+
+    Dispatched with ``dim=(num_envs, num_bodies)``.
+    """
+    tid_env, tid_body = wp.tid()
+    total_force_w = global_force_w[tid_env, tid_body] + global_force_at_com_w[tid_env, tid_body]
+    corrected_torque_w = global_torque_w[tid_env, tid_body] - wp.cross(
+        com_pos_w[tid_env, tid_body], global_force_w[tid_env, tid_body]
+    )
+    out_force_w[tid_env, tid_body] = total_force_w + wp.quat_rotate(
+        link_quat_w[tid_env, tid_body], local_force_b[tid_env, tid_body]
+    )
+    out_torque_w[tid_env, tid_body] = corrected_torque_w + wp.quat_rotate(
+        link_quat_w[tid_env, tid_body], local_torque_b[tid_env, tid_body]
+    )
+
+
+@wp.kernel
 def reset_wrench_composer_index(
     env_ids: wp.array(dtype=Any),
     global_force_w: wp.array2d(dtype=wp.vec3f),

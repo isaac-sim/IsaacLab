@@ -83,6 +83,22 @@ def quat_rotate_inv_np(quat_xyzw: np.ndarray, vec: np.ndarray) -> np.ndarray:
     return vec + w * t + np.cross(-xyz, t, axis=-1)
 
 
+def quat_rotate_np(quat_xyzw: np.ndarray, vec: np.ndarray) -> np.ndarray:
+    """Rotate a vector by a quaternion (numpy).
+
+    Args:
+        quat_xyzw: Quaternion in (x, y, z, w) format. Shape: (..., 4)
+        vec: Vector to rotate. Shape: (..., 3)
+
+    Returns:
+        Rotated vector. Shape: (..., 3)
+    """
+    xyz = quat_xyzw[..., 0:3]
+    w = quat_xyzw[..., 3:4]
+    t = 2.0 * np.cross(xyz, vec, axis=-1)
+    return vec + w * t + np.cross(xyz, t, axis=-1)
+
+
 def random_unit_quaternion_np(rng: np.random.Generator, shape: tuple) -> np.ndarray:
     """Generate random unit quaternions in (x, y, z, w) format.
 
@@ -434,6 +450,72 @@ def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int
         composed_force_np = wrench_composer.out_force_b.warp.numpy()
         assert np.allclose(composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5), (
             f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
+        )
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_envs", [1, 10, 100])
+@pytest.mark.parametrize("num_bodies", [1, 3, 5])
+def test_local_forces_composed_to_world(device: str, num_envs: int, num_bodies: int):
+    """Test that body-frame forces are rotated into the world frame by compose_to_world_frame.
+
+    Regression test for the Newton body-frame external-wrench bug: a body-frame force must be
+    rotated by the body's orientation when composed into the world frame (Newton's ``body_f``
+    reference frame), not written out unrotated.
+    """
+    rng = np.random.default_rng(seed=20)
+
+    for _ in range(5):
+        # Create random link quaternions (world <- body rotation).
+        link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
+        link_quat_torch = torch.from_numpy(link_quat_np)
+
+        mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
+        wrench_composer = WrenchComposer(mock_asset)
+
+        # Apply local (body-frame) forces.
+        forces_local_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
+        forces_local = wp.from_numpy(forces_local_np, dtype=wp.vec3f, device=device)
+        wrench_composer.add_forces_and_torques_index(forces=forces_local, is_global=False)
+
+        # Body-frame output must leave local forces unrotated (PhysX contract).
+        wrench_composer.compose_to_body_frame()
+        composed_force_b = wrench_composer.out_force_b.warp.numpy()
+        assert np.allclose(composed_force_b, forces_local_np, atol=1e-4, rtol=1e-5), (
+            f"Body-frame output should be unrotated.\nExpected:\n{forces_local_np}\nGot:\n{composed_force_b}"
+        )
+
+        # World-frame output must rotate local forces by the body orientation.
+        expected_force_w = quat_rotate_np(link_quat_np, forces_local_np)
+        wrench_composer.compose_to_world_frame()
+        composed_force_w = wrench_composer.out_force_w.warp.numpy()
+        assert np.allclose(composed_force_w, expected_force_w, atol=1e-4, rtol=1e-5), (
+            f"Local force world-frame rotation failed.\nExpected:\n{expected_force_w}\nGot:\n{composed_force_w}"
+        )
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_envs", [1, 10, 100])
+@pytest.mark.parametrize("num_bodies", [1, 3, 5])
+def test_global_forces_composed_to_world_unchanged(device: str, num_envs: int, num_bodies: int):
+    """Test that global (world-frame) forces at the CoM pass through compose_to_world_frame unchanged."""
+    rng = np.random.default_rng(seed=21)
+
+    for _ in range(5):
+        link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
+        link_quat_torch = torch.from_numpy(link_quat_np)
+
+        mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
+        wrench_composer = WrenchComposer(mock_asset)
+
+        forces_global_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
+        forces_global = wp.from_numpy(forces_global_np, dtype=wp.vec3f, device=device)
+        wrench_composer.add_forces_and_torques_index(forces=forces_global, is_global=True)
+
+        wrench_composer.compose_to_world_frame()
+        composed_force_w = wrench_composer.out_force_w.warp.numpy()
+        assert np.allclose(composed_force_w, forces_global_np, atol=1e-4, rtol=1e-5), (
+            f"World-frame global force should be unchanged.\nExpected:\n{forces_global_np}\nGot:\n{composed_force_w}"
         )
 
 

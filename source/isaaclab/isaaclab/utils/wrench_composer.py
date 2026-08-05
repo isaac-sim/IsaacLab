@@ -19,6 +19,7 @@ from isaaclab.utils.warp.kernels import (
     add_forces_to_dual_buffers_mask,
     add_raw_wrench_buffers,
     compose_wrench_to_body_frame,
+    compose_wrench_to_world_frame,
     reset_wrench_composer_index_kernel,
     reset_wrench_composer_mask,
     set_forces_to_dual_buffers_index_kernel,
@@ -48,10 +49,13 @@ class WrenchComposer:
         - ``local_force_b``: Local forces [N] (body frame).
         - ``local_torque_b``: Local torques [N·m] (body frame).
 
-        And two output buffers:
+        And output buffers for each supported frame:
 
-        - ``out_force_b``: Composed force [N] in body frame.
-        - ``out_torque_b``: Composed torque [N·m] in body frame.
+        - ``out_force_b`` / ``out_torque_b``: Composed force [N] / torque [N·m] in body frame
+          (populated by :meth:`compose_to_body_frame`; consumed by body-frame solvers such as PhysX).
+        - ``out_force_w`` / ``out_torque_w``: Composed force [N] / torque [N·m] in world frame at the
+          body's CoM (populated by :meth:`compose_to_world_frame`; consumed by world-frame solvers
+          such as Newton).
 
         Args:
             asset: Asset to use.
@@ -66,6 +70,9 @@ class WrenchComposer:
         self._asset = asset
         self._active = False
         self._dirty = False
+        # Which frame the output buffers currently hold ("body", "world", or None if uncomposed).
+        # Reading an output property for a different frame than last composed triggers a recompose.
+        self._composed_frame: str | None = None
         if hasattr(self._asset.data, "body_com_pos_w"):
             self._get_com_pos_fn = lambda a=self._asset: a.data.body_com_pos_w.warp
         else:
@@ -82,13 +89,17 @@ class WrenchComposer:
         self._local_force_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._local_torque_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
 
-        # -- Output buffers (2 total) --
+        # -- Output buffers (2 per frame) --
         self._out_force_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._out_torque_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        self._out_force_w = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        self._out_torque_w = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
 
         # ProxyArray caches for the output buffers, exposed via the public properties.
         self._out_force_b_ta = ProxyArray(self._out_force_b)
         self._out_torque_b_ta = ProxyArray(self._out_torque_b)
+        self._out_force_w_ta = ProxyArray(self._out_force_w)
+        self._out_torque_w_ta = ProxyArray(self._out_torque_w)
 
         # -- Index / mask helper arrays --
         self._ALL_ENV_INDICES = wp.array(np.arange(self.num_envs, dtype=np.int32), dtype=wp.int32, device=self.device)
@@ -178,7 +189,7 @@ class WrenchComposer:
 
         Triggers composition from input buffers if dirty.
         """
-        self._ensure_composed()
+        self._ensure_composed("body")
         return self._out_force_b_ta
 
     @property
@@ -191,8 +202,36 @@ class WrenchComposer:
 
         Triggers composition from input buffers if dirty.
         """
-        self._ensure_composed()
+        self._ensure_composed("body")
         return self._out_torque_b_ta
+
+    @property
+    def out_force_w(self) -> ProxyArray:
+        """Composed output force [N] in the world frame, at the body's center of mass.
+
+        Shape is ``(num_envs, num_bodies)``, dtype = ``wp.vec3f``. In torch this resolves to
+        ``(num_envs, num_bodies, 3)``. Use ``.warp`` for the underlying :class:`wp.array` or
+        ``.torch`` for a cached zero-copy :class:`torch.Tensor` view.
+
+        Triggers composition from input buffers if dirty. This is the frame expected by world-frame
+        external-wrench buffers such as Newton's ``body_f``.
+        """
+        self._ensure_composed("world")
+        return self._out_force_w_ta
+
+    @property
+    def out_torque_w(self) -> ProxyArray:
+        """Composed output torque [N·m] in the world frame, about the body's center of mass.
+
+        Shape is ``(num_envs, num_bodies)``, dtype = ``wp.vec3f``. In torch this resolves to
+        ``(num_envs, num_bodies, 3)``. Use ``.warp`` for the underlying :class:`wp.array` or
+        ``.torch`` for a cached zero-copy :class:`torch.Tensor` view.
+
+        Triggers composition from input buffers if dirty. This is the frame expected by world-frame
+        external-wrench buffers such as Newton's ``body_f``.
+        """
+        self._ensure_composed("world")
+        return self._out_torque_w_ta
 
     @property
     def composed_force(self) -> ProxyArray:
@@ -541,6 +580,41 @@ class WrenchComposer:
             device=self.device,
         )
         self._dirty = False
+        self._composed_frame = "body"
+
+    def compose_to_world_frame(self):
+        """Compose the five input buffers into the world-frame output buffers.
+
+        World-frame counterpart of :meth:`compose_to_body_frame`. Global (world-frame) contributions
+        are kept as-is with their torques corrected for the body's CoM position, while local
+        (body-frame) contributions are rotated into the world frame. After this call,
+        ``out_force_w`` and ``out_torque_w`` contain the final composed wrench expressed in the world
+        frame at the body's center of mass -- the reference frame expected by world-frame
+        external-wrench buffers such as Newton's ``body_f``.
+
+        The dirty flag is cleared after composition.
+        """
+        com_pos_w = self._get_com_pos_fn()
+        link_quat_w = self._get_link_quat_fn()
+
+        wp.launch(
+            compose_wrench_to_world_frame,
+            dim=(self.num_envs, self.num_bodies),
+            inputs=[
+                self._global_force_w,
+                self._global_torque_w,
+                self._global_force_at_com_w,
+                self._local_force_b,
+                self._local_torque_b,
+                com_pos_w,
+                link_quat_w,
+                self._out_force_w,
+                self._out_torque_w,
+            ],
+            device=self.device,
+        )
+        self._dirty = False
+        self._composed_frame = "world"
 
     def reset(
         self,
@@ -568,8 +642,11 @@ class WrenchComposer:
             self._local_torque_b.zero_()
             self._out_force_b.zero_()
             self._out_torque_b.zero_()
+            self._out_force_w.zero_()
+            self._out_torque_w.zero_()
             self._active = False
             self._dirty = False
+            self._composed_frame = None
         elif env_mask is not None:
             wp.launch(
                 reset_wrench_composer_mask,
@@ -718,7 +795,17 @@ class WrenchComposer:
             f"body_ids must be None, slice(None), a sequence, torch.Tensor, or wp.array, got {type(body_ids).__name__}"
         )
 
-    def _ensure_composed(self):
-        """Compose input buffers into output buffers if dirty."""
-        if self._dirty:
-            self.compose_to_body_frame()
+    def _ensure_composed(self, frame: str = "body"):
+        """Compose input buffers into the requested frame's output buffers if needed.
+
+        Recomposes when the input buffers are dirty or when the last composition targeted a
+        different frame than the one being requested.
+
+        Args:
+            frame: Target frame, ``"body"`` or ``"world"``.
+        """
+        if self._dirty or self._composed_frame != frame:
+            if frame == "world":
+                self.compose_to_world_frame()
+            else:
+                self.compose_to_body_frame()

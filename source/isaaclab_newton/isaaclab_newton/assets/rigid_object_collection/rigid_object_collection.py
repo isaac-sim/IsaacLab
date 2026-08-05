@@ -197,14 +197,17 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            # Newton's ``body_f`` external-wrench buffer is expressed in the world frame at the
+            # body's CoM, so compose into world frame (rotating body-frame contributions out)
+            # rather than the body frame used by PhysX.
+            composer.compose_to_world_frame()
             wp.launch(
                 shared_kernels.update_wrench_array_with_force_and_torque,
                 dim=(self.num_instances, self.num_bodies),
                 device=self.device,
                 inputs=[
-                    composer.out_force_b,
-                    composer.out_torque_b,
+                    composer.out_force_w,
+                    composer.out_torque_w,
                     self._wrench_buffer,
                     self._ALL_ENV_MASK,
                     self._ALL_BODY_MASK,
