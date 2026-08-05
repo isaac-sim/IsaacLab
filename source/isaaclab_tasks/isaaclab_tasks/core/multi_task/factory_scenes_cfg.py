@@ -31,6 +31,7 @@ class FactorySceneBase(InteractiveSceneCfg):
     robot.
     """
 
+    num_envs: int = 4096
     ground = assets.GROUND_CFG
     table = assets.TABLE_CFG
     nistboard = assets.NISTBOARD_CFG
@@ -145,23 +146,23 @@ class PegInsert16MMSceneCfg(FactorySceneBase):
 class FactorySceneCfg(PresetCfg):
     """Task scene preset — resolves to the complete scene for the active task."""
 
-    nut_thread_m16: NutThreadM16SceneCfg = NutThreadM16SceneCfg(num_envs=2, env_spacing=2.0)
+    nut_thread_m16: NutThreadM16SceneCfg = NutThreadM16SceneCfg(env_spacing=2.0)
 
     # Gear mesh
-    gear_mesh_small: GearMeshSmallSceneCfg = GearMeshSmallSceneCfg(num_envs=2, env_spacing=2.0)
-    gear_mesh_medium: GearMeshMediumSceneCfg = GearMeshMediumSceneCfg(num_envs=2, env_spacing=2.0)
-    gear_mesh_large: GearMeshLargeSceneCfg = GearMeshLargeSceneCfg(num_envs=2, env_spacing=2.0)
+    gear_mesh_small: GearMeshSmallSceneCfg = GearMeshSmallSceneCfg(env_spacing=2.0)
+    gear_mesh_medium: GearMeshMediumSceneCfg = GearMeshMediumSceneCfg(env_spacing=2.0)
+    gear_mesh_large: GearMeshLargeSceneCfg = GearMeshLargeSceneCfg(env_spacing=2.0)
 
     # Rod insert (round)
-    rod_insert_4mm: RodInsert4MMSceneCfg = RodInsert4MMSceneCfg(num_envs=2, env_spacing=2.0)
-    rod_insert_8mm: RodInsert8MMSceneCfg = RodInsert8MMSceneCfg(num_envs=2, env_spacing=2.0)
-    rod_insert_12mm: RodInsert12MMSceneCfg = RodInsert12MMSceneCfg(num_envs=2, env_spacing=2.0)
-    rod_insert_16mm: RodInsert16MMSceneCfg = RodInsert16MMSceneCfg(num_envs=2, env_spacing=2.0)
+    rod_insert_4mm: RodInsert4MMSceneCfg = RodInsert4MMSceneCfg(env_spacing=2.0)
+    rod_insert_8mm: RodInsert8MMSceneCfg = RodInsert8MMSceneCfg(env_spacing=2.0)
+    rod_insert_12mm: RodInsert12MMSceneCfg = RodInsert12MMSceneCfg(env_spacing=2.0)
+    rod_insert_16mm: RodInsert16MMSceneCfg = RodInsert16MMSceneCfg(env_spacing=2.0)
 
     # Peg insert (rectangular)
-    peg_insert_4mm: PegInsert4MMSceneCfg = PegInsert4MMSceneCfg(num_envs=2, env_spacing=2.0)
-    peg_insert_8mm: PegInsert8MMSceneCfg = PegInsert8MMSceneCfg(num_envs=2, env_spacing=2.0)
-    peg_insert_12mm: PegInsert12MMSceneCfg = PegInsert12MMSceneCfg(num_envs=2, env_spacing=2.0)
-    peg_insert_16mm: PegInsert16MMSceneCfg = PegInsert16MMSceneCfg(num_envs=2, env_spacing=2.0)
+    peg_insert_4mm: PegInsert4MMSceneCfg = PegInsert4MMSceneCfg(env_spacing=2.0)
+    peg_insert_8mm: PegInsert8MMSceneCfg = PegInsert8MMSceneCfg(env_spacing=2.0)
+    peg_insert_12mm: PegInsert12MMSceneCfg = PegInsert12MMSceneCfg(env_spacing=2.0)
+    peg_insert_16mm: PegInsert16MMSceneCfg = PegInsert16MMSceneCfg(env_spacing=2.0)
 
     default: NutThreadM16SceneCfg = nut_thread_m16

@@ -340,6 +340,10 @@ class FactoryBaseEnvCfg(ManagerBasedRLEnvCfg):
         self.events.variable_gravity = None
         self.curriculum.gravity_adr = None
 
+        # ``play`` reads the training default when ``--num_envs`` is omitted, and the training
+        # default is sized for throughput, not for watching a policy.
+        self.scene.num_envs = 128
+
         uniform = SamplerCfg(strategies=[UniformSamplingStrategyCfg(weight=1.0)], eps=0.0)
 
         reset = self.events.reset_strategies.params
