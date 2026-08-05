@@ -423,11 +423,24 @@ class PhysicsManager(ABC):
     def after_visualizers_render(cls) -> None:
         """Hook after visualizers have stepped during :meth:`~isaaclab.sim.SimulationContext.render`.
 
-        Use for physics-backend sync (e.g. fabric) if needed. Recording pipelines (Kit/RTX,
-        Newton GL video, etc.) run from :mod:`isaaclab.envs.utils.recording_hooks` so they are not
-        tied to a specific physics manager. Default is a no-op.
+        Use for physics-backend sync (e.g. fabric) if needed. Default is a no-op.
         """
         pass
+
+    @classmethod
+    def video_capture_backend(cls) -> str | None:
+        """Return the video capture backend identifier for this physics manager.
+
+        Used by :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder` to select
+        how perspective video frames are captured when no visualizer is active.
+
+        Returns:
+            ``"kit"`` for backends that use Kit/Replicator (e.g. :class:`~isaaclab_physx.physics.PhysxManager`),
+            ``"newton_gl"`` for backends that use a headless Newton GL viewer
+            (e.g. :class:`~isaaclab_newton.physics.NewtonManager`),
+            or ``None`` if the backend does not support perspective video capture.
+        """
+        return None
 
     @classmethod
     def close(cls) -> None:
@@ -436,7 +449,13 @@ class PhysicsManager(ABC):
         Subclasses should call super().close() after backend-specific cleanup.
         """
         sim = PhysicsManager._sim
-        is_active_manager = sim is not None and sim.physics_manager is cls
+        # A config may declare its manager lazily as a ``"module:Class"`` string, which proxies
+        # attribute access but is a ``str``, so compare against that form as well as the class.
+        # The string must name the class's defining module; a config that pointed at a re-export
+        # path would not match here.
+        is_active_manager = sim is not None and (
+            sim.physics_manager is cls or sim.physics_manager == f"{cls.__module__}:{cls.__qualname__}"
+        )
         if is_active_manager:
             cls.dispatch_event(PhysicsEvent.STOP)  # notify listeners before cleanup
 

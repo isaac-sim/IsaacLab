@@ -31,7 +31,7 @@ class DigitPhysicsCfg(PresetCfg):
         gpu_total_aggregate_pairs_capacity=2**23,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = physx
+    default = isaacsim_physx
 
 
 @configclass

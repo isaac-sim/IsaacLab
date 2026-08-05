@@ -8,7 +8,7 @@ from __future__ import annotations
 import gc
 import logging
 import traceback
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
@@ -18,7 +18,6 @@ import torch
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
@@ -33,6 +32,7 @@ from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.visualizer_cfg import _get_visualizer_install_hint
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -180,6 +180,9 @@ class SimulationContext:
             self.cfg.device = f"cuda:{device_id}"
 
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
+        # Must be set before physics_manager.initialize() so that any render callbacks
+        # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
+        self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}
         self.physics_manager.initialize(self)
 
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
@@ -392,10 +395,9 @@ class SimulationContext:
                 # isaaclab_visualizers is optional; log once at warning level
                 if "isaaclab_visualizers" in str(exc):
                     logger.warning(
-                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. "
-                        "Install with: pip install isaaclab_visualizers[%s]",
+                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. %s",
                         viz_type,
-                        viz_type,
+                        _get_visualizer_install_hint(viz_type),
                     )
                 else:
                     logger.error(
@@ -408,12 +410,26 @@ class SimulationContext:
         return default_configs
 
     def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
-        """Apply shared default visualizer settings to a backend-specific config."""
+        """Apply shared default visualizer settings to a backend-specific config.
+
+        Only sets fields that are still at the backend class's own factory default,
+        so explicitly customized values on ``cfg`` (e.g. ``window_width=320``) are
+        preserved while env-level hints (e.g. ``eye``, ``lookat``) are propagated.
+        """
         default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
         if default_cfg is None:
             return
+        # Instantiate a fresh backend cfg to detect which fields the caller
+        # has already customized beyond the class defaults.
+        try:
+            factory_defaults = type(cfg)()
+        except Exception:
+            factory_defaults = None
         for field in fields(default_cfg):
             if field.name == "visualizer_type" or not hasattr(cfg, field.name):
+                continue
+            # Preserve explicitly customized fields on cfg.
+            if factory_defaults is not None and getattr(cfg, field.name) != getattr(factory_defaults, field.name):
                 continue
             setattr(cfg, field.name, getattr(default_cfg, field.name))
 
@@ -485,6 +501,8 @@ class SimulationContext:
         if cli_disable_all:
             resolved = []
         elif not cli_explicit:
+            for cfg in visualizer_cfgs:
+                self._apply_default_visualizer_cfg(cfg)
             self._apply_visualizer_cli_overrides(visualizer_cfgs)
             resolved = visualizer_cfgs
         elif not visualizer_cfgs:
@@ -494,6 +512,8 @@ class SimulationContext:
             # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
             cli_requested_set = set(cli_requested)
             resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
+            for cfg in resolved:
+                self._apply_default_visualizer_cfg(cfg)
             existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             for viz_type in cli_requested:
                 if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
@@ -509,11 +529,15 @@ class SimulationContext:
             resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             missing = [t for t in cli_requested if t not in resolved_types]
             if missing:
+                install_hints = " ".join(
+                    _get_visualizer_install_hint(visualizer_type)
+                    for visualizer_type in missing
+                    if visualizer_type in _VISUALIZER_TYPES
+                )
                 raise RuntimeError(
                     f"Explicitly requested visualizer(s) {missing} could not be configured. "
                     f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
-                    "Ensure the required package is installed "
-                    "(e.g., pip install isaaclab_visualizers[<type>])."
+                    f"{install_hints}"
                 )
 
         # XR auto-start: auto-inject a KitVisualizer when XR is active and no
@@ -533,9 +557,9 @@ class SimulationContext:
                     logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
                 except (ImportError, ModuleNotFoundError, AttributeError) as exc:
                     logger.warning(
-                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. "
-                        "Install isaaclab_visualizers[kit] or pass --visualizer kit.",
+                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. %s",
                         exc,
+                        _get_visualizer_install_hint("kit"),
                     )
 
         return resolved
@@ -643,6 +667,24 @@ class SimulationContext:
         for viz in self._visualizers:
             viz.set_camera_view(eye, target)
 
+    def add_render_callback(self, name: str, fn: Callable[[Any], None], order: int = 0) -> None:
+        """Register a callback to fire after every render step.
+
+        Args:
+            name: Unique identifier. Silently replaces any existing callback with the same name.
+            fn: Callable invoked with a single ``None`` argument after each :meth:`render` call.
+            order: Execution order relative to other callbacks. Lower values fire first.
+        """
+        self._render_callbacks[name] = (order, fn)
+
+    def remove_render_callback(self, name: str) -> None:
+        """Unregister a previously registered render callback.
+
+        Args:
+            name: Identifier passed to :meth:`add_render_callback`. No-op if not found.
+        """
+        self._render_callbacks.pop(name, None)
+
     def forward(self) -> None:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()
@@ -686,9 +728,8 @@ class SimulationContext:
 
         Calls update_visualizers() so visualizers run at the render cadence (not at
         every physics step). Camera sensors drive their configured renderer when
-        fetching data. Recording-related follow-up (Kit/RTX headless video, Newton GL
-        video, etc.) runs in :mod:`isaaclab.envs.utils.recording_hooks` so it is not tied to a
-        specific :class:`~isaaclab.physics.PhysicsManager` subclass.
+        fetching data. Physics-backend recording hooks (e.g. Kit/RTX headless video pump) fire through
+        :meth:`add_render_callback` so they are not hard-coded in this class.
 
         **Kit vs. standalone visualizers:**  The Kit app loop (``app.update()``) is the
         only way to drive camera/RTX sensor rendering and viewport GUI updates; it
@@ -708,13 +749,9 @@ class SimulationContext:
         self.physics_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt(), skip_app_pumping=skip_app_pumping)
         self.physics_manager.after_visualizers_render()
-        run_recording_hooks_after_visualizers(self)
+        for _, callback in sorted(self._render_callbacks.values(), key=lambda x: x[0]):
+            callback(None)
         self._render_generation += 1
-
-        # Call render callbacks
-        if hasattr(self, "_render_callbacks"):
-            for callback in self._render_callbacks.values():
-                callback(None)  # Pass None as event data
 
     def update_visualizers(self, dt: float, skip_app_pumping: bool = False) -> None:
         """Update visualizers without triggering renderer/GUI.
@@ -864,6 +901,11 @@ class SimulationContext:
             # Close physics manager FIRST to detach PhysX from the stage
             # This must happen before clearing USD prims to avoid PhysX cleanup errors
             cls._instance.physics_manager.close()
+
+            # Close the camera renderers. Ordered after the physics manager so PhysicsEvent.STOP has
+            # already invalidated the cameras that hold render data, and before close_stage() so the
+            # backends release their stage-bound resources while the stage still exists.
+            cls._instance._render_context.close()
 
             # Close all visualizers
             for viz in cls._instance._visualizers:

@@ -25,7 +25,7 @@ from isaaclab_tasks.contrib.stack.config.so101.stack_joint_pos_env_cfg import (
 
 def test_preset_enables_contact_last_and_keeps_stack_tuning():
     preset = SO101StackPhysicsCfg()
-    assert preset.default == preset.physx
+    assert preset.default == preset.isaacsim_physx
     for physx in (preset.isaacsim_physx, preset.physx.isaacsim_physx):
         assert physx.solve_articulation_contact_last is True
         assert physx.bounce_threshold_velocity == 0.01

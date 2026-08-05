@@ -13,8 +13,7 @@ from types import ModuleType
 _OVPHYSX_INSTALL_MESSAGE = (
     "The OvPhysX backend requires the optional 'ovphysx' runtime wheel, which is not installed. "
     "Run your command with: uv run --extra ovphysx <command> "
-    "(or, manually: pip install --extra-index-url https://pypi.nvidia.com "
-    "-e 'source/isaaclab_ovphysx[ovphysx]')."
+    "(or, manually: python -m pip install --extra-index-url https://pypi.nvidia.com ovphysx)."
 )
 
 

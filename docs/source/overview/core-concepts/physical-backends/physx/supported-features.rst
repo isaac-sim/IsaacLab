@@ -2,9 +2,11 @@ Supported Features
 ==================
 
 PhysX is the broadest backend in Isaac Lab. It is the reference for behaviour
-parity and supports every public asset, sensor, and renderer surface in the
-framework. Tasks built before Isaac Lab 3.0 ran on PhysX, and the bulk of the
-shipped tasks still default to the PhysX preset.
+parity and supports most public asset, sensor, and renderer surfaces in the
+framework. Tasks built before Isaac Lab 3.0 ran on PhysX. Environments whose
+previous default was automatic PhysX selection now use the concrete
+``isaacsim_physx`` preset by default; explicit backend defaults remain
+unchanged.
 
 The summary below is intentionally coarse; consult each component's API
 documentation for fine-grained capability details.
@@ -17,6 +19,7 @@ Core Simulation
 * Rigid Object and Rigid Object Collection APIs
 * Soft-body and particle simulation (legacy — not exposed through the
   Isaac Lab asset surface but available through PhysX schemas)
+* Deformable Object API. Cable Object is not supported.
 * CPU and GPU pipelines; GPU is the default for the vectorized RL workloads
 
 
@@ -51,8 +54,9 @@ Tasks and Workflows
 -------------------
 
 * Direct and Manager-based workflows
-* All ``isaaclab_tasks`` environments default to the PhysX preset unless the
-  task explicitly opts in to a different backend
+* ``isaaclab_tasks`` environments that previously defaulted to automatic PhysX
+  selection now default to concrete Isaac Sim PhysX. Environments with an
+  explicit backend default, including Newton tasks, retain that default.
 * Imitation learning and motion-generation pipelines (Mimic, motion generators)
 
 

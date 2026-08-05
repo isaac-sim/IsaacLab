@@ -2395,6 +2395,12 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
         if reset_joint_targets:
             articulation_asset.set_joint_position_target_index(target=default_joint_pos, env_ids=env_ids)
             articulation_asset.set_joint_velocity_target_index(target=default_joint_vel, env_ids=env_ids)
+    # cable objects
+    for cable_object in env.scene.cable_objects.values():
+        segment_pose = cable_object.data.default_segment_pose_w.torch[env_ids].clone()
+        segment_velocity = cable_object.data.default_segment_velocity_w.torch[env_ids].clone()
+        cable_object.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
+        cable_object.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
     # deformable objects
     for deformable_object in env.scene.deformable_objects.values():
         # obtain default and set into the physics simulation

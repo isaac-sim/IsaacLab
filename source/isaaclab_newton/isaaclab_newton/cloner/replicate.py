@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import TYPE_CHECKING, TypeAlias
 
 import torch
@@ -32,6 +33,36 @@ if TYPE_CHECKING:
     ]
 else:
     _MappingBatch = tuple
+
+
+@contextlib.contextmanager
+def newton_builder_world_hook(
+    hook: Callable[[ModelBuilder, int, list[float], list[float]], None],
+) -> Iterator[None]:
+    """Temporarily extend every world built by Newton replication.
+
+    The callback must not already be registered. On exit, the context removes
+    only its callback and preserves hooks owned by other callers.
+
+    Args:
+        hook: Callback receiving the builder, world index, world position [m],
+            and world orientation quaternion in xyzw order during replication.
+
+    Yields:
+        Control while the callback is registered.
+
+    Raises:
+        RuntimeError: If the callback is already registered.
+    """
+    hooks = NewtonManager._per_world_builder_hooks
+    if hook in hooks:
+        raise RuntimeError("Newton world-builder hook is already registered.")
+    hooks.append(hook)
+    try:
+        yield
+    finally:
+        if hook in hooks:
+            hooks.remove(hook)
 
 
 def _build_newton_builder_from_mapping(
@@ -107,7 +138,6 @@ def _build_newton_builder_from_mapping(
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
-        post_replicate_hooks=NewtonManager._post_replicate_hooks,
     )
 
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}

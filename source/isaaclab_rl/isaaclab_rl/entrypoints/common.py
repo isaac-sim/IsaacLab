@@ -363,9 +363,17 @@ def add_common_train_args(
         max_iterations_type: Converter and validator for ``--max_iterations``.
     """
     parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
-    parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
     parser.add_argument(
-        "--video_interval", type=int, default=2000, help="Interval between video recordings (in steps)."
+        "--video_length",
+        type=int,
+        default=None,
+        help="Length of each recorded video clip in env steps. Overrides the value in VideoRecorderCfg.",
+    )
+    parser.add_argument(
+        "--video_interval",
+        type=int,
+        default=None,
+        help="Interval between video clips in env steps. Overrides the value in VideoRecorderCfg.",
     )
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -520,15 +528,14 @@ def create_isaaclab_env(
     Returns:
         The created Gymnasium environment.
     """
-    render_mode = "rgb_array" if args_cli.video else None
     if args_cli.frontend == "torch":
-        env = gym.make(task, cfg=env_cfg, render_mode=render_mode)
+        env = gym.make(task, cfg=env_cfg)
     else:
         # Imported lazily: the warp frontend lives in the optional
         # isaaclab_experimental package, and the torch path must work without it.
         from isaaclab_experimental.envs.frontend import WarpFrontend
 
-        env = WarpFrontend.build_env(env_cfg, task, render_mode=render_mode)
+        env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
         from isaaclab.envs import multi_agent_to_single_agent
 
@@ -563,34 +570,115 @@ def wrap_sensor_capture(env: gym.Env, log_dir: str, args_cli: argparse.Namespace
     return CaptureEnvSensors(env, **sensor_capture_kwargs)
 
 
-def wrap_record_video(env, log_dir: str, args_cli: argparse.Namespace):
-    """Wrap an environment with video recording when requested.
+def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespace, *, subdir: str = "train") -> None:
+    """Configure internal video recording on the environment config.
+
+    Enables recording by ensuring ``env_cfg.video_recorders`` is non-empty, then applies
+    any CLI overrides.  If the env config already declares recorders, those are kept as-is
+    (preserving user-set fields such as ``output_dir``, ``source``, and ``fps``); only the
+    fields explicitly controlled by CLI flags are overwritten.  If no recorders are declared,
+    a default one is created with ``source="visualizer"`` and
+    ``output_dir=<log_dir>/videos/<subdir>``.
+
+    Maps CLI flags:
+
+    * ``--video``            → enables recording
+    * ``--video_length``     → overrides :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_length`
+      on every recorder when explicitly passed (``None`` = use the cfg default)
+    * ``--video_interval``   → overrides :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_interval`
+      on every recorder when explicitly passed (``None`` = use the cfg default)
 
     Args:
-        env: Gymnasium environment to wrap.
-        log_dir: Training log directory.
+        env_cfg: Isaac Lab environment config to modify in-place.
+        log_dir: Training or play log directory.  When no recorders are pre-configured,
+            a default :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` is
+            created and its ``output_dir`` is set to ``<log_dir>/videos/<subdir>``.
         args_cli: Parsed command-line arguments.
-
-    Returns:
-        The original or video-wrapped environment.
+        subdir: Sub-directory name appended to ``<log_dir>/videos/`` for the fallback output
+            path.  Use ``"train"`` for training runs and ``"play"`` for evaluation.
     """
-    if not args_cli.video:
-        return env
+    if not getattr(args_cli, "video", False):
+        return
 
-    video_kwargs = {
-        "video_folder": os.path.join(log_dir, "videos", "train"),
-        "step_trigger": lambda step: step % args_cli.video_interval == 0,
-        "video_length": args_cli.video_length,
-        "disable_logger": True,
-    }
-    print("[INFO] Recording videos during training.")
-    print_dict(video_kwargs, nesting=4)
-    return gym.wrappers.RecordVideo(env, **video_kwargs)
+    frontend = getattr(args_cli, "frontend", "torch") or "torch"
+    if frontend != "torch":
+        raise ValueError(
+            f"--video is not supported with --frontend {frontend!r}. "
+            "Video recording requires the standard torch frontend. "
+            "Remove --video or switch to --frontend torch."
+        )
+
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    existing: list = getattr(env_cfg, "video_recorders", []) or []
+    if not existing:
+        # Preserve historical --video cadence: record immediately then every 2000 steps.
+        env_cfg.video_recorders = [VideoRecorderCfg(video_interval=2000)]
+        # Set a default visualizer hint so source="visualizer" can resolve a capture target.
+        # Use default_visualizer_cfg rather than visualizer_cfgs so the launcher's backend
+        # selection (auto_rtx, PhysxAutoCfg) remains visible to launch_simulation.
+        sim_cfg = getattr(env_cfg, "sim", None)
+        if sim_cfg is not None and getattr(sim_cfg, "default_visualizer_cfg", None) is None:
+            try:
+                from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+
+                sim_cfg.default_visualizer_cfg = _KitCfg()
+            except (ImportError, ModuleNotFoundError):
+                try:
+                    from isaaclab_visualizers.newton import NewtonVisualizerCfg as _NwtCfg
+
+                    sim_cfg.default_visualizer_cfg = _NwtCfg(headless=True)
+                except (ImportError, ModuleNotFoundError):
+                    pass
+
+    fallback_output_dir = os.path.join(log_dir, "videos", subdir)
+    video_length = getattr(args_cli, "video_length", None)
+    video_interval = getattr(args_cli, "video_interval", None)
+    for cfg in env_cfg.video_recorders:
+        # Fill in output_dir only when the user left it unset (None = use log_dir).
+        if cfg.output_dir is None:
+            cfg.output_dir = fallback_output_dir
+        if video_length is not None:
+            cfg.video_length = video_length
+        if video_interval is not None:
+            cfg.video_interval = video_interval
+
+    print("[INFO] Video recording enabled.")
+    for cfg in env_cfg.video_recorders:
+        print_dict(
+            {
+                "source": cfg.source,
+                "output_dir": cfg.output_dir,
+                "video_length": cfg.video_length,
+                "video_interval": cfg.video_interval,
+            },
+            nesting=4,
+        )
+
+
+def wrap_record_video(env, log_dir: str, args_cli: argparse.Namespace):
+    """No-op stub kept for backwards compatibility.
+
+    Video recording is now configured before env creation via
+    :func:`apply_video_recording`.  Calling this function after env
+    creation has no effect.
+    """
+    if getattr(args_cli, "video", False):
+        import logging as _logging
+
+        _logging.getLogger(__name__).warning(
+            "wrap_record_video() is no longer functional — recording is now driven inside env.step(). "
+            "Call apply_video_recording(env_cfg, log_dir, args_cli) before creating the environment."
+        )
+    return env
 
 
 def wrap_training_capture(env: gym.Env, log_dir: str, args_cli: argparse.Namespace) -> gym.Env:
-    """Apply optional video and sensor capture wrappers for training."""
-    env = wrap_record_video(env, log_dir, args_cli)
+    """Apply optional sensor capture wrappers for training.
+
+    Video recording is no longer applied here — it is configured before env creation
+    via :func:`apply_video_recording`.
+    """
     env = wrap_sensor_capture(env, log_dir, args_cli)
     return env
 
