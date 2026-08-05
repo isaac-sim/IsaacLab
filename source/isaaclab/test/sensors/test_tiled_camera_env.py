@@ -36,9 +36,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.sensors import save_images_to_file
 
-import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
-
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
 
@@ -102,6 +99,9 @@ def test_tiled_num_envs_edge_cases():
 
 def _launch_tests(tile_widths: range, tile_heights: range, num_envs: int):
     """Run through different resolutions for tiled rendering"""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
     device = "cuda:0"
     task_name = "Isaac-Cartpole-Camera-Direct"
     # iterate over all registered environments

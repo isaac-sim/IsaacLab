@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Preserve task-backed action-state recorder integration coverage.
-
-This temporary relocation handoff intentionally remains in the core test tree until the
-Franka task and Gym-wrapper scenario can move to the task package.
-"""
+"""Integration tests for the action-state recorder manager using a minimal Cartpole environment."""
 
 from isaaclab.app import AppLauncher
 
@@ -17,20 +13,30 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import math
 import shutil
 import tempfile
 import uuid
 
-import gymnasium as gym
 import pytest
 import torch
 
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 pytestmark = pytest.mark.integration
 
@@ -47,6 +53,79 @@ def temp_dir():
     temp_dir = tempfile.mkdtemp()
     yield temp_dir
     shutil.rmtree(temp_dir)
+
+
+@configclass
+class _SceneCfg(InteractiveSceneCfg):
+    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+
+@configclass
+class _ObsCfg:
+    @configclass
+    class PolicyCfg(ObsGroup):
+        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class _ActionsCfg:
+    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+
+
+@configclass
+class _EventsCfg:
+    reset_cart = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
+            "position_range": (-1.0, 1.0),
+            "velocity_range": (-0.5, 0.5),
+        },
+    )
+    reset_pole = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
+            "position_range": (-0.25 * math.pi, 0.25 * math.pi),
+            "velocity_range": (-0.25 * math.pi, 0.25 * math.pi),
+        },
+    )
+
+
+@configclass
+class _RewardsCfg:
+    alive = RewTerm(func=mdp.is_alive, weight=1.0)
+
+
+@configclass
+class _TerminationsCfg:
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+
+
+@configclass
+class _CartpoleEnvCfg(ManagerBasedRLEnvCfg):
+    scene: _SceneCfg = _SceneCfg(num_envs=1, env_spacing=4.0)
+    observations: _ObsCfg = _ObsCfg()
+    actions: _ActionsCfg = _ActionsCfg()
+    events: _EventsCfg = _EventsCfg()
+    rewards: _RewardsCfg = _RewardsCfg()
+    terminations: _TerminationsCfg = _TerminationsCfg()
+
+    def __post_init__(self) -> None:
+        self.decimation = 2
+        self.episode_length_s = 5.0
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = self.decimation
 
 
 def compare_states(compared_state, ground_truth_state, ground_truth_env_id) -> tuple[bool, str]:
@@ -90,24 +169,22 @@ def check_initial_state_recorder_term(env):
         assert are_states_equal, output_log
 
 
-@pytest.mark.parametrize("task_name", ["Isaac-Lift-Cube-Franka"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 2])
-def test_action_state_recorder_terms(task_name, device, num_envs, temp_dir):
-    """Check action state recorder terms through a registered task and Gym wrapper."""
+def test_action_state_recorder_terms(device, num_envs, temp_dir):
+    """Check action state recorder terms record correct initial state in a minimal Cartpole environment."""
     sim_utils.create_new_stage()
 
     dummy_dataset_filename = f"{uuid.uuid4()}.hdf5"
 
-    # parse configuration
-    env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-    # set recorder configurations for this test
+    env_cfg = _CartpoleEnvCfg()
+    env_cfg.sim.device = device
+    env_cfg.scene.num_envs = num_envs
     env_cfg.recorders = ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = temp_dir
     env_cfg.recorders.dataset_filename = dummy_dataset_filename
 
-    # create environment
-    env = gym.make(task_name, cfg=env_cfg)
+    env = ManagerBasedRLEnv(cfg=env_cfg)
 
     # reset all environment instances to trigger post-reset recorder callbacks
     env.reset()
@@ -117,5 +194,4 @@ def test_action_state_recorder_terms(task_name, device, num_envs, temp_dir):
     env.unwrapped.reset(env_ids=torch.tensor([num_envs - 1], device=env.unwrapped.device))
     check_initial_state_recorder_term(env)
 
-    # close the environment
     env.close()

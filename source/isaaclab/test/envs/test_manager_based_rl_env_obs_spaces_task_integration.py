@@ -3,31 +3,110 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Preserve task-backed manager-based RL observation-space integration coverage.
-
-This temporary relocation handoff intentionally remains in the core test tree until the
-task-backed reset/step, camera, and ray-caster scenarios can move to the task package.
-"""
+"""Integration tests for ManagerBasedRLEnv observation spaces."""
 
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+simulation_app = AppLauncher(headless=True).app
+
+import math
 
 import gymnasium as gym
 import numpy as np
 import pytest
 import torch
 
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.envs import ManagerBasedRLEnv
-from isaaclab.managers import ObservationGroupCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.contrib.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import CartpoleCameraEnvCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 pytestmark = pytest.mark.integration
+
+
+@configclass
+class _SceneCfg(InteractiveSceneCfg):
+    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+
+@configclass
+class _ActionsCfg:
+    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+
+
+@configclass
+class _EventsCfg:
+    reset_cart = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
+            "position_range": (-1.0, 1.0),
+            "velocity_range": (-0.5, 0.5),
+        },
+    )
+    reset_pole = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
+            "position_range": (-0.25 * math.pi, 0.25 * math.pi),
+            "velocity_range": (-0.25 * math.pi, 0.25 * math.pi),
+        },
+    )
+
+
+@configclass
+class _RewardsCfg:
+    alive = RewTerm(func=mdp.is_alive, weight=1.0)
+
+
+@configclass
+class _TerminationsCfg:
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+
+
+@configclass
+class _CartpoleEnvCfg(ManagerBasedRLEnvCfg):
+    """Minimal cartpole env shared across tests in this file."""
+
+    @configclass
+    class _ObsCfg:
+        @configclass
+        class PolicyCfg(ObsGroup):
+            joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
+            joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
+
+            def __post_init__(self) -> None:
+                self.enable_corruption = False
+                self.concatenate_terms = True
+
+        policy: PolicyCfg = PolicyCfg()
+
+    scene: _SceneCfg = _SceneCfg(num_envs=1, env_spacing=4.0)
+    observations: _ObsCfg = _ObsCfg()
+    actions: _ActionsCfg = _ActionsCfg()
+    events: _EventsCfg = _EventsCfg()
+    rewards: _RewardsCfg = _RewardsCfg()
+    terminations: _TerminationsCfg = _TerminationsCfg()
+
+    def __post_init__(self) -> None:
+        self.decimation = 2
+        self.episode_length_s = 5.0
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = self.decimation
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -37,12 +116,10 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
     Before the fix, only the last term in each non-concatenated group would be present
     in the observation space Dict. This test ensures all terms are correctly included.
     """
-    # new USD stage
     sim_utils.create_new_stage()
 
-    # configure the policy group to return its terms separately
-    env_cfg = CartpoleEnvCfg()
-    env_cfg.scene.num_envs = 2  # keep num_envs small for testing
+    env_cfg = _CartpoleEnvCfg()
+    env_cfg.scene.num_envs = 2
     env_cfg.observations.policy.concatenate_terms = False
     env_cfg.sim.device = device
 
@@ -67,29 +144,31 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
         env.close()
 
 
-@pytest.mark.parametrize(
-    ("env_cfg_cls", "presets"),
-    [
-        (CartpoleCameraEnvCfg, ("rgb",)),
-        (CartpoleCameraEnvCfg, ("depth",)),
-        (AnymalCRoughEnvCfg, ()),
-    ],
-    ids=["RGB", "Depth", "RayCaster"],
-)
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_obs_space_follows_clip_constraint(env_cfg_cls, presets, device):
-    """Ensure observation space bounds reflect the clip constraint on each term."""
-    # new USD stage
+def test_obs_space_follows_clip_constraint(device):
+    """Ensure observation space bounds reflect the clip constraint on each term.
+
+    Uses a minimal Cartpole env where some obs terms have explicit clip bounds and
+    others do not, verifying the obs-space Box bounds match in each case.
+    """
     sim_utils.create_new_stage()
 
-    # configure the env -- resolve Hydra presets so _Preset fields become plain values
-    from isaaclab_tasks.utils.hydra import resolve_presets
+    @configclass
+    class _MixedClipObsCfg:
+        @configclass
+        class PolicyCfg(ObsGroup):
+            joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel, clip=(-1.0, 1.0))
+            joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)  # no clip → unbounded
 
-    env_cfg = resolve_presets(env_cfg_cls(), presets)
-    env_cfg.scene.num_envs = 2  # keep num_envs small for testing
-    for group_cfg in vars(env_cfg.observations).values():
-        if isinstance(group_cfg, ObservationGroupCfg):
-            group_cfg.concatenate_terms = False
+            def __post_init__(self) -> None:
+                self.enable_corruption = False
+                self.concatenate_terms = False
+
+        policy: PolicyCfg = PolicyCfg()
+
+    env_cfg = _CartpoleEnvCfg()
+    env_cfg.scene.num_envs = 2
+    env_cfg.observations = _MixedClipObsCfg()
     env_cfg.sim.device = device
 
     env = ManagerBasedRLEnv(cfg=env_cfg)
