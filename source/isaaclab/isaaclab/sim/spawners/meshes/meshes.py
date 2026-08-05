@@ -105,9 +105,17 @@ def spawn_mesh_cuboid(
 
     Raises:
         ValueError: If a prim already exists at the given path.
+        ValueError: If :attr:`~isaaclab.sim.MeshCuboidCfg.edge_refinement` is not finite or is less than ``1.0``.
     """
+    if not np.isfinite(cfg.edge_refinement) or cfg.edge_refinement < 1.0:
+        raise ValueError(f"Cuboid mesh edge refinement must be finite and at least 1.0, got {cfg.edge_refinement}.")
+
     # create a trimesh box
     box = trimesh.creation.box(cfg.size)
+    if cfg.edge_refinement > 1.0:
+        max_edge = float(np.linalg.norm(box.bounding_box.extents)) / cfg.edge_refinement
+        vertices, faces = trimesh.remesh.subdivide_to_size(box.vertices, box.faces, max_edge=max_edge)
+        box = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # obtain stage handle
     stage = get_current_stage()
@@ -419,12 +427,6 @@ def _spawn_mesh_geom_from_mesh(
         )
         if not is_rigid_material:
             raise ValueError("Rigid properties require a rigid physics material.")
-
-    # refine the surface for deformable primitives
-    if cfg.deformable_props is not None:
-        max_edge = 0.3 * float(np.linalg.norm(mesh.bounding_box.extents))
-        vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
-        mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # create all the paths we need for clarity
     geom_prim_path = prim_path + "/geometry"

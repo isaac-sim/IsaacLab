@@ -106,6 +106,7 @@ class DeformableCfg(PresetCfg):
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.3, 0.04, 0.04),
+            edge_refinement=3.0,
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
             physics_material=NewtonDeformableBodyMaterialCfg(
@@ -122,6 +123,7 @@ class DeformableCfg(PresetCfg):
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.3, 0.04, 0.04),
+            edge_refinement=3.0,
             deformable_props=PhysxDeformableBodyPropertiesCfg(),
             collision_props=[PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01)],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
