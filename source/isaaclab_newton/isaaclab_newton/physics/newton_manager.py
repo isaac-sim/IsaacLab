@@ -1765,15 +1765,13 @@ class NewtonManager(PhysicsManager):
         return ignore_paths
 
     @classmethod
-    def instantiate_builder_from_stage(cls, ignore_paths: Sequence[str] = ()):
+    def instantiate_builder_from_stage(cls):
         """Create builder from USD stage.
 
         Detects env Xforms (e.g. ``/World/Env_0``, ``/World/Env_1``) and builds
         each as a separate Newton world via ``begin_world``/``end_world``.
         Falls back to a flat ``add_usd`` when no env Xforms are found.
 
-        Args:
-            ignore_paths: Additional USD prim paths excluded from import.
         """
         import re
 
@@ -1796,6 +1794,7 @@ class NewtonManager(PhysicsManager):
         builder = cls.create_builder(up_axis=up_axis)
 
         schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+
         # NOTE: None of the add_usd calls below pass joint_ordering or
         # bodies_follow_joint_ordering, so the live articulation's native
         # joint/body order comes from Newton's ModelBuilder.add_usd defaults
@@ -1810,8 +1809,7 @@ class NewtonManager(PhysicsManager):
 
         if not env_paths:
             # No env Xforms — flat loading
-            import_ignore_paths = [*hf_ignore_paths, *ignore_paths]
-            import_result = builder.add_usd(stage, ignore_paths=import_ignore_paths, schema_resolvers=schema_resolvers)
+            import_result = builder.add_usd(stage, ignore_paths=hf_ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
@@ -1820,18 +1818,15 @@ class NewtonManager(PhysicsManager):
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             # and any terrain colliders already added as heightfields above.
-            import_ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + list(ignore_paths)
-            import_result = builder.add_usd(stage, ignore_paths=import_ignore_paths, schema_resolvers=schema_resolvers)
+            ignore_paths = [path for _, path in env_paths] + hf_ignore_paths
+            import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
 
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
             import_result = source_builders[proto_path].add_usd(
-                stage,
-                root_path=proto_path,
-                ignore_paths=ignore_paths,
-                schema_resolvers=schema_resolvers,
+                stage, root_path=proto_path, schema_resolvers=schema_resolvers
             )
             _restore_visible_colliders_without_visual_shapes(
                 source_builders[proto_path], stage, import_result["path_shape_map"]
