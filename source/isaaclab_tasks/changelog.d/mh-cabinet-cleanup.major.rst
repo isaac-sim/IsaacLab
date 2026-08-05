@@ -21,6 +21,7 @@ Changed
 Added
 ^^^^^
 
+* Added an ``ovphysx`` simulation preset to the direct and manager-based cabinet tasks.
 * Added RSL-RL agent configurations for the contributed Franka cabinet absolute and relative
   inverse-kinematics tasks.
 * Added ``Metrics/drawer_pos`` to manager-based cabinet tasks and changed the direct-workflow metric
