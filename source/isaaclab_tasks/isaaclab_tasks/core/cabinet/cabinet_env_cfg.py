@@ -35,6 +35,53 @@ from isaaclab_tasks.utils import PresetCfg
 FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
 
+CABINET_CFG = ArticulationCfg(
+    prim_path="{ENV_REGEX_NS}/Cabinet",
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
+        activate_contact_sensors=False,
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.8, 0, 0.4),
+        rot=(0.0, 0.0, 1.0, 0.0),
+        joint_pos={
+            "door_left_joint": 0.0,
+            "door_right_joint": 0.0,
+            "drawer_bottom_joint": 0.0,
+            "drawer_top_joint": 0.0,
+        },
+    ),
+    actuators={
+        "drawers": ImplicitActuatorCfg(
+            joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
+            effort_limit_sim=87.0,
+            stiffness=10.0,
+            damping=1.0,
+        ),
+        "doors": ImplicitActuatorCfg(
+            joint_names_expr=["door_left_joint", "door_right_joint"],
+            effort_limit_sim=87.0,
+            stiffness=10.0,
+            damping=2.5,
+        ),
+    },
+)
+"""Shared cabinet articulation configuration."""
+
+PLANE_CFG = AssetBaseCfg(
+    prim_path="/World/GroundPlane",
+    init_state=AssetBaseCfg.InitialStateCfg(),
+    spawn=sim_utils.GroundPlaneCfg(),
+    collision_group=-1,
+)
+"""Shared ground-plane configuration."""
+
+LIGHT_CFG = AssetBaseCfg(
+    prim_path="/World/light",
+    spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+)
+"""Shared dome-light configuration."""
+
 
 @configclass
 class CabinetSimCfg(PresetCfg):
@@ -105,37 +152,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = MISSING
     ee_frame: FrameTransformerCfg = MISSING
 
-    cabinet = ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/Cabinet",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
-            activate_contact_sensors=False,
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.8, 0, 0.4),
-            rot=(0.0, 0.0, 1.0, 0.0),
-            joint_pos={
-                "door_left_joint": 0.0,
-                "door_right_joint": 0.0,
-                "drawer_bottom_joint": 0.0,
-                "drawer_top_joint": 0.0,
-            },
-        ),
-        actuators={
-            "drawers": ImplicitActuatorCfg(
-                joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
-                effort_limit_sim=87.0,
-                stiffness=10.0,
-                damping=1.0,
-            ),
-            "doors": ImplicitActuatorCfg(
-                joint_names_expr=["door_left_joint", "door_right_joint"],
-                effort_limit_sim=87.0,
-                stiffness=10.0,
-                damping=2.5,
-            ),
-        },
-    )
+    cabinet = CABINET_CFG
 
     # drawer handle frame, aligned with the end-effector frame
     cabinet_frame = FrameTransformerCfg(
@@ -155,18 +172,10 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     )
 
     # plane
-    plane = AssetBaseCfg(
-        prim_path="/World/GroundPlane",
-        init_state=AssetBaseCfg.InitialStateCfg(),
-        spawn=sim_utils.GroundPlaneCfg(),
-        collision_group=-1,
-    )
+    plane = PLANE_CFG
 
     # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
-    )
+    light = LIGHT_CFG
 
 
 ##

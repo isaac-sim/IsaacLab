@@ -5,72 +5,34 @@
 
 from __future__ import annotations
 
-import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg import CabinetDirectEnvCfg
+from isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg import CabinetDirectEnvCfg, CabinetDirectSceneCfg
+
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
+
+
+@configclass
+class FrankaCabinetDirectSceneCfg(CabinetDirectSceneCfg):
+    """Direct-workflow cabinet scene configured for the Franka robot."""
+
+    robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
 
 @configclass
 class FrankaCabinetDirectEnvCfg(CabinetDirectEnvCfg):
-    """Direct-workflow cabinet (open-drawer) task with a Franka Panda arm."""
+    """Direct-workflow cabinet task with a Franka Panda arm."""
 
-    # robot frames the task is defined against
-    hand_body_name: str = "panda_link7"
+    scene: FrankaCabinetDirectSceneCfg = FrankaCabinetDirectSceneCfg(num_envs=4096, env_spacing=2.0)
+
+    arm_joint_names: str | list[str] = "panda_joint.*"
+    finger_joint_names: str | list[str] = "panda_finger_joint.*"
+    ee_body_name: str = "panda_hand"
     left_finger_body_name: str = "panda_leftfinger"
     right_finger_body_name: str = "panda_rightfinger"
-    finger_joint_names: str | list[str] = "panda_finger_joint.*"
-    grasp_pos_offset: tuple[float, float, float] = (0.0, 0.04, 0.0)
+    ee_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034)
+    finger_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.046)
 
-    # robot
-    robot: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
-            activate_contact_sensors=False,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-                max_depenetration_velocity=5.0,
-            ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False, solver_position_iteration_count=12, solver_velocity_iteration_count=1
-            ),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            joint_pos={
-                "panda_joint1": 1.157,
-                "panda_joint2": -1.066,
-                "panda_joint3": -0.155,
-                "panda_joint4": -2.239,
-                "panda_joint5": -1.841,
-                "panda_joint6": 1.003,
-                "panda_joint7": 0.469,
-                "panda_finger_joint.*": 0.035,
-            },
-            pos=(1.0, 0.0, 0.0),
-            rot=(0.0, 0.0, 1.0, 0.0),
-        ),
-        actuators={
-            "panda_shoulder": ImplicitActuatorCfg(
-                joint_names_expr=["panda_joint[1-4]"],
-                effort_limit_sim=87.0,
-                stiffness=80.0,
-                damping=4.0,
-            ),
-            "panda_forearm": ImplicitActuatorCfg(
-                joint_names_expr=["panda_joint[5-7]"],
-                effort_limit_sim=12.0,
-                stiffness=80.0,
-                damping=4.0,
-            ),
-            "panda_hand": ImplicitActuatorCfg(
-                joint_names_expr=["panda_finger_joint.*"],
-                effort_limit_sim=200.0,
-                stiffness=2e3,
-                damping=1e2,
-            ),
-        },
-    )
+    gripper_open_command: float = 0.04
+    gripper_close_command: float = 0.0
+    approach_gripper_handle_offset: float = 0.04
