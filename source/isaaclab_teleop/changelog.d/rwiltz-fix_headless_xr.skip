@@ -1,0 +1,1 @@
+Test-only: added XR startup regression coverage to the teleop script smoke tests (no public API change).
