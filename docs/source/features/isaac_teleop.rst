@@ -149,13 +149,27 @@ visualization to confirm that tracking data is available and aligned with the si
 
 Enable the visualization when launching a teleoperation session:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-       --visualizer kit \
-       --xr \
-       --enable_debug_visualization
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run --extra teleop isaaclab teleop run \
+             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+             --visualizer kit \
+             --xr \
+             --enable_debug_visualization
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+             --visualizer kit \
+             --xr \
+             --enable_debug_visualization
 
 The ``--enable_debug_visualization`` flag is also available in ``scripts/tools/record_demos.py``
 and ``scripts/environments/teleoperation/teleop_replay_agent.py``. The option is applied when the
