@@ -175,8 +175,9 @@ jobs:
       run: |
         set -euo pipefail
         config=.github/workflows/config.yaml
-        base_image="$(awk -F ':[[:space:]]*' '$1 == "isaacsim_image_name" { print $2; exit }' "$config")"
-        base_tag="$(awk -F ':[[:space:]]*' '$1 == "isaacsim_image_tag" { print $2; exit }' "$config")"
+        # The tag may carry a digest, so strip the key rather than splitting on every colon.
+        base_image="$(awk '$1 == "isaacsim_image_name:" { sub(/^[^:]+:[[:space:]]*/, ""); print; exit }' "$config")"
+        base_tag="$(awk '$1 == "isaacsim_image_tag:" { sub(/^[^:]+:[[:space:]]*/, ""); print; exit }' "$config")"
         if [[ -z "$base_image" || -z "$base_tag" ]]; then
           echo "::error::Missing Isaac Sim image configuration in $config"
           exit 1
