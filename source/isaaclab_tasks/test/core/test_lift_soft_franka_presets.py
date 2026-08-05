@@ -15,7 +15,6 @@ from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import Fra
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.utils import resolve_presets
 
-
 ##
 # Preset resolution
 ##
@@ -74,7 +73,13 @@ def test_gravity_range_linear_validates_step_order():
     """A non-increasing step window is rejected loudly."""
     with pytest.raises(ValueError, match="end_step must be greater"):
         mdp.gravity_range_linear(
-            _gravity_env(0), [], "variable_gravity", start_gravity_z=-1e-4, end_gravity_z=-9.81, start_step=10, end_step=10
+            _gravity_env(0),
+            [],
+            "variable_gravity",
+            start_gravity_z=-1e-4,
+            end_gravity_z=-9.81,
+            start_step=10,
+            end_step=10,
         )
 
 
@@ -123,10 +128,12 @@ def test_deformable_outside_bounds_covers_z():
     """A node dropped below the z floor terminates even when x and y stay inside."""
     env_origins = torch.tensor([[10.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
     # env 0 node 0 falls to env-frame z = -0.5 (below the floor); env 1 stays inside the box
-    nodal_pos_w = torch.tensor([
-        [[10.5, 0.0, -0.5], [10.5, 0.0, 0.2]],
-        [[0.5, 0.0, 0.2], [0.5, 0.0, 0.3]],
-    ])
+    nodal_pos_w = torch.tensor(
+        [
+            [[10.5, 0.0, -0.5], [10.5, 0.0, 0.2]],
+            [[0.5, 0.0, 0.2], [0.5, 0.0, 0.3]],
+        ]
+    )
     asset = SimpleNamespace(data=SimpleNamespace(nodal_pos_w=SimpleNamespace(torch=nodal_pos_w)))
     env = SimpleNamespace(scene=_FakeScene({"deformable": asset}, env_origins=env_origins))
 
