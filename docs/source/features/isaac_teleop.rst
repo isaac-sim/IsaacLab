@@ -361,22 +361,29 @@ Prerequisites
      sudo apt-get update
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
-  Then clone, configure, build, and install:
+  Then clone, configure, build, and install. Each preset builds into its own directory, so the
+  install path must match the preset you configured with -- ``py3.11`` builds into
+  ``build/cmake-cpython-311``, ``py3.12`` into ``build/cmake-cpython-312``, ``py3.13`` into
+  ``build/cmake-cpython-313``:
 
   .. code-block:: bash
 
      git clone https://github.com/NVIDIA/IsaacTeleop.git
      cd IsaacTeleop
-     cmake --preset py3.12                       # configure (use the preset matching your Python)
+
+     # Pick the preset matching your Python, and keep it consistent across all three commands.
+     cmake --preset py3.12                       # configure
      cmake --build --preset py3.12 --parallel    # build
      cmake --install build/cmake-cpython-312     # install into ./install
 
   The plugin is installed to ``<IsaacTeleop>/install/plugins/so101_leader/so101_leader_plugin``.
-  Verify it by running it with no arguments -- that selects a synthetic backend, so it starts
-  without any hardware attached:
+  Every later command in this section runs from the Isaac Teleop checkout root; substitute your own
+  path for ``/path/to/IsaacTeleop``. Verify the build by running the plugin with **no arguments** --
+  that selects the synthetic backend, so it starts without any hardware attached:
 
   .. code-block:: bash
 
+     cd /path/to/IsaacTeleop
      ./install/plugins/so101_leader/so101_leader_plugin
 
   See `Build from Source`_ for the full prerequisite list, the CMake presets, and all build
@@ -389,6 +396,7 @@ Prerequisites
 
   .. code-block:: bash
 
+     cd /path/to/IsaacTeleop
      ./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0 so101_leader.calib
 
   It runs two interactive steps (hold the arm at mid-range, then sweep every joint through its full
@@ -466,14 +474,24 @@ on the leader's serial port:
 
 .. code-block:: bash
 
+   cd /path/to/IsaacTeleop
    source ~/.cloudxr/run/cloudxr.env
    ./install/plugins/so101_leader/so101_leader_plugin /dev/ttyACM0 so101_leader so101_leader.calib
 
 Arguments are positional: ``[device_path] [collection_id] [calibration_file]``. The
 ``collection_id`` must stay ``so101_leader`` -- that is the tensor collection this task's
-``JointStateSource`` subscribes to. Omit the device path to stream a synthetic trajectory instead,
-which is a good way to confirm the sim side is wired up before connecting hardware. See the
-`SO-101 plugin README`_ and `Data Collection in Sim`_ for all configuration options.
+``JointStateSource`` subscribes to.
+
+Running the plugin with **no arguments at all** streams a synthetic trajectory on the default
+``so101_leader`` collection, which is a good way to confirm the sim side is wired up before
+connecting hardware. Because the arguments are positional, there is no way to skip only the device
+path while still passing the later two:
+
+.. code-block:: bash
+
+   ./install/plugins/so101_leader/so101_leader_plugin   # synthetic, no hardware needed
+
+See the `SO-101 plugin README`_ and `Data Collection in Sim`_ for all configuration options.
 
 Start teleoperation
 ^^^^^^^^^^^^^^^^^^^
