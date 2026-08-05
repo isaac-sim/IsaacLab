@@ -19,7 +19,7 @@ User: "Install Isaac Lab on my Ubuntu 20.04 box."
 Suggested agent response:
 
 1. Preflight detection reports GLIBC 2.31; the pip minimum read from `docs/source/setup/installation/index.rst` "System requirements" is higher, so route to the downloaded Isaac Sim package.
-2. Build the plan from the "Downloaded Isaac Sim package" section (`installation-method-binary`) and its `binaries_details.inc` steps.
+2. Build the plan from the "Downloaded Isaac Sim package" section (`installation-method-binary`).
 3. Single confirmation summary notes the one manual step: downloading and extracting the Isaac Sim package.
 4. Execute unattended, pausing only at the download step with the URL from the docs section; resume when the user confirms.
 5. Verify with the section's docs-defined verification command (`${ISAACSIM_PATH}/isaac-sim.sh` then the Isaac Lab tutorial script from the checkout).
@@ -31,7 +31,7 @@ User: "Install Isaac Lab with conda, env name lab3."
 Suggested agent response:
 
 1. Run preflight as usual. Even if uv is present, the stated preference wins: conda with env name `lab3`, no re-asking.
-2. Follow the conda variant of the "Python environment with Isaac Sim" section (`installation-method-python-env`) verbatim, including the `pip_details.inc` steps.
+2. Follow the conda variant of the "Python environment with Isaac Sim" section (`installation-method-python-env`) verbatim.
 3. Single go/no-go, unattended execution, docs verification, handover.
 
 ## Example 4: Preflight Finds A Blocker
