@@ -30,7 +30,7 @@ Wrapper around dataclass.
 """
 
 
-@dataclass_transform()
+@dataclass_transform(field_specifiers=(field, Field))
 def configclass(cls: type[_T], **kwargs: Any) -> type[_T]:
     """Wrapper around `dataclass` functionality to add extra checks and utilities.
 
