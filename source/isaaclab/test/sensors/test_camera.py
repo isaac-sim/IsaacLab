@@ -1136,7 +1136,7 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
         def read_output(self, render_data, camera_data):
             pass
 
-        def cleanup(self, render_data):
+        def destroy_render_data(self, render_data):
             pass
 
     backend = Renderer._get_backend(camera_cfg.renderer_cfg)

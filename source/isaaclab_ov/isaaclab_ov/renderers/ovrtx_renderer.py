@@ -1524,8 +1524,10 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._render_legacy(render_data)
 
-    def cleanup(self, render_data: OVRTXRenderData | None) -> None:
-        """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
+    def destroy_render_data(self, render_data: OVRTXRenderData | None) -> None:
+        """Release the render data's buffers.
+
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.destroy_render_data`.
 
         The stage queries, tensor bindings and render products this renderer holds are shared by
         every camera that resolves to it, so releasing them here would tear the scene down while

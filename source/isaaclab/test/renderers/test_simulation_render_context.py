@@ -95,7 +95,7 @@ class _FakeBackend(BaseRenderer):
         if self._event_log is not None:
             self._event_log.append("read")
 
-    def cleanup(self, render_data: Any) -> None:
+    def destroy_render_data(self, render_data: Any) -> None:
         pass
 
     def close(self) -> None:
@@ -275,3 +275,26 @@ def test_close_resets_stage_and_step_bookkeeping():
 
     with pytest.raises(RuntimeError, match="get_renderer must be called"):
         ctx.ensure_prepare_stage(None, 4)
+
+
+def test_destroy_render_data_falls_back_to_a_backend_that_only_implements_cleanup():
+    """An out-of-tree backend that still overrides ``cleanup`` keeps working through the new name.
+
+    ``cleanup`` is public API, so renaming it outright would break every backend implementing the
+    old contract. The base forwards instead, and this is the only cover for that path.
+    """
+    released: list[Any] = []
+
+    class _LegacyBackend(_FakeBackend):
+        __slots__ = ()
+        # Take the base forwarding rather than _FakeBackend's own override, so this exercises the
+        # path an out-of-tree backend that never renamed its method would take.
+        destroy_render_data = BaseRenderer.destroy_render_data
+
+        def cleanup(self, render_data: Any) -> None:
+            released.append(render_data)
+
+    render_data = object()
+    _LegacyBackend().destroy_render_data(render_data)
+
+    assert released == [render_data]

@@ -57,7 +57,7 @@ def _make_mock_renderer_class(name: str):
         def read_output(self, render_data, camera_data):
             pass
 
-        def cleanup(self, render_data):
+        def destroy_render_data(self, render_data):
             pass
 
     MockRenderer.__name__ = name
