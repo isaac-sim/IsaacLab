@@ -9,15 +9,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-
-# This is where we will get the Robot that we want to use
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, LOCAL_ASSET_PATH_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
 from .assembly_keypoints import NIST_BOARD_CFG
 
+ISAACLAB_NUCLEUS_DIR = "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab"
 ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Factory"
 
 
@@ -237,7 +235,7 @@ FRANKA_PANDA_NEWTON_CFG = ArticulationCfg(
 TABLE_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/Table",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/Mounts/UWPatVention/pat_vention.usd",
+        usd_path=f"{ASSET_DIR}/Mounts/UWPatVention/pat_vention.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, -0.868), rot=(0.0, 0.0, -0.70711, 0.70711)),
@@ -248,7 +246,7 @@ x, y, z = NIST_BOARD_CFG.nist_board_center.pos
 NISTBOARD_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/NistBoard",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/Taskboard/nistboard.usd",
+        usd_path=f"{ASSET_DIR}/NIST/Taskboard/nistboard.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         scale=(1.0, 1.0, 0.5),
     ),
@@ -263,7 +261,7 @@ NISTBOARD_CFG = RigidObjectCfg(
 BOLT_M16_CFG = RigidObjectCfg(
     prim_path="/World/envs/env_.*/BOLT_M16",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/thread_m16.usd",
+        usd_path=f"{ASSET_DIR}/NIST/bolt_m16.usd",
         rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
@@ -275,7 +273,7 @@ BOLT_M16_CFG = RigidObjectCfg(
 NUT_M16_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/NUT_M16",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/nut_m16.usd",
+        usd_path=f"{ASSET_DIR}/NIST/nut_m16.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.03),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -287,7 +285,7 @@ NUT_M16_CFG: RigidObjectCfg = RigidObjectCfg(
 HOLE_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/HOLE_16MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/round_hole_16mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/round_hole_16mm.usd",
         rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
@@ -299,7 +297,7 @@ HOLE_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
 ROD_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/ROD_16MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/round_peg_16mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/round_peg_16mm.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -311,7 +309,7 @@ ROD_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
 HOLE_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/HOLE_12MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/round_hole_12mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/round_hole_12mm.usd",
         rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
@@ -323,7 +321,7 @@ HOLE_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
 ROD_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/ROD_12MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/round_peg_12mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/round_peg_12mm.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -335,7 +333,7 @@ ROD_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
 HOLE_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/HOLE_8MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/round_hole_8mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/round_hole_8mm.usd",
         rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
@@ -347,7 +345,7 @@ HOLE_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
 ROD_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/ROD_8MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/round_peg_8mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/round_peg_8mm.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -359,7 +357,7 @@ ROD_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
 HOLE_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/HOLE_4MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/round_hole_4mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/round_hole_4mm.usd",
         rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
@@ -371,7 +369,7 @@ HOLE_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
 ROD_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/ROD_4MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/round_peg_4mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/round_peg_4mm.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -383,7 +381,7 @@ ROD_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
 RECTANGULAR_HOLE_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/RECTANGULAR_HOLE_16MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/rectangular_hole_16mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/rectangular_hole_16mm.usd",
         rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
@@ -395,7 +393,7 @@ RECTANGULAR_HOLE_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
 RECTANGULAR_PEG_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/RECTANGULAR_PEG_16MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/rectangular_peg_16mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/rectangular_peg_16mm.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -407,7 +405,7 @@ RECTANGULAR_PEG_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
 RECTANGULAR_HOLE_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/RECTANGULAR_HOLE_12MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/rectangular_hole_12mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/rectangular_hole_12mm.usd",
         rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
@@ -419,7 +417,7 @@ RECTANGULAR_HOLE_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
 RECTANGULAR_PEG_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/RECTANGULAR_PEG_12MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/rectangular_peg_12mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/rectangular_peg_12mm.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -431,7 +429,7 @@ RECTANGULAR_PEG_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
 RECTANGULAR_HOLE_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/RECTANGULAR_HOLE_8MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/rectangular_hole_8mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/rectangular_hole_8mm.usd",
         rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
@@ -443,7 +441,7 @@ RECTANGULAR_HOLE_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
 RECTANGULAR_PEG_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/RECTANGULAR_PEG_8MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/rectangular_peg_8mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/rectangular_peg_8mm.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -455,7 +453,7 @@ RECTANGULAR_PEG_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
 RECTANGULAR_HOLE_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/RECTANGULAR_HOLE_4MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/rectangular_hole_4mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/rectangular_hole_4mm.usd",
         rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
@@ -467,7 +465,7 @@ RECTANGULAR_HOLE_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
 RECTANGULAR_PEG_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/RECTANGULAR_PEG_4MM",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/rectangular_peg_4mm.usd",
+        usd_path=f"{ASSET_DIR}/NIST/rectangular_peg_4mm.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -479,7 +477,7 @@ RECTANGULAR_PEG_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
 LARGE_GEAR_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/LARGE_GEAR",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/gear_large.usd",
+        usd_path=f"{ASSET_DIR}/NIST/gear_large.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -491,7 +489,7 @@ LARGE_GEAR_CFG: RigidObjectCfg = RigidObjectCfg(
 MEDIUM_GEAR_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/MEDIUM_GEAR",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/gear_medium.usd",
+        usd_path=f"{ASSET_DIR}/NIST/gear_medium.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.012),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -503,7 +501,7 @@ MEDIUM_GEAR_CFG: RigidObjectCfg = RigidObjectCfg(
 SMALL_GEAR_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/SMALL_GEAR",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/gear_small.usd",
+        usd_path=f"{ASSET_DIR}/NIST/gear_small.usd",
         rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
@@ -514,7 +512,7 @@ SMALL_GEAR_CFG: RigidObjectCfg = RigidObjectCfg(
 GEAR_BASE_CFG: RigidObjectCfg = RigidObjectCfg(
     prim_path="/World/envs/env_.*/GEAR_BASE",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{LOCAL_ASSET_PATH_DIR}/Props/NIST2/gear_base.usd",
+        usd_path=f"{ASSET_DIR}/NIST/gear_base.usd",
         rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
         mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
