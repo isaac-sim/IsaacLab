@@ -63,8 +63,7 @@ def main() -> int:
     total_mb = total_bytes / (1024 * 1024)
 
     print(
-        f"[verify_ovrtx_shader_cache] kitless cache OK — path={cache_path!r}, "
-        f"{file_count} file(s), {total_mb:.1f} MB"
+        f"[verify_ovrtx_shader_cache] kitless cache OK — path={cache_path!r}, {file_count} file(s), {total_mb:.1f} MB"
     )
     return 0
 

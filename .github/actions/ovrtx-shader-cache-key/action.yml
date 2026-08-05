@@ -52,7 +52,13 @@ runs:
         # nvidia-smi must be available on every runner that has a GPU.
         driver_ver="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || echo unknown)"
 
-        collection="ovrtx-v1-${RUNNER_OS}-${RUNNER_ARCH}-${ovrtx_ver}-drv${driver_ver}"
+        # SM compute capability (e.g. "8.0", "9.0") identifies the GPU
+        # architecture. PSO blobs compiled for one SM generation are not
+        # compatible with another, so heterogeneous runner fleets require
+        # this in the key to prevent cross-architecture cache hits.
+        gpu_arch="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d '.' || echo unknown)"
+
+        collection="ovrtx-v1-${RUNNER_OS}-${RUNNER_ARCH}-sm${gpu_arch}-${ovrtx_ver}-drv${driver_ver}"
 
         echo "collection=${collection}" >> "$GITHUB_OUTPUT"
         echo "key=${collection}-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
