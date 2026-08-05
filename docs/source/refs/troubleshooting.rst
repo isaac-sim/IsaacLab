@@ -93,8 +93,10 @@ Isaac Sim version before installing Isaac Lab.
 ``ModuleNotFoundError: No module named 'rsl_rl'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Include the RL framework: ``./isaaclab.sh -i rsl_rl``, or use
-``./isaaclab.sh -i`` to install all frameworks.
+RSL-RL is included in the default uv environment. Run ``uv sync`` and retry the
+command with ``uv run``. For the legacy installer, use
+``./isaaclab.sh -i 'rl[rsl-rl]'`` or ``./isaaclab.sh -i`` to install all
+frameworks.
 
 Crash in ``libusd_tf`` / USD Symbol Collision with OVRTX
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

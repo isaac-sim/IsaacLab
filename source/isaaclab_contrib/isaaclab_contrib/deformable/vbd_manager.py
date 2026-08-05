@@ -112,6 +112,9 @@ class NewtonVBDManager(NewtonManager):
         having Newton bind a surface mesh to volume deformable tetrahedral mesh
         in addition to removing the deformable_registry data structure.
         """
+        # Color the replicated builder before finalization.
+        if cls._builder is not None:
+            cls._builder.color()
         super().start_simulation()
 
         if cls._model is not None:
@@ -228,10 +231,7 @@ class NewtonVBDManager(NewtonManager):
             }
             NewtonManager._num_envs = len(env_paths)
 
-        # Coloring is required by the VBD solver for particles and VBD-integrated bodies.
-        # Safe without particles: color() skips particle coloring when particle_count == 0.
         builder.color()
-
         cls.set_builder(builder)
 
     @classmethod
@@ -253,6 +253,6 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def _simulate_physics_only(cls) -> None:
         # Rebuild BVH once per step for solvers that require it (e.g. VBD cloth).
-        if hasattr(cls._solver, "rebuild_bvh"):
+        if cls._model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
             cls._solver.rebuild_bvh(cls._state_0)
         super()._simulate_physics_only()

@@ -42,6 +42,7 @@ from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
 import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
 from isaaclab.sim import SimulationContext
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
@@ -77,7 +78,7 @@ _CARTPOLE_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (2.25, 0.0, 3
 """Passed to :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses (``eye``)."""
 
 _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.25)
-"""Passed to visualizer cfgs (``lookat``); also applied to :class:`~isaaclab.envs.common.ViewerCfg` for the env."""
+"""Passed to visualizer cfgs (``lookat``); also applied to the env's visualizer configuration."""
 
 _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(
     eye - lookat for eye, lookat in zip(_CARTPOLE_INTEGRATION_VISUALIZER_EYE, _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT)
@@ -1834,8 +1835,9 @@ def _make_cartpole_camera_env(
     env_cfg.scene.num_envs = (
         _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _CARTPOLE_INTEGRATION_NUM_ENVS
     )
-    env_cfg.viewer.eye = _CARTPOLE_INTEGRATION_VISUALIZER_EYE
-    env_cfg.viewer.lookat = _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(
+        eye=_CARTPOLE_INTEGRATION_VISUALIZER_EYE, lookat=_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT
+    )
     tw, th = _CARTPOLE_TILED_CAMERA_INTEGRATION_WH
     env_cfg.tiled_camera.width = tw
     env_cfg.tiled_camera.height = th
