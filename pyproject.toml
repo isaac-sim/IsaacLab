@@ -52,7 +52,7 @@ dependencies = [
     "pyglet>=2.1.6,<3",
     "transformers==4.57.6",
     "einops",
-    "warp-lang==1.16.0.dev20260723",
+    "warp-lang==1.16.0",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
@@ -90,7 +90,7 @@ dependencies = [
     # The importers extra carries the mesh-processing deps (coacd, fast-simplification,
     # ...) that honoring USD-authored ``physics:approximation`` requires.
     "newton[sim,importers]>=1.2.0",
-    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.0.
+    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.1.
     "newton-usd-schemas>=0.2.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
@@ -201,8 +201,8 @@ torchaudio = "2.11.0"
 ovphysx = "0.5.9"
 ovrtx = ">=0.4.0,<0.5.0"
 ovstage = ">=0.1.0,<0.2.0"
-newton = "10402ecbaf2d8afda00507123155042cbcb5c3fb"
-warp = "1.16.0.dev20260723"
+newton = "fd8d9d4e184b1298f989be13b0fbe3b59c5bbd58"
+warp = "1.16.0"
 
 [tool.ruff]
 line-length = 120
@@ -383,9 +383,9 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@10402ecbaf2d8afda00507123155042cbcb5c3fb",
+    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@fd8d9d4e184b1298f989be13b0fbe3b59c5bbd58",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
-    "newton-usd-schemas>=0.4.0",
+    "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",

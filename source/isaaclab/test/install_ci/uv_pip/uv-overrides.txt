@@ -1,8 +1,8 @@
 numpy>=2
 mujoco~=3.11.0
 mujoco-warp~=3.11.0
-newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@10402ecbaf2d8afda00507123155042cbcb5c3fb
-newton-usd-schemas>=0.4.0
+newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@fd8d9d4e184b1298f989be13b0fbe3b59c5bbd58
+newton-usd-schemas>=0.4.1
 torch==2.11.0
 torchvision==0.26.0
 torchaudio==2.11.0
