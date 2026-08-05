@@ -9,6 +9,8 @@
 # (frozen at 6.1.0-alpha.2). Both images use Isaac Sim's NGC org, which is current and
 # which the CI credential can reach.
 isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
-isaacsim_image_tag: latest-develop
+# Temporary: pinned to the build that exhibits the denoiser change, so this PR tests the fix
+# against it. Revert to the moving tag before merge.
+isaacsim_image_tag: latest-develop@sha256:4b0a6a6c86e24d137ce6bbeef355ea22b7327aa034c819024c09094d9cd448e7
 isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""
