@@ -20,4 +20,4 @@ Changed
 Fixed
 ^^^^^
 
-* Fixed repeated IWER reset messages and refreshed camera feedback immediately after resets.
+* Fixed camera feedback so it refreshes immediately after environment resets.
