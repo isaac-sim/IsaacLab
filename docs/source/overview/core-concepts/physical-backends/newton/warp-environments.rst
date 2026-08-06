@@ -78,6 +78,9 @@ Rough-terrain velocity tasks remain unsupported until
 Quick Start
 ~~~~~~~~~~~
 
+Training
+^^^^^^^^
+
 .. tab-set::
 
    .. tab-item:: uv (Recommended)
@@ -103,6 +106,50 @@ Quick Start
           # Manager-based workflow: stable task on the warp runtime
           ./isaaclab.sh train --rl_library rsl_rl \
               --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp --num_envs 4096
+
+Playing a Trained Policy
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Inference takes the same ``--frontend warp presets=newton_mjwarp`` pair as training, so a
+policy trained on the warp runtime is replayed on it as well. ``--checkpoint latest``
+resolves the newest checkpoint of the most recent matching run under ``logs/``; pass a path
+instead to replay a specific one. ``--visualizer newton`` (alias ``--viz``) opens the Newton
+viewer to watch the rollout; drop it to evaluate headless.
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          # Direct workflow: stable task, warp env implementation
+          uv run isaaclab play --rl_library rsl_rl \
+              --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp \
+              --num_envs 32 --checkpoint latest --visualizer newton
+
+          # Manager-based workflow: stable task on the warp runtime
+          uv run isaaclab play --rl_library rsl_rl \
+              --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp \
+              --num_envs 32 --checkpoint latest --visualizer newton
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # Direct workflow: stable task, warp env implementation
+          ./isaaclab.sh play --rl_library rsl_rl \
+              --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp \
+              --num_envs 32 --checkpoint latest --visualizer newton
+
+          # Manager-based workflow: stable task on the warp runtime
+          ./isaaclab.sh play --rl_library rsl_rl \
+              --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp \
+              --num_envs 32 --checkpoint latest --visualizer newton
+
+.. note::
+
+   ``--video`` is rejected on the warp path: video recording requires the standard torch
+   frontend. To record a rollout, replay the same checkpoint with ``--frontend torch``.
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.
