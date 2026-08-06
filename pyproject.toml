@@ -397,27 +397,18 @@ override-dependencies = [
     "typing-extensions>=4.15.0",
     "websockets>=14.0,<17.0.0",
     "coverage>=7.6.1",
-    # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0. Both caps are
-    # stricter than either package needs, so widening the range lets them resolve
-    # together at 26.0 instead of forcing a fork. Validated over 119 OvPhysX
-    # training runs on a single environment carrying both extras.
+    # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
+    # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",
-    # usd-exchange and usd-core both vendor a complete ``pxr`` runtime built against
-    # different USD versions (2.3.0 -> 25.05, usd-core -> 25.11), overlapping on 51
-    # files including the compiled extensions. ``newton[importers]`` requires
-    # usd-exchange unmarked (via mujoco-usd-converter / urdf-usd-converter), which
-    # defeats the platform split declared in [project.dependencies]. uv installs
-    # concurrently, so the per-file winner varies between identical builds and a
-    # mixed-ABI ``pxr`` raises "extension class wrapper ... Tf_PyEnumWrapper has not
-    # been created yet" at import. Restoring the marker keeps usd-exchange on
-    # aarch64, where usd-core has no wheel.
+    # usd-exchange and usd-core each vendor a full ``pxr`` built against a different
+    # USD version, and newton[importers] pulls usd-exchange unmarked. Re-impose the
+    # platform split from [project.dependencies] so only one lands per platform.
     "usd-exchange>=2.2 ; platform_machine == 'aarch64'",
 ]
-# ``ov`` stays forked: it pulls ovrtx as well, which has not been validated
-# alongside Isaac Sim. ``teleop`` bundles isaacsim, so it inherits both pairs.
+# ``ov`` stays forked: it pulls ovrtx, which is not validated alongside Isaac Sim.
+# ``teleop`` bundles isaacsim, so it inherits that pair.
 conflicts = [
     [{ extra = "teleop" }, { extra = "ov" }],
-    [{ extra = "teleop" }, { extra = "ovphysx" }],
     [{ extra = "isaacsim" }, { extra = "ov" }],
 ]
 python-preference = "only-managed"
