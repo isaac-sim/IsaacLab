@@ -1866,7 +1866,16 @@ class NewtonGLVisualizer(NewtonVisualizer):
             return
 
         # Store actual dimensions so _draw_large can size the panel correctly.
-        self._viewer._streaming_composite_h, self._viewer._streaming_composite_w = composite.shape[:2]
+        new_h, new_w = composite.shape[:2]
+        prev_w = getattr(self._viewer, "_streaming_composite_w", 0)
+        prev_h = getattr(self._viewer, "_streaming_composite_h", 0)
+        self._viewer._streaming_composite_h = new_h
+        self._viewer._streaming_composite_w = new_w
+        # Trigger a panel resize whenever the composite first arrives (prev dims were
+        # 0 or the 1×1 placeholder) so the window expands from the initial title-bar
+        # state to fit the real frame.
+        if prev_w <= 1 or prev_h <= 1:
+            self._viewer._streaming_panel_needs_sizing = True
         composite_t = torch.from_numpy(composite).contiguous()
         self._viewer.log_image(_PANEL_KEY, wp.from_torch(composite_t))
 
