@@ -14,16 +14,17 @@ needed for the workload.
 Mental model
 ------------
 
-The API starts from a ``SimulationView`` and creates typed views over selected
-physics objects. A view owns an engine-backed selection; getters pull data from
-that selection and setters publish data back to it. A raw view selection uses
-the Tensor API's glob syntax, which is distinct from Isaac Lab's
-regular-expression syntax.
+The API starts from a :class:`~omni.physics.tensors.SimulationView` and creates
+typed views over selected physics objects. A view owns an engine-backed
+selection; getters pull data from that selection and setters publish data back
+to it. A raw view selection uses the Tensor API's glob syntax, which is distinct
+from Isaac Lab's regular-expression syntax.
 
 Lifecycle prerequisite
 ----------------------
 
-Isaac Lab creates its ``SimulationView`` with the Warp frontend. Low-level
+:class:`~isaaclab_physx.physics.PhysxManager` creates its
+:class:`~omni.physics.tensors.SimulationView` with the Warp frontend. Low-level
 code must run only after physics initialization and simulation reset, when the
 PhysX Tensor API view has been created:
 
@@ -39,7 +40,8 @@ Reuse an Isaac Lab view
 -----------------------
 
 When an Isaac Lab asset already has the desired selection, reuse its
-``root_view`` rather than creating a second view:
+:attr:`~isaaclab_physx.assets.Articulation.root_view` rather than creating a
+second view:
 
 .. code-block:: python
 
@@ -47,10 +49,10 @@ When an Isaac Lab asset already has the desired selection, reuse its
    articulation_view = robot.root_view
    joint_positions = articulation_view.get_dof_positions()
 
-``root_view`` is backend-specific and typed. An articulation, rigid object,
-rigid-object collection, or deformable can expose a different native PhysX
-view type, so choose methods that match the returned view rather than assuming
-one common interface.
+:attr:`~isaaclab_physx.assets.Articulation.root_view` is backend-specific and
+typed. An articulation, rigid object, rigid-object collection, or deformable
+can expose a different native PhysX view type, so choose methods that match the
+returned view rather than assuming one common interface.
 
 Create a raw typed view
 -----------------------
@@ -98,8 +100,9 @@ Cloning makes ownership explicit. Callers can modify the clone with Warp before
 the setter, but edits to a local buffer do not publish themselves; the setter
 performs the write. For active Tensor API contracts that require link transforms
 to be refreshed after joint-state writes, call
-``SimulationView.update_articulations_kinematic()``. Not every setter requires
-that refresh; follow the method-level behavior in the upstream reference.
+:meth:`~omni.physics.tensors.SimulationView.update_articulations_kinematic`.
+Not every setter requires that refresh; follow the method-level behavior in the
+upstream reference.
 
 Sensor view families
 --------------------
