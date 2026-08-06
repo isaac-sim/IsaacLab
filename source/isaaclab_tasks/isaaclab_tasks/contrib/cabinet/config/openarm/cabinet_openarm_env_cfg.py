@@ -232,7 +232,10 @@ class RewardsCfg:
     open_drawer_bonus = RewTerm(
         func=mdp.open_drawer_bonus,
         weight=7.5,
-        params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_bottom_joint"])},
+        params={
+            "asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_bottom_joint"]),
+            "success_threshold": 0.30,
+        },
     )
     multi_stage_open_drawer = RewTerm(
         func=mdp.multi_stage_open_drawer,
