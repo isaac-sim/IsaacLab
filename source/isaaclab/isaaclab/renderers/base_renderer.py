@@ -167,21 +167,41 @@ class BaseRenderer(ABC):
         """
         pass
 
-    @abstractmethod
+    def destroy_render_data(self, render_data: Any) -> None:
+        """Release renderer resources associated with the given render data.
+
+        Called once per camera, when that camera is invalidated or destroyed. Only state the
+        ``render_data`` owns may be released here — state the renderer itself owns is shared with
+        every other camera that resolved to it, and belongs in :meth:`close`.
+
+        The default implementation forwards to the deprecated :meth:`cleanup` so that backends
+        which have not been renamed yet keep working.
+
+        Args:
+            render_data: The render data object to destroy, or ``None``.
+        """
+        self.cleanup(render_data)
+
     def cleanup(self, render_data: Any) -> None:
         """Release renderer resources associated with the given render data.
+
+        .. deprecated:: 3.1
+            Use :meth:`destroy_render_data` instead. ``cleanup`` was easily confused with
+            :meth:`close`, which releases the renderer's own state rather than a render data's.
+            Backends should rename their override; callers should call
+            :meth:`destroy_render_data`.
 
         Args:
             render_data: The render data object to clean up, or ``None``.
         """
-        pass
+        return
 
     def close(self) -> None:
         """Release resources owned by the renderer itself rather than by a render data.
 
         A renderer is shared by every camera whose configuration resolves to it (see
         :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer`), so state it owns
-        outlives any single camera and cannot be released from :meth:`cleanup`.
+        outlives any single camera and cannot be released from :meth:`destroy_render_data`.
         :meth:`~isaaclab.renderers.render_context.RenderContext.close` calls this once at
         simulation teardown, while the stage and the underlying renderer backend are still alive.
 

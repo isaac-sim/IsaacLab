@@ -637,9 +637,9 @@ class NewtonWarpRenderer(BaseRenderer):
         for output_name, info in render_data.segmentation_info().items():
             camera_data.info[output_name] = info
 
-    def cleanup(self, render_data: RenderData | None):
+    def destroy_render_data(self, render_data: RenderData | None):
         """Release resources and drop the camera's sensor task.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.destroy_render_data`."""
         if render_data:
             if render_data.sensor_task_name is not None:
                 NewtonManager._unregister_sensor_task(render_data.sensor_task_name)

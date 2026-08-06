@@ -625,9 +625,9 @@ class IsaacRtxRenderer(BaseRenderer):
         for output_name in camera_data.info:
             camera_data.info[output_name] = render_data.renderer_info.get(output_name)
 
-    def cleanup(self, render_data: IsaacRtxRenderData | None):
+    def destroy_render_data(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators, destroy the owned tiled render product, and drop held refs.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.destroy_render_data`."""
         if render_data is None:
             return
 

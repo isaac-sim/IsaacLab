@@ -221,9 +221,9 @@ class Camera(SensorBase):
         """Unsubscribes from callbacks and cleans up renderer resources."""
         # unsubscribe callbacks
         super().__del__()
-        # cleanup render resources (renderer may be None if never initialized)
+        # release this camera's render data (renderer may be None if never initialized)
         if self._renderer is not None:
-            self._renderer.cleanup(self._render_data)
+            self._renderer.destroy_render_data(self._render_data)
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -896,7 +896,7 @@ class Camera(SensorBase):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         if self._renderer is not None and self._render_data is not None:
-            self._renderer.cleanup(self._render_data)
+            self._renderer.destroy_render_data(self._render_data)
         self._render_data = None
         self._renderer = None
         # call parent
