@@ -33,8 +33,8 @@ def test_xr_camera_reference_tasks_select_recorded_camera(env_cfg_type, camera_p
     assert cfg.num_rerenders_on_reset == 3
 
 
-def test_g1_xr_camera_uses_calibration_and_head_locked_panel():
-    """G1 uses its calibrated head camera and a centered head-locked panel."""
+def test_g1_xr_camera_uses_calibration_and_viewer_start_panel():
+    """G1 uses its calibrated head camera and the GR1T2-style panel placement."""
     cfg = LocomanipulationG1EnvCfg()
     camera_cfg = cfg.scene.robot_pov_cam
     feed_cfg = cfg.isaac_teleop.xr_camera_feeds[0]
@@ -47,8 +47,8 @@ def test_g1_xr_camera_uses_calibration_and_head_locked_panel():
     assert camera_cfg.offset.pos == (0.04485, 0.0, 0.35325)
     assert camera_cfg.offset.rot == (-0.62721, 0.62721, -0.32651, 0.32651)
     assert camera_cfg.offset.convention == "ros"
-    assert cfg.isaac_teleop.xr_camera_feed_layout.placement == "head_locked"
-    assert feed_cfg.offset_m == (0.0, 0.0)
+    assert cfg.isaac_teleop.xr_camera_feed_layout.placement == "viewer_start"
+    assert feed_cfg.offset_m == (0.0, -0.15)
 
 
 @pytest.mark.parametrize("env_cfg_type", [PickPlaceGR1T2EnvCfg, LocomanipulationG1EnvCfg])
