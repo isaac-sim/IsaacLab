@@ -166,8 +166,10 @@ class _NewtonViewerUIMixin:
 
         image_logger = getattr(self, "_image_logger", None)
         if image_logger is None:
+            print("[isaaclab] _patch_image_logger: _image_logger not found — patch skipped")
             return
 
+        print(f"[isaaclab] _patch_image_logger: patching {type(image_logger).__name__}")
         # Suppress Newton's own "Logged Images" sidebar section.
         image_logger.draw_controls = lambda: None
 
@@ -204,6 +206,8 @@ class _NewtonViewerUIMixin:
                     # Cond_.always overrides whatever size Newton or imgui.ini gave the window.
                     _imgui.set_next_window_pos(_imgui.ImVec2(float(x), float(y)), _imgui.Cond_.always)
                     _imgui.set_next_window_size(_imgui.ImVec2(float(w), float(h)), _imgui.Cond_.always)
+                    # Force the window uncollapsed — imgui.ini may have saved a collapsed state.
+                    _imgui.set_next_window_collapsed(False, _imgui.Cond_.always)
                     _viewer_ref._streaming_panel_needs_sizing = False
             return _orig_draw(self_logger)
 
