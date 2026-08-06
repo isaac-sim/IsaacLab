@@ -1,0 +1,3 @@
+Test-only: refresh Isaac RTX / default_renderer golden images and registered-tasks
+camera goldens after disabling async texture streaming; drop unused scene-partition
+fixture from the registered-tasks rendering test (NVBUG#6566677).
