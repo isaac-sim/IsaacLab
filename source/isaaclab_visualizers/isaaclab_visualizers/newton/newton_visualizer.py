@@ -1844,12 +1844,14 @@ class NewtonGLVisualizer(NewtonVisualizer):
         _PANEL_KEY = "Streaming View"
         image_logger = getattr(self._viewer, "_image_logger", None)
 
-        # First call: register the panel key so the image logger knows this stream exists.
-        # We do NOT hide it (no _selected=None) because Newton never sets _selected back
-        # when image selection UI is suppressed — the panel would stay blank forever.
+        # First call: register the panel key and explicitly select it.
+        # Newton's draw_controls is suppressed so it never auto-selects the image;
+        # we must set _selected ourselves so the floating window shows content.
         if image_logger is not None and _PANEL_KEY not in getattr(image_logger, "_images", {}):
             placeholder = wp.zeros((1, 1, 3), dtype=wp.uint8)
             self._viewer.log_image(_PANEL_KEY, placeholder)
+            if hasattr(image_logger, "_selected"):
+                image_logger._selected = _PANEL_KEY
             return
 
         composite = self._build_streaming_composite()
