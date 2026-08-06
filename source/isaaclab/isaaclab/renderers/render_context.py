@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
+from isaaclab.app.logging_utils import force_log_level
 from isaaclab.sensors.camera.camera_data import CameraData
 
 from .base_renderer import BaseRenderer
@@ -78,10 +79,8 @@ class RenderContext:
                 return r
         new_renderer = cast(BaseRenderer, Renderer(cfg))  # type: ignore[misc]
         self._renderer_entries.append((cfg, new_renderer))
-        logger.info(
-            "Created new renderer for simulation: %s",
-            type(new_renderer).__name__,
-        )
+        with force_log_level(logging.INFO):
+            logger.info("Created new renderer for simulation: %s", type(new_renderer).__name__)
         if self._physics_initialized:
             new_renderer.initialize()
         return new_renderer
