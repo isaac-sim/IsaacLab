@@ -5,10 +5,11 @@ Recording Video
 
 .. currentmodule:: isaaclab
 
-Isaac Lab can record video from any active visualizer or scene camera sensor by adding
-:class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries to the environment
-config.  Each recorder captures from a configurable source — a Kit viewport, a Newton GL window,
-or a tiled camera sensor — and writes ``mp4`` clips to disk independently.
+Isaac Lab can record video from a Kit or Newton GL visualizer, or directly from a scene camera
+sensor, by adding :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries to
+the environment config.  Each recorder captures from a configurable source and writes ``mp4``
+clips to disk independently.  Streaming visualizers (Rerun, Viser) and the Newton RTX backend
+do not support frame capture; see `Visualizer compatibility`_ below.
 
 .. code-block:: python
 
@@ -235,6 +236,59 @@ Requirements
 
 * For ``source="sensor:<name>"``: the named field must exist on the scene config and
   have ``"rgb"`` in its ``data_types``.
+
+
+Visualizer compatibility
+------------------------
+
+Only **kit** and **newton_gl** support frame capture for video recording.  Both can run
+headless (``headless=True`` on the cfg) so they add no UI window or interactive overhead
+when video is the only goal.
+
+.. list-table::
+   :widths: 25 15 60
+   :header-rows: 1
+
+   * - Visualizer
+     - ``--video``
+     - Notes
+   * - ``kit``
+     - ✓
+     - Kit/Omniverse viewport; supports headless mode
+   * - ``newton_gl``
+     - ✓
+     - Newton OpenGL viewport; supports headless mode
+   * - ``newton_rtx``
+     - ✗
+     - Framebuffer readback (``ViewerRTX.get_frame()``) not yet available from the Newton SDK
+   * - ``rerun``
+     - ✗
+     - Remote streaming tool; no local frame-capture API
+   * - ``viser``
+     - ✗
+     - Browser streaming tool; no local frame-capture API
+
+Passing ``--video`` alongside ``--viz rerun``, ``--viz viser``, or ``--viz newton_rtx``
+raises an error when no other recording-capable visualizer is configured.
+
+To run a streaming or RTX visualizer *and* record video simultaneously, add a headless
+capture backend alongside it in ``sim.visualizer_cfgs``:
+
+.. code-block:: python
+
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.rerun import RerunVisualizerCfg
+
+    env_cfg.sim.visualizer_cfgs = [
+        RerunVisualizerCfg(...),                 # streaming — for monitoring
+        KitVisualizerCfg(headless=True),         # headless — provides frames for --video
+    ]
+
+Alternatively, record directly from a scene camera sensor without any visualizer:
+
+.. code-block:: python
+
+    VideoRecorderCfg(source="sensor:<name>")    # add to env_cfg.video_recorders
 
 
 Limitations

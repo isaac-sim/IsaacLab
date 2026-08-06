@@ -709,28 +709,42 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
         # same as "no visualizer specified" for the purpose of picking a recorder source.
         active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
 
+        # Streaming visualizers (rerun, viser) and the RTX path-tracer (newton_rtx) do not
+        # expose a local frame-capture API and cannot serve as video recording sources.
+        _NO_CAPTURE = {"newton_rtx", "rerun", "viser"}
+
         if active_cli_visualizers:
-            # User passed --viz <type>: record from whichever visualizer they requested.
-            # Use the first requested type as the source so the recorder is specific.
-            # Some visualizer types cannot produce video frames; reject them early.
-            _TILED_ONLY = {"rerun", "viser"}
-            _NO_CAPTURE = {"newton_rtx"}
-            first_viz = active_cli_visualizers[0]
-            if first_viz in _NO_CAPTURE:
+            # Partition into capture-capable and no-capture lists.
+            capture_capable = [v for v in active_cli_visualizers if v not in _NO_CAPTURE]
+            no_capture = [v for v in active_cli_visualizers if v in _NO_CAPTURE]
+
+            if no_capture and not capture_capable:
+                names = " and ".join(repr(v) for v in no_capture)
+                example_cfg = {
+                    "rerun": "RerunVisualizerCfg",
+                    "viser": "ViserVisualizerCfg",
+                    "newton_rtx": "NewtonRTXVisualizerCfg",
+                }.get(no_capture[0], f"{no_capture[0].title()}VisualizerCfg")
                 raise ValueError(
-                    f"--video is not compatible with --viz {first_viz!r}: the {first_viz!r} visualizer does not "
-                    "support frame capture for video recording. "
-                    "Remove --video, choose a capture-capable visualizer (e.g. --viz kit or --viz newton_gl), "
-                    "or add VideoRecorderCfg(source='sensor:<name>') to your env config."
+                    f"--video is not supported with --viz {names}: {names} "
+                    f"{'is a streaming visualizer' if len(no_capture) == 1 else 'are streaming visualizers'} "
+                    "and do not expose a local frame-capture API.\n\n"
+                    "Supported recording backends (both support headless mode for zero UI overhead):\n"
+                    "  --viz kit        Kit/Omniverse viewport\n"
+                    "  --viz newton_gl  Newton OpenGL viewport\n\n"
+                    f"To run {names} alongside video recording, add a headless capture backend\n"
+                    "to sim.visualizer_cfgs in your environment config, for example:\n\n"
+                    f"  sim_cfg.visualizer_cfgs = [\n"
+                    f"      {example_cfg}(...),\n"
+                    f"      KitVisualizerCfg(headless=True),   # provides frames for --video\n"
+                    f"  ]\n\n"
+                    "Frames can also be captured from a scene camera sensor without any visualizer:\n"
+                    "  VideoRecorderCfg(source='sensor:<name>')   # add to env_cfg.video_recorders\n\n"
+                    "See: https://isaac-sim.github.io/IsaacLab/main/source/how-to/record_video.html"
                 )
-            if first_viz in _TILED_ONLY:
-                visualizer_source = f"visualizer:{first_viz}:tiled"
-                print(
-                    f"[INFO] --viz {first_viz!r} selected: using tiled-camera source "
-                    f"'visualizer:{first_viz}:tiled' for video recording."
-                )
-            else:
-                visualizer_source = f"visualizer:{first_viz}"
+
+            # Use the first capture-capable visualizer as the recording source.
+            visualizer_source = f"visualizer:{capture_capable[0]}"
         else:
             # No --viz: determine whether a concrete visualizer is already configured in
             # the env cfg.  A base VisualizerCfg with visualizer_type=None is a hint-only
@@ -762,17 +776,15 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                     pass
             elif has_concrete_visualizer:
                 # A concrete visualizer is already configured in the env cfg: record from it.
-                # Determine the visualizer type so we can build the right source string.
+                # Prefer capture-capable types (kit, newton_gl) over streaming-only ones.
                 all_viz_cfgs = list(existing_viz_cfgs or [])
                 if existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None:
                     all_viz_cfgs.append(existing_viz_cfg)
-                for vcfg in all_viz_cfgs:
+                # Two-pass: capture-capable first, then fall back to whatever is present.
+                for vcfg in sorted(all_viz_cfgs, key=lambda c: getattr(c, "visualizer_type", None) in _NO_CAPTURE):
                     vtype = getattr(vcfg, "visualizer_type", None)
                     if vtype:
-                        _TILED_ONLY_SRC = {"rerun", "viser"}
-                        visualizer_source = (
-                            f"visualizer:{vtype}:tiled" if vtype in _TILED_ONLY_SRC else f"visualizer:{vtype}"
-                        )
+                        visualizer_source = f"visualizer:{vtype}"
                         break
         env_cfg.video_recorders = [VideoRecorderCfg(source=visualizer_source, video_interval=2000)]
 

@@ -554,6 +554,16 @@ Rerun Visualizer
    are limited to what ImGui exposes within that context; simulation pause is not supported from
    Rerun. Use the Viser visualizer for full interactive controls.
 
+.. note::
+
+   **Video recording** (``--video``) is not supported with the Rerun visualizer. Rerun is a
+   remote streaming tool and does not expose a local frame-capture API. To record video while
+   running Rerun, add a headless :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` or
+   :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` to ``sim.visualizer_cfgs``
+   and use it as the recording source. Frames can also be captured directly from a scene
+   camera sensor using ``VideoRecorderCfg(source="sensor:<name>")``.
+   See :doc:`/source/how-to/record_video` for details.
+
 .. important::
 
    A highlighted Rerun browser URL is printed in the logs before the main simulation or training loop begins.
@@ -623,6 +633,16 @@ server, allowing you to view and interact with the scene from any browser.
   from the **Isaac Lab → Visualization Markers** sidebar panel)
 - Interactive sidebar controls: **Pause Rendering** (freezes the 3D view without stopping physics),
   **Pause Simulation** (pauses the training/rollout loop), and **Reset Episode**
+
+.. note::
+
+   **Video recording** (``--video``) is not supported with the Viser visualizer. Viser is a
+   browser-streaming tool and does not expose a local frame-capture API. To record video while
+   running Viser, add a headless :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` or
+   :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` to ``sim.visualizer_cfgs``
+   and use it as the recording source. Frames can also be captured directly from a scene
+   camera sensor using ``VideoRecorderCfg(source="sensor:<name>")``.
+   See :doc:`/source/how-to/record_video` for details.
 
 .. important::
 
