@@ -10,12 +10,14 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Sequence
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
 import torch
 import warp as wp
 
+import isaaclab.actuators.actuator_collection as actuator_collection_module
 from isaaclab.actuators import (
     ActuatorCollection,
     ActuatorControl,
@@ -155,6 +157,23 @@ def _assert_collection_outputs_match_exactly(actual: ActuatorCollection, referen
         rtol=0.0,
         atol=0.0,
     )
+
+
+def _implicit_cuda_buffer_pointers(collection: ActuatorCollection) -> tuple[int, ...]:
+    """Return the stable Warp array pointers used by an implicit execution batch."""
+    batch = collection._execution_batches[0]
+    assert batch.implicit_inputs is not None
+    assert batch.implicit_outputs is not None
+    return tuple(array.ptr for array in (*batch.implicit_inputs, *batch.implicit_outputs))
+
+
+def _mutate_implicit_inputs(collection: ActuatorCollection, control: FakeActuatorControl) -> None:
+    """Change implicit actuator commands and state in place."""
+    collection.command.position.torch.add_(0.5)
+    collection.command.velocity.torch.sub_(0.25)
+    collection.command.effort.torch.mul_(1.5)
+    control.joint_pos.torch.sub_(0.75)
+    control.joint_vel.torch.add_(1.25)
 
 
 class FakeActuatorControl(ActuatorControl):
@@ -395,6 +414,152 @@ class FakeArticulation:
 
     def write_joint_damping_to_sim_index(self, **kwargs) -> None:
         self.calls.append(("damping", kwargs))
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for graph capture")
+def test_implicit_cuda_graph_matches_eager_and_replays_changed_inputs(monkeypatch):
+    joint_names = [f"joint_{index}" for index in range(4)]
+    eager_control = FakeActuatorControl(joint_names=joint_names, device="cuda:0")
+    graph_control = FakeActuatorControl(joint_names=joint_names, device="cuda:0")
+    with monkeypatch.context() as patch:
+        patch.setattr(ActuatorCollection, "_ENABLE_IMPLICIT_CUDA_GRAPH", False)
+        eager = ActuatorCollection({"all": _implicit_cfg()}, eager_control)
+    graph = ActuatorCollection({"all": _implicit_cfg()}, graph_control)
+    _assign_deterministic_inputs(eager, eager_control)
+    _assign_deterministic_inputs(graph, graph_control)
+
+    assert graph._implicit_cuda_graph is None
+    buffer_pointers = _implicit_cuda_buffer_pointers(graph)
+
+    graph.compute()
+    eager.compute()
+
+    captured_graph = graph._implicit_cuda_graph
+    assert captured_graph is not None
+    assert _implicit_cuda_buffer_pointers(graph) == buffer_pointers
+    _assert_collection_outputs_match_exactly(graph, eager)
+
+    graph.compute()
+    eager.compute()
+
+    assert graph._implicit_cuda_graph is captured_graph
+    assert _implicit_cuda_buffer_pointers(graph) == buffer_pointers
+    _assert_collection_outputs_match_exactly(graph, eager)
+
+    _mutate_implicit_inputs(eager, eager_control)
+    _mutate_implicit_inputs(graph, graph_control)
+    graph.compute()
+    eager.compute()
+
+    assert graph._implicit_cuda_graph is captured_graph
+    assert _implicit_cuda_buffer_pointers(graph) == buffer_pointers
+    _assert_collection_outputs_match_exactly(graph, eager)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for graph capture")
+def test_implicit_cuda_graph_yields_to_outer_capture(monkeypatch):
+    joint_names = [f"joint_{index}" for index in range(4)]
+    eager_control = FakeActuatorControl(joint_names=joint_names, device="cuda:0")
+    graph_control = FakeActuatorControl(joint_names=joint_names, device="cuda:0")
+    with monkeypatch.context() as patch:
+        patch.setattr(ActuatorCollection, "_ENABLE_IMPLICIT_CUDA_GRAPH", False)
+        eager = ActuatorCollection({"all": _implicit_cfg()}, eager_control)
+    graph = ActuatorCollection({"all": _implicit_cfg()}, graph_control)
+    _assign_deterministic_inputs(eager, eager_control)
+    _assign_deterministic_inputs(graph, graph_control)
+    graph.compute()
+    local_graph = graph._implicit_cuda_graph
+    assert local_graph is not None
+
+    capture_launch = wp.capture_launch
+
+    def fail_capture_launch(*args, **kwargs):
+        raise AssertionError("Local graph replay must not occur during an outer capture")
+
+    monkeypatch.setattr(actuator_collection_module.wp, "capture_launch", fail_capture_launch)
+    with wp.ScopedCapture(device=graph.device) as outer_capture:
+        graph.compute()
+    assert graph._implicit_cuda_graph is local_graph
+
+    _mutate_implicit_inputs(eager, eager_control)
+    _mutate_implicit_inputs(graph, graph_control)
+    capture_launch(outer_capture.graph)
+    eager.compute()
+    _assert_collection_outputs_match_exactly(graph, eager)
+
+    fresh_control = FakeActuatorControl(joint_names=joint_names, device="cuda:0")
+    fresh = ActuatorCollection({"all": _implicit_cfg()}, fresh_control)
+    _assign_deterministic_inputs(fresh, fresh_control)
+    with wp.ScopedCapture(device=fresh.device) as fresh_outer_capture:
+        fresh.compute()
+    assert fresh._implicit_cuda_graph is None
+    capture_launch(fresh_outer_capture.graph)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for graph capture")
+def test_implicit_cuda_graph_capture_failure_warns_once_and_falls_back(monkeypatch, caplog):
+    joint_names = [f"joint_{index}" for index in range(4)]
+    eager_control = FakeActuatorControl(joint_names=joint_names, device="cuda:0")
+    graph_control = FakeActuatorControl(joint_names=joint_names, device="cuda:0")
+    with monkeypatch.context() as patch:
+        patch.setattr(ActuatorCollection, "_ENABLE_IMPLICIT_CUDA_GRAPH", False)
+        eager = ActuatorCollection({"all": _implicit_cfg()}, eager_control)
+    graph = ActuatorCollection({"all": _implicit_cfg()}, graph_control)
+    _assign_deterministic_inputs(eager, eager_control)
+    _assign_deterministic_inputs(graph, graph_control)
+    capture_attempts = 0
+
+    @contextmanager
+    def failing_capture(*args, **kwargs):
+        nonlocal capture_attempts
+        capture_attempts += 1
+        raise RuntimeError("capture failed")
+        yield
+
+    monkeypatch.setattr(actuator_collection_module.wp, "ScopedCapture", failing_capture)
+    with caplog.at_level("WARNING", logger=actuator_collection_module.logger.name):
+        graph.compute()
+        eager.compute()
+        _assert_collection_outputs_match_exactly(graph, eager)
+        graph.compute()
+        eager.compute()
+        _assert_collection_outputs_match_exactly(graph, eager)
+
+    assert capture_attempts == 1
+    assert graph._implicit_cuda_graph_capture_failed
+    assert graph._implicit_cuda_graph is None
+    assert len(caplog.records) == 1
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for graph capture")
+def test_implicit_cuda_graph_eligibility_is_narrow(monkeypatch):
+    joint_names = [f"joint_{index}" for index in range(4)]
+    implicit_subset = ImplicitActuatorCfg(joint_names_expr=["joint_[01]"], stiffness=0.0, damping=0.0)
+    custom_implicit = _implicit_cfg()
+    custom_implicit.class_type = SelectorRecordingActuator
+    collections = [
+        ActuatorCollection({"all": _implicit_cfg()}, FakeActuatorControl(joint_names=joint_names)),
+        ActuatorCollection(
+            {
+                "implicit": implicit_subset,
+                "explicit": _ideal_cfg(["joint_2", "joint_3"], stiffness=1.0, damping=1.0, effort_limit=10.0),
+            },
+            FakeActuatorControl(joint_names=joint_names, device="cuda:0"),
+        ),
+        ActuatorCollection({"all": custom_implicit}, FakeActuatorControl(joint_names=joint_names, device="cuda:0")),
+        ActuatorCollection(
+            {"all": _implicit_cfg()}, NativeFakeActuatorControl(joint_names=joint_names, device="cuda:0")
+        ),
+    ]
+
+    def fail_capture(*args, **kwargs):
+        raise AssertionError("Ineligible collections must not capture a local graph")
+
+    monkeypatch.setattr(actuator_collection_module.wp, "ScopedCapture", fail_capture)
+    for collection in collections:
+        assert not collection._use_implicit_cuda_graph
+        collection.compute()
+        assert collection._implicit_cuda_graph is None
 
 
 def test_articulation_control_provides_common_forwarding_and_property_writes():
