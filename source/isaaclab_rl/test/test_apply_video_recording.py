@@ -163,10 +163,12 @@ def test_apply_video_recording_injects_newton_gl_when_kit_not_running():
         sys.modules.pop("omni.kit.app", None)
         apply_video_recording(env_cfg, "/my/log", _args())
 
-    # NewtonGLVisualizerCfg(headless=True) must have been appended
+    # NewtonGLVisualizerCfg(headless=True, capture_only=True) must have been appended.
+    # capture_only=True ensures rendering only occurs during active recording windows,
+    # not on every step (regression for github.com/isaac-sim/IsaacLab/issues/6942).
     assert len(sim_cfg.visualizer_cfgs) == 1
     assert sim_cfg.visualizer_cfgs[0] is newton_gl_cfg_instance
-    MockNewtonGLVisualizerCfg.assert_called_once_with(headless=True)
+    MockNewtonGLVisualizerCfg.assert_called_once_with(headless=True, capture_only=True)
     # The default recorder must reference the injected newton_gl visualizer
     assert len(env_cfg.video_recorders) == 1
     assert env_cfg.video_recorders[0].source == "visualizer:newton_gl"

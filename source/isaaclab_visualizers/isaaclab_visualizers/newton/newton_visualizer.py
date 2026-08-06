@@ -934,6 +934,12 @@ class NewtonVisualizer(BaseVisualizer):
 
         from isaaclab_newton.physics import NewtonManager
 
+        # capture_only: skip the render cycle; render on demand via render_rgb_array().
+        # State is still updated so render_rgb_array() always has the latest physics pose.
+        if getattr(self.cfg, "capture_only", False):
+            self._state = NewtonManager.get_state(self._scene_data_provider)
+            return
+
         if self._viewer is None:
             self._state = NewtonManager.get_state(self._scene_data_provider)
             return
@@ -1719,6 +1725,10 @@ class NewtonGLVisualizer(NewtonVisualizer):
     def render_rgb_array(self) -> np.ndarray:
         """Return the latest RGB frame rendered by the Newton GL viewer.
 
+        When :attr:`~NewtonGLVisualizerCfg.capture_only` is ``True``, a full render cycle
+        is executed on demand (``begin_frame`` → ``log_state`` → ``end_frame``) using the
+        state captured during the most recent :meth:`step` call.
+
         Returns:
             The latest viewer framebuffer as a uint8 array with shape ``(H, W, 3)``.
 
@@ -1727,6 +1737,13 @@ class NewtonGLVisualizer(NewtonVisualizer):
         """
         if self._viewer is None:
             raise RuntimeError("NewtonGLVisualizer must be initialized before capturing an RGB frame.")
+        if getattr(self.cfg, "capture_only", False) and self._state is not None:
+            self._pre_step()
+            self._viewer.begin_frame(self._sim_time)
+            try:
+                self._viewer.log_state(self._state)
+            finally:
+                self._viewer.end_frame()
         return self._viewer.get_frame().numpy()
 
     def render_tiled_rgb_array(self) -> np.ndarray | None:

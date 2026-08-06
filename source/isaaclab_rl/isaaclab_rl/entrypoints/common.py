@@ -773,14 +773,17 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                 if not sim_cfg.visualizer_cfgs:
                     # Kit is not running (kitless/Newton path) or the import failed above:
                     # fall back to Newton GL which works without the Kit/Omniverse runtime.
+                    # Use capture_only=True so rendering only occurs when the VideoRecorder
+                    # requests frames, not on every step outside active recording windows.
                     try:
                         from isaaclab_visualizers.newton import NewtonGLVisualizerCfg as _NwtCfg
 
-                        sim_cfg.visualizer_cfgs.append(_NwtCfg(headless=True))
+                        sim_cfg.visualizer_cfgs.append(_NwtCfg(headless=True, capture_only=True))
                         visualizer_source = "visualizer:newton_gl"
                         print(
                             "[INFO] --video specified without --viz: auto-creating a headless Newton GL "
-                            "visualizer for video recording (Kit not running)."
+                            "visualizer for on-demand video recording (Kit not running). "
+                            "Frames are rendered only during active recording windows."
                         )
                     except (ImportError, ModuleNotFoundError):
                         pass

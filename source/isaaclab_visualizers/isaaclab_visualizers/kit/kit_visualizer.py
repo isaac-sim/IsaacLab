@@ -199,6 +199,10 @@ class KitVisualizer(BaseVisualizer):
         # Update dynamic asset tracking before the frame renders.
         if self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
+        # capture_only: skip the app update and camera panel refresh; rendering is
+        # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
+        if self.cfg.capture_only:
+            return
         _externally_paused = self.is_training_paused()
         if not _externally_paused:
             try:
@@ -408,6 +412,10 @@ class KitVisualizer(BaseVisualizer):
         including depth (turbo colormap), segmentation, and normals when configured via
         :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_gt_types`.
 
+        When :attr:`~isaaclab.visualizers.VisualizerCfg.capture_only` is ``True``, the
+        camera image panel is refreshed on demand so the returned frame reflects the
+        current simulation state even though :meth:`step` skipped the refresh.
+
         Returns:
             ``uint8 (H, W, 3)`` composite array, or ``None`` if no frame has been
             composited yet (streaming view not active or first step not yet completed).
@@ -419,6 +427,8 @@ class KitVisualizer(BaseVisualizer):
             # No camera set up — either streaming_view=False, or streaming_view=True but
             # --enable_cameras was not passed (Kit skips camera creation without it).
             return None
+        if self.cfg.capture_only:
+            self._update_camera_image_panel(0.0)
         return self._last_streaming_composite
 
     def reapply_origin(self) -> None:
