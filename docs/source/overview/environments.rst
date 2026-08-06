@@ -607,13 +607,15 @@ Environments based on legged locomotion tasks.
     |                              |                                              |                                                                              | ``newton_kamino``,           |
     |                              |                                              |                                                                              | ``newton_mjwarp``,           |
     |                              |                                              |                                                                              | ``ovphysx``                  |
-    |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |                              |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
+    | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-direct-link|         | Track a velocity command on flat terrain with the Anymal C robot             |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            | **physics=**                 |
     |                              |                                              |                                                                              | ``isaacsim_physx``,          |
     |                              |                                              |                                                                              | ``newton_mjwarp``,           |
     |                              |                                              |                                                                              | ``ovphysx``                  |
-    |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |                              |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
+    | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-direct-link|        | Track a velocity command on rough terrain with the Anymal C robot            |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot             | **physics=**                 |
     |                              |                                              |                                                                              | ``isaacsim_physx``,          |
