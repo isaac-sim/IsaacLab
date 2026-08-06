@@ -425,6 +425,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None):
     visualizer._is_closed = False
     visualizer._sim_time = 0.0
     visualizer._step_counter = 0
+    visualizer._runtime_headless = False
     visualizer._viewer = viewer
     visualizer._state = None
     visualizer._scene_data_provider = scene_data_provider

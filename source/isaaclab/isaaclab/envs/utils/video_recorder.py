@@ -320,14 +320,15 @@ class VideoRecorder:
             # Warn if the clip appears to be all-black (mean pixel < 2/255).
             # This can happen with Kit+Newton when cubric is unavailable.
             sample = self._frames[len(self._frames) // 2]
-            if np.mean(sample) < 2.0:
+            mean_pixel = float(np.mean(sample))
+            if mean_pixel < 2.0:
                 logger.warning(
                     "[VideoRecorder] source=%r: sampled frame appears mostly black "
                     "(mean pixel value %.1f/255). For Kit+Newton, ensure cubric is available "
                     "to propagate Fabric transforms to the RTX renderer, or switch to "
                     "source='visualizer:newton_gl' for guaranteed capture.",
                     self.cfg.source,
-                    float(np.mean(sample)),
+                    mean_pixel,
                 )
             clip = ImageSequenceClip(self._frames, fps=fps)
             clip.write_videofile(path, codec="libx264", audio=False, logger=None)

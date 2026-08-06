@@ -610,7 +610,7 @@ def pre_launch_video_config(env_cfg: Any, log_dir: str | None = None, args_cli: 
 
     existing_viz_cfg = getattr(sim_cfg, "default_visualizer_cfg", None)
     existing_viz_cfgs = getattr(sim_cfg, "visualizer_cfgs", []) or []
-    has_concrete_visualizer = bool(existing_viz_cfgs) or (
+    has_concrete_visualizer = any(getattr(c, "visualizer_type", None) is not None for c in existing_viz_cfgs) or (
         existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None
     )
     if has_concrete_visualizer:

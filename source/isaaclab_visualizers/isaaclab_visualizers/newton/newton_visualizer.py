@@ -818,6 +818,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._viewer: NewtonViewerGL | NewtonViewerRTX | None = None
         self._sim_time = 0.0
         self._step_counter = 0
+        self._runtime_headless: bool = False
         self._model = None
         self._state = None
         self._update_frequency = cfg.update_frequency
@@ -1855,6 +1856,8 @@ class NewtonGLVisualizer(NewtonVisualizer):
 
         _PANEL_KEY = "Streaming View"
         image_logger = getattr(self._viewer, "_image_logger", None)
+        if image_logger is None:
+            return
 
         # First call: register the panel key in the image logger so the sidebar combo
         # appears.  Use a 1×1 black placeholder — no camera work needed yet.
