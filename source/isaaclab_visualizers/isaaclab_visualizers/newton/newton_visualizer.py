@@ -575,6 +575,14 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""
         super()._init_window()
+        # Disable imgui's automatic ini file I/O — the file would be written to the
+        # current working directory (often the repo root), polluting it with
+        # session-specific UI state and causing hard-to-diagnose bugs when a stale
+        # Collapsed=1 entry prevents the streaming panel from ever opening.
+        with contextlib.suppress(Exception):
+            from imgui_bundle import imgui as _imgui
+
+            _imgui.get_io().ini_filename = None
         with contextlib.suppress(AttributeError):
             self._patch_scalar_plot_width()
         with contextlib.suppress(AttributeError):
