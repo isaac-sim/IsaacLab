@@ -532,7 +532,15 @@ class KitVisualizer(BaseVisualizer):
 
             if sim_app is not None:
                 self._simulation_app = sim_app
-                self._runtime_headless = bool(self.cfg.headless or self._simulation_app.config.get("headless", False))
+                # Check cfg, SimulationApp config dict, and HEADLESS env var (AppLauncher sets the
+                # latter when the user passes HEADLESS=1 but does not always propagate it through
+                # SimulationApp.config, so read it directly as a safety net).
+                import os as _os
+
+                headless_env = bool(int(_os.environ.get("HEADLESS", 0)))
+                self._runtime_headless = bool(
+                    self.cfg.headless or headless_env or self._simulation_app.config.get("headless", False)
+                )
                 if self._runtime_headless:
                     logger.warning("[KitVisualizer] Running in headless mode. Viewport may not display.")
         except ImportError:
