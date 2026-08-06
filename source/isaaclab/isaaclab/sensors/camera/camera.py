@@ -216,16 +216,16 @@ class Camera(SensorBase):
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
+        # Frame view — assigned in _initialize_impl.
+        self._view: FrameView | None = None
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
         # unsubscribe callbacks
         super().__del__()
-        # release the frame view's backend state (getattr: _view is assigned in
-        # _initialize_impl, so it is absent if construction failed earlier)
-        view = getattr(self, "_view", None)
-        if view is not None:
-            view.close()
+        # release the frame view's backend state
+        if self._view is not None:
+            self._view.close()
             self._view = None
         # cleanup render resources (renderer may be None if never initialized)
         if self._renderer is not None:
