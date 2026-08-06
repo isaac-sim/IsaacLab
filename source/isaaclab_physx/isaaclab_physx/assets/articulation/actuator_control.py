@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.actuators import ActuatorCollection
+from isaaclab.actuators import ActuatorBase, ActuatorCollection
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.utils.queries import find_first_matching_prim
@@ -42,12 +42,12 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         super().__init__(articulation)
         self._native_active = False
         self._physx_actuator_wrapper = None
-        self._all_env_mask: wp.array | None = None
-        self._all_joint_mask: wp.array | None = None
+        self._all_env_mask: wp.array(dtype=wp.bool) | None = None
+        self._all_joint_mask: wp.array(dtype=wp.bool) | None = None
         self._native_actuator_graphs: tuple[wp.Graph, wp.Graph] | None = None
         self._native_actuator_graph_index = 0
 
-    def resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
+    def resolve_env_mask(self, env_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
         """Resolve an optional environment mask to a full Warp bool mask.
 
         PhysX's articulation-level mask resolution converts masks to int32
@@ -56,11 +56,13 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         """
         return self._resolve_bool_mask(env_mask, "_all_env_mask", self.num_instances)
 
-    def resolve_joint_mask(self, joint_mask: wp.array | None) -> wp.array:
+    def resolve_joint_mask(self, joint_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
         """Resolve an optional joint mask to a full Warp bool mask."""
         return self._resolve_bool_mask(joint_mask, "_all_joint_mask", self.num_joints)
 
-    def _resolve_bool_mask(self, mask: wp.array | None, cache_attr: str, size: int) -> wp.array:
+    def _resolve_bool_mask(self, mask: wp.array(dtype=wp.bool) | None, cache_attr: str, size: int) -> wp.array(
+        dtype=wp.bool
+    ):
         if mask is None:
             cached = getattr(self, cache_attr)
             if cached is None:
@@ -73,7 +75,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         mask_torch = wp.to_torch(mask) if isinstance(mask, wp.array) else mask
         return wp.from_torch((mask_torch != 0).contiguous(), dtype=wp.bool)
 
-    def _write_joint_friction_properties(self, actuator) -> None:
+    def _write_joint_friction_properties(self, actuator: ActuatorBase) -> None:
         articulation = self._articulation
         super()._write_joint_friction_properties(actuator)
         articulation.write_joint_dynamic_friction_coefficient_to_sim_index(
@@ -145,8 +147,6 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             wrapper.joint_act = collection.command.effort.warp.reshape(-1)
             adapter.finalize(wrapper)
             articulation.newton_actuator_adapter = adapter
-            articulation.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
-            articulation.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
 
         return native_group_names
 
@@ -272,11 +272,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
         articulation = self._articulation
-        # Gate on the articulation-level mirrors (kept in lockstep with
-        # ``self._native_active`` / ``self._physx_actuator_wrapper`` by
-        # :meth:`prepare_native_actuators`) exactly as the pre-collection
-        # ``write_data_to_sim`` body did: subclasses that override
-        # ``_process_actuators_cfg`` and tests stub these articulation attributes.
+        # The articulation flag selects the native wrapper's command buffers.
         if getattr(articulation, "_has_newton_actuators", False):
             # Newton fast path: pos/vel targets pass straight through; ``joint_f_2d`` already
             # merges Newton's explicit-DOF output with user feedforward.
@@ -306,10 +302,10 @@ class PhysxActuatorControl(ArticulationActuatorControl):
                     False,
                 ],
                 outputs=[
-                    None,
+                    articulation._joint_effort_target_backend,
                     articulation._joint_pos_target_backend,
                     articulation._joint_vel_target_backend,
-                    articulation._joint_effort_target_backend,
+                    None,
                 ],
                 device=self.device,
             )

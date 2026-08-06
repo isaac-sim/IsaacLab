@@ -22,11 +22,13 @@ import json
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 
 import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
+from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorControl
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -58,6 +60,43 @@ _ANYMAL_C_PHYSX_JOINT_NAMES = (
     "RF_KFE",
     "RH_KFE",
 )
+
+
+def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
+    """Leave solver gains untouched until collection construction resolves actuator defaults."""
+    from isaaclab_newton.actuators import NewtonActuatorAdapter, PhysxActuatorWrapper
+    from isaaclab_physx.assets.articulation import actuator_control
+
+    joint_buffer = SimpleNamespace(warp=wp.zeros((1, 1), dtype=wp.float32, device="cpu"))
+    collection = SimpleNamespace(
+        command=SimpleNamespace(position=joint_buffer, velocity=joint_buffer, effort=joint_buffer)
+    )
+    gain_writes = []
+    articulation = SimpleNamespace(
+        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        cfg=SimpleNamespace(prim_path="/World/Robot"),
+        joint_names=["joint"],
+        num_instances=1,
+        num_joints=1,
+        device="cpu",
+        _data=SimpleNamespace(joint_pos=joint_buffer, joint_vel=joint_buffer),
+        write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
+        write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
+    )
+    wrapper = SimpleNamespace()
+    adapter = SimpleNamespace(joint_indices=wp.array([0], dtype=wp.int32), finalize=lambda _: None)
+    monkeypatch.setattr(actuator_control, "_HAS_NEWTON_ACTUATORS", True)
+    monkeypatch.setattr(actuator_control, "find_first_matching_prim", lambda _: None)
+    monkeypatch.setattr(PhysxActuatorWrapper, "create", lambda **_: wrapper)
+    monkeypatch.setattr(NewtonActuatorAdapter, "from_usd", lambda **_: adapter)
+
+    native_groups = PhysxActuatorControl(articulation).prepare_native_actuators(
+        collection,
+        {"explicit": IdealPDActuatorCfg(joint_names_expr=["joint"], stiffness=None, damping=None)},
+    )
+
+    assert native_groups == {"explicit"}
+    assert gain_writes == []
 
 
 # ---------------------------------------------------------------------------
@@ -232,8 +271,8 @@ def _run_simulation(
             articulation.update(DT)
             recorded_pos.append(wp.to_torch(articulation.data.joint_pos).clone())
             recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
-            recorded_computed.append(wp.to_torch(articulation.data.computed_torque).clone())
-            recorded_applied.append(wp.to_torch(articulation.data.applied_torque).clone())
+            recorded_computed.append(articulation.actuators.computed_torque.torch.clone())
+            recorded_applied.append(articulation.actuators.applied_torque.torch.clone())
             if use_newton_actuators:
                 recorded_adapter_computed.append(wp.to_torch(articulation.data._sim_bind_joint_computed_effort).clone())
                 recorded_adapter_applied.append(wp.to_torch(articulation._physx_actuator_wrapper.joint_f_2d).clone())
@@ -276,11 +315,18 @@ def test_newton_actuator_graph_capture_failure_falls_back_to_eager(monkeypatch: 
 
     monkeypatch.setattr(wp, "ScopedCapture", FailingCapture)
 
-    result = _run_simulation(DC_MOTOR_ACTUATORS, use_newton_actuators=True, num_steps=2)
+    result = _run_simulation(
+        DC_MOTOR_ACTUATORS,
+        use_newton_actuators=True,
+        num_steps=2,
+        feedforward=1.0,
+    )
 
     assert result["native_actuator_graph_count"] == 0
     assert len(result["joint_pos"]) == 2
     assert all(torch.isfinite(joint_pos).all() for joint_pos in result["joint_pos"])
+    assert all(torch.any(effort != 0.0) for effort in result["applied_torque"])
+    assert all(torch.any(effort != 0.0) for effort in result["adapter_applied_effort"])
 
 
 def test_stateful_newton_actuators_reject_outer_cuda_capture() -> None:

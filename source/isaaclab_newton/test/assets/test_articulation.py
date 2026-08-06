@@ -37,6 +37,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
+from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -645,6 +646,48 @@ def test_viscous_writer_updates_finalized_newton_model(monkeypatch):
     torch.testing.assert_close(torch.from_numpy(model.joint_damping.numpy()), torch.tensor([0.25]))
 
 
+def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
+    """Leave solver gains untouched until collection construction resolves actuator defaults."""
+    from isaaclab_newton.assets.articulation import actuator_control
+
+    gain_writes = []
+    articulation = SimpleNamespace(
+        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        device="cpu",
+        find_joints=lambda _: ([0], ["joint"]),
+        write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
+        write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
+    )
+    monkeypatch.setattr(actuator_control, "_HAS_NEWTON_ACTUATORS", True)
+    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda: None)
+
+    native_groups = NewtonActuatorControl(articulation).prepare_native_actuators(
+        collection=None,
+        actuator_cfgs={"explicit": IdealPDActuatorCfg(joint_names_expr=["joint"], stiffness=None, damping=None)},
+    )
+
+    assert native_groups == {"explicit"}
+    assert gain_writes == []
+
+
+def test_native_configured_viscous_friction_reaches_newton_property_writer():
+    """Write configured passive viscous friction through the Newton-specific binding."""
+    writes = {}
+    articulation = SimpleNamespace(
+        write_joint_friction_coefficient_to_sim_index=lambda **kwargs: writes.update(static=kwargs),
+        write_joint_viscous_friction_coefficient_to_sim_index=lambda **kwargs: writes.update(viscous=kwargs),
+    )
+    actuator = SimpleNamespace(
+        friction=torch.tensor([[0.4]]), viscous_friction=torch.tensor([[0.2]]), joint_indices=[0]
+    )
+
+    NewtonActuatorControl(articulation)._write_joint_friction_properties(actuator)
+
+    assert writes["static"]["joint_friction_coeff"] is actuator.friction
+    assert writes["viscous"]["joint_viscous_friction_coeff"] is actuator.viscous_friction
+    assert writes["viscous"]["joint_ids"] == actuator.joint_indices
+
+
 @pytest.mark.parametrize(
     ("actuator_cfg", "expected_mode", "expected_actuator_indices"),
     [
@@ -1151,6 +1194,12 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     old_bindings = {name: getattr(data, name) for name in public_to_binding.values()}
     old_binding_ptrs = {name: int(array.ptr) for name, array in old_bindings.items()}
     old_public_proxies = {name: getattr(data, name) for name in public_to_binding}
+    actuator_state_inputs = [
+        batch.implicit_inputs if batch.implicit_inputs is not None else batch.gather_inputs
+        for batch in articulation.actuators._execution_batches
+        if batch.implicit_inputs is not None or batch.gather_inputs is not None
+    ]
+    assert actuator_state_inputs
     data.joint_pos_limits.torch.clone()
     assert data._joint_pos_limits_timestamp == data._sim_timestamp
     # The Tier-1 state shadows are plain wp.arrays (no timestamp): they are
@@ -1212,6 +1261,10 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         assert rebound is not old_binding
         assert int(rebound.ptr) != old_binding_ptrs[binding_name]
         assert int(rebound.ptr) == int(new_source_bindings[binding_name].ptr)
+
+    for inputs in actuator_state_inputs:
+        assert inputs[3].ptr == data.joint_pos.warp.ptr
+        assert inputs[4].ptr == data.joint_vel.warp.ptr
 
     assert data._joint_pos_limits_timestamp == -1.0
     assert data._joint_acc.timestamp == -1.0

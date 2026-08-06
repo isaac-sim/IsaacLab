@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.actuators import ActuatorCollection
+from isaaclab.actuators import ActuatorBase, ActuatorCollection
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.assets.articulation import ordering_kernels
 
@@ -65,24 +65,19 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         SimulationManager.activate_newton_actuator_path()
 
         native_group_names: set[str] = set()
-        explicit_joint_ids: list[int] = []
         for actuator_name, actuator_cfg in actuator_cfgs.items():
             if self._is_implicit_cfg(actuator_cfg):
                 continue
             native_group_names.add(actuator_name)
-            joint_ids, _ = articulation.find_joints(actuator_cfg.joint_names_expr)
-            explicit_joint_ids.extend(int(joint_id) for joint_id in joint_ids)
-
-        if explicit_joint_ids:
-            explicit_ids_t = torch.tensor(
-                sorted(set(explicit_joint_ids)),
-                dtype=torch.int32,
-                device=self.device,
-            )
-            articulation.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=explicit_ids_t)
-            articulation.write_joint_damping_to_sim_index(damping=0.0, joint_ids=explicit_ids_t)
 
         return native_group_names
+
+    def _write_joint_friction_properties(self, actuator: ActuatorBase) -> None:
+        super()._write_joint_friction_properties(actuator)
+        self._articulation.write_joint_viscous_friction_coefficient_to_sim_index(
+            joint_viscous_friction_coeff=actuator.viscous_friction,
+            joint_ids=actuator.joint_indices,
+        )
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
         if not self._native_active:
@@ -241,11 +236,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         env_ids: torch.Tensor,
         joint_ids: torch.Tensor,
     ) -> None:
-        # TODO: This routes through per-actuator torch indexing and has no mask
-        # variant because the actuator gain buffers are per-actuator torch views
-        # over arbitrary joint-index subsets. A single-launch warp path and a mask
-        # variant need the actuator-side buffer layout rework, deferred to the
-        # actuator rework built on this series.
+        # Native gain buffers are indexed per actuator, so update each controller's view.
         from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
 
         articulation = self._articulation

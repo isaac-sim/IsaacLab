@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from typing import TypeAliasType
 
 import torch
 import warp as wp
@@ -27,35 +28,19 @@ from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator
 
 logger = logging.getLogger(__name__)
 
+_WarpInt32 = TypeAliasType("_WarpInt32", wp.array(dtype=wp.int32))
+_WarpInt64 = TypeAliasType("_WarpInt64", wp.array(dtype=wp.int64))
+_WarpIndex = TypeAliasType("_WarpIndex", _WarpInt32 | _WarpInt64)
+
 
 class ActuatorCollection(Mapping[str, ActuatorBase]):
     """Read-only runtime collection of actuator groups for one articulation.
 
-    The collection owns routing plus full-articulation command, processed-command,
-    and telemetry staging. Each execution actuator owns its model parameters,
-    scratch tensors, and outputs. Mapping entries retain the concrete public
-    identity of their configured groups. Compatible disjoint groups can expose
-    stable slices of one private execution actuator while retaining separate
-    group-shaped public values; unaggregated groups own their tensors directly.
-
-    Aggregation is selected once during construction. It excludes groups with
-    overlapping joints, groups with different concrete actuator classes, classes
-    that do not support aggregation (including stateful and neural-network
-    models), and backend-native execution. Native controllers remain the execution
-    owner; named groups are the Isaac Lab-facing configuration and access view.
-    Execution batches are an implementation detail, and users must not depend on
-    their count.
-
-    Membership, joint coverage, native bindings, execution slices, and cached
-    launches are construction-time invariants. Assigning or deleting mapping
-    entries raises :class:`TypeError`; configure membership through
-    :attr:`isaaclab.assets.ArticulationCfg.actuators` before constructing the
-    articulation.
-
-    The collection owns lifecycle execution for its managed groups. Calling
-    :meth:`~isaaclab.actuators.ActuatorBase.compute` or
-    :meth:`~isaaclab.actuators.ActuatorBase.reset` directly on a mapping value is
-    unsupported.
+    Mapping entries retain their configured identity. The collection owns
+    articulation-wide commands, processed commands, telemetry, and lifecycle.
+    Configure membership through :attr:`isaaclab.assets.ArticulationCfg.actuators`
+    before construction; assigning or deleting mapping entries raises
+    :class:`TypeError`.
     """
 
     @dataclass
@@ -64,14 +49,14 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         group_names: tuple[str, ...]
         group_slices: tuple[slice, ...]
         joint_indices: torch.Tensor
-        joint_indices_wp: wp.array
-        implicit_inputs: list[wp.array] | None = None
-        implicit_outputs: list[wp.array] | None = None
+        joint_indices_wp: wp.array(dtype=wp.int32)
+        implicit_inputs: list[wp.array(dtype=wp.float32) | wp.array(dtype=wp.int32)] | None = None
+        implicit_outputs: list[wp.array(dtype=wp.float32)] | None = None
         control_action: ArticulationActions | None = None
         joint_pos: torch.Tensor | None = None
         joint_vel: torch.Tensor | None = None
-        gather_inputs: list[wp.array] | None = None
-        gather_outputs: list[wp.array] | None = None
+        gather_inputs: list[wp.array(dtype=wp.float32) | wp.array(dtype=wp.int32)] | None = None
+        gather_outputs: list[wp.array(dtype=wp.float32)] | None = None
 
     class Command:
         """Commands received by the actuator models.
@@ -106,9 +91,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         def set_position_index(
             self,
             *,
-            value: torch.Tensor | wp.array,
-            joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            value: torch.Tensor | wp.array(dtype=wp.float32),
+            joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+            env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
             full_data: bool = False,
         ) -> None:
             """Set desired positions using indices.
@@ -134,9 +119,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         def set_velocity_index(
             self,
             *,
-            value: torch.Tensor | wp.array,
-            joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            value: torch.Tensor | wp.array(dtype=wp.float32),
+            joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+            env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
             full_data: bool = False,
         ) -> None:
             """Set desired velocities using indices.
@@ -162,9 +147,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         def set_effort_index(
             self,
             *,
-            value: torch.Tensor | wp.array,
-            joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            value: torch.Tensor | wp.array(dtype=wp.float32),
+            joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+            env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
             full_data: bool = False,
         ) -> None:
             """Set effort commands using indices.
@@ -190,9 +175,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         def set_position_mask(
             self,
             *,
-            value: torch.Tensor | wp.array,
-            joint_mask: wp.array | None = None,
-            env_mask: wp.array | None = None,
+            value: torch.Tensor | wp.array(dtype=wp.float32),
+            joint_mask: wp.array(dtype=wp.bool) | None = None,
+            env_mask: wp.array(dtype=wp.bool) | None = None,
         ) -> None:
             """Set desired positions using masks.
 
@@ -215,9 +200,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         def set_velocity_mask(
             self,
             *,
-            value: torch.Tensor | wp.array,
-            joint_mask: wp.array | None = None,
-            env_mask: wp.array | None = None,
+            value: torch.Tensor | wp.array(dtype=wp.float32),
+            joint_mask: wp.array(dtype=wp.bool) | None = None,
+            env_mask: wp.array(dtype=wp.bool) | None = None,
         ) -> None:
             """Set desired velocities using masks.
 
@@ -240,9 +225,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         def set_effort_mask(
             self,
             *,
-            value: torch.Tensor | wp.array,
-            joint_mask: wp.array | None = None,
-            env_mask: wp.array | None = None,
+            value: torch.Tensor | wp.array(dtype=wp.float32),
+            joint_mask: wp.array(dtype=wp.bool) | None = None,
+            env_mask: wp.array(dtype=wp.bool) | None = None,
         ) -> None:
             """Set effort commands using masks.
 
@@ -307,7 +292,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._groups_by_class: dict[type[ActuatorBase], list[ActuatorBase]] = {}
         self._native_group_names: set[str] = set()
         self._has_implicit_actuators = False
-        self._joint_indices_wp: dict[str, wp.array] = {}
         self._launch_cache = _WarpLaunchCache(self.device)
 
         self._allocate_buffers()
@@ -394,11 +378,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         Args:
             env_ids: Environment indices to reset. Defaults to all environments.
         """
-        if env_ids is None:
-            env_ids = slice(None)
+        group_env_ids = self._control._normalize_index_sequence(env_ids)
         for actuator in self._groups.values():
-            actuator.reset(env_ids)
-        self._control.reset_native_actuators(env_ids)
+            actuator.reset(group_env_ids)
+        self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids)
 
     def compute(self, dt: float = 0.0) -> None:
         """Compute processed actuator commands and telemetry.
@@ -409,6 +392,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         if self._control.compute_native_actuators(self, dt):
             return
 
+        joint_pos = self._control.joint_pos
+        joint_vel = self._control.joint_vel
         for batch in self._execution_batches:
             actuator = batch.actuator
             if type(actuator) is ImplicitActuator:
@@ -439,8 +424,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             )
             control_action = actuator.compute(
                 control_action,
-                joint_pos=self._control.joint_pos.torch[:, joint_indices],
-                joint_vel=self._control.joint_vel.torch[:, joint_indices],
+                joint_pos=joint_pos.torch[:, joint_indices],
+                joint_vel=joint_vel.torch[:, joint_indices],
             )
             self._scatter_actuator_output(actuator, control_action, batch.joint_indices_wp)
 
@@ -452,20 +437,34 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self,
         *,
         stiffness: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
+        env_ids: Sequence[int] | torch.Tensor | _WarpIndex,
+        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex,
     ) -> None:
-        """Write actuator stiffness values and propagate them to native controllers."""
+        """Write actuator stiffness values and propagate them to native controllers.
+
+        Args:
+            stiffness: Actuator stiffness values [N/m or N·m/rad, depending on joint type], shape
+                ``(len(env_ids), len(joint_ids))``.
+            env_ids: Environment indices to update.
+            joint_ids: Articulation joint indices to update.
+        """
         self._write_actuator_gain("kp", stiffness, env_ids, joint_ids)
 
     def write_actuator_damping_to_sim(
         self,
         *,
         damping: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
+        env_ids: Sequence[int] | torch.Tensor | _WarpIndex,
+        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex,
     ) -> None:
-        """Write actuator damping values and propagate them to native controllers."""
+        """Write actuator damping values and propagate them to native controllers.
+
+        Args:
+            damping: Actuator damping values [N·s/m or N·m·s/rad, depending on joint type], shape
+                ``(len(env_ids), len(joint_ids))``.
+            env_ids: Environment indices to update.
+            joint_ids: Articulation joint indices to update.
+        """
         self._write_actuator_gain("kd", damping, env_ids, joint_ids)
 
     """
@@ -484,7 +483,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._applied_torque = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._soft_joint_vel_limits = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._gear_ratio = wp.ones(shape, dtype=wp.float32, device=self.device)
-        self._all_env_ids = wp.array(list(range(self.num_instances)), dtype=wp.int32, device=self.device)
         self._all_joint_ids = wp.array(list(range(self.num_joints)), dtype=wp.int32, device=self.device)
 
         self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
@@ -512,7 +510,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 actuator_joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
 
             defaults = self._control.get_default_joint_properties(actuator_joint_ids)
-            cfg = actuator_cfg.copy() if hasattr(actuator_cfg, "copy") else actuator_cfg
+            # Construction resolves missing simulation limits in-place; copy the
+            # config without copying its tensor-valued fields.
+            cfg = actuator_cfg.copy()
             actuator: ActuatorBase = cfg.class_type(
                 cfg=cfg,
                 joint_names=joint_names,
@@ -531,15 +531,16 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
             self._groups[actuator_name] = actuator
             self._groups_by_class.setdefault(type(actuator), []).append(actuator)
-            self._joint_indices_wp[actuator_name] = self._joint_indices_as_wp(actuator)
             self._has_implicit_actuators = self._has_implicit_actuators or isinstance(actuator, ImplicitActuator)
 
+        # Resolve every group from authored defaults before writing shared joint properties.
+        for actuator_name, actuator in self._groups.items():
             self._control.write_resolved_joint_properties(
                 actuator,
                 native_managed=actuator_name in self._native_group_names,
             )
 
-    def _joint_indices_as_wp(self, actuator: ActuatorBase) -> wp.array:
+    def _joint_indices_as_wp(self, actuator: ActuatorBase) -> wp.array(dtype=wp.int32):
         if actuator.joint_indices == slice(None) or actuator.joint_indices is None:
             return self._all_joint_ids
         joint_indices = actuator.joint_indices
@@ -660,6 +661,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                     batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
                 continue
 
+            # Overlapping groups stay separate so configuration order defines joint ownership.
             safe = [
                 (name, group, indices)
                 for name, group, indices in zip(names, groups, joint_indices)
@@ -687,6 +689,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             for name in safe_names:
                 batch_by_group[name] = batch
 
+        # Restore configuration order and emit each shared batch once.
         seen: set[int] = set()
         self._execution_batches = []
         for name in self._groups:
@@ -756,12 +759,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         for group, name, view in bindings:
             setattr(group, name, view)
 
-    def _bind_execution_batch_outputs(self, batch: ActuatorCollection._ExecutionBatch) -> None:
-        for group_name, group_slice in zip(batch.group_names, batch.group_slices):
-            group = self._groups[group_name]
-            group.computed_effort = batch.actuator.computed_effort[:, group_slice]
-            group.applied_effort = batch.actuator.applied_effort[:, group_slice]
-
     def _compute_implicit_batch(self, batch: ActuatorCollection._ExecutionBatch) -> None:
         if batch.implicit_inputs is None or batch.implicit_outputs is None:
             raise RuntimeError("Implicit actuator execution batch was not initialized.")
@@ -772,6 +769,19 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             inputs=batch.implicit_inputs,
             outputs=batch.implicit_outputs,
         )
+
+    def _rebind_state_inputs(self) -> None:
+        """Rebind execution batches after backend state storage is replaced."""
+        joint_pos = self._control.joint_pos.warp
+        joint_vel = self._control.joint_vel.warp
+        for batch in self._execution_batches:
+            inputs = batch.implicit_inputs if batch.implicit_inputs is not None else batch.gather_inputs
+            if inputs is None:
+                continue
+            inputs[3] = joint_pos
+            inputs[4] = joint_vel
+            launch_kind = "implicit" if batch.implicit_inputs is not None else "gather"
+            self._launch_cache.clear((launch_kind, id(batch)))
 
     def _gather_explicit_batch(self, batch: ActuatorCollection._ExecutionBatch) -> None:
         if batch.gather_inputs is None or batch.gather_outputs is None:
@@ -786,10 +796,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
     def _write_index_target(
         self,
-        target: torch.Tensor | wp.array,
-        env_ids: torch.Tensor | wp.array,
-        joint_ids: torch.Tensor | wp.array,
-        target_buffer: wp.array,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        env_ids: torch.Tensor | _WarpIndex,
+        joint_ids: torch.Tensor | _WarpIndex,
+        target_buffer: wp.array(dtype=wp.float32),
         *,
         full_data: bool,
         command_name: str,
@@ -807,10 +817,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
     def _write_mask_target(
         self,
-        target: torch.Tensor | wp.array,
-        env_mask: wp.array,
-        joint_mask: wp.array,
-        target_buffer: wp.array,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        env_mask: wp.array(dtype=wp.bool),
+        joint_mask: wp.array(dtype=wp.bool),
+        target_buffer: wp.array(dtype=wp.float32),
         *,
         command_name: str,
     ) -> None:
@@ -828,7 +838,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self,
         actuator: ActuatorBase,
         control_action: ArticulationActions,
-        joint_indices: wp.array | None = None,
+        joint_indices: wp.array(dtype=wp.int32) | None = None,
     ) -> None:
         if joint_indices is None:
             joint_indices = self._joint_indices_as_wp(actuator)
@@ -899,21 +909,28 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self,
         attr: str,
         values: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
+        env_ids: Sequence[int] | torch.Tensor | _WarpIndex,
+        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex,
+        actuator: ActuatorBase | None = None,
     ) -> None:
-        env_ids = self._control.resolve_env_ids(env_ids)
-        joint_ids = self._control.resolve_joint_ids(joint_ids)
-        if isinstance(env_ids, wp.array):
-            env_ids = wp.to_torch(env_ids)
-        if isinstance(joint_ids, wp.array):
-            joint_ids = wp.to_torch(joint_ids)
-        env_ids = env_ids.to(self.device, dtype=torch.long)
-        joint_ids = joint_ids.to(self.device, dtype=torch.long)
+        env_ids = self._as_torch_indices(self._control.resolve_env_ids(env_ids))
+        joint_ids = self._as_torch_indices(self._control.resolve_joint_ids(joint_ids))
         values_snapshot = values.to(self.device, dtype=torch.float32).contiguous().clone()
         actuator_attr = {"kp": "stiffness", "kd": "damping"}[attr]
-        self._write_execution_parameter(actuator_attr, values_snapshot, env_ids, joint_ids)
+        if actuator is None:
+            self._write_execution_parameter(actuator_attr, values_snapshot, env_ids, joint_ids)
+        else:
+            group_joint_ids = self._joint_indices_as_torch(actuator).to(dtype=torch.long)
+            requested_columns, group_columns = torch.where(joint_ids[:, None] == group_joint_ids[None, :])
+            getattr(actuator, actuator_attr)[env_ids[:, None], group_columns[None, :]] = values_snapshot[
+                :, requested_columns
+            ]
         self._control.write_native_actuator_gain(attr, values_snapshot, env_ids, joint_ids)
+
+    def _as_torch_indices(self, indices: torch.Tensor | _WarpIndex) -> torch.Tensor:
+        if isinstance(indices, wp.array):
+            indices = wp.to_torch(indices)
+        return indices.to(self.device, dtype=torch.long)
 
     def _write_execution_parameter(
         self,

@@ -12,8 +12,8 @@ finite torque, bounded speed, transmission delays, and gearbox effects.
 Isaac Lab exposes two ways to reproduce that behavior in simulation:
 
 * **Implicit actuators** hand the position/velocity gains to the physics engine, which runs a
-  spring-damper (PD) controller internally and integrates it in continuous time. This is accurate
-  and cheap, and it is the right default for most robots.
+  spring-damper (PD) controller in its discrete solver. This is accurate and cheap, and it is the
+  right default for most robots.
 * **Explicit actuators** run a user-side model every step to compute a joint torque, clip it to the
   motor's capabilities, and submit only the resulting effort. This trades some cost for the ability
   to model saturation, delay, gearing, or a learned drive.
@@ -22,8 +22,7 @@ Every actuator group -- implicit or explicit -- is configured on
 :attr:`~isaaclab.assets.ArticulationCfg.actuators` and exposed by the runtime
 :class:`~isaaclab.actuators.ActuatorCollection` on
 :attr:`~isaaclab.assets.Articulation.actuators`. The collection routes groups and stages commands
-and telemetry; actuator models own their model parameters, scratch tensors, and outputs. You drive
-the articulation at runtime through the collection.
+and telemetry. You drive the articulation at runtime through the collection.
 
 .. contents:: On this page
     :local:
@@ -127,9 +126,9 @@ explicit actuator joints. They are not a collection-wide mirror of the actuator-
 Choosing a model
 -----------------
 
-All models share the same PD core and the same configuration base
-(:class:`~isaaclab.actuators.ActuatorBaseCfg`); they differ in how they clip the torque and what
-extra state they carry. Pick the simplest one that captures the effect you need.
+The models share the configuration base (:class:`~isaaclab.actuators.ActuatorBaseCfg`). The PD
+models differ in their clipping and state; neural models replace the PD model with a learned torque
+predictor. Pick the simplest model that captures the effect you need.
 
 .. list-table::
     :header-rows: 1
@@ -147,7 +146,7 @@ extra state they carry. Pick the simplest one that captures the effect you need.
     * - :class:`~isaaclab.actuators.IdealPDActuator`
         (:class:`~isaaclab.actuators.IdealPDActuatorCfg`)
       - :math:`\tau = k_p (q_{des}-q) + k_d(\dot{q}_{des}-\dot{q}) + \tau_{ff}`
-      - Model clips to :math:`\pm\,\gamma\,\tau_{max}` (``effort_limit``).
+      - Model clips directly to :math:`\pm\,\tau_{max}` (``effort_limit``).
       - --
     * - :class:`~isaaclab.actuators.DCMotor`
         (:class:`~isaaclab.actuators.DCMotorCfg`)
@@ -170,13 +169,12 @@ extra state they carry. Pick the simplest one that captures the effect you need.
       - Network output clipped by the DC-motor envelope.
       - ``network_file`` (+ input scaling)
 
-**ImplicitActuator.** The default. The :class:`~isaaclab.actuators.ImplicitActuator` class performs
-no computation of its own -- it exists only so implicit joints share the collection interface. All
-gains and limits are handed to the solver, which is generally more accurate than an explicit PD law
-when the physics step is large.
+**ImplicitActuator.** The default. Gains and solver limits are handed to the solver. The collection
+also estimates effort telemetry from the current state because the solver does not expose that value
+on every backend.
 
 **IdealPDActuator.** The reference explicit model: a PD controller with feed-forward effort and a
-symmetric torque clip at :math:`\pm\,\gamma\,\tau_{max}`. Use it when you want explicit-actuator
+symmetric joint-side torque clip at :math:`\pm\,\tau_{max}`. Use it when you want explicit-actuator
 semantics (a hard effort ceiling enforced in the model) without a specific motor curve.
 
 **DCMotor.** Extends the ideal PD with a linear four-quadrant DC-motor torque-speed curve: the
@@ -227,10 +225,11 @@ Run a single comparison interactively (with the visualizer) via
 
     For **implicit** actuators, ``effort_limit`` and ``effort_limit_sim`` are equivalent; prefer
     ``effort_limit_sim`` because it names the stage it acts on. The analogous
-    :attr:`~isaaclab.actuators.ActuatorBaseCfg.velocity_limit` is **ignored for implicit actuators**
-    (only ``velocity_limit_sim`` reaches the solver); it is used only by explicit models such as the
-    DC motor. Setting ``effort_limit`` on an implicit group logs a deprecation warning, and setting
-    both fields to conflicting values raises an error.
+    :attr:`~isaaclab.actuators.ActuatorBaseCfg.velocity_limit` populates the actuator-resolved soft
+    velocity-limit view for implicit actuators but is not sent to the solver; only
+    ``velocity_limit_sim`` reaches the solver. Explicit models such as the DC motor use
+    ``velocity_limit`` for their model. Setting ``effort_limit`` on an implicit group logs a
+    deprecation warning, and setting both fields to conflicting values raises an error.
 
 
 Stiffness
@@ -289,15 +288,15 @@ also how you set a velocity target's tracking gain. Units are [N·m·s/rad] (rev
 Armature
 ^^^^^^^^
 
-Armature [kg·m²] models the reflected rotor inertia of the drivetrain: it is added directly to the
-joint-space inertia. Physically it captures the gearbox and motor inertia a real drive carries;
-numerically it is the primary stability knob for explicit actuators. Under identical gains, more
-armature makes the joint respond more sluggishly but tolerates stiffer gains and larger time steps
-without going unstable.
+Armature [kg or kg·m², depending on joint type] models the reflected rotor inertia of the
+drivetrain: it is added directly to the joint-space inertia. Physically it captures the gearbox and
+motor inertia a real drive carries; numerically it is the primary stability knob for explicit
+actuators. Under identical gains, more armature makes the joint respond more sluggishly but
+tolerates stiffer gains and larger time steps without going unstable.
 
-Because explicit actuator models run an *explicit* PD law (evaluated once per step rather than
-integrated continuously by the solver), they are more prone to numerical instability than implicit
-actuators. Raising ``armature`` is the first remedy when an explicit-actuator policy will not
+Both paths run at discrete solver steps, but explicit models submit an effort while implicit models
+use the solver's joint drive. Explicit models can therefore require different stability tuning.
+Raising ``armature`` is the first remedy when an explicit-actuator policy will not
 converge or diverges where the same robot was stable on implicit actuators. See the `OmniPhysics
 articulation stability guide
 <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_
@@ -333,9 +332,11 @@ stiction and drag rather than to stabilize a controller.
 
 .. note::
 
-    The friction interpretation changed with the simulator: in Isaac Sim 4.5 static and dynamic
-    friction are unitless coefficients; in Isaac Sim 5.0 and later they are modeled as an effort
-    [N·m or N, depending on joint type].
+    Friction conventions depend on the backend. PhysX uses dimensionless static and dynamic
+    coefficients in Isaac Sim 4.5, and effort values [N or N·m, depending on joint type] in 5.0
+    and later. OVPhysX uses dimensionless static and dynamic coefficients. Newton uses a dry-friction
+    effort and has no separate dynamic-friction value. All three use viscous damping
+    [N·s/m or N·m·s/rad, depending on joint type].
 
 .. figure:: ../../_static/actuators/friction-clip.webp
     :align: center
@@ -396,9 +397,9 @@ Velocity limit
 The velocity limit is the no-load speed of a :class:`~isaaclab.actuators.DCMotor` [rad/s or m/s]:
 the achievable torque decreases linearly as the joint approaches it, defining the four-quadrant
 torque-speed envelope. The curve below is that envelope for a range of velocity limits -- a lower
-limit shrinks the usable speed band and clamps torque earlier. Recall that ``velocity_limit`` is
-consumed only by explicit models (the DC motor here); for implicit actuators it is ignored and only
-``velocity_limit_sim`` reaches the solver.
+limit shrinks the usable speed band and clamps torque earlier. A DC motor consumes ``velocity_limit``
+for this torque-speed clipping. An implicit group exposes it through the soft velocity-limit view,
+while only ``velocity_limit_sim`` reaches the solver.
 
 .. figure:: ../../_static/actuators/velocity-limit-curve-light.png
     :class: only-light
@@ -445,8 +446,8 @@ Implicit vs. explicit
 ^^^^^^^^^^^^^^^^^^^^^
 
 With identical gains, an implicit actuator and an ideal-PD explicit actuator produce nearly the same
-response, but they are not identical: the solver integrates the implicit PD law in continuous time
-and adds numerical damping, while the explicit model evaluates the PD law once per step. The overlaid
+response, but they are not identical: the implicit path uses the solver's joint drive while the
+explicit model evaluates the PD law once per step. The overlaid
 curve below shows the two responses for the same stiffness and damping. This is why a policy trained
 on implicit actuators may not transfer unchanged to explicit ones -- and why the explicit joint's
 ``data.joint_stiffness`` / ``data.joint_damping`` read zero, since those gains now live in the model.
@@ -491,38 +492,18 @@ Configure topology before creating the articulation:
     robot = Articulation(robot_cfg)
 
 At runtime, both ``robot.actuators["gripper"] = ...`` and
-``del robot.actuators["gripper"]`` raise :class:`TypeError`. Membership, joint coverage, native
-binding, execution slices, and cached launches are construction-time invariants.
+``del robot.actuators["gripper"]`` raise :class:`TypeError`. Membership and joint coverage are
+construction-time invariants.
 
 Logical groups and execution batches
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Named entries such as ``hips`` and ``knees`` retain their concrete public identities as separate
-configuration and access groups. Isaac Lab may execute two or more disjoint groups of the same
-supported stateless actuator class through one private execution actuator. The public group tensors
-are stable slices of that execution actuator, so per-joint gains and limits may differ without
-merging public configuration or changing the shapes returned by ``robot.actuators["hips"]``.
-
-Aggregation is fixed during construction. Groups remain unaggregated when they overlap, use
-different concrete classes, use a class that does not support aggregation (including stateful and
-neural-network models), or run through a native controller. An unaggregated group owns its model
-parameters, scratch tensors, and outputs directly.
-
-Execution batching is an implementation detail. Do not call
-:meth:`~isaaclab.actuators.ActuatorBase.compute` or
-:meth:`~isaaclab.actuators.ActuatorBase.reset` directly on an actuator obtained
-from the collection, and do not rely on the number of execution batches. Set
-commands and perform lifecycle operations through the articulation and its
-:class:`~isaaclab.actuators.ActuatorCollection`.
-
-The execution path avoids rebuilding those batches every step. Exact
-:class:`~isaaclab.actuators.ImplicitActuator` batches compute and publish their
-commands and telemetry in one Warp launch. Aggregated
-:class:`~isaaclab.actuators.IdealPDActuator` and
-:class:`~isaaclab.actuators.DCMotor` batches keep fixed-size input and output
-buffers, and reuse recorded Warp launches to gather articulation data and
-scatter the processed targets and telemetry. Stateful and neural-network
-actuators retain their model-specific execution paths.
+Named entries such as ``hips`` and ``knees`` retain separate configuration and access identities.
+Isaac Lab may combine disjoint compatible stateless groups for execution without changing the
+group tensors returned by ``robot.actuators["hips"]``. Groups remain separate when they overlap,
+use incompatible classes, are stateful or neural-network models, or run through a native controller.
+Set commands and perform lifecycle operations through the articulation and its
+:class:`~isaaclab.actuators.ActuatorCollection`; execution batching is private.
 
 Commands, telemetry, and lifecycle
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -562,8 +543,8 @@ and :attr:`~isaaclab.actuators.ActuatorCollection.applied_torque` is the value a
 implicit actuators these are the approximate torques the model records for reward/telemetry use).
 
 **Randomizing gains.** To change actuator stiffness or damping at runtime -- for example in a domain
-randomization event -- use the write helpers, which update the execution actuator that owns the
-selected group tensors and forward the values to native controllers when active:
+randomization event -- use the write helpers, which update matching actuator gain buffers and
+forward the values to native controllers when active:
 
 .. code-block:: python
 
@@ -620,7 +601,8 @@ vs. ``velocity_limit_sim`` table, see :ref:`how-to-write-articulation-config`.
 Newton native actuators
 ------------------------
 
-By default Isaac Lab runs explicit actuator models in Python, once per step, on the host side. Set
+By default Isaac Lab runs explicit actuator models in Python, once per step, outside the solver
+(typically on the selected Torch or Warp device). Set
 :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``True`` to instead run the explicit
 models **inside the Newton solver**:
 
@@ -637,15 +619,13 @@ CUDA-graph-captured region. Implicit actuators are unaffected: their gains are w
 solver and PD runs there as before, so implicit joints keep working exactly the same. The PhysX
 backend can also consume these Newton-authored actuators through its adapter, so the authoring is
 shared across backends. On CUDA, PhysX attempts to capture graphable Newton actuator staging, model
-execution, and telemetry publication into alternating graphs. The two graphs preserve the
-adapter's state-buffer ping-pong without rebuilding launches each step. Unsupported models and
-capture failures fall back to eager execution. Stateful Newton actuators cannot be nested inside a
-caller-owned CUDA graph; let the PhysX adapter manage their alternating graphs instead.
+execution, and telemetry publication. Unsupported models and capture failures fall back to eager
+execution. Stateful Newton actuators cannot be nested inside a caller-owned CUDA graph; let the
+PhysX adapter manage them instead.
 
 Newton owns a separate native execution aggregation path. When native actuator handling is active,
 the native controller remains the execution owner. Isaac Lab retains the named logical groups as the
-configuration and access view, stages their commands and telemetry, and does not aggregate or
-execute them through its host-side batching path.
+configuration and access view, and stages their commands and telemetry.
 
 **Supported models.** The authoring maps each supported config to a set of USD schemas:
 
@@ -675,15 +655,15 @@ joints and let the config drive the rest.
 
 .. warning::
 
-    A config type the native path does not support is **skipped with a warning** rather than run on
-    the host: that joint gets no actuator. Check the logs when enabling native actuators on a robot
+    A config type the native path does not support is **skipped with a warning** rather than run by
+    Isaac Lab: that joint gets no actuator. Check the logs when enabling native actuators on a robot
     with custom or unsupported actuator configs.
 
 .. note::
 
     Under native actuators the delay is a **fixed** lag: the schema authors only ``max_delay``, so
     ``min_delay`` is dropped and a :class:`~isaaclab.actuators.DelayedPDActuator` does not randomize
-    its delay between resets the way it does on the host path. [#native_delay]_
+    its delay between resets the way it does on the Isaac Lab path. [#native_delay]_
 
 .. [#native_delay] This is a known asymmetry between the host and native delay paths; the fix is
    tracked as a separate code change outside this documentation.

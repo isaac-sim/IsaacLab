@@ -364,11 +364,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_stiffness(self) -> ProxyArray:
-        """Joint stiffness provided to the simulation.
+        """Solver joint-drive stiffness [N/m or N·m/rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        In the case of explicit actuators, the value for the corresponding joints is zero.
+        Shape is (num_instances, num_joints), dtype = wp.float32. Explicit
+        actuator joints report zero because their model owns the gains.
         """
         raise NotImplementedError
 
@@ -376,11 +375,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_damping(self) -> ProxyArray:
-        """Joint damping provided to the simulation.
+        """Solver joint-drive damping [N·s/m or N·m·s/rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        In the case of explicit actuators, the value for the corresponding joints is zero.
+        Shape is (num_instances, num_joints), dtype = wp.float32. Explicit
+        actuator joints report zero because their model owns the gains.
         """
         raise NotImplementedError
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeAliasType
 
 import torch
 import warp as wp
@@ -23,6 +23,10 @@ from .actuator_pd import ImplicitActuator
 
 if TYPE_CHECKING:
     from .actuator_collection import ActuatorCollection
+
+_WarpInt32 = TypeAliasType("_WarpInt32", wp.array(dtype=wp.int32))
+_WarpInt64 = TypeAliasType("_WarpInt64", wp.array(dtype=wp.int64))
+_WarpIndex = TypeAliasType("_WarpIndex", _WarpInt32 | _WarpInt64)
 
 
 @dataclass(frozen=True)
@@ -47,16 +51,16 @@ class ActuatorJointProperties:
     """
 
     dynamic_friction: torch.Tensor
-    """Default backend-specific joint dynamic friction values.
+    """Default backend-specific dynamic friction values.
 
-    The physical meaning and units depend on the concrete backend and solver.
+    PhysX interprets these as dynamic friction efforts [N or N·m, depending on
+    joint type]. OVPhysX interprets them as dimensionless Coulomb friction
+    coefficients. Newton has no separate dynamic-friction property, so its
+    control adapter supplies zeros.
     """
 
     viscous_friction: torch.Tensor
-    """Default backend-specific joint viscous friction values.
-
-    The physical meaning and units depend on the concrete backend and solver.
-    """
+    """Default passive joint damping [N·s/m or N·m·s/rad, depending on joint type]."""
 
     effort_limit: torch.Tensor
     """Default joint effort limits [N or N·m, depending on joint type]."""
@@ -67,6 +71,15 @@ class ActuatorJointProperties:
 
 class ActuatorControl(ABC):
     """Backend-neutral bridge used by :class:`~isaaclab.actuators.ActuatorCollection`."""
+
+    @staticmethod
+    def _normalize_index_sequence(
+        indices: Sequence[int] | slice | torch.Tensor | _WarpIndex | None,
+    ) -> list[int] | slice | torch.Tensor | _WarpIndex | None:
+        """Convert non-list integer sequences to the backend's list convention."""
+        if isinstance(indices, Sequence) and not isinstance(indices, list):
+            return list(indices)
+        return indices
 
     @property
     @abstractmethod
@@ -106,80 +119,168 @@ class ActuatorControl(ABC):
 
     @abstractmethod
     def find_joints(self, name_keys: str | Sequence[str]) -> tuple[list[int] | ProxyArray, list[str]]:
-        """Resolve joint name expressions to user-order joint indices and names."""
+        """Resolve joint name expressions to user-order joint indices and names.
+
+        Args:
+            name_keys: Joint-name regular expressions.
+
+        Returns:
+            Resolved joint indices and names in user order.
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> torch.Tensor | wp.array:
-        """Resolve optional environment indices to a supported signed index array."""
+    def resolve_env_ids(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None,
+    ) -> torch.Tensor | _WarpIndex:
+        """Resolve optional environment indices.
+
+        Args:
+            env_ids: Environment indices. Defaults to all environments.
+
+        Returns:
+            Device-local environment indices.
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> torch.Tensor | wp.array:
-        """Resolve optional joint indices to a supported signed index array."""
+    def resolve_joint_ids(
+        self,
+        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None,
+    ) -> torch.Tensor | _WarpIndex:
+        """Resolve optional joint indices.
+
+        Args:
+            joint_ids: Joint indices. Defaults to all joints.
+
+        Returns:
+            Device-local joint indices.
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
-        """Resolve optional environment mask to a full Warp bool mask."""
+    def resolve_env_mask(self, env_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
+        """Resolve an optional environment mask.
+
+        Args:
+            env_mask: Environment selection mask. Defaults to all environments.
+
+        Returns:
+            Full environment selection mask.
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def resolve_joint_mask(self, joint_mask: wp.array | None) -> wp.array:
-        """Resolve optional joint mask to a full Warp bool mask."""
+    def resolve_joint_mask(self, joint_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
+        """Resolve an optional joint mask.
+
+        Args:
+            joint_mask: Joint selection mask. Defaults to all joints.
+
+        Returns:
+            Full joint selection mask.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def assert_shape_and_dtype(
         self,
-        tensor: torch.Tensor | wp.array | float,
+        tensor: torch.Tensor | wp.array(dtype=wp.float32) | float,
         shape: tuple[int, ...],
         dtype: type,
         name: str,
     ) -> None:
-        """Validate tensor shape and dtype using the owning asset's policy."""
+        """Validate tensor shape and dtype using the owning asset's policy.
+
+        Args:
+            tensor: Tensor or scalar to validate.
+            shape: Required tensor shape.
+            dtype: Required Warp dtype.
+            name: Value name used in validation errors.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def assert_shape_and_dtype_mask(
         self,
-        tensor: torch.Tensor | wp.array | float,
-        masks: tuple[wp.array, ...],
+        tensor: torch.Tensor | wp.array(dtype=wp.float32) | float,
+        masks: tuple[wp.array(dtype=wp.bool), ...],
         dtype: type,
         name: str,
     ) -> None:
-        """Validate full-sized mask write tensor shape and dtype."""
+        """Validate a full-sized mask-write tensor.
+
+        Args:
+            tensor: Tensor or scalar to validate.
+            masks: Selection masks that define the required shape.
+            dtype: Required Warp dtype.
+            name: Value name used in validation errors.
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def get_default_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> ActuatorJointProperties:
-        """Return backend defaults used to construct one actuator group."""
+    def get_default_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
+        """Return backend defaults used to construct one actuator group.
+
+        Args:
+            joint_ids: Articulation joints in the actuator group.
+
+        Returns:
+            Default properties for the selected joints.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def write_resolved_joint_properties(self, actuator: ActuatorBase, *, native_managed: bool) -> None:
-        """Write actuator-resolved limits and physical properties to the backend."""
+        """Write actuator-resolved joint properties to the backend.
+
+        Args:
+            actuator: Actuator group whose properties are written.
+            native_managed: Whether the backend executes this group natively.
+        """
         raise NotImplementedError
 
     def stage_user_command(
         self,
         command_name: str,
         collection: ActuatorCollection,
-        env_ids: torch.Tensor | wp.array | None,
-        joint_ids: torch.Tensor | wp.array | None,
-        env_mask: wp.array | None,
-        joint_mask: wp.array | None,
+        env_ids: torch.Tensor | _WarpIndex | None,
+        joint_ids: torch.Tensor | _WarpIndex | None,
+        env_mask: wp.array(dtype=wp.bool) | None,
+        joint_mask: wp.array(dtype=wp.bool) | None,
     ) -> None:
-        """Optionally stage a raw user command into backend bindings when setters are called."""
+        """Stage a raw user command when the backend requires eager binding writes.
+
+        Args:
+            command_name: Command field to stage.
+            collection: Collection that owns the command buffers.
+            env_ids: Selected environment indices, or None for a mask write.
+            joint_ids: Selected joint indices, or None for a mask write.
+            env_mask: Selected environments, or None for an index write.
+            joint_mask: Selected joints, or None for an index write.
+        """
 
     def prepare_native_actuators(
         self, collection: ActuatorCollection, actuator_cfgs: dict[str, ActuatorBaseCfg]
     ) -> set[str]:
-        """Prepare backend-native actuators and return config group names managed natively."""
+        """Prepare backend-native actuators.
+
+        Args:
+            collection: Collection being constructed.
+            actuator_cfgs: Configured actuator groups.
+
+        Returns:
+            Names of groups managed by the backend.
+        """
         return set()
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
-        """Finalize backend-native masks, callbacks, and telemetry views after group construction."""
+        """Finalize backend-native state after group construction.
+
+        Args:
+            collection: Fully constructed actuator collection.
+        """
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
         """Compute backend-native actuator outputs.
@@ -195,11 +296,19 @@ class ActuatorControl(ABC):
 
     @abstractmethod
     def submit_commands(self, collection: ActuatorCollection) -> None:
-        """Submit processed collection command buffers to the backend simulation."""
+        """Submit processed command buffers to the backend.
+
+        Args:
+            collection: Collection that owns the processed commands.
+        """
         raise NotImplementedError
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
-        """Reset backend-native actuator state for selected environments."""
+        """Reset backend-native actuator state.
+
+        Args:
+            env_ids: Environments to reset.
+        """
 
     def write_native_actuator_gain(
         self,
@@ -208,7 +317,15 @@ class ActuatorControl(ABC):
         env_ids: torch.Tensor,
         joint_ids: torch.Tensor,
     ) -> None:
-        """Write backend-native actuator gain values."""
+        """Write backend-native actuator gains.
+
+        Args:
+            attr: Native gain name, either ``"kp"`` or ``"kd"``.
+            values: Stiffness [N/m or N·m/rad] or damping [N·s/m or N·m·s/rad]
+                values, shape ``(len(env_ids), len(joint_ids))``.
+            env_ids: Environment indices to update.
+            joint_ids: Articulation joint indices to update.
+        """
 
 
 class ArticulationActuatorControl(ActuatorControl):
@@ -258,25 +375,31 @@ class ArticulationActuatorControl(ActuatorControl):
     def find_joints(self, name_keys: str | Sequence[str]) -> tuple[ProxyArray, list[str]]:
         return self._articulation.find_joints(name_keys, as_proxy=True)
 
-    def resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> torch.Tensor | wp.array:
-        return self._articulation._resolve_env_ids(env_ids)
+    def resolve_env_ids(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None,
+    ) -> torch.Tensor | _WarpIndex:
+        return self._articulation._resolve_env_ids(self._normalize_index_sequence(env_ids))
 
-    def resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> torch.Tensor | wp.array:
-        return self._articulation._resolve_joint_ids(joint_ids)
+    def resolve_joint_ids(
+        self,
+        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None,
+    ) -> torch.Tensor | _WarpIndex:
+        return self._articulation._resolve_joint_ids(self._normalize_index_sequence(joint_ids))
 
-    def resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
+    def resolve_env_mask(self, env_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
         if hasattr(self._articulation, "_resolve_env_mask"):
             return self._articulation._resolve_env_mask(env_mask)
         return self._articulation._resolve_mask(env_mask, self._articulation._ALL_ENV_MASK)
 
-    def resolve_joint_mask(self, joint_mask: wp.array | None) -> wp.array:
+    def resolve_joint_mask(self, joint_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
         if hasattr(self._articulation, "_resolve_joint_mask"):
             return self._articulation._resolve_joint_mask(joint_mask)
         return self._articulation._resolve_mask(joint_mask, self._articulation._ALL_JOINT_MASK)
 
     def assert_shape_and_dtype(
         self,
-        tensor: torch.Tensor | wp.array | float,
+        tensor: torch.Tensor | wp.array(dtype=wp.float32) | float,
         shape: tuple[int, ...],
         dtype: type,
         name: str,
@@ -285,19 +408,20 @@ class ArticulationActuatorControl(ActuatorControl):
 
     def assert_shape_and_dtype_mask(
         self,
-        tensor: torch.Tensor | wp.array | float,
-        masks: tuple[wp.array, ...],
+        tensor: torch.Tensor | wp.array(dtype=wp.float32) | float,
+        masks: tuple[wp.array(dtype=wp.bool), ...],
         dtype: type,
         name: str,
     ) -> None:
         self._articulation.assert_shape_and_dtype_mask(tensor, masks, dtype, name)
 
-    def get_default_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> ActuatorJointProperties:
+    def get_default_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
         data = self._articulation.data
-        stiffness = data.joint_stiffness.torch[:, joint_ids]
+        # Explicit actuators keep these authored gains after their solver drives are disabled.
+        stiffness = data.joint_stiffness.torch[:, joint_ids].clone()
         return ActuatorJointProperties(
             stiffness=stiffness,
-            damping=data.joint_damping.torch[:, joint_ids],
+            damping=data.joint_damping.torch[:, joint_ids].clone(),
             armature=data.joint_armature.torch[:, joint_ids],
             friction=data.joint_friction_coeff.torch[:, joint_ids],
             dynamic_friction=self._joint_property_or_zeros("joint_dynamic_friction_coeff", joint_ids, stiffness),
@@ -334,7 +458,10 @@ class ArticulationActuatorControl(ActuatorControl):
         )
 
     def _joint_property_or_zeros(
-        self, attr_name: str, joint_ids: torch.Tensor | wp.array | slice, reference: torch.Tensor
+        self,
+        attr_name: str,
+        joint_ids: torch.Tensor | _WarpIndex | slice,
+        reference: torch.Tensor,
     ) -> torch.Tensor:
         joint_property = getattr(self._articulation.data, attr_name, None)
         if joint_property is None:

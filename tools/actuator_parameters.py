@@ -3,19 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This script compares actuator parameters on a procedurally-authored pendulum.
+"""Generate actuator parameter comparisons for the documentation.
 
-The scene is a row of five identical single-joint pendulums. Each pendulum is
-driven by an actuator model that differs only in the parameter under study
-(stiffness, damping, armature, joint friction, effort limit, velocity limit,
-command delay, or implicit-vs-explicit control). Sweeping the parameter across
-the five instances and driving them with the same command profile makes the
-effect of that parameter directly visible side by side.
-
-The pendulum is authored procedurally with USD APIs (no external asset files),
-so the demo is self-contained and doubles as documentation for the actuator
-runtime API. Commands are always issued through the actuator collection
-(``articulation.actuators.command.set_*_index``).
+The script runs five procedurally-authored single-joint pendulums with one
+varied actuator parameter and writes optional clips and curves. Commands use
+the actuator collection runtime API.
 
 .. code-block:: bash
 
@@ -29,8 +21,6 @@ runtime API. Commands are always issued through the actuator collection
     ./isaaclab.sh -p tools/actuator_parameters.py --parameter effort-limit
 
 """
-
-"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
 
@@ -152,11 +142,7 @@ CAMERA_WIDTH = 1280
 """Width of the captured RGB frames [px]."""
 
 CAMERA_HEIGHT = 400
-"""Height of the captured RGB frames [px].
-
-The pendulums live in a narrow horizontal band, so the clips use a wide, short
-aspect ratio; a 16:9 frame would waste most of its pixels on sky and ground.
-"""
+"""Height of the captured RGB frames [px]."""
 
 CAPTURE_STRIDE = 12
 """Capture one frame every this many physics steps (30 fps real-time playback)."""
@@ -417,8 +403,8 @@ ROWS: dict[str, RowSpec] = {
 def _author_pendulum(stage, prim_path: str, x_offset: float) -> None:
     """Author a single-joint pendulum directly on the USD stage.
 
-    The pendulum is a fixed-base articulation. A massless base link is welded to
-    the world with a fixed joint at the pivot, and the swinging capsule link is
+    The pendulum is a fixed-base articulation. A base link is welded to the
+    world with a fixed joint at the pivot, and the swinging capsule link is
     attached to the base with a revolute joint about the world y-axis. A position
     target of pi/2 [rad] therefore raises the capsule from its resting (downward)
     pose to horizontal.
@@ -446,8 +432,7 @@ def _author_pendulum(stage, prim_path: str, x_offset: float) -> None:
     UsdPhysics.RigidBodyAPI.Apply(base.GetPrim())
     base_mass = UsdPhysics.MassAPI.Apply(base.GetPrim())
     base_mass.CreateMassAttr(CAPSULE_MASS)
-    # The base is welded to the world, so its inertia is irrelevant; author an
-    # explicit diagonal to avoid the physics engine's invalid-inertia warning.
+    # Author inertia to satisfy the physics engine's rigid-body requirements.
     base_mass.CreateDiagonalInertiaAttr(Gf.Vec3f(0.01, 0.01, 0.01))
     fixed_joint = UsdPhysics.FixedJoint.Define(stage, f"{prim_path}/fixed")
     fixed_joint.CreateBody1Rel().SetTargets([Sdf.Path(base_path)])
@@ -808,7 +793,7 @@ def _write_clip(frames: list[Image.Image], key: str) -> Path:
 
     Applies the fallback ladder from most to least fidelity: quality 80, then
     70, then 55, then half the frame rate (dropping every other frame), then a
-    960x540 downscale. Playback stays real-time because the per-frame duration
+    960x300 downscale. Playback stays real-time because the per-frame duration
     is doubled whenever the frame rate is halved.
 
     Args:
@@ -830,7 +815,7 @@ def _write_clip(frames: list[Image.Image], key: str) -> Path:
         duration_ms *= 2
         size = _save_webp(path, frames, duration_ms, quality=55)
     if size > CLIP_MAX_BYTES:
-        frames = [frame.resize((960, 540), Image.LANCZOS) for frame in frames]
+        frames = [frame.resize((960, 300), Image.LANCZOS) for frame in frames]
         size = _save_webp(path, frames, duration_ms, quality=55)
     if size > CLIP_MAX_BYTES:
         print(f"[WARN]: {path.name} is {size / 1000:.1f} KB, still above the {CLIP_MAX_BYTES // 1000} KB budget.")

@@ -491,25 +491,28 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_pos_target(self) -> ProxyArray:
-        """Joint position targets commanded by the user [m or rad, depending on joint type].
+        """Deprecated position commands [m or rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32.
+        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
+        Use ``articulation.actuators.command.position``.
         """
         return self._get_actuator_collection_proxy("joint_pos_target", "_joint_pos_target", "_joint_pos_target_ta")
 
     @property
     def joint_vel_target(self) -> ProxyArray:
-        """Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
+        """Deprecated velocity commands [m/s or rad/s, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32.
+        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
+        Use ``articulation.actuators.command.velocity``.
         """
         return self._get_actuator_collection_proxy("joint_vel_target", "_joint_vel_target", "_joint_vel_target_ta")
 
     @property
     def joint_effort_target(self) -> ProxyArray:
-        """Joint effort targets commanded by the user [N or N*m, depending on joint type].
+        """Deprecated effort commands [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32.
+        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
+        Use ``articulation.actuators.command.effort``.
         """
         return self._get_actuator_collection_proxy(
             "joint_effort_target", "_joint_effort_target", "_joint_effort_target_ta"
@@ -521,17 +524,19 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def computed_torque(self) -> ProxyArray:
-        """Joint torques computed from the actuator model (before clipping) [N*m].
+        """Deprecated pre-clipping effort [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32.
+        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
+        Use ``articulation.actuators.computed_torque``.
         """
         return self._get_actuator_collection_proxy("computed_torque", "_computed_torque", "_computed_torque_ta")
 
     @property
     def applied_torque(self) -> ProxyArray:
-        """Joint torques applied from the actuator model (after clipping) [N*m].
+        """Deprecated applied effort [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32.
+        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
+        Use ``articulation.actuators.applied_torque``.
         """
         return self._get_actuator_collection_proxy("applied_torque", "_applied_torque", "_applied_torque_ta")
 

@@ -142,11 +142,6 @@ def create_test_articulation(
     object.__setattr__(articulation, "_ALL_INDICES_WP", all_indices_wp)
     object.__setattr__(articulation, "_ALL_BODY_INDICES_WP", all_body_indices_wp)
 
-    # Initialize joint targets
-    object.__setattr__(articulation, "_joint_pos_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
-
     # Cached .view() wrappers
     object.__setattr__(articulation, "_root_link_pose_w_f32", None)
     object.__setattr__(articulation, "_root_com_vel_w_f32", None)

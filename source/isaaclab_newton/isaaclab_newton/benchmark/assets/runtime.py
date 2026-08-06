@@ -114,18 +114,6 @@ def create_test_articulation(
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_INDICES", wp.array([], dtype=wp.int32, device=device))
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_MASK", wp.zeros((0,), dtype=wp.bool, device=device))
 
-    object.__setattr__(
-        articulation, "_joint_pos_target_sim", wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation, "_joint_vel_target_sim", wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_effort_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
-
     from isaaclab.actuators import ActuatorCollection
 
     from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl

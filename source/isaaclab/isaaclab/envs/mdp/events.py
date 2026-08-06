@@ -24,7 +24,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.actuators import ImplicitActuator
+from isaaclab.actuators import ActuatorCollection, ImplicitActuator
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions
 
@@ -1395,15 +1395,24 @@ class randomize_actuator_gains(ManagerTermBase):
                 joint_ids = actuator.joint_indices
                 self.default_joint_stiffness[:, joint_ids] = actuator.stiffness
                 self.default_joint_damping[:, joint_ids] = actuator.damping
-        # Same for explicit Newton actuators on either backend — their kp/kd
-        # live on the per-actuator controller arrays (not on a Lab Actuator
-        # object), so the asset exposes a per-articulation snapshot taken
-        # at articulation init time.
+        # Native Newton execution gains use the articulation's initialization snapshot.
         newton_default_stiffness = getattr(self.asset, "newton_default_stiffness", None)
         if newton_default_stiffness is not None:
             joint_ids = self.asset.newton_managed_local_joints
             self.default_joint_stiffness[:, joint_ids] = newton_default_stiffness[:, joint_ids]
             self.default_joint_damping[:, joint_ids] = self.asset.newton_default_damping[:, joint_ids]
+
+        native_group_names = getattr(self.asset.actuators, "_native_group_names", set())
+        self.default_actuator_stiffness: dict[str, torch.Tensor] = {}
+        self.default_actuator_damping: dict[str, torch.Tensor] = {}
+        for name, actuator in self.asset.actuators.items():
+            if name in native_group_names:
+                joint_ids = actuator.joint_indices
+                self.default_actuator_stiffness[name] = self.default_joint_stiffness[:, joint_ids].clone()
+                self.default_actuator_damping[name] = self.default_joint_damping[:, joint_ids].clone()
+            else:
+                self.default_actuator_stiffness[name] = actuator.stiffness.clone()
+                self.default_actuator_damping[name] = actuator.damping.clone()
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
@@ -1445,7 +1454,7 @@ class randomize_actuator_gains(ManagerTermBase):
             actuator_writer = None
 
         # Loop through actuators and randomize gains
-        for actuator in self.asset.actuators.values():
+        for actuator_name, actuator in self.asset.actuators.items():
             if isinstance(self.asset_cfg.joint_ids, slice):
                 # we take all the joints of the actuator
                 actuator_indices = slice(None)
@@ -1475,28 +1484,48 @@ class randomize_actuator_gains(ManagerTermBase):
             # Randomize stiffness
             if stiffness_distribution_params is not None:
                 stiffness = actuator.stiffness[env_ids].clone()
-                stiffness[:, actuator_indices] = self.default_joint_stiffness[env_ids][:, global_indices].clone()
+                stiffness[:, actuator_indices] = self.default_actuator_stiffness[actuator_name][env_ids][
+                    :, actuator_indices
+                ]
                 randomize(stiffness, stiffness_distribution_params)
                 actuator.stiffness[env_ids] = stiffness
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_stiffness_to_sim_index(
                         stiffness=stiffness[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
-                if actuator_writer is not None:
+                if isinstance(actuator_writer, ActuatorCollection):
+                    actuator_writer._write_actuator_gain(
+                        "kp",
+                        actuator=actuator,
+                        values=stiffness[:, actuator_indices],
+                        env_ids=env_ids,
+                        joint_ids=writer_joint_ids,
+                    )
+                elif actuator_writer is not None:
                     actuator_writer.write_actuator_stiffness_to_sim(
                         stiffness=stiffness[:, actuator_indices], env_ids=env_ids, joint_ids=writer_joint_ids
                     )
             # Randomize damping
             if damping_distribution_params is not None:
                 damping = actuator.damping[env_ids].clone()
-                damping[:, actuator_indices] = self.default_joint_damping[env_ids][:, global_indices].clone()
+                damping[:, actuator_indices] = self.default_actuator_damping[actuator_name][env_ids][
+                    :, actuator_indices
+                ]
                 randomize(damping, damping_distribution_params)
                 actuator.damping[env_ids] = damping
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_damping_to_sim_index(
                         damping=damping[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
-                if actuator_writer is not None:
+                if isinstance(actuator_writer, ActuatorCollection):
+                    actuator_writer._write_actuator_gain(
+                        "kd",
+                        actuator=actuator,
+                        values=damping[:, actuator_indices],
+                        env_ids=env_ids,
+                        joint_ids=writer_joint_ids,
+                    )
+                elif actuator_writer is not None:
                     actuator_writer.write_actuator_damping_to_sim(
                         damping=damping[:, actuator_indices], env_ids=env_ids, joint_ids=writer_joint_ids
                     )

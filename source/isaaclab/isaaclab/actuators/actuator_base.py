@@ -44,6 +44,7 @@ class ActuatorBase(ABC):
     If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
     """
 
+    # Aggregated executors remap these tensors to the logical groups' views.
     _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = (
         "effort_limit",
         "effort_limit_sim",
@@ -319,6 +320,8 @@ class ActuatorBase(ABC):
     @classmethod
     def _build_execution_actuator(cls, actuators: Sequence[ActuatorBase]) -> ActuatorBase:
         """Build one private executor from resolved logical actuator groups."""
+        # Retain config metadata; replace every execution tensor below without
+        # cloning the logical groups' tensor storage.
         executor = copy.copy(actuators[0])
         executor._joint_names = [name for actuator in actuators for name in actuator.joint_names]
         for name in cls._EXECUTION_PARAMETER_NAMES:

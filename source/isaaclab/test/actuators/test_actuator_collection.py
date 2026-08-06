@@ -16,6 +16,7 @@ import pytest
 import torch
 import warp as wp
 
+import isaaclab.envs.mdp.events as events
 from isaaclab.actuators import (
     ActuatorCollection,
     ActuatorControl,
@@ -29,6 +30,7 @@ from isaaclab.actuators import (
     ImplicitActuatorCfg,
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
+from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -327,30 +329,41 @@ class FakeArticulation:
         self.data = SimpleNamespace(
             joint_pos=ProxyArray(wp.zeros(shape, dtype=wp.float32, device=self.device)),
             joint_vel=ProxyArray(wp.zeros(shape, dtype=wp.float32, device=self.device)),
-            joint_stiffness=SimpleNamespace(torch=zeros),
-            joint_damping=SimpleNamespace(torch=zeros),
-            joint_armature=SimpleNamespace(torch=zeros),
-            joint_friction_coeff=SimpleNamespace(torch=zeros),
+            joint_stiffness=SimpleNamespace(torch=zeros.clone()),
+            joint_damping=SimpleNamespace(torch=zeros.clone()),
+            joint_armature=SimpleNamespace(torch=zeros.clone()),
+            joint_friction_coeff=SimpleNamespace(torch=zeros.clone()),
             joint_effort_limits=SimpleNamespace(torch=ones * 100.0),
             joint_vel_limits=SimpleNamespace(torch=ones * 10.0),
         )
         self.calls: list[tuple[str, dict]] = []
+        self.resolved_env_ids: list[object] = []
+        self.resolved_joint_ids: list[object] = []
 
     def find_joints(
         self, name_keys: str | Sequence[str], *, as_proxy: bool = False
     ) -> tuple[list[int] | ProxyArray, list[str]]:
-        joint_ids = list(range(self.num_joints))
+        expressions = [name_keys] if isinstance(name_keys, str) else list(name_keys)
+        matches = [
+            (joint_id, joint_name)
+            for joint_id, joint_name in enumerate(["joint_0", "joint_1", "joint_2"])
+            if any(re.fullmatch(expression, joint_name) for expression in expressions)
+        ]
+        joint_ids = [joint_id for joint_id, _ in matches]
+        joint_names = [joint_name for _, joint_name in matches]
         if as_proxy:
             resolved_ids = ProxyArray(wp.array(joint_ids, dtype=wp.int32, device=self.device))
         else:
             resolved_ids = joint_ids
-        return resolved_ids, ["joint_0", "joint_1", "joint_2"]
+        return resolved_ids, joint_names
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
+        self.resolved_env_ids.append(env_ids)
         values = list(range(self.num_instances)) if env_ids is None else list(env_ids)
         return wp.array(values, dtype=wp.int32, device=self.device)
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
+        self.resolved_joint_ids.append(joint_ids)
         values = list(range(self.num_joints)) if joint_ids is None else list(joint_ids)
         return wp.array(values, dtype=wp.int32, device=self.device)
 
@@ -392,9 +405,11 @@ class FakeArticulation:
 
     def write_joint_stiffness_to_sim_index(self, **kwargs) -> None:
         self.calls.append(("stiffness", kwargs))
+        self.data.joint_stiffness.torch[:, kwargs["joint_ids"]] = kwargs["stiffness"]
 
     def write_joint_damping_to_sim_index(self, **kwargs) -> None:
         self.calls.append(("damping", kwargs))
+        self.data.joint_damping.torch[:, kwargs["joint_ids"]] = kwargs["damping"]
 
 
 def test_articulation_control_provides_common_forwarding_and_property_writes():
@@ -431,6 +446,72 @@ def test_articulation_control_provides_common_forwarding_and_property_writes():
     ]
     assert articulation.calls[-2][1]["stiffness"] == 0.0
     assert articulation.calls[-1][1]["damping"] == 0.0
+    control.resolve_env_ids((1,))
+    control.resolve_joint_ids(range(1, 3))
+    assert articulation.resolved_env_ids == [[1]]
+    assert articulation.resolved_joint_ids == [[1, 2]]
+
+
+def test_native_unset_gains_capture_authored_defaults_before_solver_zero(monkeypatch):
+    """Keep authored gains in a native explicit group while zeroing its solver drives."""
+    articulation = FakeArticulation()
+    articulation.data.joint_stiffness.torch = torch.full((2, 3), 17.0)
+    articulation.data.joint_damping.torch = torch.full((2, 3), 3.0)
+    control = FakeArticulationActuatorControl(articulation)
+    monkeypatch.setattr(control, "prepare_native_actuators", lambda collection, cfgs: set(cfgs))
+
+    collection = ActuatorCollection(
+        {
+            "explicit": IdealPDActuatorCfg(
+                joint_names_expr=[".*"],
+                stiffness=None,
+                damping=None,
+                effort_limit=100.0,
+                velocity_limit=10.0,
+            )
+        },
+        control,
+    )
+
+    torch.testing.assert_close(collection["explicit"].stiffness, torch.full((2, 3), 17.0))
+    torch.testing.assert_close(collection["explicit"].damping, torch.full((2, 3), 3.0))
+    torch.testing.assert_close(articulation.data.joint_stiffness.torch, torch.zeros((2, 3)))
+    torch.testing.assert_close(articulation.data.joint_damping.torch, torch.zeros((2, 3)))
+    assert articulation.calls[-2][1]["stiffness"] == 0.0
+    assert articulation.calls[-1][1]["damping"] == 0.0
+
+
+def test_overlapping_unset_gains_capture_defaults_before_solver_writes():
+    articulation = FakeArticulation()
+    authored_stiffness = torch.tensor([[11.0, 17.0, 23.0]]).expand(2, -1).clone()
+    authored_damping = torch.tensor([[1.0, 3.0, 5.0]]).expand(2, -1).clone()
+    articulation.data.joint_stiffness.torch = authored_stiffness.clone()
+    articulation.data.joint_damping.torch = authored_damping.clone()
+
+    collection = ActuatorCollection(
+        {
+            "first": IdealPDActuatorCfg(
+                joint_names_expr=["joint_0", "joint_1"],
+                stiffness=None,
+                damping=None,
+                effort_limit=100.0,
+                velocity_limit=10.0,
+            ),
+            "second": IdealPDActuatorCfg(
+                joint_names_expr=["joint_1", "joint_2"],
+                stiffness=None,
+                damping=None,
+                effort_limit=100.0,
+                velocity_limit=10.0,
+            ),
+        },
+        FakeArticulationActuatorControl(articulation),
+    )
+
+    torch.testing.assert_close(collection["first"].stiffness, authored_stiffness[:, :2])
+    torch.testing.assert_close(collection["first"].damping, authored_damping[:, :2])
+    torch.testing.assert_close(collection["second"].stiffness, authored_stiffness[:, 1:])
+    torch.testing.assert_close(collection["second"].damping, authored_damping[:, 1:])
 
 
 def test_collection_is_mapping_like_and_read_only():
@@ -649,82 +730,52 @@ def test_dc_motor_aggregate_matches_independent_groups_exactly(monkeypatch):
     _assert_collection_outputs_match_exactly(actual, reference)
 
 
-def test_implicit_aggregate_matches_independent_groups_exactly(monkeypatch):
-    joint_names = [f"joint_{index}" for index in range(4)]
-    cfgs = {
-        "hips": ImplicitActuatorCfg(
-            joint_names_expr=["joint_0", "joint_2"],
-            stiffness=9.0,
-            damping=0.75,
-            effort_limit_sim=16.0,
-            velocity_limit=7.0,
-            velocity_limit_sim=70.0,
+@pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA is unavailable")
+@pytest.mark.parametrize(
+    "actuator_cfg",
+    [
+        ImplicitActuatorCfg(joint_names_expr=["joint_0"], stiffness=2.0, damping=0.0),
+        IdealPDActuatorCfg(
+            joint_names_expr=["joint_0"],
+            stiffness=2.0,
+            damping=0.0,
+            effort_limit=100.0,
+            velocity_limit=10.0,
         ),
-        "knees": ImplicitActuatorCfg(
-            joint_names_expr=["joint_1", "joint_3"],
-            stiffness=19.0,
-            damping=1.75,
-            effort_limit_sim=28.0,
-            velocity_limit=11.0,
-            velocity_limit_sim=110.0,
-        ),
-    }
-    reference_control = FakeActuatorControl(joint_names=joint_names)
-    actual_control = FakeActuatorControl(joint_names=joint_names)
-    reference = _make_unbatched_reference(monkeypatch, ImplicitActuator, cfgs, reference_control)
-    actual = ActuatorCollection(cfgs, actual_control)
-    _assign_deterministic_inputs(reference, reference_control)
-    _assign_deterministic_inputs(actual, actual_control)
+    ],
+    ids=["implicit", "explicit"],
+)
+def test_actuator_batch_rebinds_cuda_state_provider_on_request(
+    actuator_cfg: ImplicitActuatorCfg | IdealPDActuatorCfg,
+):
+    control = FakeActuatorControl(num_envs=1, joint_names=["joint_0"], device="cuda:0")
+    collection = ActuatorCollection({"all": actuator_cfg}, control)
+    collection.command.position.torch.fill_(3.0)
 
-    reference.compute()
-    actual.compute()
-
-    _assert_collection_outputs_match_exactly(actual, reference)
-
-
-def test_implicit_batch_bypasses_torch_actuator_compute(monkeypatch):
-    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
-    device = control.device
-    collection = ActuatorCollection(
-        {
-            "hips": ImplicitActuatorCfg(
-                joint_names_expr=["joint_0", "joint_2"],
-                stiffness=9.0,
-                damping=0.75,
-                effort_limit_sim=16.0,
-            ),
-            "knees": ImplicitActuatorCfg(
-                joint_names_expr=["joint_1", "joint_3"],
-                stiffness=19.0,
-                damping=1.75,
-                effort_limit_sim=28.0,
-            ),
-        },
-        control,
-    )
-    _assign_deterministic_inputs(collection, control)
-
-    def fail_compute(*args, **kwargs):
-        raise AssertionError("Implicit batches must execute through the fused Warp path")
-
-    monkeypatch.setattr(ImplicitActuator, "compute", fail_compute)
+    collection.compute()
+    control._joint_pos = ProxyArray(wp.full((1, 1), 2.0, dtype=wp.float32, device=control.device))
+    collection._rebind_state_inputs()
 
     collection.compute()
 
-    position_error = collection.command.position.torch - control.joint_pos.torch
-    velocity_error = collection.command.velocity.torch - control.joint_vel.torch
-    expected_stiffness = torch.tensor([[9.0, 19.0, 9.0, 19.0]], device=device)
-    expected_damping = torch.tensor([[0.75, 1.75, 0.75, 1.75]], device=device)
-    expected_computed = (
-        expected_stiffness * position_error + expected_damping * velocity_error + collection.command.effort.torch
+    torch.testing.assert_close(
+        collection.computed_torque.torch, torch.tensor([[2.0]], device=control.device), rtol=0.0, atol=0.0
     )
-    expected_applied = torch.clamp(expected_computed, min=-torch.tensor(28.0), max=torch.tensor(28.0))
-    expected_applied[:, [0, 2]] = torch.clamp(expected_computed[:, [0, 2]], min=-16.0, max=16.0)
-    torch.testing.assert_close(collection.computed_torque.torch, expected_computed, rtol=0.0, atol=0.0)
-    torch.testing.assert_close(collection.applied_torque.torch, expected_applied, rtol=0.0, atol=0.0)
-    torch.testing.assert_close(collection.joint_command.position.torch, collection.command.position.torch)
-    torch.testing.assert_close(collection.joint_command.velocity.torch, collection.command.velocity.torch)
-    torch.testing.assert_close(collection.joint_command.effort.torch, collection.command.effort.torch)
+
+
+def test_default_collection_reset_preserves_none_for_groups(monkeypatch):
+    cfg = _implicit_cfg()
+    reset_env_ids = []
+
+    def record_reset(self, env_ids):
+        reset_env_ids.append(env_ids)
+
+    monkeypatch.setattr(ImplicitActuator, "reset", record_reset)
+    collection = ActuatorCollection({"all": cfg}, FakeActuatorControl())
+
+    collection.reset()
+
+    assert reset_env_ids == [None]
 
 
 def test_aggregate_computes_once_and_refreshes_group_outputs(monkeypatch):
@@ -865,30 +916,6 @@ def test_stateless_explicit_batch_preserves_input_staging_storage():
     )
 
 
-def test_stateless_explicit_batch_routes_repeated_launches_through_cache(monkeypatch):
-    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
-    collection = ActuatorCollection(
-        {
-            "hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=8.0, damping=0.5, effort_limit=12.0),
-            "knees": _ideal_cfg(["joint_1", "joint_3"], stiffness=13.0, damping=1.0, effort_limit=18.0),
-        },
-        control,
-    )
-    _assign_deterministic_inputs(collection, control)
-    launch_kinds = []
-    original_launch = collection._launch_cache.launch
-
-    def record_launch(key, *args, **kwargs):
-        launch_kinds.append(key[0])
-        return original_launch(key, *args, **kwargs)
-
-    monkeypatch.setattr(collection._launch_cache, "launch", record_launch)
-
-    collection.compute()
-
-    assert launch_kinds == ["gather", "scatter_targets", "scatter_telemetry"]
-
-
 def test_stateful_subclasses_and_overlapping_groups_remain_unbatched():
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     delayed = ActuatorCollection(
@@ -929,6 +956,76 @@ def test_stateful_subclasses_and_overlapping_groups_remain_unbatched():
         FakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2"]),
     )
     assert len(cross_class._execution_batches) == 3
+
+
+@pytest.mark.parametrize(
+    ("operation", "random_value", "expected_first", "expected_second"),
+    [
+        ("add", 10.0, 11.0, 12.0),
+        ("scale", 10.0, 10.0, 20.0),
+    ],
+)
+def test_gain_randomization_preserves_overlapping_group_values(
+    operation: str, random_value: float, expected_first: float, expected_second: float
+):
+    control = FakeActuatorControl(num_envs=1, joint_names=["joint_0", "joint_1", "joint_2"])
+    collection = ActuatorCollection(
+        {
+            "first": IdealPDActuatorCfg(
+                joint_names_expr=["joint_0", "joint_1"],
+                stiffness=1.0,
+                damping=1.0,
+                effort_limit=100.0,
+                velocity_limit=10.0,
+            ),
+            "second": IdealPDActuatorCfg(
+                joint_names_expr=["joint_1", "joint_2"],
+                stiffness=2.0,
+                damping=2.0,
+                effort_limit=100.0,
+                velocity_limit=20.0,
+            ),
+        },
+        control,
+    )
+    asset = SimpleNamespace(
+        actuators=collection,
+        data=SimpleNamespace(
+            joint_stiffness=SimpleNamespace(torch=torch.zeros((1, 3))),
+            joint_damping=SimpleNamespace(torch=torch.zeros((1, 3))),
+        ),
+        device="cpu",
+        num_joints=3,
+        write_joint_stiffness_to_sim_index=lambda **kwargs: None,
+        write_joint_damping_to_sim_index=lambda **kwargs: None,
+    )
+    asset_cfg = SceneEntityCfg("robot")
+
+    class Scene(dict):
+        num_envs = 1
+
+    env = SimpleNamespace(scene=Scene(robot=asset), num_envs=1, device="cpu")
+    cfg = EventTermCfg(func=events.randomize_actuator_gains, params={"asset_cfg": asset_cfg, "operation": operation})
+    term = events.randomize_actuator_gains(cfg, env)
+    term(
+        env,
+        torch.tensor([0]),
+        asset_cfg,
+        stiffness_distribution_params=(random_value, random_value),
+        operation=operation,
+    )
+
+    torch.testing.assert_close(collection["first"].stiffness, torch.full((1, 2), expected_first))
+    torch.testing.assert_close(collection["second"].stiffness, torch.full((1, 2), expected_second))
+    collection.command.position.torch.fill_(1.0)
+    collection.compute()
+
+    # Groups run in declaration order, so the later group owns their shared joint.
+    expected_effort = torch.tensor([[expected_first, expected_second, expected_second]])
+    torch.testing.assert_close(collection.joint_command.effort.torch, expected_effort)
+    torch.testing.assert_close(collection.computed_torque.torch, expected_effort)
+    torch.testing.assert_close(collection.applied_torque.torch, expected_effort)
+    torch.testing.assert_close(wp.to_torch(collection._soft_joint_vel_limits), torch.tensor([[10.0, 20.0, 20.0]]))
 
 
 def test_runtime_gains_route_into_aggregate_and_native_hook():
@@ -1064,19 +1161,6 @@ def test_native_execution_bypasses_lab_aggregation_and_keeps_group_gains_current
 
     torch.testing.assert_close(collection["hips"].stiffness[1, 0], torch.tensor(71.0), rtol=0.0, atol=0.0)
     torch.testing.assert_close(collection["knees"].stiffness[1, 1], torch.tensor(93.0), rtol=0.0, atol=0.0)
-
-
-def test_collection_does_not_allocate_centralized_actuator_gains():
-    collection = ActuatorCollection({"all": _implicit_cfg()}, FakeActuatorControl())
-
-    assert not hasattr(collection, "actuator_stiffness")
-    assert not hasattr(collection, "actuator_damping")
-    assert not hasattr(collection, "_actuator_stiffness")
-    assert not hasattr(collection, "_actuator_damping")
-    assert not hasattr(collection, "soft_joint_vel_limits")
-    assert not hasattr(collection, "gear_ratio")
-    assert collection._soft_joint_vel_limits.shape == (2, 3)
-    assert collection._gear_ratio.shape == (2, 3)
 
 
 def test_collection_exports_proxy_arrays():

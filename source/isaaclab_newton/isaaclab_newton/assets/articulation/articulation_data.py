@@ -416,37 +416,28 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_pos_target(self) -> ProxyArray:
-        """Joint position targets commanded by the user.
+        """Deprecated position commands [m or rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
+        Use ``articulation.actuators.command.position``.
         """
         return self._get_actuator_collection_proxy("joint_pos_target", "_joint_pos_target_ta")
 
     @property
     def joint_vel_target(self) -> ProxyArray:
-        """Joint velocity targets commanded by the user.
+        """Deprecated velocity commands [m/s or rad/s, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
+        Use ``articulation.actuators.command.velocity``.
         """
         return self._get_actuator_collection_proxy("joint_vel_target", "_joint_vel_target_ta")
 
     @property
     def joint_effort_target(self) -> ProxyArray:
-        """Joint effort targets commanded by the user.
+        """Deprecated effort commands [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
+        Use ``articulation.actuators.command.effort``.
         """
         return self._get_actuator_collection_proxy("joint_effort_target", "_joint_effort_target_ta")
 
@@ -456,24 +447,19 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def computed_torque(self) -> ProxyArray:
-        """Joint torques computed from the actuator model (before clipping).
+        """Deprecated pre-clipping effort [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        This quantity is the raw torque output from the actuator mode, before any clipping is applied.
-        It is exposed for users who want to inspect the computations inside the actuator model.
-        For instance, to penalize the learning agent for a difference between the computed and applied torques.
+        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
+        Use ``articulation.actuators.computed_torque``.
         """
         return self._get_actuator_collection_proxy("computed_torque", "_computed_torque_ta")
 
     @property
     def applied_torque(self) -> ProxyArray:
-        """Joint torques applied from the actuator model (after clipping).
+        """Deprecated applied effort [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
-        actuator model.
+        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
+        Use ``articulation.actuators.applied_torque``.
         """
         return self._get_actuator_collection_proxy("applied_torque", "_applied_torque_ta")
 
@@ -1802,6 +1788,8 @@ class ArticulationData(BaseArticulationData):
                 self._previous_joint_vel.assign(self._sim_bind_joint_vel)
             self._previous_body_com_vel.assign(self._sim_bind_body_com_vel_w)
             reset_timestamps([self._joint_acc, self._body_com_acc_w])
+            if self._actuator_collection is not None:
+                self._actuator_collection._rebind_state_inputs()
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""

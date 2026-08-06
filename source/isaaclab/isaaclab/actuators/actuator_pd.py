@@ -36,20 +36,10 @@ Implicit Actuator Models.
 class ImplicitActuator(ActuatorBase):
     """Implicit actuator model that is handled by the simulation.
 
-    This performs a similar function as the :class:`IdealPDActuator` class. However, the PD control is handled
-    implicitly by the simulation which performs continuous-time integration of the PD control law. This is
-    generally more accurate than the explicit PD control law used in :class:`IdealPDActuator` when the simulation
-    time-step is large.
-
-    The articulation class sets the stiffness and damping parameters from the implicit actuator configuration
-    into the simulation. Thus, the class does not perform its own computations on the joint action that
-    needs to be applied to the simulation. However, it computes the approximate torques for the actuated joint
-    since PhysX does not expose this quantity explicitly.
-
-    .. caution::
-
-        The class is only provided for consistency with the other actuator models. It does not implement any
-        functionality and should not be used. All values should be set to the simulation directly.
+    The articulation writes the configured gains and solver limits to the
+    backend, whose discrete solver applies the joint drive. This model also
+    computes approximate effort telemetry from the current state because the
+    solver does not expose the applied joint effort on every backend.
     """
 
     cfg: ImplicitActuatorCfg
@@ -162,17 +152,14 @@ class IdealPDActuator(ActuatorBase):
     are the current joint positions and velocities, :math:`q_{des}`, :math:`\dot{q}_{des}` and :math:`\tau_{ff}`
     are the desired joint positions, velocities and torques commands.
 
-    The clipping model is based on the maximum torque applied by the motor. It is implemented as:
+    The model clips the resulting joint effort directly to ``effort_limit``:
 
     .. math::
 
-        \tau_{j, max} & = \gamma \times \tau_{motor, max} \\
-        \tau_{j, applied} & = clip(\tau_{computed}, -\tau_{j, max}, \tau_{j, max})
+        \tau_{j, applied} = clip(\tau_{j, computed}, -\tau_{max}, \tau_{max})
 
-    where the clipping function is defined as :math:`clip(x, x_{min}, x_{max}) = min(max(x, x_{min}), x_{max})`.
-    The parameters :math:`\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
-    and :math:`\tau_{motor, max}` is the maximum motor effort possible. These parameters are read from
-    the configuration instance passed to the class.
+    where :math:`\tau_{max}` is the configured joint-side effort limit [N or
+    N·m, depending on joint type].
     """
 
     cfg: IdealPDActuatorCfg

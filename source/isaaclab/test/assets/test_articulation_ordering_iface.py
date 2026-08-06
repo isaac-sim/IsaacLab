@@ -1974,6 +1974,18 @@ class TestArticulationOperations:
     """Test cross-cutting articulation operations."""
 
     @_non_mock_backends
+    def test_legacy_position_target_accepts_joint_slice(self, backend: str) -> None:
+        art, _ = get_articulation(backend, num_instances=2, num_joints=4, num_bodies=2, device="cpu")
+        target = torch.tensor([[11.0, 12.0], [21.0, 22.0]], dtype=torch.float32)
+
+        with pytest.warns(DeprecationWarning):
+            art.set_joint_position_target(target, joint_ids=slice(1, 3))
+
+        expected = torch.zeros((2, 4), dtype=torch.float32)
+        expected[:, 1:3] = target
+        torch.testing.assert_close(art.actuators.command.position.torch, expected)
+
+    @_non_mock_backends
     @pytest.mark.parametrize("ordering_mode", ["none", "reversed", "cyclic"])
     @pytest.mark.parametrize("is_fixed_base", [False, True], ids=["floating", "fixed"])
     @pytest.mark.parametrize("device", ["cpu"])
@@ -2064,9 +2076,12 @@ class TestArticulationOperations:
         )
         position = np.arange(num_instances * num_joints, dtype=np.float32).reshape(num_instances, num_joints)
         velocity = position + 100.0
+        effort = position + 200.0
         art.data._joint_pos_target.assign(wp.array(position, dtype=wp.float32, device=art.device))
         art.data._joint_vel_target.assign(wp.array(velocity, dtype=wp.float32, device=art.device))
+        art.data._applied_torque.assign(wp.array(effort, dtype=wp.float32, device=art.device))
         object.__setattr__(art, "_has_implicit_actuators", True)
+        object.__setattr__(art, "_can_write_effort", True)
 
         art.write_data_to_sim()
 
@@ -2079,6 +2094,47 @@ class TestArticulationOperations:
             raw_backend.bindings[TT.DOF_VELOCITY_TARGET]._data,
             velocity[:, backend_to_user],
         )
+        np.testing.assert_array_equal(
+            raw_backend.bindings[TT.DOF_ACTUATION_FORCE]._data,
+            effort[:, backend_to_user],
+        )
+
+    @_requires_ovphysx
+    @pytest.mark.parametrize("selector_kind", ["torch", "warp"])
+    def test_ovphysx_int64_effort_target_selector_reaches_binding(
+        self, selector_kind: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Convert indexed effort-target environment selectors for the OVPhysX binding."""
+        from isaaclab_ovphysx import tensor_types as TT
+
+        art, raw_backend = get_articulation("ovphysx", 2, 3, 2, device="cpu")
+        object.__setattr__(art, "_can_write_effort", True)
+        expected = raw_backend.bindings[TT.DOF_ACTUATION_FORCE]._data.copy()
+        captured_indices = None
+        set_attribute = art._root_view.set_attribute
+
+        def strict_set_attribute(name, values, *, indices=None, mask=None):
+            nonlocal captured_indices
+            if name == TT.DOF_ACTUATION_FORCE:
+                assert isinstance(indices, wp.array)
+                assert indices.dtype == wp.int32
+                assert str(indices.device) == art.device
+                captured_indices = indices
+            set_attribute(name, values, indices=indices, mask=mask)
+
+        monkeypatch.setattr(art._root_view, "set_attribute", strict_set_attribute)
+        env_ids_torch = torch.tensor([1], dtype=torch.int64)
+        env_ids = env_ids_torch if selector_kind == "torch" else wp.from_torch(env_ids_torch, dtype=wp.int64)
+        joint_ids = torch.tensor([2], dtype=torch.int64)
+        target = torch.tensor([[7.0]], dtype=torch.float32)
+
+        art.set_joint_effort_target_index(target=target, env_ids=env_ids, joint_ids=joint_ids)
+
+        expected[1] = 0.0
+        expected[1, 2] = 7.0
+        assert captured_indices is not None
+        np.testing.assert_array_equal(captured_indices.numpy(), [1])
+        np.testing.assert_array_equal(raw_backend.bindings[TT.DOF_ACTUATION_FORCE]._data, expected)
 
     @_requires_physx
     @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])

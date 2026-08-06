@@ -2510,102 +2510,6 @@ class Articulation(BaseArticulation):
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
-    def set_joint_position_target_index(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Deprecated. Use :meth:`ActuatorCollection.Command.set_position_index`."""
-        warnings.warn(
-            "Articulation.set_joint_position_target_index is deprecated. Use"
-            " articulation.actuators.command.set_position_index instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.actuators.command.set_position_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
-
-    def set_joint_position_target_mask(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Deprecated. Use :meth:`ActuatorCollection.Command.set_position_mask`."""
-        warnings.warn(
-            "Articulation.set_joint_position_target_mask is deprecated. Use"
-            " articulation.actuators.command.set_position_mask instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.actuators.command.set_position_mask(value=target, joint_mask=joint_mask, env_mask=env_mask)
-
-    def set_joint_velocity_target_index(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Deprecated. Use :meth:`ActuatorCollection.Command.set_velocity_index`."""
-        warnings.warn(
-            "Articulation.set_joint_velocity_target_index is deprecated. Use"
-            " articulation.actuators.command.set_velocity_index instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.actuators.command.set_velocity_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
-
-    def set_joint_velocity_target_mask(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Deprecated. Use :meth:`ActuatorCollection.Command.set_velocity_mask`."""
-        warnings.warn(
-            "Articulation.set_joint_velocity_target_mask is deprecated. Use"
-            " articulation.actuators.command.set_velocity_mask instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.actuators.command.set_velocity_mask(value=target, joint_mask=joint_mask, env_mask=env_mask)
-
-    def set_joint_effort_target_index(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Deprecated. Use :meth:`ActuatorCollection.Command.set_effort_index`."""
-        warnings.warn(
-            "Articulation.set_joint_effort_target_index is deprecated. Use"
-            " articulation.actuators.command.set_effort_index instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.actuators.command.set_effort_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
-
-    def set_joint_effort_target_mask(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Deprecated. Use :meth:`ActuatorCollection.Command.set_effort_mask`."""
-        warnings.warn(
-            "Articulation.set_joint_effort_target_mask is deprecated. Use"
-            " articulation.actuators.command.set_effort_mask instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.actuators.command.set_effort_mask(value=target, joint_mask=joint_mask, env_mask=env_mask)
-
     """
     Operations - Tendons.
     """
@@ -3443,11 +3347,6 @@ class Articulation(BaseArticulation):
             self._post_step_callback = self._data._refresh_user_order_state
             SimulationManager.register_post_step_callback(self._post_step_callback)
         # tendon names are set in _process_tendons function
-
-        # -- joint commands (sent to the simulation after actuator processing)
-        self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
-        self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
-        self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(

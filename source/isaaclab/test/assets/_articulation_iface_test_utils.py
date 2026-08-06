@@ -179,18 +179,6 @@ def create_physx_articulation(
     articulation._ordering_configure_backend_staging()
     data.bind_actuator_collection(articulation.actuators)
 
-    # Initialize joint targets
-    joint_target_shape = (num_instances, num_joints)
-    object.__setattr__(
-        articulation, "_joint_pos_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation, "_joint_vel_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation, "_joint_effort_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
-    )
-
     # Cached .view(wp.float32) wrappers
     object.__setattr__(articulation, "_root_link_pose_w_f32", None)
     object.__setattr__(articulation, "_root_com_vel_w_f32", None)
@@ -582,23 +570,6 @@ def create_newton_articulation(
         articulation, "_ALL_SPATIAL_TENDON_INDICES", wp.array(np.array([], dtype=np.int32), device=device)
     )
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_MASK", wp.ones((0,), dtype=wp.bool, device=device))
-
-    # Joint targets (Newton uses warp, not torch)
-    object.__setattr__(
-        articulation,
-        "_joint_pos_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_vel_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_effort_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
 
     return articulation, mock_view
 

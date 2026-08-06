@@ -2,27 +2,28 @@ Added
 ^^^^^
 
 * Added :class:`~isaaclab.actuators.ActuatorCollection` as the runtime
-  actuator API, with separate command and processed joint-command views,
-  and telemetry staging.
+  actuator API, with separate command, processed joint-command, and telemetry
+  views.
 * Added execution aggregation for disjoint stateless actuator groups while
   preserving named group configuration and access.
-* Added reusable Warp execution for implicit and stateless explicit actuator
-  batches to avoid per-step staging allocations and launch reconstruction.
 
 Deprecated
 ^^^^^^^^^^
 
-* Deprecated articulation-level actuator command setters and actuator command
-  properties on articulation data in favor of the command view on
-  :attr:`~isaaclab.assets.Articulation.actuators`.
+* Deprecated articulation-level actuator command setters and command and
+  torque-telemetry properties on articulation data. Use the command view and
+  ``computed_torque`` or ``applied_torque`` views on
+  :attr:`~isaaclab.assets.Articulation.actuators` instead.
 
 Changed
 ^^^^^^^
 
-* Changed :class:`~isaaclab.actuators.ActuatorCollection` ownership so it stages
-  routing, commands, and telemetry while execution actuators own model
-  parameters, scratch tensors, and outputs. Compatible configured groups retain
-  their concrete public identities while sharing stable execution storage.
+* Changed :class:`~isaaclab.actuators.ActuatorCollection` so named groups retain
+  their configuration and access identity while compatible groups can share
+  execution.
+* Changed :attr:`~isaaclab.actuators.ImplicitActuatorCfg.velocity_limit` to
+  populate the actuator soft velocity-limit view. Use ``velocity_limit_sim``
+  to configure the solver velocity clamp.
 * **Breaking:** Changed actuator collection membership to be fixed at
   construction. Configure groups through
   :attr:`~isaaclab.assets.ArticulationCfg.actuators` before constructing the
