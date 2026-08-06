@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import torch
 import warp as wp
-from newton import GeoType, ModelBuilder, ShapeFlags, solvers
+from newton import GeoType, ModelBuilder, ShapeFlags
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -29,17 +29,24 @@ _APPROXIMATION_TO_REMESHING_METHOD = {
 }
 
 
-def _authored_collision_approximations(stage: Usd.Stage) -> dict[str, str]:
+def _authored_collision_approximations(stage: Usd.Stage, path_shape_map: dict[str, int]) -> dict[str, str]:
     """Prim path -> authored ``physics:approximation`` token (lower case).
 
     SDF collision prims are excluded: the attribute has no meaning on a shape with
     ``NewtonSDFCollisionAPI`` applied (matching Newton's importer semantics).
+
+    Only paths already imported into the source builder are inspected. This avoids a
+    full-stage traversal after USD replication, where nearly every visited prim belongs
+    to a clone and cannot affect the prototype builder.
     """
     authored: dict[str, str] = {}
-    for prim in stage.Traverse():
+    for path in path_shape_map:
+        prim = stage.GetPrimAtPath(path)
+        if not prim.IsValid() or prim.IsInstanceProxy():
+            continue
         attr = UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr()
         if attr and attr.HasAuthoredValue() and "NewtonSDFCollisionAPI" not in prim.GetAppliedSchemas():
-            authored[prim.GetPath().pathString] = str(attr.Get()).lower()
+            authored[path] = str(attr.Get()).lower()
     return authored
 
 
@@ -167,15 +174,16 @@ def build_source_builders(
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
     """
-    authored = _authored_collision_approximations(stage)
-    builders = {
+    build_results = {
         source: _build_source_builder(
-            stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, authored, load_visual_shapes
+            stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, load_visual_shapes
         )
         for source in sources
     }
+    builders = {source: result[0] for source, result in build_results.items()}
+    has_authored_approximations = any(result[1] for result in build_results.values())
 
-    if authored and len(builders) > 1:
+    if has_authored_approximations and len(builders) > 1:
         shape_sequences = {tuple(int(t) for t in b.shape_type) for b in builders.values()}
         if len(shape_sequences) > 1:
             warnings.warn(
@@ -193,9 +201,9 @@ def build_source_builders(
                     schema_resolvers,
                     ignore_paths,
                     simplify_meshes,
-                    {},
                     load_visual_shapes,
-                )
+                    honor_authored_approximations=False,
+                )[0]
                 for source in sources
             }
     return builders
@@ -208,13 +216,12 @@ def _build_source_builder(
     schema_resolvers: Sequence[Any],
     ignore_paths: Sequence[str] | None,
     simplify_meshes: bool,
-    authored: dict[str, str],
     load_visual_shapes: bool = True,
-) -> ModelBuilder:
-    """Build one source builder; an empty ``authored`` map restores hull-everything."""
+    *,
+    honor_authored_approximations: bool = True,
+) -> tuple[ModelBuilder, bool]:
+    """Build one source builder and report whether it had authored approximations."""
     builder = create_builder()
-    solvers.SolverMuJoCo.register_custom_attributes(builder)
-    solvers.SolverKamino.register_custom_attributes(builder)
     import_result = builder.add_usd(
         stage,
         root_path=source,
@@ -227,6 +234,11 @@ def _build_source_builder(
     _restore_visible_colliders_without_visual_shapes(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
     )
+    authored = (
+        _authored_collision_approximations(stage, import_result["path_shape_map"])
+        if honor_authored_approximations
+        else {}
+    )
     if authored:
         authored_shape_indices = _apply_authored_approximations(builder, import_result["path_shape_map"], authored)
         if simplify_meshes:
@@ -238,7 +250,7 @@ def _build_source_builder(
     elif simplify_meshes:
         builder.approximate_meshes("convex_hull", keep_visual_shapes=True)
     replace_newton_builder_shape_colors(builder, stage)
-    return builder
+    return builder, bool(authored)
 
 
 def _quat_multiply(a: np.ndarray, b: np.ndarray) -> np.ndarray:

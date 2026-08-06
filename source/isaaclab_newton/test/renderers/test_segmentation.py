@@ -10,6 +10,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+import torch
 
 pytest.importorskip("numpy")
 pytest.importorskip("warp")
@@ -18,6 +19,8 @@ pytest.importorskip("pxr")
 from isaaclab_newton.renderers.segmentation import NewtonSegmentationMapper
 
 from pxr import Usd
+
+from isaaclab.cloner import ClonePlan
 
 # The color palette / reserved ids live in core and are unit-tested there
 # (``isaaclab/test/renderers/test_segmentation_colors.py``); here they are only an oracle for the
@@ -189,3 +192,67 @@ def test_semantic_segmentation_mapping_overrides_color():
     assert mapping.info["idToLabels"][override] == {"class": "cartpole"}
     packed = pack_rgba(override)
     assert packed in mapping.shape_to_color.numpy().tolist()
+
+
+def test_clone_plan_resolves_semantics_once_per_prototype():
+    """Replicated shape paths read semantics from their prototype while preserving instances."""
+    stage, shape_paths = _scene()
+    shape_paths.insert(3, "/World/envs/env_2/Robot/cart/geom")
+    plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=torch.ones((1, 3), dtype=torch.bool),
+        env_ids=torch.arange(3),
+    )
+    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), plan)
+    mapper.build_mapping("instance_segmentation", colorize=False)
+    mapping = mapper.get_mapping("instance_segmentation", colorize=False)
+
+    ids = mapping.shape_to_id.numpy().tolist()
+    assert ids[1] != ids[2]
+    assert ids[2] != ids[3]
+    assert mapping.info["idToLabels"][ids[3]] == "/World/envs/env_2/Robot"
+    assert set(mapper._matched_cache).isdisjoint({"/World/envs/env_1/Robot/pole/geom", shape_paths[3]})
+
+
+def test_heterogeneous_clone_plan_selects_semantics_from_each_variant():
+    """Each heterogeneous environment resolves the prototype selected by its clone row."""
+    stage = Usd.Stage.CreateInMemory()
+    for env_id, label in ((0, "red"), (1, "blue")):
+        root = f"/World/envs/env_{env_id}/Object"
+        stage.DefinePrim(f"{root}/geom", "Mesh")
+        add_labels(stage.GetPrimAtPath(root), labels=[label], instance_name="class")
+    shape_paths = [f"/World/envs/env_{env_id}/Object/geom" for env_id in range(4)]
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
+        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
+        clone_mask=torch.tensor([[True, False, True, False], [False, True, False, True]]),
+        env_ids=torch.arange(4),
+    )
+    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), plan)
+    mapper.build_mapping("semantic_segmentation", colorize=False)
+    mapping = mapper.get_mapping("semantic_segmentation", colorize=False)
+
+    ids = mapping.shape_to_id.numpy().tolist()
+    assert ids[0] == ids[2]
+    assert ids[1] == ids[3]
+    assert ids[0] != ids[1]
+    assert mapping.info["idToLabels"][ids[0]] == {"class": "red"}
+    assert mapping.info["idToLabels"][ids[1]] == {"class": "blue"}
+
+
+def test_clone_plan_with_implicit_env_ids_resolves_prototype_semantics():
+    """Clone plans with implicit sequential environment ids use prototype semantics."""
+    stage, shape_paths = _scene()
+    plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=torch.ones((1, 2), dtype=torch.bool),
+    )
+    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), plan)
+    mapper.build_mapping("semantic_segmentation", colorize=False)
+    mapping = mapper.get_mapping("semantic_segmentation", colorize=False)
+
+    ids = mapping.shape_to_id.numpy().tolist()
+    assert ids[1] == ids[2]
+    assert "/World/envs/env_1/Robot/pole/geom" not in mapper._matched_cache

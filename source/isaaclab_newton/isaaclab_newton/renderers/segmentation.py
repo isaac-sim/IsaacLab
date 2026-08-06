@@ -20,6 +20,7 @@ are visually consistent across renderers.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, TypeAlias
 
@@ -35,6 +36,8 @@ if TYPE_CHECKING:
     import newton
 
     from pxr import Usd
+
+    from isaaclab.cloner import ClonePlan
 
 _UNLABELLED_COLOR: int = 0xFF000000
 """Packed RGBA color for UNLABELLED pixels: ``(0, 0, 0, 255)`` opaque black."""
@@ -251,10 +254,19 @@ class NewtonSegmentationMapping:
             )
 
 
+@dataclass(frozen=True)
+class _CloneRoute:
+    """Compiled destination template and prototype selected for each environment."""
+
+    pattern: re.Pattern[str]
+    source_by_env: dict[int, str]
+    specificity: int
+
+
 class NewtonSegmentationMapper:
     """Builds per-shape segmentation lookup tables from a Newton model and its USD stage."""
 
-    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg) -> None:
+    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg, clone_plan: ClonePlan | None = None) -> None:
         """Initialize the mapper from the Newton model, USD stage, and renderer config.
 
         Construction is cheap — it only captures references and snapshots ``model.shape_label``.
@@ -265,6 +277,8 @@ class NewtonSegmentationMapper:
             stage: The live USD stage used to read :class:`UsdSemantics.LabelsAPI` labels. May be
                 ``None`` in stageless setups, in which case every shape is treated as unlabelled.
             cfg: Renderer config exposing ``semantic_filter`` and ``semantic_segmentation_mapping``.
+            clone_plan: Optional prototype-to-environment mapping. When present, semantics
+                are read once per prototype shape instead of once per replicated shape.
         """
         self._model = model
         self._stage = stage
@@ -273,9 +287,66 @@ class NewtonSegmentationMapper:
         self._shape_count = len(self._shape_labels)
         self._device = str(model.device)
         self._filter_clauses = _parse_semantic_filter(cfg.semantic_filter)
+        self._clone_routes = self._build_clone_routes(clone_plan)
         # Cache of prim path -> (matched_labels or None); labels resolved with ancestor inheritance.
         self._matched_cache: dict[str, tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None] = {}
         self._mappings: dict[tuple[str, bool], NewtonSegmentationMapping] = {}
+
+    @staticmethod
+    def _build_clone_routes(clone_plan: ClonePlan | None) -> list[_CloneRoute]:
+        """Compile clone-plan destinations into fast concrete-path resolvers."""
+        if clone_plan is None:
+            return []
+        clone_mask = clone_plan.clone_mask.detach().cpu()
+        env_ids = (
+            list(range(clone_mask.shape[1]))
+            if clone_plan.env_ids is None
+            else clone_plan.env_ids.detach().cpu().tolist()
+        )
+        rows_by_template: dict[str, list[int]] = {}
+        for row, template in enumerate(clone_plan.destinations):
+            if "{}" in template:
+                rows_by_template.setdefault(template, []).append(row)
+
+        routes: list[_CloneRoute] = []
+        for template, rows in rows_by_template.items():
+            prefix, suffix = template.split("{}", maxsplit=1)
+            pattern = re.compile(rf"^{re.escape(prefix)}(?P<env_id>\d+){re.escape(suffix)}(?P<shape_suffix>/.*)?$")
+            source_by_env: dict[int, str] = {}
+            for row in rows:
+                for column in clone_mask[row].nonzero(as_tuple=False).flatten().tolist():
+                    source_by_env[int(env_ids[column])] = clone_plan.sources[row]
+            routes.append(_CloneRoute(pattern, source_by_env, len(prefix) + len(suffix)))
+        routes.sort(key=lambda route: route.specificity, reverse=True)
+        return routes
+
+    def _prototype_path(self, prim_path: str) -> tuple[str, str | None, str | None]:
+        """Return prototype path plus the source/clone roots used to derive it."""
+        for route in self._clone_routes:
+            match = route.pattern.match(prim_path)
+            if match is None:
+                continue
+            source_root = route.source_by_env.get(int(match.group("env_id")))
+            if source_root is None:
+                continue
+            shape_suffix = match.group("shape_suffix") or ""
+            clone_root = prim_path[: len(prim_path) - len(shape_suffix)] if shape_suffix else prim_path
+            return source_root.rstrip("/") + shape_suffix, source_root.rstrip("/"), clone_root.rstrip("/")
+        return prim_path, None, None
+
+    @staticmethod
+    def _clone_ancestor_path(ancestor_path: str, source_root: str | None, clone_root: str | None) -> str:
+        """Rebase a prototype ancestor to its concrete clone for instance grouping."""
+        if source_root is None or clone_root is None:
+            return ancestor_path
+        if ancestor_path == source_root or ancestor_path.startswith(source_root + "/"):
+            return clone_root + ancestor_path[len(source_root) :]
+        if source_root.startswith(ancestor_path.rstrip("/") + "/"):
+            ancestor_depth = len(ancestor_path.strip("/").split("/"))
+            clone_parts = clone_root.strip("/").split("/")
+            if ancestor_depth <= len(clone_parts):
+                return "/" + "/".join(clone_parts[:ancestor_depth])
+        return ancestor_path
 
     def build_mapping(self, kind: _SegKind, colorize: bool) -> None:
         """Build and cache the :class:`NewtonSegmentationMapping` for ``kind`` at the requested colorization."""
@@ -407,15 +478,17 @@ class NewtonSegmentationMapper:
         next_id = _FIRST_ID
 
         for shape_index, prim_path in enumerate(self._shape_labels):
-            match = self._resolve_semantic_match(prim_path)
+            prototype_path, source_root, clone_root = self._prototype_path(prim_path)
+            match = self._resolve_semantic_match(prototype_path)
             if match is None:
                 shape_to_id[shape_index] = UNLABELLED_ID
                 continue
             matched, ancestor_path = match
             if kind == "instance_segmentation":
                 # All shapes under the same labelled ancestor prim form one instance group.
-                group_key = ancestor_path
-                label_value = ancestor_path
+                clone_ancestor_path = self._clone_ancestor_path(ancestor_path, source_root, clone_root)
+                group_key = clone_ancestor_path
+                label_value = clone_ancestor_path
                 semantics_value = self._semantics_payload(matched)
             else:  # semantic_segmentation
                 payload = self._semantics_payload(matched)

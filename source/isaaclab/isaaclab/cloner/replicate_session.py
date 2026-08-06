@@ -45,15 +45,44 @@ def queue_replication(cfg: Any) -> None:
     REPLICATION_QUEUE.append(cfg)
 
 
+def _automatic_usd_replication_required(queued: list[Any], backend_physics_ctx: type | None) -> bool:
+    """Return whether an automatic USD clone consumer is active.
+
+    A pure headless Newton run with only Newton Warp camera rendering consumes the
+    replicated Newton model and clone plan directly. Composing thousands of USD
+    destinations in that case is redundant. GUI/offscreen output, visualizers,
+    non-Newton camera renderers, and every non-Newton physics backend still require
+    concrete USD destinations.
+    """
+    if backend_physics_ctx is None or not backend_physics_ctx.__module__.startswith("isaaclab_newton"):
+        return True
+
+    from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+    sim = SimulationContext.instance()
+    if sim is None:
+        return True
+    if sim.has_gui or sim.has_offscreen_render or sim.resolve_visualizer_types():
+        return True
+    renderer_types = {
+        renderer_type
+        for cfg in queued
+        if (renderer_cfg := getattr(cfg, "renderer_cfg", None)) is not None
+        and (renderer_type := getattr(renderer_cfg, "renderer_type", None)) is not None
+    }
+    return bool(renderer_types - {"newton_warp"})
+
+
 def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = True) -> None:
     """Drain :data:`REPLICATION_QUEUE` against ``plan``, dispatch each backend, publish the plan.
 
     Physics contexts come from :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when
     set, otherwise from the backend's ``PHYSICS_CONTEXT`` class.
     :class:`~isaaclab.cloner.UsdReplicateContext` is added automatically when the cfg has a
-    spawner and Kit is available, and is dropped entirely without Kit (nothing composes or
-    renders the replicated prims there). With ``replicate_physics=False`` physics contexts
-    are dropped; USD replication still fires when the spawner+Kit condition is met.
+    spawner and an active consumer needs concrete USD destinations. Pure headless Newton
+    runs can consume the replicated model and clone plan directly; GUI/offscreen rendering,
+    visualizers, and non-Newton renderers retain USD replication. With
+    ``replicate_physics=False`` physics contexts are dropped and USD replication is retained.
 
     Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
     ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
@@ -73,6 +102,9 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     backend_physics_ctx = getattr(
         importlib.import_module(f"isaaclab_{FactoryBase._get_backend()}.cloner"), "PHYSICS_CONTEXT", None
     )
+    automatic_usd_replication = not replicate_physics or _automatic_usd_replication_required(
+        queued, backend_physics_ctx
+    )
 
     # Group queued cfgs by backend, taking the union of row indices each backend owns.
     # In the homogeneous plan every cfg maps to row 0, so multiple queue_replication
@@ -88,10 +120,13 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
             contexts = [backend_physics_ctx] if backend_physics_ctx else []
         else:
             contexts = [string_to_callable(c) if isinstance(c, str) else c for c in cfg.cloning_contexts]
+        renderer_type = getattr(getattr(cfg, "renderer_cfg", None), "renderer_type", None)
+        if replicate_physics and not automatic_usd_replication and renderer_type == "newton_warp":
+            contexts = [context for context in contexts if context is not UsdReplicateContext]
         if not replicate_physics:
             contexts = [c for c in contexts if c is UsdReplicateContext]
         ctx_set = dict.fromkeys(contexts)
-        if getattr(cfg, "spawn", None) is not None and kit_available:
+        if getattr(cfg, "spawn", None) is not None and kit_available and automatic_usd_replication:
             ctx_set.setdefault(UsdReplicateContext, None)
         for BackendCtxCls in ctx_set:
             backend_rows.setdefault(BackendCtxCls, set()).update(rows)

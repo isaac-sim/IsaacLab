@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 import torch
 
-from pxr import Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -98,7 +98,7 @@ def test_usd_replicate_with_positions_and_mask(sim):
 
 
 def test_usd_replicate_context_queue_and_replicate(sim):
-    """UsdReplicateContext queues copy specs and applies them on replicate."""
+    """UsdReplicateContext queues compact prototype references and applies them."""
     sim_utils.create_prim("/World/template", "Xform")
     sim_utils.create_prim("/World/template/A", "Xform")
     sim_utils.create_prim("/World/envs", "Xform")
@@ -117,6 +117,8 @@ def test_usd_replicate_context_queue_and_replicate(sim):
 
     assert stage.GetPrimAtPath("/World/envs/env_0/A").IsValid()
     assert stage.GetPrimAtPath("/World/envs/env_1/A").IsValid()
+    env_1_spec = stage.GetRootLayer().GetPrimAtPath("/World/envs/env_1/A")
+    assert Sdf.Reference(primPath="/World/template/A") in env_1_spec.referenceList.prependedItems
 
 
 def test_usd_replicate_nested_asset_preserves_local_offset_with_positions(sim):

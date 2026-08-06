@@ -95,17 +95,20 @@ class ReorientDirectEnv(DirectRLEnv):
 
     def _setup_scene(self):
         # add hand, in-hand object, and goal object
-        self.hand = Articulation(self.cfg.robot_cfg)
-        self.object: Articulation | RigidObject = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
-        self._joint_wrench_sensor = None
-        if self.cfg.asymmetric_obs:
-            self._joint_wrench_sensor = self._create_joint_wrench_sensor()
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
+        with cloner.ReplicateSession(
+            [self.cfg.robot_cfg, self.cfg.object_cfg],
+            num_clones=self.scene.num_envs,
+            env_spacing=self.scene.cfg.env_spacing,
+            device=self.device,
+            stage=self.scene.stage,
+        ):
+            self.hand = Articulation(self.cfg.robot_cfg)
+            self.object: Articulation | RigidObject = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
+            self._joint_wrench_sensor = None
+            if self.cfg.asymmetric_obs:
+                self._joint_wrench_sensor = self._create_joint_wrench_sensor()
         # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=["/World/ground"])

@@ -7,10 +7,10 @@
 
 import newton
 import pytest
-from isaaclab_newton.cloner.newton_clone_utils import build_source_builders
+from isaaclab_newton.cloner.newton_clone_utils import _authored_collision_approximations, build_source_builders
 from newton import GeoType, ShapeFlags
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 _SOURCE = "/World/Asset"
 
@@ -184,6 +184,18 @@ class TestClonerCollisionApproximation:
 
         for source in sources:
             assert list(_collision_shapes(builders[source]).values()) == [GeoType.SPHERE]
+
+    def test_authored_approximation_scan_skips_instance_proxies(self):
+        """Scoped lookup preserves the prior full-traversal treatment of instance proxies."""
+        stage = Usd.Stage.CreateInMemory()
+        _add_l_prism(stage, "/Prototype/geom", "boundingSphere")
+        instance = stage.DefinePrim("/World/Instance", "Xform")
+        instance.GetReferences().AddInternalReference(Sdf.Path("/Prototype"))
+        instance.SetInstanceable(True)
+        proxy_path = "/World/Instance/geom"
+
+        assert stage.GetPrimAtPath(proxy_path).IsInstanceProxy()
+        assert _authored_collision_approximations(stage, {proxy_path: 0}) == {}
 
     def test_primitive_collider_remains_visible_in_mixed_visual_model(self):
         """Colliders remain visible only when their body or static parent has no visual shape."""
