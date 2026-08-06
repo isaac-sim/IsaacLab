@@ -156,6 +156,25 @@ def test_spawn_rectangle(sim, resolution, size):
     assert prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
 
 
+def test_spawn_custom_mesh(sim):
+    """Test spawning an exact collision mesh from authored triangle data."""
+    cfg = sim_utils.MeshCustomCfg(
+        vertices=((-0.5, -0.5, 0.0), (0.5, -0.5, 0.0), (0.5, 0.5, 0.0), (-0.5, 0.5, 0.0)),
+        faces=((0, 1, 2), (0, 2, 3)),
+        collision_props=sim_utils.CollisionBaseCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.4, 0.8)),
+    )
+    prim = cfg.func("/World/CustomMesh", cfg)
+
+    assert prim.IsValid()
+    mesh_prim = sim.stage.GetPrimAtPath("/World/CustomMesh/geometry/mesh")
+    assert mesh_prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
+    assert mesh_prim.GetAttribute("faceVertexIndices").Get() == [0, 1, 2, 0, 2, 3]
+    assert mesh_prim.GetAttribute("subdivisionScheme").Get() == "none"
+    assert mesh_prim.GetAttribute("physics:approximation").Get() == "none"
+    assert mesh_prim.GetAttribute("primvars:displayColor").HasAuthoredValue()
+
+
 """
 Physics properties.
 """

@@ -12,7 +12,7 @@ import numpy as np
 import trimesh
 import trimesh.transformations
 
-from pxr import Usd, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
@@ -31,6 +31,63 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+def _srgb_to_linear_channel(value: float) -> float:
+    """Convert an sRGB channel to the linear value expected by USD display color."""
+    if value <= 0.04045:
+        return value / 12.92
+    return ((value + 0.055) / 1.055) ** 2.4
+
+
+@clone
+def spawn_mesh_custom(
+    prim_path: str,
+    cfg: meshes_cfg.MeshCustomCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Create a USD mesh from explicitly authored vertices and triangular faces.
+
+    This spawner is intended for custom static geometry such as terrain patches,
+    tracks, and fixtures that cannot be represented by the generated mesh
+    primitives. Face winding is preserved, so counter-clockwise faces define the
+    colliding side when exact triangle-mesh collision is selected.
+
+    Args:
+        prim_path: Prim path or pattern at which to spawn the asset.
+        cfg: Custom mesh configuration.
+        translation: Translation relative to the parent prim [m].
+        orientation: Quaternion orientation in ``(x, y, z, w)`` order.
+        **kwargs: Additional cloning keyword arguments.
+
+    Returns:
+        The created root prim.
+
+    Raises:
+        ValueError: If the vertex or face arrays are malformed, a face index is
+            out of range, or the collision approximation is unknown.
+    """
+    del kwargs
+    vertices = np.asarray(cfg.vertices, dtype=np.float32)
+    faces = np.asarray(cfg.faces, dtype=np.int64)
+    if vertices.ndim != 2 or vertices.shape[1:] != (3,) or len(vertices) < 3:
+        raise ValueError(f"Custom mesh vertices must have shape (N, 3) with N >= 3, got {vertices.shape}.")
+    if faces.ndim != 2 or faces.shape[1:] != (3,) or len(faces) < 1:
+        raise ValueError(f"Custom mesh faces must have shape (M, 3) with M >= 1, got {faces.shape}.")
+    if np.any(faces < 0) or np.any(faces >= len(vertices)):
+        raise ValueError(f"Custom mesh face indices must be in [0, {len(vertices) - 1}].")
+    if cfg.collision_approximation not in schemas.MESH_APPROXIMATION_TOKENS:
+        raise ValueError(
+            f"Unknown mesh collision approximation {cfg.collision_approximation!r}. "
+            f"Valid options are: {list(schemas.MESH_APPROXIMATION_TOKENS)}"
+        )
+
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    stage = get_current_stage()
+    _spawn_mesh_geom_from_mesh(prim_path, cfg, mesh, translation, orientation, stage=stage)
+    return stage.GetPrimAtPath(prim_path)
 
 
 @clone
@@ -441,7 +498,7 @@ def _spawn_mesh_geom_from_mesh(
             "points": mesh.vertices,
             "faceVertexIndices": mesh.faces.flatten(),
             "faceVertexCounts": np.asarray([3] * len(mesh.faces)),
-            "subdivisionScheme": "bilinear",
+            "subdivisionScheme": getattr(cfg, "subdivision_scheme", "bilinear"),
         },
         stage=stage,
     )
@@ -465,13 +522,15 @@ def _spawn_mesh_geom_from_mesh(
             )
     elif cfg.collision_props is not None:
         # decide on type of collision approximation based on the mesh
-        if cfg.__class__.__name__ == "MeshSphereCfg":
-            collision_approximation = "boundingSphere"
-        elif cfg.__class__.__name__ == "MeshCuboidCfg":
-            collision_approximation = "boundingCube"
-        else:
-            # for: MeshCylinderCfg, MeshCapsuleCfg, MeshConeCfg
-            collision_approximation = "convexHull"
+        collision_approximation = getattr(cfg, "collision_approximation", None)
+        if collision_approximation is None:
+            if cfg.__class__.__name__ == "MeshSphereCfg":
+                collision_approximation = "boundingSphere"
+            elif cfg.__class__.__name__ == "MeshCuboidCfg":
+                collision_approximation = "boundingCube"
+            else:
+                # for: MeshCylinderCfg, MeshCapsuleCfg, MeshConeCfg
+                collision_approximation = "convexHull"
         # apply collision approximation to mesh
         # note: for primitives, we use the convex hull approximation -- this should be sufficient for most cases.
         mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(mesh_prim)
@@ -486,8 +545,15 @@ def _spawn_mesh_geom_from_mesh(
 
     # apply visual material
     if cfg.visual_material is not None:
+        # Keep PreviewSurface colors available to lightweight renderers that
+        # consume USD displayColor but cannot construct Kit materials.
+        diffuse_color = getattr(cfg.visual_material, "diffuse_color", None)
+        if diffuse_color is not None:
+            display_color = tuple(_srgb_to_linear_channel(value) for value in diffuse_color)
+            UsdGeom.Mesh(mesh_prim).CreateDisplayColorAttr([display_color])
         if not has_kit():
-            logger.warning("Skipping visual material application for '%s' in kitless mode.", mesh_prim_path)
+            if diffuse_color is None:
+                logger.warning("Skipping visual material application for '%s' in kitless mode.", mesh_prim_path)
         else:
             if not cfg.visual_material_path.startswith("/"):
                 material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
