@@ -521,6 +521,15 @@ class KitVisualizer(BaseVisualizer):
         if app is None or not app.is_running():
             raise RuntimeError("[KitVisualizer] Isaac Sim app is not running.")
 
+        import os as _os
+
+        headless_env = bool(int(_os.environ.get("HEADLESS", 0)))
+        # Apply env var immediately — before sim_app lookup — so the headless guard in
+        # _setup_viewport() fires even when the SimulationApp instance is not yet accessible.
+        if headless_env and not self._runtime_headless:
+            self._runtime_headless = True
+            logger.warning("[KitVisualizer] Running in headless mode (HEADLESS=1). Viewport may not display.")
+
         try:
             from isaacsim import SimulationApp
 
@@ -532,12 +541,6 @@ class KitVisualizer(BaseVisualizer):
 
             if sim_app is not None:
                 self._simulation_app = sim_app
-                # Check cfg, SimulationApp config dict, and HEADLESS env var (AppLauncher sets the
-                # latter when the user passes HEADLESS=1 but does not always propagate it through
-                # SimulationApp.config, so read it directly as a safety net).
-                import os as _os
-
-                headless_env = bool(int(_os.environ.get("HEADLESS", 0)))
                 self._runtime_headless = bool(
                     self.cfg.headless or headless_env or self._simulation_app.config.get("headless", False)
                 )
