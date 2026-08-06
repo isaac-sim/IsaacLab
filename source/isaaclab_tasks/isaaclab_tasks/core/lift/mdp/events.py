@@ -7,12 +7,16 @@
 
 from __future__ import annotations
 
+import logging
+import sys
 from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 import warp as wp
 from tqdm import tqdm
+
+_log = logging.getLogger(__name__)
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -368,11 +372,13 @@ class conditional_reset(ManagerTermBase):
             # not cover all groups, and a group with no rolled envs could never fill
             all_ids = torch.arange(env.num_envs, device=env.device)
 
+            _log.info("Prefilling reset buffer: 0/%d states", num_groups * harvest_size)
             with tqdm(
                 total=num_groups * harvest_size,
                 desc="Prefilling reset buffer",
                 unit="state",
                 dynamic_ncols=True,
+                disable=not sys.stderr.isatty(),
             ) as progress:
                 while not bool((self._fill >= harvest_size).all()):
                     if max_prefill_iters is not None and iteration >= max_prefill_iters:
@@ -414,6 +420,7 @@ class conditional_reset(ManagerTermBase):
                             self._descriptor[row : row + len(take)] = feature
                         self._fill[group] += len(take)
                         progress.update(len(take))
+            _log.info("Prefilling reset buffer: done (%d states)", num_groups * harvest_size)
             if diversity_feature is not None:
                 self._keep_most_spread(num_groups, harvest_size, buffer_size_per_group)
             if success_monitor is not None:
