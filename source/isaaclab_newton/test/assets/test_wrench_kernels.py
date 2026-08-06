@@ -48,8 +48,9 @@ def test_update_wrench_array_ordered_rotates_and_scatter_wrenches_to_backend_ord
     """Rotate public-order body wrenches and scatter them into backend order."""
     forces = wp.array(np.asarray([[[1.0, 0.0, 0.0], [3.0, 0.0, 0.0]]], dtype=np.float32), dtype=wp.vec3f, device="cpu")
     torques = wp.array(np.asarray([[[2.0, 0.0, 0.0], [4.0, 0.0, 0.0]]], dtype=np.float32), dtype=wp.vec3f, device="cpu")
-    # Link poses are backend ordered: public body 1 is backend body 0. The
-    # rotated body's nonzero translation must not add a p x f moment.
+    # Link poses are public ordered: public body 0 is rotated, then maps to
+    # backend body 1. The rotated body's nonzero translation must not add a
+    # p x f moment.
     body_link_pose_w = _body_link_poses_w(
         [((2.0, -3.0, 4.0), _QUARTER_TURN_Z_QUAT), ((-1.0, 6.0, 8.0), _IDENTITY_QUAT)]
     )
@@ -67,6 +68,6 @@ def test_update_wrench_array_ordered_rotates_and_scatter_wrenches_to_backend_ord
 
     np.testing.assert_allclose(
         wrench.numpy(),
-        np.asarray([[[0.0, 3.0, 0.0, 0.0, 4.0, 0.0], [1.0, 0.0, 0.0, 2.0, 0.0, 0.0]]], dtype=np.float32),
+        np.asarray([[[3.0, 0.0, 0.0, 4.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0, 2.0, 0.0]]], dtype=np.float32),
         atol=1e-6,
     )
