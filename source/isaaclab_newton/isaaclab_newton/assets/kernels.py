@@ -1538,7 +1538,7 @@ def update_wrench_array_with_force_and_torque(
             shape (num_envs, num_bodies). Only each pose quaternion is used;
             the link translation does not shift the COM-referenced wrench.
         wrench: World-frame force and torque at each body center of mass [N,
-            N*m], shape (num_envs, num_bodies).
+            N·m], shape (num_envs, num_bodies).
         env_ids: Environment-selection mask, shape (num_envs,).
         body_ids: Body-selection mask, shape (num_bodies,).
     """

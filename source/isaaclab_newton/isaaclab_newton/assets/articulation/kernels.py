@@ -66,7 +66,7 @@ def update_wrench_array_with_force_and_torque_ordered(
     Args:
         forces: Body-frame forces [N], shaped [num_envs, num_bodies], in public
             body order.
-        torques: Body-frame torques [N*m], shaped [num_envs, num_bodies], in
+        torques: Body-frame torques [N·m], shaped [num_envs, num_bodies], in
             public body order.
         body_link_pose_w: World-frame body link poses, shaped [num_envs,
             num_bodies], in public body order. Only each quaternion is used;
