@@ -471,8 +471,9 @@ class AppLauncher:
           If provided as an empty string, the experience file is selected from the resolved visualizer and XR
           settings. Rendering support is available by default, including in headless execution.
 
-        * ``deterministic`` (bool): Publishes ``/isaaclab/render/deterministic`` for reproducible rendering.
-          Does not change how the default experience file is chosen.
+        * ``deterministic`` (bool): Requests deterministic execution from supported simulation, rendering, and
+          learning backends. Publishes ``/isaaclab/render/deterministic`` for reproducible rendering. Does not
+          change how the default experience file is chosen.
 
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
@@ -598,7 +599,7 @@ class AppLauncher:
             "--deterministic",
             action="store_true",
             default=AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1],
-            help="Request reproducible rendering (see AppLauncher docs).",
+            help="Request deterministic execution from supported simulation, rendering, and learning backends.",
         )
         arg_group.add_argument(
             "--kit_args",

@@ -248,6 +248,17 @@ def _refresh_physics_scan_flags(config_scan: Scan, concrete_physics_cfgs: list[P
     config_scan.needs_kit = config_scan.has_kit_camera or config_scan.has_kit_physics or not has_physics
 
 
+def _apply_deterministic_physics_mode(
+    concrete_physics_cfgs: list[PhysicsCfg], launcher_args: argparse.Namespace | dict | None
+) -> None:
+    """Apply deterministic launcher intent to supported physics backends."""
+    if not _get_arg(launcher_args, "deterministic", False):
+        return
+    for physics_cfg in concrete_physics_cfgs:
+        if isinstance(physics_cfg, NewtonCfg):
+            physics_cfg.deterministic_mode = "gpu_to_gpu"
+
+
 def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     """Walk *cfg* once, collecting all launch signals and applying ``--physics``.
 
@@ -339,6 +350,8 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
                 config_scan.resolved_physics_cfg = physics_cfg
 
         _refresh_physics_scan_flags(config_scan, concrete_physics_cfgs, has_physics)
+
+    _apply_deterministic_physics_mode(concrete_physics_cfgs, launcher_args)
 
     # Resolve recorded auto RTX renderer placeholders.
     if not has_auto_rtx:

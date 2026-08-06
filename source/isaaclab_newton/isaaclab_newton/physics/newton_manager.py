@@ -120,6 +120,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_DETERMINISTIC_SOLVER_CFG_TYPES = frozenset(
+    {"FeatherstoneSolverCfg", "MJWarpSolverCfg", "VBDSolverCfg", "XPBDSolverCfg"}
+)
+
 # Tagged union for entries in _cl_site_index_map.
 # _GlobalSite: (global_shape_idx, None)           — body_pattern was None
 # _LocalSite:  (None, [[env0_idx, ...], ...])     — per-world site indices
@@ -369,6 +373,7 @@ class NewtonManager(PhysicsManager):
     _num_substeps: int = 1
     _decimation: int = 1
     _collision_decimation: int = 0
+    _deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED
     _num_envs: int | None = None
 
     # Newton model and state
@@ -1051,6 +1056,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._control = None
         NewtonManager._contacts = None
         NewtonManager._needs_collision_pipeline = False
+        NewtonManager._deterministic_mode = wp.DeterministicMode.NOT_GUARANTEED
         NewtonManager._eval_fk = _eval_fk_unbound
         NewtonManager._reset_solver_internals_delegate = _reset_solver_internals_unbound
         NewtonManager._collision_pipeline = None
@@ -1861,13 +1867,12 @@ class NewtonManager(PhysicsManager):
         """
         if not cls._needs_collision_pipeline:
             return
+        pipeline_args = {"broad_phase": "explicit"}
+        if cls._collision_cfg is not None:
+            pipeline_args = cls._collision_cfg.to_pipeline_args()
+        pipeline_args["deterministic"] = cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED
         if cls._collision_pipeline is None:
-            if cls._collision_cfg is not None:
-                NewtonManager._collision_pipeline = CollisionPipeline(
-                    cls._model, **cls._collision_cfg.to_pipeline_args()
-                )
-            else:
-                NewtonManager._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
+            NewtonManager._collision_pipeline = CollisionPipeline(cls._model, **pipeline_args)
         if cls._contacts is None:
             NewtonManager._contacts = cls._collision_pipeline.contacts()
             # Grow the collision-pipeline contact buffer to the solver's max when the
@@ -1880,12 +1885,17 @@ class NewtonManager(PhysicsManager):
             if _solver is not None and hasattr(_solver, "get_max_contact_count"):
                 _need = _solver.get_max_contact_count()
                 if _need > NewtonManager._contacts.rigid_contact_max:
-                    NewtonManager._contacts = Contacts(
-                        rigid_contact_max=_need,
-                        soft_contact_max=0,
-                        device=PhysicsManager._device,
-                        requested_attributes=cls._model.get_requested_contact_attributes(),
-                    )
+                    if cls._deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED:
+                        pipeline_args["rigid_contact_max"] = _need
+                        NewtonManager._collision_pipeline = CollisionPipeline(cls._model, **pipeline_args)
+                        NewtonManager._contacts = cls._collision_pipeline.contacts()
+                    else:
+                        NewtonManager._contacts = Contacts(
+                            rigid_contact_max=_need,
+                            soft_contact_max=0,
+                            device=PhysicsManager._device,
+                            requested_attributes=cls._model.get_requested_contact_attributes(),
+                        )
 
     # ----- Solver construction (subclass contract) ------------------------
 
@@ -1937,7 +1947,36 @@ class NewtonManager(PhysicsManager):
         are always excluded — ``model`` is passed positionally at construction.
         """
         valid = set(inspect.signature(solver_cls.__init__).parameters) - {"self", "model"}
-        return {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
+        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
+        if "deterministic" in valid:
+            kwargs["deterministic"] = NewtonManager._deterministic_mode
+        return kwargs
+
+    @staticmethod
+    def _validate_deterministic_solver_cfg(solver_cfg, deterministic_mode: wp.DeterministicMode) -> None:
+        """Validate that a solver can provide the requested determinism guarantee."""
+        if deterministic_mode == wp.DeterministicMode.NOT_GUARANTEED:
+            return
+        solver_cfg_type = type(solver_cfg).__name__
+        if solver_cfg_type not in _DETERMINISTIC_SOLVER_CFG_TYPES:
+            raise ValueError(
+                f"Newton deterministic mode {deterministic_mode.name} is not supported by {solver_cfg_type}. "
+                "Use MJWarp on the GPU, XPBD, Featherstone, or VBD, or disable deterministic mode."
+            )
+        if getattr(solver_cfg, "use_mujoco_cpu", False):
+            raise ValueError(
+                f"Newton deterministic mode {deterministic_mode.name} is not supported by the MuJoCo CPU backend. "
+                "Set MJWarpSolverCfg.use_mujoco_cpu=False or disable deterministic mode."
+            )
+
+    @staticmethod
+    def _resolve_deterministic_mode(deterministic_mode: str) -> wp.DeterministicMode:
+        """Convert a Newton config value to Warp's deterministic-mode enum."""
+        return {
+            "not_guaranteed": wp.DeterministicMode.NOT_GUARANTEED,
+            "run_to_run": wp.DeterministicMode.RUN_TO_RUN,
+            "gpu_to_gpu": wp.DeterministicMode.GPU_TO_GPU,
+        }[deterministic_mode]
 
     @classmethod
     def _step_solver(
@@ -2010,6 +2049,9 @@ class NewtonManager(PhysicsManager):
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:"):
             NewtonManager._num_substeps = cfg.num_substeps  # type: ignore[union-attr]
             NewtonManager._collision_decimation = cfg.collision_decimation  # type: ignore[union-attr]
+            deterministic_mode = cls._resolve_deterministic_mode(cfg.deterministic_mode)  # type: ignore[union-attr]
+            cls._validate_deterministic_solver_cfg(cfg.solver_cfg, deterministic_mode)  # type: ignore[union-attr]
+            NewtonManager._deterministic_mode = deterministic_mode
             NewtonManager._solver_dt = cls.get_physics_dt() / cls._num_substeps
             NewtonManager._collision_cfg = cfg.collision_cfg  # type: ignore[union-attr]
 

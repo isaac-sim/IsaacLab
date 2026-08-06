@@ -134,6 +134,19 @@ class NewtonCfg(PhysicsCfg):
     If set to False, the simulation performance will be severely degraded.
     """
 
+    deterministic_mode: Literal["not_guaranteed", "run_to_run", "gpu_to_gpu"] = "not_guaranteed"
+    """Determinism guarantee applied to the Newton solver and collision pipeline.
+
+    The values ``"not_guaranteed"``, ``"run_to_run"``, and ``"gpu_to_gpu"``
+    map to the corresponding ``warp.DeterministicMode`` values. The
+    ``--deterministic`` launcher flag selects ``"gpu_to_gpu"``. Deterministic
+    execution increases memory use and can reduce simulation performance.
+
+    MJWarp on the GPU, XPBD, Featherstone, and VBD support this setting. Newton
+    raises an error during solver initialization for unsupported solvers rather
+    than silently running them without the requested guarantee.
+    """
+
     solver_cfg: NewtonSolverCfg | None = None
     """Solver configuration. If None (default), MJWarpSolverCfg is used by default."""
 
@@ -223,6 +236,11 @@ class NewtonCfg(PhysicsCfg):
         # previously silently overwritten.
         if self.class_type is not None:
             raise TypeError("Cannot manually set NewtonCfg.class_type; it is auto-derived from solver_cfg.class_type.")
+        if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
+            raise ValueError(
+                "NewtonCfg.deterministic_mode must be 'not_guaranteed', 'run_to_run', or 'gpu_to_gpu', "
+                f"got {self.deterministic_mode!r}."
+            )
         if self.solver_cfg is None:
             from .mjwarp_manager_cfg import MJWarpSolverCfg
 
