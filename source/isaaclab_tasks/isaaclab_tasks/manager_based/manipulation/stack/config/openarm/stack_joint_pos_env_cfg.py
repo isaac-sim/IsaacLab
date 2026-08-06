@@ -54,8 +54,8 @@ class OpenarmCubeStackEnvCfg(StackEnvCfg):
         }
 
         # Arm: stiffness high enough to hold pose under load
-        self.scene.robot.actuators["openarm_arm"].stiffness = 400.0
-        self.scene.robot.actuators["openarm_arm"].damping = 80.0
+        self.scene.robot.actuators["openarm_arm"].stiffness = 1000.0
+        self.scene.robot.actuators["openarm_arm"].damping = 10.0
         # Gripper: compliant gains + effort cap so the finger-cube contact force
         # stays small and does not generate a wrist-twisting reaction torque.
         # effort_limit_sim=8 N caps grasp force; still enough to hold the cube.

@@ -34,6 +34,13 @@ Usage:
       --task Isaac-Reach-RedCube-OpenArm-IK-Abs-v0 \\
       --dataset_file logs/demos/openarm_reach.hdf5 \\
       --enable_cameras
+
+  ./isaaclab.sh -p scripts/tools/record_demos_openarm.py \\
+      --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \\
+      --dataset_file logs/demos/pickup.hdf5 \\
+      --enable_cameras --num_demos 1 \\
+      --teleop_device vr_ros2 \\
+      --vr_udp_host 127.0.0.1 --vr_udp_port 5800
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -51,7 +58,63 @@ parser.add_argument(
     "--teleop_device",
     type=str,
     default="keyboard",
-    help="Teleop device (keyboard or spacemouse).",
+    choices=["keyboard", "vr_ros2"],
+    help=(
+        "Teleop device. 'keyboard' uses OpenArmKeyboard (single active arm, TAB to switch)."
+        " 'vr_ros2' drives BOTH arms simultaneously from a UDP JSON side-channel fed by"
+        " nodes/dora-openarm-ros2-bridge/bridge.py's --vr-udp-port (see --vr_udp_host/"
+        " --vr_udp_port below) -- only valid on dual-arm (14D action) tasks. R/N/T keyboard"
+        " shortcuts (reset/save/ramp-test) still work in 'vr_ros2' mode; TAB/arm-switch does not"
+        " (both arms are always live)."
+    ),
+)
+parser.add_argument(
+    "--vr_udp_host",
+    type=str,
+    default="127.0.0.1",
+    help="Host to bind for --teleop_device vr_ros2's UDP JSON listener.",
+)
+parser.add_argument(
+    "--vr_udp_port",
+    type=int,
+    default=5800,
+    help="Port to bind for --teleop_device vr_ros2's UDP JSON listener.",
+)
+parser.add_argument(
+    "--vr_max_pos_step",
+    type=float,
+    default=0.01,
+    help=(
+        "--teleop_device vr_ros2 only: per-step clamp (meters) on the position delta sent to"
+        " the IK controller. Since the delta is recomputed from the live VR target every step"
+        " (not accumulated), clamping just makes the arm converge to the target over a few"
+        " steps instead of possibly snapping -- e.g. right after a reset, or if a UDP packet"
+        " is stale/lost for a moment."
+    ),
+)
+parser.add_argument(
+    "--vr_max_rot_step",
+    type=float,
+    default=0.05,
+    help="--teleop_device vr_ros2 only: per-step clamp (radians) on the axis-angle rotation delta. See --vr_max_pos_step.",
+)
+parser.add_argument(
+    "--vr_quat_offset",
+    type=float,
+    nargs=4,
+    default=[1.0, 0.0, 0.0, 0.0],
+    metavar=("QW", "QX", "QY", "QZ"),
+    help=(
+        "--teleop_device vr_ros2 only: fixed wxyz rotation left-multiplied onto every incoming"
+        " VR target orientation (in the robot base frame) before it's used for IK. dora-openarm-vr's"
+        " quest_receiver.py maps raw controller poses into the robot 'arm_origin' frame using a"
+        " _FRAME_ROT/r_fix pair that was hand-tuned against the MuJoCo viewer -- if Isaac Sim's robot"
+        " base frame uses a different axis convention than MuJoCo's arm_origin, the same UDP pose"
+        " stream will produce a rotated-looking arm here. Default is identity (no correction, matches"
+        " prior behavior). To determine the actual offset: hold the VR controller still, let the arm"
+        " converge in both sims, read off openarm_*_ee_tcp's orientation here vs. MuJoCo's for that"
+        " same held pose, and solve for the rotation that maps one to the other."
+    ),
 )
 parser.add_argument(
     "--dataset_file", type=str, default="./datasets/dataset.hdf5", help="File path to export recorded demos."
@@ -280,6 +343,226 @@ LEFT_GRP_IDX     = 6
 RIGHT_IK_SLICE   = slice(7, 13)
 RIGHT_GRP_IDX    = 13
 TOTAL_ACTION_DIM = 14
+
+
+class VRDualArmTeleop:
+    """Bimanual VR teleop device fed by a UDP JSON side-channel from the Dora ROS 2
+    bridge (nodes/dora-openarm-ros2-bridge/bridge.py's --vr-udp-port in the
+    dora-openarm-data-collection repo).
+
+    Isaac Lab's rclpy can't be imported here directly: this conda env is Python 3.11,
+    but ROS 2 Humble's rclpy C extension is only built for the system Python 3.10, so
+    the bridge process (which already runs under the matching 3.10 venv to publish the
+    ROS topics) also fire-and-forget UDP-broadcasts the same data as JSON -- this class
+    is the receiving end, not a ROS node itself.
+
+    Wire format per packet (see bridge.py's VrUdpBroadcaster):
+        {"t": float,
+         "pose_right": [x,y,z,qw,qx,qy,qz] | null, "pose_left": [...] | null,
+         "pose_reference": [...] | null,
+         "gripper_right": float | null, "gripper_left": float | null}
+    A null field means "no VR data received yet for this field" -- distinct from a
+    real zero pose -- so a stale/never-populated arm/gripper is left at its previous
+    commanded state rather than snapping to the origin.
+
+    Unlike OpenArmKeyboard (which accumulates small deltas from held keys), the task's
+    DifferentialIKControllerCfg is relative-mode (use_relative_mode=True) but the VR
+    source gives an ABSOLUTE target pose. So every step this recomputes
+    delta = target_pose_from_VR - current_live_EE_pose (in the robot base frame, via
+    isaaclab.utils.math.compute_pose_error -- the exact inverse of the IK controller's
+    own apply_delta_pose) rather than accumulating anything itself. That makes the arm
+    continuously track the VR controller's live absolute pose.
+
+    `quat_offset` (wxyz, default identity) is left-multiplied onto every incoming target
+    orientation, in the robot base frame, before the pose error is computed. It exists
+    because dora-openarm-vr's quest_receiver.py maps raw controller poses into the robot
+    "arm_origin" frame using a _FRAME_ROT/r_fix pair that was hand-tuned against the
+    MuJoCo viewer's axis convention -- if Isaac Sim's robot base frame differs from
+    MuJoCo's arm_origin convention, this corrects the residual fixed rotation without
+    touching the shared dora pipeline (which must keep working for MuJoCo too).
+
+    Both arms are driven every step (true bimanual) -- there is no "active arm"/TAB
+    here, unlike OpenArmKeyboard's single-arm scheme.
+    """
+
+    # Raw gripper values arrive as dora-openarm-kinematics' trigger-mapped joint angle
+    # (_map_trigger_to_gripper): right in [-0.785, 0] rad, left in [0, 0.785] rad, with
+    # trigger=0 (released) at the extreme and trigger=1 (fully squeezed) at 0. Assumed
+    # here that "released" = open and "squeezed" = closed (typical VR grip ergonomics)
+    # -- unverified against the real hardware convention. If the sim gripper opens/closes
+    # backwards from what you're doing with the trigger, flip the sign in _gripper_raw_to_cmd.
+    GRIPPER_RAW_RANGE = 0.785
+
+    def __init__(
+        self,
+        robot,
+        udp_host: str,
+        udp_port: int,
+        sim_device: str,
+        max_pos_step: float = 0.01,
+        max_rot_step: float = 0.05,
+        quat_offset: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
+    ):
+        self._robot = robot
+        self._sim_device = sim_device
+        self._max_pos_step = max_pos_step
+        self._max_rot_step = max_rot_step
+        self._quat_offset = torch.tensor([list(quat_offset)], dtype=torch.float32, device=sim_device)
+
+        right_ids, right_names = robot.find_bodies("openarm_right_ee_tcp")
+        left_ids, left_names = robot.find_bodies("openarm_left_ee_tcp")
+        if len(right_ids) != 1 or len(left_ids) != 1:
+            raise RuntimeError(
+                "VRDualArmTeleop expected exactly one match each for"
+                f" 'openarm_right_ee_tcp'/'openarm_left_ee_tcp', got right={right_names},"
+                f" left={left_names}."
+            )
+        self._right_body_idx = right_ids[0]
+        self._left_body_idx = left_ids[0]
+
+        self._lock = threading.Lock()
+        self._latest: dict = {}
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock.bind((udp_host, udp_port))
+        self._sock.settimeout(0.5)
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+        self._additional_callbacks: dict = {}
+        self._setup_keyboard()  # R/N/T only -- no WASD, no arm-switch
+
+        print(f"[VR TELEOP] Listening for Dora bridge UDP JSON on {udp_host}:{udp_port}")
+        if not torch.allclose(self._quat_offset, torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=sim_device)):
+            print(f"[VR TELEOP] Applying quat_offset (wxyz) = {quat_offset} to every incoming target orientation")
+
+    def _run(self):
+        while not self._stop.is_set():
+            try:
+                data, _ = self._sock.recvfrom(65536)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            try:
+                packet = json.loads(data.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            with self._lock:
+                self._latest = packet
+
+    def _setup_keyboard(self):
+        import carb.input as ci
+        import omni.appwindow
+        import weakref
+
+        appwindow = omni.appwindow.get_default_app_window()
+        self._keyboard = appwindow.get_keyboard()
+        self._ci = ci.acquire_input_interface()
+        self._sub = self._ci.subscribe_to_keyboard_events(
+            self._keyboard,
+            lambda event, *_, obj=weakref.proxy(self): obj._on_key_event(event),
+        )
+
+    def _on_key_event(self, event) -> bool:
+        import carb.input as ci
+
+        try:
+            name = event.input.name
+        except AttributeError:
+            return True
+        if event.type == ci.KeyboardEventType.KEY_PRESS and name in self._additional_callbacks:
+            self._additional_callbacks[name]()
+        return True
+
+    def __del__(self):
+        self._stop.set()
+        try:
+            self._sock.close()
+        except Exception:
+            pass
+        try:
+            self._ci.unsubscribe_to_keyboard_events(self._keyboard, self._sub)
+        except Exception:
+            pass
+
+    def add_callback(self, key: str, func):
+        self._additional_callbacks[key] = func
+
+    def reset(self):
+        pass
+
+    def clear_deltas(self):
+        pass
+
+    def _gripper_raw_to_cmd(self, raw: float) -> float:
+        cmd = (2.0 * abs(raw) / self.GRIPPER_RAW_RANGE) - 1.0
+        return max(-1.0, min(1.0, cmd))
+
+    def _current_ee_pose_b(self, body_idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """Live EE (pos, quat wxyz) in the robot base/root frame, batch size 1."""
+        from isaaclab.utils.math import subtract_frame_transforms
+
+        ee_pos_w = self._robot.data.body_pos_w[:1, body_idx]
+        ee_quat_w = self._robot.data.body_quat_w[:1, body_idx]
+        root_pos_w = self._robot.data.root_pos_w[:1]
+        root_quat_w = self._robot.data.root_quat_w[:1]
+        return subtract_frame_transforms(root_pos_w, root_quat_w, ee_pos_w, ee_quat_w)
+
+    def _arm_delta(self, body_idx: int, target_pose: list | None) -> tuple[torch.Tensor, bool]:
+        """Returns (delta6, valid) for one arm -- delta6 is [dx,dy,dz, axis-angle rx,ry,rz]."""
+        from isaaclab.utils.math import compute_pose_error, quat_mul
+
+        if target_pose is None:
+            return torch.zeros(6, dtype=torch.float32, device=self._sim_device), False
+
+        ee_pos_b, ee_quat_b = self._current_ee_pose_b(body_idx)
+        target_pos_b = torch.tensor([target_pose[0:3]], dtype=torch.float32, device=self._sim_device)
+        target_quat_b = torch.tensor(
+            [[target_pose[3], target_pose[4], target_pose[5], target_pose[6]]],
+            dtype=torch.float32,
+            device=self._sim_device,
+        )
+        target_quat_b = quat_mul(self._quat_offset, target_quat_b)
+
+        pos_err, rot_err = compute_pose_error(
+            ee_pos_b, ee_quat_b, target_pos_b, target_quat_b, rot_error_type="axis_angle"
+        )
+        pos_err = torch.clamp(pos_err[0], -self._max_pos_step, self._max_pos_step)
+        rot_err = torch.clamp(rot_err[0], -self._max_rot_step, self._max_rot_step)
+
+        return torch.cat([pos_err, rot_err]), True
+
+    def build_dual_action(
+        self, left_gripper_state: float, right_gripper_state: float
+    ) -> tuple[torch.Tensor, float, float]:
+        """Build the full 14D action vector directly from the latest VR packet, driving
+        both arms simultaneously. Any arm/gripper missing fresh VR data keeps its
+        previous commanded state (zero IK delta -- i.e. hold position -- for a missing
+        arm; unchanged binary command for a missing gripper).
+        """
+        with self._lock:
+            packet = dict(self._latest)
+
+        left_delta, left_valid = self._arm_delta(self._left_body_idx, packet.get("pose_left"))
+        right_delta, right_valid = self._arm_delta(self._right_body_idx, packet.get("pose_right"))
+
+        gripper_left_raw = packet.get("gripper_left")
+        gripper_right_raw = packet.get("gripper_right")
+        if gripper_left_raw is not None:
+            left_gripper_state = self._gripper_raw_to_cmd(gripper_left_raw)
+        if gripper_right_raw is not None:
+            right_gripper_state = self._gripper_raw_to_cmd(gripper_right_raw)
+
+        full = torch.zeros(TOTAL_ACTION_DIM, dtype=torch.float32, device=self._sim_device)
+        if left_valid:
+            full[LEFT_IK_SLICE] = left_delta
+        full[LEFT_GRP_IDX] = left_gripper_state
+        if right_valid:
+            full[RIGHT_IK_SLICE] = right_delta
+        full[RIGHT_GRP_IDX] = right_gripper_state
+
+        return full, left_gripper_state, right_gripper_state
 
 
 class JointMirrorBroadcaster:
@@ -621,10 +904,26 @@ def main():
     is_dual_arm = (total_action_dim == TOTAL_ACTION_DIM)
     print(f"[INFO] Action dim: {total_action_dim}  ({'dual-arm' if is_dual_arm else 'single-arm'})")
 
+    use_vr_teleop = args_cli.teleop_device == "vr_ros2"
+    if use_vr_teleop and not is_dual_arm:
+        logger.error("--teleop_device vr_ros2 requires a dual-arm (14D action) task.")
+        return
+
     # ── Teleop device ─────────────────────────────────────────────────────────
-    # Use OpenArmKeyboard (arrow keys + I/O) to avoid Isaac Sim viewport
-    # gizmo conflicts with W/A/S/D/Q/E.
-    teleop = OpenArmKeyboard(pos_sensitivity=0.05, rot_sensitivity=0.1, sim_device=sim_device)
+    if use_vr_teleop:
+        teleop = VRDualArmTeleop(
+            robot=env.scene["robot"],
+            udp_host=args_cli.vr_udp_host,
+            udp_port=args_cli.vr_udp_port,
+            sim_device=sim_device,
+            max_pos_step=args_cli.vr_max_pos_step,
+            max_rot_step=args_cli.vr_max_rot_step,
+            quat_offset=tuple(args_cli.vr_quat_offset),
+        )
+    else:
+        # Use OpenArmKeyboard (arrow keys + I/O) to avoid Isaac Sim viewport
+        # gizmo conflicts with W/A/S/D/Q/E.
+        teleop = OpenArmKeyboard(pos_sensitivity=0.05, rot_sensitivity=0.1, sim_device=sim_device)
 
     # ── State ─────────────────────────────────────────────────────────────────
     active_arm = "left"
@@ -663,8 +962,11 @@ def main():
         _refresh_label()
 
     def _refresh_label():
-        arm_indicator = "◄ LEFT" if active_arm == "left" else "RIGHT ►"
-        label_text = f"Active arm: {arm_indicator}  |  Demos: {demo_count}"
+        if use_vr_teleop:
+            label_text = f"Bimanual VR teleop  |  Demos: {demo_count}"
+        else:
+            arm_indicator = "◄ LEFT" if active_arm == "left" else "RIGHT ►"
+            label_text = f"Active arm: {arm_indicator}  |  Demos: {demo_count}"
         try:
             instruction_display.show_demo(label_text)
         except Exception:
@@ -672,7 +974,8 @@ def main():
 
     teleop.add_callback("R", reset_episode)
     teleop.add_callback("N", save_episode)
-    teleop.add_callback("TAB", toggle_arm)
+    if not use_vr_teleop:
+        teleop.add_callback("TAB", toggle_arm)
     teleop.add_callback("T", request_ramp_test)
 
     # ── UI ────────────────────────────────────────────────────────────────────
@@ -691,18 +994,21 @@ def main():
 
     mode_str = "Dual-Arm" if is_dual_arm else "Single-Arm"
     print(f"\n=== OpenArm {mode_str} Recording ===")
-    if is_dual_arm:
-        print("  TAB        — switch active arm (left ↔ right)")
-    print("  K          — toggle gripper open/close")
-    print("  W/S        — EE forward / backward  (+x/-x)")
-    print("  A/D        — EE left / right         (+y/-y)")
-    print("  PgUp/PgDn  — EE up / down            (+z/-z)")
-    print("  ↑/↓        — pitch ±  |  ←/→ — yaw ±  |  [/] — roll ±")
+    if use_vr_teleop:
+        print("  VR (bimanual) — both arms + grippers driven live from the Dora UDP bridge")
+    else:
+        if is_dual_arm:
+            print("  TAB        — switch active arm (left ↔ right)")
+        print("  K          — toggle gripper open/close")
+        print("  W/S        — EE forward / backward  (+x/-x)")
+        print("  A/D        — EE left / right         (+y/-y)")
+        print("  PgUp/PgDn  — EE up / down            (+z/-z)")
+        print("  ↑/↓        — pitch ±  |  ←/→ — yaw ±  |  [/] — roll ±")
     print("  N          — save episode as success")
     print("  R          — discard & reset episode")
     print("  T          — ramp current pose to rest (matches reset_to_rest_pose.py) and watch")
     print("               the viewport for a pad collision -- doesn't record, doesn't reset")
-    if is_dual_arm:
+    if is_dual_arm and not use_vr_teleop:
         print(f"\nActive arm: LEFT\n")
     else:
         print()
@@ -724,11 +1030,14 @@ def main():
                 teleop.clear_deltas()  # clear deltas accumulated while keys were held during the ramp
                 continue
 
-            # Get 7D teleop output
-            teleop_7d = teleop.advance()
-
             # Build action vector sized to match the task's action space
-            if is_dual_arm:
+            if use_vr_teleop:
+                full_action, left_gripper_state, right_gripper_state = teleop.build_dual_action(
+                    left_gripper_state=left_gripper_state,
+                    right_gripper_state=right_gripper_state,
+                )
+            elif is_dual_arm:
+                teleop_7d = teleop.advance()
                 full_action, left_gripper_state, right_gripper_state = build_dual_arm_action(
                     teleop_7d=teleop_7d,
                     active_arm=active_arm,
@@ -737,6 +1046,7 @@ def main():
                     device=sim_device,
                 )
             else:
+                teleop_7d = teleop.advance()
                 full_action, left_gripper_state = build_single_arm_action(
                     teleop_7d=teleop_7d,
                     gripper_state=left_gripper_state,
