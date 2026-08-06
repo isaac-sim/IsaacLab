@@ -166,10 +166,8 @@ class _NewtonViewerUIMixin:
 
         image_logger = getattr(self, "_image_logger", None)
         if image_logger is None:
-            print("[isaaclab] _patch_image_logger: _image_logger not found — patch skipped")
             return
 
-        print(f"[isaaclab] _patch_image_logger: patching {type(image_logger).__name__}")
         # Suppress Newton's own "Logged Images" sidebar section.
         image_logger.draw_controls = lambda: None
 
