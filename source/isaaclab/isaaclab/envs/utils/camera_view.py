@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import random
 from typing import Any
@@ -20,6 +21,8 @@ from pxr import Sdf, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sim.views import FrameView
+
+_log = logging.getLogger(__name__)
 
 _GENERATED_CAMERA_NAME = "VisualizerCamera"
 VISUALIZER_TILED_CAMERA_MAX_TILES = 100
@@ -250,23 +253,38 @@ def create_visualizer_camera(
     data_types: list[str] | None = None,
     target_prim_path: str | None = None,
     eye: tuple[float, float, float] | None = None,
+    streaming_envs: tuple[int, ...] | None = None,
 ) -> tuple[Camera, list[str], bool, tuple]:
     """Create an internal Camera sensor for visualizer image views.
 
     When the renderer is a singleton (e.g. OVRTX) a shared instance is returned
     on subsequent calls to avoid the ``/Render`` prim duplication error.  The
     cache is keyed by ``(renderer_class_name, stage_id, num_envs, width, height,
-    sorted_data_types)`` so that different stages (e.g. between tests) or
-    different shape/type configurations never silently share an incompatible camera.
+    sorted_data_types, target_prim_path, eye, streaming_envs)`` so that different
+    stages (e.g. between tests) or different shape/type/env-index configurations
+    never silently share an incompatible camera.
 
     .. note::
-        The cache key **does** include ``target_prim_path`` and ``eye`` so that
-        different pose configurations are detected as conflicts on singleton renderers.
-        The cache key does **not** include ``streaming_envs`` indices; when multiple
-        visualizers share the same renderer singleton (and therefore the same camera),
-        only the first caller (the *owner*) applies camera poses each step.  All
-        consumers must use identical streaming-camera settings; mismatched
-        ``streaming_envs`` selections will silently observe the owner's view.
+        The cache key includes ``streaming_envs`` (the resolved environment indices
+        being streamed).  Two visualizers with identical renderer/resolution settings
+        but different ``streaming_envs`` are treated as separate configurations; if
+        both use the same singleton renderer they cannot coexist, and a warning is
+        logged while the existing camera is returned as a non-owner.
+
+    Args:
+        num_envs: Total number of simulation environments.
+        camera_name: USD prim name suffix for the auto-generated camera prims.
+        width: Tile width in pixels.
+        height: Tile height in pixels.
+        renderer_cfg: Renderer configuration object; its class name is used as
+            part of the cache key.
+        data_types: Ground-truth data types to capture (e.g. ``["rgb"]``).
+        target_prim_path: Optional USD path used as the camera's look-at target
+            (included in the cache key for conflict detection).
+        eye: Optional ``(x, y, z)`` eye offset in metres (included in the cache key).
+        streaming_envs: Tuple of resolved environment indices that will be streamed.
+            ``None`` is treated as an absent/unspecified selection and is stored as-is
+            in the cache key.
 
     Returns:
         A 4-tuple ``(camera, generated_paths, is_owner, cache_key)`` where
@@ -285,16 +303,46 @@ def create_visualizer_camera(
     renderer_class = type(renderer_cfg).__name__
     dt_key = tuple(sorted(data_types or ["rgb"]))
     eye_key = tuple(float(x) for x in eye) if eye is not None else None
-    full_key = (renderer_class, stage_id, int(num_envs), int(width), int(height), dt_key, target_prim_path, eye_key)
+    # Normalise streaming_envs so that callers passing lists or arrays produce the same key.
+    envs_key = tuple(int(i) for i in streaming_envs) if streaming_envs is not None else None
+    full_key = (
+        renderer_class,
+        stage_id,
+        int(num_envs),
+        int(width),
+        int(height),
+        dt_key,
+        target_prim_path,
+        eye_key,
+        envs_key,
+    )
     class_stage_key = (renderer_class, stage_id)
 
     if full_key in _shared_streaming_cameras:
         camera, generated_paths = _shared_streaming_cameras[full_key]
         return camera, generated_paths, False, full_key
 
-    # Same renderer class on the same stage but a different configuration → conflict.
+    # Same renderer class on the same stage but a different configuration → potential conflict.
     if class_stage_key in _renderer_stage_keys and _renderer_stage_keys[class_stage_key] != full_key:
         prev = _renderer_stage_keys[class_stage_key]
+        # Check whether the configurations differ only in streaming_envs (index 8).
+        # A streaming_envs-only mismatch means two visualizers want different env subsets
+        # on a singleton renderer — we cannot satisfy both, so we return the existing camera
+        # as a non-owner with a warning instead of hard-failing.
+        prev_without_envs = prev[:8]
+        req_without_envs = full_key[:8]
+        if prev_without_envs == req_without_envs:
+            camera, generated_paths = _shared_streaming_cameras[prev]
+            _log.warning(
+                "Two visualizers share renderer '%s' on the same stage but requested different "
+                "streaming_envs (%s vs %s). The singleton renderer cannot produce two independent "
+                "views; the second visualizer will observe the first visualizer's camera frames. "
+                "Ensure all visualizers that share this renderer use the same streaming_envs.",
+                renderer_class,
+                list(prev[8]) if prev[8] is not None else None,
+                list(envs_key) if envs_key is not None else None,
+            )
+            return camera, generated_paths, False, prev
         raise RuntimeError(
             f"Cannot create a second streaming camera with renderer '{renderer_class}' on the same stage "
             f"using a different configuration. The renderer is a process singleton.\n"

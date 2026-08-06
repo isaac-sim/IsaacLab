@@ -820,6 +820,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._streaming_camera_key: tuple | None = None
         self._live_plots_manager_visible: dict[str, bool] = {}
         self._last_streaming_composite: np.ndarray | None = None
+        self._composite_step: int = -1
         self._scene_cameras: dict = {}
         self._scene_camera_names: list[str] = []
         self._active_camera_idx: int = 0
@@ -1224,6 +1225,7 @@ class NewtonVisualizer(BaseVisualizer):
                 height=tile_h,
                 renderer_cfg=renderer_cfg,
                 data_types=sensor_keys_for_gt_types(gt_types),
+                streaming_envs=tuple(int(i) for i in env_ids),
             )
         except Exception:
             logger.warning(
@@ -1548,6 +1550,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
         # Invalidate the cached composite and clear the panel's window_initialized flag
         # so _draw_large re-sizes it to the new camera's grid aspect ratio on next open.
         self._last_streaming_composite = None
+        self._composite_step = -1
         if self._viewer is not None:
             self._viewer._streaming_composite_h = 0
             self._viewer._streaming_composite_w = 0
@@ -1736,40 +1739,34 @@ class NewtonGLVisualizer(NewtonVisualizer):
         including depth (turbo colormap), segmentation, and normals when configured via
         :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_gt_types`.
 
+        When the streaming panel is hidden (headless training or panel closed by the
+        user), this method builds the composite on demand so that :class:`VideoRecorder`
+        and similar consumers always receive a valid frame.
+
         Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if no frame has been
-            composited yet (streaming view not active or first step not completed).
+            ``uint8 (H, W, 3)`` composite array, or ``None`` if no camera sensor has
+            been configured or no usable GT output is available.
         """
-        return self._last_streaming_composite
+        return self._build_streaming_composite()
 
-    def _log_streaming_image(self) -> None:
-        """Fetch GT frames, colorize, composite, and push to Newton's image panel.
+    def _build_streaming_composite(self) -> np.ndarray | None:
+        """Build (or return the cached) streaming composite for the current step.
 
-        Skips all camera rendering work when the streaming panel is hidden (no image key
-        selected in the sidebar combo).  The panel key is registered with a 1×1 placeholder
-        on the first call so the combo always appears in the sidebar, but no GPU/CPU
-        rendering is performed until the user opens the panel.
+        The composite is built at most once per visualizer step.  A step-counter
+        comparison is used so repeated calls within the same step (e.g. from both
+        :meth:`_log_streaming_image` and :meth:`render_tiled_rgb_array`) share the
+        same result without redundant camera work.
+
+        Returns:
+            ``uint8 (H, W, 3)`` composite array, or ``None`` if no camera sensor has
+            been configured or no usable GT output is available on this step.
         """
-        if self._viewer is None or self._camera_sensor is None:
-            return
+        if self._camera_sensor is None:
+            return self._last_streaming_composite
 
-        _PANEL_KEY = "Streaming View"
-        image_logger = getattr(self._viewer, "_image_logger", None)
-
-        # First call: register the panel key in the image logger so the sidebar combo
-        # appears.  Use a 1×1 black placeholder — no camera work needed yet.
-        # Immediately clear _selected so the panel starts hidden (closed by default).
-        if image_logger is not None and _PANEL_KEY not in getattr(image_logger, "_images", {}):
-            placeholder = wp.zeros((1, 1, 3), dtype=wp.uint8)
-            self._viewer.log_image(_PANEL_KEY, placeholder)
-            if hasattr(image_logger, "_selected"):
-                image_logger._selected = None
-            return
-
-        # When the panel is hidden (selected=None), skip all camera rendering to keep
-        # per-step overhead zero.  Work resumes the next step after the user opens it.
-        if image_logger is not None and image_logger._selected is None:
-            return
+        # Return the cached composite when it was already built this step.
+        if self._composite_step == self._step_counter:
+            return self._last_streaming_composite
 
         if self._camera_is_owned:
             self._update_owned_camera_poses()
@@ -1795,7 +1792,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
                 sensor_key_for_gt_type("rgb", available)
                 gt_types = ["rgb"]
             except (ValueError, KeyError):
-                return  # camera has no usable output at all
+                return None  # camera has no usable output at all
 
         frames: list[np.ndarray] = []
         for env_idx in self._camera_sensor_indices:
@@ -1813,6 +1810,47 @@ class NewtonGLVisualizer(NewtonVisualizer):
         n_envs = len(self._camera_sensor_indices)
         composite = compose_streaming_grid(frames, n_envs, len(gt_types))
         self._last_streaming_composite = composite
+        self._composite_step = self._step_counter
+        return composite
+
+    def _log_streaming_image(self) -> None:
+        """Fetch GT frames, colorize, composite, and push to Newton's image panel.
+
+        Skips all camera rendering work when the streaming panel is hidden (no image key
+        selected in the sidebar combo).  The panel key is registered with a 1×1 placeholder
+        on the first call so the combo always appears in the sidebar, but no GPU/CPU
+        rendering is performed until the user opens the panel.
+
+        When the panel is visible the composite is built via :meth:`_build_streaming_composite`
+        (which caches by step counter) and pushed to the image logger.
+        """
+        if self._viewer is None or self._camera_sensor is None:
+            return
+
+        _PANEL_KEY = "Streaming View"
+        image_logger = getattr(self._viewer, "_image_logger", None)
+
+        # First call: register the panel key in the image logger so the sidebar combo
+        # appears.  Use a 1×1 black placeholder — no camera work needed yet.
+        # Immediately clear _selected so the panel starts hidden (closed by default).
+        if image_logger is not None and _PANEL_KEY not in getattr(image_logger, "_images", {}):
+            placeholder = wp.zeros((1, 1, 3), dtype=wp.uint8)
+            self._viewer.log_image(_PANEL_KEY, placeholder)
+            if hasattr(image_logger, "_selected"):
+                image_logger._selected = None
+            return
+
+        # When the panel is hidden (selected=None), skip all camera rendering to keep
+        # per-step overhead zero.  Work resumes the next step after the user opens it.
+        # Note: render_tiled_rgb_array() can still call _build_streaming_composite()
+        # on demand for headless VideoRecorder use-cases.
+        if image_logger is not None and image_logger._selected is None:
+            return
+
+        composite = self._build_streaming_composite()
+        if composite is None:
+            return
+
         # Store actual dimensions so _draw_large can size the panel correctly.
         self._viewer._streaming_composite_h, self._viewer._streaming_composite_w = composite.shape[:2]
         composite_t = torch.from_numpy(composite).contiguous()

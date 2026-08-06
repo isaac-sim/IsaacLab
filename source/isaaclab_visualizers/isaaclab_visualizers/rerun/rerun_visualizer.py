@@ -468,7 +468,13 @@ class RerunVisualizer(BaseVisualizer):
         # Push streaming outside the pause-gate so it updates even when the
         # Newton viewer is paused, and outside begin/end_frame so the rr.log
         # call is not constrained to the viewer's internal time context.
-        self._push_streaming_frame()
+        # When paused, only compose (update _last_streaming_composite for any
+        # render_tiled_rgb_array() consumer) without re-logging to Rerun —
+        # the viewer already holds the last frame.
+        if self._viewer.is_paused():
+            self._compose_streaming_frame()
+        else:
+            self._push_streaming_frame()
 
     def close(self) -> None:
         """Close viewer/session resources."""
@@ -578,6 +584,7 @@ class RerunVisualizer(BaseVisualizer):
             height=tile_h,
             renderer_cfg=renderer_cfg,
             data_types=sensor_keys_for_gt_types(gt_types),
+            streaming_envs=tuple(int(i) for i in env_ids),
         )
         self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
             result
@@ -604,8 +611,13 @@ class RerunVisualizer(BaseVisualizer):
         except Exception as exc:
             logger.debug("[RerunVisualizer] streaming camera pose: %s", exc)
 
-    def _push_streaming_frame(self) -> None:
-        """Colorize and push the composited streaming frame to Rerun."""
+    def _compose_streaming_frame(self) -> None:
+        """Colorize camera tiles and store the result in ``_last_streaming_composite``.
+
+        This is the compute-only half of streaming frame production.  It updates
+        ``_last_streaming_composite`` but does **not** log the image to Rerun.
+        Call :meth:`_push_streaming_frame` to compose *and* log in a single pass.
+        """
         from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
         from isaaclab.envs.utils.camera_view import camera_gt_batch, compose_streaming_grid
 
@@ -632,17 +644,27 @@ class RerunVisualizer(BaseVisualizer):
                 )
 
         n_envs = len(self._camera_sensor_indices)
-        composite = compose_streaming_grid(frames, n_envs, len(gt_types))
-        self._last_streaming_composite = composite
-        rr.log("streaming/view", rr.Image(composite))
+        self._last_streaming_composite = compose_streaming_grid(frames, n_envs, len(gt_types))
+
+    def _push_streaming_frame(self) -> None:
+        """Compose the streaming frame and log it to Rerun."""
+        self._compose_streaming_frame()
+        if self._last_streaming_composite is not None:
+            rr.log("streaming/view", rr.Image(self._last_streaming_composite))
 
     def render_tiled_rgb_array(self) -> np.ndarray | None:
         """Return the last composited streaming frame (all GT types side-by-side).
 
+        If no frame has been composited yet (e.g. the viewer is paused and no
+        push has occurred), compositing is triggered on demand so that a
+        :class:`VideoRecorder` can capture headless frames.
+
         Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if no frame has been
-            composited yet (streaming view not active or first step not completed).
+            ``uint8 (H, W, 3)`` composite array, or ``None`` if streaming view
+            is not active or camera data is unavailable.
         """
+        if self._last_streaming_composite is None:
+            self._compose_streaming_frame()
         return self._last_streaming_composite
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:

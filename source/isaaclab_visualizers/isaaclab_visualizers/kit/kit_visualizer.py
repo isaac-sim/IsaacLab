@@ -674,6 +674,7 @@ class KitVisualizer(BaseVisualizer):
                 height=tile_h,
                 renderer_cfg=renderer_cfg,
                 data_types=sensor_keys_for_gt_types(gt_types),
+                streaming_envs=tuple(int(i) for i in env_ids),
             )
             self._camera_sensor_indices = env_ids
             self._update_owned_camera_poses()

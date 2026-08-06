@@ -469,9 +469,8 @@ class ViserVisualizer(BaseVisualizer):
 
         if not has_clients:
             self._render_live_plots()  # still throttled internally; no-ops when no clients
-            # Still push streaming even with no clients so render_tiled_rgb_array() has data
-            # for VideoRecorder capture (headless recording without a browser connection).
-            self._push_streaming_frame()
+            # No browser clients: skip compositing and pushing entirely.  If a
+            # VideoRecorder calls render_tiled_rgb_array() it will compose on demand.
             return
 
         if self._paused_rendering:
@@ -562,6 +561,7 @@ class ViserVisualizer(BaseVisualizer):
             height=tile_h,
             renderer_cfg=renderer_cfg,
             data_types=sensor_keys_for_gt_types(gt_types),
+            streaming_envs=tuple(int(i) for i in env_ids),
         )
         self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
             result
@@ -586,8 +586,14 @@ class ViserVisualizer(BaseVisualizer):
         except Exception as exc:
             logger.debug("[ViserVisualizer] streaming camera pose: %s", exc)
 
-    def _push_streaming_frame(self) -> None:
-        """Colorize and push the composited streaming frame to Viser clients."""
+    def _compose_streaming_frame(self) -> None:
+        """Colorize camera tiles and store the result in ``_last_streaming_composite``.
+
+        This is the compute-only half of streaming frame production.  It updates
+        ``_last_streaming_composite`` but does **not** push the image to Viser
+        clients.  Call :meth:`_push_streaming_frame` when clients are connected
+        to compose *and* push in a single pass.
+        """
         from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
         from isaaclab.envs.utils.camera_view import camera_gt_batch, compose_streaming_grid
 
@@ -614,11 +620,16 @@ class ViserVisualizer(BaseVisualizer):
                 )
 
         n_envs = len(self._camera_sensor_indices)
-        composite = compose_streaming_grid(frames, n_envs, len(gt_types))
-        self._last_streaming_composite = composite
+        self._last_streaming_composite = compose_streaming_grid(frames, n_envs, len(gt_types))
+
+    def _push_streaming_frame(self) -> None:
+        """Compose the streaming frame and push it to connected Viser clients."""
+        self._compose_streaming_frame()
+        if self._last_streaming_composite is None:
+            return
         # Letterbox to 16:9 so the composite isn't stretched when Viser fills
         # the browser canvas.  Black bars are added on whichever axis needs it.
-        composite_display = _letterbox_16_9(composite)
+        composite_display = _letterbox_16_9(self._last_streaming_composite)
         with contextlib.suppress(Exception):
             server = getattr(self._viewer, "_server", None)
             if server is not None:
@@ -628,12 +639,16 @@ class ViserVisualizer(BaseVisualizer):
         """Return the last composited streaming frame (all GT types side-by-side).
 
         Returns the pre-letterbox composite so the full content is available for
-        recording without black bars.
+        recording without black bars.  If no frame has been composited yet (e.g.
+        no browser clients are connected), compositing is triggered on demand so
+        that a :class:`VideoRecorder` can capture headless frames.
 
         Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if no frame has been
-            composited yet (streaming view not active or first step not completed).
+            ``uint8 (H, W, 3)`` composite array, or ``None`` if streaming view
+            is not active or camera data is unavailable.
         """
+        if self._last_streaming_composite is None:
+            self._compose_streaming_frame()
         return self._last_streaming_composite
 
     def _render_markers(self, num_envs: int) -> None:
