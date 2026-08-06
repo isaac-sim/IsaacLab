@@ -342,9 +342,7 @@ own clones). :func:`~isaaclab.cloner.replicate` adds
 :class:`~isaaclab.cloner.UsdReplicateContext` automatically whenever a cfg has a
 spawner and Kit is available, so USD clones accompany physics replication under
 Kit and are skipped by default in headless runs. An explicit cfg override may
-still request USD replication without Kit, which is what
-:attr:`~isaaclab.sensors.SensorBaseCfg.cloning_contexts` does by default so that
-sensor prims exist in every environment on kitless backends. With
+still request USD replication without Kit. With
 :attr:`~isaaclab.cloner.CloneCfg.replicate_physics` disabled, cloning is
 USD-only: every physics context is dropped and the physics engine parses the
 per-env USD prims directly.
