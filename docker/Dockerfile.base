@@ -113,7 +113,10 @@ RUN touch /bin/nvidia-smi && \
 # robomimic declares imageio-ffmpeg for optional video helpers. Keep its
 # bundled FFmpeg binary out of the distributed image and let users who
 # enable video recording install MoviePy and its video backend explicitly.
+# Install the OVPhysX-compatible OVStage version first so the broad source-package
+# requirement cannot select a newer, binary-incompatible release during image rebuilds.
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
+    ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install "ovstage==0.1.0.346039" && \
     ${ISAACLAB_PATH}/isaaclab.sh --install && \
     ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y imageio-ffmpeg
 
