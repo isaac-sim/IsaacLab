@@ -16,7 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.multi_task.utils import SamplerCfg, UniformSamplingStrategyCfg
+from isaaclab_tasks.contrib.nist.utils import SamplerCfg, UniformSamplingStrategyCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
 from . import mdp

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab_tasks.core.multi_task.utils import (
+from isaaclab_tasks.contrib.nist.utils import (
     BetaSamplingStrategyCfg,
     FrontierSamplingStrategyCfg,
     StateLayout,

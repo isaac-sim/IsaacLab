@@ -20,7 +20,7 @@ def extract_features(states: torch.Tensor, extractor: Callable | None) -> torch.
 
     The single source of truth for the ``(states_slab) -> features`` API that the
     curriculum streaming
-    :class:`~isaaclab_tasks.core.multi_task.utils.StateBuffer.compact`
+    :class:`~isaaclab_tasks.contrib.nist.utils.StateBuffer.compact`
     consumes.
 
     ``None`` falls back to xyz (first 3 columns); objects with a

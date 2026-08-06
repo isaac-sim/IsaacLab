@@ -28,7 +28,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 
-from isaaclab_tasks.core.multi_task.utils import get_reset_state
+from isaaclab_tasks.contrib.nist.utils import get_reset_state
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject

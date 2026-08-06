@@ -6,7 +6,7 @@
 """Smoke test: the ``IsaacContrib-Factory-Franka`` env cfg constructs.
 
 Used as a fast integration safety net before / after structural
-refactors of the multi_task subpackage. Mirrors what the hydra pipeline
+refactors of the nist subpackage. Mirrors what the hydra pipeline
 does up to (but not including) Kit initialisation:
 
 1. Triggers gym task registration via ``import isaaclab_tasks``.
@@ -75,7 +75,7 @@ def test_factory_accumulator_success_rate_callback_targets_monitor_success_rate(
 
 def test_factory_difficulty_scheduler_waits_for_accumulator_rates() -> None:
     """Initial reset may run curriculum before accumulator reset materializes rates."""
-    from isaaclab_tasks.core.multi_task.mdp.curriculums import DifficultyScheduler
+    from isaaclab_tasks.contrib.nist.mdp.curriculums import DifficultyScheduler
 
     scheduler = DifficultyScheduler.__new__(DifficultyScheduler)
     scheduler.current_adr_difficulties = torch.ones(3) * 2
@@ -100,7 +100,7 @@ def test_factory_difficulty_scheduler_waits_for_accumulator_rates() -> None:
 
 def test_factory_difficulty_scheduler_averages_ready_success_rates() -> None:
     """Difficulty scheduler should average bound rate tensors internally."""
-    from isaaclab_tasks.core.multi_task.mdp.curriculums import DifficultyScheduler
+    from isaaclab_tasks.contrib.nist.mdp.curriculums import DifficultyScheduler
 
     scheduler = DifficultyScheduler.__new__(DifficultyScheduler)
     scheduler.current_adr_difficulties = torch.ones(3) * 2
@@ -165,15 +165,15 @@ def test_env_cfg_to_dict_serialises(task_name: str) -> None:
         # now a sibling-package or has been renamed. Modules that pull in
         # Kit / Newton / USD must NOT be added here -- they segfault when
         # imported outside a launched Kit app.
-        "isaaclab_tasks.core.multi_task.utils.sampling",
-        "isaaclab_tasks.core.multi_task.utils.sampling.sampler",
-        "isaaclab_tasks.core.multi_task.utils.sampling.sampler_cfg",
-        "isaaclab_tasks.core.multi_task.utils.sampling.sampling_strategies",
-        "isaaclab_tasks.core.multi_task.utils.sampling.sampling_strategies_cfg",
-        "isaaclab_tasks.core.multi_task.utils.state_layout",
-        "isaaclab_tasks.core.multi_task.utils.reset_state",
-        "isaaclab_tasks.core.multi_task.assembly_profile",
-        "isaaclab_tasks.core.multi_task.assembly_profile_cfg",
+        "isaaclab_tasks.contrib.nist.utils.sampling",
+        "isaaclab_tasks.contrib.nist.utils.sampling.sampler",
+        "isaaclab_tasks.contrib.nist.utils.sampling.sampler_cfg",
+        "isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies",
+        "isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies_cfg",
+        "isaaclab_tasks.contrib.nist.utils.state_layout",
+        "isaaclab_tasks.contrib.nist.utils.reset_state",
+        "isaaclab_tasks.contrib.nist.assembly_profile",
+        "isaaclab_tasks.contrib.nist.assembly_profile_cfg",
     ],
 )
 def test_relocated_module_imports(module_path: str) -> None:

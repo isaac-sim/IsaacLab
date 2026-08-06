@@ -30,7 +30,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": "isaaclab_tasks.core.multi_task.factory_env_cfg:FactoryBaseEnvCfg",
+        "env_cfg_entry_point": "isaaclab_tasks.contrib.nist.factory_env_cfg:FactoryBaseEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FactoryPPORunnerCfg",
     },
 )

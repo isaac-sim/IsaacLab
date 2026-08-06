@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from isaaclab_tasks.core.multi_task.utils import StateLayout
+from isaaclab_tasks.contrib.nist.utils import StateLayout
 
 
 def test_state_layout_basic_2d():

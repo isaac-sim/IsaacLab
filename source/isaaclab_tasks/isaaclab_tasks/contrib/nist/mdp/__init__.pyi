@@ -40,7 +40,7 @@ from .events import (
     reset_held_asset_in_gripper,
     reset_held_asset_on_fixed_asset,
 )
-from isaaclab_tasks.core.multi_task.utils.event_combinators import (
+from isaaclab_tasks.contrib.nist.utils.event_combinators import (
     ChainedResetTerms,
     TermChoice,
     reset_accumulator,
@@ -58,5 +58,5 @@ from .rewards import (
 )
 from .terminations import abnormal_robot_state, out_of_bound
 from .terminations import progress_context, success_termination
-from isaaclab_tasks.core.multi_task.utils import (CollisionAnalyzerCfg)
+from isaaclab_tasks.contrib.nist.utils import (CollisionAnalyzerCfg)
 from isaaclab.envs.mdp import *

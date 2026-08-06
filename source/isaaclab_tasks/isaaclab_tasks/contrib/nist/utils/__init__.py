@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cross-cutting utilities shared across ``multi_task`` subpackages.
+"""Cross-cutting utilities shared across ``nist`` subpackages.
 
 Includes the static geometry helpers: meshes, SDFs, collision analysis, pose
 offsets and hashing.
