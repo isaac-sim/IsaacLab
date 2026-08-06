@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from rendering_test_utils import (
     KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+    _make_sensor_data_type_params,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
@@ -17,6 +18,19 @@ from rendering_test_utils import (
     make_require_ovlibs_install_fixture,
     make_xfail_rendering_params,
     rendering_test_cartpole,
+)
+
+# OVRTX asynchronous-rendering variants, built with the same combo helper as the synchronous
+# combinations. ``OVRTX_ASYNC_RENDERING`` toggles the renderer's pipelined path independently of the
+# preset, so the async output must still match the same (synchronous) golden images -- it trails by
+# one frame of latency, which the SSIM / pixel-difference tolerances absorb. We cover the beauty
+# buffer per kitless physics backend; the shared harness already renders warm-up frames until the
+# camera outputs are non-zero, which primes the async pipeline before capture.
+_ASYNC_COMBINATIONS = make_kitless_rendering_params(
+    [
+        *_make_sensor_data_type_params("ovphysx", "ovrtx", ["rgb"]),
+        *_make_sensor_data_type_params("newton", "ovrtx", ["rgb"]),
+    ]
 )
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
@@ -51,4 +65,13 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 )
 def test_rendering_cartpole_kitless(ovstage_variant, physics_backend, renderer, data_type):
     """Camera output must match golden images (Cartpole camera presets env)."""
+    rendering_test_cartpole(physics_backend, renderer, data_type, _COMPARISON_SCORES)
+
+
+@pytest.mark.parametrize(
+    "ovstage_variant,physics_backend,renderer,data_type", _ASYNC_COMBINATIONS, indirect=["ovstage_variant"]
+)
+def test_rendering_cartpole_kitless_async(ovstage_variant, physics_backend, renderer, data_type, monkeypatch):
+    """OVRTX async-rendered camera output must match the synchronous golden images (within tolerance)."""
+    monkeypatch.setenv("OVRTX_ASYNC_RENDERING", "1")
     rendering_test_cartpole(physics_backend, renderer, data_type, _COMPARISON_SCORES)

@@ -38,6 +38,7 @@ if not _MISSING_MODULES:
         _resolve_clone_plan,
         _write_file,
     )
+    from isaaclab_ov.renderers.ovrtx_renderer_strategies import _SyncRenderStrategy  # noqa: E402
 
     from pxr import Usd, UsdGeom  # noqa: E402
 else:
@@ -105,6 +106,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_attribute=lambda *args, **kwargs: None,
     )
     renderer._clone_plan = None
+    renderer._strategy = _SyncRenderStrategy()
     renderer._camera_rel_path = "Camera"
     renderer._render_product_paths = []
     renderer._exported_usd_string = None

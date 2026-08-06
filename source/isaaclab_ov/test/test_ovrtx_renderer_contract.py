@@ -73,6 +73,10 @@ def _make_ovrtx_render_data() -> OVRTXRenderData:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
+    # ``__init__`` is bypassed here, so resolve the render strategy the same way it does: ``close``
+    # drains the strategy before releasing the backend. The default cfg is synchronous, whose drain
+    # is a no-op, so the recorded backend events stay unchanged.
+    renderer._strategy = ovrtx_renderer_module._resolve_render_strategy(renderer.cfg)
     return renderer
 
 
