@@ -13,8 +13,9 @@ Fixed
 ^^^^^
 
 * Fixed URDF and MJCF conversion producing assets with no joints, articulation roots, or mass
-  properties when the importer does not emit the requested physics variant, as happens for a URDF
-  whose joints are all fixed. These assets now fall back to the ``"physics"`` variant.
+  properties, by selecting a physics variant on the generated USD file. Conversion now raises when
+  the asset does not offer the requested variant, as happens when requesting ``"physx"`` for a URDF
+  whose joints are all fixed.
 
 * Fixed :meth:`~isaaclab.utils.dict.class_to_dict` expanding enum values into their internal
   members, which wrote unusable entries into serialized configurations.

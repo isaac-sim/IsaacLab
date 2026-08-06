@@ -182,8 +182,12 @@ class AssetConverterBase(abc.ABC):
         Does nothing when the asset has no such variant set.
 
         Args:
-            variant: The variant to select. Resolved against the variants the asset offers by
-                :meth:`_resolve_physics_variant`.
+            variant: The variant to select.
+
+        Raises:
+            ValueError: When the asset offers a ``"Physics"`` variant set without the requested
+                variant. Substituting another one would silently hand back an asset configured for a
+                different backend than the caller asked for.
         """
         from pxr import Usd
 
@@ -192,39 +196,16 @@ class AssetConverterBase(abc.ABC):
         if not prim or "Physics" not in prim.GetVariantSets().GetNames():
             return
         variant_set = prim.GetVariantSets().GetVariantSet("Physics")
-        selection = self._resolve_physics_variant(variant, variant_set.GetVariantNames())
-        if selection is None or selection == variant_set.GetVariantSelection():
-            return
-        if selection != variant:
-            logger.warning(
-                f"{self.__class__.__name__}: the asset offers no '{variant}' physics variant, selecting"
-                f" '{selection}' instead. Available variants: {variant_set.GetVariantNames()}."
+        available = variant_set.GetVariantNames()
+        if variant not in available:
+            raise ValueError(
+                f"The converted asset has no '{variant}' physics variant. Set"
+                f" {type(self.cfg).__name__}.physics_variant to one of: {available}."
             )
-        variant_set.SetVariantSelection(selection)
+        if variant == variant_set.GetVariantSelection():
+            return
+        variant_set.SetVariantSelection(variant)
         stage.GetRootLayer().Save()
-
-    @staticmethod
-    def _resolve_physics_variant(variant: str, available: list[str]) -> str | None:
-        """Pick the physics variant to select from those the asset offers.
-
-        Importers omit variants they have nothing to write. A URDF with only fixed joints, for
-        instance, yields ``["none", "physics"]`` and no ``"physx"``. Falling back to
-        :attr:`~isaaclab.sim.converters.AssetConverterBaseCfg.PhysicsVariant.PHYSICS` keeps such an
-        asset usable, since the backend-specific variants sublayer it and only add tuning on top.
-
-        Args:
-            variant: The requested variant.
-            available: The variants the asset offers.
-
-        Returns:
-            The variant to select, or None when the asset offers no variant carrying physics.
-        """
-        if variant in available:
-            return variant
-        candidates = [name for name in available if name != AssetConverterBaseCfg.PhysicsVariant.NONE]
-        if AssetConverterBaseCfg.PhysicsVariant.PHYSICS in candidates:
-            return AssetConverterBaseCfg.PhysicsVariant.PHYSICS
-        return candidates[0] if candidates else None
 
     @staticmethod
     def _config_to_hash(cfg: AssetConverterBaseCfg) -> str:

@@ -52,7 +52,7 @@ _REPO_FRANKA_URDF = os.path.join(
 _MERGE_JOINTS_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_merge_joints.urdf")
 
 # Fixed-joint-only fixture: the importer writes no PhysX data for it, so its "Physics" variant set
-# offers no "physx" variant and the converter has to fall back.
+# offers no "physx" variant, so requesting it must fail.
 _FIXED_ONLY_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_fixed_only.urdf")
 
 
@@ -829,14 +829,15 @@ def test_physics_variant_override(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_physics_variant_falls_back_when_requested_absent():
-    """Verify that an asset without the requested variant falls back to the portable ``"physics"`` one.
+def test_physics_variant_raises_when_requested_absent():
+    """Verify that requesting a variant the asset does not offer fails instead of substituting one.
 
     ``test_fixed_only.urdf`` carries a single fixed joint, for which the importer writes no
-    PhysX-specific data, so its variant set offers only ``"none"`` and ``"physics"``.
+    PhysX-specific data, so its variant set offers only ``"none"`` and ``"physics"``. Silently
+    selecting one of those would hand back an asset configured for a different backend.
     """
     test_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(test_dir, "output", "urdf_physics_variant_fallback")
+    output_dir = os.path.join(test_dir, "output", "urdf_physics_variant_missing")
     os.makedirs(output_dir, exist_ok=True)
 
     config = UrdfConverterCfg(
@@ -846,12 +847,6 @@ def test_physics_variant_falls_back_when_requested_absent():
         usd_dir=output_dir,
         physics_variant="physx",
     )
-    urdf_converter = UrdfConverter(config)
 
-    selection, available = _physics_variant(urdf_converter.usd_path)
-    assert "physx" not in available, f"Fixture no longer exercises the fallback: it offers {available}"
-    assert selection == "physics"
-
-    joints, roots = _count_physics(urdf_converter.usd_path)
-    assert joints > 0, "Expected the converted USD to compose joints"
-    assert roots > 0, "Expected the converted USD to compose an articulation root"
+    with pytest.raises(ValueError, match="no 'physx' physics variant"):
+        UrdfConverter(config)

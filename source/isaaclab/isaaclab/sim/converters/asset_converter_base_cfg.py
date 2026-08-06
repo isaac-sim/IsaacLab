@@ -77,8 +77,8 @@ class AssetConverterBaseCfg:
 
     The default holds the backend-portable description, and :attr:`PhysicsVariant.PHYSX` /
     :attr:`PhysicsVariant.MUJOCO` sublayer it, so select one of those to author an asset for a
-    specific backend. Assets that do not provide the requested variant fall back to
-    :attr:`PhysicsVariant.PHYSICS`.
+    specific backend. Conversion raises if the asset does not offer the requested variant, rather
+    than substituting one authored for a different backend.
 
     Every variant stays in the generated USD file, so this only decides what composes by default:
     :attr:`~isaaclab.sim.UsdFileCfg.variants` overrides the selection at spawn time.
