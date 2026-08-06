@@ -579,6 +579,17 @@ class CollisionBaseCfg:
     attribute via its PhysX-bridge resolver.
     """
 
+    mesh_collision_property: MeshCollisionBaseCfg | None = None
+    """Optional mesh-collision approximation to author on this collider.
+
+    When set, it is dispatched to :meth:`~isaaclab.sim.schemas.modify_mesh_collision_properties`
+    so the ``physics:approximation`` token (and any backend mesh-collision tuning) is
+    written on the collision mesh prim. Use this to override a file-spawned USD asset's
+    authored collision approximation (e.g. convex hull / convex decomposition) — such
+    assets otherwise expose no approximation knob through :attr:`collision_props`.
+    ``None`` leaves the USD-authored approximation untouched.
+    """
+
 
 @configclass
 class MassPropertiesCfg:

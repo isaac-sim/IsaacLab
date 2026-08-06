@@ -118,7 +118,7 @@ def test_cable_collides_with_ground():
         default_velocity = cable.data.default_segment_velocity_w.torch.clone()
         cable.write_segment_pose_to_sim_index(segment_pose=default_pose)
         cable.write_segment_velocity_to_sim_index(segment_velocity=default_velocity)
-        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True]
+        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True, False]
 
         sim.step(render=False)
         cable.update(sim_cfg.dt)
@@ -218,7 +218,7 @@ def test_interactive_scene_manages_newton_cables():
             torch.testing.assert_close(reset_velocity[0], default_velocity[0])
             torch.testing.assert_close(reset_pose[1], other_pose[1])
             torch.testing.assert_close(reset_velocity[1], other_velocity[1])
-        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True, False]
+        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True, False, False]
         assert not wp.to_torch(SimulationManager._fk_reset_mask).any()
 
         scene.write_data_to_sim()
@@ -282,10 +282,10 @@ def test_cable_mask_writes_update_selected_environments():
         torch.testing.assert_close(cable.data.segment_velocity_w.torch, expected_velocity)
         assert torch.equal(cable.data.segment_pose_w.torch[1], original_pose[1])
         assert torch.equal(cable.data.segment_velocity_w.torch[1], original_velocity[1])
-        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True, False, True]
+        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True, False, True, False]
         other_env_mask = wp.array([False, True, False], dtype=wp.bool, device=sim.device)
         SimulationManager.invalidate_body_state(env_mask=other_env_mask)
-        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True, True, True]
+        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True, True, True, False]
         assert not wp.to_torch(SimulationManager._fk_reset_mask).any()
 
 
@@ -380,7 +380,7 @@ def test_cable_mask_writes_are_cuda_graph_capturable(device):
             torch.testing.assert_close(state_velocity, expected_velocity)
         torch.testing.assert_close(cable.data.segment_pose_w.torch, expected_pose)
         torch.testing.assert_close(cable.data.segment_velocity_w.torch, expected_velocity)
-        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True, False, True]
+        assert wp.to_torch(SimulationManager._world_reset_mask).tolist() == [True, False, True, False]
         assert not wp.to_torch(SimulationManager._fk_reset_mask).any()
 
 
