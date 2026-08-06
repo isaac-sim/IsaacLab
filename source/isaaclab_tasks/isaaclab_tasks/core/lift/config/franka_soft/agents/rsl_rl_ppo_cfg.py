@@ -58,6 +58,11 @@ class FrankaClothPPORunnerCfg(FrankaDeformablePPORunnerCfg):
 
 
 @configclass
+class FrankaCablePPORunnerCfg(FrankaDeformablePPORunnerCfg):
+    experiment_name = "lift_cable"
+
+
+@configclass
 class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 5000

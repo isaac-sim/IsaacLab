@@ -16,7 +16,7 @@ from isaaclab.utils import math as math_utils
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, DeformableObject, RigidObject
+    from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import ContactSensor, FrameTransformer
 
@@ -473,3 +473,99 @@ def gripper_close_action(env: ManagerBasedRLEnv, action_name: str = "gripper_act
     """Return one when the binary gripper action commands closing and zero otherwise."""
     gripper_action = env.action_manager.get_term(action_name).raw_actions
     return torch.any(gripper_action < 0.0, dim=1).float()
+
+
+def cable_segment_lifting(
+    env: ManagerBasedRLEnv,
+    std: float,
+    minimal_height: float,
+    segment_index: int,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> torch.Tensor:
+    """Reward lifting a cable segment above minimal_height [m] with a tanh kernel (std [m])."""
+    asset: CableObject = env.scene[asset_cfg.name]
+    segment_z = asset.data.segment_pose_w.torch[:, segment_index, 2]
+    height = (segment_z - minimal_height).clamp(min=0.0)
+    return torch.tanh(height / std)
+
+
+def cable_segment_ee_distance(
+    env: ManagerBasedRLEnv,
+    std: float,
+    segment_index: int,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Reward end-effector proximity to a cable segment with a tanh kernel (std [m])."""
+    asset: CableObject = env.scene[asset_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+    segment_pos_w = asset.data.segment_pose_w.torch[:, segment_index, :3]
+    ee_pos_w = ee_frame.data.target_pos_w.torch[..., 0, :]
+    distance = torch.linalg.norm(segment_pos_w - ee_pos_w, dim=1)
+    return 1.0 - torch.tanh(distance / std)
+
+
+def _cable_segment_goal_metrics(
+    env: ManagerBasedRLEnv,
+    minimal_height: float,
+    command_name: str,
+    segment_index: int,
+    robot_cfg: SceneEntityCfg,
+    asset_cfg: SceneEntityCfg,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute cable segment goal distance and lifted state."""
+    robot: Articulation = env.scene[robot_cfg.name]
+    asset: CableObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    desired_pos_w, _ = combine_frame_transforms(
+        robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, command[:, :3]
+    )
+    segment_pos_w = asset.data.segment_pose_w.torch[:, segment_index, :3]
+    return torch.linalg.norm(desired_pos_w - segment_pos_w, dim=1), segment_pos_w[:, 2] > minimal_height
+
+
+class CableSegmentGoalDistance(ManagerTermBase):
+    """Reward cable segment goal tracking and log episode success."""
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self._succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        if env_ids is None:
+            env_ids = slice(None)
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean().item()
+        self._succeeded[env_ids] = False
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        std: float,
+        minimal_height: float,
+        command_name: str,
+        success_threshold: float,
+        segment_index: int,
+        robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+    ) -> torch.Tensor:
+        distance, is_lifted = _cable_segment_goal_metrics(
+            env, minimal_height, command_name, segment_index, robot_cfg, asset_cfg
+        )
+        self._succeeded |= is_lifted & (distance < success_threshold)
+        return is_lifted.float() * (1.0 - torch.tanh(distance / std))
+
+
+def cable_segment_goal_reached(
+    env: ManagerBasedRLEnv,
+    minimal_height: float,
+    command_name: str,
+    success_threshold: float,
+    segment_index: int,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> torch.Tensor:
+    """Reward a cable segment for reaching the lifted goal."""
+    distance, is_lifted = _cable_segment_goal_metrics(
+        env, minimal_height, command_name, segment_index, robot_cfg, asset_cfg
+    )
+    return (is_lifted & (distance < success_threshold)).float()
