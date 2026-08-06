@@ -27,8 +27,8 @@ Why there is no unified low-level view
 The backends expose fundamentally different access models. PhysX and OvPhysX
 use explicit pull/push operations. PhysX organizes access into typed views for
 physics-object families. OvPhysX organizes access into bindings selected by
-tensor type; ``OvPhysxView`` is an Isaac Lab convenience manager over those
-bindings.
+tensor type; :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` is an Isaac Lab
+convenience manager over those bindings.
 
 Newton instead exposes live arrays owned by ``Model``, ``State``, ``Control``,
 and ``Contacts``. Its selection describes subsets and batched layouts rather
@@ -52,15 +52,17 @@ How the access models differ
      - Synchronization
      - Invalidation
    * - PhysX
-     - ``PhysxManager.get_physics_sim_view()``
+     - :meth:`~isaaclab_physx.physics.PhysxManager.get_physics_sim_view`
      - Typed views selected by prim globs
      - Engine/view-owned buffers
      - Getter/setter pull/push
      - Explicit setters and occasional kinematic refresh
      - Reacquire after view invalidation, hard reset, or teardown
    * - Newton
-     - ``NewtonManager.get_model()``, ``get_state_0()``, ``get_control()``,
-       and ``get_contacts()``
+     - :meth:`~isaaclab_newton.physics.NewtonManager.get_model`,
+       :meth:`~isaaclab_newton.physics.NewtonManager.get_state_0`,
+       :meth:`~isaaclab_newton.physics.NewtonManager.get_control`, and
+       :meth:`~isaaclab_newton.physics.NewtonManager.get_contacts`
      - Generic labels and ``ArticulationView``
      - Live engine-owned Warp arrays
      - Direct pointer or selection reads/writes
@@ -68,7 +70,8 @@ How the access models differ
      - Reacquire current state across state-buffer swaps and all objects after
        model rebuild
    * - OvPhysX
-     - ``OvPhysxManager.get_physx_instance()`` or ``OvPhysxView``
+     - :meth:`~isaaclab_ovphysx.physics.OvPhysxManager.get_physx_instance`
+       or :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`
      - A tensor type plus pattern/prim list
      - Caller-owned transfer buffers backed by engine bindings
      - Explicit ``read()``/``write()`` or guarded convenience methods
