@@ -50,7 +50,8 @@ zero padding and the P0/S2/Q1 bases for CUDA graph capture by default.
 Snowball smash couples MPM to MuJoCo-Warp rigid bodies through
 :class:`~isaaclab_contrib.coupling.CouplerProxyCfg`; teapot fill samples hollow
 meshes with :func:`~isaaclab.utils.warp.sample_particles_in_cavity` and applies
-an explicit particle render material.
+an explicit particle render material. See :doc:`using-mpm` for the minimal
+authoring path and tuning order.
 
 
 Supported APIs

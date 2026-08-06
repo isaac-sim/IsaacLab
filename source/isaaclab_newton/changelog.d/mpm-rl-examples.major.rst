@@ -9,6 +9,7 @@ Added
   existing boundary-placement default.
 * Added graph-captured bounded-sparse MPM snowball-smash and teapot-fill demos,
   including a rigid-MPM proxy-coupling example.
+* Added an implicit MPM authoring and tuning guide.
 * Enabled CUDA graph capture for capacity-bounded rebuildable sparse MPM,
   including nested coupled-solver entries.
 
