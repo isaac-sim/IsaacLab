@@ -128,7 +128,26 @@ def _patch_floor_checker_shader(tile_size: float = 0.5) -> None:
         _OLD = "    float checker_scale = 1.0;"
         checker_scale = max(1e-3, 1.0 / max(float(tile_size), 1e-6))
         _NEW = f"    float checker_scale = {checker_scale:.4f};"
+
+        # 1. Patch the module-level string (works when ShaderShape is instantiated after this call).
         if _OLD in _shaders.shape_fragment_shader:
             _shaders.shape_fragment_shader = _shaders.shape_fragment_shader.replace(_OLD, _NEW)
+
+        # 2. Also patch ShaderShape.__init__ to re-apply the string right before compilation.
+        #    This guards against Isaac Sim resetting the module string after our module-level
+        #    patch (step 1) but before ShaderShape is instantiated.
+        import re as _re
+
+        _ShaderShape = _shaders.ShaderShape
+        _orig_init = _ShaderShape.__init__
+        _pattern = _re.compile(r"float checker_scale = [0-9.]+;")
+        _replacement = f"float checker_scale = {checker_scale:.4f};"
+
+        def _patched_ShaderShape_init(self, gl, _orig=_orig_init, _shaders=_shaders):
+            _shaders.shape_fragment_shader = _pattern.sub(_replacement, _shaders.shape_fragment_shader)
+            _orig(self, gl)
+
+        _ShaderShape.__init__ = _patched_ShaderShape_init
+
     except Exception:
         pass  # best-effort: falls back to default 1 m tiles
