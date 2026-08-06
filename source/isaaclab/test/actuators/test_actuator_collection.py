@@ -478,7 +478,9 @@ def test_implicit_cuda_graph_captures_complete_ordered_batch_sequence(monkeypatc
     assert all(type(batch.actuator) is ImplicitActuator for batch in graph._execution_batches)
     buffer_pointers = _implicit_cuda_buffer_pointers(graph)
     capture_calls = 0
+    captured_batch_ids = []
     scoped_capture = wp.ScopedCapture
+    compute_implicit_batch = graph._compute_implicit_batch
 
     class RecordingScopedCapture:
         def __init__(self, *args, **kwargs):
@@ -492,11 +494,18 @@ def test_implicit_cuda_graph_captures_complete_ordered_batch_sequence(monkeypatc
         def __exit__(self, *args):
             return self._capture.__exit__(*args)
 
+    def record_implicit_batch(batch):
+        if wp.get_device(graph.device).is_capturing:
+            captured_batch_ids.append(id(batch))
+        compute_implicit_batch(batch)
+
     monkeypatch.setattr(actuator_collection_module.wp, "ScopedCapture", RecordingScopedCapture)
+    monkeypatch.setattr(graph, "_compute_implicit_batch", record_implicit_batch)
     graph.compute()
     eager.compute()
 
     assert capture_calls == 1
+    assert captured_batch_ids == [id(batch) for batch in graph._execution_batches]
     assert graph._implicit_cuda_graph is not None
     assert _implicit_cuda_buffer_pointers(graph) == buffer_pointers
     _assert_collection_outputs_match_exactly(graph, eager)
