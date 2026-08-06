@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.4 (2026-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX installations to use the OVStage release compatible with the pinned OV runtime stack.
+
+
 0.10.3 (2026-08-05)
 ~~~~~~~~~~~~~~~~~~~
 
