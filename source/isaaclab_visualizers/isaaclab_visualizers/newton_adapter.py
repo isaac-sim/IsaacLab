@@ -109,45 +109,10 @@ def apply_viewer_visible_worlds(
         viewer.set_visible_worlds(resolved)
 
 
-def _patch_floor_checker_shader(tile_size: float = 0.5) -> None:
-    """Patch Newton's GLSL shader source so floor tiles are ``tile_size`` metres wide.
-
-    Must be called **before** any ``RendererGL`` (Newton GL viewer) is created, because
-    ``ShaderShape.__init__`` reads the shader source string at viewer-creation time and
-    compiles it into a GPU program.  Patching after that point has no effect.
-
-    Newton GL uses ``LocalPos.xy`` (object-space vertex positions, in metres on a 1 000 m
-    plane) as the checker UV, so ``checker_scale = 1.0`` gives exactly 1 m tiles.
-
-    Args:
-        tile_size: Desired checker tile size in metres (default 0.5 m → checker_scale = 2.0).
-    """
-    try:
-        import newton._src.viewer.gl.shaders as _shaders
-
-        _OLD = "    float checker_scale = 1.0;"
-        checker_scale = max(1e-3, 1.0 / max(float(tile_size), 1e-6))
-        _NEW = f"    float checker_scale = {checker_scale:.4f};"
-
-        # 1. Patch the module-level string (works when ShaderShape is instantiated after this call).
-        if _OLD in _shaders.shape_fragment_shader:
-            _shaders.shape_fragment_shader = _shaders.shape_fragment_shader.replace(_OLD, _NEW)
-
-        # 2. Also patch ShaderShape.__init__ to re-apply the string right before compilation.
-        #    This guards against Isaac Sim resetting the module string after our module-level
-        #    patch (step 1) but before ShaderShape is instantiated.
-        import re as _re
-
-        _ShaderShape = _shaders.ShaderShape
-        _orig_init = _ShaderShape.__init__
-        _pattern = _re.compile(r"float checker_scale = [0-9.]+;")
-        _replacement = f"float checker_scale = {checker_scale:.4f};"
-
-        def _patched_ShaderShape_init(self, gl, _orig=_orig_init, _shaders=_shaders):
-            _shaders.shape_fragment_shader = _pattern.sub(_replacement, _shaders.shape_fragment_shader)
-            _orig(self, gl)
-
-        _ShaderShape.__init__ = _patched_ShaderShape_init
-
-    except Exception:
-        pass  # best-effort: falls back to default 1 m tiles
+# TODO: Newton GL's checker floor (GeoType.PLANE, material.z=1.0) renders in the Newton GL
+# OpenGL viewport but the streaming view seen in the browser shows composited Isaac Sim
+# camera-sensor frames (RTX-rendered).  Patching Newton's GLSL checker_scale only affects
+# the OpenGL window, not the camera images, so it has no visible effect from the user's
+# perspective.  To fix the floor appearance in the streaming view, the Isaac Sim USD scene
+# for each task needs an updated floor material/texture (see the Kuka Allegro env for a
+# reference with a blue-grid floor).

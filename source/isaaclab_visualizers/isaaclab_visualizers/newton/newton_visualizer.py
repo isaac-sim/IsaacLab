@@ -53,7 +53,7 @@ from isaaclab.envs.utils.camera_view import (
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import _patch_floor_checker_shader, resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
@@ -874,9 +874,6 @@ class NewtonVisualizer(BaseVisualizer):
 
             pyglet.options["headless"] = True
 
-        # Patch GLSL shader source BEFORE creating the viewer — ShaderShape compiles the
-        # fragment shader during RendererGL.__init__(), so the string must be patched first.
-        _patch_floor_checker_shader(tile_size=0.5)
         self._viewer = self._create_viewer(runtime_headless, metadata)
 
         if self._viewer is not None:
