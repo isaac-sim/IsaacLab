@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import ClassVar
 
 import torch
 import warp as wp
@@ -58,8 +57,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     :meth:`~isaaclab.actuators.ActuatorBase.reset` directly on a mapping value is
     unsupported.
     """
-
-    _ENABLE_IMPLICIT_CUDA_GRAPH: ClassVar[bool] = True
 
     @dataclass
     class _ExecutionBatch:
@@ -321,15 +318,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._control.finalize_native_actuators(self)
         self._validate_coverage()
         self._build_execution_batches()
-        self._implicit_cuda_graph: wp.Graph | None = None
-        self._implicit_cuda_graph_capture_failed = False
-        self._use_implicit_cuda_graph = (
-            self._ENABLE_IMPLICIT_CUDA_GRAPH
-            and wp.get_device(self.device).is_cuda
-            and bool(self._execution_batches)
-            and all(type(batch.actuator) is ImplicitActuator for batch in self._execution_batches)
-            and not getattr(self._control, "native_active", False)
-        )
         if debug_value_resolution:
             self._print_value_resolution_table()
 
@@ -419,10 +407,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             dt: Physics step size [s].
         """
         if self._control.compute_native_actuators(self, dt):
-            return
-
-        if self._use_implicit_cuda_graph:
-            self._compute_implicit_graph()
             return
 
         for batch in self._execution_batches:
@@ -788,35 +772,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             inputs=batch.implicit_inputs,
             outputs=batch.implicit_outputs,
         )
-
-    def _run_implicit_batches(self) -> None:
-        for batch in self._execution_batches:
-            self._compute_implicit_batch(batch)
-
-    def _compute_implicit_graph(self) -> None:
-        device = wp.get_device(self.device)
-        if device.is_capturing:
-            self._run_implicit_batches()
-            return
-        if self._implicit_cuda_graph is not None:
-            wp.capture_launch(self._implicit_cuda_graph)
-            return
-        if self._implicit_cuda_graph_capture_failed:
-            self._run_implicit_batches()
-            return
-
-        try:
-            with wp.ScopedCapture(device=self.device, force_module_load=True) as capture:
-                self._run_implicit_batches()
-            self._implicit_cuda_graph = capture.graph
-            wp.capture_launch(self._implicit_cuda_graph)
-        except Exception as error:
-            self._implicit_cuda_graph = None
-            self._implicit_cuda_graph_capture_failed = True
-            logger.warning(
-                "Failed to capture implicit actuator CUDA graph (%s); falling back to eager execution.", error
-            )
-            self._run_implicit_batches()
 
     def _gather_explicit_batch(self, batch: ActuatorCollection._ExecutionBatch) -> None:
         if batch.gather_inputs is None or batch.gather_outputs is None:
