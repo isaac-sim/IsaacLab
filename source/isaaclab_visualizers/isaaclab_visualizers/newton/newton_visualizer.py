@@ -1844,21 +1844,12 @@ class NewtonGLVisualizer(NewtonVisualizer):
         _PANEL_KEY = "Streaming View"
         image_logger = getattr(self._viewer, "_image_logger", None)
 
-        # First call: register the panel key in the image logger so the sidebar combo
-        # appears.  Use a 1×1 black placeholder — no camera work needed yet.
-        # Immediately clear _selected so the panel starts hidden (closed by default).
+        # First call: register the panel key so the image logger knows this stream exists.
+        # We do NOT hide it (no _selected=None) because Newton never sets _selected back
+        # when image selection UI is suppressed — the panel would stay blank forever.
         if image_logger is not None and _PANEL_KEY not in getattr(image_logger, "_images", {}):
             placeholder = wp.zeros((1, 1, 3), dtype=wp.uint8)
             self._viewer.log_image(_PANEL_KEY, placeholder)
-            if hasattr(image_logger, "_selected"):
-                image_logger._selected = None
-            return
-
-        # When the panel is hidden (selected=None), skip all camera rendering to keep
-        # per-step overhead zero.  Work resumes the next step after the user opens it.
-        # Note: render_tiled_rgb_array() can still call _build_streaming_composite()
-        # on demand for headless VideoRecorder use-cases.
-        if image_logger is not None and image_logger._selected is None:
             return
 
         composite = self._build_streaming_composite()
