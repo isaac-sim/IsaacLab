@@ -86,13 +86,13 @@ stages:
 #. **Joint command** -- ``actuators.joint_command`` exposes the processed position, velocity, and
    effort commands submitted to the active physics backend.
 
-.. figure:: ../../_static/actuators/pipeline-light.svg
+.. figure:: ../../_static/actuators/pipeline-light.png
     :class: only-light
     :align: center
     :width: 90%
     :alt: The pipeline from actuator commands through actuator models to simulated joint commands.
 
-.. figure:: ../../_static/actuators/pipeline-dark.svg
+.. figure:: ../../_static/actuators/pipeline-dark.png
     :class: only-dark
     :align: center
     :width: 90%
@@ -238,13 +238,13 @@ with damping. Units are [N·m/rad] for revolute joints and [N/m] for prismatic j
     :width: 100%
     :alt: Five pendulums with increasing stiffness stepping to the same target.
 
-.. figure:: ../../_static/actuators/stiffness-curve-light.svg
+.. figure:: ../../_static/actuators/stiffness-curve-light.png
     :class: only-light
     :align: center
     :width: 80%
     :alt: Position step response for a stiffness sweep.
 
-.. figure:: ../../_static/actuators/stiffness-curve-dark.svg
+.. figure:: ../../_static/actuators/stiffness-curve-dark.png
     :class: only-dark
     :align: center
     :width: 80%
@@ -265,13 +265,13 @@ also how you set a velocity target's tracking gain. Units are [N·m·s/rad] (rev
     :width: 100%
     :alt: Five pendulums from underdamped to overdamped stepping to the same target.
 
-.. figure:: ../../_static/actuators/damping-curve-light.svg
+.. figure:: ../../_static/actuators/damping-curve-light.png
     :class: only-light
     :align: center
     :width: 80%
     :alt: Position step response for a damping sweep.
 
-.. figure:: ../../_static/actuators/damping-curve-dark.svg
+.. figure:: ../../_static/actuators/damping-curve-dark.png
     :class: only-dark
     :align: center
     :width: 80%
@@ -300,13 +300,13 @@ for the solver-side background.
     :width: 100%
     :alt: Five pendulums with increasing armature responding to the same command.
 
-.. figure:: ../../_static/actuators/armature-curve-light.svg
+.. figure:: ../../_static/actuators/armature-curve-light.png
     :class: only-light
     :align: center
     :width: 80%
     :alt: Position step response for an armature sweep.
 
-.. figure:: ../../_static/actuators/armature-curve-dark.svg
+.. figure:: ../../_static/actuators/armature-curve-dark.png
     :class: only-dark
     :align: center
     :width: 80%
@@ -334,13 +334,13 @@ stiction and drag rather than to stabilize a controller.
     :width: 100%
     :alt: Five free-spinning pendulums with increasing joint friction decaying at different rates.
 
-.. figure:: ../../_static/actuators/friction-curve-light.svg
+.. figure:: ../../_static/actuators/friction-curve-light.png
     :class: only-light
     :align: center
     :width: 80%
     :alt: Joint-velocity decay for a friction sweep.
 
-.. figure:: ../../_static/actuators/friction-curve-dark.svg
+.. figure:: ../../_static/actuators/friction-curve-dark.png
     :class: only-dark
     :align: center
     :width: 80%
@@ -369,13 +369,13 @@ demand does not merely slow the joint, it removes the controller's ability to da
     :width: 100%
     :alt: Five pendulums with increasing effort limit holding or failing against gravity.
 
-.. figure:: ../../_static/actuators/effort-limit-curve-light.svg
+.. figure:: ../../_static/actuators/effort-limit-curve-light.png
     :class: only-light
     :align: center
     :width: 80%
     :alt: Applied joint torque for an effort-limit sweep.
 
-.. figure:: ../../_static/actuators/effort-limit-curve-dark.svg
+.. figure:: ../../_static/actuators/effort-limit-curve-dark.png
     :class: only-dark
     :align: center
     :width: 80%
@@ -392,13 +392,13 @@ limit shrinks the usable speed band and clamps torque earlier. Recall that ``vel
 consumed only by explicit models (the DC motor here); for implicit actuators it is ignored and only
 ``velocity_limit_sim`` reaches the solver.
 
-.. figure:: ../../_static/actuators/velocity-limit-curve-light.svg
+.. figure:: ../../_static/actuators/velocity-limit-curve-light.png
     :class: only-light
     :align: center
     :width: 80%
     :alt: Torque-speed envelope for a velocity-limit sweep.
 
-.. figure:: ../../_static/actuators/velocity-limit-curve-dark.svg
+.. figure:: ../../_static/actuators/velocity-limit-curve-dark.png
     :class: only-dark
     :align: center
     :width: 80%
@@ -420,13 +420,13 @@ on real transport lag.
     :width: 100%
     :alt: Five pendulums with increasing command delay trailing the same square-wave command.
 
-.. figure:: ../../_static/actuators/delay-curve-light.svg
+.. figure:: ../../_static/actuators/delay-curve-light.png
     :class: only-light
     :align: center
     :width: 80%
     :alt: Command-versus-response timeline for a delay sweep.
 
-.. figure:: ../../_static/actuators/delay-curve-dark.svg
+.. figure:: ../../_static/actuators/delay-curve-dark.png
     :class: only-dark
     :align: center
     :width: 80%
@@ -443,13 +443,13 @@ curve below shows the two responses for the same stiffness and damping. This is 
 on implicit actuators may not transfer unchanged to explicit ones -- and why the explicit joint's
 ``data.joint_stiffness`` / ``data.joint_damping`` read zero, since those gains now live in the model.
 
-.. figure:: ../../_static/actuators/implicit-vs-explicit-curve-light.svg
+.. figure:: ../../_static/actuators/implicit-vs-explicit-curve-light.png
     :class: only-light
     :align: center
     :width: 80%
     :alt: Overlaid implicit and explicit PD step responses at identical gains.
 
-.. figure:: ../../_static/actuators/implicit-vs-explicit-curve-dark.svg
+.. figure:: ../../_static/actuators/implicit-vs-explicit-curve-dark.png
     :class: only-dark
     :align: center
     :width: 80%

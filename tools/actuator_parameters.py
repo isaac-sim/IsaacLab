@@ -179,8 +179,8 @@ PIVOT_MARKER_COLOR = (1.0, 0.127, 0.847)
 PIVOT_MARKER_RADIUS = 0.09
 """Radius of the joint pivot marker spheres [m]."""
 
-SVG_HASHSALT = "isaaclab-actuator-parameters"
-"""Fixed matplotlib SVG hash salt so generated curves are byte-reproducible."""
+CURVE_DPI = 300
+"""Resolution of generated curve PNGs [dpi]."""
 
 TRACE_COLORS = ("#3B82C4", "#E8833A", "#3EA96B", "#D14B57", "#8E63C4")
 """Mid-tone categorical palette that reads on both light and dark backgrounds."""
@@ -906,8 +906,6 @@ def _mpl_style(dark: bool) -> Iterator[None]:
     foreground = "#E6E6E6" if dark else "#1A1A1A"
     grid = "#6E6E6E" if dark else "#BFBFBF"
     rc = {
-        "svg.hashsalt": SVG_HASHSALT,
-        "svg.fonttype": "path",
         "figure.facecolor": "none",
         "axes.facecolor": "none",
         "savefig.facecolor": "none",
@@ -943,18 +941,10 @@ def _trace_label(key: str, value: float | str) -> str:
 
 
 def _save_curve(fig, key: str, dark: bool) -> Path:
-    """Write *fig* as a light or dark SVG with reproducible (timestamp-free) metadata.
-
-    Trailing whitespace is stripped from every line (and a final newline is
-    ensured) so the output is byte-stable under the repository's pre-commit
-    hooks: matplotlib emits trailing spaces that the hooks would otherwise trim,
-    making committed files differ from freshly generated ones.
-    """
-    path = MEDIA_DIR / f"{key}-curve-{'dark' if dark else 'light'}.svg"
-    fig.savefig(path, format="svg", bbox_inches="tight", metadata={"Date": None})
+    """Write *fig* as a transparent, 1080p-class light or dark PNG."""
+    path = MEDIA_DIR / f"{key}-curve-{'dark' if dark else 'light'}.png"
+    fig.savefig(path, format="png", dpi=CURVE_DPI, bbox_inches="tight", metadata={"Software": None})
     plt.close(fig)
-    lines = [line.rstrip() for line in path.read_text().splitlines()]
-    path.write_text("\n".join(lines) + "\n")
     return path
 
 
@@ -995,7 +985,7 @@ def _plot_velocity_limit(row: RowSpec, key: str) -> list[Path]:
 
 
 def plot_row(row: RowSpec, logs: dict[str, torch.Tensor] | None, key: str) -> list[Path]:
-    """Plot a row's comparison curves as a light and a dark SVG.
+    """Plot a row's comparison curves as a light and a dark PNG.
 
     Args:
         row: Comparison row being plotted.
@@ -1004,7 +994,7 @@ def plot_row(row: RowSpec, logs: dict[str, torch.Tensor] | None, key: str) -> li
         key: Comparison-row key used for the output filenames.
 
     Returns:
-        The written SVG paths, light variant first.
+        The written PNG paths, light variant first.
     """
     if key == "velocity-limit":
         return _plot_velocity_limit(row, key)
