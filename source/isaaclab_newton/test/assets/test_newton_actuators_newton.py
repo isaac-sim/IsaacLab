@@ -672,8 +672,11 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
             adapter = SimulationManager._adapter
             self.assertIsNotNone(adapter, "Newton adapter should exist with use_newton_actuators=True")
+            legs = anymal.actuators["legs"]
             kp_before = self._gather_param(anymal, "kp").clone()
             kd_before = self._gather_param(anymal, "kd").clone()
+            legs_stiffness_before = legs.stiffness.clone()
+            legs_damping_before = legs.damping.clone()
 
             env = _MockEnv({"robot": anymal}, NUM_ENVS, anymal.device)
             term, asset_cfg = _build_dr_term(env, "robot")
@@ -694,10 +697,14 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             n = anymal.num_joints
             torch.testing.assert_close(kp_after[0], torch.full((n,), 100.0, device=anymal.device))
             torch.testing.assert_close(kd_after[0], torch.full((n,), 5.0, device=anymal.device))
+            torch.testing.assert_close(legs.stiffness[0], torch.full((n,), 100.0, device=anymal.device))
+            torch.testing.assert_close(legs.damping[0], torch.full((n,), 5.0, device=anymal.device))
             # Other envs untouched.
             for env_idx in range(1, NUM_ENVS):
                 torch.testing.assert_close(kp_after[env_idx], kp_before[env_idx])
                 torch.testing.assert_close(kd_after[env_idx], kd_before[env_idx])
+                torch.testing.assert_close(legs.stiffness[env_idx], legs_stiffness_before[env_idx])
+                torch.testing.assert_close(legs.damping[env_idx], legs_damping_before[env_idx])
 
     def test_two_articulations(self):
         from isaaclab_assets import CARTPOLE_CFG  # noqa: PLC0415
@@ -725,10 +732,16 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
             self.assertIsNotNone(SimulationManager._adapter)
 
+            anymal_legs = anymal.actuators["legs"]
+            cartpole_joints = cartpole.actuators["all_joints"]
             anymal_kp_before = self._gather_param(anymal, "kp").clone()
             anymal_kd_before = self._gather_param(anymal, "kd").clone()
             cp_kp_before = self._gather_param(cartpole, "kp").clone()
             cp_kd_before = self._gather_param(cartpole, "kd").clone()
+            anymal_stiffness_before = anymal_legs.stiffness.clone()
+            anymal_damping_before = anymal_legs.damping.clone()
+            cartpole_stiffness_before = cartpole_joints.stiffness.clone()
+            cartpole_damping_before = cartpole_joints.damping.clone()
 
             env = _MockEnv({"anymal": anymal, "cartpole": cartpole}, NUM_ENVS, anymal.device)
             term, asset_cfg = _build_dr_term(env, "cartpole")
@@ -749,15 +762,21 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             n_cp = cartpole.num_joints
             torch.testing.assert_close(cp_kp_after[0], torch.full((n_cp,), 100.0, device=anymal.device))
             torch.testing.assert_close(cp_kd_after[0], torch.full((n_cp,), 5.0, device=anymal.device))
+            torch.testing.assert_close(cartpole_joints.stiffness[0], torch.full((n_cp,), 100.0, device=anymal.device))
+            torch.testing.assert_close(cartpole_joints.damping[0], torch.full((n_cp,), 5.0, device=anymal.device))
 
             # ANYmal is untouched (DR was scoped to cartpole).
             torch.testing.assert_close(self._gather_param(anymal, "kp"), anymal_kp_before)
             torch.testing.assert_close(self._gather_param(anymal, "kd"), anymal_kd_before)
+            torch.testing.assert_close(anymal_legs.stiffness, anymal_stiffness_before)
+            torch.testing.assert_close(anymal_legs.damping, anymal_damping_before)
 
             # Cartpole's other envs are also untouched (env_ids=[0] only).
             for env_idx in range(1, NUM_ENVS):
                 torch.testing.assert_close(cp_kp_after[env_idx], cp_kp_before[env_idx])
                 torch.testing.assert_close(cp_kd_after[env_idx], cp_kd_before[env_idx])
+                torch.testing.assert_close(cartpole_joints.stiffness[env_idx], cartpole_stiffness_before[env_idx])
+                torch.testing.assert_close(cartpole_joints.damping[env_idx], cartpole_damping_before[env_idx])
 
 
 class TestNewtonActuatorGainSnapshotEnvStride(unittest.TestCase):
@@ -816,6 +835,8 @@ class TestNewtonActuatorGainSnapshotEnvStride(unittest.TestCase):
             expected_kd = torch.full((NUM_ENVS, n_j), 5.0, device=anymal.device)
             torch.testing.assert_close(stiffness, expected_kp)
             torch.testing.assert_close(damping, expected_kd)
+            torch.testing.assert_close(anymal.actuators["legs"].stiffness, expected_kp)
+            torch.testing.assert_close(anymal.actuators["legs"].damping, expected_kd)
 
 
 # ---------------------------------------------------------------------------

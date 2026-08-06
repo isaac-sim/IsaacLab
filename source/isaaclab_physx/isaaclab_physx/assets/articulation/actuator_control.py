@@ -168,8 +168,6 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             articulation._implicit_dof_mask = binding.implicit_dof_mask
             articulation._implicit_dof_mask_owner = binding.implicit_dof_mask_owner
             articulation._data._sim_bind_joint_computed_effort = binding.computed_effort_view
-            wp.copy(collection._actuator_stiffness, wp.from_torch(binding.stiffness))
-            wp.copy(collection._actuator_damping, wp.from_torch(binding.damping))
         else:
             articulation._implicit_dof_mask, articulation._implicit_dof_mask_owner = build_implicit_dof_mask(
                 dict(collection.items()),

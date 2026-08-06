@@ -794,7 +794,7 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
         return out
 
     def test_implicit_storage_reuses_randomized_payload(self):
-        """Keep logical, collection, and implicit-solver gains identical after randomization."""
+        """Keep actuator-owned and implicit-solver gains identical after randomization."""
         sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=False)
         with build_simulation_context(
             device="cuda:0",
@@ -834,9 +834,7 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             randomized_damping = actuator.damping[env_ids]
             self.assertGreater(torch.unique(randomized_stiffness).numel(), 1)
             self.assertGreater(torch.unique(randomized_damping).numel(), 1)
-            torch.testing.assert_close(randomized_stiffness, anymal.actuators.actuator_stiffness.torch[env_ids])
             torch.testing.assert_close(randomized_stiffness, anymal.data.joint_stiffness.torch[env_ids])
-            torch.testing.assert_close(randomized_damping, anymal.actuators.actuator_damping.torch[env_ids])
             torch.testing.assert_close(randomized_damping, anymal.data.joint_damping.torch[env_ids])
             torch.testing.assert_close(actuator.stiffness[1:], stiffness_before[1:])
             torch.testing.assert_close(actuator.damping[1:], damping_before[1:])
@@ -887,17 +885,18 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
 
             expected_stiffness[0, 0] = 50.0
             expected_damping[0, 0] = 5.0
-            collection_gains = torch.stack(
-                (
-                    anymal.actuators.actuator_stiffness.torch[:, :3],
-                    anymal.actuators.actuator_damping.torch[:, :3],
-                )
-            )
+            expected_first_stiffness = torch.tensor([[50.0, 10.0], [10.0, 10.0]], device=anymal.device)
+            expected_first_damping = torch.tensor([[5.0, 1.0], [1.0, 1.0]], device=anymal.device)
+            expected_second_stiffness = torch.full((NUM_ENVS, 2), 20.0, device=anymal.device)
+            expected_second_damping = torch.full((NUM_ENVS, 2), 2.0, device=anymal.device)
+            torch.testing.assert_close(anymal.actuators["first"].stiffness, expected_first_stiffness)
+            torch.testing.assert_close(anymal.actuators["first"].damping, expected_first_damping)
+            torch.testing.assert_close(anymal.actuators["second"].stiffness, expected_second_stiffness)
+            torch.testing.assert_close(anymal.actuators["second"].damping, expected_second_damping)
             solver_gains = torch.stack(
                 (anymal.data.joint_stiffness.torch[:, :3], anymal.data.joint_damping.torch[:, :3])
             )
             expected_gains = torch.stack((expected_stiffness, expected_damping))
-            torch.testing.assert_close(collection_gains, expected_gains)
             torch.testing.assert_close(solver_gains, expected_gains)
 
     def test_single_articulation(self):

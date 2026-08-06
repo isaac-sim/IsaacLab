@@ -998,6 +998,9 @@ def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
 
     stiffness_before = gather_controller_parameter("kp").clone()
     damping_before = gather_controller_parameter("kd").clone()
+    legs = articulation.actuators["legs"]
+    legs_stiffness_before = legs.stiffness.clone()
+    legs_damping_before = legs.damping.clone()
     env_ids = torch.tensor([1], device=articulation.device, dtype=torch.long)
     joint_ids = torch.tensor([1, 6, 10], device=articulation.device, dtype=torch.long)
     stiffness = torch.tensor([[101.0, 106.0, 110.0]], device=articulation.device)
@@ -1017,6 +1020,14 @@ def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
     expected_damping[env_ids.unsqueeze(1), backend_joint_ids.unsqueeze(0)] = damping
     torch.testing.assert_close(gather_controller_parameter("kp"), expected_stiffness)
     torch.testing.assert_close(gather_controller_parameter("kd"), expected_damping)
+    legs_joint_ids = torch.arange(articulation.num_joints, device=articulation.device)
+    requested_columns, legs_columns = torch.where(joint_ids[:, None] == legs_joint_ids[None, :])
+    expected_legs_stiffness = legs_stiffness_before.clone()
+    expected_legs_damping = legs_damping_before.clone()
+    expected_legs_stiffness[env_ids[:, None], legs_columns[None, :]] = stiffness[:, requested_columns]
+    expected_legs_damping[env_ids[:, None], legs_columns[None, :]] = damping[:, requested_columns]
+    torch.testing.assert_close(legs.stiffness, expected_legs_stiffness)
+    torch.testing.assert_close(legs.damping, expected_legs_damping)
 
 
 @pytest.mark.parametrize("num_articulations", [1])
@@ -1272,10 +1283,9 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
 ):
     """Keep Lab-owned actuator gains across a rebind that re-seeds the solver's sim gains.
 
-    Part 2 (D3) regression: ``_actuator_stiffness`` / ``_actuator_damping`` are Lab-owned
-    records (the actuator kp/kd); the solver's sim gains are deliberately zeroed for
-    explicit DOFs. A full sim reset recreates the solver arrays, and rebind must NOT
-    resync the Lab-owned records from the freshly rebuilt (here: sentinel) solver gains.
+    Part 2 (D3) regression: named actuator groups own their actuator kp/kd; the solver's
+    sim gains are deliberately zeroed for explicit DOFs. A full sim reset recreates the solver arrays.
+    Rebind must NOT resync the actuator-owned values from freshly rebuilt (here: sentinel) solver gains.
     ``none`` is the identity-ordering control that must pass with or without the fix.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
@@ -1298,10 +1308,10 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
     data = articulation.data
     assert (data.joint_ordering is not None) is has_ordering
 
-    # Prime: explicit (IdealPD) actuators keep their PD in the collection-owned records,
+    # Prime: explicit (IdealPD) actuators keep their PD in actuator-owned records,
     # while the solver's sim gains are zeroed so it applies no PD on these DOFs.
-    np.testing.assert_allclose(articulation.actuators.actuator_stiffness.warp.numpy(), 40.0)
-    np.testing.assert_allclose(articulation.actuators.actuator_damping.warp.numpy(), 5.0)
+    np.testing.assert_allclose(articulation.actuators["legs"].stiffness.cpu().numpy(), 40.0)
+    np.testing.assert_allclose(articulation.actuators["legs"].damping.cpu().numpy(), 5.0)
     np.testing.assert_allclose(data._sim_bind_joint_stiffness_sim.numpy(), 0.0)
     np.testing.assert_allclose(data._sim_bind_joint_damping_sim.numpy(), 0.0)
 
@@ -1325,9 +1335,9 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
     SimulationManager._model = new_model
     data._create_simulation_bindings()
 
-    # The collection-owned actuator gains must survive the rebind unchanged...
-    np.testing.assert_allclose(articulation.actuators.actuator_stiffness.warp.numpy(), 40.0)
-    np.testing.assert_allclose(articulation.actuators.actuator_damping.warp.numpy(), 5.0)
+    # The actuator-owned gains must survive the rebind unchanged...
+    np.testing.assert_allclose(articulation.actuators["legs"].stiffness.cpu().numpy(), 40.0)
+    np.testing.assert_allclose(articulation.actuators["legs"].damping.cpu().numpy(), 5.0)
     # ...while the sim-owned mirrors track the solver's freshly seeded (sentinel) gains.
     if has_ordering:
         np.testing.assert_allclose(data._joint_stiffness_user.numpy(), sentinel_ke)
