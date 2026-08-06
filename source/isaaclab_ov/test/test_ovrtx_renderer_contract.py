@@ -129,7 +129,7 @@ def test_ovrtx_scene_attribute_update_uses_legacy_renderer():
 
 
 def test_ovrtx_scene_attribute_update_uses_ovstage_asset_semantics():
-    """ovstage receives one NUL-terminated asset-path byte row per target prim."""
+    """ovstage receives authored/resolved asset token pairs matching imported USD."""
     events = []
 
     class Completion:
@@ -158,6 +158,9 @@ def test_ovrtx_scene_attribute_update_uses_ovstage_asset_semantics():
             events.append(("create", paths))
             return "paths"
 
+        def intern_token(self, value):
+            return {"/textures/studio.hdr": 31, "/textures/atrium.hdr": 47}[value]
+
         def destroy_path_list(self, path_list):
             events.append(("destroy", path_list))
 
@@ -179,12 +182,14 @@ def test_ovrtx_scene_attribute_update_uses_ovstage_asset_semantics():
     assert write[1:3] == ("query", "texture:file")
     kwargs = write[3]
     assert kwargs["ordinal"] == 7
-    assert kwargs["is_array"] is True
-    assert kwargs["semantic"] == ovrtx_renderer_module.ovstage.AttributeSemantic.ASSET_STRING
-    assert [bytes(value) for value in kwargs["tensors"]] == [
-        b"/textures/studio.hdr\x00",
-        b"/textures/atrium.hdr\x00",
-    ]
+    assert kwargs["is_array"] is False
+    assert "semantic" not in kwargs
+    tensor = kwargs["tensors"]
+    assert tensor.dtype.code == ovrtx_renderer_module.ovstage.DLDataTypeCode.kDLUInt
+    assert tensor.dtype.bits == 64
+    assert tensor.dtype.lanes == 2
+    assert tensor.shape_tuple == (2,)
+    assert tensor._array.tolist() == [31, 31, 47, 47]
     assert events[-1] == ("destroy", "paths")
 
 
