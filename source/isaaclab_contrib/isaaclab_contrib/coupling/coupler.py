@@ -224,6 +224,11 @@ class NewtonCouplerManager(NewtonVBDManager):
         return any(solver.grid_type == "sparse" for solver in NewtonMPMManager._implicit_mpm_solvers())
 
     @classmethod
+    def _check_solver_status(cls) -> None:
+        """Raise asynchronous failures from nested implicit-MPM solvers."""
+        NewtonMPMManager._check_solver_status()
+
+    @classmethod
     def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
         """Promote a selected single MPM world to the solver's full-reset path."""
         model = NewtonManager._model

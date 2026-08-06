@@ -36,5 +36,6 @@ Fixed
 * Prevented the first deferred CUDA graph capture from advancing physics twice.
 * Preserved eager fallback for dense and unbounded sparse MPM grids when CUDA
   graphs are enabled.
+* Surfaced asynchronous sparse-grid rebuild failures after CUDA graph replay.
 * Deferred automatic coupled MPM history resets until tasks finish rewriting
   state, while allowing isolated-world tasks to reset selected worlds exactly.

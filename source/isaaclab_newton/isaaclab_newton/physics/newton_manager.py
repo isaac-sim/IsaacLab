@@ -342,7 +342,8 @@ class NewtonManager(PhysicsManager):
     may extend :meth:`_initialize_contacts`, :meth:`_prepare_builder_for_finalize`,
     :meth:`_step_solver`, :meth:`_supports_cuda_graph_capture`,
     :meth:`_defer_standard_graph_capture`, :meth:`_reset_solver_internals`,
-    :meth:`_solver_specific_clear`, and :meth:`_log_solver_debug`.
+    :meth:`_solver_specific_clear`, :meth:`_check_solver_status`, and
+    :meth:`_log_solver_debug`.
 
     Subclasses are selected via :attr:`NewtonSolverCfg.class_type`, which
     :meth:`NewtonCfg.__post_init__` propagates onto :attr:`NewtonCfg.class_type`
@@ -1010,6 +1011,8 @@ class NewtonManager(PhysicsManager):
         elif cls._particle_visual_prims:
             cls._mark_particles_dirty()
         cls._mark_sensor_state_dirty()
+
+        cls._check_solver_status()
 
         # Launch solver-specific debug logging after stepping.
         cls._log_solver_debug()
@@ -1973,6 +1976,14 @@ class NewtonManager(PhysicsManager):
 
         Default no-op.  Subclasses override to release sub-solver references
         or other solver-specific resources.
+        """
+
+    @classmethod
+    def _check_solver_status(cls) -> None:
+        """Raise solver-specific asynchronous failures after stepping.
+
+        Default no-op. Subclasses override when a solver requires a host-side
+        status check after CUDA graph replay.
         """
 
     @classmethod

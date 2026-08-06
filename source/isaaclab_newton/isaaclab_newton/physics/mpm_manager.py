@@ -170,6 +170,14 @@ class NewtonMPMManager(NewtonManager):
         return cls._solver.grid_type == "sparse"
 
     @classmethod
+    def _check_solver_status(cls) -> None:
+        """Raise asynchronous sparse-grid rebuild failures after graph replay."""
+        if NewtonManager._graph is None:
+            return
+        for solver in cls._implicit_mpm_solvers():
+            solver.check_sparse_grid_rebuild_status()
+
+    @classmethod
     def _implicit_mpm_solvers(cls) -> tuple[SolverImplicitMPM, ...]:
         """Return direct or coupled implicit-MPM solvers without importing the coupler."""
         root_solver = NewtonManager._solver
