@@ -197,99 +197,299 @@ Evaluate every training/deployment combination:
      - PhysX
      - NP: Newton-to-PhysX transfer.
 
-The exact entry point can vary by RL library. With the unified Isaac Lab entry point, the command
-pattern is:
+The exact entry point can vary by RL library. With the unified Isaac Lab entry point:
+
+**1. Train in PhysX:**
 
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=isaacsim_physx
+
+**PP – reproduce source baseline in PhysX:**
+
+.. code-block:: bash
+
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /absolute/path/to/physx_checkpoint.pt physics=isaacsim_physx
+       --checkpoint /path/to/physx_checkpoint.pt physics=isaacsim_physx
+
+**PN – deploy PhysX checkpoint in Newton:**
+
+.. code-block:: bash
+
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /absolute/path/to/physx_checkpoint.pt physics=newton_mjwarp
+       --checkpoint /path/to/physx_checkpoint.pt physics=newton_mjwarp
+
+**2. Train in Newton:**
+
+.. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=newton_mjwarp
-   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /absolute/path/to/newton_checkpoint.pt physics=newton_mjwarp
-   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /absolute/path/to/newton_checkpoint.pt physics=isaacsim_physx
 
-
-Run the Franka lift transfer
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The Franka sim-to-sim example registers ``Isaac-Lift-Franka`` for training and inference.
-The default inference configuration is the evaluation variant of
-the same environment contract and disables Franka gripper-closing-speed randomization.
-
-Train in PhysX, reproduce the source baseline in PhysX, and then deploy the exact same checkpoint
-in MJWarp:
+**NN – reproduce source baseline in Newton:**
 
 .. code-block:: bash
 
-   # Train the PhysX source policy.
-   uv run isaaclab train --rl_library rsl_rl \
-       --task Isaac-Lift-Franka \
-       --run_name physx_source \
-       physics=isaacsim_physx
+   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
+       --checkpoint /path/to/newton_checkpoint.pt physics=newton_mjwarp
 
-   # Replace RUN_DIRECTORY and ITERATION with the values produced by training.
-   PHYSX_CHECKPOINT="/absolute/path/to/logs/rsl_rl/lift_franka/RUN_DIRECTORY/model_ITERATION.pt"
-
-   # PP: reproduce the PhysX source baseline.
-   uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka \
-       --num_envs 32 \
-       --checkpoint "$PHYSX_CHECKPOINT" \
-       physics=isaacsim_physx
-
-   # PN: deploy the PhysX-trained checkpoint in MJWarp.
-   uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka \
-       --num_envs 32 \
-       --checkpoint "$PHYSX_CHECKPOINT" \
-       physics=newton_mjwarp
-
-Then train in MJWarp, reproduce the source baseline in MJWarp, and deploy that checkpoint in
-PhysX:
+**NP – deploy Newton checkpoint in PhysX:**
 
 .. code-block:: bash
 
-   # Train the MJWarp source policy.
-   uv run isaaclab train --rl_library rsl_rl \
-       --task Isaac-Lift-Franka \
-       --run_name mjwarp_source \
-       physics=newton_mjwarp
-
-   # Replace RUN_DIRECTORY and ITERATION with the values produced by training.
-   MJWARP_CHECKPOINT="/absolute/path/to/logs/rsl_rl/lift_franka/RUN_DIRECTORY/model_ITERATION.pt"
-
-   # NN: reproduce the MJWarp source baseline.
-   uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka \
-       --num_envs 32 \
-       --checkpoint "$MJWARP_CHECKPOINT" \
-       physics=newton_mjwarp
-
-   # NP: deploy the MJWarp-trained checkpoint in PhysX.
-   uv run isaaclab play --rl_library rsl_rl \
-       --task Isaac-Lift-Franka \
-       --num_envs 32 \
-       --checkpoint "$MJWARP_CHECKPOINT" \
-       physics=isaacsim_physx
+   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
+       --checkpoint /path/to/newton_checkpoint.pt physics=isaacsim_physx
 
 
-Other validated tasks
-~~~~~~~~~~~~~~~~~~~~~
+Validated transfer examples
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The same PhysX-to-Newton and Newton-to-PhysX transfer pattern applies to any task that satisfies
-the environment contract requirements. The following locomotion tasks have been validated in
-addition to the Franka lift example above:
+The following tasks have been validated for cross-backend transfer. Select a task to see its
+training and deployment commands. Each command is a separate block so it can be copied
+independently.
 
-* ``Isaac-Velocity-Rough-G1`` — G1 rough-terrain velocity tracking.
-* ``Isaac-Velocity-Rough-AnymalD`` — ANYmal-D rough-terrain velocity tracking.
+.. tab-set::
+   :sync-group: task-robot
 
-Substitute the task name in the commands above.
+   .. tab-item:: Franka lift
+      :sync: franka
+
+      Task ``Isaac-Lift-Franka``. The play entry point applies ``play_mode`` overrides
+      automatically and disables gripper-closing-speed randomization.
+
+      **PhysX source**
+
+      Train:
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+             --task Isaac-Lift-Franka \
+             --run_name physx_source \
+             physics=isaacsim_physx
+
+      Set the checkpoint path (replace ``RUN_DIRECTORY`` and ``ITERATION`` with the values
+      printed by training):
+
+      .. code-block:: bash
+
+         PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/lift_franka/physx_source/RUN_DIRECTORY/model_ITERATION.pt"
+
+      PP – reproduce source baseline in PhysX:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Lift-Franka \
+             --num_envs 32 \
+             --checkpoint "$PHYSX_CHECKPOINT" \
+             physics=isaacsim_physx
+
+      PN – deploy in Newton:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Lift-Franka \
+             --num_envs 32 \
+             --checkpoint "$PHYSX_CHECKPOINT" \
+             physics=newton_mjwarp
+
+      **Newton source**
+
+      Train:
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+             --task Isaac-Lift-Franka \
+             --run_name mjwarp_source \
+             physics=newton_mjwarp
+
+      Set the checkpoint path:
+
+      .. code-block:: bash
+
+         NEWTON_CHECKPOINT="/path/to/logs/rsl_rl/lift_franka/mjwarp_source/RUN_DIRECTORY/model_ITERATION.pt"
+
+      NN – reproduce source baseline in Newton:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Lift-Franka \
+             --num_envs 32 \
+             --checkpoint "$NEWTON_CHECKPOINT" \
+             physics=newton_mjwarp
+
+      NP – deploy in PhysX:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Lift-Franka \
+             --num_envs 32 \
+             --checkpoint "$NEWTON_CHECKPOINT" \
+             physics=isaacsim_physx
+
+   .. tab-item:: G1 locomotion
+      :sync: g1
+
+      Task ``Isaac-Velocity-Rough-G1``. Rough-terrain velocity-tracking policy for the
+      Unitree G1 humanoid.
+
+      **PhysX source**
+
+      Train:
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-G1 \
+             --run_name physx_source \
+             physics=isaacsim_physx
+
+      Set the checkpoint path:
+
+      .. code-block:: bash
+
+         PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/g1_rough/physx_source/RUN_DIRECTORY/model_ITERATION.pt"
+
+      PP – reproduce source baseline in PhysX:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-G1 \
+             --num_envs 32 \
+             --checkpoint "$PHYSX_CHECKPOINT" \
+             physics=isaacsim_physx
+
+      PN – deploy in Newton:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-G1 \
+             --num_envs 32 \
+             --checkpoint "$PHYSX_CHECKPOINT" \
+             physics=newton_mjwarp
+
+      **Newton source**
+
+      Train:
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-G1 \
+             --run_name mjwarp_source \
+             physics=newton_mjwarp
+
+      Set the checkpoint path:
+
+      .. code-block:: bash
+
+         NEWTON_CHECKPOINT="/path/to/logs/rsl_rl/g1_rough/mjwarp_source/RUN_DIRECTORY/model_ITERATION.pt"
+
+      NN – reproduce source baseline in Newton:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-G1 \
+             --num_envs 32 \
+             --checkpoint "$NEWTON_CHECKPOINT" \
+             physics=newton_mjwarp
+
+      NP – deploy in PhysX:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-G1 \
+             --num_envs 32 \
+             --checkpoint "$NEWTON_CHECKPOINT" \
+             physics=isaacsim_physx
+
+   .. tab-item:: ANYmal D locomotion
+      :sync: anymal-d
+
+      Task ``Isaac-Velocity-Rough-AnymalD``. Rough-terrain velocity-tracking policy for the
+      ANYbotics ANYmal D quadruped.
+
+      **PhysX source**
+
+      Train:
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-AnymalD \
+             --run_name physx_source \
+             physics=isaacsim_physx
+
+      Set the checkpoint path:
+
+      .. code-block:: bash
+
+         PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/anymal_d_rough/physx_source/RUN_DIRECTORY/model_ITERATION.pt"
+
+      PP – reproduce source baseline in PhysX:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-AnymalD \
+             --num_envs 32 \
+             --checkpoint "$PHYSX_CHECKPOINT" \
+             physics=isaacsim_physx
+
+      PN – deploy in Newton:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-AnymalD \
+             --num_envs 32 \
+             --checkpoint "$PHYSX_CHECKPOINT" \
+             physics=newton_mjwarp
+
+      **Newton source**
+
+      Train:
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-AnymalD \
+             --run_name mjwarp_source \
+             physics=newton_mjwarp
+
+      Set the checkpoint path:
+
+      .. code-block:: bash
+
+         NEWTON_CHECKPOINT="/path/to/logs/rsl_rl/anymal_d_rough/mjwarp_source/RUN_DIRECTORY/model_ITERATION.pt"
+
+      NN – reproduce source baseline in Newton:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-AnymalD \
+             --num_envs 32 \
+             --checkpoint "$NEWTON_CHECKPOINT" \
+             physics=newton_mjwarp
+
+      NP – deploy in PhysX:
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Velocity-Rough-AnymalD \
+             --num_envs 32 \
+             --checkpoint "$NEWTON_CHECKPOINT" \
+             physics=isaacsim_physx
 
 
 See also

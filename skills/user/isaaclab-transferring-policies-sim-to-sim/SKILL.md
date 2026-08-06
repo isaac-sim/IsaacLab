@@ -20,7 +20,7 @@ Read the [sim-to-sim how-to](../../../docs/source/how-to/transfer_policies_betwe
 3. **Transferring control behavior.** Match nominal actuator response before tuning the policy. Distinguish rated and solver velocity limits, use per-joint effort, gains, friction, and armature, preserve `dt * decimation`, keep targets away from hard stops, and monitor saturation and action sign changes. Increase damping to prevent bang-bang control and retune it after increasing armature.
 4. **Introducing domain randomization.** Randomize plausible robot/object friction, object mass/inertia, joint gains/friction, joint armature, gravity, actuator response, reset pose/geometry, and observation noise. Keep inertia valid and coupled mechanisms coherent. If transfer needs extreme ranges, revisit the nominal model. Use curriculum when the final distribution blocks learning, promote to final deployment difficulty, and keep a separate deterministic nominal evaluation.
 5. **Validate the full matrix.** Evaluate PP, PN, NN, and NP. For each source policy, reproduce the same-backend baseline and deploy the exact checkpoint in the other backend.
-6. **Run the transfer.** Use `Isaac-Lift-Franka` for both training and inference, selecting `isaacsim_physx` for the PhysX runs. The play entry point applies the environment's `play_mode` overrides automatically. Follow the PhysX-to-MJWarp and MJWarp-to-PhysX commands in the how-to. The same pattern applies to other validated tasks: `Isaac-Velocity-Rough-G1` and `Isaac-Velocity-Rough-AnymalD`.
+6. **Run a validated transfer.** The how-to covers three validated tasks — `Isaac-Lift-Franka`, `Isaac-Velocity-Rough-G1`, and `Isaac-Velocity-Rough-AnymalD` — each with its own tab. For each task, follow the PhysX-source and Newton-source command sequences. The play entry point applies `play_mode` overrides automatically.
 
 ## Validation
 
@@ -28,7 +28,7 @@ Require a task trainable in both backends, exact environment-contract equality, 
 
 ## Maintenance
 
-Keep this skill synchronized section-for-section with the sim-to-sim how-to, including its Franka commands.
+Keep this skill synchronized section-for-section with the sim-to-sim how-to, including the validated-task tabs (Franka, G1, ANYmal D).
 
 ## References
 
