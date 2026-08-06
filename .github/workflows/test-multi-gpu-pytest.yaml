@@ -179,6 +179,17 @@ jobs:
           PATHS: ${{ steps.discover.outputs.paths }}
         run: bash .github/actions/multi-gpu/multi_gpu_host_launcher.sh
 
+      - name: Multi-GPU training smoke
+        # Real two-rank training runs, outside the sharded device-parametrized
+        # path above: a multi-GPU job owns two GPUs at once, so a per-device
+        # shard cannot express it. Unsharded, all GPUs exposed; the tests pick
+        # their own GPU pair per interconnect class from ``nvidia-smi topo -m``.
+        # Runs on failure too, so a red shard does not hide smoke coverage.
+        if: always()
+        env:
+          IMAGE_TAG: ${{ env.CI_IMAGE_TAG }}
+        run: bash .github/actions/multi-gpu/multi_gpu_smoke.sh
+
       - name: Aggregated test summary
         # Per-shard + per-file pass/total/walltime, plus a combined table, also
         # written to $GITHUB_STEP_SUMMARY. Runs on success or failure.

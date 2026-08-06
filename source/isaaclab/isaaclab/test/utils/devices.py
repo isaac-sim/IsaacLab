@@ -81,6 +81,8 @@ Set the runtime from the shell to opt a run into non-default GPUs::
 from __future__ import annotations
 
 import os
+import re
+import subprocess
 from enum import Flag, auto
 
 _RUNTIME_DEVICES_ENV_VAR = "ISAACLAB_TEST_DEVICES"
@@ -233,6 +235,113 @@ def _expand(mask: str, count: int) -> list[bool]:
 def _scope_mask(scope: str | DeviceScope) -> str:
     """Convert a named device scope to its mask representation."""
     return scope if isinstance(scope, str) else scope.mask
+
+
+#: How ``nvidia-smi topo -m`` link classes map to the interconnect distance that
+#: multi-GPU rendering is sensitive to. ``UNKNOWN`` is not a gap in the parser --
+#: those classes are genuinely unmeasured for the defect this classification
+#: exists to gate, so callers must skip rather than assume either verdict.
+_TOPOLOGY_CLASS: dict[str, str] = {
+    "NV": "SAME_SWITCH",  # NV1, NV2, ... bonded NVLinks
+    "PIX": "SAME_SWITCH",  # at most a single PCIe bridge
+    "PXB": "UNKNOWN",  # multiple PCIe bridges, not the host bridge
+    "PHB": "UNKNOWN",  # traverses a PCIe host bridge
+    "NODE": "UNKNOWN",  # between host bridges within one NUMA node
+    "SYS": "CROSS_SOCKET",  # across the SMP interconnect between NUMA nodes
+}
+
+
+def gpu_pairs_by_topology() -> dict[str, tuple[int, int]]:
+    """Return one representative GPU pair per interconnect class on this host.
+
+    Parses ``nvidia-smi topo -m`` and classifies every GPU pair by how far apart
+    the two devices sit. Only the first pair found per class is returned, which is
+    enough to parametrize a test that needs "a pair of this kind".
+
+    Returns:
+        Mapping of class name (``SAME_SWITCH``, ``CROSS_SOCKET``, ``UNKNOWN``) to a
+        ``(index, index)`` pair. Classes with no such pair are absent. An empty
+        mapping means the topology could not be determined -- callers must treat
+        that as "skip", never as "no boundary present", so an unreadable topology
+        cannot silently turn a real failure into an expected one.
+
+        Also empty on a MIG-enabled host: ``topo -m`` describes *physical* GPUs
+        while CUDA addresses MIG instances, so a physical index is not a device
+        the caller can select.
+    """
+    if _mig_enabled():
+        return {}
+    try:
+        out = subprocess.run(["nvidia-smi", "topo", "-m"], capture_output=True, text=True, timeout=30, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    if out.returncode != 0:
+        return {}
+
+    lines = out.stdout.splitlines()
+    # Column count comes from the header. Rows also carry NIC and affinity columns,
+    # and NIC cells reuse the same tokens (NODE, SYS, PIX) -- reading past the GPU
+    # columns invents pairs against GPUs that do not exist.
+    # The header is the line listing the GPU columns: it carries several GPU
+    # labels and no link-class tokens (a data row carries exactly one label,
+    # followed by classes).
+    gpu_columns = 0
+    for line in lines:
+        labels = re.findall(r"\bGPU\d+\b", line)
+        if len(labels) >= 2 and not re.search(r"\b(?:X|NV\d+|PIX|PXB|PHB|NODE|SYS)\b", line):
+            gpu_columns = len(labels)
+            break
+    if gpu_columns == 0:
+        return {}
+
+    pairs: dict[str, tuple[int, int]] = {}
+    rows_seen: set[int] = set()
+    for line in lines:
+        # Data rows start with the GPU label; the legend and NIC rows do not.
+        match = re.match(r"^\s*GPU(\d+)\s+(.*)$", line)
+        if match is None:
+            continue
+        row = int(match.group(1))
+        # A row naming a GPU the header does not list means the matrix is partial
+        # or inconsistent. Returning a pair from it would hand an index that is
+        # not a selectable device to CUDA_VISIBLE_DEVICES.
+        if row >= gpu_columns:
+            return {}
+        rows_seen.add(row)
+        # Cells run in GPU-index order; "X" marks self.
+        for col, cell in enumerate(match.group(2).split()[:gpu_columns]):
+            if col == row or cell == "X":
+                continue
+            # NVLink cells are NV1/NV2/...; every other class is a bare token.
+            key = "NV" if cell.startswith("NV") else cell
+            kind = _TOPOLOGY_CLASS.get(key)
+            if kind is None:
+                continue
+            pairs.setdefault(kind, (row, col) if row < col else (col, row))
+
+    # Require the full square: a truncated matrix can omit exactly the rows that
+    # carry the boundary, which would silently downgrade a cross-socket host to
+    # "same switch only" and turn the expected-failure case into a skip.
+    if len(rows_seen) != gpu_columns:
+        return {}
+    return pairs
+
+
+def _mig_enabled() -> bool:
+    """Whether any GPU on this host is partitioned into MIG instances.
+
+    Returns:
+        ``True`` when ``nvidia-smi -L`` lists a MIG device, and on any error --
+        an unreadable device list is treated as MIG so callers skip rather than
+        select physical indices that may not be addressable.
+    """
+    try:
+        out = subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True, timeout=30, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return True
+    if out.returncode != 0:
+        return True
+    return "MIG " in out.stdout
 
 
 def _list_available_devices() -> list[str]:
