@@ -346,8 +346,6 @@ class _MockActuatorCollection(dict):
             self._applied_torque = wp.zeros(shape, dtype=wp.float32, device=control.device)
             self._soft_joint_vel_limits = wp.zeros(shape, dtype=wp.float32, device=control.device)
             self._gear_ratio = wp.ones(shape, dtype=wp.float32, device=control.device)
-            self._actuator_stiffness = wp.zeros(shape, dtype=wp.float32, device=control.device)
-            self._actuator_damping = wp.zeros(shape, dtype=wp.float32, device=control.device)
             self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
             self._joint_vel_target_ta = ProxyArray(self._joint_vel_target)
             self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
@@ -397,29 +395,29 @@ class _MockActuatorCollection(dict):
         return self._gear_ratio_ta
 
     def write_actuator_stiffness_to_sim(self, *, stiffness, env_ids, joint_ids) -> None:
-        self._write_actuator_gain("kp", stiffness, env_ids, joint_ids, self._actuator_stiffness)
+        self._write_actuator_gain("kp", stiffness, env_ids, joint_ids)
 
     def write_actuator_damping_to_sim(self, *, damping, env_ids, joint_ids) -> None:
-        self._write_actuator_gain("kd", damping, env_ids, joint_ids, self._actuator_damping)
+        self._write_actuator_gain("kd", damping, env_ids, joint_ids)
 
-    def _write_actuator_gain(self, attr, values, env_ids, joint_ids, target_buffer) -> None:
-        # Mirrors ActuatorCollection._write_actuator_gain: stage the values into the
-        # collection-owned gain buffer, then propagate through the REAL backend
-        # adapter's ``write_native_actuator_gain`` (the joint-id mapping under test).
-        from isaaclab.actuators import actuator_kernels
-
+    def _write_actuator_gain(self, attr, values, env_ids, joint_ids) -> None:
         device = self._control.device
-        env_ids_wp = wp.from_torch(env_ids.to(device, dtype=torch.int32).contiguous(), dtype=wp.int32)
-        joint_ids_wp = wp.from_torch(joint_ids.to(device, dtype=torch.int32).contiguous(), dtype=wp.int32)
-        values_wp = wp.from_torch(values.to(device, dtype=torch.float32).contiguous(), dtype=wp.float32)
-        wp.launch(
-            actuator_kernels.write_2d_float_with_indices_kernel(env_ids_wp, joint_ids_wp),
-            dim=(env_ids_wp.shape[0], joint_ids_wp.shape[0]),
-            inputs=[values_wp, env_ids_wp, joint_ids_wp, False],
-            outputs=[target_buffer],
-            device=device,
+        env_ids = self._control.resolve_env_ids(env_ids)
+        joint_ids = self._control.resolve_joint_ids(joint_ids)
+        if isinstance(env_ids, wp.array):
+            env_ids = wp.to_torch(env_ids)
+        if isinstance(joint_ids, wp.array):
+            joint_ids = wp.to_torch(joint_ids)
+        env_ids = env_ids.to(device, dtype=torch.long)
+        joint_ids = joint_ids.to(device, dtype=torch.long)
+        values_snapshot = values.to(device, dtype=torch.float32).contiguous().clone()
+        self._control.assert_shape_and_dtype(
+            values_snapshot,
+            (env_ids.shape[0], joint_ids.shape[0]),
+            wp.float32,
+            "values",
         )
-        self._control.write_native_actuator_gain(attr, values, env_ids, joint_ids)
+        self._control.write_native_actuator_gain(attr, values_snapshot, env_ids, joint_ids)
 
     def _write_index_target(self, target, env_ids, joint_ids, buffer, full_data, command_name) -> None:
         from isaaclab.actuators import actuator_kernels

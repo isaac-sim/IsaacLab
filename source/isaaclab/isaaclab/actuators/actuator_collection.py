@@ -373,16 +373,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         return self._applied_torque_ta
 
     @property
-    def actuator_stiffness(self) -> ProxyArray:
-        """Actuator-resolved stiffness values [N/m or N·m/rad, depending on joint type]."""
-        return self._actuator_stiffness_ta
-
-    @property
-    def actuator_damping(self) -> ProxyArray:
-        """Actuator-resolved damping values [N·s/m or N·m·s/rad, depending on joint type]."""
-        return self._actuator_damping_ta
-
-    @property
     def soft_joint_vel_limits(self) -> ProxyArray:
         """Actuator-resolved soft joint velocity limits [m/s or rad/s, depending on joint type]."""
         return self._soft_joint_vel_limits_ta
@@ -464,7 +454,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         joint_ids: torch.Tensor,
     ) -> None:
         """Write actuator stiffness values and propagate them to native controllers."""
-        self._write_actuator_gain("kp", stiffness, env_ids, joint_ids, self._actuator_stiffness)
+        self._write_actuator_gain("kp", stiffness, env_ids, joint_ids)
 
     def write_actuator_damping_to_sim(
         self,
@@ -474,7 +464,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         joint_ids: torch.Tensor,
     ) -> None:
         """Write actuator damping values and propagate them to native controllers."""
-        self._write_actuator_gain("kd", damping, env_ids, joint_ids, self._actuator_damping)
+        self._write_actuator_gain("kd", damping, env_ids, joint_ids)
 
     """
     Internal helpers.
@@ -490,8 +480,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._joint_effort_target_sim = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._computed_torque = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._applied_torque = wp.zeros(shape, dtype=wp.float32, device=self.device)
-        self._actuator_stiffness = wp.zeros(shape, dtype=wp.float32, device=self.device)
-        self._actuator_damping = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._soft_joint_vel_limits = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._gear_ratio = wp.ones(shape, dtype=wp.float32, device=self.device)
         self._all_env_ids = wp.array(list(range(self.num_instances)), dtype=wp.int32, device=self.device)
@@ -505,8 +493,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._joint_effort_target_sim_ta = ProxyArray(self._joint_effort_target_sim)
         self._computed_torque_ta = ProxyArray(self._computed_torque)
         self._applied_torque_ta = ProxyArray(self._applied_torque)
-        self._actuator_stiffness_ta = ProxyArray(self._actuator_stiffness)
-        self._actuator_damping_ta = ProxyArray(self._actuator_damping)
         self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
         self._gear_ratio_ta = ProxyArray(self._gear_ratio)
 
@@ -548,7 +534,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             self._joint_indices_wp[actuator_name] = self._joint_indices_as_wp(actuator)
             self._has_implicit_actuators = self._has_implicit_actuators or isinstance(actuator, ImplicitActuator)
 
-            self._scatter_resolved_gains(actuator_name, actuator)
             self._control.write_resolved_joint_properties(
                 actuator,
                 native_managed=actuator_name in self._native_group_names,
@@ -839,23 +824,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         )
         self._control.stage_user_command(command_name, self, None, None, env_mask, joint_mask)
 
-    def _scatter_resolved_gains(self, actuator_name: str, actuator: ActuatorBase) -> None:
-        joint_indices = self._joint_indices_wp[actuator_name]
-        wp.launch(
-            actuator_kernels.write_2d_float_with_indices_kernel(self._all_env_ids, joint_indices),
-            dim=(self.num_instances, joint_indices.shape[0]),
-            inputs=[actuator.stiffness, self._all_env_ids, joint_indices, False],
-            outputs=[self._actuator_stiffness],
-            device=self.device,
-        )
-        wp.launch(
-            actuator_kernels.write_2d_float_with_indices_kernel(self._all_env_ids, joint_indices),
-            dim=(self.num_instances, joint_indices.shape[0]),
-            inputs=[actuator.damping, self._all_env_ids, joint_indices, False],
-            outputs=[self._actuator_damping],
-            device=self.device,
-        )
-
     def _scatter_actuator_output(
         self,
         actuator: ActuatorBase,
@@ -933,21 +901,18 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         values: torch.Tensor,
         env_ids: torch.Tensor,
         joint_ids: torch.Tensor,
-        target_buffer: wp.array,
     ) -> None:
+        env_ids = self._control.resolve_env_ids(env_ids)
+        joint_ids = self._control.resolve_joint_ids(joint_ids)
+        if isinstance(env_ids, wp.array):
+            env_ids = wp.to_torch(env_ids)
+        if isinstance(joint_ids, wp.array):
+            joint_ids = wp.to_torch(joint_ids)
+        env_ids = env_ids.to(self.device, dtype=torch.long)
+        joint_ids = joint_ids.to(self.device, dtype=torch.long)
         values_snapshot = values.to(self.device, dtype=torch.float32).contiguous().clone()
         actuator_attr = {"kp": "stiffness", "kd": "damping"}[attr]
         self._write_execution_parameter(actuator_attr, values_snapshot, env_ids, joint_ids)
-        env_ids_wp = wp.from_torch(env_ids.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
-        joint_ids_wp = wp.from_torch(joint_ids.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
-        values_wp = wp.from_torch(values_snapshot, dtype=wp.float32)
-        wp.launch(
-            actuator_kernels.write_2d_float_with_indices_kernel(env_ids_wp, joint_ids_wp),
-            dim=(env_ids_wp.shape[0], joint_ids_wp.shape[0]),
-            inputs=[values_wp, env_ids_wp, joint_ids_wp, False],
-            outputs=[target_buffer],
-            device=self.device,
-        )
         self._control.write_native_actuator_gain(attr, values_snapshot, env_ids, joint_ids)
 
     def _write_execution_parameter(
