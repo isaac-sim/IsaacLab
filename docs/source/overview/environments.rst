@@ -259,13 +259,15 @@ for the lift-cube environment:
     |                         |                              | with the UR10 arm and long surface gripper                                  | ``newton_mjwarp``                       |
     |                         | |short-suction-link|         | or short surface gripper (cpu only).                                        |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
-    |                         | |franka-direct-link|         |                                                                             |                                         |
+    | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
+    | |cabi-franka|           | |franka-direct-link|         | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
-    |                         | |allegro-direct-link|        |                                                                             |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |cube-allegro|          | |allegro-direct-link|        | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-shadow|           | |cube-shadow-link|           | In-hand reorientation of a cube using Shadow hand                           | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
