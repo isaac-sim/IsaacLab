@@ -132,13 +132,13 @@ class VideoRecorder:
             if kind == "visualizer":
                 return self._frame_from_visualizer(type_or_name, sub)
             if kind == "sensor":
-                return self._frame_from_sensor(type_or_name)
+                return self._frame_from_sensor(type_or_name, gt_type=sub)
             # Unreachable: kind was validated in __init__, but keeps type checkers happy.
             return None  # pragma: no cover
         except RuntimeError as exc:
             logger.error(
-                "[VideoRecorder] Frame capture failed; recording will be disabled for this stream. "
-                "source=%r  error: %s",
+                "[VideoRecorder] Frame capture failed for source=%r: %s  "
+                "Further capture attempts for this stream will be suppressed.",
                 self.cfg.source,
                 exc,
             )
@@ -196,31 +196,32 @@ class VideoRecorder:
                 )
 
         viz = candidates[0]
-        if sub == "tiled":
+        if sub == "streaming_view":
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(
-                    f"[VideoRecorder] source='visualizer:{viz_type}:tiled' requested but the "
-                    f"'{viz_type}' visualizer does not support tiled capture."
+                    f"[VideoRecorder] source='visualizer:{viz_type}:streaming_view' requested but the "
+                    f"'{viz_type}' visualizer does not support streaming view capture."
+                )
+            if not getattr(getattr(viz, "cfg", None), "streaming_view", False):
+                cfg_name = {
+                    "kit": "KitVisualizerCfg",
+                    "newton_gl": "NewtonGLVisualizerCfg",
+                    "newton": "NewtonGLVisualizerCfg",
+                }.get(viz_type or "", "VisualizerCfg")
+                raise RuntimeError(
+                    f"[VideoRecorder] source='visualizer:{viz_type}:streaming_view' requested but "
+                    f"streaming_view is not enabled on the '{viz_type}' visualizer. "
+                    f"Enable it by setting streaming_view=True on the visualizer config:\n\n"
+                    f"    {cfg_name}(streaming_view=True, ...)\n\n"
+                    f"A streaming camera is auto-created from the streaming_cam_* fields. "
+                    f"To use an existing scene camera, set streaming_sensor_prim_path instead."
                 )
             return viz.render_tiled_rgb_array()
 
-        # Validate that the selected visualizer actually supports direct RGB capture.
-        # Rerun and Viser only expose render_tiled_rgb_array(); calling render_rgb_array()
-        # on them would raise AttributeError.  Promote to tiled automatically with a warning
-        # so that source='visualizer:rerun' works without forcing users to add ':tiled'.
         if not hasattr(viz, "render_rgb_array"):
-            if hasattr(viz, "render_tiled_rgb_array"):
-                logger.warning(
-                    "[VideoRecorder] source='visualizer:%s' does not implement render_rgb_array(); "
-                    "falling back to render_tiled_rgb_array(). "
-                    "Use source='visualizer:%s:tiled' to silence this warning.",
-                    viz_type or "<auto>",
-                    viz_type or "<auto>",
-                )
-                return viz.render_tiled_rgb_array()
             raise RuntimeError(
                 f"[VideoRecorder] source='visualizer:{viz_type or '<auto>'}' does not support frame "
-                "capture: the visualizer has neither render_rgb_array() nor render_tiled_rgb_array()."
+                "capture: the visualizer has no render_rgb_array() implementation."
             )
 
         frame = viz.render_rgb_array()
@@ -229,15 +230,25 @@ class VideoRecorder:
             raise RuntimeError(
                 f"[VideoRecorder] render_rgb_array() returned None for '{viz_type_name}' visualizer. "
                 "Newton RTX does not yet support framebuffer readback. "
-                "Use source='visualizer:newton_gl' or source='visualizer:<type>:tiled' instead."
+                "Use source='visualizer:newton_gl' or source='visualizer:newton_gl:streaming_view' instead."
             )
         return frame
 
-    def _frame_from_sensor(self, name: str) -> np.ndarray | None:
-        # Note: only the "rgb" channel is currently supported for sensor sources.
-        # Sub-channel specifiers such as "sensor:<name>:depth" are parsed but the sub
-        # field is ignored — depth colorization is not implemented.  To record depth,
-        # retrieve the depth tensor manually in a custom recorder subclass.
+    def _frame_from_sensor(self, name: str, gt_type: str = "rgb") -> np.ndarray | None:
+        from isaaclab.envs.utils.camera_colorizer import (
+            SUPPORTED_GT_TYPES,
+            CameraFrameColorizer,
+            sensor_key_for_gt_type,
+        )
+
+        gt_type = gt_type or "rgb"
+        if gt_type not in SUPPORTED_GT_TYPES:
+            raise RuntimeError(
+                f"[VideoRecorder] Unsupported GT type '{gt_type}' in sensor source. "
+                f"Valid types: {sorted(SUPPORTED_GT_TYPES)}. "
+                f"Use source='sensor:{name}:<type>' where <type> is one of the valid types."
+            )
+
         scene = getattr(self._env, "scene", None)
         if scene is None:
             raise RuntimeError(
@@ -261,18 +272,29 @@ class VideoRecorder:
                 f"(available: [{', '.join(repr(s) for s in truncated)}{suffix}]).{hint}"
             )
         output = getattr(getattr(sensor, "data", None), "output", None)
-        if output is None or "rgb" not in output:
+        if output is None:
             raise RuntimeError(
-                f"[VideoRecorder] Sensor '{name}' has no 'rgb' output. Ensure the sensor's data_types includes 'rgb'."
+                f"[VideoRecorder] Sensor '{name}' has no data output. "
+                "Ensure the sensor is initialized and has been stepped at least once."
             )
-        data = output["rgb"]
+        available_keys = frozenset(output.keys())
+        try:
+            sensor_key = sensor_key_for_gt_type(gt_type, available_keys)
+        except (ValueError, KeyError):
+            raise RuntimeError(
+                f"[VideoRecorder] Sensor '{name}' has no '{gt_type}' output "
+                f"(available: {sorted(available_keys)}). "
+                f"Ensure the sensor's data_types includes '{gt_type}'."
+            )
+        data = output[sensor_key]
         # ProxyArray or torch.Tensor: shape (N, H, W, C)
-        if hasattr(data, "torch"):
-            tensor = data.torch
-        else:
-            tensor = data
-        frame = tensor[0].cpu().numpy().astype(np.uint8)
-        return frame[:, :, :3] if frame.ndim == 3 and frame.shape[2] >= 3 else frame
+        raw = data.torch if hasattr(data, "torch") else data
+        return CameraFrameColorizer.colorize(
+            raw[0],
+            gt_type,
+            depth_min=self.cfg.depth_colormap_min,
+            depth_max=self.cfg.depth_colormap_max,
+        )
 
     def _effective_output_dir(self) -> str:
         return self.cfg.output_dir or "videos"
@@ -295,6 +317,18 @@ class VideoRecorder:
                     base_fps = round(1.0 / step_dt) if step_dt else 30
                 # frame_stride subsamples: one frame every N steps, so playback fps scales down.
                 fps = max(1, round(base_fps / self.cfg.frame_stride))
+            # Warn if the clip appears to be all-black (mean pixel < 2/255).
+            # This can happen with Kit+Newton when cubric is unavailable.
+            sample = self._frames[len(self._frames) // 2]
+            if np.mean(sample) < 2.0:
+                logger.warning(
+                    "[VideoRecorder] source=%r: sampled frame appears mostly black "
+                    "(mean pixel value %.1f/255). For Kit+Newton, ensure cubric is available "
+                    "to propagate Fabric transforms to the RTX renderer, or switch to "
+                    "source='visualizer:newton_gl' for guaranteed capture.",
+                    self.cfg.source,
+                    float(np.mean(sample)),
+                )
             clip = ImageSequenceClip(self._frames, fps=fps)
             clip.write_videofile(path, codec="libx264", audio=False, logger=None)
             logger.info("[VideoRecorder] Wrote %d frames to %s", len(self._frames), path)

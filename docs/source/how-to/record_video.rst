@@ -130,14 +130,22 @@ The ``source`` string selects what to capture:
      - First active recording-capable visualizer (auto)
    * - ``"visualizer:kit"``
      - Kit visualizer viewport
-   * - ``"visualizer:kit:tiled"``
-     - Kit visualizer tiled-camera grid panel
+   * - ``"visualizer:kit:streaming_view"``
+     - Kit streaming camera panel (requires ``streaming_view=True``)
    * - ``"visualizer:newton"``
      - Newton GL visualizer viewport
-   * - ``"visualizer:newton:tiled"``
-     - Newton GL visualizer tiled-camera panel
+   * - ``"visualizer:newton:streaming_view"``
+     - Newton GL streaming camera panel (requires ``streaming_view=True``)
    * - ``"sensor:<name>"``
-     - ``env.scene.sensors[name]``, RGB channel
+     - ``env.scene.sensors[name]``, RGB (default)
+   * - ``"sensor:<name>:rgb"``
+     - RGB channel
+   * - ``"sensor:<name>:depth"``
+     - Depth, turbo colormap (range: ``depth_colormap_min`` … ``depth_colormap_max``)
+   * - ``"sensor:<name>:segmentation"``
+     - Segmentation, colorized
+   * - ``"sensor:<name>:normals"``
+     - Surface normals, colorized
 
 The camera angle, resolution, and other visualizer settings are configured on the
 corresponding :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` or
@@ -223,13 +231,15 @@ Requirements
 * `moviepy <https://pypi.org/project/moviepy/>`_ 1.x and ``ffmpeg`` must be installed
   (both are already in Isaac Lab's dependencies).
 
-* For ``source="visualizer:kit"`` or ``"visualizer:kit:tiled"``: the Kit app is launched
-  automatically by :class:`~isaaclab.app.AppLauncher`.  In **headless mode** (``--headless``),
-  you must also pass ``--enable_cameras`` (or set ``ENABLE_CAMERAS=1``) to activate the
-  Replicator offscreen render pipeline; without it, captured frames are black.  The ``--video``
-  flag sets ``--enable_cameras`` automatically when no explicit recorder source is configured.
+* For ``source="visualizer:kit"`` or ``"visualizer:kit:streaming_view"``: the Kit app is
+  launched automatically by :class:`~isaaclab.app.AppLauncher`.  In **headless mode**
+  (``--headless``), you must also pass ``--enable_cameras`` (or set ``ENABLE_CAMERAS=1``) to
+  activate the Replicator offscreen render pipeline; without it, captured frames are black.
+  The ``--video`` flag sets ``--enable_cameras`` automatically when no explicit recorder
+  source is configured.
 
-* For ``source="visualizer:newton"`` or ``"visualizer:newton_gl"`` / ``"visualizer:newton:tiled"``:
+* For ``source="visualizer:newton"`` or ``"visualizer:newton_gl"`` /
+  ``"visualizer:newton:streaming_view"``:
   an active :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` must be in
   ``env_cfg.sim.visualizer_cfgs``.  Newton GL uses pyglet's EGL backend and works headlessly
   without ``--enable_cameras``.
@@ -294,14 +304,14 @@ Alternatively, record directly from a scene camera sensor without any visualizer
 Limitations
 -----------
 
-* ``source="visualizer:kit"`` and ``source="visualizer:kit:tiled"`` require cubric to
-  propagate Newton Fabric scene transforms to the RTX renderer.  Without cubric, a warning
-  is logged and captured frames may be black.  Use ``source="visualizer:newton"`` for
-  guaranteed capture with Newton physics.
+* ``source="visualizer:kit"`` and ``source="visualizer:kit:streaming_view"`` require cubric
+  to propagate Newton Fabric scene transforms to the RTX renderer.  Without cubric, a warning
+  is logged and a black-frame warning is emitted at clip write time.  Use
+  ``source="visualizer:newton"`` for guaranteed capture with Newton physics.
 
-* ``source="visualizer:newton:tiled"`` captures the Newton GL window framebuffer when
-  ``streaming_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`.
-  Newton does not implement a separate ``render_tiled_rgb_array()`` path.
+* ``source="visualizer:newton:streaming_view"`` and ``source="visualizer:kit:streaming_view"``
+  require ``streaming_view=True`` on the corresponding visualizer cfg.  A
+  :class:`~RuntimeError` is raised at the first capture attempt if it is not set.
 
 
 See also

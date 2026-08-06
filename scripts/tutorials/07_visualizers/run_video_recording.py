@@ -189,7 +189,7 @@ def _build_env_cfg_example_3(num_envs: int):
             step_offset=_KIT_STEP_OFFSET,
         ),
         VideoRecorderCfg(
-            source="visualizer:kit:tiled",
+            source="visualizer:kit:streaming_view",
             output_dir=out,
             output_filename_prefix="tiled_kit_viewport",
             video_length=_VIDEO_LENGTH,

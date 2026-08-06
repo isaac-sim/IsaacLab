@@ -81,7 +81,7 @@ def _make_env(visualizers=(), sensors: dict | None = None):
     [
         ("visualizer", ("visualizer", "", "")),
         ("visualizer:kit", ("visualizer", "kit", "")),
-        ("visualizer:newton:tiled", ("visualizer", "newton", "tiled")),
+        ("visualizer:newton:streaming_view", ("visualizer", "newton", "streaming_view")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
         ("  visualizer:kit  ", ("visualizer", "kit", "")),
     ],
