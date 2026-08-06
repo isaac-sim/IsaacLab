@@ -1532,7 +1532,7 @@ def update_wrench_array_with_force_and_torque(
     Args:
         forces: Body-frame forces at each body center of mass [N], shape
             (num_envs, num_bodies).
-        torques: Body-frame torques at each body center of mass [N, N*m], shape
+        torques: Body-frame torques at each body center of mass [N·m], shape
             (num_envs, num_bodies).
         body_link_pose_w: Public-order body link poses in the world frame,
             shape (num_envs, num_bodies). Only each pose quaternion is used;

@@ -73,8 +73,8 @@ def update_wrench_array_with_force_and_torque_ordered(
             translation does not shift the COM-referenced wrench.
         user_to_backend: Read-only map shaped [num_bodies] from each public body
             index to its backend body index.
-        wrench: Backend-order wrench destination [N, N*m], shaped
-            [num_envs, num_bodies].
+        wrench: World-frame force and torque at each body center of mass [N,
+            N·m], shaped [num_envs, num_bodies], in backend body order.
         env_mask: Environment-selection mask shaped [num_envs].
         body_mask: Public-body selection mask shaped [num_bodies].
     """
