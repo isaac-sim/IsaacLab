@@ -47,6 +47,7 @@ overrides = [
     { name = "torchvision", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchvision", marker = "sys_platform == 'win32'", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "typing-extensions", specifier = ">=4.15.0" },
+    { name = "usd-exchange", marker = "platform_machine == 'aarch64'", specifier = ">=2.2" },
     { name = "websockets", specifier = ">=14.0,<17.0.0" },
 ]
 
@@ -3852,7 +3853,7 @@ dependencies = [
     { name = "newton-usd-schemas", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or extra != 'extra-12-isaaclab-dev-ov' or (extra == 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "numpy-stl", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or extra != 'extra-12-isaaclab-dev-ov' or (extra == 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "tinyobjloader", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or extra != 'extra-12-isaaclab-dev-ov' or (extra == 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "usd-exchange", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or extra != 'extra-12-isaaclab-dev-ov' or (extra == 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "usd-exchange", marker = "(platform_machine != 'x86_64' and sys_platform != 'win32' and extra == 'extra-12-isaaclab-dev-isaacsim') or (platform_machine != 'x86_64' and sys_platform != 'win32' and extra != 'extra-12-isaaclab-dev-ov') or (platform_machine == 'x86_64' and extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (platform_machine == 'x86_64' and extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx' and extra == 'extra-12-isaaclab-dev-teleop') or (platform_machine == 'x86_64' and extra != 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-ovphysx' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform == 'win32' and extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (sys_platform == 'win32' and extra != 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-ovphysx' and extra == 'extra-12-isaaclab-dev-teleop') or (extra != 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-teleop')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/71/33/fc9c68f45aa6a6bc4d7012cfc5568b583577628d9c4f011c2816f2e3b0d2/mujoco_usd_converter-0.2.0.tar.gz", hash = "sha256:7aebb06590573583d642616fbaa7523cf098a7b31621023ef48d50538eef3e8a", size = 301687, upload-time = "2026-04-29T23:02:32.558Z" }
 wheels = [
@@ -6808,7 +6809,7 @@ dependencies = [
     { name = "numpy-stl", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or extra != 'extra-12-isaaclab-dev-ov' or (extra == 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "pycollada", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or extra != 'extra-12-isaaclab-dev-ov' or (extra == 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-teleop')" },
     { name = "tinyobjloader", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or extra != 'extra-12-isaaclab-dev-ov' or (extra == 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-teleop')" },
-    { name = "usd-exchange", marker = "extra == 'extra-12-isaaclab-dev-isaacsim' or extra != 'extra-12-isaaclab-dev-ov' or (extra == 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-teleop')" },
+    { name = "usd-exchange", marker = "(platform_machine != 'x86_64' and sys_platform != 'win32' and extra == 'extra-12-isaaclab-dev-isaacsim') or (platform_machine != 'x86_64' and sys_platform != 'win32' and extra != 'extra-12-isaaclab-dev-ov') or (platform_machine == 'x86_64' and extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (platform_machine == 'x86_64' and extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ovphysx' and extra == 'extra-12-isaaclab-dev-teleop') or (platform_machine == 'x86_64' and extra != 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-ovphysx' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform == 'win32' and extra == 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov') or (sys_platform == 'win32' and extra != 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-ovphysx' and extra == 'extra-12-isaaclab-dev-teleop') or (extra != 'extra-12-isaaclab-dev-isaacsim' and extra == 'extra-12-isaaclab-dev-ov' and extra == 'extra-12-isaaclab-dev-teleop')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/73/de/1ba6cd4d985e617024cd7a50d9e269690c39ab9a4e08d3ba5023e63ab0ec/urdf_usd_converter-0.1.3.tar.gz", hash = "sha256:954f15a5c7f5a772b2df6eb206749a1af712de840cafb8e8a5d92349b9d32c86", size = 213029, upload-time = "2026-05-22T20:11:07.017Z" }
 wheels = [

@@ -402,6 +402,16 @@ override-dependencies = [
     # together at 26.0 instead of forcing a fork. Validated over 119 OvPhysX
     # training runs on a single environment carrying both extras.
     "packaging>=20,<27",
+    # usd-exchange and usd-core both vendor a complete ``pxr`` runtime built against
+    # different USD versions (2.3.0 -> 25.05, usd-core -> 25.11), overlapping on 51
+    # files including the compiled extensions. ``newton[importers]`` requires
+    # usd-exchange unmarked (via mujoco-usd-converter / urdf-usd-converter), which
+    # defeats the platform split declared in [project.dependencies]. uv installs
+    # concurrently, so the per-file winner varies between identical builds and a
+    # mixed-ABI ``pxr`` raises "extension class wrapper ... Tf_PyEnumWrapper has not
+    # been created yet" at import. Restoring the marker keeps usd-exchange on
+    # aarch64, where usd-core has no wheel.
+    "usd-exchange>=2.2 ; platform_machine == 'aarch64'",
 ]
 # ``ov`` stays forked: it pulls ovrtx as well, which has not been validated
 # alongside Isaac Sim. ``teleop`` bundles isaacsim, so it inherits both pairs.
