@@ -147,3 +147,13 @@ def test_class_to_dict_serializes_enums_as_values():
     # the enum internals must not leak into the output
     assert not isinstance(data["flavor"], dict)
     assert not isinstance(data["level"], dict)
+
+
+def test_update_class_from_dict_restores_enums_from_values():
+    """Serializing and reloading a config should hand back enum members, not raw scalars."""
+    cfg = _EnumCfg()
+
+    dict_utils.update_class_from_dict(cfg, dict_utils.class_to_dict(_EnumCfg()))
+
+    assert cfg.flavor is _Flavor.VANILLA
+    assert cfg.level is _Level.LOW

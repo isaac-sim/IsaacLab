@@ -850,3 +850,26 @@ def test_physics_variant_raises_when_requested_absent():
 
     with pytest.raises(ValueError, match="no 'physx' physics variant"):
         UrdfConverter(config)
+
+
+@pytest.mark.isaacsim_ci
+def test_physics_variant_raises_again_on_retry():
+    """Verify that a conversion which failed on the variant does not count as cached.
+
+    The converter skips conversion when the asset hash matches, so recording the hash before the
+    variant is settled would make an identical retry return the asset the importer selected.
+    """
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(test_dir, "output", "urdf_physics_variant_missing_retry")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config = UrdfConverterCfg(
+        asset_path=_FIXED_ONLY_URDF,
+        fix_base=True,
+        usd_dir=output_dir,
+        physics_variant="physx",
+    )
+
+    for _ in range(2):
+        with pytest.raises(ValueError, match="no 'physx' physics variant"):
+            UrdfConverter(config)

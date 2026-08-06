@@ -162,6 +162,11 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                         f" Expected callable or callable-string, Received: {type(value)}."
                     )
 
+            # -- 3b) enum attribute → rebuild the member from its value ------------
+            elif isinstance(obj_mem, Enum) and value is not None:
+                # class_to_dict serializes members as their value, so restore the member here
+                value = type(obj_mem)(value)
+
             # -- 4) simple scalar / explicit None ---------------------
             elif value is None or isinstance(value, type(obj_mem)):
                 pass

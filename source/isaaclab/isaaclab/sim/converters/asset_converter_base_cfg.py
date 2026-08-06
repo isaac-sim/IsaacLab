@@ -77,8 +77,12 @@ class AssetConverterBaseCfg:
 
     The default holds the backend-portable description, and :attr:`PhysicsVariant.PHYSX` /
     :attr:`PhysicsVariant.MUJOCO` sublayer it, so select one of those to author an asset for a
-    specific backend. Conversion raises if the asset does not offer the requested variant, rather
-    than substituting one authored for a different backend.
+    specific backend. When the asset offers the variant set but not the requested variant,
+    conversion raises rather than substituting one authored for a different backend.
+
+    This applies only to assets that carry a ``"Physics"`` variant set. Conversions that emit a
+    flat asset instead, such as the URDF and MJCF converters with ``run_asset_transformer`` set to
+    False, keep whatever physics the importer wrote and ignore this field.
 
     Every variant stays in the generated USD file, so this only decides what composes by default:
     :attr:`~isaaclab.sim.UsdFileCfg.variants` overrides the selection at spawn time.

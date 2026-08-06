@@ -104,14 +104,15 @@ class AssetConverterBase(abc.ABC):
 
         # convert the asset to USD if the hash is different or USD file does not exist
         if cfg.force_usd_conversion or not self._usd_file_exists or not self._is_same_asset:
-            # write the updated hash
-            with open(self._dest_hash_path, "w") as f:
-                f.write(self._asset_hash)
             # convert the asset to USD
             self._convert_asset(cfg)
             # importers put the physics payloads behind a "Physics" variant set and disagree on
             # which variant to select, so settle it here
             self._select_physics_variant(cfg.physics_variant)
+            # record the hash only now: writing it earlier would let a conversion that raised
+            # still count as cached, so an identical retry would skip it and return the asset
+            with open(self._dest_hash_path, "w") as f:
+                f.write(self._asset_hash)
             # dump the configuration to a file
             dump_yaml(os.path.join(self.usd_dir, "config.yaml"), cfg.to_dict())
             # add comment to top of the saved config file with information about the converter
