@@ -11,7 +11,6 @@ from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverse
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.physics import NewtonCfg
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
@@ -53,7 +52,11 @@ class FrankaArmActionCfg(PresetCfg):
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
     )
     diffik_abs: DifferentialInverseKinematicsActionCfg = diffik.replace(
-        controller=diffik.controller.replace(use_relative_mode=False),
+        controller=diffik.controller.replace(
+            use_relative_mode=False,
+            ik_params={"lambda_val": 0.45},
+        ),
+        body_offset=None,
         scale=1.0,
     )
     newton_ik: NewtonInverseKinematicsActionCfg = NewtonInverseKinematicsActionCfg(
@@ -66,7 +69,7 @@ class FrankaArmActionCfg(PresetCfg):
                 body_offset_pos=(0.0, 0.0, 0.107),
                 command_type="pose",
                 use_relative_mode=True,
-                scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
+                scale=(0.05, 0.05, 0.05, 0.25, 0.25, 0.25),
                 rotation_weight=2.0,
             ),
             NewtonIKJointLimitObjectiveCfg(weight=0.1),
@@ -86,12 +89,6 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             self.sim.physics, NewtonCfg
         ):
             raise ValueError("The 'newton_ik' action preset requires a Newton physics preset.")
-        if (
-            isinstance(self.actions.arm_action, DifferentialInverseKinematicsActionCfg)
-            and not self.actions.arm_action.controller.use_relative_mode
-            and not isinstance(self.sim.physics, PhysxCfg)
-        ):
-            raise ValueError("The 'diffik_abs' action preset requires the 'isaacsim_physx' physics preset.")
 
     def __post_init__(self) -> None:
         # post init of parent
@@ -104,6 +101,10 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.joint_vel.params["asset_cfg"].joint_names = ["panda_joint.*"]
+        self.rewards.action_magnitude.weight = preset(
+            default=self.rewards.action_magnitude.weight,
+            diffik_abs=0.0,
+        )
 
         # override actions
         self.actions.arm_action = FrankaArmActionCfg()
