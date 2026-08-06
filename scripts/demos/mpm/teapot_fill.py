@@ -420,7 +420,6 @@ def create_sim_cfg():
             # Resolve the material at 800 Hz while refreshing the kinematic collider at 400 Hz.
             num_substeps=MPM_SUBSTEPS,
             use_cuda_graph=not args_cli.disable_cuda_graph,
-            simplify_meshes=False,
         ),
     )
 

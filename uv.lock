@@ -2576,9 +2576,9 @@ requires-dist = [
     { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.5.9", index = "https://pypi.org/simple" },
     { name = "ovrtx", marker = "extra == 'ov'", specifier = ">=0.4.0,<0.5.0" },
     { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = ">=0.4.0,<0.5.0" },
-    { name = "ovstage", marker = "extra == 'ov'", specifier = ">=0.1.0,<0.2.0", index = "https://pypi.org/simple" },
-    { name = "ovstage", marker = "extra == 'ovphysx'", specifier = ">=0.1.0,<0.2.0", index = "https://pypi.org/simple" },
-    { name = "ovstage", marker = "extra == 'ovrtx'", specifier = ">=0.1.0,<0.2.0", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.1.0.346039", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ovphysx'", specifier = "==0.1.0.346039", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.1.0.346039", index = "https://pypi.org/simple" },
     { name = "packaging" },
     { name = "pandas", marker = "extra == 'rlinf'" },
     { name = "peft", marker = "extra == 'rlinf'", specifier = ">=0.17.0" },
@@ -2692,7 +2692,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
-    { name = "ovstage", specifier = ">=0.1.0,<0.2.0" },
+    { name = "ovstage", specifier = "==0.1.0.346039" },
 ]
 
 [[package]]
@@ -2707,7 +2707,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
-    { name = "ovstage", specifier = ">=0.1.0,<0.2.0" },
+    { name = "ovstage", specifier = "==0.1.0.346039" },
 ]
 
 [[package]]
