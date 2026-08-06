@@ -12,7 +12,7 @@ from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -28,6 +28,7 @@ from isaaclab_tasks.utils import PresetCfg
 from ... import mdp
 from .franka_soft_env_cfg import (
     FRANKA_CAMERA_CFG,
+    TABLE_SPAWN_CFG,
     FrankaCameraObservationsCfg,
     FrankaSoftEnvCfg,
     _FrankaSoftSceneCfg,
@@ -82,7 +83,7 @@ class PhysicsCfg(PresetCfg):
                 )
             ],
             iterations=1,
-            model_cfg=NewtonModelCfg(soft_contact_mu=10.0),
+            model_cfg=NewtonModelCfg(soft_contact_ke=8.0e3, soft_contact_mu=10.0),
         ),
         num_substeps=2,
     )
@@ -104,7 +105,7 @@ class DeformableCfg(PresetCfg):
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
                 density=10.0,
-                particle_radius=0.001,
+                particle_radius=0.002,
                 tri_ke=5e2,
                 tri_ka=5e2,
                 tri_kd=1e-3,
@@ -122,6 +123,17 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
     """Scene for the Franka surface deformable environment."""
 
     deformable: DeformableCfg = DeformableCfg()
+
+    # Low-friction table so the cloth slides freely instead of sticking. Effective cloth-table
+    # friction is sqrt(soft_contact_mu * shape_mu); this sets shape_mu without touching the global
+    # soft_contact_mu that governs the gripper's hold on the cloth.
+    table: AssetBaseCfg = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
+        spawn=TABLE_SPAWN_CFG.replace(
+            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
+        ),
+    )
 
     # Collidable cube the cloth drapes onto (sits on the table top at z = 0). Kinematic so the
     # reset event can move it under the randomized cloth without it being simulated.
