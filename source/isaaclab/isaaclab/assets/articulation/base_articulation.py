@@ -109,8 +109,15 @@ class BaseArticulation(AssetBase):
     actuators: ActuatorCollection
     """Runtime actuator collection for the articulation.
 
-    The collection is mapping-like for named actuator group lookup and owns actuator
-    commands, actuator telemetry, and actuator-resolved gains. Prefer
+    The collection is a read-only mapping of configured names to concrete actuator
+    groups. It owns routing plus actuator-command and telemetry staging, while each
+    execution actuator owns its parameters, scratch tensors, and outputs. Compatible
+    groups can share private execution storage through stable group-shaped slices;
+    unaggregated groups own their tensors directly. Aggregation and membership are
+    fixed during construction. Runtime assignment or deletion raises :class:`TypeError`;
+    configure groups through :attr:`ArticulationCfg.actuators` before creating this
+    articulation. Native controllers remain the execution owner when active, with
+    named groups providing the Isaac Lab-facing view. Prefer
     :meth:`articulation.actuators.command.set_position_index` over
     articulation-level actuator command setters.
     """

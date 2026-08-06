@@ -18,10 +18,12 @@ Isaac Lab exposes two ways to reproduce that behavior in simulation:
   motor's capabilities, and submit only the resulting effort. This trades some cost for the ability
   to model saturation, delay, gearing, or a learned drive.
 
-Every actuator group -- implicit or explicit -- is owned by the runtime
-:class:`~isaaclab.actuators.ActuatorCollection` on :attr:`~isaaclab.assets.Articulation.actuators`.
-You configure the groups on :attr:`~isaaclab.assets.ArticulationCfg.actuators` and drive them at
-runtime through that collection.
+Every actuator group -- implicit or explicit -- is configured on
+:attr:`~isaaclab.assets.ArticulationCfg.actuators` and exposed by the runtime
+:class:`~isaaclab.actuators.ActuatorCollection` on
+:attr:`~isaaclab.assets.Articulation.actuators`. The collection routes groups and stages commands
+and telemetry; actuator models own their model parameters, scratch tensors, and outputs. You drive
+the articulation at runtime through the collection.
 
 .. contents:: On this page
     :local:
@@ -79,8 +81,8 @@ stages:
 
 #. **Actuator command** -- ``actuators.command.set_*_index`` / ``_mask`` write the desired
    position, velocity, and effort into buffers expressed in joint-side coordinates.
-#. **ActuatorCollection** -- groups articulation joints by actuator model and owns command,
-   processed joint-command, telemetry, and resolved-gain buffers.
+#. **ActuatorCollection** -- routes groups and stages full-articulation commands, processed joint
+   commands, and telemetry. It does not own actuator-model gains or scratch state.
 #. **Actuator model** -- an *explicit* model turns the actuator command into a joint effort and
    clips it; an *implicit* model passes its command to the simulator drive.
 #. **Joint command** -- ``actuators.joint_command`` exposes the processed position, velocity, and
@@ -107,6 +109,12 @@ Where the gains land differs by path, and this is the single most common source 
   solver's own PD gains for those joints are set to zero. Reading ``data.joint_stiffness`` or
   ``data.joint_damping`` on an explicit joint therefore returns **zero** -- the gains live in the
   actuator model, not the solver.
+
+The actuator gains configured on a named group are distinct from
+:attr:`~isaaclab.assets.ArticulationData.joint_stiffness` and
+:attr:`~isaaclab.assets.ArticulationData.joint_damping`. The latter report the solver drive gains:
+they match implicit actuator gains after those gains are written to the solver, and are zero for
+explicit actuator joints. They are not a collection-wide mirror of the actuator-model gains.
 
 .. note::
 
@@ -466,8 +474,8 @@ Group access
 
 :attr:`~isaaclab.assets.Articulation.actuators` is an
 :class:`~isaaclab.actuators.ActuatorCollection`, a read-only ``Mapping`` from group name to actuator
-model. Membership is fixed after construction, so you can look up and iterate groups but not add or
-replace them:
+model. Membership is fixed after construction, so you can look up and iterate groups but not add,
+replace, or delete them:
 
 .. code-block:: python
 
@@ -475,14 +483,30 @@ replace them:
     for name, actuator in robot.actuators.items():
         print(name, type(actuator).__name__)
 
+Configure topology before creating the articulation:
+
+.. code-block:: python
+
+    robot_cfg.actuators["gripper"] = ImplicitActuatorCfg(...)
+    robot = Articulation(robot_cfg)
+
+At runtime, both ``robot.actuators["gripper"] = ...`` and
+``del robot.actuators["gripper"]`` raise :class:`TypeError`. Membership, joint coverage, native
+binding, execution slices, and cached launches are construction-time invariants.
+
 Logical groups and execution batches
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Named entries such as ``hips`` and ``knees`` remain separate configuration and
-access groups. Isaac Lab may execute disjoint groups of the same supported
-stateless actuator class through one private actuator instance. Per-joint gains
-and limits may differ; aggregation does not merge their public configuration or
-change the shapes returned by ``robot.actuators["hips"]``.
+Named entries such as ``hips`` and ``knees`` retain their concrete public identities as separate
+configuration and access groups. Isaac Lab may execute two or more disjoint groups of the same
+supported stateless actuator class through one private execution actuator. The public group tensors
+are stable slices of that execution actuator, so per-joint gains and limits may differ without
+merging public configuration or changing the shapes returned by ``robot.actuators["hips"]``.
+
+Aggregation is fixed during construction. Groups remain unaggregated when they overlap, use
+different concrete classes, use a class that does not support aggregation (including stateful and
+neural-network models), or run through a native controller. An unaggregated group owns its model
+parameters, scratch tensors, and outputs directly.
 
 Execution batching is an implementation detail. Do not call
 :meth:`~isaaclab.actuators.ActuatorBase.compute` or
@@ -538,8 +562,8 @@ and :attr:`~isaaclab.actuators.ActuatorCollection.applied_torque` is the value a
 implicit actuators these are the approximate torques the model records for reward/telemetry use).
 
 **Randomizing gains.** To change actuator stiffness or damping at runtime -- for example in a domain
-randomization event -- use the write helpers, which update both the resolved-gain buffers and the
-native controllers:
+randomization event -- use the write helpers, which update the execution actuator that owns the
+selected group tensors and forward the values to native controllers when active:
 
 .. code-block:: python
 
@@ -619,7 +643,8 @@ capture failures fall back to eager execution. Stateful Newton actuators cannot 
 caller-owned CUDA graph; let the PhysX adapter manage their alternating graphs instead.
 
 Newton owns a separate native execution aggregation path. When native actuator handling is active,
-Isaac Lab keeps the named logical groups for configuration and access but does not aggregate or
+the native controller remains the execution owner. Isaac Lab retains the named logical groups as the
+configuration and access view, stages their commands and telemetry, and does not aggregate or
 execute them through its host-side batching path.
 
 **Supported models.** The authoring maps each supported config to a set of USD schemas:

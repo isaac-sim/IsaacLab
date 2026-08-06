@@ -31,14 +31,26 @@ logger = logging.getLogger(__name__)
 class ActuatorCollection(Mapping[str, ActuatorBase]):
     """Read-only runtime collection of actuator groups for one articulation.
 
-    The collection owns actuator command buffers, processed joint command buffers,
-    actuator telemetry, and actuator-resolved gain/state buffers. Named mapping
-    entries are stable logical configuration and access groups, and membership is
-    fixed after construction. Compatible groups whose concrete type is the same
-    supported stateless actuator class may share a private execution actuator while
-    retaining their separate per-joint parameters and group-shaped public values.
+    The collection owns routing plus full-articulation command, processed-command,
+    and telemetry staging. Each execution actuator owns its model parameters,
+    scratch tensors, and outputs. Mapping entries retain the concrete public
+    identity of their configured groups. Compatible disjoint groups can expose
+    stable slices of one private execution actuator while retaining separate
+    group-shaped public values; unaggregated groups own their tensors directly.
+
+    Aggregation is selected once during construction. It excludes groups with
+    overlapping joints, groups with different concrete actuator classes, classes
+    that do not support aggregation (including stateful and neural-network
+    models), and backend-native execution. Native controllers remain the execution
+    owner; named groups are the Isaac Lab-facing configuration and access view.
     Execution batches are an implementation detail, and users must not depend on
     their count.
+
+    Membership, joint coverage, native bindings, execution slices, and cached
+    launches are construction-time invariants. Assigning or deleting mapping
+    entries raises :class:`TypeError`; configure membership through
+    :attr:`isaaclab.assets.ArticulationCfg.actuators` before constructing the
+    articulation.
 
     The collection owns lifecycle execution for its managed groups. Calling
     :meth:`~isaaclab.actuators.ActuatorBase.compute` or

@@ -1133,16 +1133,30 @@ future release:
 +------------------------------------------+------------------------------------------+
 | ``data.applied_torque``                  | ``actuators.applied_torque``             |
 +------------------------------------------+------------------------------------------+
-| ``data.soft_joint_vel_limits``           | ``actuators.soft_joint_vel_limits``      |
-+------------------------------------------+------------------------------------------+
-| ``data.gear_ratio``                      | ``actuators.gear_ratio``                 |
-+------------------------------------------+------------------------------------------+
 
 .. note::
 
    All deprecated methods and properties are forwarders that emit a :class:`DeprecationWarning`
    when used. Your existing code will continue to work, but you should migrate to the new API to
    avoid issues in future releases.
+
+   :attr:`~isaaclab.assets.ArticulationData.soft_joint_vel_limits` and
+   :attr:`~isaaclab.assets.ArticulationData.gear_ratio` remain on
+   :class:`~isaaclab.assets.ArticulationData`; do not migrate either property to the actuator
+   collection.
+
+Actuator group topology is configuration-time state. Add or remove a group on
+:attr:`~isaaclab.assets.ArticulationCfg.actuators` before creating the articulation:
+
+.. code-block:: python
+
+   robot_cfg.actuators["gripper"] = ImplicitActuatorCfg(...)
+   robot = Articulation(robot_cfg)
+
+At runtime, assignment to or deletion from ``robot.actuators`` raises :class:`TypeError`. Group
+membership, joint coverage, native binding, execution slices, and cached launches are
+construction-time invariants. Continue to use the public named groups and collection views; private
+execution and compatibility-projection details are not migration targets.
 
 
 Migration Example
