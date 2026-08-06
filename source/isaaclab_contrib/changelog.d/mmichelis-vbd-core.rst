@@ -7,6 +7,7 @@ Changed
   :class:`~isaaclab_newton.physics.VBDSolverCfg` from their new location, and
   move ``NewtonModelCfg`` and ``NewtonModelSolverCfg`` soft-contact settings to
   :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`.
-* **Breaking:** Moved ``CoupledMJWarpVBDSolverCfg`` from
-  ``isaaclab_contrib.deformable`` to
-  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg`.
+* **Breaking:** Removed the
+  ``isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg`` compatibility
+  alias. Import
+  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` instead.
