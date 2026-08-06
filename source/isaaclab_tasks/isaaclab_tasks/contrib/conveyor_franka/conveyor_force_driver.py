@@ -15,7 +15,6 @@ from __future__ import annotations
 import re
 
 import warp as wp
-
 from isaaclab_newton.physics import NewtonManager
 
 from .conveyor_geometry import BELT_CENTER_X, BELT_CENTER_Y, BELT_HALF_STRAIGHT, belt_direction
