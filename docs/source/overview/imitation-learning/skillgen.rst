@@ -173,7 +173,7 @@ Download and Setup
 
          .. code:: bash
 
-            uv run python scripts/tools/record_demos.py \
+            uv run --extra teleop isaaclab teleop record \
             --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
             --teleop_device spacemouse \
             --dataset_file ./datasets/dataset_skillgen.hdf5 \
@@ -199,7 +199,7 @@ Download and Setup
 
          .. code:: bash
 
-            uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+            uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
             --device cpu \
             --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
             --input_file ./datasets/dataset_skillgen.hdf5 \
@@ -313,7 +313,7 @@ Start with a small dataset to verify everything works:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cpu \
          --num_envs 1 \
          --generation_num_trials 10 \
@@ -346,7 +346,7 @@ Once satisfied with small-scale results, generate a full training dataset:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cpu \
          --num_envs 1 \
          --generation_num_trials 1000 \
@@ -400,7 +400,7 @@ Test the adaptive stacking setup:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cpu \
          --num_envs 1 \
          --generation_num_trials 10 \
@@ -433,7 +433,7 @@ Generate the complete adaptive stacking dataset:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cpu \
          --num_envs 1 \
          --generation_num_trials 1000 \
@@ -489,7 +489,7 @@ Train a state-based policy for the basic cube stacking task:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/robomimic/train.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
          --algo bc \
          --dataset ./datasets/generated_dataset_skillgen_cube_stack.hdf5
@@ -514,7 +514,7 @@ Train a policy for the more complex adaptive bin stacking:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/robomimic/train.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
          --algo bc \
          --dataset ./datasets/generated_dataset_skillgen_bin_cube_stack.hdf5
@@ -544,7 +544,7 @@ Test your trained policies:
       .. code:: bash
 
          # Basic cube stacking evaluation
-         uv run python scripts/imitation_learning/robomimic/play.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
          --device cpu \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
          --num_rollouts 50 \
@@ -570,7 +570,7 @@ Test your trained policies:
       .. code:: bash
 
          # Adaptive bin cube stacking evaluation
-         uv run python scripts/imitation_learning/robomimic/play.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
          --device cpu \
          --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
          --num_rollouts 50 \
