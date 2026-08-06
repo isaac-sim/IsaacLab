@@ -1,7 +1,7 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
+.. Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+.. All rights reserved.
+..
+.. SPDX-License-Identifier: BSD-3-Clause
 
 OvPhysX Tensor Bindings
 =======================
@@ -20,9 +20,9 @@ Lifecycle prerequisite
 ----------------------
 
 Create bindings only after the OvPhysX simulation has initialized and reset,
-when its native runtime is live. A stage reload, reset path that rebuilds the
-stage or runtime, and manager teardown invalidate existing bindings and views;
-reacquire the runtime handle and then recreate bindings and views afterwards.
+when its native runtime is live. A stage reload, a reset path that rebuilds the
+stage or runtime, and manager teardown invalidate all existing bindings and
+views. Reacquire them afterwards.
 
 Access the native runtime
 -------------------------
@@ -47,7 +47,8 @@ Create a raw tensor binding
 
 Create a raw binding when the desired selection is not already owned by an
 Isaac Lab asset. The following representative pose binding is float32 and
-device-resident; it is not a generic allocator for every tensor type:
+uses the simulation device; it is not a generic allocator for every tensor
+type:
 
 .. code-block:: python
 
@@ -67,11 +68,31 @@ device-resident; it is not a generic allocator for every tensor type:
    binding.read(poses)
    binding.write(poses)
 
-Before allocating a buffer, inspect ``binding.shape``, ``binding.dtype``, and
-the binding's count and path metadata. Match the binding shape and DLPack scalar
-metadata exactly, and respect the binding's native residency and access mode.
+Before allocating a buffer, inspect ``binding.shape``, ``binding.dtype``, the
+binding's count, and its path metadata. Match the binding shape and DLPack scalar
+metadata exactly, and respect the binding's native device and access mode.
 ``RIGID_BODY_POSE`` has the float32 layout used above, but another tensor type
 can have a different scalar dtype, shape, native device, or write permission.
+
+Discover installed tensor types
+---------------------------------
+
+Discover installed tensor types at runtime instead of maintaining an enum
+inventory:
+
+.. code-block:: python
+
+   from ovphysx.types import TensorType
+
+   tensor_types = [
+       tensor_type
+       for tensor_type in TensorType
+       if tensor_type.name != "INVALID"
+   ]
+   print(tensor_types)
+
+This lists the vocabulary provided by the installed OvPhysX version. A listed
+tensor type is not necessarily available for every prim selection.
 
 Reuse or create an ``OvPhysxView``
 ----------------------------------
@@ -98,35 +119,12 @@ with the native runtime and a Tensor API pattern:
        device=PhysicsManager.get_device(),
    )
 
-Discover tensor types and availability
---------------------------------------
-
-Discover installed tensor types at runtime instead of maintaining an enum
-inventory:
-
-.. code-block:: python
-
-   from ovphysx.types import TensorType
-
-   tensor_types = [
-       tensor_type
-       for tensor_type in TensorType
-       if tensor_type.name != "INVALID"
-   ]
-   print(tensor_types)
-
-The view separates its installed vocabulary from selection-specific
-availability:
-
-.. code-block:: python
-
-   print(view.attribute_names)
-
    if view.try_binding_for("rigid_body_pose") is not None:
        poses = view.get_attribute("rigid_body_pose")
-       view.read_into("rigid_body_pose", poses)
        view.set_attribute("rigid_body_pose", poses)
+       view.read_into("rigid_body_pose", poses)
 
+   print(view.attribute_names)
    print(view.available_attributes)
 
 ``attribute_names`` is the installed ``TensorType`` vocabulary, not selection
@@ -139,9 +137,9 @@ shape, and read-only guards.
 Read and write data
 -------------------
 
-``binding.read(buffer)`` explicitly pulls the selected values into the
-caller-owned buffer; editing that buffer has no engine effect until
-``binding.write(buffer)`` explicitly pushes it. The guarded
+Raw ``binding.read(buffer)`` calls pull values into caller-owned buffers, while
+``binding.write(buffer)`` calls push values to the simulation. Editing a local
+buffer alone does not change the simulation. The guarded
 :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.get_attribute`,
 :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.read_into`, and
 :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.set_attribute` paths provide the
@@ -151,17 +149,15 @@ native device, and writable access.
 Ownership, synchronization, and invalidation
 --------------------------------------------
 
-State tensors normally live on the simulation device, while some property
-tensors are CPU-only. Allocate or supply a buffer on the binding's native
-device and match its DLPack ``code``, ``bits``, and ``lanes`` scalar metadata
-as well as its shape. :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` can
-reinterpret supported flat scalar layouts as structured Warp values, but it
-does not perform implicit CPU/GPU staging.
+Allocate buffers on the binding's required device and match its shape and
+DLPack scalar metadata. State tensors normally use the simulation device, while
+some property tensors are CPU-only. :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`
+validates these requirements and can reinterpret supported flat scalar layouts
+as structured Warp values, but it does not move data between CPU and GPU.
 
-A valid ``TensorType`` need not apply to the selected prims. Use
-``try_binding_for`` for optional bindings, and do not treat a vocabulary entry
-as a promise of availability. Reacquire raw bindings and convenience views
-after reset paths that rebuild the stage or runtime, or after teardown.
+Use ``try_binding_for`` when a tensor type might not apply to the selected
+prims. Reacquire raw bindings and convenience views after reset paths that
+rebuild the stage or runtime, or after teardown.
 
 Authoritative references
 ------------------------

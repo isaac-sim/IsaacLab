@@ -1,7 +1,7 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
+.. Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+.. All rights reserved.
+..
+.. SPDX-License-Identifier: BSD-3-Clause
 
 Direct Physics Engine API Access
 ================================
@@ -17,25 +17,28 @@ When to use native access
 -------------------------
 
 Use native access when a task depends on an engine-specific capability or when
-the unified APIs add data movement that is material to the workload. Keep this
-access close to the component that owns the simulation state, and prefer the
-portable Isaac Lab APIs for task logic that does not need it.
+the unified APIs do not do what you need. Keep this access close to the
+component that owns the simulation state, and prefer the portable Isaac Lab
+APIs for task logic that does not need it.
 
 Why there is no unified low-level view
 --------------------------------------
 
 The backends expose fundamentally different access models. PhysX and OvPhysX
-use explicit pull/push operations. PhysX organizes access into typed views for
-physics-object families. OvPhysX organizes access into bindings selected by
-tensor type; :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` is an Isaac Lab
-convenience manager over those bindings.
+use explicit pull/push operations, so data is refreshed or published only when
+the corresponding method is called. Newton instead exposes live arrays owned
+by ``Model``, ``State``, ``Control``, and ``Contacts``. Changes to those arrays
+immediately affect the owning object, although derived state and solver caches
+can still require explicit synchronization.
 
-Newton instead exposes live arrays owned by ``Model``, ``State``, ``Control``,
-and ``Contacts``. Its selection describes subsets and batched layouts rather
-than owning copied data. A single facade would erase these ownership and
-synchronization differences and reduce the engines to a least-common-
-denominator API. Isaac Lab preserves native access so advanced users retain
-engine-specific performance and capabilities.
+PhysX organizes access into typed views for physics-object families. OvPhysX
+organizes access into bindings selected by tensor type;
+:class:`~isaaclab_ovphysx.sim.views.OvPhysxView` is an Isaac Lab convenience
+manager over those bindings. Newton selections describe subsets and batched
+layouts without imposing an asset type. A single facade would erase these
+ownership and synchronization differences and reduce the engines to a
+least-common-denominator API. Isaac Lab preserves native access so advanced
+users retain engine-specific performance and capabilities.
 
 How the access models differ
 ----------------------------

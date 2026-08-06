@@ -1,7 +1,7 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
+.. Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+.. All rights reserved.
+..
+.. SPDX-License-Identifier: BSD-3-Clause
 
 PhysX Tensor API
 ================
@@ -9,16 +9,18 @@ PhysX Tensor API
 The PhysX Tensor API is an engine-native interface for data paths that need
 typed PhysX views or capabilities beyond the unified Isaac Lab APIs. It is
 backend-specific: use Isaac Lab asset and sensor APIs unless native access is
-needed for the workload.
+needed for the workload. The `Omni Physics Python API reference
+<https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/pythonapi.html>`_
+documents the Tensor API view families and their methods.
 
 Mental model
 ------------
 
-The API starts from a ``SimulationView`` and creates
-typed views over selected physics objects. A view owns an engine-backed
-selection; getters pull data from that selection and setters publish data back
-to it. A raw view selection uses the Tensor API's glob syntax, which is distinct
-from Isaac Lab's regular-expression syntax.
+The API starts from a ``SimulationView`` and creates typed views over selected
+physics objects. Access is entirely method-based: a getter pulls data from the
+view, and an independent setter publishes data back. Returned buffers are not
+live pointers, so editing a getter result does not update the simulation. Raw
+views select objects with PhysX Tensor API wildcard patterns.
 
 Lifecycle prerequisite
 ----------------------
@@ -58,8 +60,8 @@ Create a raw typed view
 -----------------------
 
 Create a view directly only when no Isaac Lab-owned selection matches the
-needed objects or capability. The path below uses Tensor API wildcards, not an
-Isaac Lab regular expression:
+needed objects or capability. In this Tensor API pattern, ``*`` selects the
+matching object below every cloned environment:
 
 .. code-block:: python
 
@@ -67,11 +69,12 @@ Isaac Lab regular expression:
        "/World/envs/env_*/Object"
    )
 
-Discover available view factories
----------------------------------
+Discover supported view types
+-----------------------------
 
-The available factories are provided by the installed PhysX version. Discover
-them at runtime instead of maintaining a hand-written inventory:
+The installed PhysX version determines which typed views are available. Inspect
+the ``SimulationView`` at runtime to list its view factories instead of relying
+on a hand-written inventory that can become stale:
 
 .. code-block:: python
 
@@ -85,9 +88,8 @@ them at runtime instead of maintaining a hand-written inventory:
 Read and write data
 -------------------
 
-Getters and setters make the transfer boundary explicit. Clone a returned
-Warp buffer before editing it locally, then use the setter to publish the
-result:
+Each getter and setter is a separate operation. Clone a returned Warp buffer
+before editing it locally, then call the matching setter to publish the result:
 
 .. code-block:: python
 
@@ -110,40 +112,22 @@ contracts that require link transforms to be refreshed after joint-state writes,
 Not every setter requires that refresh; follow the method-level behavior in the
 upstream reference.
 
-Sensor view families
---------------------
+Access the contact view
+-----------------------
 
-Isaac Lab sensors internally create the following native view families. These
-are implementation details for understanding data sources, not additional
-sensor APIs; prefer the sensor's public data interface when it provides the
-needed information. Consult the upstream reference for method-level behavior.
+The PhysX contact sensor exposes its native ``RigidContactView`` through
+:attr:`~isaaclab_physx.sensors.ContactSensor.contact_view`. Use it when the
+public sensor data does not expose the required contact details:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 24 34 42
+.. code-block:: python
 
-   * - Isaac Lab sensor
-     - Native PhysX view family
-     - Scope
-   * - Contact sensor
-     - ``RigidBodyView`` and ``RigidContactView``
-     - Tracked-body state and contact reporting.
-   * - Frame transformer
-     - ``RigidBodyView``
-     - Tracked-body transforms.
-   * - IMU
-     - ``RigidBodyView``
-     - Rigid-body motion state.
-   * - PVA sensor
-     - ``RigidBodyView``
-     - Rigid-parent motion state.
-   * - Joint-wrench sensor
-     - ``ArticulationView``
-     - Articulation joint-wrench state.
-   * - Ray caster
-     - ``RigidBodyView``
-     - Tracked-body transforms; ray intersection is not a PhysX Tensor API
-       view.
+   contact_sensor = scene["contact_sensor"]
+   friction_forces, _, buffer_counts, buffer_start_indices = (
+       contact_sensor.contact_view.get_friction_data(dt=sim.cfg.dt)
+   )
+
+Other Isaac Lab sensors may use ordinary rigid-body or articulation views
+internally, but those views are not sensor-specific low-level interfaces.
 
 Ownership, synchronization, and invalidation
 --------------------------------------------
@@ -153,8 +137,6 @@ when supplying values to a setter. Check and reacquire views after a hard
 reset, object removal, stage reload, or manager teardown. Prefer public Isaac
 Lab sensor data when direct native contact or motion data is not required.
 
-Authoritative reference
------------------------
-
-The upstream API documents view-specific factory, getter, setter, and
-synchronization behavior: `Omni Physics Python APIs <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/pythonapi.html>`_.
+For method-specific shapes, synchronization requirements, and supported
+setters, follow the upstream Tensor API reference linked at the top of this
+page.

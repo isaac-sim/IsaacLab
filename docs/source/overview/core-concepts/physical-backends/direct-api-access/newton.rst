@@ -1,7 +1,7 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
+.. Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+.. All rights reserved.
+..
+.. SPDX-License-Identifier: BSD-3-Clause
 
 Newton Native Data and Selection API
 ====================================
@@ -9,7 +9,10 @@ Newton Native Data and Selection API
 Mental model
 ------------
 
-The Newton backend exposes its engine-owned ``Model``, ``State``, ``Control``, and optional
+The Newton backend exposes its engine-owned `Model
+<https://newton-physics.github.io/newton/stable/api/_generated/newton.Model.html>`_, `State
+<https://newton-physics.github.io/newton/stable/api/_generated/newton.State.html>`_, `Control
+<https://newton-physics.github.io/newton/stable/api/_generated/newton.Control.html>`_, and optional
 ``Contacts`` objects through :class:`isaaclab_newton.physics.NewtonManager`. Their Warp arrays are
 the live engine data, rather than values pulled into a separate per-asset view buffer. The model
 owns structural and static arrays and labels; a state owns evolving simulation arrays; and a
@@ -112,40 +115,34 @@ of assuming a fixed set of arrays or methods:
 Read and write through a selection
 ----------------------------------
 
-Read from a ``Model`` or ``State`` source, then write values to a ``Model`` or ``State`` target.
-For the installed Newton version, ``ArticulationView.get_dof_positions()``
-accepts a source and ``ArticulationView.set_dof_positions()`` accepts a target,
-values, and an optional mask. Clone before modifying values so the intermediate changes are
-explicit:
+Selections provide typed convenience methods as well as generic string-keyed
+``get_attribute()`` and ``set_attribute()`` methods. The generic methods expose
+engine properties that do not have dedicated selection methods. Clone a
+selected value before modifying it when you want the write to remain explicit:
 
 .. code-block:: python
 
    import warp as wp
-   from isaaclab_newton.physics import NewtonManager
-
-   joint_positions = wp.clone(selection.get_dof_positions(state))
-   selection.set_dof_positions(state, joint_positions)
-   NewtonManager.invalidate_fk()
-   NewtonManager.forward()
-
-Callers can modify the cloned Warp array before writing it through the selection. Because this
-example writes manager-owned state, notify the manager with ``invalidate_fk()`` and then use its
-solver-aware ``forward()`` path to propagate generalized-coordinate edits to body transforms. Raw
-``newton.eval_fk`` remains appropriate for compatible standalone models and solvers outside the
-manager-owned lifecycle; the exact synchronization requirement depends on the edited arrays and
-active solver.
-
-For model-property changes, notify the manager with the flag appropriate to the property changed.
-For example, changing body inertial properties uses:
-
-.. code-block:: python
-
    from newton import ModelFlags
    from isaaclab_newton.physics import NewtonManager
 
-   NewtonManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+   rolling_friction = wp.clone(
+       selection.get_attribute("shape_material_mu_rolling", model)
+   )
+   # Modify rolling_friction with a Warp kernel before writing it back.
+   selection.set_attribute(
+       "shape_material_mu_rolling",
+       model,
+       rolling_friction,
+   )
+   NewtonManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
-This example does not imply that every model write uses the same flag.
+The string names a Newton model attribute rather than an Isaac Lab field. This
+example uses rolling friction because it has no dedicated selection method.
+Notify the manager with the flag appropriate to the property changed; other
+model writes can require a different flag. State writes that change generalized
+coordinates instead require forward-kinematics synchronization through
+``NewtonManager.invalidate_fk()`` and ``NewtonManager.forward()``.
 
 Ownership, synchronization, and invalidation
 ---------------------------------------------
@@ -160,6 +157,8 @@ maximal-coordinate conventions remain authoritative.
 Authoritative references
 ------------------------
 
-`Newton API reference <https://newton-physics.github.io/newton/stable/api/newton.html>`_
-
-`Newton articulation and selection guide <https://newton-physics.github.io/newton/stable/concepts/articulations.html>`_
+* `Model reference <https://newton-physics.github.io/newton/stable/api/_generated/newton.Model.html>`_
+* `State reference <https://newton-physics.github.io/newton/stable/api/_generated/newton.State.html>`_
+* `Control reference <https://newton-physics.github.io/newton/stable/api/_generated/newton.Control.html>`_
+* `ArticulationView selection reference <https://newton-physics.github.io/newton/stable/api/_generated/newton.selection.ArticulationView.html>`_
+* `Newton articulation guide <https://newton-physics.github.io/newton/stable/concepts/articulations.html>`_
