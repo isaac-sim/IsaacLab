@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 Newton Native Data and Selection API
 ====================================
 
@@ -115,16 +120,20 @@ explicit:
 
 .. code-block:: python
 
-   import newton
    import warp as wp
+   from isaaclab_newton.physics import NewtonManager
 
    joint_positions = wp.clone(selection.get_dof_positions(state))
    selection.set_dof_positions(state, joint_positions)
-   newton.eval_fk(model, state.joint_q, state.joint_qd, state)
+   NewtonManager.invalidate_fk()
+   NewtonManager.forward()
 
-Callers can modify the cloned Warp array before writing it through the selection. Use
-``newton.eval_fk`` when generalized-coordinate edits must be propagated to body transforms; the
-exact requirement depends on the edited arrays and active solver.
+Callers can modify the cloned Warp array before writing it through the selection. Because this
+example writes manager-owned state, notify the manager with ``invalidate_fk()`` and then use its
+solver-aware ``forward()`` path to propagate generalized-coordinate edits to body transforms. Raw
+``newton.eval_fk`` remains appropriate for compatible standalone models and solvers outside the
+manager-owned lifecycle; the exact synchronization requirement depends on the edited arrays and
+active solver.
 
 For model-property changes, notify the manager with the flag appropriate to the property changed.
 For example, changing body inertial properties uses:

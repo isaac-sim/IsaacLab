@@ -94,12 +94,18 @@ result:
    import warp as wp
 
    poses = wp.clone(rigid_body_view.get_transforms())
-   rigid_body_view.set_transforms(poses)
+   indices = wp.array(
+       range(poses.shape[0]),
+       dtype=wp.int32,
+       device=poses.device,
+   )
+   rigid_body_view.set_transforms(poses, indices)
 
 Cloning makes ownership explicit. Callers can modify the clone with Warp before
-the setter, but edits to a local buffer do not publish themselves; the setter
-performs the write. For active Tensor API contracts that require link transforms
-to be refreshed after joint-state writes, call
+the setter, but edits to a local buffer do not publish themselves. The
+``indices`` array selects the complete view and matches the setter's required
+``int32`` dtype and device; the setter performs the write. For active Tensor API
+contracts that require link transforms to be refreshed after joint-state writes, call
 ``update_articulations_kinematic()``.
 Not every setter requires that refresh; follow the method-level behavior in the
 upstream reference.

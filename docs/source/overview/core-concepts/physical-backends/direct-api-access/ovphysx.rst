@@ -22,7 +22,7 @@ Lifecycle prerequisite
 Create bindings only after the OvPhysX simulation has initialized and reset,
 when its native runtime is live. A stage reload, reset path that rebuilds the
 stage or runtime, and manager teardown invalidate existing bindings and views;
-reacquire them afterwards.
+reacquire the runtime handle and then recreate bindings and views afterwards.
 
 Access the native runtime
 -------------------------
@@ -35,7 +35,12 @@ Get the active OvPhysX handle from the manager:
 
    physx = OvPhysxManager.get_physx_instance()
    if physx is None:
-       raise RuntimeError("OvPhysX is not ready; initialize and reset the simulation first.")
+       raise RuntimeError("OvPhysX has not been constructed; initialize and reset the simulation first.")
+
+A non-``None`` handle proves only that the manager constructed an OvPhysX instance; it is not a
+readiness predicate for the current simulation context. The manager can retain that cached handle
+after teardown. Initialize and reset the current context before access, and always reacquire the
+handle before creating new bindings or views.
 
 Create a raw tensor binding
 ---------------------------
