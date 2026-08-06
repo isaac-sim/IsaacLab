@@ -442,6 +442,10 @@ def test_collection_is_mapping_like_and_read_only():
     assert list(collection.items())[0][0] == "all"
     with pytest.raises(TypeError, match="membership is fixed"):
         collection["new"] = collection["all"]
+    with pytest.raises(TypeError):
+        del collection["all"]
+
+    assert tuple(collection) == ("all",)
 
 
 def test_singleton_all_joint_group_preserves_public_selector():
@@ -474,47 +478,123 @@ def test_same_stateless_class_builds_one_execution_batch_with_group_views():
     batch = collection._execution_batches[0]
     assert type(batch.actuator) is IdealPDActuator
     assert batch.group_names == ("hips", "knees")
-    assert isinstance(collection["hips"], IdealPDActuator)
+    assert type(collection["hips"]) is IdealPDActuator
+    assert type(collection["knees"]) is IdealPDActuator
+    assert batch.actuator is not collection["hips"]
+    assert batch.actuator is not collection["knees"]
     assert collection["hips"].joint_names == ["joint_0", "joint_2"]
     assert collection["hips"].stiffness.shape == (2, 2)
     torch.testing.assert_close(batch.actuator.stiffness[:, :2], torch.full((2, 2), 10.0))
     torch.testing.assert_close(batch.actuator.stiffness[:, 2:], torch.full((2, 2), 30.0))
 
-    collection["hips"].stiffness.fill_(17.0)
-    torch.testing.assert_close(batch.actuator.stiffness[:, :2], torch.full((2, 2), 17.0))
-    torch.testing.assert_close(batch.actuator.stiffness[:, 2:], torch.full((2, 2), 30.0))
-
-
-def test_dc_motor_execution_batch_packs_different_saturation_efforts():
-    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
-    collection = ActuatorCollection(
-        {
-            "hips": _dc_cfg(
-                ["joint_0", "joint_1"],
-                stiffness=20.0,
-                damping=1.0,
-                effort_limit=40.0,
-                velocity_limit=10.0,
-                saturation_effort=60.0,
-            ),
-            "knees": _dc_cfg(
-                ["joint_2", "joint_3"],
-                stiffness=30.0,
-                damping=2.0,
-                effort_limit=70.0,
-                velocity_limit=20.0,
-                saturation_effort=120.0,
-            ),
-        },
-        control,
+    parameter_names = (
+        "effort_limit",
+        "effort_limit_sim",
+        "velocity_limit",
+        "velocity_limit_sim",
+        "stiffness",
+        "damping",
+        "armature",
+        "friction",
+        "dynamic_friction",
+        "viscous_friction",
+        "computed_effort",
+        "applied_effort",
     )
+    group_tensor_ids = {
+        group_name: {name: id(getattr(collection[group_name], name)) for name in parameter_names}
+        for group_name in batch.group_names
+    }
+    for group_name, group_slice in zip(batch.group_names, batch.group_slices):
+        group = collection[group_name]
+        for parameter_index, name in enumerate(parameter_names):
+            executor_tensor = getattr(batch.actuator, name)
+            group_tensor = getattr(group, name)
+            assert group_tensor.untyped_storage().data_ptr() == executor_tensor.untyped_storage().data_ptr()
+            assert group_tensor.storage_offset() == executor_tensor.storage_offset() + group_slice.start
+
+            executor_value = float(parameter_index + 1)
+            executor_tensor[:, group_slice].fill_(executor_value)
+            torch.testing.assert_close(group_tensor, torch.full_like(group_tensor, executor_value))
+
+            group_value = float(parameter_index + 101)
+            group_tensor.fill_(group_value)
+            torch.testing.assert_close(executor_tensor[:, group_slice], torch.full_like(group_tensor, group_value))
+
+    for group_name in batch.group_names:
+        for name in parameter_names:
+            assert id(getattr(collection[group_name], name)) == group_tensor_ids[group_name][name]
+
+
+def test_dc_motor_execution_batch_packs_different_saturation_efforts(monkeypatch):
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    cfgs = {
+        "hips": _dc_cfg(
+            ["joint_0", "joint_1"],
+            stiffness=20.0,
+            damping=1.0,
+            effort_limit=40.0,
+            velocity_limit=10.0,
+            saturation_effort=60.0,
+        ),
+        "knees": _dc_cfg(
+            ["joint_2", "joint_3"],
+            stiffness=30.0,
+            damping=2.0,
+            effort_limit=70.0,
+            velocity_limit=20.0,
+            saturation_effort=120.0,
+        ),
+    }
+    collection = ActuatorCollection(cfgs, control)
 
     batch = collection._execution_batches[0]
     assert type(batch.actuator) is DCMotor
+    executor = batch.actuator
+    assert executor is not collection["hips"]
+    assert executor is not collection["knees"]
+    expected_parameters = {
+        "stiffness": (20.0, 30.0),
+        "damping": (1.0, 2.0),
+        "effort_limit": (40.0, 70.0),
+        "velocity_limit": (10.0, 20.0),
+    }
+    for name, (hips_value, knees_value) in expected_parameters.items():
+        torch.testing.assert_close(
+            getattr(executor, name),
+            torch.tensor([[hips_value, hips_value, knees_value, knees_value]]).expand(2, -1),
+        )
+        torch.testing.assert_close(getattr(collection["hips"], name), getattr(executor, name)[:, :2])
+        torch.testing.assert_close(getattr(collection["knees"], name), getattr(executor, name)[:, 2:])
+
     torch.testing.assert_close(
-        batch.actuator._saturation_effort,
+        executor._saturation_effort,
         torch.tensor([[60.0, 60.0, 120.0, 120.0]]).expand(2, -1),
     )
+    torch.testing.assert_close(
+        executor._vel_at_effort_lim,
+        torch.tensor([[10.0 * (1.0 + 40.0 / 60.0)] * 2 + [20.0 * (1.0 + 70.0 / 120.0)] * 2]).expand(2, -1),
+    )
+    assert executor._joint_vel.shape == (2, 4)
+    torch.testing.assert_close(executor._joint_vel, torch.zeros((2, 4)))
+    assert executor._zeros_effort.shape == (2, 4)
+    torch.testing.assert_close(executor._zeros_effort, torch.zeros((2, 4)))
+    assert collection["hips"]._saturation_effort == 60.0
+    assert collection["knees"]._saturation_effort == 120.0
+    for group_name in ("hips", "knees"):
+        for name in ("_vel_at_effort_lim", "_joint_vel", "_zeros_effort"):
+            group_tensor = getattr(collection[group_name], name)
+            executor_tensor = getattr(executor, name)
+            assert group_tensor.shape == (2, 2)
+            assert group_tensor.untyped_storage().data_ptr() != executor_tensor.untyped_storage().data_ptr()
+
+    reference_control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    reference = _make_unbatched_reference(monkeypatch, DCMotor, cfgs, reference_control)
+    _assign_deterministic_inputs(collection, control)
+    _assign_deterministic_inputs(reference, reference_control)
+    collection.compute()
+    reference.compute()
+    _assert_collection_outputs_match_exactly(collection, reference)
 
 
 def test_ideal_pd_aggregate_matches_independent_groups_exactly(monkeypatch):
@@ -883,6 +963,9 @@ def test_runtime_gains_route_into_aggregate_and_native_hook():
 
     torch.testing.assert_close(collection["hips"].stiffness[1, 0], torch.tensor(71.0), rtol=0.0, atol=0.0)
     torch.testing.assert_close(collection["knees"].stiffness[1, 1], torch.tensor(93.0), rtol=0.0, atol=0.0)
+    executor = collection._execution_batches[0].actuator
+    torch.testing.assert_close(executor.stiffness[1, 0], torch.tensor(71.0), rtol=0.0, atol=0.0)
+    torch.testing.assert_close(executor.stiffness[1, 3], torch.tensor(93.0), rtol=0.0, atol=0.0)
     torch.testing.assert_close(collection.actuator_stiffness.torch[1, 0], torch.tensor(71.0), rtol=0.0, atol=0.0)
     torch.testing.assert_close(collection.actuator_stiffness.torch[1, 3], torch.tensor(93.0), rtol=0.0, atol=0.0)
     assert control.native_gain_writes[-1][0] == "kp"
@@ -895,6 +978,8 @@ def test_runtime_gains_route_into_aggregate_and_native_hook():
 
     torch.testing.assert_close(collection["knees"].damping[1, 1], torch.tensor(47.0), rtol=0.0, atol=0.0)
     torch.testing.assert_close(collection["hips"].damping[1, 0], torch.tensor(29.0), rtol=0.0, atol=0.0)
+    torch.testing.assert_close(executor.damping[1, 3], torch.tensor(47.0), rtol=0.0, atol=0.0)
+    torch.testing.assert_close(executor.damping[1, 0], torch.tensor(29.0), rtol=0.0, atol=0.0)
     torch.testing.assert_close(collection.actuator_damping.torch[1, 3], torch.tensor(47.0), rtol=0.0, atol=0.0)
     torch.testing.assert_close(collection.actuator_damping.torch[1, 0], torch.tensor(29.0), rtol=0.0, atol=0.0)
     assert control.native_gain_writes[-1][0] == "kd"

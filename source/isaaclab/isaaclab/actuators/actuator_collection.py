@@ -325,6 +325,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     def __setitem__(self, name: str, actuator: ActuatorBase) -> None:
         raise TypeError("ActuatorCollection membership is fixed after initialization.")
 
+    def __delitem__(self, name: str) -> None:
+        raise TypeError("ActuatorCollection membership is fixed after initialization.")
+
     """
     Properties.
     """
