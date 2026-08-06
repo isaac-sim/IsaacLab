@@ -24,6 +24,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -315,5 +316,4 @@ class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         self.decimation = 3
         self.episode_length_s = 10.0
-        self.viewer.eye = (1.5, 0.5, 0.5)
-        self.viewer.lookat = (0.0, 0.0, 0.265)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.5, 0.5, 0.5), lookat=(0.0, 0.0, 0.265))

@@ -1,0 +1,84 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# NVIDIA OSMO workflow for single-node, multi-GPU Isaac Lab training.
+#
+# Submit with:
+#   osmo workflow submit docker/cluster/osmo_multi_gpu_workflow.yaml \
+#     --set num_gpu=4 \
+#     --set args="--task Isaac-Reorient-KukaAllegro --num_envs 4096"
+#
+# When ``num_gpu`` is 1 the workflow falls back to the single-process ``train``
+# entry point, so the same file covers both cases. No visualizer is requested,
+# so training runs headless.
+
+workflow:
+  name: isaac-lab
+  resources:
+    default:
+      gpu: {{ num_gpu }}
+      cpu: {{ num_cpu }}
+      memory: {{ memory }}Gi
+      storage: {{ storage }}Gi
+      platform: {{ platform }}
+
+  groups:
+  - name: training
+    tasks:
+    - name: trainer
+      lead: true
+      image: {{ image }}
+      command: ["bash"]
+      args: ["/tmp/run.sh"]
+      environment:
+        ACCEPT_EULA: Y
+        NCCL_DEBUG: WARN
+        NCCL_ASYNC_ERROR_HANDLING: "1"
+        TORCH_NCCL_ASYNC_ERROR_HANDLING: "1"
+      files:
+      - path: /tmp/run.sh
+        contents: |
+          set -euo pipefail
+
+          # Isaac Sim images ship their own Vulkan ICDs. Hide the system ones so the
+          # loader does not pick up a conflicting driver on the compute node. The
+          # published images run as an unprivileged user and cannot write to
+          # /usr/share, so skip the rename there instead of failing the job.
+          if [ -e "/usr/share/vulkan" ] && [ -e "/etc/vulkan" ] && [ -w "/usr/share" ]; then
+            mv /usr/share/vulkan /usr/share/vulkan_hidden
+          fi
+
+          # Split the allocated CPUs across the per-GPU worker processes, otherwise
+          # every worker spawns a thread pool sized for the whole node.
+          export OMP_NUM_THREADS=$(( {{ num_cpu }} / {{ num_gpu }} ))
+          if [ "${OMP_NUM_THREADS}" -lt 1 ]; then
+            export OMP_NUM_THREADS=1
+          fi
+          export MKL_NUM_THREADS="${OMP_NUM_THREADS}"
+          export OPENBLAS_NUM_THREADS="${OMP_NUM_THREADS}"
+
+          {% if num_gpu > 1 %}
+          /workspace/isaaclab/isaaclab.sh train_multigpu \
+            --rl_library {{ rl_library }} \
+            --nproc_per_node {{ num_gpu }} \
+            --master_port {{ master_port }} \
+            {{ args }}
+          {% else %}
+          /workspace/isaaclab/isaaclab.sh train \
+            --rl_library {{ rl_library }} \
+            {{ args }}
+          {% endif %}
+
+default-values:
+  image: nvcr.io/nvidia/isaac-lab:3.0.0-beta2
+  rl_library: rsl_rl
+  num_gpu: 1
+  num_cpu: 16
+  memory: 64
+  storage: 256
+  platform: dgx-h100
+  master_port: 29400
+  # Empty rather than null: a null default renders as the literal string "None".
+  args: ""

@@ -12,11 +12,12 @@ declared layouts. Instead of listing those assets by hand, this script defines
 its own combination set, ``RandomSubsetSet``, which draws a random subset of
 the grocery slots: the cloner only reads ``assets`` and ``weight`` off a
 combination, so any subclass of :class:`~isaaclab.cloner.InclusionSet` that
-fills them in is a valid combination. The slots cycle through eight YCB grocery
-models, spawned by a custom spawner that authors the rigid bodies and colliders
-the visual models ship without. The simulation periodically re-drops every
-spawned grocery into its bin with pose, velocity, and mass noise, teleporting
-out-of-bounds objects back in.
+fills them in is a valid combination. The first layout fills the bin, which
+keeps every declared slot spawned no matter how many environments run. The
+slots cycle through eight YCB grocery models, spawned by a custom spawner that
+authors the rigid bodies and colliders the visual models ship without. The
+simulation periodically re-drops every spawned grocery into its bin with pose,
+velocity, and mass noise, teleporting out-of-bounds objects back in.
 
 .. note::
     Heterogeneous per-environment object counts require the PhysX backend, so
@@ -222,8 +223,8 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
 
     Besides the world-shared ground plane and light and the storage bin, the
     scene declares one grocery slot per object that may end up in the bin, and
-    one :class:`RandomSubsetSet` clone combination per layout to pick which of
-    those slots are active.
+    one clone combination per layout to pick which of those slots are active:
+    a full bin first, then a :class:`RandomSubsetSet` draw per remaining layout.
     """
 
     # ground plane
@@ -273,10 +274,17 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
     grocery_22: RigidObjectCfg = grocery_cfg(22)
     grocery_23: RigidObjectCfg = grocery_cfg(23)
 
+    # A slot claimed by some layout but active in none of the layouts the environments
+    # actually receive is never spawned, which the scene rejects. Environments cycle
+    # through the layouts in order, so a full first layout keeps every slot active for
+    # any ``--num_envs``, and the random draws below stay unconstrained.
     clone_cfg: CloneCfg = CloneCfg(
         clone_combinations=[
-            RandomSubsetSet(pool=GROCERY_NAMES, num_active=(MIN_OBJECTS_PER_BIN, MAX_OBJECTS_PER_BIN))
-            for _ in range(NUM_LAYOUTS)
+            InclusionSet(assets=GROCERY_NAMES),
+            *(
+                RandomSubsetSet(pool=GROCERY_NAMES, num_active=(MIN_OBJECTS_PER_BIN, MAX_OBJECTS_PER_BIN))
+                for _ in range(NUM_LAYOUTS - 1)
+            ),
         ],
         clone_strategy=sequential,
     )

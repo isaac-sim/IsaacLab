@@ -7,133 +7,88 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
-
-import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.core.cabinet.cabinet_env_cfg import (
+    CABINET_CFG,
+    LIGHT_CFG,
+    PLANE_CFG,
+    CabinetDecimationCfg,
+    CabinetSimCfg,
+    EventCfg,
+)
 
 
 @configclass
-class CabinetDirectPhysicsCfg(PresetCfg):
-    isaacsim_physx: PhysxCfg = PhysxCfg()
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    newton_mjwarp: NewtonCfg = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            integrator="implicitfast",
-        ),
-        num_substeps=1,
-    )
-    default = isaacsim_physx
+class CabinetDirectSceneCfg(InteractiveSceneCfg):
+    """Scene configuration shared by direct-workflow cabinet tasks."""
+
+    robot: ArticulationCfg = MISSING
+    cabinet: ArticulationCfg = CABINET_CFG
+    plane: AssetBaseCfg = PLANE_CFG
+    light: AssetBaseCfg = LIGHT_CFG
 
 
 @configclass
 class CabinetDirectEnvCfg(DirectRLEnvCfg):
-    """Robot-agnostic base configuration for the direct-workflow cabinet (open-drawer) task.
+    """Base configuration for the direct-workflow cabinet task."""
 
-    The :attr:`robot` articulation is left unset; robot-specific configurations
-    (e.g. :class:`~isaaclab_tasks.core.cabinet.config.franka.cabinet_direct_env_cfg.FrankaCabinetDirectEnvCfg`)
-    provide it.
-    """
-
-    # env
-    episode_length_s = 8.3333  # 500 timesteps
-    decimation = 2
-    action_space = 9
-    observation_space = 23
+    # environment and simulation
+    episode_length_s = 8.0
+    decimation: int = CabinetDecimationCfg()
+    action_space = 8
+    observation_space = 31
     state_space = 0
+    sim: CabinetSimCfg = CabinetSimCfg()
+    scene: CabinetDirectSceneCfg = CabinetDirectSceneCfg(num_envs=4096, env_spacing=2.0)
+    events: EventCfg = EventCfg()
 
-    # simulation
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
-        render_interval=decimation,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-            restitution=0.0,
-        ),
-        physics=CabinetDirectPhysicsCfg(),
-    )
+    # robot joints and frames -- set by a robot-specific subclass
+    arm_joint_names: str | list[str] = MISSING
+    finger_joint_names: str | list[str] = MISSING
+    ee_body_name: str = MISSING
+    left_finger_body_name: str = MISSING
+    right_finger_body_name: str = MISSING
+    ee_pos_offset: tuple[float, float, float] = MISSING
+    """End-effector frame position offset [m]."""
+    finger_pos_offset: tuple[float, float, float] = MISSING
+    """Fingertip frame position offset [m]."""
 
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096, env_spacing=3.0, replicate_physics=True, clone_in_fabric=True
-    )
+    # action processing -- set by a robot-specific subclass
+    arm_action_scale: float = 1.0
+    """Arm joint position scale [m or rad, depending on joint type]."""
+    gripper_open_command: float = MISSING
+    """Open gripper joint position [m or rad, depending on joint type]."""
+    gripper_close_command: float = MISSING
+    """Closed gripper joint position [m or rad, depending on joint type]."""
 
-    # robot -- set by a robot-specific subclass
-    robot: ArticulationCfg = MISSING
+    # cabinet joint and frame
+    drawer_joint_name: str = "drawer_top_joint"
+    drawer_handle_body_name: str = "drawer_handle_top"
+    drawer_handle_pos_offset: tuple[float, float, float] = (0.305, 0.0, 0.01)
+    """Drawer-handle frame position offset [m]."""
+    drawer_handle_rot_offset: tuple[float, float, float, float] = (0.5, -0.5, -0.5, 0.5)
+    """Drawer-handle frame orientation as an ``(x, y, z, w)`` quaternion."""
 
-    # cabinet
-    cabinet = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Cabinet",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
-            activate_contact_sensors=False,
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0, 0.4),
-            rot=(0.0, 0.0, 0.0, 1.0),
-            joint_pos={
-                "door_left_joint": 0.0,
-                "door_right_joint": 0.0,
-                "drawer_bottom_joint": 0.0,
-                "drawer_top_joint": 0.0,
-            },
-        ),
-        actuators={
-            "drawers": ImplicitActuatorCfg(
-                joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
-                effort_limit_sim=87.0,
-                stiffness=10.0,
-                damping=1.0,
-            ),
-            "doors": ImplicitActuatorCfg(
-                joint_names_expr=["door_left_joint", "door_right_joint"],
-                effort_limit_sim=87.0,
-                stiffness=10.0,
-                damping=2.5,
-            ),
-        },
-    )
-
-    # ground plane
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
-        collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-            restitution=0.0,
-        ),
-    )
-
-    action_scale = 7.5
-    dof_velocity_scale = 0.1
-
-    # reward scales
-    dist_reward_scale = 1.5
-    rot_reward_scale = 1.5
-    open_reward_scale = 10.0
-    action_penalty_scale = 0.05
-    finger_reward_scale = 2.0
-
-    # success criteria
+    # reward parameters, matching :class:`~isaaclab_tasks.core.cabinet.cabinet_env_cfg.RewardsCfg`
+    approach_ee_handle_threshold: float = 0.2
+    """End-effector distance threshold [m] for the near-handle bonus."""
+    approach_gripper_handle_offset: float = MISSING
+    """Fingertip reach offset [m]."""
+    grasp_handle_threshold: float = 0.03
+    """Maximum end-effector distance [m] for the grasp reward."""
     success_drawer_pos_threshold: float = 0.30
-    """Drawer joint position above which the drawer is considered successfully opened [m]."""
+    """Drawer joint position [m] above which an episode is successful."""
+
+    approach_ee_handle_reward_scale: float = 2.0
+    align_ee_handle_reward_scale: float = 0.5
+    approach_gripper_handle_reward_scale: float = 5.0
+    align_grasp_around_handle_reward_scale: float = 0.125
+    grasp_handle_reward_scale: float = 0.5
+    open_drawer_reward_scale: float = 7.5
+    multi_stage_open_drawer_reward_scale: float = 1.0
+    action_rate_reward_scale: float = -1e-2
+    joint_vel_reward_scale: float = -1e-4
