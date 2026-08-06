@@ -372,16 +372,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         """Joint torques applied after clipping [N or N·m, depending on joint type]."""
         return self._applied_torque_ta
 
-    @property
-    def soft_joint_vel_limits(self) -> ProxyArray:
-        """Actuator-resolved soft joint velocity limits [m/s or rad/s, depending on joint type]."""
-        return self._soft_joint_vel_limits_ta
-
-    @property
-    def gear_ratio(self) -> ProxyArray:
-        """Gear ratio for relating motor torques to applied joint torques [dimensionless]."""
-        return self._gear_ratio_ta
-
     """
     Operations.
     """
@@ -493,8 +483,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._joint_effort_target_sim_ta = ProxyArray(self._joint_effort_target_sim)
         self._computed_torque_ta = ProxyArray(self._computed_torque)
         self._applied_torque_ta = ProxyArray(self._applied_torque)
-        self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-        self._gear_ratio_ta = ProxyArray(self._gear_ratio)
 
     def _build_groups(self, actuator_cfgs: dict[str, ActuatorBaseCfg]) -> None:
         for actuator_name, actuator_cfg in actuator_cfgs.items():

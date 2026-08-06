@@ -165,15 +165,15 @@ class ArticulationData(BaseArticulationData):
         self._joint_effort_target = actuators.command.effort.warp
         self._computed_torque = actuators.computed_torque.warp
         self._applied_torque = actuators.applied_torque.warp
-        self._soft_joint_vel_limits = actuators.soft_joint_vel_limits.warp
-        self._gear_ratio = actuators.gear_ratio.warp
+        self._soft_joint_vel_limits = actuators._soft_joint_vel_limits
+        self._gear_ratio = actuators._gear_ratio
         self._joint_pos_target_ta = actuators.command.position
         self._joint_vel_target_ta = actuators.command.velocity
         self._joint_effort_target_ta = actuators.command.effort
         self._computed_torque_ta = actuators.computed_torque
         self._applied_torque_ta = actuators.applied_torque
-        self._soft_joint_vel_limits_ta = actuators.soft_joint_vel_limits
-        self._gear_ratio_ta = actuators.gear_ratio
+        self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
+        self._gear_ratio_ta = ProxyArray(self._gear_ratio)
 
     def _get_actuator_collection_proxy(self, name: str, buffer_name: str, proxy_name: str) -> ProxyArray:
         collection = self._actuator_collection
@@ -690,21 +690,24 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def soft_joint_vel_limits(self) -> ProxyArray:
-        """Soft joint velocity limits for all joints [m/s or rad/s, depending on joint type].
+        """Actuator-resolved soft joint velocity limits [m/s or rad/s, depending on joint type].
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
+
+        These compatibility outputs may differ from :attr:`joint_vel_limits` for a state-dependent actuator velocity
+        limit, such as a variable gear ratio. The solver velocity limits remain :attr:`joint_vel_limits`.
         """
-        return self._get_actuator_collection_proxy(
-            "soft_joint_vel_limits", "_soft_joint_vel_limits", "_soft_joint_vel_limits_ta"
-        )
+        return self._soft_joint_vel_limits_ta
 
     @property
     def gear_ratio(self) -> ProxyArray:
-        """Gear ratio for relating motor torques to applied joint torques.
+        """Actuator gear ratios relating motor torques to applied joint torques [dimensionless].
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
+
+        These actuator-model outputs are not solver joint properties; the solver receives the resulting joint torques.
         """
-        return self._get_actuator_collection_proxy("gear_ratio", "_gear_ratio", "_gear_ratio_ta")
+        return self._gear_ratio_ta
 
     """
     Fixed tendon properties.

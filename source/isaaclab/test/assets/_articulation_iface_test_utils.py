@@ -140,7 +140,6 @@ def create_physx_articulation(
 
     # Set up other required attributes
     object.__setattr__(articulation, "actuators", _MockActuatorCollection(PhysxActuatorControl(articulation)))
-    data.bind_actuator_collection(articulation.actuators)
     object.__setattr__(articulation, "_has_implicit_actuators", False)
     object.__setattr__(articulation, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
     object.__setattr__(
@@ -178,6 +177,7 @@ def create_physx_articulation(
 
     articulation._resolve_and_install_ordering_maps()
     articulation._ordering_configure_backend_staging()
+    data.bind_actuator_collection(articulation.actuators)
 
     # Initialize joint targets
     joint_target_shape = (num_instances, num_joints)
@@ -354,8 +354,6 @@ class _MockActuatorCollection(dict):
             self._joint_effort_target_sim_ta = ProxyArray(self._joint_effort_target_sim)
             self._computed_torque_ta = ProxyArray(self._computed_torque)
             self._applied_torque_ta = ProxyArray(self._applied_torque)
-            self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-            self._gear_ratio_ta = ProxyArray(self._gear_ratio)
             self.command = ActuatorCollection.Command(self)
             self.joint_command = ActuatorCollection.JointCommand(self)
 
@@ -385,14 +383,6 @@ class _MockActuatorCollection(dict):
     @property
     def applied_torque(self):
         return self._applied_torque_ta
-
-    @property
-    def soft_joint_vel_limits(self):
-        return self._soft_joint_vel_limits_ta
-
-    @property
-    def gear_ratio(self):
-        return self._gear_ratio_ta
 
     def write_actuator_stiffness_to_sim(self, *, stiffness, env_ids, joint_ids) -> None:
         self._write_actuator_gain("kp", stiffness, env_ids, joint_ids)

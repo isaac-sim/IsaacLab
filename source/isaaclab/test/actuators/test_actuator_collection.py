@@ -150,8 +150,8 @@ def _assert_collection_outputs_match_exactly(actual: ActuatorCollection, referen
     torch.testing.assert_close(actual.computed_torque.torch, reference.computed_torque.torch, rtol=0.0, atol=0.0)
     torch.testing.assert_close(actual.applied_torque.torch, reference.applied_torque.torch, rtol=0.0, atol=0.0)
     torch.testing.assert_close(
-        actual.soft_joint_vel_limits.torch,
-        reference.soft_joint_vel_limits.torch,
+        wp.to_torch(actual._soft_joint_vel_limits),
+        wp.to_torch(reference._soft_joint_vel_limits),
         rtol=0.0,
         atol=0.0,
     )
@@ -1073,6 +1073,10 @@ def test_collection_does_not_allocate_centralized_actuator_gains():
     assert not hasattr(collection, "actuator_damping")
     assert not hasattr(collection, "_actuator_stiffness")
     assert not hasattr(collection, "_actuator_damping")
+    assert not hasattr(collection, "soft_joint_vel_limits")
+    assert not hasattr(collection, "gear_ratio")
+    assert collection._soft_joint_vel_limits.shape == (2, 3)
+    assert collection._gear_ratio.shape == (2, 3)
 
 
 def test_collection_exports_proxy_arrays():
@@ -1087,7 +1091,6 @@ def test_collection_exports_proxy_arrays():
     assert collection.joint_command.effort.shape == (2, 3)
     assert collection.computed_torque.shape == (2, 3)
     assert collection.applied_torque.shape == (2, 3)
-    assert collection.gear_ratio.shape == (2, 3)
 
 
 def test_collection_accepts_cached_proxy_joint_indices():

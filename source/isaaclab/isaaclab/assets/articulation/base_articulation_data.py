@@ -476,10 +476,13 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def soft_joint_vel_limits(self) -> ProxyArray:
-        """Deprecated. Use ``articulation.actuators.soft_joint_vel_limits`` instead.
+        """Actuator-resolved soft joint velocity limits [m/s or rad/s, depending on joint type].
 
-        Soft joint velocity limits for all joints [m/s or rad/s, depending on joint type].
         Shape is (num_instances, num_joints), dtype = wp.float32.
+
+        These values are produced by the actuator model and can differ from :attr:`joint_vel_limits` for a
+        state-dependent velocity-limit model, such as one with a variable gear ratio. They are compatibility outputs;
+        the solver velocity limits remain :attr:`joint_vel_limits`.
         """
         raise NotImplementedError
 
@@ -487,10 +490,12 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def gear_ratio(self) -> ProxyArray:
-        """Deprecated. Use ``articulation.actuators.gear_ratio`` instead.
+        """Actuator gear ratios relating motor torques to applied joint torques [dimensionless].
 
-        Gear ratio for relating motor torques to applied joint torques [dimensionless].
         Shape is (num_instances, num_joints), dtype = wp.float32.
+
+        These are actuator-model compatibility outputs. The solvers receive the resulting joint torques directly,
+        rather than using these values as joint properties.
         """
         raise NotImplementedError
 
