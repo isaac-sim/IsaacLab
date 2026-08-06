@@ -158,7 +158,7 @@ class ArticulationData(BaseArticulationData):
         return self._is_primed
 
     def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
-        """Bind collection-owned actuator buffers for deprecated data aliases."""
+        """Bind collection-owned command and telemetry aliases plus actuator compatibility projections."""
         self._actuator_collection = actuators
         self._joint_pos_target = actuators.command.position.warp
         self._joint_vel_target = actuators.command.velocity.warp
