@@ -578,14 +578,18 @@ class RerunVisualizer(BaseVisualizer):
             return
 
         tile_w, tile_h = 320, 240  # default resolution for Rerun stream (no window size)
-        result = create_visualizer_camera(
-            num_envs=num_envs,
-            width=tile_w,
-            height=tile_h,
-            renderer_cfg=renderer_cfg,
-            data_types=sensor_keys_for_gt_types(gt_types),
-            streaming_envs=tuple(int(i) for i in env_ids),
-        )
+        try:
+            result = create_visualizer_camera(
+                num_envs=num_envs,
+                width=tile_w,
+                height=tile_h,
+                renderer_cfg=renderer_cfg,
+                data_types=sensor_keys_for_gt_types(gt_types),
+                streaming_envs=tuple(int(i) for i in env_ids),
+            )
+        except Exception as e:
+            logger.warning("[RerunVisualizer] Streaming view disabled: could not auto-create a camera sensor (%s).", e)
+            return
         self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
             result
         )
