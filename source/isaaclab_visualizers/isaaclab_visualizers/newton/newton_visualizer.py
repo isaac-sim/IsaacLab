@@ -575,7 +575,9 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         super()._init_window()
         with contextlib.suppress(AttributeError):
             self._patch_scalar_plot_width()
+        with contextlib.suppress(AttributeError):
             self._patch_viewer_panel()
+        with contextlib.suppress(AttributeError):
             self._patch_image_logger()
 
     def is_training_paused(self) -> bool:
@@ -1844,14 +1846,22 @@ class NewtonGLVisualizer(NewtonVisualizer):
         _PANEL_KEY = "Streaming View"
         image_logger = getattr(self._viewer, "_image_logger", None)
 
-        # First call: register the panel key and explicitly select it.
-        # Newton's draw_controls is suppressed so it never auto-selects the image;
-        # we must set _selected ourselves so the floating window shows content.
+        # First call: register the panel key in the image logger so the sidebar combo
+        # appears.  Use a 1×1 black placeholder — no camera work needed yet.
+        # Clear _selected so the panel starts hidden; the user opens it via the
+        # "Streaming View" → "Open" combo in the Newton sidebar.
         if image_logger is not None and _PANEL_KEY not in getattr(image_logger, "_images", {}):
             placeholder = wp.zeros((1, 1, 3), dtype=wp.uint8)
             self._viewer.log_image(_PANEL_KEY, placeholder)
             if hasattr(image_logger, "_selected"):
-                image_logger._selected = _PANEL_KEY
+                image_logger._selected = None
+            return
+
+        # When the panel is hidden (selected=None), skip all camera rendering.
+        # Work resumes the next step after the user selects "Open" in the combo.
+        # render_tiled_rgb_array() calls _build_streaming_composite() directly for
+        # headless VideoRecorder use-cases, bypassing this guard.
+        if image_logger is not None and image_logger._selected is None:
             return
 
         composite = self._build_streaming_composite()
