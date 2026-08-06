@@ -1580,6 +1580,19 @@ class OVRTXRenderer(BaseRenderer):
                             is_array=True,
                             semantic=ovstage.AttributeSemantic.ASSET_STRING,
                         ).wait()
+                    elif isinstance(values, (list, tuple)) and all(isinstance(value, str) for value in values):
+                        token_ids = np.array(
+                            [self._stage_paths.intern_token(value) for value in values],
+                            dtype=np.uint64,
+                        )
+                        self._stage.write_attribute(
+                            query,
+                            attribute_name,
+                            ordinal=self._current_ordinal,
+                            tensors=token_ids,
+                            is_array=False,
+                            semantic=ovstage.AttributeSemantic.TOKEN_ID,
+                        ).wait()
                     else:
                         self._stage.write_attribute(
                             query,

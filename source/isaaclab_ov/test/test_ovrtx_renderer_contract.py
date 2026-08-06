@@ -188,6 +188,60 @@ def test_ovrtx_scene_attribute_update_uses_ovstage_asset_semantics():
     assert events[-1] == ("destroy", "paths")
 
 
+def test_ovrtx_scene_attribute_update_interns_ovstage_token_strings():
+    """ovstage string values use token IDs instead of unsupported object arrays."""
+    calls = []
+
+    class Completion:
+        def wait(self):
+            return
+
+    class Query:
+        def __enter__(self):
+            return "query"
+
+        def __exit__(self, *_args):
+            return
+
+    class Stage:
+        def query_from_path_list(self, _path_list):
+            return Query()
+
+        def write_attribute(self, query, attribute_name, **kwargs):
+            calls.append((query, attribute_name, kwargs))
+            return Completion()
+
+    class StagePaths:
+        def create_path_list_from_strings(self, _paths):
+            return "paths"
+
+        def intern_token(self, value):
+            return {"Oak": 41, "Concrete": 73}[value]
+
+        def destroy_path_list(self, _path_list):
+            return
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = True
+    renderer._use_ovstage = True
+    renderer._stage = Stage()
+    renderer._stage_paths = StagePaths()
+    renderer._current_ordinal = 9
+
+    renderer.update_scene_attribute(
+        ["/World/envs/env_0/Looks/Table", "/World/envs/env_1/Looks/Table"],
+        "info:mdl:sourceAsset:subIdentifier",
+        ["Oak", "Concrete"],
+    )
+
+    query, attribute_name, kwargs = calls[0]
+    assert query == "query"
+    assert attribute_name == "info:mdl:sourceAsset:subIdentifier"
+    np.testing.assert_array_equal(kwargs["tensors"], np.array([41, 73], dtype=np.uint64))
+    assert kwargs["is_array"] is False
+    assert kwargs["semantic"] == ovrtx_renderer_module.ovstage.AttributeSemantic.TOKEN_ID
+
+
 def test_ovrtx_flushes_pending_scene_attribute_updates_in_order():
     """Initialization drains queued updates in submission order without dropping failures."""
     renderer = _make_ovrtx_renderer_without_backend()
