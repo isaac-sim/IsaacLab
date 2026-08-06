@@ -88,3 +88,10 @@ _build
 
 # Superpowers (Claude Code plugin artifacts)
 docs/superpowers/
+
+# soft-body grasping study: generated media and raw binary results
+soft_grasp/**/*.mp4
+soft_grasp/**/*.npz
+soft_grasp/**/*.tgz
+videos/
+.tetcache/
