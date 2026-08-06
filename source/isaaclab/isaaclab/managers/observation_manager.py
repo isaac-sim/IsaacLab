@@ -385,14 +385,23 @@ class ObservationManager(ManagerBase):
         # iterate over all the terms in each group
         group_term_names = self._group_obs_term_names[group_name]
         # buffer to store obs per group
-        group_obs = dict.fromkeys(group_term_names, None)
+        if self._group_obs_concatenate[group_name]:
+            group_obs: list[torch.Tensor] | dict[str, torch.Tensor] = list()
+        else:
+            group_obs = dict.fromkeys(group_term_names, None)
         # read attributes for each term
-        obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
+        obs_terms = zip(
+            group_term_names,
+            self._group_obs_term_cfgs[group_name],
+            self._group_obs_term_requires_copy[group_name],
+        )
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
-        for term_name, term_cfg in obs_terms:
+        for term_name, term_cfg, requires_copy in obs_terms:
             # compute term's value
-            obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params).clone()
+            obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params)
+            if requires_copy:
+                obs = obs.clone()
             # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
@@ -421,16 +430,19 @@ class ObservationManager(ManagerBase):
                     circular_buffer.append(obs)
 
                 if term_cfg.flatten_history_dim:
-                    group_obs[term_name] = circular_buffer.buffer.reshape(self._env.num_envs, -1)
+                    obs = circular_buffer.buffer.reshape(self._env.num_envs, -1)
                 else:
-                    group_obs[term_name] = circular_buffer.buffer
+                    obs = circular_buffer.buffer
+
+            if self._group_obs_concatenate[group_name]:
+                group_obs.append(obs)
             else:
                 group_obs[term_name] = obs
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
             # set the concatenate dimension, account for the batch dimension if positive dimension is given
-            return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
+            return torch.cat(group_obs, dim=self._group_obs_concatenate_dim[group_name])
         else:
             return group_obs
 
@@ -468,6 +480,7 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_names: dict[str, list[str]] = dict()
         self._group_obs_term_dim: dict[str, list[tuple[int, ...]]] = dict()
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
+        self._group_obs_term_requires_copy: dict[str, list[bool]] = dict()
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
         self._group_obs_concatenate_dim: dict[str, int] = dict()
@@ -505,6 +518,7 @@ class ObservationManager(ManagerBase):
             self._group_obs_term_names[group_name] = list()
             self._group_obs_term_dim[group_name] = list()
             self._group_obs_term_cfgs[group_name] = list()
+            self._group_obs_term_requires_copy[group_name] = list()
             self._group_obs_class_term_cfgs[group_name] = list()
 
             # history buffers
@@ -651,6 +665,13 @@ class ObservationManager(ManagerBase):
                         obs_dims = (obs_dims[0], int(np.prod(obs_dims[1:])))
 
                 self._group_obs_term_dim[group_name].append(obs_dims[1:])
+                self._group_obs_term_requires_copy[group_name].append(
+                    bool(term_cfg.modifiers)
+                    or term_cfg.noise is not None
+                    or term_cfg.clip is not None
+                    or term_cfg.scale is not None
+                    or (term_cfg.history_length == 0 and not group_cfg.concatenate_terms)
+                )
 
                 # add term in a separate list if term is a class
                 if isinstance(term_cfg.func, ManagerTermBase):

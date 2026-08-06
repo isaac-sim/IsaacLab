@@ -31,6 +31,8 @@ class CartpoleEnv(DirectRLEnv):
 
         self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
         self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
+        self._cart_dof_idx_scalar = self._cart_dof_idx[0]
+        self._pole_dof_idx_scalar = self._pole_dof_idx[0]
         self.action_scale = self.cfg.action_scale
 
         self.joint_pos = self.cartpole.data.joint_pos.torch
@@ -57,23 +59,19 @@ class CartpoleEnv(DirectRLEnv):
         light_cfg.func("/World/Light", light_cfg, orientation=light_orientation)
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
-        self.actions = self.action_scale * actions.clone()
+        self.actions = self.action_scale * actions
 
     def _apply_action(self) -> None:
         self.cartpole.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
-        joint_pos_rel = self.joint_pos - self.cartpole.data.default_joint_pos.torch
-        joint_vel_rel = self.joint_vel - self.cartpole.data.default_joint_vel.torch
-        obs = torch.cat(
-            (
-                joint_pos_rel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                joint_pos_rel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
-                joint_vel_rel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                joint_vel_rel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
-            ),
-            dim=-1,
-        )
+        default_joint_pos = self.cartpole.data.default_joint_pos.torch
+        default_joint_vel = self.cartpole.data.default_joint_vel.torch
+        obs = torch.empty((self.num_envs, 4), dtype=self.joint_pos.dtype, device=self.joint_pos.device)
+        obs[:, 0] = self.joint_pos[:, self._cart_dof_idx_scalar] - default_joint_pos[:, self._cart_dof_idx_scalar]
+        obs[:, 1] = self.joint_pos[:, self._pole_dof_idx_scalar] - default_joint_pos[:, self._pole_dof_idx_scalar]
+        obs[:, 2] = self.joint_vel[:, self._cart_dof_idx_scalar] - default_joint_vel[:, self._cart_dof_idx_scalar]
+        obs[:, 3] = self.joint_vel[:, self._pole_dof_idx_scalar] - default_joint_vel[:, self._pole_dof_idx_scalar]
         observations = {"policy": obs}
         return observations
 
@@ -84,9 +82,9 @@ class CartpoleEnv(DirectRLEnv):
             self.cfg.rew_scale_pole_pos,
             self.cfg.rew_scale_cart_vel,
             self.cfg.rew_scale_pole_vel,
-            self.joint_pos[:, self._pole_dof_idx[0]],
-            self.joint_vel[:, self._pole_dof_idx[0]],
-            self.joint_vel[:, self._cart_dof_idx[0]],
+            self.joint_pos[:, self._pole_dof_idx_scalar],
+            self.joint_vel[:, self._pole_dof_idx_scalar],
+            self.joint_vel[:, self._cart_dof_idx_scalar],
             self.reset_terminated,
             self.step_dt,
         )
@@ -97,7 +95,7 @@ class CartpoleEnv(DirectRLEnv):
         self.joint_vel = self.cartpole.data.joint_vel.torch
 
         time_out = self.episode_length_buf >= self.max_episode_length
-        out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
+        out_of_bounds = torch.abs(self.joint_pos[:, self._cart_dof_idx_scalar]) > self.cfg.max_cart_pos
         return out_of_bounds, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
@@ -172,8 +170,8 @@ def compute_rewards(
     pole_pos = wrap_to_pi(pole_pos)
     rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
     rew_termination = rew_scale_terminated * reset_terminated.float()
-    rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
-    rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
-    rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
+    rew_pole_pos = rew_scale_pole_pos * torch.square(pole_pos)
+    rew_cart_vel = rew_scale_cart_vel * torch.abs(cart_vel)
+    rew_pole_vel = rew_scale_pole_vel * torch.abs(pole_vel)
     total_reward = (rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel) * step_dt
     return total_reward
