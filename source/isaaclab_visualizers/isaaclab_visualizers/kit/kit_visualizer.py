@@ -282,6 +282,13 @@ class KitVisualizer(BaseVisualizer):
             self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
             self._rgb_annotator.attach([self._rgb_render_product])
+        elif self._runtime_headless and self._rgb_render_product is not None:
+            # In headless mode the render product is paused between captures (see below).
+            # Resume it now so RTX can produce a fresh frame before we read the annotator.
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                self._rgb_render_product.resume()
 
         if not self._app_pumped_this_step:
             settings = get_settings_manager()
@@ -298,7 +305,18 @@ class KitVisualizer(BaseVisualizer):
             return np.zeros((h, w, 3), dtype=np.uint8)
         if raw.ndim == 1:
             raw = raw.reshape(h, w, -1)
-        return raw[:, :, :3]
+        result = raw[:, :, :3]
+
+        # Headless on-demand: pause RTX after the frame is captured so it does not
+        # render between recording windows.  resume() is called at the top of the
+        # next render_rgb_array() call.
+        if self._runtime_headless and self._rgb_render_product is not None:
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                self._rgb_render_product.pause()
+
+        return result
 
     # ---- Capabilities ---------------------------------------------------------------------
 
