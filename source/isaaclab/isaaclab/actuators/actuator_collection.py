@@ -810,10 +810,12 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 self._run_implicit_batches()
             self._implicit_cuda_graph = capture.graph
             wp.capture_launch(self._implicit_cuda_graph)
-        except Exception:
+        except Exception as error:
             self._implicit_cuda_graph = None
             self._implicit_cuda_graph_capture_failed = True
-            logger.warning("Failed to capture implicit actuator CUDA graph; falling back to eager execution.")
+            logger.warning(
+                "Failed to capture implicit actuator CUDA graph (%s); falling back to eager execution.", error
+            )
             self._run_implicit_batches()
 
     def _gather_explicit_batch(self, batch: ActuatorCollection._ExecutionBatch) -> None:

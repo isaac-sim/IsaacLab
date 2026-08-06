@@ -160,11 +160,13 @@ def _assert_collection_outputs_match_exactly(actual: ActuatorCollection, referen
 
 
 def _implicit_cuda_buffer_pointers(collection: ActuatorCollection) -> tuple[int, ...]:
-    """Return the stable Warp array pointers used by an implicit execution batch."""
-    batch = collection._execution_batches[0]
-    assert batch.implicit_inputs is not None
-    assert batch.implicit_outputs is not None
-    return tuple(array.ptr for array in (*batch.implicit_inputs, *batch.implicit_outputs))
+    """Return the stable Warp array pointers used by all implicit execution batches."""
+    pointers = []
+    for batch in collection._execution_batches:
+        assert batch.implicit_inputs is not None
+        assert batch.implicit_outputs is not None
+        pointers.extend(array.ptr for array in (*batch.implicit_inputs, *batch.implicit_outputs))
+    return tuple(pointers)
 
 
 def _mutate_implicit_inputs(collection: ActuatorCollection, control: FakeActuatorControl) -> None:
@@ -457,6 +459,59 @@ def test_implicit_cuda_graph_matches_eager_and_replays_changed_inputs(monkeypatc
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for graph capture")
+def test_implicit_cuda_graph_captures_complete_ordered_batch_sequence(monkeypatch):
+    joint_names = [f"joint_{index}" for index in range(4)]
+    cfgs = {
+        "first": ImplicitActuatorCfg(joint_names_expr=["joint_0", "joint_1", "joint_3"], stiffness=11.0, damping=1.0),
+        "second": ImplicitActuatorCfg(joint_names_expr=["joint_1", "joint_2"], stiffness=23.0, damping=2.0),
+    }
+    eager_control = FakeActuatorControl(joint_names=joint_names, device="cuda:0")
+    graph_control = FakeActuatorControl(joint_names=joint_names, device="cuda:0")
+    with monkeypatch.context() as patch:
+        patch.setattr(ActuatorCollection, "_ENABLE_IMPLICIT_CUDA_GRAPH", False)
+        eager = ActuatorCollection(cfgs, eager_control)
+    graph = ActuatorCollection(cfgs, graph_control)
+    _assign_deterministic_inputs(eager, eager_control)
+    _assign_deterministic_inputs(graph, graph_control)
+
+    assert len(graph._execution_batches) == 2
+    assert all(type(batch.actuator) is ImplicitActuator for batch in graph._execution_batches)
+    buffer_pointers = _implicit_cuda_buffer_pointers(graph)
+    capture_calls = 0
+    scoped_capture = wp.ScopedCapture
+
+    class RecordingScopedCapture:
+        def __init__(self, *args, **kwargs):
+            nonlocal capture_calls
+            capture_calls += 1
+            self._capture = scoped_capture(*args, **kwargs)
+
+        def __enter__(self):
+            return self._capture.__enter__()
+
+        def __exit__(self, *args):
+            return self._capture.__exit__(*args)
+
+    monkeypatch.setattr(actuator_collection_module.wp, "ScopedCapture", RecordingScopedCapture)
+    graph.compute()
+    eager.compute()
+
+    assert capture_calls == 1
+    assert graph._implicit_cuda_graph is not None
+    assert _implicit_cuda_buffer_pointers(graph) == buffer_pointers
+    _assert_collection_outputs_match_exactly(graph, eager)
+
+    _mutate_implicit_inputs(eager, eager_control)
+    _mutate_implicit_inputs(graph, graph_control)
+    graph.compute()
+    eager.compute()
+
+    assert capture_calls == 1
+    assert _implicit_cuda_buffer_pointers(graph) == buffer_pointers
+    _assert_collection_outputs_match_exactly(graph, eager)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for graph capture")
 def test_implicit_cuda_graph_yields_to_outer_capture(monkeypatch):
     joint_names = [f"joint_{index}" for index in range(4)]
     eager_control = FakeActuatorControl(joint_names=joint_names, device="cuda:0")
@@ -529,6 +584,7 @@ def test_implicit_cuda_graph_capture_failure_warns_once_and_falls_back(monkeypat
     assert graph._implicit_cuda_graph_capture_failed
     assert graph._implicit_cuda_graph is None
     assert len(caplog.records) == 1
+    assert "capture failed" in caplog.messages[0]
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for graph capture")
