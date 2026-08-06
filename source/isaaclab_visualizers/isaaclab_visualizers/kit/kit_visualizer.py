@@ -982,8 +982,16 @@ class KitVisualizer(BaseVisualizer):
             # Generated visualizer cameras live under env prims, but eyes/targets are world-space.
             # Reset the xform stack so Kit/Fabric sees the authored pose as a world pose.
             camera_xform.SetResetXformStack(True)
-            translate_op = camera_xform.AddTranslateOp()
-            orient_op = camera_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+            # ClearXformOpOrder removes the ordering metadata but not the prim attributes
+            # themselves, so AddTranslateOp/AddOrientOp fail if they already exist on the
+            # prim (e.g. for /OmniverseKit_Persp which Isaac Sim pre-populates).
+            # Reuse existing attributes when present; add them only when absent.
+            prim = camera.GetPrim()
+            t_attr = prim.GetAttribute("xformOp:translate")
+            translate_op = UsdGeom.XformOp(t_attr) if t_attr else camera_xform.AddTranslateOp()
+            o_attr = prim.GetAttribute("xformOp:orient")
+            orient_op = UsdGeom.XformOp(o_attr) if o_attr else camera_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+            camera_xform.SetXformOpOrder([translate_op, orient_op], camera_xform.GetResetXformStack())
             self._generated_camera_xform_ops[camera_path] = (translate_op, orient_op)
         else:
             translate_op, orient_op = self._generated_camera_xform_ops[camera_path]
