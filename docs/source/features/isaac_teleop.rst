@@ -1276,11 +1276,11 @@ tasks also present their existing recorded ``robot_pov_cam``:
 
 .. code-block:: bash
 
-   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run --extra teleop isaaclab teleop run \
        --task IsaacContrib-PickPlace-GR1T2-Abs \
        --xr --device cpu
 
-   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run --extra teleop isaaclab teleop run \
        --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
        --xr --device cpu
 
