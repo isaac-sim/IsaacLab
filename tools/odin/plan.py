@@ -87,6 +87,9 @@ class PlannedRow:
         renderer: Renderer preset token, or ``None`` to run headless.
         presets: Domain preset tokens, emitted as a comma-separated
             ``presets=a,b``. Empty when none are selected.
+        overrides: Extra Hydra ``key=value`` tokens appended verbatim to the
+            train and play commands, e.g.
+            ``env.sim.physics.default_shape_cfg.margin=0.001``.
         play: Whether to chain a play rollout after training, in the same
             task, reading the checkpoint training wrote.
         keep_checkpoint: Whether to copy the trained checkpoint into the
@@ -119,6 +122,7 @@ class PlannedRow:
     timeout_s: int | None
     uv_extras: tuple[str, ...]
     osmo_task_name: str
+    overrides: tuple[str, ...] = ()
 
 
 def normalize_presets(value: Any) -> tuple[str, ...]:
@@ -300,6 +304,7 @@ def plan_rows(
         physics = str(physics) if physics else None
         renderer = entry.get("renderer")
         presets = normalize_presets(entry.get("presets"))
+        overrides = tuple(str(item) for item in entry.get("overrides") or ())
         play = bool(entry.get("play", False))
         keep_checkpoint = bool(entry.get("keep_checkpoint", False))
         video_length = int(entry.get("video_length", DEFAULT_VIDEO_LENGTH))
@@ -317,6 +322,7 @@ def plan_rows(
                     physics=physics,
                     renderer=renderer,
                     presets=presets,
+                    overrides=overrides,
                     play=play,
                     keep_checkpoint=keep_checkpoint,
                     video_length=video_length,

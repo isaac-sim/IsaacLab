@@ -51,7 +51,7 @@ workflow:
           OUT="{{ '{{output}}' }}/{{ row.row_key }}"
           mkdir -p "$OUT"
           set +e
-          uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark training --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }}{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %}{% if row.max_iterations is not none %} --max_iterations {{ row.max_iterations }}{% endif %} --output_path "$OUT" --benchmark_formatter schema{% if row.physics %} physics={{ row.physics }}{% endif %}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}{% if row.presets %} presets={{ row.presets | join(',') }}{% endif %}
+          uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark training --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }}{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %}{% if row.max_iterations is not none %} --max_iterations {{ row.max_iterations }}{% endif %} --output_path "$OUT" --benchmark_formatter schema{% if row.physics %} physics={{ row.physics }}{% endif %}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}{% if row.presets %} presets={{ row.presets | join(',') }}{% endif %}{% for override in row.overrides %} {{ override }}{% endfor %}
 
           rc=$?
           echo "=== odin: training exit_code=$rc ==="
@@ -108,7 +108,7 @@ workflow:
             PLAY_STATUS="skipped_no_checkpoint"
           else
             echo "=== odin: play from $CKPT ==="
-            uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark play --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }} --checkpoint "$CKPT"{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %} --output_path "$OUT" --benchmark_formatter schema --video --video_length {{ row.video_length }}{% if row.physics %} physics={{ row.physics }}{% endif %}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}{% if row.presets %} presets={{ row.presets | join(',') }}{% endif %}
+            uv run --frozen {% for extra in row.uv_extras %}--extra {{ extra }} {% endfor %}isaaclab benchmark play --rl_library {{ row.rl_library }} --task {{ row.task_id }} --seed {{ row.seed }} --checkpoint "$CKPT"{% if row.num_envs is not none %} --num_envs {{ row.num_envs }}{% endif %} --output_path "$OUT" --benchmark_formatter schema --video --video_length {{ row.video_length }}{% if row.physics %} physics={{ row.physics }}{% endif %}{% if row.renderer %} renderer={{ row.renderer }}{% endif %}{% if row.presets %} presets={{ row.presets | join(',') }}{% endif %}{% for override in row.overrides %} {{ override }}{% endfor %}
 
             PLAY_RC=$?
             PLAY_STATUS="ran"
