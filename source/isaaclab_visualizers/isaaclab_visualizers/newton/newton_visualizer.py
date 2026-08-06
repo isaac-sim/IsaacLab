@@ -934,9 +934,9 @@ class NewtonVisualizer(BaseVisualizer):
 
         from isaaclab_newton.physics import NewtonManager
 
-        # capture_only: skip the render cycle; render on demand via render_rgb_array().
+        # Headless mode: skip the render cycle; render on demand via render_rgb_array().
         # State is still updated so render_rgb_array() always has the latest physics pose.
-        if getattr(self.cfg, "capture_only", False):
+        if self._runtime_headless:
             self._state = NewtonManager.get_state(self._scene_data_provider)
             return
 
@@ -1737,7 +1737,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
         """
         if self._viewer is None:
             raise RuntimeError("NewtonGLVisualizer must be initialized before capturing an RGB frame.")
-        if getattr(self.cfg, "capture_only", False) and self._state is not None:
+        if self._runtime_headless and self._state is not None:
             self._pre_step()
             self._viewer.begin_frame(self._sim_time)
             try:
@@ -1982,9 +1982,11 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             due to the SONAME guard (see :meth:`_create_viewer`). Once the Newton
             team adds ``get_frame()``, replace this with
             ``return self._viewer.get_frame().numpy()``.
-
-            TODO: remove this stub once ``ViewerRTX.get_frame()`` is available.
         """
+        # TODO: replace with ``return self._viewer.get_frame().numpy()`` once
+        # ViewerRTX.get_frame() is available from the Newton SDK.  Until then,
+        # video recording with source="visualizer:newton_rtx" produces no frames;
+        # use source="visualizer:newton_gl" (or a sensor source) instead.
         if self._viewer is None:
             return None
         return None

@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import logging
 import os
-from types import SimpleNamespace
-from unittest.mock import MagicMock
+from types import ModuleType, SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from isaaclab_rl.entrypoints.common import apply_video_recording, wrap_record_video
 
@@ -34,6 +36,22 @@ def _env_cfg():
     return cfg
 
 
+@pytest.fixture(autouse=True)
+def _patch_kit_visualizer():
+    """Stub isaaclab_visualizers.kit so tests run without Isaac Sim installed.
+
+    apply_video_recording() always injects KitVisualizerCfg(headless=True) when no
+    concrete visualizer is pre-configured. Without this stub the import would fail in
+    the CI environment where the isaacsim extra is not installed.
+    """
+    fake_kit_cfg_instance = MagicMock()
+    MockKitVisualizerCfg = MagicMock(return_value=fake_kit_cfg_instance)
+    fake_kit_module = ModuleType("isaaclab_visualizers.kit")
+    fake_kit_module.KitVisualizerCfg = MockKitVisualizerCfg
+    with patch.dict("sys.modules", {"isaaclab_visualizers.kit": fake_kit_module}):
+        yield
+
+
 def test_apply_video_recording_noop_when_video_false():
     """video=False (or missing) leaves env_cfg.video_recorders untouched."""
     env_cfg = _env_cfg()
@@ -51,8 +69,8 @@ def test_apply_video_recording_injects_correct_recorder():
     apply_video_recording(env_cfg, "/my/log", _args(video_length=42, video_interval=500), subdir="play")
     assert len(env_cfg.video_recorders) == 1
     rec = env_cfg.video_recorders[0]
-    # Kit not running → Newton GL auto-created; source is the concrete backend type.
-    assert rec.source == "visualizer:newton_gl"
+    # No pre-configured visualizer → Kit headless auto-created; source is the concrete backend type.
+    assert rec.source == "visualizer:kit"
     assert rec.video_length == 42  # CLI override applied
     assert rec.video_interval == 500  # CLI override applied
     assert rec.output_dir == os.path.join("/my/log", "videos", "play")
@@ -95,8 +113,8 @@ def test_apply_video_recording_patches_existing_recorders():
     assert rec.video_interval == 500  # CLI override applied
 
 
-def test_apply_video_recording_injects_kit_visualizer_when_kit_is_running():
-    """When Kit is running and --video given without --viz, KitVisualizerCfg is injected."""
+def test_apply_video_recording_injects_kit_visualizer_when_no_concrete_visualizer():
+    """--video without --viz and no pre-configured visualizer injects a headless KitVisualizerCfg."""
     import sys
     from types import ModuleType
     from unittest.mock import MagicMock, patch
@@ -111,67 +129,20 @@ def test_apply_video_recording_injects_kit_visualizer_when_kit_is_running():
     sim_cfg = SimpleNamespace(visualizer_cfgs=[])
     env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
 
-    # Patch omni.kit.app into sys.modules so that has_kit() returns True,
-    # simulating the Kit/Isaac Sim runtime being active.
-    # has_kit() calls mod.get_app() and returns True only when it is not None.
-    fake_omni_kit_app = ModuleType("omni.kit.app")
-    fake_omni_kit_app.get_app = lambda: object()  # type: ignore[attr-defined]
     with patch.dict(
         sys.modules,
         {
             "isaaclab_visualizers": fake_visualizers_module,
             "isaaclab_visualizers.kit": fake_kit_module,
-            "omni.kit.app": fake_omni_kit_app,
         },
     ):
         apply_video_recording(env_cfg, "/my/log", _args())
 
-    # KitVisualizerCfg() must have been appended to sim_cfg.visualizer_cfgs
     assert len(sim_cfg.visualizer_cfgs) == 1
     assert sim_cfg.visualizer_cfgs[0] is kit_cfg_instance
     MockKitVisualizerCfg.assert_called_once_with(headless=True)
-    # The default recorder must reference the injected kit visualizer
     assert len(env_cfg.video_recorders) == 1
     assert env_cfg.video_recorders[0].source == "visualizer:kit"
-
-
-def test_apply_video_recording_injects_newton_gl_when_kit_not_running():
-    """When Kit is NOT running and --video given without --viz, Newton GL is injected instead."""
-    import sys
-    from types import ModuleType
-    from unittest.mock import MagicMock, patch
-
-    newton_gl_cfg_instance = object()
-    MockNewtonGLVisualizerCfg = MagicMock(return_value=newton_gl_cfg_instance)
-
-    fake_newton_module = ModuleType("isaaclab_visualizers.newton")
-    fake_newton_module.NewtonGLVisualizerCfg = MockNewtonGLVisualizerCfg
-    fake_visualizers_module = ModuleType("isaaclab_visualizers")
-
-    sim_cfg = SimpleNamespace(visualizer_cfgs=[])
-    env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
-
-    # Do NOT patch omni.kit.app so that has_kit() returns False (kitless path).
-    with patch.dict(
-        sys.modules,
-        {
-            "isaaclab_visualizers": fake_visualizers_module,
-            "isaaclab_visualizers.newton": fake_newton_module,
-        },
-    ):
-        # Ensure omni.kit.app is absent so has_kit() correctly returns False.
-        sys.modules.pop("omni.kit.app", None)
-        apply_video_recording(env_cfg, "/my/log", _args())
-
-    # NewtonGLVisualizerCfg(headless=True, capture_only=True) must have been appended.
-    # capture_only=True ensures rendering only occurs during active recording windows,
-    # not on every step (regression for github.com/isaac-sim/IsaacLab/issues/6942).
-    assert len(sim_cfg.visualizer_cfgs) == 1
-    assert sim_cfg.visualizer_cfgs[0] is newton_gl_cfg_instance
-    MockNewtonGLVisualizerCfg.assert_called_once_with(headless=True, capture_only=True)
-    # The default recorder must reference the injected newton_gl visualizer
-    assert len(env_cfg.video_recorders) == 1
-    assert env_cfg.video_recorders[0].source == "visualizer:newton_gl"
 
 
 def test_apply_video_recording_rejects_viz_none_with_video():

@@ -199,9 +199,9 @@ class KitVisualizer(BaseVisualizer):
         # Update dynamic asset tracking before the frame renders.
         if self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
-        # capture_only: skip the app update and camera panel refresh; rendering is
+        # Headless mode: skip the app update and camera panel refresh; rendering is
         # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
-        if self.cfg.capture_only:
+        if self._runtime_headless:
             return
         _externally_paused = self.is_training_paused()
         if not _externally_paused:
@@ -427,7 +427,7 @@ class KitVisualizer(BaseVisualizer):
             # No camera set up — either streaming_view=False, or streaming_view=True but
             # --enable_cameras was not passed (Kit skips camera creation without it).
             return None
-        if self.cfg.capture_only:
+        if self._runtime_headless:
             self._update_camera_image_panel(0.0)
         return self._last_streaming_composite
 

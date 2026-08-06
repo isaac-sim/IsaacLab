@@ -459,10 +459,6 @@ class ViserVisualizer(BaseVisualizer):
 
         self._sim_time += dt
 
-        # capture_only: skip 3D rendering and streaming; render_tiled_rgb_array() composes on demand.
-        if self.cfg.capture_only:
-            return
-
         # Skip all rendering when no browser clients are connected.
         server = getattr(self._viewer, "_server", None)
         has_clients = True
@@ -651,15 +647,11 @@ class ViserVisualizer(BaseVisualizer):
         no browser clients are connected), compositing is triggered on demand so
         that a :class:`VideoRecorder` can capture headless frames.
 
-        When :attr:`~isaaclab.visualizers.VisualizerCfg.capture_only` is ``True``,
-        compositing is always performed on demand so the returned frame reflects the
-        current simulation state even though :meth:`step` skipped streaming.
-
         Returns:
             ``uint8 (H, W, 3)`` composite array, or ``None`` if streaming view
             is not active or camera data is unavailable.
         """
-        if self.cfg.capture_only or self._last_streaming_composite is None:
+        if self._last_streaming_composite is None:
             self._compose_streaming_frame()
         return self._last_streaming_composite
 

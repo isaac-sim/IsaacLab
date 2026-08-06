@@ -784,8 +784,10 @@ is currently experimental. The following features are **not yet supported** and 
 * **Streaming camera panel** — the ``streaming_view`` option has no display sink in the RTX viewer;
   use :class:`~isaaclab_visualizers.rerun.RerunVisualizerCfg` or
   :class:`~isaaclab_visualizers.viser.ViserVisualizerCfg` alongside Newton RTX for streaming output.
-* **``render_rgb_array()``** — framebuffer readback requires ``ViewerRTX.get_frame()`` support from
-  the Newton team; the method currently returns ``None``.
+* **``render_rgb_array()`` / video recording** — framebuffer readback requires
+  ``ViewerRTX.get_frame()`` support from the Newton team; the method currently returns ``None``.
+  As a result, ``--video`` with ``source="visualizer:newton_rtx"`` produces no frames.
+  Use ``source="visualizer:newton_gl"`` or a sensor source (``source="sensor:<name>"``) instead.
 * **Pause rendering** — the path-tracer runs at full cost every tick even while paused (unlike GL's
   lightweight update).
 

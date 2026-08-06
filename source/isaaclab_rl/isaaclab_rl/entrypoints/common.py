@@ -742,51 +742,24 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
             )
 
             if sim_cfg is not None and not has_concrete_visualizer:
-                # Inject a visualizer so there is something to record from.
-                # Add to visualizer_cfgs directly (default_visualizer_cfg only applies
-                # field hints to existing configs; it does not create a new visualizer).
-                #
-                # IMPORTANT: launch_simulation() has already been called at this point.
-                # We must inject a visualizer that matches the CURRENTLY RUNNING runtime:
-                #  - Kit running (has_kit()=True)  → KitVisualizerCfg
-                #  - Kit NOT running (kitless path) → NewtonGLVisualizerCfg
-                # Injecting a KitVisualizerCfg when Kit was not launched causes a crash at
-                # env creation time because the Kit visualizer tries to use an unstarted
-                # Omniverse application.
+                # Inject a headless Kit visualizer so there is something to record from.
+                # pre_launch_video_config() already injected one before launch_simulation()
+                # so this branch is normally not reached; it handles edge cases where that
+                # pre-launch hook was skipped or failed (e.g. isaaclab_visualizers not installed).
                 if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
                     sim_cfg.visualizer_cfgs = []
-                from isaaclab.utils import has_kit as _has_kit
+                try:
+                    from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
 
-                if _has_kit():
-                    try:
-                        from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
-
-                        sim_cfg.visualizer_cfgs.append(_KitCfg(headless=True))
-                        visualizer_source = "visualizer:kit"
-                        print(
-                            "[INFO] --video specified without --viz: auto-creating a headless Kit visualizer "
-                            "for video recording. Pass --viz <type> to choose a different visualizer, or "
-                            "set video_recorders in your env config to record from a scene sensor instead."
-                        )
-                    except (ImportError, ModuleNotFoundError):
-                        pass
-                if not sim_cfg.visualizer_cfgs:
-                    # Kit is not running (kitless/Newton path) or the import failed above:
-                    # fall back to Newton GL which works without the Kit/Omniverse runtime.
-                    # Use capture_only=True so rendering only occurs when the VideoRecorder
-                    # requests frames, not on every step outside active recording windows.
-                    try:
-                        from isaaclab_visualizers.newton import NewtonGLVisualizerCfg as _NwtCfg
-
-                        sim_cfg.visualizer_cfgs.append(_NwtCfg(headless=True, capture_only=True))
-                        visualizer_source = "visualizer:newton_gl"
-                        print(
-                            "[INFO] --video specified without --viz: auto-creating a headless Newton GL "
-                            "visualizer for on-demand video recording (Kit not running). "
-                            "Frames are rendered only during active recording windows."
-                        )
-                    except (ImportError, ModuleNotFoundError):
-                        pass
+                    sim_cfg.visualizer_cfgs.append(_KitCfg(headless=True))
+                    visualizer_source = "visualizer:kit"
+                    print(
+                        "[INFO] --video specified without --viz: auto-creating a headless Kit visualizer "
+                        "for video recording. Pass --viz <type> to choose a different visualizer, or "
+                        "set video_recorders in your env config to record from a scene sensor instead."
+                    )
+                except (ImportError, ModuleNotFoundError):
+                    pass
             elif has_concrete_visualizer:
                 # A concrete visualizer is already configured in the env cfg: record from it.
                 # Determine the visualizer type so we can build the right source string.

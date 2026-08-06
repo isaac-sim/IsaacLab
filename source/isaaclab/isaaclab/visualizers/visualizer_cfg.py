@@ -140,43 +140,6 @@ class VisualizerCfg:
     live_plots_update_interval: int = 5
     """Collect and push live plot data every ``N`` simulation steps (default: every 5 steps)."""
 
-    # Capture settings
-    capture_only: bool = False
-    """Render on demand instead of every simulation step.
-
-    When ``True``, :meth:`~BaseVisualizer.step` skips the expensive per-frame render
-    cycle.  A full render is triggered only when
-    :meth:`~BaseVisualizer.render_rgb_array` or
-    :meth:`~BaseVisualizer.render_tiled_rgb_array` is called — for example by a
-    :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder` during an active
-    recording window.  Outside those windows the throughput cost of visualization
-    drops to near zero.
-
-    Supported by all five backends:
-
-    * **newton_gl**: skips ``begin_frame / log_state / end_frame`` in :meth:`step`;
-      :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.render_rgb_array`
-      triggers a full render cycle on demand.
-    * **newton_rtx**: skips the render block in :meth:`step` (RTX
-      ``render_rgb_array`` is a stub that returns ``None`` regardless).
-    * **kit**: skips ``app.update()`` and the streaming camera panel refresh in
-      :meth:`step`; :meth:`~isaaclab_visualizers.kit.KitVisualizer.render_rgb_array`
-      pumps the app on demand, and
-      :meth:`~isaaclab_visualizers.kit.KitVisualizer.render_tiled_rgb_array`
-      refreshes the streaming composite on demand.
-    * **rerun**: skips ``begin_frame / log_state / end_frame`` and the streaming push
-      in :meth:`step`;
-      :meth:`~isaaclab_visualizers.rerun.RerunVisualizer.render_tiled_rgb_array`
-      composes a fresh frame from the camera sensor on demand.
-    * **viser**: skips ``begin_frame / log_state / end_frame`` and the streaming push
-      in :meth:`step`;
-      :meth:`~isaaclab_visualizers.viser.ViserVisualizer.render_tiled_rgb_array`
-      composes a fresh frame from the camera sensor on demand.
-
-    Set automatically by the RL entrypoint when ``--video`` is used without ``--viz``
-    so that headless training pays the render cost only while clips are being recorded.
-    """
-
     # Internal
     visualizer_type: str | None = None
     """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
