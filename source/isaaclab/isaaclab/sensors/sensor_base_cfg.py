@@ -22,13 +22,13 @@ class SensorBaseCfg:
     The class should inherit from :class:`isaaclab.sensors.sensor_base.SensorBase`.
     """
 
-    cloning_contexts: tuple[str | type, ...] | None = ()
-    """Cloning contexts for this sensor. Defaults to no explicit cloning context.
+    cloning_contexts: tuple[str | type, ...] | None = ("isaaclab.cloner:UsdReplicateContext",)
+    """Cloning contexts for this sensor. Defaults to USD-only cloning.
 
-    Sensors carry no physics of their own. When the sensor has a spawner, USD replication is
-    added automatically under Kit. Listing :class:`~isaaclab.cloner.UsdReplicateContext`
-    explicitly forces USD replication without Kit; see
-    :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts`.
+    Sensors carry no physics of their own, so they request USD replication explicitly instead of
+    relying on the context :func:`~isaaclab.cloner.replicate` adds only under Kit. Kitless
+    backends still resolve their sensor views from USD, so the per-environment prims have to
+    exist there too. See :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts`.
     """
 
     prim_path: str = MISSING
