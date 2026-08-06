@@ -44,7 +44,7 @@ Reuse an Isaac Lab selection
 ----------------------------
 
 Isaac Lab's Newton-backed assets expose the same generic
-:class:`newton.selection.ArticulationView` selection helper. For example, reuse an articulation's
+``newton.selection.ArticulationView`` selection helper. For example, reuse an articulation's
 root selection instead of constructing the matching selection again:
 
 .. code-block:: python
@@ -108,8 +108,8 @@ Read and write through a selection
 ----------------------------------
 
 Read from a ``Model`` or ``State`` source, then write values to a ``Model`` or ``State`` target.
-For the installed Newton version, :meth:`newton.selection.ArticulationView.get_dof_positions`
-accepts a source and :meth:`newton.selection.ArticulationView.set_dof_positions` accepts a target,
+For the installed Newton version, ``ArticulationView.get_dof_positions()``
+accepts a source and ``ArticulationView.set_dof_positions()`` accepts a target,
 values, and an optional mask. Clone before modifying values so the intermediate changes are
 explicit:
 

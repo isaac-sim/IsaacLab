@@ -16,8 +16,7 @@ Physics Manager
 ---------------
 
 .. autoclass:: PhysxManager
-  :members:
-  :inherited-members:
+  :members: get_physics_sim_view
   :show-inheritance:
 
 Physics Configuration

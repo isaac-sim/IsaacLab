@@ -14,7 +14,7 @@ needed for the workload.
 Mental model
 ------------
 
-The API starts from a :class:`~omni.physics.tensors.SimulationView` and creates
+The API starts from a ``SimulationView`` and creates
 typed views over selected physics objects. A view owns an engine-backed
 selection; getters pull data from that selection and setters publish data back
 to it. A raw view selection uses the Tensor API's glob syntax, which is distinct
@@ -24,7 +24,7 @@ Lifecycle prerequisite
 ----------------------
 
 :class:`~isaaclab_physx.physics.PhysxManager` creates its
-:class:`~omni.physics.tensors.SimulationView` with the Warp frontend. Low-level
+``SimulationView`` with the Warp frontend. Low-level
 code must run only after physics initialization and simulation reset, when the
 PhysX Tensor API view has been created:
 
@@ -100,7 +100,7 @@ Cloning makes ownership explicit. Callers can modify the clone with Warp before
 the setter, but edits to a local buffer do not publish themselves; the setter
 performs the write. For active Tensor API contracts that require link transforms
 to be refreshed after joint-state writes, call
-:meth:`~omni.physics.tensors.SimulationView.update_articulations_kinematic`.
+``update_articulations_kinematic()``.
 Not every setter requires that refresh; follow the method-level behavior in the
 upstream reference.
 
