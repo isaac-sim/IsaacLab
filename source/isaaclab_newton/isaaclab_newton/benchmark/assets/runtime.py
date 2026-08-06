@@ -399,7 +399,15 @@ def open_asset_targets(adapter, request, method_config, data_config):
     with ExitStack() as stack:
         for module in _manager_modules(adapter.component):
             importlib.import_module(module.rsplit(".", 1)[0])
-            stack.enter_context(create_mock_newton_manager(module, gravity=(0.0, 0.0, -9.81)))
+            stack.enter_context(
+                create_mock_newton_manager(
+                    module,
+                    gravity=(0.0, 0.0, -9.81),
+                    num_instances=method_config.num_instances,
+                    num_bodies=method_config.num_bodies,
+                    num_joints=method_config.num_joints,
+                )
+            )
         if adapter.component == "articulation":
             target, _ = create_test_articulation(
                 num_instances=method_config.num_instances,

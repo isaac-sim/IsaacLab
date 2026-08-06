@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.6.3 (2026-08-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated the Menagerie Franka configuration to use its corrected USD-authored arm drive gains.
+
+
 0.6.2 (2026-08-01)
 ~~~~~~~~~~~~~~~~~~
 
