@@ -48,8 +48,10 @@ class RerunVisualizerCfg(VisualizerCfg):
     keep_scalar_history: bool = False
     """Accumulate scalars as a time-series in the Rerun timeline (True = live plot history, False = constant memory).
 
-    Set to ``True`` when using live plots so that scalar values accumulate as a time series in the
-    Rerun viewer rather than only showing the latest value.
+    When :attr:`~isaaclab.visualizers.VisualizerCfg.enable_live_plots` is ``True`` (the default),
+    this is automatically forced to ``True`` so that scalar values accumulate as a time series in
+    the Rerun viewer.  Set to ``False`` explicitly to reduce memory usage when scalar history is
+    not needed, but note this will disable live plot curves.
     """
 
     show_particles: bool = True

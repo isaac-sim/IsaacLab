@@ -70,7 +70,8 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
         "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
         "Run your command with: uv run --extra ovrtx <command> "
-        "(or, manually: pip install --extra-index-url https://pypi.nvidia.com -e 'source/isaaclab_ov[ovrtx]')."
+        "(or, manually: python -m pip install --extra-index-url https://pypi.nvidia.com "
+        "'ovrtx>=0.4.0,<0.5.0')."
     ) from exc
 
 from isaaclab.cloner.clone_plan import ClonePlan
@@ -178,7 +179,9 @@ def ovrtx_use_ovstage_enabled() -> bool:
     if value == "1" and not _OVSTAGE_AVAILABLE:
         raise RuntimeError(
             f"`{_USE_OVSTAGE_ENV}=1` requests the ovstage scene-ownership path, but the 'ovstage' "
-            "package is not installed. Install it with: ./isaaclab.sh -i 'ov[ovstage]' "
+            "package is not installed. Run your command with: uv run --extra ovrtx <command> "
+            "(or, manually: python -m pip install --extra-index-url https://pypi.nvidia.com "
+            "'ovstage>=0.1.0,<0.2.0')."
         )
     return value == "1"
 
@@ -1413,8 +1416,8 @@ class OVRTXRenderer(BaseRenderer):
                 render_data.warp_buffers[str(RenderBufferKind.RGBA)],
             )
 
-    def _cleanup_legacy(self, render_data: OVRTXRenderData | None) -> None:
-        """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
+    def _close_legacy(self) -> None:
+        """Release the renderer's tensor bindings and stage. See :meth:`close`."""
 
         # Unbind before tearing down renderer
         def _safe_unbind(binding, name: str) -> None:
@@ -1522,11 +1525,24 @@ class OVRTXRenderer(BaseRenderer):
             self._render_legacy(render_data)
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
-        """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
+        """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
+
+        The stage queries, tensor bindings and render products this renderer holds are shared by
+        every camera that resolves to it, so releasing them here would tear the scene down while
+        the other cameras are still rendering. :meth:`close` releases them instead.
+        """
+        if render_data is None:
+            return
+        render_data.warp_buffers.clear()
+        render_data.renderer_info.clear()
+        render_data.ppisp_pipeline = None
+
+    def close(self) -> None:
+        """Release the shared stage state. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.close`."""
         if self._use_ovstage:
-            self._cleanup_ovstage(render_data)
+            self._close_ovstage()
         else:
-            self._cleanup_legacy(render_data)
+            self._close_legacy()
 
     # ---------------------------------------------------------------------------
     # ovstage implementation
@@ -2162,7 +2178,9 @@ class OVRTXRenderer(BaseRenderer):
                 render_data.warp_buffers[str(RenderBufferKind.RGBA)],
             )
 
-    def _cleanup_ovstage(self, render_data: OVRTXRenderData | None) -> None:
+    def _close_ovstage(self) -> None:
+        """Release the renderer's stage queries, path lists and ovstage stage. See :meth:`close`."""
+
         def _safe_release_query(query, name: str) -> None:
             if query is None or self._stage is None:
                 return
@@ -2208,10 +2226,10 @@ class OVRTXRenderer(BaseRenderer):
         # Detach before closing ExitStack: the renderer holds a live reference into the stage,
         # so detaching first avoids a use-after-free when ExitStack destroys Stage and PathDictionary.
         #
-        # Both are guarded because cleanup can run before initialization completed: Camera.__del__
-        # calls cleanup() whenever a renderer exists, even if create_render_data() never ran (e.g. the
-        # sim was never played, or scene setup raised). detach_ovstage() raises when nothing is
-        # attached, and the ExitStack does not exist until _initialize_from_spec_ovstage creates it.
+        # Both are guarded because close() can run before initialization completed — the sim was
+        # never played, or scene setup raised — and it must stay a no-op when called twice.
+        # detach_ovstage() raises when nothing is attached, and the ExitStack does not exist until
+        # _initialize_from_spec_ovstage creates it.
         if self._renderer is not None and self._stage is not None:
             self._renderer.detach_ovstage()
         self._renderer = None

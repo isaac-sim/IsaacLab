@@ -270,6 +270,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             log_dir = os.path.join(log_root_path, run_info)
             _common.write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
             env_cfg.log_dir = log_dir
+            _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
             agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
             policy_arch = agent_cfg.pop("policy")
@@ -278,7 +279,6 @@ def run(argv: list[str]) -> BenchmarkResult:
             env_t0 = time.perf_counter_ns()
             env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
-            env = _common.wrap_record_video(env, log_dir, args_cli)
             env_t1 = time.perf_counter_ns()
             success_kwargs = build_success_kwargs(args_cli)
             success_context = SuccessRateTrackerWrapper(

@@ -208,10 +208,11 @@ class BaseEnvWindow:
             with self.ui_window_elements["viewer_vstack"]:
                 # create a number slider to move to environment origin
                 # NOTE: slider is 1-indexed, whereas the env index is 0-indexed
+                _viz = self._get_kit_visualizer()
                 viewport_origin_cfg = {
                     "label": "Environment Index",
                     "type": "button",
-                    "default_val": self.env.cfg.viewer.env_index + 1,
+                    "default_val": (_viz.cfg.origin_env_index if _viz is not None else 0) + 1,
                     "min": 1,
                     "max": self.env.num_envs,
                     "tooltip": "The environment index to follow. Only effective if follow mode is not 'World'.",
@@ -239,14 +240,14 @@ class BaseEnvWindow:
                 self.ui_window_elements["viewer_eye"] = isaacsim.gui.components.ui_utils.xyz_builder(
                     label="Camera Eye",
                     tooltip="Modify the XYZ location of the viewer eye.",
-                    default_val=self.env.cfg.viewer.eye,
+                    default_val=_viz.cfg.eye if _viz is not None else (4.0, -4.0, 3.0),
                     step=0.1,
                     on_value_changed_fn=[self._set_viewer_location_fn] * 3,
                 )
                 self.ui_window_elements["viewer_lookat"] = isaacsim.gui.components.ui_utils.xyz_builder(
                     label="Camera Target",
                     tooltip="Modify the XYZ location of the viewer target.",
-                    default_val=self.env.cfg.viewer.lookat,
+                    default_val=_viz.cfg.lookat if _viz is not None else (0.0, 0.0, 0.0),
                     step=0.1,
                     on_value_changed_fn=[self._set_viewer_location_fn] * 3,
                 )
@@ -403,49 +404,72 @@ class BaseEnvWindow:
             # reset the log directory
             self.animation_log_dir = None
 
+    def _get_kit_visualizer(self):
+        """Return the first KitVisualizer active on the simulation, or None."""
+        try:
+            from isaaclab_visualizers.kit import KitVisualizer
+        except ImportError:
+            return None
+        for viz in self.env.sim._visualizers:
+            if isinstance(viz, KitVisualizer):
+                return viz
+        return None
+
     def _set_viewer_origin_type_fn(self, value: str):
         """Sets the origin of the viewport's camera. This is based on the drop-down menu in the UI."""
-        # Extract the viewport camera controller from environment
-        vcc = self.env.viewport_camera_controller
-        if vcc is None:
-            raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
+        viz = self._get_kit_visualizer()
+        if viz is None:
+            return
 
-        # Based on origin type, update the camera view
         if value == "World":
-            vcc.update_view_to_world()
+            viz.cfg.origin_type = "world"
         elif value == "Env":
-            vcc.update_view_to_env()
+            viz.cfg.origin_type = "env"
         else:
-            # find which index the asset is
             fancy_names = [name.replace("_", " ").title() for name in self._viewer_assets_options]
-            # store the desired env index
             viewer_asset_name = self._viewer_assets_options[fancy_names.index(value)]
-            # update the camera view
-            vcc.update_view_to_asset_root(viewer_asset_name)
+            viz.cfg.origin_type = "asset"
+            viz.cfg.origin_track_path = viewer_asset_name
+
+        # Reposition the viewport camera immediately so the new origin is reflected
+        # without waiting for the next env.step() call.
+        viz.reapply_origin()
 
     def _set_viewer_location_fn(self, model: omni.ui.SimpleFloatModel):
         """Sets the viewport camera location based on the UI."""
-        # access the viewport camera controller (for brevity)
-        vcc = self.env.viewport_camera_controller
-        if vcc is None:
-            raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
-        # obtain the camera locations and set them in the viewpoint camera controller
+
+        viz = self._get_kit_visualizer()
+        if viz is None:
+            return
         eye = [self.ui_window_elements["viewer_eye"][i].get_value_as_float() for i in range(3)]
         lookat = [self.ui_window_elements["viewer_lookat"][i].get_value_as_float() for i in range(3)]
-        # update the camera view
-        vcc.update_view_location(eye, lookat)
+        viz.set_camera_view(eye, lookat)
+
+        # Persist the slider values back to cfg so that asset-tracking steps do not
+        # snap the camera back to the previously configured offsets.
+        origin = viz.viewer_origin
+        if origin is not None:
+            origin_np = origin.detach().cpu().numpy()
+            viz.cfg.eye = tuple(float(e - o) for e, o in zip(eye, origin_np))
+            viz.cfg.lookat = tuple(float(lk - o) for lk, o in zip(lookat, origin_np))
+        else:
+            viz.cfg.eye = tuple(float(v) for v in eye)
+            viz.cfg.lookat = tuple(float(v) for v in lookat)
 
     def _set_viewer_env_index_fn(self, model: omni.ui.SimpleIntModel):
         """Sets the environment index and updates the camera if in 'env' origin mode."""
-        # access the viewport camera controller (for brevity)
-        vcc = self.env.viewport_camera_controller
-        if vcc is None:
-            raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
-        # store the desired env index, UI is 1-indexed
-        vcc.set_view_env_index(model.as_int - 1)
+        viz = self._get_kit_visualizer()
+        env_index = model.as_int - 1
+        if viz is not None:
+            viz.cfg.origin_env_index = env_index
+            # For "env" origin the camera must be repositioned immediately; for asset-tracking
+            # origins reapply_origin() defers the update to the next step() call (asset state
+            # is needed to compute the new position).
+            if viz.cfg.origin_type == "env":
+                viz.reapply_origin()
         # notify additional listeners
         for listener in self._ui_listeners:
-            listener.set_env_selection(model.as_int - 1)
+            listener.set_env_selection(env_index)
 
     """
     Helper functions - UI building.

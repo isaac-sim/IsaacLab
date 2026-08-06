@@ -149,9 +149,9 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
 
-ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage>=0.1.0,<0.2.0"]
-ovphysx = ["ovphysx==0.5.9", "ovstage>=0.1.0,<0.2.0"]
-ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage>=0.1.0,<0.2.0"]
+ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
+ovphysx = ["ovphysx==0.5.9", "ovstage==0.1.0.346039"]
+ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
 
 mimic = [
     "isaaclab-mimic",
@@ -159,13 +159,17 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
+# XR teleoperation: carries Isaac Sim for the Kit XR runtime, and isaaclab_mimic because
+# ``isaaclab teleop record`` imports it (robomimic stays in ``mimic``).
 teleop = [
+    "isaacsim[all,extscache]==6.0.1.0",
     "isaaclab-teleop",
+    "isaaclab-mimic",
     # IsaacTeleop is Linux x86_64 only
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
-
+# RLinf VLA post-training (externally contributed).
 rlinf = [
     "ray[default]>=2.47.0",
     "av>=12.3.0",
@@ -178,8 +182,8 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-# Aggregate of the compatible extras. Omits teleop/ovphysx, whose pins clash
-# with isaacsim (lxml and packaging<24); install those via their own extra.
+# Aggregate of the compatible extras. Omits teleop (would pull Isaac Sim in) and ovphysx
+# (packaging<24 clash with isaacsim); install those via their own extra.
 # Also omits tetrahedralization and video because their dependencies are large and
 # narrowly used; request either extra explicitly when needed.
 all = [
@@ -200,8 +204,8 @@ torchvision = "0.26.0"
 torchaudio = "2.11.0"
 ovphysx = "0.5.9"
 ovrtx = ">=0.4.0,<0.5.0"
-ovstage = ">=0.1.0,<0.2.0"
-newton = "831076f52f14612aecace894c81270c1e0ed9479"
+ovstage = "0.1.0.346039"
+newton = "10402ecbaf2d8afda00507123155042cbcb5c3fb"
 warp = "1.16.0.dev20260723"
 
 [tool.ruff]
@@ -381,32 +385,28 @@ environments = [
 # Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
 override-dependencies = [
     "numpy>=2",
-    "mujoco~=3.10.0",
-    "mujoco-warp~=3.10.0,>=3.10.0.2",
-    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@831076f52f14612aecace894c81270c1e0ed9479",
+    "mujoco~=3.11.0",
+    "mujoco-warp~=3.11.0",
+    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@10402ecbaf2d8afda00507123155042cbcb5c3fb",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.0",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
-    # Isaac Sim 6.0 pins 4.12.2, which lacks Sentinel required by the Newton viewer stack.
+    # Isaac Sim 6.0 pins these exactly; drop all three once Isaac Sim 6.1 is published.
     "typing-extensions>=4.15.0",
-    # Isaac Sim 6.0 pins 12.0; use Viser's minimum compatible version to limit the override scope.
-    "websockets==13.1",
+    "websockets>=14.0,<17.0.0",
+    "coverage>=7.6.1",
 ]
-# teleop (lxml>=5.2.2) and mimic (lxml<5.0.0, also in ``all``) cannot co-resolve;
-# declaring the conflict lets uv fork the resolution instead of failing.
-# isaacsim pins clash with teleop/ovphysx/mimic/test (and ``all`` aggregates
-# several of these); forking keeps ``--extra isaacsim`` resolvable on its own.
+# ovphysx pins packaging>=20,<24 while isaacsim-core pins packaging==26.0: a genuine
+# two-sided incompatibility, so uv forks the resolution instead of failing. ``teleop``
+# bundles isaacsim, so it inherits that pair. Every other historical conflict was an
+# over-strict pin that the overrides above now reconcile.
 conflicts = [
-    [{ extra = "teleop" }, { extra = "mimic" }],
-    [{ extra = "teleop" }, { extra = "all" }],
-    [{ extra = "isaacsim" }, { extra = "teleop" }],
+    [{ extra = "teleop" }, { extra = "ov" }],
+    [{ extra = "teleop" }, { extra = "ovphysx" }],
     [{ extra = "isaacsim" }, { extra = "ov" }],
     [{ extra = "isaacsim" }, { extra = "ovphysx" }],
-    [{ extra = "isaacsim" }, { extra = "mimic" }],
-    [{ extra = "isaacsim" }, { extra = "all" }],
-    [{ extra = "isaacsim" }, { extra = "test" }],
 ]
 python-preference = "only-managed"
 package = false

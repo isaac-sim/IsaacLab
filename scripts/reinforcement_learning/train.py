@@ -22,4 +22,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # ``record`` writes the failing rank's traceback to the error file that torchrun reports as the
+    # root cause. Without it, a crash on a non-zero rank surfaces only as an exit code, which is
+    # invisible when console output is filtered to rank 0. Outside torchrun it is a no-op.
+    from torch.distributed.elastic.multiprocessing.errors import record
+
+    raise SystemExit(record(main)())

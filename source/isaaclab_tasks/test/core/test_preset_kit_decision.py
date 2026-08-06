@@ -87,8 +87,8 @@ def test_isaacsim_physx_is_physics_selector():
     assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
 
 
-def test_registered_task_physx_presets_use_explicit_auto_cfg():
-    """Every task with Isaac Sim PhysX exposes automatic and concrete presets."""
+def test_registered_task_physx_presets_keep_auto_selection_explicit():
+    """PhysX defaults are concrete while ``physx`` remains the automatic selector."""
 
     for task_id, task_spec in gym.registry.items():
         if not task_id.startswith(("Isaac-", "IsaacContrib-")) or "env_cfg_entry_point" not in task_spec.kwargs:
@@ -102,8 +102,12 @@ def test_registered_task_physx_presets_use_explicit_auto_cfg():
             if any(isinstance(value, PhysxCfg) for value in physics_fields.values()):
                 auto_cfg = physics_fields.get("physx")
                 isaacsim_cfg = physics_fields.get("isaacsim_physx")
+                default_cfg = physics_fields.get("default")
                 assert isinstance(auto_cfg, PhysxAutoCfg), location
                 assert isinstance(isaacsim_cfg, PhysxCfg), location
+                assert not isinstance(default_cfg, PhysxAutoCfg), location
+                if isinstance(default_cfg, PhysxCfg):
+                    assert default_cfg == isaacsim_cfg, location
                 assert auto_cfg.isaacsim_physx == isaacsim_cfg, location
                 assert auto_cfg.ovphysx == physics_fields.get("ovphysx"), location
             elif has_auto_physx and "physx" in fields:
@@ -133,24 +137,24 @@ def test_preset_mjwarp_ovrtx_does_not_need_kit():
     assert needs_kit is False
 
 
-def test_preset_rtx_resolves_to_ovphysx_and_ovrtx_without_kit():
-    """The RTX preset uses kitless PhysX-family backends when no Kit runtime is requested."""
+def test_preset_rtx_with_default_physx_resolves_to_isaac_sim_backends():
+    """Automatic RTX follows the default concrete Isaac Sim PhysX backend."""
     env_cfg = _resolve_with_presets("rtx")
     config_scan = _resolve_runtime_renderer(env_cfg)
 
-    assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
-    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+    assert config_scan.needs_kit is True
 
 
-def test_renderer_selector_rtx_resolves_to_ovphysx_and_ovrtx_without_kit():
-    """The RTX renderer selector uses kitless PhysX-family backends without Kit signals."""
+def test_renderer_selector_rtx_with_default_physx_resolves_to_isaac_sim_backends():
+    """The RTX selector follows the default concrete Isaac Sim PhysX backend."""
     env_cfg = _resolve_with_args("renderer=rtx")
     config_scan = _resolve_runtime_renderer(env_cfg)
 
-    assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
-    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+    assert config_scan.needs_kit is True
 
 
 def test_renderer_selector_physx_rtx_resolves_to_ovphysx_without_kit():
@@ -233,7 +237,7 @@ def test_preset_physx_with_default_kit_camera_resolves_to_physx():
 
 
 def test_preset_default_needs_kit():
-    """Default automatic PhysX plus Isaac RTX requires Kit."""
+    """Default concrete Isaac Sim PhysX plus Isaac RTX requires Kit."""
     env_cfg = _resolve_with_presets("default")
     needs_kit = scan(env_cfg).needs_kit
     assert needs_kit is True

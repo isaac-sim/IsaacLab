@@ -47,3 +47,11 @@ class ViserVisualizerCfg(VisualizerCfg):
 
     record_to_viser: str | None = None
     """Path to save a .viser recording file. None = no recording."""
+
+    show_particles: bool = True
+    """Whether to render particle systems (MPM, VBD) in the Viser viewer.
+
+    Defaults to ``True`` so particle simulations (granular, cloth, soft-body) are
+    visible on startup.  Can also be toggled at runtime via the Visualization Markers
+    panel in the Viser sidebar.
+    """
