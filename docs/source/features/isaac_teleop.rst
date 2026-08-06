@@ -333,26 +333,77 @@ SO-101 leader arm directly onto the simulated follower -- no XR headset, inverse
 anchor. Its pipeline is
 ``JointStateSource -> JointStateRetargeter (mode="joint") -> TensorReorderer``.
 
-For full hardware setup, calibration, and plugin configuration, see the
-`SO-101 leader plugin README <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/so101_leader>`_.
+For the end-to-end walkthrough -- building the plugin, hardware setup, calibration, launching, and
+recording a dataset -- see `Data Collection in Sim`_ in the Isaac Teleop documentation. The
+prerequisites below are the minimum needed to get this example running.
 
 Prerequisites
 ^^^^^^^^^^^^^
 
 * **SO-101 hardware**: A physical SO-101 leader arm connected to the workstation over USB.
 
-* **lerobot**: The ``so101_leader`` Isaac Teleop plugin depends on ``lerobot`` for calibration and
-  joint-state streaming. ``lerobot`` is **not** bundled with Isaac Lab; install it separately
-  following the `SO-101 plugin README`_:
+* **The** ``so101_leader`` **plugin, built from Isaac Teleop source**: the leader's joint state is
+  streamed by a standalone C++ plugin that you run alongside the sim.
+
+  .. important::
+
+     ``so101_leader_plugin`` is **not** shipped with Isaac Lab, is **not** part of the
+     ``isaacteleop`` pip package, and is not in any release archive. It exists only after building
+     the `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ repository from source. If
+     ``install/plugins/so101_leader/so101_leader_plugin`` does not exist in your Isaac Teleop
+     checkout, this step has not been completed.
+
+  Install the build prerequisites first -- a missing ``clang-format-14`` is the most common cause
+  of a failed build, because the format check is enforced by default on Linux:
 
   .. code-block:: bash
 
-     uv pip install lerobot
+     sudo apt-get update
+     sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
-* **Calibration**: The SO-101 arm must be calibrated before use. Run the calibration utility
-  described in the `SO-101 plugin README`_ and save the resulting calibration file. The plugin
-  reads this file at startup to map raw encoder values to joint angles. Attempting to run without
-  calibration will produce incorrect joint mappings and the follower arm will not track the leader.
+  Then clone, configure, build, and install. Each preset builds into its own directory, so the
+  install path must match the preset you configured with -- ``py3.11`` builds into
+  ``build/cmake-cpython-311``, ``py3.12`` into ``build/cmake-cpython-312``, ``py3.13`` into
+  ``build/cmake-cpython-313``:
+
+  .. code-block:: bash
+
+     git clone https://github.com/NVIDIA/IsaacTeleop.git
+     cd IsaacTeleop
+
+     # Pick the preset matching your Python, and keep it consistent across all three commands.
+     cmake --preset py3.12                       # configure
+     cmake --build --preset py3.12 --parallel    # build
+     cmake --install build/cmake-cpython-312     # install into ./install
+
+  The plugin is installed to ``<IsaacTeleop>/install/plugins/so101_leader/so101_leader_plugin``.
+  Every later command in this section runs from the Isaac Teleop checkout root; substitute your own
+  path for ``/path/to/IsaacTeleop``. Verify the build by running the plugin with **no arguments** --
+  that selects the synthetic backend, so it starts without any hardware attached:
+
+  .. code-block:: bash
+
+     cd /path/to/IsaacTeleop
+     ./install/plugins/so101_leader/so101_leader_plugin
+
+  See `Build from Source`_ for the full prerequisite list, the CMake presets, and all build
+  options, and the build-troubleshooting table in `Data Collection in Sim`_ for common failures
+  (including the ``clang-format not found but ENABLE_CLANG_FORMAT_CHECK is ON`` CMake error).
+
+* **Calibration**: The SO-101 arm must be calibrated before use. The plugin talks to the FEETECH
+  servos directly -- it has no ``lerobot`` or FEETECH SDK dependency -- so calibrate with its own
+  ``calibrate`` subcommand, which needs no OpenXR runtime:
+
+  .. code-block:: bash
+
+     cd /path/to/IsaacTeleop
+     ./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0 so101_leader.calib
+
+  It runs two interactive steps (hold the arm at mid-range, then sweep every joint through its full
+  range) and writes the calibration file, which the plugin reads at startup to map raw encoder
+  values to joint angles. An existing LeRobot calibration ``.json`` can be passed instead. Running
+  without calibration produces incorrect joint mappings and the follower arm will not track the
+  leader.
 
 Run the simulation
 ^^^^^^^^^^^^^^^^^^
@@ -363,7 +414,8 @@ headset available:
 **Without a headset (local viewport only)**
 
 Omit ``--xr``. The sim runs in standalone mode and the teleop state machine starts automatically
-on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`).
+on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`). Pass
+``--visualizer kit`` to watch the follower in the local Kit viewport; headless is the default.
 
 .. tab-set::
 
@@ -373,7 +425,8 @@ on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`
 
          uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-             --num_envs 1
+             --num_envs 1 \
+             --visualizer kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -381,7 +434,8 @@ on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-             --num_envs 1
+             --num_envs 1 \
+             --visualizer kit
 
 **With a headset (immersive XR view)**
 
@@ -410,9 +464,34 @@ only controls whether the scene is rendered to the headset. Follow the connectio
              --num_envs 1 \
              --visualizer kit --xr
 
-In a separate terminal, start the ``so101_leader`` Isaac Teleop plugin so it begins pushing joint
-state on the ``so101_leader`` collection. See the `SO-101 plugin README`_ for the exact launch
-command and configuration options.
+Start the plugin
+^^^^^^^^^^^^^^^^
+
+Isaac Lab does not spawn the plugin for you. Launch the sim first -- it brings up the CloudXR
+runtime the plugin connects through -- then, in a **separate terminal**, source the environment
+file the runtime writes on startup (this points the OpenXR loader at CloudXR) and start the plugin
+on the leader's serial port:
+
+.. code-block:: bash
+
+   cd /path/to/IsaacTeleop
+   source ~/.cloudxr/run/cloudxr.env
+   ./install/plugins/so101_leader/so101_leader_plugin /dev/ttyACM0 so101_leader so101_leader.calib
+
+Arguments are positional: ``[device_path] [collection_id] [calibration_file]``. The
+``collection_id`` must stay ``so101_leader`` -- that is the tensor collection this task's
+``JointStateSource`` subscribes to.
+
+Running the plugin with **no arguments at all** streams a synthetic trajectory on the default
+``so101_leader`` collection, which is a good way to confirm the sim side is wired up before
+connecting hardware. Because the arguments are positional, there is no way to skip only the device
+path while still passing the later two:
+
+.. code-block:: bash
+
+   ./install/plugins/so101_leader/so101_leader_plugin   # synthetic, no hardware needed
+
+See the `SO-101 plugin README`_ and `Data Collection in Sim`_ for all configuration options.
 
 Start teleoperation
 ^^^^^^^^^^^^^^^^^^^
@@ -443,7 +522,9 @@ shortcuts:
      - Reset the environment.
 
 Move the physical SO-101 leader arm and the simulated follower will mirror its joint angles in real
-time.
+time. To record demonstrations from this task, run ``scripts/tools/record_demos.py`` with the same
+``--task`` and the plugin running in its second terminal -- see `Data Collection in Sim`_ for the
+full recording workflow and runtime troubleshooting.
 
 
 .. _isaac-teleop-retargeting:
@@ -1850,3 +1931,5 @@ See the :ref:`isaaclab_teleop-api` for full class and function documentation:
    References
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`SO-101 plugin README`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/so101_leader
+.. _`Data Collection in Sim`: https://nvidia.github.io/IsaacTeleop/main/getting_started/lerobot/data_collection_sim.html
+.. _`Build from Source`: https://nvidia.github.io/IsaacTeleop/main/getting_started/build_from_source/index.html

@@ -347,10 +347,15 @@ def create_newton_articulation(
 
     # Mock NewtonManager (aliased as SimulationManager in Newton modules)
     mock_model = MagicMock()
-    mock_model.gravity = wp.array(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), dtype=wp.vec3f, device=device)
+    mock_model.world_count = num_instances
+    mock_model.gravity = wp.array(
+        np.tile(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), (num_instances + 1, 1)),
+        dtype=wp.vec3f,
+        device=device,
+    )
     # Sizes consumed by the task-space scratch buffers in NewtonArticulationData.__init__.
-    # Model-wide counts equal the per-articulation counts here because the mock contains a
-    # single homogeneous world.
+    # Model-wide counts equal the per-articulation counts because the mock contains only
+    # this homogeneous articulation batch.
     mock_model.articulation_count = num_instances
     mock_model.max_joints_per_articulation = num_bodies
     total_dofs = num_joints + (0 if is_fixed_base else 6)

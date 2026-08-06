@@ -335,13 +335,13 @@ def run(argv: list[str]) -> BenchmarkResult:
             )
 
             env_cfg.log_dir = log_dir
+            _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
             env_t0 = time.perf_counter_ns()
             env = _common.create_isaaclab_env(
                 args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=algorithm == "ppo"
             )
             cleanup.callback(lambda: env.close())
-            env = _common.wrap_record_video(env, log_dir, args_cli)
             env_t1 = time.perf_counter_ns()
             success_kwargs = build_success_kwargs(args_cli)
             success_context = SuccessRateTrackerWrapper(

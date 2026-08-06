@@ -128,3 +128,12 @@ class SimulationCfg:
 
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
     """The visualizer configuration(s). Default is an empty list."""
+
+    default_visualizer_cfg: VisualizerCfg | None = None
+    """Default visualizer camera hint applied to any visualizer that is selected at runtime.
+
+    This is a hint only — it does **not** add a visualizer to :attr:`visualizer_cfgs`.
+    Fields such as :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
+    :attr:`~isaaclab.visualizers.VisualizerCfg.lookat` are forwarded to each resolved
+    visualizer unless that visualizer already has an explicitly customised value.
+    """

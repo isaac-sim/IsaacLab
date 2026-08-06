@@ -106,9 +106,9 @@ class NewtonMJWarpManager(NewtonManager):
         step.
 
         Args:
-            world_mask: Per-world bool mask of shape ``(world_count,)``;
-                ``True`` for worlds that need their MJWarp internals cleared.
-                ``None`` is treated as a no-op.
+            world_mask: Per-world bool mask of shape ``(world_count + 1,)``.
+                Entries before the last select local worlds; the final entry
+                selects global entities in world -1. ``None`` is a no-op.
         """
         if world_mask is None:
             return

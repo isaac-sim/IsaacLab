@@ -149,9 +149,9 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
 
-ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage>=0.1.0,<0.2.0"]
-ovphysx = ["ovphysx==0.5.9", "ovstage>=0.1.0,<0.2.0"]
-ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage>=0.1.0,<0.2.0"]
+ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
+ovphysx = ["ovphysx==0.5.9", "ovstage==0.1.0.346039"]
+ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
 
 mimic = [
     "isaaclab-mimic",
@@ -200,8 +200,8 @@ torchvision = "0.26.0"
 torchaudio = "2.11.0"
 ovphysx = "0.5.9"
 ovrtx = ">=0.4.0,<0.5.0"
-ovstage = ">=0.1.0,<0.2.0"
-newton = "831076f52f14612aecace894c81270c1e0ed9479"
+ovstage = "0.1.0.346039"
+newton = "10402ecbaf2d8afda00507123155042cbcb5c3fb"
 warp = "1.16.0.dev20260723"
 
 [tool.ruff]
@@ -381,9 +381,9 @@ environments = [
 # Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
 override-dependencies = [
     "numpy>=2",
-    "mujoco~=3.10.0",
-    "mujoco-warp~=3.10.0,>=3.10.0.2",
-    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@831076f52f14612aecace894c81270c1e0ed9479",
+    "mujoco~=3.11.0",
+    "mujoco-warp~=3.11.0",
+    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@10402ecbaf2d8afda00507123155042cbcb5c3fb",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.0",
     "torch==2.11.0",
