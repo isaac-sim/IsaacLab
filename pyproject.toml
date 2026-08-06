@@ -397,16 +397,18 @@ override-dependencies = [
     "typing-extensions>=4.15.0",
     "websockets>=14.0,<17.0.0",
     "coverage>=7.6.1",
+    # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0. Both caps are
+    # stricter than either package needs, so widening the range lets them resolve
+    # together at 26.0 instead of forcing a fork. Validated over 119 OvPhysX
+    # training runs on a single environment carrying both extras.
+    "packaging>=20,<27",
 ]
-# ovphysx pins packaging>=20,<24 while isaacsim-core pins packaging==26.0: a genuine
-# two-sided incompatibility, so uv forks the resolution instead of failing. ``teleop``
-# bundles isaacsim, so it inherits that pair. Every other historical conflict was an
-# over-strict pin that the overrides above now reconcile.
+# ``ov`` stays forked: it pulls ovrtx as well, which has not been validated
+# alongside Isaac Sim. ``teleop`` bundles isaacsim, so it inherits both pairs.
 conflicts = [
     [{ extra = "teleop" }, { extra = "ov" }],
     [{ extra = "teleop" }, { extra = "ovphysx" }],
     [{ extra = "isaacsim" }, { extra = "ov" }],
-    [{ extra = "isaacsim" }, { extra = "ovphysx" }],
 ]
 python-preference = "only-managed"
 package = false

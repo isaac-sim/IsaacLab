@@ -188,9 +188,13 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
 
     # isaacsim is forked away from extras whose pins cannot be safely overridden.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("ov", "ovphysx"):
-        assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
+    assert {"isaacsim", "ov"} in conflict_groups, "isaacsim must declare a conflict with 'ov'"
     assert {"isaacsim", "all"} not in conflict_groups
+    # ovphysx is no longer forked away: its only clash with isaacsim was the packaging
+    # cap, which the override above widens so both resolve at 26.0. Running OvPhysX
+    # tasks under ``--extra isaacsim --extra ovphysx`` depends on this staying merged.
+    assert {"isaacsim", "ovphysx"} not in conflict_groups
+    assert "packaging>=20,<27" in pyproject["tool"]["uv"]["override-dependencies"]
     # ``test`` is no longer forked away: the coverage override reconciles it with Isaac Sim.
     assert {"isaacsim", "test"} not in conflict_groups
     # ``mimic`` is no longer forked away either: robomimic dropped its lxml constraint, so
