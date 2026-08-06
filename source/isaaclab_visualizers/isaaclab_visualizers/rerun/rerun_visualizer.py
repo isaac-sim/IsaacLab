@@ -205,9 +205,6 @@ class NewtonViewerRerun(ViewerRerun):
         )
 
         # Streaming-view blueprint: 2D composite panel is dominant.
-        # TODO: robot arm (and other meshes) are absent in Rerun when streaming_view=True
-        # because the 3D Newton view is not included in the blueprint below. A follow-up
-        # PR should add the 3D view alongside the streaming composite so both are visible.
         if self._streaming_view_active:
             streaming_panel = rrb.Spatial2DView(name="Streaming View", origin="streaming/view")
             if manager_views:

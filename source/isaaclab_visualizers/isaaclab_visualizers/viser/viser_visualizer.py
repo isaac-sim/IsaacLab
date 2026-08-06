@@ -483,9 +483,6 @@ class ViserVisualizer(BaseVisualizer):
         try:
             # When streaming_view is active, skip the 3D Newton scene so the
             # background streaming composite is the only content visible.
-            # TODO: robot arm (and other meshes) are absent in Viser when streaming_view=True
-            # because log_state() is skipped here. A follow-up PR should render the 3D scene
-            # on top of (or alongside) the streaming composite so both are visible.
             if not self.cfg.streaming_view:
                 self._viewer.log_state(self._state)
                 if self.cfg.enable_markers:
