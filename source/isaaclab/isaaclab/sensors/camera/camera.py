@@ -18,6 +18,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.logging_utils import force_log_level
+from isaaclab.cloner import query as cloner_query
 from isaaclab.cloner import queue_replication
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
@@ -557,11 +558,25 @@ class Camera(SensorBase):
         # Create frame count buffer
         self._frame = ProxyArray(wp.zeros(self._view.count, device=self._device, dtype=wp.int64))
 
-        # Convert all encapsulated prims to Camera. Newton keeps only source USD camera prims.
+        # Convert source or destination prims to cameras. Source-only views project each source onto its clones.
         self._sensor_prims.clear()
         view_prims = list(self._view.prims)
-        if not view_prims and cam_paths:
-            view_prims = [self.stage.GetPrimAtPath(cam_paths[0])] * self._view.count
+        if len(view_prims) != self._view.count and self._clone_plan is not None:
+            source_prims_by_env = []
+            for _source_root, _destination, source_path, env_ids in cloner_query.iter_sources(
+                self._clone_plan, self.cfg.prim_path
+            ):
+                source_prim = self.stage.GetPrimAtPath(source_path)
+                if not source_prim.IsValid():
+                    source_prim = sim_utils.find_first_matching_prim(source_path, self.stage)
+                if source_prim is not None and source_prim.IsValid():
+                    source_prims_by_env.extend((env_id, source_prim) for env_id in env_ids)
+            source_prims_by_env.sort(key=lambda item: item[0])
+            view_prims = [prim for _, prim in source_prims_by_env]
+        if len(view_prims) != self._view.count:
+            raise RuntimeError(
+                f"Camera view resolved {self._view.count} frames but only {len(view_prims)} source prims."
+            )
         for cam_prim in view_prims:
             # Obtain the prim path
             cam_prim_path = cam_prim.GetPath().pathString

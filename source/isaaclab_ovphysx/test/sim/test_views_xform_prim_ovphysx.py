@@ -58,6 +58,31 @@ def test_view_raises_before_physics_ready():
             view.get_world_poses()
 
 
+def test_world_attached_source_prim_expands_from_clone_plan():
+    """A source-only world frame expands across cloned environments without USD replication."""
+    device = "cpu"
+    OVPHYSX_SIM_CFG.device = device
+    with build_simulation_context(
+        device=device, sim_cfg=OVPHYSX_SIM_CFG, auto_add_lighting=False, add_ground_plane=False
+    ) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(_OvPhysxFrameViewSceneCfg(num_envs=4, env_spacing=2.0))
+
+        stage = sim_utils.get_current_stage()
+        prim = stage.DefinePrim("/World/envs/env_0/WorldCamera", "Xform")
+        sim_utils.standardize_xform_ops(prim)
+        prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.25, -0.5, 1.0))
+
+        sim.reset()
+        view = FrameView("/World/envs/env_.*/WorldCamera", device=device)
+
+        assert view.count == scene.num_envs
+        assert view.prim_paths == [f"/World/envs/env_{i}/WorldCamera" for i in range(scene.num_envs)]
+        positions, _ = view.get_world_poses()
+        expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
+        torch.testing.assert_close(positions.torch, expected_positions)
+
+
 # Note: an earlier test ``test_view_errors_when_newton_model_not_required`` was
 # removed when ``OvPhysxFrameView`` was reworked to read poses from a direct
 # OVPhysX ``RIGID_BODY_POSE`` tensor binding instead of the SDP's Newton state.

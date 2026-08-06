@@ -16,6 +16,7 @@ import warp as wp
 from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
@@ -425,6 +426,10 @@ class OvPhysxFrameView(BaseFrameView):
             self._pose_buf = wp.zeros((1, 7), dtype=wp.float32, device=self._device)
             binding_paths = []
 
+        world_sites = self._expand_world_sites_from_clone_plan(xform_cache) if not binding_paths else None
+        if world_sites is not None:
+            per_prim_ancestor, per_prim_site_local, parent_ancestor, parent_site_local, synthetic_paths = world_sites
+
         # 5. Detect clone_usd=False expansion: binding row count > number of matched USD prims.
         #    Replace per-prim arrays with one entry per binding row, all derived from the env_0 template.
         if binding_paths and len(binding_paths) > len(self._prims):
@@ -461,6 +466,8 @@ class OvPhysxFrameView(BaseFrameView):
                 parent_site_local.append(template_parent_site_local)
                 synthetic_prim_paths.append(synthetic_path)
             self._synthetic_prim_paths: list[str] | None = synthetic_prim_paths
+        elif world_sites is not None:
+            self._synthetic_prim_paths = synthetic_paths
         else:
             self._synthetic_prim_paths = None
 
@@ -491,6 +498,71 @@ class OvPhysxFrameView(BaseFrameView):
         self._quat_ta = ProxyArray(self._quat_buf)
         self._local_pos_ta = ProxyArray(self._local_pos_buf)
         self._local_quat_ta = ProxyArray(self._local_quat_buf)
+
+    def _expand_world_sites_from_clone_plan(
+        self, xform_cache: UsdGeom.XformCache
+    ) -> tuple[list[str | None], list[list[float]], list[str | None], list[list[float]], list[str]] | None:
+        """Project source-only world frames onto clone-plan destination roots."""
+        sim = sim_utils.SimulationContext.instance()
+        plan = sim.get_clone_plan() if sim is not None else None
+        if plan is None:
+            return None
+
+        source_matches = tuple(cloner.query.iter_sources(plan, self._prim_path))
+        if sum(len(env_ids) for _, _, _, env_ids in source_matches) <= len(self._prims):
+            return None
+
+        records: list[tuple[int, str, list[float], list[float]]] = []
+        for source_root, destination_template, source_path, env_ids in source_matches:
+            source_prim = self._stage.GetPrimAtPath(source_path)
+            if not source_prim.IsValid():
+                source_prim = sim_utils.find_first_matching_prim(source_path, self._stage)
+            if source_prim is None or not source_prim.IsValid():
+                raise RuntimeError(f"OvPhysxFrameView could not resolve source prim {source_path!r}.")
+
+            concrete_source_path = source_prim.GetPath().pathString
+            if concrete_source_path == source_root:
+                suffix = ""
+            elif concrete_source_path.startswith(source_root + "/"):
+                suffix = concrete_source_path[len(source_root) :]
+            else:
+                raise RuntimeError(
+                    f"OvPhysxFrameView source prim {concrete_source_path!r} is not under {source_root!r}."
+                )
+            source_parent = source_prim.GetParent()
+
+            for env_id in env_ids:
+                source_anchor_path = source_root
+                destination_anchor_path = destination_template.format(env_id)
+                destination_anchor = self._stage.GetPrimAtPath(destination_anchor_path)
+                while not destination_anchor.IsValid() and destination_anchor_path != "/":
+                    source_anchor_path = source_anchor_path.rsplit("/", 1)[0] or "/"
+                    destination_anchor_path = destination_anchor_path.rsplit("/", 1)[0] or "/"
+                    destination_anchor = self._stage.GetPrimAtPath(destination_anchor_path)
+
+                source_anchor = self._stage.GetPrimAtPath(source_anchor_path)
+                if not source_anchor.IsValid() or not destination_anchor.IsValid():
+                    raise RuntimeError(
+                        f"OvPhysxFrameView could not project {concrete_source_path!r} into environment {env_id}."
+                    )
+                source_anchor_world = xform_cache.GetLocalToWorldTransform(source_anchor)
+                destination_anchor_world = xform_cache.GetLocalToWorldTransform(destination_anchor)
+
+                def project_world(prim: Usd.Prim) -> list[float]:
+                    source_world = xform_cache.GetLocalToWorldTransform(prim)
+                    local = source_world * source_anchor_world.GetInverse()
+                    return _gf_matrix_to_xform7(local * destination_anchor_world)
+
+                destination_path = destination_template.format(env_id) + suffix
+                records.append((env_id, destination_path, project_world(source_prim), project_world(source_parent)))
+
+        if not records:
+            return None
+        records.sort(key=lambda record: record[0])
+        synthetic_paths = [record[1] for record in records]
+        site_locals = [record[2] for record in records]
+        parent_locals = [record[3] for record in records]
+        return [None] * len(records), site_locals, [None] * len(records), parent_locals, synthetic_paths
 
     def _resolve_rigid_body_ancestor(
         self,
