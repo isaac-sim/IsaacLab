@@ -18,6 +18,12 @@ The script automatically detects which stack to use based on the environment con
 
 """Launch Isaac Sim Simulator first."""
 
+# Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
+# time spent building kernels on a cold kernel cache.
+import warp as wp
+
+wp.config.enable_backward = False
+
 import argparse
 from collections.abc import Callable
 

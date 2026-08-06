@@ -144,7 +144,6 @@ def build_visualization_builder_from_stage_envs(
         lambda: ModelBuilder(up_axis=up_axis),
         schema_resolvers,
         ignore_paths=source_deformable_ignore_paths or None,
-        simplify_meshes=False,
     )
     replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
     rename_builder_labels(builder, sources, destinations, env_ids, mapping)
