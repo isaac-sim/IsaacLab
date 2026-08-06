@@ -107,3 +107,28 @@ def apply_viewer_visible_worlds(
         viewer.set_visible_worlds(None)
     else:
         viewer.set_visible_worlds(resolved)
+
+
+def _patch_floor_checker_shader(tile_size: float = 0.5) -> None:
+    """Patch Newton's GLSL shader source so floor tiles are ``tile_size`` metres wide.
+
+    Must be called **before** any ``RendererGL`` (Newton GL viewer) is created, because
+    ``ShaderShape.__init__`` reads the shader source string at viewer-creation time and
+    compiles it into a GPU program.  Patching after that point has no effect.
+
+    Newton GL uses ``LocalPos.xy`` (object-space vertex positions, in metres on a 1 000 m
+    plane) as the checker UV, so ``checker_scale = 1.0`` gives exactly 1 m tiles.
+
+    Args:
+        tile_size: Desired checker tile size in metres (default 0.5 m → checker_scale = 2.0).
+    """
+    try:
+        import newton._src.viewer.gl.shaders as _shaders
+
+        _OLD = "    float checker_scale = 1.0;"
+        checker_scale = max(1e-3, 1.0 / max(float(tile_size), 1e-6))
+        _NEW = f"    float checker_scale = {checker_scale:.4f};"
+        if _OLD in _shaders.shape_fragment_shader:
+            _shaders.shape_fragment_shader = _shaders.shape_fragment_shader.replace(_OLD, _NEW)
+    except Exception:
+        pass  # best-effort: falls back to default 1 m tiles

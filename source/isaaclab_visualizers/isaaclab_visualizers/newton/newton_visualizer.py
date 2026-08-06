@@ -53,7 +53,7 @@ from isaaclab.envs.utils.camera_view import (
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import _patch_floor_checker_shader, resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
@@ -177,7 +177,7 @@ class _NewtonViewerUIMixin:
 
         def _draw_large(self_logger: object) -> None:
             # Use our own flag (not Newton's entry.window_initialized) so Newton cannot
-            # pre-empt our sizing by marking the window as initialized via the placeholder.
+            # preempt our sizing by marking the window as initialized via the placeholder.
             if getattr(_viewer_ref, "_streaming_panel_needs_sizing", False):
                 comp_w = getattr(_viewer_ref, "_streaming_composite_w", 0)
                 comp_h = getattr(_viewer_ref, "_streaming_composite_h", 0)
@@ -873,6 +873,9 @@ class NewtonVisualizer(BaseVisualizer):
 
             pyglet.options["headless"] = True
 
+        # Patch GLSL shader source BEFORE creating the viewer — ShaderShape compiles the
+        # fragment shader during RendererGL.__init__(), so the string must be patched first.
+        _patch_floor_checker_shader(tile_size=0.5)
         self._viewer = self._create_viewer(runtime_headless, metadata)
 
         if self._viewer is not None:
@@ -1214,13 +1217,23 @@ class NewtonVisualizer(BaseVisualizer):
         tile_w, tile_h = compute_tile_resolution(
             self.cfg.window_width, self.cfg.window_height, count, n_gt=len(gt_types)
         )
-        result = create_visualizer_camera(
-            num_envs=num_envs,
-            width=tile_w,
-            height=tile_h,
-            renderer_cfg=renderer_cfg,
-            data_types=sensor_keys_for_gt_types(gt_types),
-        )
+        try:
+            result = create_visualizer_camera(
+                num_envs=num_envs,
+                width=tile_w,
+                height=tile_h,
+                renderer_cfg=renderer_cfg,
+                data_types=sensor_keys_for_gt_types(gt_types),
+            )
+        except Exception:
+            logger.warning(
+                "[%s] Streaming view disabled: could not auto-create a camera sensor "
+                "(Newton replicate_physics=True limits post-init spawning to env_0). "
+                "Add a TiledCamera to the scene config or set streaming_sensor_prim_path "
+                "to point to an existing camera.",
+                type(self).__name__,
+            )
+            return
         self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
             result
         )
