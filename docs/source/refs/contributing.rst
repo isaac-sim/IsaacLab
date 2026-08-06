@@ -50,7 +50,7 @@ follow the following steps to contribute code:
 3. Create a new branch for your changes.
 4. Make your changes and commit them.
 5. Push your changes to your fork.
-6. Submit a pull request to the `develop branch <https://github.com/isaac-sim/IsaacLab/compare>`__.
+6. Submit a pull request to the `develop branch <https://github.com/isaac-sim/IsaacLab/compare/develop...develop>`__.
 7. Ensure all the checks on the pull request template are performed.
 
 After sending a pull request, the maintainers will review your code and provide feedback.
