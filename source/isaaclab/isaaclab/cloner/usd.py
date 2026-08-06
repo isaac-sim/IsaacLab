@@ -26,17 +26,25 @@ def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) 
 
 
 class UsdReplicateContext:
-    """Queue and apply USD replication work for one stage."""
+    """Queue and apply compact USD prototype references for one stage.
+
+    Backend replication composes destinations through internal references instead
+    of copying every authored property into the root layer. The standalone
+    :func:`usd_replicate` helper retains copy-spec behavior for independent copies.
+    """
 
     replicate_priority = 100
 
-    def __init__(self, stage: Usd.Stage):
+    def __init__(self, stage: Usd.Stage, *, use_references: bool = True):
         """Initialize the context.
 
         Args:
             stage: USD stage to author replicated prim specs into.
+            use_references: Whether destinations use internal prototype references.
+                If False, source specs are copied into every destination.
         """
         self.stage = stage
+        self.use_references = use_references
         self._queue: list[tuple[str, str, torch.Tensor, torch.Tensor | None, torch.Tensor | None]] = []
 
     def queue(
@@ -125,6 +133,7 @@ class UsdReplicateContext:
                         wid = int(wid)
                         dp = tmpl.format(wid)
                         Sdf.CreatePrimInLayer(rl, dp)
+                        ps = rl.GetPrimAtPath(dp)
                         # ``CreatePrimInLayer`` authors missing intermediate ancestors (e.g. the
                         # ``Groceries`` scope in ``env_{}/Groceries/Object``) as ``over`` specs. A
                         # ``def`` copied below an ``over`` ancestor never composes as defined, so
@@ -138,11 +147,16 @@ class UsdReplicateContext:
                             ancestor_spec.specifier = Sdf.SpecifierDef
                             ancestor = ancestor.GetParentPath()
                         if src != dp:
-                            Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
+                            if self.use_references:
+                                reference = Sdf.Reference(primPath=src)
+                                references = list(ps.referenceList.prependedItems)
+                                if reference not in references:
+                                    ps.referenceList.prependedItems = [reference, *references]
+                            else:
+                                Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
 
                         # Author positions/quaternions for instance roots only.
                         if is_instance_root and (positions is not None or quaternions is not None):
-                            ps = rl.GetPrimAtPath(dp)
                             op_names = []
                             if positions is not None:
                                 p = positions[wid]
@@ -191,6 +205,6 @@ def usd_replicate(
         quaternions: Optional orientations in xyzw order, shape ``[E, 4]``. Authored as
             ``xformOp:orient`` only for env-instance root destinations (``.../env_{}``).
     """
-    ctx = UsdReplicateContext(stage)
+    ctx = UsdReplicateContext(stage, use_references=False)
     ctx.queue_mapping(sources, destinations, env_ids, mask, positions=positions, quaternions=quaternions)
     ctx.replicate()

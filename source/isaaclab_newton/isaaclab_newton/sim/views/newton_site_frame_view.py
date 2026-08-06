@@ -189,6 +189,7 @@ class NewtonSiteFrameView(BaseFrameView):
         prim_path: str | list[str],
         device: str = "cpu",
         validate_xform_ops: bool = True,
+        validate_physics_prims: bool = True,
         stage: object | None = None,
         **kwargs,
     ):
@@ -198,6 +199,9 @@ class NewtonSiteFrameView(BaseFrameView):
             prim_path: User-facing frame path pattern, or list of patterns.
             device: Warp device for GPU arrays.
             validate_xform_ops: Whether to validate source USD xform ops.
+            validate_physics_prims: Whether to reject paths that already belong to
+                Newton body or shape arrays. Callers that have validated a concrete
+                non-physics USD type may disable this model-wide label scan.
             stage: USD stage that contains the source prims.
             **kwargs: Unused.
         """
@@ -209,7 +213,7 @@ class NewtonSiteFrameView(BaseFrameView):
         self._prims = []
 
         stage = sim_utils.get_current_stage() if stage is None else stage
-        self._site_specs = self._resolve_site_specs(stage, validate_xform_ops)
+        self._site_specs = self._resolve_site_specs(stage, validate_xform_ops, validate_physics_prims)
         self._site_labels: list[str] = []
         self._site_label_scales: list[tuple[float, float, float]] = []
         self._site_body: wp.array | None = None
@@ -245,25 +249,25 @@ class NewtonSiteFrameView(BaseFrameView):
             )
 
     def _resolve_site_specs(
-        self, stage, validate_xform_ops: bool
+        self, stage, validate_xform_ops: bool, validate_physics_prims: bool
     ) -> list[tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]]:
         """Resolve source prims into Newton site registration specs."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         model = NewtonManager.get_model()
-        body_labels = list(model.body_label) if model is not None else ()
-        shape_labels = list(model.shape_label) if model is not None else ()
+        body_labels = list(model.body_label) if model is not None and validate_physics_prims else ()
+        shape_labels = list(model.shape_label) if model is not None and validate_physics_prims else ()
         use_clone_body_pattern = model is None
         specs: list[
             tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]
         ] = []
 
         for path_expr in self._prim_paths:
-            if resolve_matching_names(path_expr, body_labels, raise_when_no_match=False)[1]:
+            if validate_physics_prims and resolve_matching_names(path_expr, body_labels, raise_when_no_match=False)[1]:
                 raise ValueError(
                     f"FrameView prim '{path_expr}' is a Newton physics body. "
                     "FrameView should only be used for non-physics frames."
                 )
-            if resolve_matching_names(path_expr, shape_labels, raise_when_no_match=False)[1]:
+            if validate_physics_prims and resolve_matching_names(path_expr, shape_labels, raise_when_no_match=False)[1]:
                 raise ValueError(
                     f"FrameView prim '{path_expr}' is a Newton collision shape. "
                     "FrameView should only be used for non-physics frames."

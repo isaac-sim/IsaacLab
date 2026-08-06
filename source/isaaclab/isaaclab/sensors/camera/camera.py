@@ -13,11 +13,12 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.logging_utils import force_log_level
+from isaaclab.cloner import query as clone_query
 from isaaclab.cloner import queue_replication
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
@@ -159,18 +160,31 @@ class Camera(SensorBase):
         # Resolve the camera prim path and spawn it, redirecting to a child if prim_path is a physics body.
         spawn = self.cfg.spawn
         if spawn is not None:
-            probe_path = (spawn.spawn_path or self.cfg.prim_path) if spawn is not None else self.cfg.prim_path
-            probe_matches = sim_utils.resolve_matching_prims_from_source(probe_path, raise_if_no_matches=False)
-            source_prim, _source_destination_expr = probe_matches[0] if probe_matches else (None, None)
+            probe_path = spawn.spawn_path or self.cfg.prim_path
+            if Sdf.Path.IsValidPathString(probe_path):
+                source_prim = self.stage.GetPrimAtPath(probe_path)
+            else:
+                probe_matches = sim_utils.resolve_matching_prims_from_source(probe_path, raise_if_no_matches=False)
+                source_prim = probe_matches[0][0] if probe_matches else None
             if source_prim is not None and source_prim.IsValid():
                 if source_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or source_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                     logger.info(f" Spawning camera at '{self.cfg.prim_path}/camera'.")
-                    self.cfg.prim_path = spawn.spawn_path = f"{self.cfg.prim_path}/camera"
+                    self.cfg.prim_path = f"{self.cfg.prim_path}/camera"
+                    if spawn.spawn_path is not None:
+                        spawn.spawn_path = f"{spawn.spawn_path}/camera"
 
             spawn_target = spawn.spawn_path or self.cfg.prim_path
-            if sim_utils.find_first_matching_prim(spawn_target) is None:
+            if Sdf.Path.IsValidPathString(spawn_target):
+                spawn_exists = self.stage.GetPrimAtPath(spawn_target).IsValid()
+            else:
+                spawn_exists = sim_utils.find_first_matching_prim(spawn_target) is not None
+            if not spawn_exists:
                 spawn.func(spawn_target, spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
-            if not sim_utils.find_matching_prims(spawn_target):
+            if Sdf.Path.IsValidPathString(spawn_target):
+                spawn_exists = self.stage.GetPrimAtPath(spawn_target).IsValid()
+            else:
+                spawn_exists = bool(sim_utils.find_matching_prims(spawn_target))
+            if not spawn_exists:
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
         queue_replication(self._source_cfg)
 
@@ -519,7 +533,8 @@ class Camera(SensorBase):
         # Build the render spec early — both the wrapper ISP (which delegates
         # any renderer-side per-camera setup) and ``create_render_data`` consume
         # it, and the prims are already authored at this point.
-        cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
+        prototype_paths_only = getattr(self.cfg.renderer_cfg, "renderer_type", None) == "newton_warp"
+        cam_paths = self._resolve_camera_prim_paths(prototype_paths_only)
         env_0_prefix = "/World/envs/env_0/"
         rel_under_env0 = (
             cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
@@ -544,7 +559,10 @@ class Camera(SensorBase):
         # references to prims located in the stage.
         sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
 
-        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
+        frame_view_kwargs = {}
+        if "newton" in sim_ctx.physics_manager.__name__.lower():
+            frame_view_kwargs["validate_physics_prims"] = False
+        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage, **frame_view_kwargs)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -561,7 +579,19 @@ class Camera(SensorBase):
         self._sensor_prims.clear()
         view_prims = list(self._view.prims)
         if not view_prims and cam_paths:
-            view_prims = [self.stage.GetPrimAtPath(cam_paths[0])] * self._view.count
+            source_cameras: dict[str, UsdGeom.Camera] = {}
+            for camera_path in cam_paths:
+                if camera_path not in source_cameras:
+                    camera_prim = self.stage.GetPrimAtPath(camera_path)
+                    if not camera_prim.IsA(UsdGeom.Camera):
+                        raise RuntimeError(f"Prim at path '{camera_path}' is not a Camera.")
+                    source_cameras[camera_path] = UsdGeom.Camera(camera_prim)
+                self._sensor_prims.append(source_cameras[camera_path])
+            if len(self._sensor_prims) != self._view.count:
+                raise RuntimeError(
+                    f"Number of source camera paths ({len(self._sensor_prims)}) does not match"
+                    f" the number of environments ({self._view.count})."
+                )
         for cam_prim in view_prims:
             # Obtain the prim path
             cam_prim_path = cam_prim.GetPath().pathString
@@ -602,6 +632,37 @@ class Camera(SensorBase):
     """
     Private Helpers
     """
+
+    def _resolve_camera_prim_paths(self, prototype_paths_only: bool) -> tuple[str, ...]:
+        """Resolve camera paths from clone prototypes without traversing every environment.
+
+        Args:
+            prototype_paths_only: Whether the renderer consumes only prototype USD
+                cameras while using the clone plan for its per-environment view.
+
+        Returns:
+            Concrete camera prim paths in environment order.
+        """
+        sim_ctx = sim_utils.SimulationContext.instance()
+        plan = sim_ctx.get_clone_plan() if sim_ctx is not None else None
+        if plan is not None:
+            resolved: list[tuple[int, str]] = []
+            for source_root, destination, source_expr, env_ids in clone_query.iter_sources(plan, self.cfg.prim_path):
+                if Sdf.Path.IsValidPathString(source_expr):
+                    source_prim = self.stage.GetPrimAtPath(source_expr)
+                    source_prims = [source_prim] if source_prim.IsValid() else []
+                else:
+                    source_prims = sim_utils.find_matching_prims(source_expr, self.stage)
+                for source_prim in source_prims:
+                    source_path = source_prim.GetPath().pathString
+                    if prototype_paths_only:
+                        resolved.extend((env_id, source_path) for env_id in env_ids)
+                        continue
+                    shape_suffix = source_path[len(source_root) :]
+                    resolved.extend((env_id, destination.format(env_id) + shape_suffix) for env_id in env_ids)
+            if resolved:
+                return tuple(path for _, path in sorted(set(resolved)))
+        return tuple(str(prim.GetPath()) for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
 
     def _check_supported_data_types(self, cfg: CameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
@@ -734,25 +795,31 @@ class Camera(SensorBase):
         intrinsic_matrices = np.zeros((len(env_ids_np), 3, 3), dtype=np.float32)
         # viewport parameters are shared by every camera prim of this sensor
         height, width = self.image_shape
-        # iterate over all cameras
+        # Source-only Newton scenes reuse one USD camera prototype across many
+        # environments. Cache USD attribute reads by schema-object identity while
+        # still preserving distinct intrinsics for heterogeneous prototypes.
+        intrinsics_by_prim: dict[int, tuple[float, float, float, float]] = {}
         for matrix_id, i in enumerate(env_ids_np):
             # Get corresponding sensor prim
             sensor_prim = self._sensor_prims[int(i)]
-            # Prefer an authored OpenCV lens-distortion model when present: it carries the authoritative
-            # fx/fy/cx/cy that the RTX/OVRTX renderer projects through, which may be non-square or off-center.
-            authored = self._read_authored_opencv_intrinsics(sensor_prim.GetPrim(), width, height, int(i))
-            if authored is not None:
-                f_x, f_y, c_x, c_y = authored
-            else:
-                # get camera parameters
-                # currently rendering does not use aperture offsets or vertical aperture
-                focal_length = sensor_prim.GetFocalLengthAttr().Get()
-                horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
-                # extract intrinsic parameters (square pixels, centered principal point)
-                f_x = (width * focal_length) / horiz_aperture
-                f_y = f_x
-                c_x = width * 0.5
-                c_y = height * 0.5
+            prim_key = id(sensor_prim)
+            intrinsics = intrinsics_by_prim.get(prim_key)
+            if intrinsics is None:
+                # Prefer an authored OpenCV lens-distortion model when present: it carries the authoritative
+                # fx/fy/cx/cy that the RTX/OVRTX renderer projects through, which may be non-square or off-center.
+                authored = self._read_authored_opencv_intrinsics(sensor_prim.GetPrim(), width, height, int(i))
+                if authored is not None:
+                    intrinsics = authored
+                else:
+                    # get camera parameters
+                    # currently rendering does not use aperture offsets or vertical aperture
+                    focal_length = sensor_prim.GetFocalLengthAttr().Get()
+                    horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
+                    # extract intrinsic parameters (square pixels, centered principal point)
+                    f_x = (width * focal_length) / horiz_aperture
+                    intrinsics = (f_x, f_x, width * 0.5, height * 0.5)
+                intrinsics_by_prim[prim_key] = intrinsics
+            f_x, f_y, c_x, c_y = intrinsics
             # create intrinsic matrix for depth linear
             intrinsic_matrices[matrix_id, 0, 0] = f_x
             intrinsic_matrices[matrix_id, 0, 2] = c_x

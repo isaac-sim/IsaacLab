@@ -10,6 +10,7 @@ import torch
 from pxr import Sdf, Usd
 
 from isaaclab.cloner import usd_replicate
+from isaaclab.cloner.usd import UsdReplicateContext
 
 
 def _make_stage_with_source(source_path: str) -> Usd.Stage:
@@ -54,3 +55,22 @@ def test_usd_replicate_keeps_existing_ancestor_specs():
     assert scope.IsDefined()
     assert scope.GetTypeName() == "Xform"
     assert stage.GetPrimAtPath("/World/envs/env_1/Groceries/Object").IsDefined()
+
+
+def test_usd_replicate_context_composes_internal_prototype_references():
+    """Backend USD replication composes destinations from compact prototype references."""
+    stage = _make_stage_with_source("/World/envs/env_0/Robot")
+    stage.DefinePrim("/World/envs/env_0/Robot/Link", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    context = UsdReplicateContext(stage)
+    context.queue_mapping(
+        sources=["/World/envs/env_0/Robot"],
+        destinations=["/World/envs/env_{}/Robot"],
+        env_ids=torch.tensor([0, 1]),
+    )
+
+    context.replicate()
+
+    destination_spec = stage.GetRootLayer().GetPrimAtPath("/World/envs/env_1/Robot")
+    assert Sdf.Reference(primPath="/World/envs/env_0/Robot") in destination_spec.referenceList.prependedItems
+    assert stage.GetPrimAtPath("/World/envs/env_1/Robot/Link").IsDefined()
