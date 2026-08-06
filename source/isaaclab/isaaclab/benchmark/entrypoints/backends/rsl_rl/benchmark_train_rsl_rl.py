@@ -247,7 +247,10 @@ def run(argv: list[str]) -> BenchmarkResult:
                 warmup_steps=args_cli.warmup_steps,
             )
             with early, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
-                runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+                runner.learn(
+                    num_learning_iterations=agent_cfg.max_iterations,
+                    init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
+                )
 
             benchmark.update_manual_recorders()
 
