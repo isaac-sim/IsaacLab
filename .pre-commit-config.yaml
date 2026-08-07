@@ -79,8 +79,8 @@ repos:
     hooks:
       - id: check-changelog-fragments
         name: check changelog fragments
-        entry: python3 tools/changelog/cli.py check --include-worktree
-        language: system
+        entry: python tools/changelog/cli.py check --include-worktree
+        language: python
         always_run: true
         pass_filenames: false
       - id: check-git-lfs-pointers
