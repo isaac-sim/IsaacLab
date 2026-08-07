@@ -952,7 +952,7 @@ Here's a complete example showing how to update your code:
 
    # Using deprecated root_physx_view
    robot = scene["robot"]
-   masses = robot.root_physx_view.get_masses()
+   material_properties = robot.root_physx_view.get_material_properties()
 
    # Using deprecated object_* API
    collection = scene["object_collection"]
@@ -967,14 +967,21 @@ Here's a complete example showing how to update your code:
    from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
    from isaaclab.assets import RigidObjectCollection  # unchanged
 
-   # Using new root_view property
+   # Using the new backend-specific root_view property (PhysX shown)
    robot = scene["robot"]
-   masses = robot.root_view.get_masses()
+   material_properties = robot.root_view.get_material_properties()
 
    # Using new body_* API
    collection = scene["object_collection"]
    poses = collection.data.body_pose_w
    collection.write_body_state_to_sim(state, env_ids=env_ids, body_ids=object_ids)
+
+The concrete ``root_view`` type is backend-specific. The
+``get_material_properties()`` call above reads each rigid shape's static friction,
+dynamic friction, and restitution through the PhysX Tensor API; Newton selections
+and OvPhysX bindings use different access methods. See
+:doc:`/source/overview/core-concepts/physical-backends/direct-api-access/index`
+before using ``root_view`` in backend-portable code.
 
 
 Quaternion Format
