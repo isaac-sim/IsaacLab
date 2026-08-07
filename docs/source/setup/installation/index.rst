@@ -219,15 +219,14 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          :: Play a policy
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
-``uv run`` installs the core dependencies automatically. Its ``--extra <name>``
+``uv run`` installs the core dependencies automatically. The ``--extra <name>``
 option resolves an optional integration only when that command needs it. Place it
 before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
 backends. Pass a comma-separated list or repeat ``--extra``. See
 :ref:`installation-optional-extras` for the available extras and compatibility.
 
-You are now ready to use Isaac Lab. Continue with the :doc:`/source/setup/quickstart`,
-which starts with your first task and introduces the available commands, RL libraries,
-backends, optional extras, and visualizers.
+Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and 
+introduces the available commands, RL libraries, backends, and visualizers.
 
 .. _installation-legacy-installer:
 
@@ -569,8 +568,6 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
 
    * - Extra
      - What it installs
-   * - ``all``
-     - RL framework extras for SB3, SKRL, and RSL-RL.
    * - ``isaacsim``
      - Isaac Sim (``isaacsim[all,extscache]`` version |isaacsim_version|) from
        `pypi.nvidia.com <https://pypi.nvidia.com>`__.
@@ -578,10 +575,8 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
      - Both OV backends: OV PhysX and OV RTX.
    * - ``ovphysx`` / ``ovrtx``
      - OV PhysX only / OV RTX only.
-   * - ``rl-games`` / ``sb3`` / ``skrl`` / ``rsl-rl``
+   * - ``rl-games`` / ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf``
      - The corresponding RL framework.
-   * - ``rlinf``
-     - RLinf VLA post-training.
    * - ``rerun`` / ``viser``
      - The corresponding visualizer.
    * - ``mimic`` / ``teleop``
@@ -589,27 +584,14 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
    * - ``tetrahedralization`` / ``video``
      - Mesh tetrahedralization / video recording.
    * - ``leapp``
-     - LEAP model support.
+     - LEAP model export support.
    * - ``test``
      - Developer test and documentation tooling.
 
 Do not combine ``isaacsim`` or ``teleop`` with ``ov`` or ``ovphysx``. Choose
 either the Isaac Sim or OV backend stack for a command.
 
-For example, use ``isaaclab[all]`` for the RL extras or
-``isaaclab[isaacsim,all]`` for a full Isaac Sim and RL workflow. Combining ``isaacsim`` and
-``all`` requires the checked-in uv override file because Isaac Sim's package pins currently conflict
-with the Newton viewer stack:
-
 .. isaaclab-uv-wheel-install::
-
-The combined installation through ``pip`` is unsupported until the conflicting upstream Isaac Sim
-pins are updated. The ``rl_games`` package is not included in wheel extras; install it separately
-when required:
-
-.. code-block:: bash
-
-   pip install "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11" gym standard-distutils
 
 Install the CUDA-enabled PyTorch build appropriate for your system architecture:
 

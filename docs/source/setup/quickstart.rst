@@ -40,7 +40,7 @@ Training outputs, including checkpoints, are written under ``logs/``. Use
 
    ``uv run`` installs core dependencies automatically. When a command needs an
    optional integration, add ``--extra <name>`` before ``isaaclab``. Pass a
-   comma-separated list to enable several extras, or repeat ``--extra``. For example:
+   comma-separated list to enable several extras. For example:
 
    .. code-block:: bash
 
@@ -154,14 +154,19 @@ configuration; use the task help to see the supported selectors:
      - ``ov`` or ``ovphysx``
    * - ``physics=isaacsim_physx``
      - Isaac Sim PhysX.
+     - ``isaacsim``
    * - ``renderer=newton_renderer``
      - Newton Warp renderer.
+     - None
    * - ``renderer=ovrtx``
      - OV RTX renderer.
+     - ``ov`` or ``ovrtx``
    * - ``renderer=isaacsim_rtx``
      - Isaac Sim RTX renderer.
+     - ``isaacsim``
    * - ``renderer=rtx``
      - Automatic RTX renderer selection.
+     - ``isaacsim`` or ``ovrtx``
 
 Add task-specific options with ``presets=<name>``; for example:
 
@@ -213,6 +218,41 @@ For example, view the same task in both the Newton and Rerun visualizers:
 
 See :doc:`/source/overview/core-concepts/visualization` for visualizer setup and
 configuration.
+
+
+Replay a checkpoint
+-------------------
+
+Train Cartpole to create a checkpoint:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Direct --num_envs 16 --max_iterations 10 \
+      physics=newton_mjwarp
+
+Then replay the newest checkpoint in the Newton visualizer:
+
+.. code-block:: bash
+
+   uv run isaaclab play --rl_library rsl_rl \
+      --task Isaac-Cartpole-Direct physics=newton_mjwarp \
+      --checkpoint latest --viz newton
+
+Choose a checkpoint with one of the following selectors:
+
+.. list-table::
+   :widths: 38 62
+   :header-rows: 1
+
+   * - Selector
+     - Loads
+   * - ``--checkpoint <path>``
+     - The checkpoint at the specified local path.
+   * - ``--checkpoint best``
+     - The library-specific best or final checkpoint. If none was saved separately, this resolves to ``latest``.
+   * - ``--checkpoint latest``
+     - The highest-step checkpoint from the newest compatible run.
 
 
 Next steps
