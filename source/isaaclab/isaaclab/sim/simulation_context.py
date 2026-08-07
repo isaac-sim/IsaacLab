@@ -714,13 +714,15 @@ class SimulationContext:
 
     def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
         """Initialize or rebind the Newton viewer before solver graph capture."""
-        self._initialize_visualizers(self._is_interactive_newton_cfg)
-        for viz in (viz for viz in self._visualizers if self._is_interactive_newton_cfg(viz.cfg)):
+        # Picking applies forces inside solver substeps, so its kernels and buffers
+        # must exist during graph capture. Render-only viewers can initialize later.
+        self._initialize_visualizers(self._requires_pre_capture_newton_init)
+        for viz in (viz for viz in self._visualizers if self._requires_pre_capture_newton_init(viz.cfg)):
             viz.reset(soft=False)
 
     @staticmethod
-    def _is_interactive_newton_cfg(cfg: Any) -> bool:
-        """Return whether a config can create interactive Newton picking inputs."""
+    def _requires_pre_capture_newton_init(cfg: Any) -> bool:
+        """Return whether a config contributes Newton picking inputs to capture."""
         return (
             getattr(cfg, "visualizer_type", None) == "newton"
             and bool(getattr(cfg, "enable_picking", False))

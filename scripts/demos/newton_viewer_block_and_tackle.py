@@ -27,6 +27,7 @@ import warp as wp
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonShapeCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.deformable import VBDSolverCfg
 
@@ -48,6 +49,14 @@ LEAD_X = BLOCK_X + 3.0 * WRAP_RADIUS
 PULL_X = LEAD_X + WRAP_RADIUS
 LOAD_CENTER = wp.vec3(BLOCK_X, 0.0, 0.49)
 HANDLE_HALF_EXTENTS = (0.025, 0.025, 0.03)
+
+
+@configclass
+class _BlockAndTackleVBDSolverCfg(VBDSolverCfg):
+    """VBD contact settings for this cable and pulley scene."""
+
+    rigid_contact_hard: bool = False
+    rigid_body_contact_buffer_size: int = 512
 
 
 def _append_arc(points: list[wp.vec3], center: wp.vec3, start: float, end: float) -> None:
@@ -302,7 +311,7 @@ def main() -> None:
         num_substeps=16,
         collision_decimation=1,
         default_shape_cfg=NewtonShapeCfg(gap=CABLE_GAP, ke=1.0e5, kd=20.0, mu=0.5),
-        solver_cfg=VBDSolverCfg(iterations=10, rigid_contact_hard=False, rigid_body_contact_buffer_size=512),
+        solver_cfg=_BlockAndTackleVBDSolverCfg(),
     )
     with launch_simulation(cfg=physics_cfg, launcher_args=args_cli) as resolved_physics_cfg:
         sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 60.0, device=args_cli.device, physics=resolved_physics_cfg)
