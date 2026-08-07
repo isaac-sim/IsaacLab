@@ -23,7 +23,7 @@ Newton-trained policies deployed in PhysX.
 The checkpoint contains no physics engine. It maps an ordered observation tensor to an ordered
 action tensor, possibly using saved normalization and recurrent-policy weights. Transfer succeeds
 when both backends implement a sufficiently similar **environment contract** around that mapping.
-The goal is not bitwise trajectory equivalence; it is comparable task behavior with understood
+The goal is not bitwise trajectory equivalence. It is comparable task behavior with understood
 physical differences. Successful sim-to-sim transfer can be an important first step towards
 sim-to-real deployment.
 
@@ -33,7 +33,7 @@ Task readiness and checkpoint compatibility
 
 The same registered task should describe the same Markov decision process (MDP) in both physics
 engines. Selecting ``physics=isaacsim_physx`` or ``physics=newton_mjwarp`` resolves a backend alternative
-through :class:`~isaaclab_tasks.utils.PresetCfg`; use that mechanism for intentional
+through :class:`~isaaclab_tasks.utils.PresetCfg`. Use that mechanism for intentional
 backend-specific physics, asset, and control configuration. A physics preset should not silently
 change policy-facing action, observation, reward, termination, command, or reset terms. If a
 ``PresetCfg`` used by an MDP term does select different behavior, treat the resolved configurations
@@ -75,7 +75,7 @@ the same drive graph. Newton imports the authored mimic relation as a mimic cons
 ``SolverMuJoCo`` lowers it to a MuJoCo ``mjEQ_JOINT`` equality constraint for MJWarp. The Franka
 finger pair therefore has one active joint drive: ``panda_finger_joint1`` is driven and the
 constraint moves ``panda_finger_joint2``. PhysX creates a native two-way articulation mimic
-constraint, but the mimic follower still counts as a driveable joint; the constraint does not
+constraint, but the mimic follower still counts as a driveable joint. The constraint does not
 disable a drive authored on that joint.
 
 This distinction matters when an actuator expression such as ``panda_finger_joint.*`` assigns
@@ -98,7 +98,7 @@ the leader and explicitly making the follower passive:
        # retain the follower's limits and armature
    ),
 
-Zero stiffness and damping are what disable the second PD drive; the follower remains in the
+Zero stiffness and damping are what disable the second PD drive. The follower remains in the
 articulation so the mimic constraint can move it.
 
 
@@ -107,20 +107,24 @@ Articulation joint and body ordering
 
 PhysX and MJWarp traverse the same USD articulation differently, so the joint and body axes of
 their state and command tensors are permutations of each other for any robot whose kinematic tree
-branches. A checkpoint stores no names -- only column positions -- so replaying it in the other
-backend without correction silently feeds each joint's observation to a different joint's action.
+branches. A checkpoint stores column positions, not names. Replaying it in the other backend
+without correction silently feeds each joint's observation to a different joint's action.
 
 Set both ordering fields on the robot to the convention the **source** checkpoint was trained
-under. ``physics=`` still selects the target backend:
+under. ``physics=`` still selects the target backend.
+
+PN: replay a PhysX-trained checkpoint in Newton
 
 .. code-block:: bash
 
-   # PN: a PhysX-trained checkpoint replayed in Newton.
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
        --checkpoint /path/to/physx_checkpoint.pt physics=newton_mjwarp \
        env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx
 
-   # NP: a Newton-trained checkpoint replayed in PhysX.
+NP: replay a Newton-trained checkpoint in PhysX
+
+.. code-block:: bash
+
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
        --checkpoint /path/to/newton_checkpoint.pt physics=isaacsim_physx \
        env.scene.robot.joint_ordering=mjwarp env.scene.robot.body_ordering=mjwarp
@@ -130,7 +134,7 @@ under. ``physics=`` still selects the target backend:
    mismatches any checkpoint whose observations use body-indexed quantities.
 
 Whether the override is needed depends on the robot's topology, so check each task rather than
-assuming. Serial chains agree between the backends; branched robots do not:
+assuming. Serial chains agree between the backends. Branched robots do not:
 
 .. list-table::
    :header-rows: 1
@@ -144,25 +148,30 @@ assuming. Serial chains agree between the backends; branched robots do not:
      - Identical joint and body order in both backends.
    * - ``Isaac-Velocity-Rough-G1``
      - Yes
-     - PhysX groups by tree depth; MJWarp emits each limb depth-first.
+     - PhysX groups by tree depth. MJWarp emits each limb depth-first.
    * - ``Isaac-Velocity-Rough-AnymalD``
      - Yes
-     - PhysX yields ``LF_HAA, LH_HAA, RF_HAA, ...``; MJWarp yields
+     - PhysX yields ``LF_HAA, LH_HAA, RF_HAA, ...``. MJWarp yields
        ``LF_HAA, LF_HFE, LF_KFE, ...``.
 
 To confirm the resolved axes, compare
 :attr:`~isaaclab.assets.Articulation.joint_names` with
 :attr:`~isaaclab.assets.Articulation.backend_joint_names` (and the body equivalents) after the
 environment starts. An override that already matches the backend's native order is normalized to
-the zero-conversion identity, so it costs nothing where it is unnecessary. See
-:doc:`/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer` for the full
-ordering contract, the accepted convention values, and the conversion cost.
+the zero-conversion identity, so it costs nothing where it is unnecessary.
+
+.. seealso::
+
+   :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering` is the
+   reference for this mechanism. Go there for the full ordering contract, every accepted
+   convention value, the per-step conversion cost, and how to convert raw backend-view
+   indices, tensors, Jacobians, and mass matrices by hand.
 
 A scrambled axis has a distinctive signature: a locomotion policy falls within a few dozen steps
 in every environment rather than degrading gracefully. Rule ordering out before attributing such a
-collapse to contacts, friction, or actuator response -- once the axes agree, the transferred
-policy should survive on a timescale comparable to its source baseline, and whatever gap remains
-is solver dynamics.
+collapse to contacts, friction, or actuator response. Once the axes agree, the transferred policy
+should survive on a timescale comparable to its source baseline, and whatever gap remains is
+solver dynamics.
 
 
 Transferring control behavior
@@ -170,11 +179,11 @@ Transferring control behavior
 
 Match the nominal actuator response before tuning the policy:
 
-* distinguish physical ``velocity_limit`` from numerical ``velocity_limit_sim``;
-* use per-joint effort, stiffness, damping, friction, and armature;
-* preserve ``dt * decimation`` and action hold;
-* keep targets away from hard joint stops;
-* monitor saturation and consecutive action sign changes.
+* distinguish physical ``velocity_limit`` from numerical ``velocity_limit_sim``
+* use per-joint effort, stiffness, damping, friction, and armature
+* preserve ``dt * decimation`` and action hold
+* keep targets away from hard joint stops
+* monitor saturation and consecutive action sign changes
 
 Increased damping is often necessary to prevent bang-bang control. With too little damping, a
 position policy can alternate saturated commands and exploit one solver's drive integration or
@@ -201,11 +210,11 @@ policy's ability to adapt to variations in solver behavior.
      - Important nuance
    * - Robot and object friction
      - Covers material and contact-model uncertainty.
-     - Current Newton event behavior uses one friction coefficient; PhysX static/dynamic values and
+     - Current Newton event behavior uses one friction coefficient. PhysX static/dynamic values and
        buckets do not map one-to-one.
    * - Object mass and inertia
      - Covers payload and geometry variation.
-     - Keep inertia positive and physically consistent; decide explicitly whether changing mass
+     - Keep inertia positive and physically consistent. Decide explicitly whether changing mass
        recomputes inertia.
    * - Joint gains and friction
      - Covers actuator identification and loss uncertainty.
@@ -215,7 +224,7 @@ policy's ability to adapt to variations in solver behavior.
      - Use positive, physically supported ranges and randomize coupled mechanisms coherently.
    * - Gravity
      - Eases lift learning and covers load variation.
-     - Progress to full nominal gravity and evaluate there; zero gravity is not the deployment
+     - Progress to full nominal gravity and evaluate there. Zero gravity is not the deployment
        condition.
    * - Actuator response
      - Covers gripper closing speed or motor response.
@@ -268,14 +277,14 @@ The exact entry point can vary by RL library. With the unified Isaac Lab entry p
 
    uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=isaacsim_physx
 
-**PP – reproduce source baseline in PhysX:**
+**PP: reproduce source baseline in PhysX**
 
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
        --checkpoint /path/to/physx_checkpoint.pt physics=isaacsim_physx
 
-**PN – deploy PhysX checkpoint in Newton:**
+**PN: deploy PhysX checkpoint in Newton**
 
 .. code-block:: bash
 
@@ -289,14 +298,14 @@ The exact entry point can vary by RL library. With the unified Isaac Lab entry p
 
    uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=newton_mjwarp
 
-**NN – reproduce source baseline in Newton:**
+**NN: reproduce source baseline in Newton**
 
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
        --checkpoint /path/to/newton_checkpoint.pt physics=newton_mjwarp
 
-**NP – deploy Newton checkpoint in PhysX:**
+**NP: deploy Newton checkpoint in PhysX**
 
 .. code-block:: bash
 
@@ -305,7 +314,7 @@ The exact entry point can vary by RL library. With the unified Isaac Lab entry p
        env.scene.robot.joint_ordering=mjwarp env.scene.robot.body_ordering=mjwarp
 
 Drop the two ordering overrides when the task's joint and body order already agrees across
-backends; see `Articulation joint and body ordering`_.
+backends. See `Articulation joint and body ordering`_.
 
 
 Validated transfer examples
@@ -344,7 +353,7 @@ independently.
 
          PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/lift_franka/physx_source/RUN_DIRECTORY/model_ITERATION.pt"
 
-      PP – reproduce source baseline in PhysX:
+      PP: reproduce source baseline in PhysX
 
       .. code-block:: bash
 
@@ -354,7 +363,7 @@ independently.
              --checkpoint "$PHYSX_CHECKPOINT" \
              physics=isaacsim_physx
 
-      PN – deploy in Newton:
+      PN: deploy in Newton
 
       .. code-block:: bash
 
@@ -381,7 +390,7 @@ independently.
 
          NEWTON_CHECKPOINT="/path/to/logs/rsl_rl/lift_franka/mjwarp_source/RUN_DIRECTORY/model_ITERATION.pt"
 
-      NN – reproduce source baseline in Newton:
+      NN: reproduce source baseline in Newton
 
       .. code-block:: bash
 
@@ -391,7 +400,7 @@ independently.
              --checkpoint "$NEWTON_CHECKPOINT" \
              physics=newton_mjwarp
 
-      NP – deploy in PhysX:
+      NP: deploy in PhysX
 
       .. code-block:: bash
 
@@ -426,7 +435,7 @@ independently.
 
          PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/g1_rough/physx_source/RUN_DIRECTORY/model_ITERATION.pt"
 
-      PP – reproduce source baseline in PhysX:
+      PP: reproduce source baseline in PhysX
 
       .. code-block:: bash
 
@@ -436,7 +445,7 @@ independently.
              --checkpoint "$PHYSX_CHECKPOINT" \
              physics=isaacsim_physx
 
-      PN – deploy in Newton:
+      PN: deploy in Newton
 
       .. code-block:: bash
 
@@ -465,7 +474,7 @@ independently.
 
          NEWTON_CHECKPOINT="/path/to/logs/rsl_rl/g1_rough/mjwarp_source/RUN_DIRECTORY/model_ITERATION.pt"
 
-      NN – reproduce source baseline in Newton:
+      NN: reproduce source baseline in Newton
 
       .. code-block:: bash
 
@@ -475,7 +484,7 @@ independently.
              --checkpoint "$NEWTON_CHECKPOINT" \
              physics=newton_mjwarp
 
-      NP – deploy in PhysX:
+      NP: deploy in PhysX
 
       .. code-block:: bash
 
@@ -492,7 +501,7 @@ independently.
 
       Task ``Isaac-Velocity-Rough-AnymalD``. Rough-terrain velocity-tracking policy for the
       ANYbotics ANYmal D quadruped. Its four legs branch from the base, so PhysX orders the
-      joints by tree depth while MJWarp emits one leg at a time; both cross-backend commands
+      joints by tree depth while MJWarp emits one leg at a time. Both cross-backend commands
       carry an ordering override naming the source convention.
 
       **PhysX source**
@@ -512,7 +521,7 @@ independently.
 
          PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/anymal_d_rough/physx_source/RUN_DIRECTORY/model_ITERATION.pt"
 
-      PP – reproduce source baseline in PhysX:
+      PP: reproduce source baseline in PhysX
 
       .. code-block:: bash
 
@@ -522,7 +531,7 @@ independently.
              --checkpoint "$PHYSX_CHECKPOINT" \
              physics=isaacsim_physx
 
-      PN – deploy in Newton:
+      PN: deploy in Newton
 
       .. code-block:: bash
 
@@ -551,7 +560,7 @@ independently.
 
          NEWTON_CHECKPOINT="/path/to/logs/rsl_rl/anymal_d_rough/mjwarp_source/RUN_DIRECTORY/model_ITERATION.pt"
 
-      NN – reproduce source baseline in Newton:
+      NN: reproduce source baseline in Newton
 
       .. code-block:: bash
 
@@ -561,7 +570,7 @@ independently.
              --checkpoint "$NEWTON_CHECKPOINT" \
              physics=newton_mjwarp
 
-      NP – deploy in PhysX:
+      NP: deploy in PhysX
 
       .. code-block:: bash
 
@@ -579,6 +588,6 @@ See also
 
 * :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
 * :doc:`/source/features/hydra`
-* :doc:`/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer`
+* :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering`
 * :doc:`/source/overview/core-concepts/physical-backends/newton/mjwarp-solver`
 * :doc:`/source/overview/core-concepts/physical-backends/newton/supported-features`

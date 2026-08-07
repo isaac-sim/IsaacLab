@@ -64,7 +64,7 @@ Setting only `joint_ordering` leaves bodies in backend order and mismatches any 
 | `Isaac-Velocity-Rough-G1` | Yes | PhysX groups by tree depth; MJWarp emits each limb depth-first. |
 | `Isaac-Velocity-Rough-AnymalD` | Yes | PhysX yields `LF_HAA, LH_HAA, RF_HAA, ...`; MJWarp yields `LF_HAA, LF_HFE, LF_KFE, ...`. |
 
-Confirm the resolved axes by comparing `joint_names` with `backend_joint_names` (and the body equivalents). An override that already matches the backend's native order normalizes to the zero-conversion identity, so it is free where unnecessary. Full contract: [sim-to-sim policy transfer](../../../docs/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer.rst).
+Confirm the resolved axes by comparing `joint_names` with `backend_joint_names` (and the body equivalents). An override that already matches the backend's native order normalizes to the zero-conversion identity, so it is free where unnecessary. Full contract: [joint and body ordering](../../../docs/source/overview/core-concepts/physical-backends/joint_and_body_ordering.rst).
 
 ## Transferring Control Behavior
 

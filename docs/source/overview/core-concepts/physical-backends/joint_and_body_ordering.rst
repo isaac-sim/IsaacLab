@@ -1,78 +1,25 @@
-Transferring Policies Between Physics Backends
-==============================================
+Joint and Body Ordering
+=======================
 
-Articulation ordering preserves name-to-vector semantics when a policy moves
-between physics backends, but it does not make the backends' solver dynamics
-identical. This guide uses ANYmal-D to replay one RSL-RL checkpoint on
-Newton/MJWarp and PhysX without changing which physical joint or body each
-vector element represents.
-For backend capabilities, selection, and maturity, start with the
-:doc:`Physics Backends overview <index>`.
+A physics backend chooses the order of the joint and body axes in every state
+and command tensor it exposes. PhysX and MJWarp traverse the same USD
+articulation differently, so those axes are permutations of each other for any
+robot whose kinematic tree branches. Articulation ordering pins a chosen order
+to the public API, so a name always maps to the same vector element no matter
+which backend is active.
 
+This page is the reference for that mechanism: why the orders differ, which
+conventions exist, how to select one, what it costs, and how to convert indices
+and tensors by hand. For backend capabilities, selection, and maturity, start
+with the :doc:`Physics Backends overview <index>`.
 
-Quick Transfer
---------------
+.. seealso::
 
-The examples use ``Isaac-Velocity-Flat-AnymalD`` for training and replay. The
-``play`` entry point applies the task's ``play_mode`` overrides automatically.
-For general RSL-RL checkpoint and command options, see :doc:`Reinforcement
-Learning Workflows <../../reinforcement-learning/rl_existing_scripts>`.
-
-Newton/MJWarp to PhysX
-^^^^^^^^^^^^^^^^^^^^^^
-
-Train the source policy with Newton and the MJWarp solver:
-
-.. code-block:: bash
-
-    ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalD \
-        --num_envs 4096 \
-        physics=newton_mjwarp
-
-Set ``CHECKPOINT`` to the absolute path of the intended checkpoint from that
-Newton/MJWarp run, then replay it with PhysX:
-
-.. code-block:: bash
-
-    CHECKPOINT="/absolute/path/to/newton-mjwarp/model.pt"
-    ./isaaclab.sh play --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalD \
-        --checkpoint "${CHECKPOINT}" \
-        physics=physx \
-        env.scene.robot.joint_ordering=mjwarp \
-        env.scene.robot.body_ordering=mjwarp
-
-The ``mjwarp`` ordering value names the **source checkpoint semantics**. It
-does not select the target backend; ``physics=physx`` does that.
-
-PhysX to Newton/MJWarp
-^^^^^^^^^^^^^^^^^^^^^^
-
-Train the source policy with PhysX:
-
-.. code-block:: bash
-
-    ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalD \
-        --num_envs 4096 \
-        physics=physx
-
-Set ``CHECKPOINT`` to the absolute path of the intended checkpoint from that
-PhysX run, then replay it with Newton/MJWarp:
-
-.. code-block:: bash
-
-    CHECKPOINT="/absolute/path/to/physx/model.pt"
-    ./isaaclab.sh play --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalD \
-        --checkpoint "${CHECKPOINT}" \
-        physics=newton_mjwarp \
-        env.scene.robot.joint_ordering=physx \
-        env.scene.robot.body_ordering=physx
-
-Here, ``physx`` likewise names the source checkpoint semantics, while
-``physics=newton_mjwarp`` selects the target backend.
+    To replay a trained checkpoint in a different backend, follow
+    :doc:`/source/how-to/transfer_policies_between_physx_and_newton`. That
+    how-to is the entry point for sim-to-sim transfer: it covers the full
+    environment contract, the tasks validated in both directions with their
+    exact commands, and everything besides ordering that transfer depends on.
 
 
 Why Articulation Orders Differ
