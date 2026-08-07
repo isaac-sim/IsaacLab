@@ -360,7 +360,7 @@ jobs:
         container-name: isaac-lab-core-3-test
 
   test-standalone-demos:
-    name: standalone demos (headless, ${{ matrix.runtime-label }})
+    name: standalone demos runner (headless, ${{ matrix.runtime-label }})
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
@@ -786,7 +786,7 @@ jobs:
         omni-github-test-type: rendering-correctness
 
   test-rendering-correctness-kitless:
-    name: "rendering-correctness-kitless (${{ matrix.variant }})"
+    name: "rendering-correctness-kitless runner (${{ matrix.variant }})"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && matrix.variant == 'ovstage') }}
