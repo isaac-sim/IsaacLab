@@ -10,3 +10,9 @@ Added
 * Added randomized pile footprint, shape, and lateral placement to the UR10
   particle-pushing task, with partial-progress and split-pile resets for
   multi-pass manipulation.
+
+Changed
+^^^^^^^
+
+* Reduced the UR10 particle-push paddle width so broad piles require
+  corrective sweeps.

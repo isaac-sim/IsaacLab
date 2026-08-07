@@ -86,8 +86,10 @@ BIN_INNER_Y_BOUNDS = (
     BIN_FLOOR_POSITION[1] - 0.5 * BIN_FLOOR_SIZE[1],
     BIN_FLOOR_POSITION[1] + 0.5 * BIN_FLOOR_SIZE[1],
 )
-PADDLE_SIZE = (0.34, 0.34, 0.04)
-PADDLE_OFFSET = (0.19, 0.0, 0.0)
+# A compact square blade cannot cover the nominal 0.40 m-wide pile in one pass, so deployment
+# requires lateral correction while the blade still spans every randomized pile height.
+PADDLE_SIZE = (0.24, 0.24, 0.04)
+PADDLE_OFFSET = (0.5 * PADDLE_SIZE[0] + 0.02, 0.0, 0.0)
 PADDLE_MASS = 1.0
 PADDLE_CONTACT_MARGIN = 0.4 * MPM_VOXEL_SIZE
 # The vertical blade starts with its lower edge exactly one table-plus-paddle MPM margin above the
