@@ -107,8 +107,11 @@ class SceneAsset(HasPose):
         if xform_prim.count == 0:
             # The view was created before environment cloning; rebuild it now that prims exist.
             # FabricFrameView composes UsdFrameView; the template prim_path lives on the inner USD view.
+            # Close the stale view so its backend state is released now, not on garbage collection.
             inner = getattr(xform_prim, "_usd_view", xform_prim)
-            xform_prim = FrameView(inner._prim_path, device=xform_prim.device)
+            prim_path, device = inner._prim_path, xform_prim.device
+            xform_prim.close()
+            xform_prim = FrameView(prim_path, device=device)
             self.scene.extras[self.entity_name] = xform_prim
         return xform_prim
 
