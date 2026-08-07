@@ -250,10 +250,13 @@ def prim_world_positions(
         for env_id in env_indices:
             prim_path = env_path_from_template(prim_path_template, env_id)
             view = FrameView(prim_path, device="cpu", stage=stage)
-            if view.count != 1:
-                raise RuntimeError(f"expected one prim, got {view.count}")
-            pos_w, _ = view.get_world_poses()
-            pos = pos_w.torch[0].detach().cpu()
+            try:
+                if view.count != 1:
+                    raise RuntimeError(f"expected one prim, got {view.count}")
+                pos_w, _ = view.get_world_poses()
+                pos = pos_w.torch[0].detach().cpu()
+            finally:
+                view.close()
             positions.append((float(pos[0]), float(pos[1]), float(pos[2])))
         return torch.tensor(positions, dtype=torch.float32)
     except Exception:

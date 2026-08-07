@@ -133,8 +133,9 @@ def test_wheel_builder_uv_overrides_match_root_pyproject(tmp_path):
     assert install_ci_overrides == generated_overrides
 
 
-def test_wheel_builder_uv_overrides_force_typing_extensions(tmp_path):
-    """The wheel resolver must override Isaac Sim's stale exact typing-extensions pin."""
+def test_wheel_builder_uv_overrides_relax_isaacsim_exact_pins(tmp_path):
+    """The wheel resolver must relax Isaac Sim 6.0's exact pins so the extras co-resolve."""
     overrides = _generate_uv_overrides(tmp_path)
 
-    assert "typing-extensions>=4.15.0" in overrides
+    for spec in ("typing-extensions>=4.15.0", "websockets>=14.0,<17.0.0", "coverage>=7.6.1"):
+        assert spec in overrides
