@@ -11,16 +11,12 @@ must initialize and step without visualizer-scoped log errors on both physics ba
 Kit and Newton also expose image-producing paths, so they get stronger checks:
 - frames are non-flat
 - frames change while simulation is playing
-- simulation state remains frozen while simulation is paused
-- frames remain stable while paused for renderers without temporal accumulation
+- frames remain stable while rendering or simulation is paused
 - frames change again after play resumes
 
 Newton has separate rendering-pause and simulation-pause controls, so those tests
 also verify that physics continues during rendering pause and stays frozen during
 simulation pause.
-
-Kit RTX with responsive DLSS-RR may continue temporal accumulation on a static
-scene, so its Newton pause checks validate simulation state instead of pixel identity.
 """
 
 from __future__ import annotations
@@ -659,46 +655,6 @@ def _assert_body_state_stable(
     )
 
 
-def _assert_simulation_context_pause_contract(
-    env,
-    state_before: torch.Tensor,
-    frame_before,
-    frame_after,
-    *,
-    physics_step_count_before: int,
-    visualizer_kind: str,
-    physics_kind: str,
-    case_label: str,
-    phase: str,
-    debug_phase: str,
-) -> None:
-    """Assert SimulationContext pause semantics without rejecting temporal RTX accumulation."""
-    assert not env.sim.is_playing(), f"{case_label} simulation remained playing during {phase}."
-    assert env.sim.get_physics_step_count() == physics_step_count_before, (
-        f"{case_label} physics step count advanced during {phase}."
-    )
-    _assert_body_state_stable(
-        state_before,
-        _cartpole_body_state(env),
-        case_label=case_label,
-        phase=phase,
-    )
-
-    # Kit's responsive DLSS-RR denoiser continues temporal accumulation on static
-    # Newton frames (NVBug 6570125). The state checks above validate pause behavior
-    # without suppressing the denoiser or treating its expected pixel changes as motion.
-    if visualizer_kind == "kit" and physics_kind == "newton":
-        return
-
-    _assert_frames_remain_stable(
-        frame_before,
-        frame_after,
-        case_label=case_label,
-        phase=phase,
-        debug_phase=debug_phase,
-    )
-
-
 def _select_newton_training_control_button(viewer, target_label: str) -> None:
     """Trigger one Newton visualizer training-control button by label."""
 
@@ -1286,8 +1242,6 @@ def _run_kit_viewport_frame_motion_test(
 
         def _attempt_kit_pause():
             _set_kit_simulation_paused(env, True)
-            paused_start_state = _cartpole_body_state(env)
-            physics_step_count_before = env.sim.get_physics_step_count()
             paused_start_frame = _capture_kit_viewport_rgb(annotator)
             for _ in range(PAUSE_VIZ_N_STEP):
                 env.sim.render()
@@ -1300,15 +1254,9 @@ def _run_kit_viewport_frame_motion_test(
                 frame_start_idx=pause_start_idx,
                 frame_end_idx=pause_end_idx,
             )
-            _assert_non_flat_frame_array(paused_end_frame)
-            _assert_simulation_context_pause_contract(
-                env,
-                paused_start_state,
+            _assert_frames_remain_stable(
                 paused_start_frame,
                 paused_end_frame,
-                physics_step_count_before=physics_step_count_before,
-                visualizer_kind=viz_kind,
-                physics_kind=physics_kind,
                 case_label=case_label,
                 phase="pausing",
                 debug_phase="pausing",
@@ -1451,8 +1399,6 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
 
     def _attempt_pause():
         _set_kit_simulation_paused(env, True)
-        paused_start_state = _cartpole_body_state(env)
-        physics_step_count_before = env.sim.get_physics_step_count()
         paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2a_pausing_frame_20")
         for _ in range(PAUSE_VIZ_N_STEP):
             env.sim.render()
@@ -1466,14 +1412,9 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
             frame_end_idx=pause_end_idx,
         )
         _assert_non_flat_frame_array(paused_end_frame)
-        _assert_simulation_context_pause_contract(
-            env,
-            paused_start_state,
+        _assert_frames_remain_stable(
             paused_start_frame,
             paused_end_frame,
-            physics_step_count_before=physics_step_count_before,
-            visualizer_kind=viz_kind,
-            physics_kind=physics_kind,
             case_label=case_label,
             phase="pausing",
             debug_phase="pausing_tiled",
