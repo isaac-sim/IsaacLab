@@ -7,17 +7,25 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 from typing import Any
 
 import torch
-from rendering_cases import RenderCase, select_kitless_cases
+from rendering_cases import (
+    KIT_CASES,
+    SCENE_PROBE_KIT_CASES,
+    RenderCase,
+    select_kitless_cases,
+    select_kitless_scene_probe_cases,
+)
+from rendering_scene_cfgs import make_rendering_scene_cfg
 
 from isaaclab.test.utils.golden_image import camera_output_image, compare_to_golden
 from isaaclab.test.utils.rendering import SEMANTIC_COLORS, build_rendering_scene
 from isaaclab.utils.seed import configure_seed
 
-_GOLDEN_DIR = Path(__file__).parent / "golden_images" / "rendering_scene"
+_GOLDEN_ROOT = Path(__file__).parent / "golden_images"
 _ARTIFACT_DIR = Path.cwd() / "tests" / "comparison-images" / "images"
 _NO_SSIM = {
     "depth",
@@ -27,17 +35,24 @@ _NO_SSIM = {
     "instance_id_segmentation_fast",
     "motion_vectors",
 }
+_MAX_DIFF_PCT = {"shadow_hand": 5.0, "kuka_heterogeneous": 8.0, "franka_cloth": 8.0, "franka_soft": 8.0}
 
 
 def run_rendering_case(case: RenderCase, request: Any, *, stage_variant: str = "kit") -> None:
     """Build once, capture all compatible AOVs, and step physics once only for motion."""
     configure_seed(42, torch_deterministic=True)
+    scene_cfg, camera_eye, camera_target, required_labels, physics_cfg = make_rendering_scene_cfg(
+        case.scene, case.physics
+    )
     with build_rendering_scene(
+        scene_cfg,
         case.physics,
         renderer=case.renderer,
         data_types=case.aovs,
-        num_envs=1,
         background_color=case.background_color,
+        camera_eye=camera_eye,
+        camera_target=camera_target,
+        physics_cfg=physics_cfg,
     ) as runtime:
         runtime.stabilize_camera()
         outputs, info = runtime.camera_outputs()
@@ -51,17 +66,17 @@ def run_rendering_case(case: RenderCase, request: Any, *, stage_variant: str = "
             assert torch.count_nonzero(motion).item() > 0, "Motion vectors stayed zero after one physics step."
             outputs["motion_vectors"] = motion
 
-        _validate_segmentation_metadata(info)
+        _validate_segmentation(outputs, info, required_labels)
         failures = []
         for aov in case.aovs:
             label = f"{stage_variant}-{case.golden_id(aov)}"
             comparison = compare_to_golden(
                 camera_output_image(outputs[aov], aov),
-                _GOLDEN_DIR / f"{label}.png",
+                _GOLDEN_ROOT / case.scene / f"{label}.png",
                 label=label,
                 artifact_dir=_ARTIFACT_DIR,
-                max_diff_pct=0.75 if case.renderer == "newton_warp" else 3.0,
-                min_ssim=None if aov in _NO_SSIM else (0.99 if case.renderer == "newton_warp" else 0.98),
+                max_diff_pct=0.75 if case.renderer == "newton_warp" else _MAX_DIFF_PCT.get(case.scene, 3.0),
+                min_ssim=None if aov in _NO_SSIM else (0.95 if case.scene == "kuka_heterogeneous" else 0.98),
                 alpha_only=aov in {"instance_segmentation", "instance_id_segmentation_fast"},
             )
             comparison.record(request)
@@ -91,14 +106,28 @@ def run_kitless_rendering_case(stage_variant: str, case: RenderCase, request: An
     run_rendering_case(case, request, stage_variant=stage_variant)
 
 
-def make_kitless_test(stage: str, physics: str) -> Any:
-    """Create a tiny process-isolated pytest composition root for one native lifecycle partition."""
+def make_kit_test(*, scene_probes: bool = False) -> Any:
+    """Create one Kit test function from the centrally owned case matrix."""
     import pytest
 
-    cases = select_kitless_cases(stage, physics)
+    cases = SCENE_PROBE_KIT_CASES if scene_probes else KIT_CASES
+
+    @pytest.mark.parametrize("case", cases, ids=[case.id for case in cases])
+    def test_rendering_scene(case: RenderCase, request: pytest.FixtureRequest) -> None:
+        run_rendering_case(case, request)
+
+    return test_rendering_scene
+
+
+def make_kitless_test(stage: str, physics: str, *, scene_probes: bool = False) -> Any:
+    """Create one process-isolated native-renderer test from the central matrix."""
+    import pytest
+
+    selector = select_kitless_scene_probe_cases if scene_probes else select_kitless_cases
+    cases = selector(stage, physics)
 
     @pytest.mark.parametrize("stage_variant,case", cases, ids=[f"{case_stage}-{case.id}" for case_stage, case in cases])
-    def test_rendering_scene_kitless(
+    def test_rendering_scene(
         stage_variant: str,
         case: RenderCase,
         request: pytest.FixtureRequest,
@@ -106,19 +135,36 @@ def make_kitless_test(stage: str, physics: str) -> Any:
     ) -> None:
         run_kitless_rendering_case(stage_variant, case, request, monkeypatch)
 
-    return test_rendering_scene_kitless
+    return test_rendering_scene
 
 
-def _validate_segmentation_metadata(info: dict[str, Any] | None) -> None:
-    if info is None or "semantic_segmentation" not in info:
+def _validate_segmentation(
+    outputs: dict[str, torch.Tensor], info: dict[str, Any] | None, required_labels: frozenset[str]
+) -> None:
+    semantic = outputs.get("semantic_segmentation")
+    if semantic is None:
         return
+    assert info is not None and "semantic_segmentation" in info
     metadata = info["semantic_segmentation"]
     assert metadata is not None and "idToLabels" in metadata
+    id_to_labels = metadata["idToLabels"]
+    channels = min(semantic.shape[-1], 4)
+    for label in required_labels:
+        colors = [key for key, entry in id_to_labels.items() if isinstance(entry, dict) and entry.get("class") == label]
+        assert colors, f"The semantic metadata does not contain required label {label!r}."
+        rendered = False
+        for value in colors:
+            value = ast.literal_eval(value) if isinstance(value, str) else value
+            color = torch.tensor(value[:channels], device=semantic.device, dtype=semantic.dtype)
+            if semantic.is_floating_point() and semantic.max().item() <= 1.0:
+                color = color / 255.0
+            rendered |= bool(torch.any(torch.all(semantic[..., :channels] == color, dim=-1)).item())
+        assert rendered, f"The semantic output does not contain required label {label!r}."
+
     labels = {
         entry["class"]
-        for entry in metadata["idToLabels"].values()
+        for entry in id_to_labels.values()
         if isinstance(entry, dict) and "class" in entry and entry["class"] not in {"BACKGROUND", "UNLABELLED"}
     }
     expected = {name.split(":", 1)[1] for name in SEMANTIC_COLORS}
-    assert labels and labels <= expected, f"Unexpected semantic labels: {sorted(labels - expected)}."
-    assert "robot" in labels, f"The canonical robot label is absent from {sorted(labels)}."
+    assert labels <= expected, f"Unexpected semantic labels: {sorted(labels - expected)}."

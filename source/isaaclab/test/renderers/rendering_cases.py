@@ -46,12 +46,14 @@ class RenderCase:
     renderer: str
     aovs: tuple[str, ...]
     profile: str = "standard"
+    scene: str = "rendering_scene"
     background_color: tuple[float, float, float] | None = None
 
     @property
     def id(self) -> str:
         profile = f"standard-{self.aovs[0]}" if self.profile == "standard" and len(self.aovs) == 1 else self.profile
-        return f"{self.physics}-{self.renderer}-{profile}"
+        prefix = "" if self.scene == "rendering_scene" else f"{self.scene}-"
+        return f"{prefix}{self.physics}-{self.renderer}-{profile}"
 
     def golden_id(self, aov: str) -> str:
         """Return a baseline identity that is stable when compatible AOVs are bundled."""
@@ -92,9 +94,58 @@ KITLESS_CASES = tuple(
     for stage in (("legacy", "ovstage") if case.renderer == "ovrtx" else ("legacy",))
 )
 
+_SCENE_PROBE_AOVS = {
+    "shadow_hand": ("rgb", "semantic_segmentation", "instance_segmentation"),
+    "kuka_heterogeneous": ("rgb", "instance_segmentation"),
+    "franka_cloth": ("rgb", "motion_vectors"),
+    "franka_soft": ("rgb", "motion_vectors"),
+}
+_SCENE_PROBE_KIT_PHYSICS = {
+    "shadow_hand": ("physx", "newton"),
+    "kuka_heterogeneous": ("physx",),
+    "franka_cloth": ("newton",),
+    "franka_soft": ("newton",),
+}
+_SCENE_PROBE_KITLESS_PHYSICS = {
+    "shadow_hand": ("ovphysx", "newton"),
+    "kuka_heterogeneous": (),
+    "franka_cloth": ("ovphysx", "newton"),
+    "franka_soft": ("ovphysx", "newton"),
+}
+SCENE_PROBE_KIT_CASES = tuple(
+    RenderCase(
+        physics,
+        renderer,
+        tuple(aov for aov in aovs if renderer != "newton_warp" or aov in NEWTON_WARP_AOVS),
+        scene=scene,
+    )
+    for scene, aovs in _SCENE_PROBE_AOVS.items()
+    for physics in _SCENE_PROBE_KIT_PHYSICS[scene]
+    for renderer in ("isaac_rtx", "newton_warp")
+)
+SCENE_PROBE_KITLESS_CASES = tuple(
+    (stage, case)
+    for scene, aovs in _SCENE_PROBE_AOVS.items()
+    for physics in _SCENE_PROBE_KITLESS_PHYSICS[scene]
+    for case in (
+        *(RenderCase(physics, "ovrtx", (aov,), scene=scene) for aov in aovs),
+        RenderCase(physics, "newton_warp", tuple(aov for aov in aovs if aov in NEWTON_WARP_AOVS), scene=scene),
+    )
+    for stage in (("legacy", "ovstage") if case.renderer == "ovrtx" and physics == "ovphysx" else ("legacy",))
+)
+
 
 def select_kitless_cases(stage: str, physics: str) -> tuple[tuple[str, RenderCase], ...]:
     """Select a bounded native-renderer lifecycle partition without duplicating case ownership."""
     return tuple(
         (case_stage, case) for case_stage, case in KITLESS_CASES if case_stage == stage and case.physics == physics
+    )
+
+
+def select_kitless_scene_probe_cases(stage: str, physics: str) -> tuple[tuple[str, RenderCase], ...]:
+    """Select one bounded specialized-scene native-renderer partition."""
+    return tuple(
+        (case_stage, case)
+        for case_stage, case in SCENE_PROBE_KITLESS_CASES
+        if case_stage == stage and case.physics == physics
     )

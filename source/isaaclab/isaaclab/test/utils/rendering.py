@@ -16,11 +16,12 @@ from typing import Any
 
 import torch
 
+from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
-from isaaclab.scene import InteractiveScene
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
 from isaaclab.sim import PinholeCameraCfg, SimulationCfg, SimulationContext, build_simulation_context
-from isaaclab.test.integration_scene_cfgs import RenderingTestSceneCfg
+from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
 CAMERA_EYE = (3.8, -4.2, 3.4)
 CAMERA_TARGET = (0.05, 0.05, 1.25)
@@ -31,6 +32,11 @@ SEMANTIC_COLORS = {
     "class:table": (153, 74, 33, 255),
     "class:cylinder": (239, 62, 54, 255),
     "class:sphere": (65, 201, 87, 255),
+    "class:cube": (149, 76, 233, 255),
+    "class:capsule": (20, 184, 166, 255),
+    "class:cloth": (250, 204, 21, 255),
+    "class:soft": (244, 114, 182, 255),
+    "class:support": (120, 113, 108, 255),
 }
 
 
@@ -40,6 +46,8 @@ class RenderingScene:
 
     sim: SimulationContext
     scene: InteractiveScene
+    camera_eye: tuple[float, float, float]
+    camera_target: tuple[float, float, float]
 
     @property
     def dt(self) -> float:
@@ -61,10 +69,10 @@ class RenderingScene:
         self.sim.forward()
         if "camera" in self.scene.sensors:
             origins = self.scene.env_origins
-            eye = origins + torch.tensor(CAMERA_EYE, device=origins.device)
-            target = origins + torch.tensor(CAMERA_TARGET, device=origins.device)
+            eye = origins + torch.tensor(self.camera_eye, device=origins.device)
+            target = origins + torch.tensor(self.camera_target, device=origins.device)
             self.camera.set_world_poses_from_view(eye, target)
-        self.sim.set_camera_view(CAMERA_EYE, CAMERA_TARGET)
+        self.sim.set_camera_view(self.camera_eye, self.camera_target)
         self.scene.update(0.0)
 
     def step(self, *, render: bool = True) -> None:
@@ -94,29 +102,38 @@ class RenderingScene:
 
 @contextmanager
 def build_rendering_scene(
+    scene_cfg: InteractiveSceneCfg,
     physics_backend: str,
     *,
     renderer: str | None = None,
     data_types: Sequence[str] = (),
-    num_envs: int = 1,
     visualizer_cfgs: Any = None,
     background_color: tuple[float, float, float] | None = None,
+    camera_eye: tuple[float, float, float] = CAMERA_EYE,
+    camera_target: tuple[float, float, float] = CAMERA_TARGET,
+    physics_cfg: PhysicsCfg | None = None,
     device: str = "cuda:0",
 ) -> Iterator[RenderingScene]:
-    """Build the canonical rendering scene without an RL/task environment."""
-    scene_cfg = RenderingTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=True)
+    """Build a caller-owned rendering scene without an RL/task environment."""
+    scene_cfg = scene_cfg.copy()
     if renderer is not None:
-        scene_cfg.camera = make_camera_cfg(renderer, data_types, background_color=background_color)
+        scene_cfg.camera = make_camera_cfg(
+            renderer,
+            data_types,
+            background_color=background_color,
+            camera_eye=camera_eye,
+            camera_target=camera_target,
+        )
     sim_cfg = SimulationCfg(
         dt=1.0 / 60.0,
         device=device,
-        physics=make_physics_cfg(physics_backend),
+        physics=make_physics_cfg(physics_backend) if physics_cfg is None else copy.deepcopy(physics_cfg),
         visualizer_cfgs=[] if visualizer_cfgs is None else visualizer_cfgs,
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         if renderer is not None:
             sim.set_setting("/isaaclab/render/rtx_sensors", True)
-        runtime = RenderingScene(sim, InteractiveScene(scene_cfg))
+        runtime = RenderingScene(sim, InteractiveScene(scene_cfg), camera_eye, camera_target)
         sim.register_interactive_scene(runtime.scene)
         runtime.reset()
         yield runtime
@@ -127,12 +144,18 @@ def make_camera_cfg(
     data_types: Sequence[str],
     *,
     background_color: tuple[float, float, float] | None = None,
+    camera_eye: tuple[float, float, float] = CAMERA_EYE,
+    camera_target: tuple[float, float, float] = CAMERA_TARGET,
 ) -> CameraCfg:
     """Create the one camera layout used by all golden AOV cases."""
+    eyes = torch.tensor([camera_eye])
+    targets = torch.tensor([camera_target])
+    orientation = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets))[0]
     return CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
         width=128,
         height=128,
+        offset=CameraCfg.OffsetCfg(pos=camera_eye, rot=tuple(orientation.tolist()), convention="opengl"),
         update_period=0.0,
         update_latest_camera_pose=True,
         data_types=list(data_types),
@@ -170,7 +193,7 @@ def make_renderer_cfg(renderer: str) -> RendererCfg:
     return cfg
 
 
-def make_physics_cfg(physics_backend: str) -> Any:
+def make_physics_cfg(physics_backend: str) -> PhysicsCfg:
     """Resolve a physics backend label without task or Hydra presets."""
     if physics_backend == "physx":
         from isaaclab_physx.physics import PhysxCfg

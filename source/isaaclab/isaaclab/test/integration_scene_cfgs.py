@@ -76,12 +76,8 @@ _RENDERING_CARTPOLE_CFG = _CARTPOLE_TEST_CFG.replace(
 
 
 @configclass
-class RenderingTestSceneCfg(InteractiveSceneCfg):
-    """Small deterministic scene shared by renderer and visualizer integration tests.
-
-    Assets use deliberate composition poses and distinct materials so a single scene exercises
-    geometry, articulation, lighting, depth, segmentation, and motion.
-    """
+class RenderingSceneCfg(InteractiveSceneCfg):
+    """Core-only ground, camera slot, and lighting shared by rendering scenes."""
 
     ground = AssetBaseCfg(
         prim_path="/World/Ground",
@@ -93,6 +89,26 @@ class RenderingTestSceneCfg(InteractiveSceneCfg):
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
     )
+    camera: CameraCfg | None = None
+    key_light = AssetBaseCfg(
+        prim_path="/World/KeyLight",
+        spawn=sim_utils.DistantLightCfg(intensity=2400.0, color=(1.0, 0.91, 0.78), angle=0.7),
+        init_state=AssetBaseCfg.InitialStateCfg(rot=(0.3826834, -0.2209424, 0.0, 0.8968727)),
+    )
+    fill_light = AssetBaseCfg(
+        prim_path="/World/FillLight",
+        spawn=sim_utils.DomeLightCfg(intensity=650.0, color=(0.58, 0.68, 1.0)),
+    )
+
+
+@configclass
+class RenderingTestSceneCfg(RenderingSceneCfg):
+    """Small deterministic scene shared by renderer and visualizer integration tests.
+
+    Assets use deliberate composition poses and distinct materials so a single scene exercises
+    geometry, articulation, lighting, depth, segmentation, and motion.
+    """
+
     robot: ArticulationCfg = _RENDERING_CARTPOLE_CFG.copy()
     moving_cube = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/MovingCube",
@@ -152,14 +168,4 @@ class RenderingTestSceneCfg(InteractiveSceneCfg):
             semantic_tags=[("class", "sphere")],
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(1.18, 0.66, 0.72)),
-    )
-    camera: CameraCfg | None = None
-    key_light = AssetBaseCfg(
-        prim_path="/World/KeyLight",
-        spawn=sim_utils.DistantLightCfg(intensity=2400.0, color=(1.0, 0.91, 0.78), angle=0.7),
-        init_state=AssetBaseCfg.InitialStateCfg(rot=(0.3826834, -0.2209424, 0.0, 0.8968727)),
-    )
-    fill_light = AssetBaseCfg(
-        prim_path="/World/FillLight",
-        spawn=sim_utils.DomeLightCfg(intensity=650.0, color=(0.58, 0.68, 1.0)),
     )

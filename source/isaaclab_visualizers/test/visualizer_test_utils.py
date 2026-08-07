@@ -16,6 +16,7 @@ from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 from PIL import Image
 
+from isaaclab.test.integration_scene_cfgs import RenderingTestSceneCfg
 from isaaclab.test.utils.golden_image import camera_output_image, compare_to_golden, frame_image
 from isaaclab.test.utils.rendering import CAMERA_EYE, CAMERA_TARGET, RenderingScene, build_rendering_scene
 
@@ -63,8 +64,8 @@ def run_visualizer_case(physics: str, kind: str, tiled: bool, request: Any) -> N
     """Validate a reset-pose golden, then confirm scene state and pixels move."""
     mode = "tiled" if tiled else "viewport"
     with build_rendering_scene(
+        RenderingTestSceneCfg(num_envs=4 if tiled else 1, env_spacing=5.0, lazy_sensor_update=True),
         physics,
-        num_envs=4 if tiled else 1,
         visualizer_cfgs=make_visualizer_cfg(kind, tiled=tiled),
     ) as runtime:
         assert runtime.sim.get_physics_step_count() == 0

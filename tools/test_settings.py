@@ -70,6 +70,10 @@ PER_TEST_TIMEOUTS = {
     "test_rendering_kitless_legacy_ovphysx.py": 600,
     "test_rendering_kitless_ovstage_newton.py": 600,
     "test_rendering_kitless_ovstage_ovphysx.py": 600,
+    "test_rendering_scene_probes_kit.py": 1200,
+    "test_rendering_scene_probes_kitless_legacy_newton.py": 1200,
+    "test_rendering_scene_probes_kitless_legacy_ovphysx.py": 1200,
+    "test_rendering_scene_probes_kitless_ovstage_ovphysx.py": 1200,
     "test_contact_sensor.py": 2000,
 }
 """A dictionary of tests and their timeouts in seconds.

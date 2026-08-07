@@ -22,8 +22,11 @@ from rendering_cases import (  # noqa: E402
     KIT_CASES,
     KITLESS_CASES,
     OVRTX_AOVS,
+    SCENE_PROBE_KIT_CASES,
+    SCENE_PROBE_KITLESS_CASES,
     SIMPLE_SHADING_AOVS,
     select_kitless_cases,
+    select_kitless_scene_probe_cases,
 )
 
 
@@ -71,6 +74,17 @@ def test_removed_task_and_visualizer_harnesses_stay_removed() -> None:
     }
     assert all(path.read_text().count("make_kitless_test(") == 1 for path in partition_paths)
     assert not any("def test_rendering_scene_kitless" in path.read_text() for path in partition_paths)
+    probe_partition_paths = sorted(_RENDERER_TEST_DIR.glob("test_rendering_scene_probes_kitless_*.py"))
+    assert {path.name for path in probe_partition_paths} == {
+        "test_rendering_scene_probes_kitless_legacy_newton.py",
+        "test_rendering_scene_probes_kitless_legacy_ovphysx.py",
+        "test_rendering_scene_probes_kitless_ovstage_ovphysx.py",
+    }
+    assert all(path.read_text().count("make_kitless_test(") == 1 for path in probe_partition_paths)
+    assert all("scene_probes=True" in path.read_text() for path in probe_partition_paths)
+    assert not any("def test_" in path.read_text() for path in [*partition_paths, *probe_partition_paths])
+    assert "def test_" not in (_RENDERER_TEST_DIR / "test_rendering_scene_probes_kit.py").read_text()
+
     assert {path.name for path in (_VISUALIZER_TEST_DIR / "golden_images").iterdir()} == {"rendering_scene"}
 
     active_config = "\n".join(
@@ -120,6 +134,38 @@ def test_one_scene_configuration_owns_deliberate_composition() -> None:
 
     for name in ("ground", "robot", "moving_cube", "table", "cylinder", "sphere"):
         assert ("class", name) in getattr(cfg, name).spawn.semantic_tags
+
+
+def test_specialized_rendering_scenes_are_declarative_and_task_free() -> None:
+    """Specialized geometry lives in scene configs while shared code owns test behavior."""
+    path = _RENDERER_TEST_DIR / "rendering_scene_cfgs.py"
+    tree = ast.parse(path.read_text())
+    classes = {node.name for node in tree.body if isinstance(node, ast.ClassDef)}
+    assert classes == {
+        "FrankaClothRenderingSceneCfg",
+        "FrankaSoftRenderingSceneCfg",
+        "KukaHeterogeneousRenderingSceneCfg",
+        "ShadowHandRenderingSceneCfg",
+    }
+    assert not [
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_")
+    ]
+    source = path.read_text()
+    assert not [token for token in ("isaaclab_tasks", "gymnasium", "isaaclab.envs", "hydra") if token in source]
+
+    expected_scenes = {"franka_cloth", "franka_soft", "kuka_heterogeneous", "shadow_hand"}
+    assert {case.scene for case in SCENE_PROBE_KIT_CASES} == expected_scenes
+    assert {case.scene for _, case in SCENE_PROBE_KITLESS_CASES} == expected_scenes - {"kuka_heterogeneous"}
+    partitions = [
+        select_kitless_scene_probe_cases(stage, physics)
+        for stage in ("legacy", "ovstage")
+        for physics in ("ovphysx", "newton")
+    ]
+    assert tuple(map(len, partitions)) == (10, 10, 7, 0)
+    assert sum(map(len, partitions)) == len(SCENE_PROBE_KITLESS_CASES)
+    assert set().union(*partitions) == set(SCENE_PROBE_KITLESS_CASES)
 
 
 def test_renderer_matrix_bundles_compatible_aovs() -> None:
@@ -179,11 +225,19 @@ def test_reset_manager_is_only_an_adapter() -> None:
 
 def test_golden_inventory_matches_case_matrix() -> None:
     """Checked-in baselines exactly match the declared renderer and visualizer matrices."""
-    renderer_expected = {f"kit-{case.golden_id(aov)}.png" for case in KIT_CASES for aov in case.aovs} | {
-        f"{stage}-{case.golden_id(aov)}.png" for stage, case in KITLESS_CASES for aov in case.aovs
+    renderer_expected = {
+        scene: set()
+        for scene in ("rendering_scene", "franka_cloth", "franka_soft", "kuka_heterogeneous", "shadow_hand")
     }
-    renderer_dir = _RENDERER_TEST_DIR / "golden_images" / "rendering_scene"
-    assert {path.name for path in renderer_dir.glob("*.png")} == renderer_expected
+    for case in (*KIT_CASES, *SCENE_PROBE_KIT_CASES):
+        renderer_expected[case.scene].update(f"kit-{case.golden_id(aov)}.png" for aov in case.aovs)
+    for stage, case in (*KITLESS_CASES, *SCENE_PROBE_KITLESS_CASES):
+        renderer_expected[case.scene].update(f"{stage}-{case.golden_id(aov)}.png" for aov in case.aovs)
+
+    renderer_root = _RENDERER_TEST_DIR / "golden_images"
+    assert {path.name for path in renderer_root.iterdir() if path.is_dir()} == set(renderer_expected)
+    for scene, expected in renderer_expected.items():
+        assert {path.name for path in (renderer_root / scene).glob("*.png")} == expected
 
     visualizer_expected = {
         f"{physics}-{visualizer}-{mode}.png"

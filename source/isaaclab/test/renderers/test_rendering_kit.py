@@ -10,17 +10,8 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import pytest  # noqa: E402
-from rendering_cases import KIT_CASES, RenderCase  # noqa: E402
-from rendering_runner import run_rendering_case  # noqa: E402
+from rendering_runner import make_kit_test  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 
-
-@pytest.mark.parametrize("case", KIT_CASES, ids=[case.id for case in KIT_CASES])
-def test_rendering_scene(case: RenderCase, request: pytest.FixtureRequest) -> None:
-    """All compatible AOVs share one task-free scene construction."""
-    run_rendering_case(case, request)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+test_rendering_scene = make_kit_test()

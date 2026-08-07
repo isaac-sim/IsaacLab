@@ -818,8 +818,10 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_kit.py,
+          test_rendering_scene_probes_kit.py,
           test_golden_scene_architecture.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
@@ -856,9 +858,10 @@ jobs:
         filter-pattern: "not isaaclab_"
         extra-pip-packages: >-
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
+        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
-        include-files: "test_rendering_kitless_legacy_ovphysx.py,test_rendering_kitless_legacy_newton.py"
+        include-files: "test_rendering_kitless_legacy_ovphysx.py,test_rendering_kitless_legacy_newton.py,test_rendering_scene_probes_kitless_legacy_ovphysx.py,test_rendering_scene_probes_kitless_legacy_newton.py"
         test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
@@ -893,9 +896,10 @@ jobs:
         filter-pattern: "not isaaclab_"
         extra-pip-packages: >-
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
+        extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
-        include-files: "test_rendering_kitless_ovstage_ovphysx.py,test_rendering_kitless_ovstage_newton.py"
+        include-files: "test_rendering_kitless_ovstage_ovphysx.py,test_rendering_kitless_ovstage_newton.py,test_rendering_scene_probes_kitless_ovstage_ovphysx.py"
         test-k-expr: ovstage
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
