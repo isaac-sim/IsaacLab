@@ -1,0 +1,1 @@
+Test-only: updated test_video_recording to match new newton_gl visualizer type name. No user-facing isaaclab_tasks API change.

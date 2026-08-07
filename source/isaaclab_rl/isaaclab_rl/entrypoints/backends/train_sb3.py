@@ -29,6 +29,7 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    pre_launch_video_config,
     resolve_checkpoint_selector,
     set_hydra_args,
     wrap_training_capture,
@@ -101,6 +102,7 @@ def run(argv: list[str]) -> None:
     args_cli = _parse_args(argv)
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
 
+    pre_launch_video_config(env_cfg, args_cli=args_cli)
     with launch_simulation(env_cfg, args_cli):
         if args_cli.seed == -1:
             args_cli.seed = random.randint(0, 10000)
