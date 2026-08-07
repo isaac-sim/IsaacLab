@@ -108,12 +108,28 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
 
 def _create_visualizer_cfgs():
     """Create demo-specific visualizer configs for requested backends."""
-    if "rerun" not in (args_cli.visualizer or []):
+    requested = set(args_cli.visualizer or [])
+    if not requested:
         return []
 
-    from isaaclab_visualizers.rerun import RerunVisualizerCfg
+    cfgs = []
+    if "rerun" in requested:
+        from isaaclab_visualizers.rerun import RerunVisualizerCfg
 
-    return [RerunVisualizerCfg(open_browser=True)]
+        cfgs.append(RerunVisualizerCfg(open_browser=True))
+    if "newton" in requested or "newton_gl" in requested:
+        from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
+        cfgs.append(NewtonGLVisualizerCfg())
+    if "viser" in requested:
+        from isaaclab_visualizers.viser import ViserVisualizerCfg
+
+        cfgs.append(ViserVisualizerCfg())
+    if "kit" in requested:
+        from isaaclab_visualizers.kit import KitVisualizerCfg
+
+        cfgs.append(KitVisualizerCfg())
+    return cfgs
 
 
 if args_cli.asset_type == "allegro_hand":

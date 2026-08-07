@@ -67,9 +67,16 @@ class VisualizerCfg:
     """
 
     # Source — auto-created camera (used when streaming_sensor_prim_path is None)
-    streaming_cam_target_prim_path: str = "/World/envs/*/Robot"
+    streaming_cam_target_prim_path: str | None = None
     """Target prim for the auto-created streaming camera (ignored when
-    :attr:`streaming_sensor_prim_path` is set)."""
+    :attr:`streaming_sensor_prim_path` is set).
+
+    When ``None`` (the default), the visualizer first tries to adopt the first
+    scene camera sensor it discovers dynamically at initialisation time.  If no
+    scene camera exists it falls back to creating one with a default target.
+    Set this explicitly (e.g. ``"/World/envs/*/Robot"``) only when you want a
+    specific prim to be followed and no suitable scene camera is present.
+    """
 
     streaming_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Eye offset [m] for the auto-created streaming camera relative to the target prim."""
