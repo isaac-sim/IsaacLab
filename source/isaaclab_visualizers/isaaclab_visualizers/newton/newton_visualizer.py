@@ -1196,7 +1196,8 @@ class NewtonVisualizer(BaseVisualizer):
                 return
             logger.debug(
                 "[%s] streaming_cam_target_prim_path is None and no scene cameras found; "
-                "streaming view will be empty until a camera is added.",
+                "streaming view will be empty. Add a TiledCamera sensor or set "
+                "streaming_cam_target_prim_path to enable the streaming panel.",
                 type(self).__name__,
             )
             return
