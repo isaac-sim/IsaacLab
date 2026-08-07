@@ -81,7 +81,7 @@ def _make_env(visualizers=(), sensors: dict | None = None):
     [
         ("visualizer", ("visualizer", "", "")),
         ("visualizer:kit", ("visualizer", "kit", "")),
-        ("visualizer:newton:tiled", ("visualizer", "newton", "tiled")),
+        ("visualizer:newton:streaming_view", ("visualizer", "newton", "streaming_view")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
         ("  visualizer:kit  ", ("visualizer", "kit", "")),
     ],
@@ -237,6 +237,15 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
     assert any("source='visualizer:newton'" in r.message for r in caplog.records)
     # The recorder attempts capture rather than short-circuiting.
     assert kit_viz.render_calls == 1
+
+
+def test_visualizer_newton_alias_resolves_newton_gl():
+    """source='visualizer:newton' should match a visualizer with visualizer_type='newton_gl'."""
+    viz = _FakeViz("newton_gl")
+    recorder = VideoRecorder(_cfg(source="visualizer:newton"), _make_env(visualizers=[viz]))
+    frame = recorder._get_frame()
+    assert viz.render_calls == 1
+    assert frame is not None
 
 
 # ---------------------------------------------------------------------------

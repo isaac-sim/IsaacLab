@@ -29,6 +29,7 @@ from isaaclab_rl.entrypoints.common import (
     add_frontend_args,
     apply_video_recording,
     create_isaaclab_env,
+    pre_launch_video_config,
     resolve_checkpoint_selector,
     resolve_play_task_name,
 )
@@ -97,6 +98,7 @@ sys.argv = [sys.argv[0]] + hydra_args
 def main():
     """Play with RL-Games agent."""
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
+    pre_launch_video_config(env_cfg, args_cli=args_cli)
     with launch_simulation(env_cfg, args_cli):
         task_name = args_cli.task.split(":")[-1]
         train_task_name = task_name.replace("-Play", "")

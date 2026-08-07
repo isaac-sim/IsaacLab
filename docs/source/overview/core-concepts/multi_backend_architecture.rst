@@ -308,6 +308,12 @@ that all backends must provide. Current backend implementations use ``wp.array``
 Data classes follow the same pattern with their own factories (e.g.,
 ``ArticulationData(FactoryBase, BaseArticulationData)``).
 
+These base interfaces define the portable contract. Advanced code can also use
+each engine's native low-level data API, but those APIs deliberately retain
+different ownership and synchronization semantics. See
+:doc:`physical-backends/direct-api-access/index` for PhysX typed views, Newton
+live model/state arrays and generic selections, and OvPhysX tensor bindings.
+
 Adding a New Physics Backend
 ----------------------------
 

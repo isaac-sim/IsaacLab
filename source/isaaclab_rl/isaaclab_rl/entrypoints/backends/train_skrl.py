@@ -28,6 +28,7 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    pre_launch_video_config,
     preserve_attribute,
     resolve_checkpoint_selector,
     set_hydra_args,
@@ -135,6 +136,7 @@ def _run(args_cli: argparse.Namespace) -> None:
     agent_cfg_entry_point, algorithm = _resolve_agent_entry_point(args_cli)
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
 
+    pre_launch_video_config(env_cfg, args_cli=args_cli)
     with launch_simulation(env_cfg, args_cli):
         if args_cli.ml_framework.startswith("torch"):
             from skrl.utils.runner.torch import Runner
