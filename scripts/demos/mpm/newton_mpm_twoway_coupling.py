@@ -36,11 +36,11 @@ args_cli = parser.parse_args()
 
 FPS = 100.0
 GRAVITY = (0.0, 0.0, -9.81)
-PARTICLES_PER_CELL = 3.0
+PARTICLES_PER_CELL = 2.0
 PARTICLE_COLOR = (0.7, 0.6, 0.4)
 SPHERE_BODY_PATTERN = r"/World/envs/env_.*/Sphere_[0-9]+"
 SPHERE_RADIUS = 0.30
-SPHERE_MASS = 150.0
+SPHERE_MASS = 450.0
 SPHERE_POSITIONS = ((-0.90, 0.25, 1.10), (0.0, -0.30, 1.10), (0.90, 0.30, 1.10))
 
 BATH_INTERIOR_SIZE = (3.6, 2.6)
@@ -134,7 +134,7 @@ def create_scene_cfg():
             prim_path=prim_path,
             spawn=sim_utils.CuboidCfg(
                 size=size,
-                collision_props=sim_utils.CollisionPropertiesCfg(),
+                collision_props=sim_utils.NewtonCollisionPropertiesCfg(contact_margin=0.04),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.6,
                     dynamic_friction=0.6,
