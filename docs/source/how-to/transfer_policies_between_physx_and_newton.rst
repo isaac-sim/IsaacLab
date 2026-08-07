@@ -102,6 +102,69 @@ Zero stiffness and damping are what disable the second PD drive; the follower re
 articulation so the mimic constraint can move it.
 
 
+Articulation joint and body ordering
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PhysX and MJWarp traverse the same USD articulation differently, so the joint and body axes of
+their state and command tensors are permutations of each other for any robot whose kinematic tree
+branches. A checkpoint stores no names -- only column positions -- so replaying it in the other
+backend without correction silently feeds each joint's observation to a different joint's action.
+
+Set both ordering fields on the robot to the convention the **source** checkpoint was trained
+under. ``physics=`` still selects the target backend:
+
+.. code-block:: bash
+
+   # PN: a PhysX-trained checkpoint replayed in Newton.
+   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
+       --checkpoint /path/to/physx_checkpoint.pt physics=newton_mjwarp \
+       env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx
+
+   # NP: a Newton-trained checkpoint replayed in PhysX.
+   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
+       --checkpoint /path/to/newton_checkpoint.pt physics=isaacsim_physx \
+       env.scene.robot.joint_ordering=mjwarp env.scene.robot.body_ordering=mjwarp
+
+.. warning::
+   Set **both** fields. Setting only ``joint_ordering`` leaves bodies in backend order, which
+   mismatches any checkpoint whose observations use body-indexed quantities.
+
+Whether the override is needed depends on the robot's topology, so check each task rather than
+assuming. Serial chains agree between the backends; branched robots do not:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 22 48
+
+   * - Task
+     - Override needed
+     - Native order
+   * - ``Isaac-Lift-Franka``
+     - No
+     - Identical joint and body order in both backends.
+   * - ``Isaac-Velocity-Rough-G1``
+     - Yes
+     - PhysX groups by tree depth; MJWarp emits each limb depth-first.
+   * - ``Isaac-Velocity-Rough-AnymalD``
+     - Yes
+     - PhysX yields ``LF_HAA, LH_HAA, RF_HAA, ...``; MJWarp yields
+       ``LF_HAA, LF_HFE, LF_KFE, ...``.
+
+To confirm the resolved axes, compare
+:attr:`~isaaclab.assets.Articulation.joint_names` with
+:attr:`~isaaclab.assets.Articulation.backend_joint_names` (and the body equivalents) after the
+environment starts. An override that already matches the backend's native order is normalized to
+the zero-conversion identity, so it costs nothing where it is unnecessary. See
+:doc:`/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer` for the full
+ordering contract, the accepted convention values, and the conversion cost.
+
+A scrambled axis has a distinctive signature: a locomotion policy falls within a few dozen steps
+in every environment rather than degrading gracefully. Rule ordering out before attributing such a
+collapse to contacts, friction, or actuator response -- once the axes agree, the transferred
+policy should survive on a timescale comparable to its source baseline, and whatever gap remains
+is solver dynamics.
+
+
 Transferring control behavior
 -----------------------------
 
@@ -217,7 +280,8 @@ The exact entry point can vary by RL library. With the unified Isaac Lab entry p
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /path/to/physx_checkpoint.pt physics=newton_mjwarp
+       --checkpoint /path/to/physx_checkpoint.pt physics=newton_mjwarp \
+       env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx
 
 **2. Train in Newton:**
 
@@ -237,7 +301,11 @@ The exact entry point can vary by RL library. With the unified Isaac Lab entry p
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /path/to/newton_checkpoint.pt physics=isaacsim_physx
+       --checkpoint /path/to/newton_checkpoint.pt physics=isaacsim_physx \
+       env.scene.robot.joint_ordering=mjwarp env.scene.robot.body_ordering=mjwarp
+
+Drop the two ordering overrides when the task's joint and body order already agrees across
+backends; see `Articulation joint and body ordering`_.
 
 
 Validated transfer examples
@@ -254,7 +322,9 @@ independently.
       :sync: franka
 
       Task ``Isaac-Lift-Franka``. The play entry point applies ``play_mode`` overrides
-      automatically and disables gripper-closing-speed randomization.
+      automatically and disables gripper-closing-speed randomization. The Franka arm is a serial
+      chain whose joint and body order is identical in both backends, so the cross-backend
+      commands need no ordering override.
 
       **PhysX source**
 
@@ -335,7 +405,9 @@ independently.
       :sync: g1
 
       Task ``Isaac-Velocity-Rough-G1``. Rough-terrain velocity-tracking policy for the
-      Unitree G1 humanoid.
+      Unitree G1 humanoid. The G1's kinematic tree branches, so its joint and body order differs
+      between the backends and both cross-backend commands carry an ordering override naming the
+      source convention.
 
       **PhysX source**
 
@@ -372,7 +444,9 @@ independently.
              --task Isaac-Velocity-Rough-G1 \
              --num_envs 32 \
              --checkpoint "$PHYSX_CHECKPOINT" \
-             physics=newton_mjwarp
+             physics=newton_mjwarp \
+             env.scene.robot.joint_ordering=physx \
+             env.scene.robot.body_ordering=physx
 
       **Newton source**
 
@@ -409,13 +483,17 @@ independently.
              --task Isaac-Velocity-Rough-G1 \
              --num_envs 32 \
              --checkpoint "$NEWTON_CHECKPOINT" \
-             physics=isaacsim_physx
+             physics=isaacsim_physx \
+             env.scene.robot.joint_ordering=mjwarp \
+             env.scene.robot.body_ordering=mjwarp
 
    .. tab-item:: ANYmal D locomotion
       :sync: anymal-d
 
       Task ``Isaac-Velocity-Rough-AnymalD``. Rough-terrain velocity-tracking policy for the
-      ANYbotics ANYmal D quadruped.
+      ANYbotics ANYmal D quadruped. Its four legs branch from the base, so PhysX orders the
+      joints by tree depth while MJWarp emits one leg at a time; both cross-backend commands
+      carry an ordering override naming the source convention.
 
       **PhysX source**
 
@@ -452,7 +530,9 @@ independently.
              --task Isaac-Velocity-Rough-AnymalD \
              --num_envs 32 \
              --checkpoint "$PHYSX_CHECKPOINT" \
-             physics=newton_mjwarp
+             physics=newton_mjwarp \
+             env.scene.robot.joint_ordering=physx \
+             env.scene.robot.body_ordering=physx
 
       **Newton source**
 
@@ -489,7 +569,9 @@ independently.
              --task Isaac-Velocity-Rough-AnymalD \
              --num_envs 32 \
              --checkpoint "$NEWTON_CHECKPOINT" \
-             physics=isaacsim_physx
+             physics=isaacsim_physx \
+             env.scene.robot.joint_ordering=mjwarp \
+             env.scene.robot.body_ordering=mjwarp
 
 
 See also
@@ -497,5 +579,6 @@ See also
 
 * :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
 * :doc:`/source/features/hydra`
+* :doc:`/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer`
 * :doc:`/source/overview/core-concepts/physical-backends/newton/mjwarp-solver`
 * :doc:`/source/overview/core-concepts/physical-backends/newton/supported-features`
