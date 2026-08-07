@@ -1,6 +1,84 @@
 Changelog
 ---------
 
+0.13.0 (2026-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_rl.rsl_rl.RslRlBaseRunnerCfg.init_at_random_ep_len`
+  for configuring initial episode-length randomization.
+
+Changed
+^^^^^^^
+
+* Updated all play entrypoints (``play_rsl_rl``, ``play_sb3``, ``play_skrl``,
+  ``play_rl_games``) to use :func:`~isaaclab_rl.entrypoints.common.create_isaaclab_env`
+  instead of bare ``gym.make``, restoring warp frontend support and MARL-to-single-agent
+  conversion at play time (parity with the train entrypoints).
+
+* Replaced the ``gym.wrappers.RecordVideo`` wrapper approach with
+  :func:`~isaaclab_rl.entrypoints.common.apply_video_recording`, which injects a
+  :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` into the env config
+  before creation so recording is driven inside ``env.step()`` rather than via a wrapper.
+
+
+0.12.0 (2026-08-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added LEAPP policy export support for RL-Games, skrl, and
+  Stable-Baselines3.
+* Added the ``leapp`` optional dependency group for uv-based export and
+  deployment workflows.
+
+
+0.11.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the checkpoint-free playback workflows :func:`~isaaclab_rl.zero_agent` and
+  :func:`~isaaclab_rl.random_agent`, their :class:`~isaaclab_rl.SimpleAgentRequest`
+  parameters, and the :func:`~isaaclab_rl.run_zero_agent_cli` and
+  :func:`~isaaclab_rl.run_random_agent_cli` command-line dispatchers.
+* Added a ``--max_steps`` argument to the zero and random agents, bounding the number of
+  environment steps to run. The agents run unbounded when it is omitted.
+
+Changed
+^^^^^^^
+
+* Changed ``scripts/environments/zero_agent.py`` and ``scripts/environments/random_agent.py``
+  to thin delegates of the reusable entrypoints in :mod:`isaaclab_rl.entrypoints`. Their
+  command-line interface is unchanged.
+
+
+0.10.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed reusable reinforcement learning entrypoints to restore caller Torch and
+  SKRL backend settings after in-process training and playback.
+
+
+0.10.0 (2026-07-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_rl.rsl_rl.RslRlVecEnvWrapper.get_observations` to read the
+  environment-owned observation buffer instead of private environment methods. The
+  returned observations now match the latest reset/step returns, including observation
+  noise.
+
+
 0.9.0 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~
 

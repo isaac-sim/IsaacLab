@@ -23,10 +23,13 @@ from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
     apply_env_overrides,
+    apply_video_recording,
     configure_io_descriptors,
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    pre_launch_video_config,
+    preserve_attribute,
     resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,
@@ -99,7 +102,19 @@ def _get_distributed_rank(args_cli: argparse.Namespace) -> int:
 
 
 def run(argv: list[str]) -> None:
-    """Train a skrl agent."""
+    """Train a skrl agent while restoring the caller's global SKRL settings."""
+    import skrl
+
+    args_cli = _parse_args(argv)
+    with contextlib.ExitStack() as cleanup:
+        if args_cli.ml_framework.startswith("jax"):
+            cleanup.enter_context(preserve_attribute(skrl.config.jax, "backend"))
+            skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
+        _run(args_cli)
+
+
+def _run(args_cli: argparse.Namespace) -> None:
+    """Execute SKRL training with parsed arguments."""
     import skrl
 
     from isaaclab.app import launch_simulation
@@ -111,8 +126,6 @@ def run(argv: list[str]) -> None:
 
     from isaaclab_tasks.utils import resolve_task_config
 
-    args_cli = _parse_args(argv)
-
     if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
         skrl.logger.error(
             f"Unsupported skrl version: {skrl.__version__}. "
@@ -123,6 +136,7 @@ def run(argv: list[str]) -> None:
     agent_cfg_entry_point, algorithm = _resolve_agent_entry_point(args_cli)
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
 
+    pre_launch_video_config(env_cfg, args_cli=args_cli)
     with launch_simulation(env_cfg, args_cli):
         if args_cli.ml_framework.startswith("torch"):
             from skrl.utils.runner.torch import Runner
@@ -138,9 +152,6 @@ def run(argv: list[str]) -> None:
         if args_cli.max_iterations:
             agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]
         agent_cfg["trainer"]["close_environment_at_exit"] = False
-
-        if args_cli.ml_framework.startswith("jax"):
-            skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
         if args_cli.seed == -1:
             args_cli.seed = random.randint(0, 10000)
@@ -191,6 +202,7 @@ def run(argv: list[str]) -> None:
 
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = log_dir
+        apply_video_recording(env_cfg, log_dir, args_cli)
 
         env = create_isaaclab_env(
             args_cli.task,

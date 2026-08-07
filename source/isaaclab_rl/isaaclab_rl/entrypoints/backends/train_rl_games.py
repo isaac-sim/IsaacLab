@@ -24,10 +24,12 @@ from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
     apply_env_overrides,
+    apply_video_recording,
     configure_io_descriptors,
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    pre_launch_video_config,
     resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,
@@ -92,6 +94,7 @@ def run(argv: list[str]) -> None:
     args_cli = _parse_args(argv)
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
 
+    pre_launch_video_config(env_cfg, args_cli=args_cli)
     with launch_simulation(env_cfg, args_cli):
         apply_env_overrides(args_cli, env_cfg)
         validate_distributed_device(args_cli)
@@ -168,6 +171,7 @@ def run(argv: list[str]) -> None:
 
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = run_log_dir
+        apply_video_recording(env_cfg, run_log_dir, args_cli)
 
         env = create_isaaclab_env(
             args_cli.task,

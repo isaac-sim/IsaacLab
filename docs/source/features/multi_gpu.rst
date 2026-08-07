@@ -59,6 +59,43 @@ module to manage the distributed training. When training with multiple GPUs usin
 For a deeper dive into how Torchrun works, checkout
 `PyTorch Docs: DistributedDataParallel - Internal Design <https://pytorch.org/docs/stable/notes/ddp.html#internal-design>`_.
 
+Console Output From Multiple Ranks
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Because every rank executes the full training script, every rank also writes the same startup banners,
+simulation warnings, and model summaries. Without filtering, that output is repeated once per GPU, which
+makes an eight-GPU log nearly unreadable.
+
+``train_multigpu`` therefore restricts console output to local rank 0 by default, by passing torchrun's
+``--local_ranks_filter``. Per-iteration training metrics are already reported by global rank 0 alone, so
+the filtered log contains the same information with none of the repetition. Because the filter is applied
+per node, a multi-node launch shows one copy of the startup output per node rather than one in total.
+
+Failures are still reported. ``train.py`` wraps its entry point in
+`torch.distributed.elastic record <https://pytorch.org/docs/stable/elastic/errors.html>`_, so when any
+rank crashes, torchrun names the failing rank and prints its traceback as the root cause, even though
+that rank's console output is otherwise hidden.
+
+To see the raw output from every rank, for example when ranks disagree about the environment they built:
+
+.. code-block:: shell
+
+    uv run isaaclab train_multigpu --rl_library rsl_rl --task Isaac-Cartpole --log_all_ranks
+
+To keep every rank's output while still reading a clean console, write per-rank log files instead:
+
+.. code-block:: shell
+
+    uv run isaaclab train_multigpu --rl_library rsl_rl --task Isaac-Cartpole --tee 3 --log_dir /tmp/ranklogs
+
+This writes ``stdout.log`` and ``stderr.log`` per rank under ``--log_dir`` while the console still shows
+only local rank 0.
+
+.. note::
+
+    This applies to the torchrun path. skrl with ``--ml_framework jax`` uses skrl's own launcher, which
+    does not support rank filtering, so all ranks write to the console.
+
 Jax Implementation
 ^^^^^^^^^^^^^^^^^^
 
@@ -146,10 +183,36 @@ If the issue persists, additional NCCL fallbacks that may help are:
     export NCCL_IB_DISABLE=1
     export NCCL_ALGO=Ring
 
-Separately, restricting training to a subset of a node's GPUs with ``CUDA_VISIBLE_DEVICES``
-(for example, ``CUDA_VISIBLE_DEVICES=0,1`` on a larger machine) can cause training to hang during
-communicator initialization or on the first collective, with no error reported. On affected
-systems, disabling NCCL's peer-to-peer (P2P) transport resolves the hang:
+On some multi-GPU systems, distributed training with RTX rendering enabled (for example,
+camera-based tasks) fails when the participating GPUs span
+multiple NUMA nodes, while the same training runs fine on GPUs attached to a single PCIe
+switch. The failure typically surfaces as a hang or abort on one of the first collectives,
+with ``Watchdog caught collective operation timeout: WorkNCCL(..., OpType=BROADCAST, ...)``
+or ``OpType=ALLREDUCE`` reported by ``ProcessGroupNCCL``, and does not occur when rendering
+is disabled. On affected systems, disabling NCCL's cuMem host-memory allocations resolves
+the failure:
+
+.. code-block:: shell
+
+    export NCCL_CUMEM_HOST_ENABLE=0
+
+If the failure persists, disable NCCL's CUDA virtual-memory-management allocator entirely:
+
+.. code-block:: shell
+
+    export NCCL_CUMEM_ENABLE=0
+
+Separately, on systems where the GPUs are connected over PCIe without NVLink (check with
+``nvidia-smi topo -m``; affected systems show only ``PHB``, ``NODE``, or ``SYS`` links and no
+``NV#`` links), training can hang during communicator initialization or on the first collective,
+with no error reported and the participating GPUs spinning at 100% utilization. This is most
+commonly seen with a **world size of 2**, because NCCL selects a direct peer-to-peer (P2P)
+transport for a two-rank communicator; the same job often runs fine at three or more ranks, which
+can make the failure look intermittent or task-specific.
+
+A two-rank world size arises both from ``--num_gpus 2`` (or ``--nproc_per_node=2``) on a larger
+machine and from restricting visible devices with ``CUDA_VISIBLE_DEVICES=0,1``. On affected
+systems, disabling NCCL's P2P transport resolves the hang:
 
 .. code-block:: shell
 
@@ -157,13 +220,40 @@ systems, disabling NCCL's peer-to-peer (P2P) transport resolves the hang:
 
 Then relaunch the distributed training command as usual.
 
+To confirm the problem is NCCL rather than Isaac Lab, reproduce it without Isaac Lab in the loop.
+Save the following as ``nccl_probe.py``:
+
+.. code-block:: python
+
+    import os, torch, torch.distributed as dist
+
+    local_rank = int(os.environ["LOCAL_RANK"])
+    torch.cuda.set_device(local_rank)
+    dist.init_process_group("nccl")
+    tensor = torch.ones(1024, device=f"cuda:{local_rank}")
+    dist.all_reduce(tensor)
+    torch.cuda.synchronize()
+    print(f"rank {dist.get_rank()} ok", flush=True)
+    dist.destroy_process_group()
+
+Then run it at the world size that hangs, and at a larger one:
+
+.. code-block:: shell
+
+    python -m torch.distributed.run --nproc_per_node 2 nccl_probe.py
+    python -m torch.distributed.run --nproc_per_node 4 nccl_probe.py
+
+If the probe hangs, the problem is in NCCL or the system topology, not in Isaac Lab or the RL
+library. Re-run the hanging case with ``NCCL_P2P_DISABLE=1`` to confirm the workaround before
+applying it to training.
+
 .. note::
 
     These variables are NCCL-level workarounds intended for affected systems. They are not
     required on all machines, and may change communication behavior or performance depending
     on the hardware topology. In particular, ``NCCL_P2P_DISABLE=1`` routes inter-GPU traffic
     through host/shared memory instead of a direct P2P link, which can reduce communication
-    bandwidth, so only set it when you observe a hang while restricting visible devices.
+    bandwidth, so only set it after confirming it resolves an observed hang.
 
 Multi-Node Training
 -------------------

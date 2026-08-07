@@ -16,7 +16,8 @@ import re
 import runpy
 import sys
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
@@ -36,6 +37,58 @@ RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 logger = logging.getLogger(__name__)
+_MISSING = object()
+
+
+@contextmanager
+def preserve_attribute(target: object, name: str) -> Iterator[None]:
+    """Restore an attribute after a scoped operation.
+
+    The attribute is deleted on exit when it did not exist before entering the
+    context.
+
+    Args:
+        target: Object containing the attribute.
+        name: Name of the attribute to restore.
+    """
+    previous = getattr(target, name, _MISSING)
+    try:
+        yield
+    finally:
+        if previous is _MISSING:
+            if hasattr(target, name):
+                delattr(target, name)
+        else:
+            setattr(target, name, previous)
+
+
+@contextmanager
+def scoped_torch_backend_flags(
+    *,
+    cuda_matmul_allow_tf32: bool,
+    cudnn_allow_tf32: bool,
+    cudnn_deterministic: bool,
+    cudnn_benchmark: bool,
+) -> Iterator[None]:
+    """Temporarily configure Torch backend flags.
+
+    Args:
+        cuda_matmul_allow_tf32: Whether CUDA matrix multiplication may use TF32.
+        cudnn_allow_tf32: Whether cuDNN may use TF32.
+        cudnn_deterministic: Whether cuDNN uses deterministic algorithms.
+        cudnn_benchmark: Whether cuDNN benchmarks convolution algorithms.
+    """
+    settings = (
+        (torch.backends.cuda.matmul, "allow_tf32", cuda_matmul_allow_tf32),
+        (torch.backends.cudnn, "allow_tf32", cudnn_allow_tf32),
+        (torch.backends.cudnn, "deterministic", cudnn_deterministic),
+        (torch.backends.cudnn, "benchmark", cudnn_benchmark),
+    )
+    with ExitStack() as cleanup:
+        for target, name, value in settings:
+            cleanup.enter_context(preserve_attribute(target, name))
+            setattr(target, name, value)
+        yield
 
 
 class CaptureEnvSensors(gym.Wrapper):
@@ -310,9 +363,17 @@ def add_common_train_args(
         max_iterations_type: Converter and validator for ``--max_iterations``.
     """
     parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
-    parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
     parser.add_argument(
-        "--video_interval", type=int, default=2000, help="Interval between video recordings (in steps)."
+        "--video_length",
+        type=int,
+        default=None,
+        help="Length of each recorded video clip in env steps. Overrides the value in VideoRecorderCfg.",
+    )
+    parser.add_argument(
+        "--video_interval",
+        type=int,
+        default=None,
+        help="Interval between video clips in env steps. Overrides the value in VideoRecorderCfg.",
     )
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -467,15 +528,14 @@ def create_isaaclab_env(
     Returns:
         The created Gymnasium environment.
     """
-    render_mode = "rgb_array" if args_cli.video else None
     if args_cli.frontend == "torch":
-        env = gym.make(task, cfg=env_cfg, render_mode=render_mode)
+        env = gym.make(task, cfg=env_cfg)
     else:
         # Imported lazily: the warp frontend lives in the optional
         # isaaclab_experimental package, and the torch path must work without it.
         from isaaclab_experimental.envs.frontend import WarpFrontend
 
-        env = WarpFrontend.build_env(env_cfg, task, render_mode=render_mode)
+        env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
         from isaaclab.envs import multi_agent_to_single_agent
 
@@ -510,34 +570,272 @@ def wrap_sensor_capture(env: gym.Env, log_dir: str, args_cli: argparse.Namespace
     return CaptureEnvSensors(env, **sensor_capture_kwargs)
 
 
-def wrap_record_video(env, log_dir: str, args_cli: argparse.Namespace):
-    """Wrap an environment with video recording when requested.
+def pre_launch_video_config(env_cfg: Any, log_dir: str | None = None, args_cli: Any = None) -> None:
+    """Pre-inject a recording visualizer into env_cfg before launch_simulation().
+
+    Must be called BEFORE :func:`~isaaclab.app.AppLauncher.launch_simulation` so the
+    launcher can include the Kit runtime requirement in its backend scan.
+
+    Only acts when:
+
+    * ``--video`` is set,
+    * no ``video_recorders`` are pre-configured,
+    * no explicit ``--viz`` was passed (or only ``"none"`` entries were passed),
+    * no concrete visualizer is already in ``sim.visualizer_cfgs``, and
+    * ``--viz none`` was not passed.
 
     Args:
-        env: Gymnasium environment to wrap.
-        log_dir: Training log directory.
+        env_cfg: Isaac Lab environment config to modify in-place.
+        log_dir: Unused; kept for API symmetry with :func:`apply_video_recording`.
         args_cli: Parsed command-line arguments.
-
-    Returns:
-        The original or video-wrapped environment.
     """
-    if not args_cli.video:
-        return env
+    if not getattr(args_cli, "video", False):
+        return
 
-    video_kwargs = {
-        "video_folder": os.path.join(log_dir, "videos", "train"),
-        "step_trigger": lambda step: step % args_cli.video_interval == 0,
-        "video_length": args_cli.video_length,
-        "disable_logger": True,
-    }
-    print("[INFO] Recording videos during training.")
-    print_dict(video_kwargs, nesting=4)
-    return gym.wrappers.RecordVideo(env, **video_kwargs)
+    existing: list = getattr(env_cfg, "video_recorders", []) or []
+    if existing:
+        return
+
+    cli_visualizers: list[str] = getattr(args_cli, "visualizer", None) or []
+    if isinstance(cli_visualizers, str):
+        cli_visualizers = [cli_visualizers]
+    active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
+    if active_cli_visualizers:
+        # User already chose a visualizer; apply_video_recording() will wire the source.
+        return
+
+    sim_cfg = getattr(env_cfg, "sim", None)
+    if sim_cfg is None:
+        return
+
+    existing_viz_cfg = getattr(sim_cfg, "default_visualizer_cfg", None)
+    existing_viz_cfgs = getattr(sim_cfg, "visualizer_cfgs", []) or []
+    has_concrete_visualizer = any(getattr(c, "visualizer_type", None) is not None for c in existing_viz_cfgs) or (
+        existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None
+    )
+    if has_concrete_visualizer:
+        return
+
+    if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
+        sim_cfg.visualizer_cfgs = []
+
+    try:
+        from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+
+        sim_cfg.visualizer_cfgs.append(_KitCfg(headless=True))
+        print(
+            "[INFO] pre_launch_video_config: pre-injecting a headless Kit visualizer so the launcher "
+            "includes the Kit runtime. Pass --viz <type> to choose a different visualizer."
+        )
+    except (ImportError, ModuleNotFoundError):
+        pass
+
+
+def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespace, *, subdir: str = "train") -> None:
+    """Configure internal video recording on the environment config.
+
+    Enables recording by ensuring ``env_cfg.video_recorders`` is non-empty, then applies
+    any CLI overrides.  If the env config already declares recorders, those are kept as-is
+    (preserving user-set fields such as ``output_dir``, ``source``, and ``fps``); only the
+    fields explicitly controlled by CLI flags are overwritten.  If no recorders are declared,
+    a default one is created with ``source="visualizer"`` and
+    ``output_dir=<log_dir>/videos/<subdir>``.
+
+    Maps CLI flags:
+
+    * ``--video``            → enables recording
+    * ``--video_length``     → overrides :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_length`
+      on every recorder when explicitly passed (``None`` = use the cfg default)
+    * ``--video_interval``   → overrides :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.video_interval`
+      on every recorder when explicitly passed (``None`` = use the cfg default)
+
+    Args:
+        env_cfg: Isaac Lab environment config to modify in-place.
+        log_dir: Training or play log directory.  When no recorders are pre-configured,
+            a default :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` is
+            created and its ``output_dir`` is set to ``<log_dir>/videos/<subdir>``.
+        args_cli: Parsed command-line arguments.
+        subdir: Sub-directory name appended to ``<log_dir>/videos/`` for the fallback output
+            path.  Use ``"train"`` for training runs and ``"play"`` for evaluation.
+    """
+    if not getattr(args_cli, "video", False):
+        return
+
+    frontend = getattr(args_cli, "frontend", "torch") or "torch"
+    if frontend != "torch":
+        raise ValueError(
+            f"--video is not supported with --frontend {frontend!r}. "
+            "Video recording requires the standard torch frontend. "
+            "Remove --video or switch to --frontend torch."
+        )
+
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    existing: list = getattr(env_cfg, "video_recorders", []) or []
+    if not existing:
+        # No recorders pre-configured: create a default Kit-viewport recorder, mirroring the
+        # historical --video behaviour (record immediately, then every 2 000 steps).
+        # If the user did not pass --viz, we auto-create a headless Kit visualizer exactly as
+        # teleop and other headless-capable modes do — cameras are enabled by
+        # enable_cameras_for_video() before launch_simulation() is called.
+        sim_cfg = getattr(env_cfg, "sim", None)
+        visualizer_source = "visualizer"  # fallback when no specific backend is available
+
+        # Check whether the user explicitly requested a visualizer via --viz.  If so,
+        # that visualizer will be created by the launcher and we should record from it
+        # without injecting a second one.
+        cli_visualizers: list[str] = getattr(args_cli, "visualizer", None) or []
+        if isinstance(cli_visualizers, str):
+            cli_visualizers = [cli_visualizers]
+
+        # Reject the explicit --viz none --video combination: "none" disables all visualizers,
+        # so there is nothing to record from.  The user must either remove --viz none, pick a
+        # capture-capable visualizer type, or configure video_recorders in the env cfg to use
+        # a sensor source instead.
+        # NOTE: _parse_visualizer_csv("none") returns None (not ["none"]), so cli_visualizers
+        # is [] even when --viz none was passed.  Use the ExplicitAction sentinel instead.
+        viz_explicitly_none = (
+            getattr(args_cli, "visualizer_explicit", False) and getattr(args_cli, "visualizer", "not_none") is None
+        )
+        if viz_explicitly_none:
+            raise ValueError(
+                "--video is not compatible with --viz none: there is no active visualizer to record from. "
+                "Remove --viz none so that video recording can auto-create a visualizer, "
+                "pass --viz kit (or another capture-capable type), "
+                "or add VideoRecorderCfg(source='sensor:<name>') to your env config."
+            )
+
+        # Filter out "none" entries — "none" disables all visualizers, so treat it the
+        # same as "no visualizer specified" for the purpose of picking a recorder source.
+        active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
+
+        # Streaming visualizers (rerun, viser) and the RTX path-tracer (newton_rtx) do not
+        # expose a local frame-capture API and cannot serve as video recording sources.
+        _NO_CAPTURE = {"newton_rtx", "rerun", "viser"}
+
+        if active_cli_visualizers:
+            # Partition into capture-capable and no-capture lists.
+            capture_capable = [v for v in active_cli_visualizers if v not in _NO_CAPTURE]
+            no_capture = [v for v in active_cli_visualizers if v in _NO_CAPTURE]
+
+            if no_capture and not capture_capable:
+                names = " and ".join(repr(v) for v in no_capture)
+                example_cfg = {
+                    "rerun": "RerunVisualizerCfg",
+                    "viser": "ViserVisualizerCfg",
+                    "newton_rtx": "NewtonRTXVisualizerCfg",
+                }.get(no_capture[0], f"{no_capture[0].title()}VisualizerCfg")
+                raise ValueError(
+                    f"--video is not supported with --viz {names}: {names} "
+                    f"{'is a streaming visualizer' if len(no_capture) == 1 else 'are streaming visualizers'} "
+                    "and do not expose a local frame-capture API.\n\n"
+                    "Supported recording backends (both support headless mode for zero UI overhead):\n"
+                    "  --viz kit        Kit/Omniverse viewport\n"
+                    "  --viz newton_gl  Newton OpenGL viewport\n\n"
+                    f"To run {names} alongside video recording, add a headless capture backend\n"
+                    "to sim.visualizer_cfgs in your environment config, for example:\n\n"
+                    f"  sim_cfg.visualizer_cfgs = [\n"
+                    f"      {example_cfg}(...),\n"
+                    f"      KitVisualizerCfg(headless=True),   # provides frames for --video\n"
+                    f"  ]\n\n"
+                    "Frames can also be captured from a scene camera sensor without any visualizer:\n"
+                    "  VideoRecorderCfg(source='sensor:<name>')   # add to env_cfg.video_recorders\n\n"
+                    "See: https://isaac-sim.github.io/IsaacLab/main/source/how-to/record_video.html"
+                )
+
+            # Use the first capture-capable visualizer as the recording source.
+            visualizer_source = f"visualizer:{capture_capable[0]}"
+        else:
+            # No --viz: determine whether a concrete visualizer is already configured in
+            # the env cfg.  A base VisualizerCfg with visualizer_type=None is a hint-only
+            # placeholder that cannot create a real visualizer; treat it as "not configured".
+            existing_viz_cfg = getattr(sim_cfg, "default_visualizer_cfg", None) if sim_cfg is not None else None
+            existing_viz_cfgs = getattr(sim_cfg, "visualizer_cfgs", []) if sim_cfg is not None else []
+            has_concrete_visualizer = bool(existing_viz_cfgs) or (
+                existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None
+            )
+
+            if sim_cfg is not None and not has_concrete_visualizer:
+                # Inject a headless Kit visualizer so there is something to record from.
+                # pre_launch_video_config() already injected one before launch_simulation()
+                # so this branch is normally not reached; it handles edge cases where that
+                # pre-launch hook was skipped or failed (e.g. isaaclab_visualizers not installed).
+                if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
+                    sim_cfg.visualizer_cfgs = []
+                try:
+                    from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+
+                    sim_cfg.visualizer_cfgs.append(_KitCfg(headless=True))
+                    visualizer_source = "visualizer:kit"
+                    print(
+                        "[INFO] --video specified without --viz: auto-creating a headless Kit visualizer "
+                        "for video recording. Pass --viz <type> to choose a different visualizer, or "
+                        "set video_recorders in your env config to record from a scene sensor instead."
+                    )
+                except (ImportError, ModuleNotFoundError):
+                    pass
+            elif has_concrete_visualizer:
+                # A concrete visualizer is already configured in the env cfg: record from it.
+                # Prefer capture-capable types (kit, newton_gl) over streaming-only ones.
+                all_viz_cfgs = list(existing_viz_cfgs or [])
+                if existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None:
+                    all_viz_cfgs.append(existing_viz_cfg)
+                # Two-pass: capture-capable first, then fall back to whatever is present.
+                for vcfg in sorted(all_viz_cfgs, key=lambda c: getattr(c, "visualizer_type", None) in _NO_CAPTURE):
+                    vtype = getattr(vcfg, "visualizer_type", None)
+                    if vtype:
+                        visualizer_source = f"visualizer:{vtype}"
+                        break
+        env_cfg.video_recorders = [VideoRecorderCfg(source=visualizer_source, video_interval=2000)]
+
+    fallback_output_dir = os.path.join(log_dir, "videos", subdir)
+    video_length = getattr(args_cli, "video_length", None)
+    video_interval = getattr(args_cli, "video_interval", None)
+    for cfg in env_cfg.video_recorders:
+        # Fill in output_dir only when the user left it unset (None = use log_dir).
+        if cfg.output_dir is None:
+            cfg.output_dir = fallback_output_dir
+        if video_length is not None:
+            cfg.video_length = video_length
+        if video_interval is not None:
+            cfg.video_interval = video_interval
+
+    print("[INFO] Video recording enabled.")
+    for cfg in env_cfg.video_recorders:
+        print_dict(
+            {
+                "source": cfg.source,
+                "output_dir": cfg.output_dir,
+                "video_length": cfg.video_length,
+                "video_interval": cfg.video_interval,
+            },
+            nesting=4,
+        )
+
+
+def wrap_record_video(env, log_dir: str, args_cli: argparse.Namespace):
+    """No-op stub kept for backwards compatibility.
+
+    Video recording is now configured before env creation via
+    :func:`apply_video_recording`.  Calling this function after env
+    creation has no effect.
+    """
+    if getattr(args_cli, "video", False):
+        import logging as _logging
+
+        _logging.getLogger(__name__).warning(
+            "wrap_record_video() is no longer functional — recording is now driven inside env.step(). "
+            "Call apply_video_recording(env_cfg, log_dir, args_cli) before creating the environment."
+        )
+    return env
 
 
 def wrap_training_capture(env: gym.Env, log_dir: str, args_cli: argparse.Namespace) -> gym.Env:
-    """Apply optional video and sensor capture wrappers for training."""
-    env = wrap_record_video(env, log_dir, args_cli)
+    """Apply optional sensor capture wrappers for training.
+
+    Video recording is no longer applied here — it is configured before env creation
+    via :func:`apply_video_recording`.
+    """
     env = wrap_sensor_capture(env, log_dir, args_cli)
     return env
 

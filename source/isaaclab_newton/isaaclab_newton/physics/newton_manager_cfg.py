@@ -169,11 +169,13 @@ class NewtonCfg(PhysicsCfg):
     :class:`NewtonShapeCfg` for the declared fields.
     """
 
-    simplify_meshes: bool = True
-    """Whether Newton replication simplifies mesh colliders to convex hulls.
+    load_visual_shapes: bool | None = None
+    """Whether Newton replication imports visual-only geometry from USD.
 
-    Keep this enabled for most rigid-body scenes. Disable it when exact triangle
-    meshes are intentional, for example thin or hollow MPM colliders.
+    ``None`` imports it only when a viewer, an offscreen ``rgb_array`` capture, or a
+    camera sensor is active, so headless training does not pay the USD parse time and
+    memory for shapes nothing draws. Set to ``True`` to always import it, which is
+    needed when a ray-cast sensor must hit geometry that carries no collider.
     """
 
     bvh_constructor_geometry: Literal["lbvh", "sah", "cubql"] = "cubql"

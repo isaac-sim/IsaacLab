@@ -95,6 +95,15 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--local_ranks_filter", default=None, help="Only show logs from the listed local ranks.")
     parser.add_argument("--log_dir", default=None, help="Directory used by torchrun for worker logs.")
     parser.add_argument(
+        "--log_all_ranks",
+        action="store_true",
+        help=(
+            "Show console output from every rank. By default only local rank 0 on each node is shown, because "
+            "each rank otherwise repeats the same startup, warning, and model-summary output. Tracebacks from "
+            "failing ranks are reported either way."
+        ),
+    )
+    parser.add_argument(
         "--dry_run", action="store_true", help="Print the distributed launcher command without running it."
     )
 
@@ -245,6 +254,14 @@ def _build_torchrun_command(args_cli: argparse.Namespace, train_args: list[str])
         "log_dir",
     ):
         _append_optional_launcher_arg(command, args_cli, name)
+
+    # Every rank writes the same startup, warning, and model-summary output, so an unfiltered console
+    # repeats it once per GPU. Restrict it to local rank 0 unless the caller opted out or set an
+    # explicit filter. Note this is torchrun's local-rank filter, so a multi-node job still prints one
+    # copy per node. Failures still surface: torchrun names the failing rank and reports the traceback
+    # that ``record`` captures in train.py.
+    if not args_cli.log_all_ranks and args_cli.local_ranks_filter is None:
+        command.extend(["--local_ranks_filter", "0"])
 
     command.extend(
         [

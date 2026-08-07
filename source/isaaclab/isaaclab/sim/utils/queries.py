@@ -12,6 +12,7 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from isaaclab import cloner
 from isaaclab.sim.simulation_context import SimulationContext
 
 from .stage import get_current_stage
@@ -417,9 +418,7 @@ def resolve_matching_prims_from_source(
         RuntimeError: If no prim matches ``path_expr`` and ``raise_if_no_matches`` is True.
     """
     plan = SimulationContext.instance().get_clone_plan()
-    from isaaclab.cloner.cloner_utils import resolve_clone_plan_source  # noqa: PLC0415
-
-    resolved = resolve_clone_plan_source(path_expr, plan) if plan is not None else None
+    resolved = cloner.query.path_to_source(plan, path_expr) if plan is not None else None
     if resolved is not None:
         source_path, dest_glob, asset_suffix = resolved
         walk_root = source_path + asset_suffix
@@ -576,7 +575,23 @@ def has_deformable_body_api(prim: Usd.Prim) -> bool:
         prim: The USD prim to check.
 
     Returns:
-        True if ``OmniPhysicsDeformableBodyAPI`` or ``PhysicsDeformableBodyAPI`` is applied.
+        True if a deformable body API is applied.
     """
     applied_schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
     return "OmniPhysicsDeformableBodyAPI" in applied_schemas or "PhysicsDeformableBodyAPI" in applied_schemas
+
+
+def has_deformable_curve_api(prim: Usd.Prim) -> bool:
+    """Check whether a deformable curve (cable) API schema is applied on the prim.
+
+    Uses :meth:`Usd.PrimTypeInfo.GetAppliedAPISchemas` so that token-authored schemas
+    (e.g. Newton's unregistered ``PhysicsCurvesDeformableSimAPI``) are detected in addition
+    to registered applied schemas.
+
+    Args:
+        prim: The USD prim to check.
+
+    Returns:
+        True if a deformable curve API is applied.
+    """
+    return "PhysicsCurvesDeformableSimAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas()

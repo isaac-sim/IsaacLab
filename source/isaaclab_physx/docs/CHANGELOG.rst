@@ -1,6 +1,151 @@
 Changelog
 ---------
 
+4.1.0 (2026-08-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``eye`` and ``lookat`` fields from the Kit perspective video recorder
+  config.  The Kit perspective recorder no longer repositions the viewport camera; camera
+  placement is the sole responsibility of :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.video_capture_backend` classmethod
+  (returns ``"kit"``). The headless video pump is now registered via
+  :meth:`~isaaclab.sim.SimulationContext.add_render_callback` in
+  :meth:`~isaaclab_physx.physics.PhysxManager.initialize` instead of the
+  deleted ``recording_hooks`` module.
+
+
+4.0.1 (2026-08-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed PhysX lifecycle ownership to preserve Isaac Sim's simulation manager
+  when its default callbacks can be disabled at startup while retaining the
+  compatibility takeover for older versions.
+
+
+4.0.0 (2026-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``PhysxDeformableCollisionPropertiesCfg`` and the ``contact_offset`` /
+  ``rest_offset`` fields it contributed to
+  :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyPropertiesCfg`. They were authored onto
+  the deformable body prim, but PhysX reads collision offsets off the collider, which for a
+  deformable is its simulation mesh, so the values never reached the solver and it fell back to
+  the PhysX defaults. Pass the offsets through the mesh spawner's ``collision_props`` instead, for
+  example ``collision_props=[PhysxCollisionCfg(rest_offset=0.0005, contact_offset=0.005)]``.
+
+
+3.1.5 (2026-08-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added deformable nodal position export on the PhysX SceneData backend so soft
+  bodies and cloth can drive Newton Warp / OVRTX shadow visualization.
+* Added the ``as_proxy`` return-mode option to PhysX asset finder methods.
+  ``as_proxy=False`` is the default and returns the legacy selector
+  representation, while ``as_proxy=True`` opts into cached
+  :class:`~isaaclab.utils.warp.ProxyArray` selectors. Pass their explicit
+  ``.warp`` or ``.torch`` views to downstream APIs.
+
+Changed
+^^^^^^^
+
+* Cached stable articulation and rigid asset read launches to reduce repeated
+  Warp launch setup on PhysX. No user migration is required.
+
+Fixed
+^^^^^
+
+* Fixed Isaac RTX renderer initialization in minimal Kit experiences by dynamically
+  enabling ``omni.replicator.core`` before importing it, avoiding startup resolution
+  of its bundled Warp dependency.
+* Fixed PhysX indexed articulation writes to accept signed 32-bit and 64-bit
+  environment and item selectors without Torch conversion tensors.
+* Fixed stale pose-, velocity-, and center-of-mass-derived rigid asset data
+  immediately after simulation state and property writes.
+* Fixed fixed and spatial tendon property writers to accept the selector
+  arguments advertised by the common articulation interface.
+* Fixed stale mass matrix and gravity compensation reads immediately after
+  mass, inertia, and armature writes.
+* Fixed dynamics reads for reversed USD joint relationships.
+
+
+3.1.4 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added structured summary and JSON output to PhysX sensor micro-benchmarks.
+* Added matched plane and deterministic rough-terrain phases to the ray caster
+  sensor micro-benchmark.
+
+Changed
+^^^^^^^
+
+* Changed the physx asset micro-benchmarks from separate method and data scripts
+  to one combined script per asset concept. Run the retained
+  benchmark_<asset>.py script to produce both historical result artifacts.
+
+Fixed
+^^^^^
+
+* Fixed articulation-data micro-benchmarks to use stable PhysX state, mass-property, and dynamics buffers.
+
+
+3.1.3 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cached stable articulation read launches to reduce repeated Warp launch setup on PhysX.
+  No user migration is required.
+
+
+3.1.2 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed full-articulation resets forwarding an unsupported slice to stateful
+  Isaac Lab actuators.
+
+
+3.1.1 (2026-07-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` in
+  :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`. When set, applies
+  ``/rtx/background/source/type = 2`` (Color) and ``/rtx/background/source/color`` via the
+  settings manager during camera setup.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` failing with
+  ``Annotator SimpleShadingSD is not attached to any render products`` when
+  multiple environments sequentially request ``simple_shading_*`` camera
+  outputs in the same Kit process. Each tiled render product is given a
+  unique UUID name, and the owned HydraTexture is destroyed on cleanup to
+  avoid leaking render products across env create/destroy cycles.
+
+
 3.1.0 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~
 

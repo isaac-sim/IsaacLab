@@ -17,6 +17,8 @@ from __future__ import annotations
 import argparse
 import atexit
 import contextlib
+import importlib.util
+import inspect
 import logging
 import os
 import re
@@ -24,9 +26,12 @@ import signal
 import sys
 from typing import Any, Literal
 
-with contextlib.suppress(ModuleNotFoundError):
+try:
     import isaacsim  # noqa: F401
-    from isaacsim import SimulationApp
+except ModuleNotFoundError:
+    isaacsim = None
+
+SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
@@ -150,16 +155,17 @@ class AppLauncher:
     @staticmethod
     def _parse_visualizer_csv(value: str) -> list[str] | None:
         """Parse visualizer list from a single comma-delimited CLI token."""
-        valid = {"kit", "newton", "rerun", "viser", "none"}
+        _deprecated_aliases = {"newton": "newton_gl"}
+        valid = {"kit", "newton_gl", "newton_rtx", "rerun", "viser", "none"} | set(_deprecated_aliases)
         token = (value or "").strip()
         if not token:
             raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton."
+                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton_gl."
             )
         if " " in token:
             raise argparse.ArgumentTypeError(
                 "Invalid --visualizer value: spaces are not allowed. "
-                "Use a comma-separated list without spaces, e.g. --viz kit,newton,rerun,viser."
+                "Use a comma-separated list without spaces, e.g. --viz kit,newton_gl,rerun,viser."
             )
 
         names = [item.strip().lower() for item in token.split(",")]
@@ -171,16 +177,32 @@ class AppLauncher:
         invalid = [name for name in names if name not in valid]
         if invalid:
             raise argparse.ArgumentTypeError(
-                f"Invalid --visualizer value(s): {', '.join(invalid)}. Valid options: {', '.join(sorted(valid))}."
+                f"Invalid --visualizer value(s): {', '.join(invalid)}. "
+                f"Valid options: {', '.join(sorted(valid - set(_deprecated_aliases)))}."
             )
-        if "none" in names:
-            if len(names) > 1:
+        # Resolve deprecated aliases with a warning.
+        resolved = []
+        for name in names:
+            if name in _deprecated_aliases:
+                canonical = _deprecated_aliases[name]
+                import warnings
+
+                warnings.warn(
+                    f"--viz '{name}' is deprecated. Use '--viz {canonical}' instead.",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
+                resolved.append(canonical)
+            else:
+                resolved.append(name)
+        if "none" in resolved:
+            if len(resolved) > 1:
                 raise argparse.ArgumentTypeError(
                     "Invalid --visualizer value: 'none' cannot be combined with other visualizer types."
                 )
             return None
         # De-duplicate while preserving order.
-        return list(dict.fromkeys(names))
+        return list(dict.fromkeys(resolved))
 
     @staticmethod
     def _normalize_visualizer_intent(intent: Any) -> tuple[bool, bool]:
@@ -239,6 +261,7 @@ class AppLauncher:
                 the :attr:`launcher_args` will raise a ValueError.
 
         Raises:
+            ImportError: If the full Isaac Sim runtime is unavailable.
             ValueError: If there are common/duplicated arguments between ``launcher_args`` and ``kwargs``.
             ValueError: If combination of ``launcher_args`` and ``kwargs`` are missing the necessary arguments
                 that are needed by the AppLauncher to resolve the desired app configuration.
@@ -248,6 +271,12 @@ class AppLauncher:
         .. _argparse.Namespace: https://docs.python.org/3/library/argparse.html?highlight=namespace#argparse.Namespace
         .. _SimulationApp: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp
         """
+        if not self.is_available():
+            raise ImportError(
+                "AppLauncher requires the full Isaac Sim runtime. Install Isaac Sim or avoid constructing "
+                "AppLauncher in a kitless process."
+            )
+
         # We allow users to pass either a dict or an argparse.Namespace into
         # __init__, anticipating that these will be all of the argparse arguments
         # used by the calling script. Those which we appended via add_app_launcher_args
@@ -334,30 +363,13 @@ class AppLauncher:
                 int(omni.timeline.TimelineEventType.PLAY), lambda e: self._hide_play_button(False)
             )
         )
-        # Signal to the CI test runner that Kit initialization is complete.
-        # stdout may be redirected to /dev/null during _create_app(), so we
-        # use __stderr__ which is never suppressed.
-        print("[ISAACLAB] AppLauncher initialization complete", file=sys.__stderr__, flush=True)
-
-        # Log Kit/runtime version information for diagnostics.
-        self._log_kit_version_info()
-
-        # Ensure SimulationApp.close() is called on normal process exit so Kit
-        # shuts down cleanly instead of relying on __del__ (which logs a warning
-        # and can leave GPU resources in a bad state for the next test).
-        def _atexit_close(app=self._app):
-            with contextlib.suppress(Exception):
-                app.close()
-
-        atexit.register(_atexit_close)
-
-        # Set up signal handlers for graceful shutdown
-        # -- during explicit `kill` commands
-        signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
-        # -- during aborts
-        signal.signal(signal.SIGABRT, self._abort_signal_handle_callback)
-        # -- during segfaults
-        signal.signal(signal.SIGSEGV, self._abort_signal_handle_callback)
+        # Report this process's lifecycle to whatever supervises it: the CI runner watches
+        # the startup announcements, and distributed launchers/schedulers/CI read the exit
+        # status. See the class docstring of :class:`_SimulationAppLifecycle` for the full
+        # exit-path policy and its rationale.
+        self._lifecycle = AppLauncher._SimulationAppLifecycle(self._app)
+        self._lifecycle.announce_startup()
+        self._lifecycle.install_exit_handlers()
 
     """
     Properties.
@@ -374,6 +386,26 @@ class AppLauncher:
     """
     Operations.
     """
+
+    @classmethod
+    def is_available(cls) -> bool:
+        """Return whether the full Isaac Sim runtime is importable, i.e. Kit can be launched.
+
+        This reports launchability, not running state: it is ``True`` in any process with a
+        full Isaac Sim installation, before and after Kit starts. Use
+        :func:`~isaaclab.utils.version.has_kit` to check whether Kit is currently running.
+        """
+        return SimulationApp is not None
+
+    @classmethod
+    def has_gui(cls) -> bool:
+        """Return whether the resolved app state has an interactive GUI.
+
+        ``True`` when the launch resolved to a local window, a livestream, or an XR session.
+        AppLauncher publishes this as the ``/isaaclab/has_gui`` setting during initialization,
+        so the value is ``False`` before any launcher has run in the process.
+        """
+        return bool(get_settings_manager().get("/isaaclab/has_gui"))
 
     @staticmethod
     def _fuse_kit_args(argv: list[str]) -> list[str]:
@@ -456,12 +488,15 @@ class AppLauncher:
           Valid options are:
 
           - ``rerun``: Use Rerun visualizer.
-          - ``newton``: Use Newton visualizer.
+          - ``newton_gl``: Use Newton GL visualizer.
+          - ``newton_rtx``: Use Newton RTX path-tracer visualizer (experimental).
           - ``viser``: Use Viser visualizer.
           - ``kit``: Use Omniverse Kit visualizer.
           - ``none``: Disable all visualizers explicitly.
           - Multiple visualizers can be specified as a comma-delimited list:
-            ``--viz rerun,newton,viser``.
+            ``--viz rerun,newton_gl,viser``.
+
+          .. deprecated:: Use ``newton_gl`` instead of ``newton``.
 
         * ``max_visible_envs`` (int | None): Optional global override for partial visualization by capping
           how many environments are shown in the visualizers.
@@ -492,11 +527,12 @@ class AppLauncher:
             parser._option_string_actions.pop("-h")
             parser._option_string_actions.pop("--help")
 
-        # Parse known args for potential name collisions/type mismatches
-        # between the config fields SimulationApp expects and the ArgParse
-        # arguments that the user passed.
-        known, _ = parser.parse_known_args()
-        config = vars(known)
+        # Collect the declared arguments for potential name collisions/type mismatches between the
+        # config fields SimulationApp expects and the ArgParse arguments that the user added. Read
+        # from the parser rather than by parsing the command line: parsing exits the process when a
+        # required argument is missing, which is the case for any script with required positionals
+        # invoked with '--help', and the launcher arguments would never reach the help output.
+        config = {action.dest: action.default for action in parser._actions if action.dest != argparse.SUPPRESS}
         if len(config) == 0:
             logger.warning(
                 "[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object."
@@ -665,6 +701,7 @@ class AppLauncher:
         "open_usd": [str, type(None)],
         "livesync_usd": [str, type(None)],
         "fast_shutdown": [bool],
+        "limit_cpu_threads": [int],
         "experience": [str],
     }
     """A dictionary containing the type of arguments passed to SimulationApp.
@@ -905,14 +942,33 @@ class AppLauncher:
         if visualizer_explicit and "none" in visualizer_types and len(visualizer_types) > 1:
             raise ValueError("Invalid '--visualizer' value: 'none' cannot be combined with other visualizer types.")
 
-        valid_visualizer_types = {"kit", "newton", "rerun", "viser", "none"}
+        _deprecated_viz_aliases = {"newton": "newton_gl"}
+        valid_visualizer_types = {"kit", "newton_gl", "newton_rtx", "rerun", "viser", "none"} | set(
+            _deprecated_viz_aliases
+        )
         # Secondary validation for the list path (kwargs); the string path is already validated by
         invalid_visualizers = [v for v in visualizer_types if v not in valid_visualizer_types]
         if invalid_visualizers:
             raise ValueError(
                 f"Invalid value(s) for '--visualizer': {invalid_visualizers}. "
-                "Expected one or more of: ['kit', 'newton', 'rerun', 'viser', 'none']."
+                "Expected one or more of: ['kit', 'newton_gl', 'newton_rtx', 'rerun', 'viser', 'none']."
             )
+        # Resolve deprecated aliases, emitting a DeprecationWarning for each one found.
+        resolved = []
+        for v in visualizer_types:
+            if v in _deprecated_viz_aliases:
+                canonical = _deprecated_viz_aliases[v]
+                import warnings
+
+                warnings.warn(
+                    f"--viz '{v}' is deprecated. Use '--viz {canonical}' instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                resolved.append(canonical)
+            else:
+                resolved.append(v)
+        visualizer_types = resolved
 
         self._cli_visualizer_explicit = visualizer_explicit
         self._cli_visualizer_disable_all = visualizer_explicit and (
@@ -957,6 +1013,16 @@ class AppLauncher:
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
         self._video_enabled = bool(launcher_args.get("video", False))
+        if self._video_enabled and any(
+            importlib.util.find_spec(package) is None for package in ("moviepy", "imageio_ffmpeg")
+        ):
+            raise ModuleNotFoundError(
+                "Video recording with `--video` requires MoviePy and its imageio-ffmpeg backend, "
+                "which are not installed by default. "
+                "Run uv commands with `uv run --extra video ...`, or install MoviePy into the "
+                'legacy environment with `./isaaclab.sh -p -m pip install "moviepy>=1.0.3,<2.0.0.dev0"` '
+                "(`isaaclab.bat -p -m pip install ...` on Windows), and retry."
+            )
         # Check if we can disable the viewport to improve performance
         #   This should only happen if we are running headless and do not require livestreaming or video recording
         #   This is different from offscreen_render because this only affects the default viewport and
@@ -1170,6 +1236,11 @@ class AppLauncher:
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
                 self._kit_args.append(argument)
 
+        argument = "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false"
+        setting = argument.partition("=")[0]
+        if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+            self._kit_args.append(argument)
+
         sys.argv += self._kit_args
 
     def _create_app(self):
@@ -1317,13 +1388,6 @@ class AppLauncher:
             }
         )
 
-    def _interrupt_signal_handle_callback(self, signal, frame):
-        """Handle the interrupt signal from the keyboard."""
-        # close the app
-        self._app.close()
-        # raise the error for keyboard interrupt
-        raise KeyboardInterrupt
-
     def is_isaac_sim_version_5(self) -> bool:
         if not hasattr(self, "_is_sim_ver_5"):
             # 1) Try to read the VERSION file (for manual / binary installs)
@@ -1365,23 +1429,109 @@ class AppLauncher:
                 play_button_group._play_button.visible = not flag  # type: ignore
                 play_button_group._play_button.enabled = not flag  # type: ignore
 
-    def _log_kit_version_info(self):
-        """Log Kit and runtime version information."""
-        import carb
-        import omni.kit.app
+    class _SimulationAppLifecycle:
+        """Reports the lifecycle of the Kit-based :class:`SimulationApp` process.
 
-        app = omni.kit.app.get_app()
-        tokens = carb.tokens.get_tokens_interface()
+        Supervisors (the CI runner at startup; torchrun, schedulers, and CI at exit)
+        only see this process through its output markers and its exit status. Kit
+        fast shutdown exits with code 0 from inside :meth:`SimulationApp.close`, so
+        every exit path below must carry its own truthful status.
 
-        kit_version = app.get_kit_version()
-        kernel_version = app.get_kernel_version()
-        kit_git_hash = tokens.resolve("${kit_git_hash}") or "unknown"
+        Exit-path policy:
 
-        print(f"[ISAACLAB] Kit version: {kit_version}", file=sys.__stderr__, flush=True)
-        print(f"[ISAACLAB] Kit kernel:  {kernel_version}", file=sys.__stderr__, flush=True)
-        print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
+        * Normal exit: the ``atexit`` hook closes the app once; a pending unhandled
+          exception turns into exit code 1.
+        * ``SIGTERM`` / ``kill -ABRT``: ``close(exit_code=128 + signum)`` — full
+          teardown before exiting on isaacsim.simulation_app >= 2.18.5, truthful
+          status either way; if ``close()`` returns (fast shutdown disabled),
+          re-raise the signal with the default action.
+        * Signal during a running close: fall back to the default action instead of
+          re-entering ``close()``, which previously recursed until stack overflow.
+        * ``SIGSEGV``: not intercepted — a Python handler cannot run for main-thread
+          faults, reports success for worker-thread faults, and suppresses the carb
+          crash reporter's minidumps.
+        * ``SIGINT``: Python's default handler, so Ctrl-C unwinds user code and
+          exits nonzero.
 
-    def _abort_signal_handle_callback(self, signal, frame):
-        """Handle the abort/segmentation/kill signals."""
-        # close the app
-        self._app.close()
+        Not handled on the sim side, so handled here: SimulationApp installs its own
+        ``SIGINT`` handler that exits 0 before user code unwinds (changing it there
+        affects Ctrl-C semantics for every consumer), so the launcher restores
+        Python's default handler for its own processes.
+        """
+
+        def __init__(self, app: SimulationApp):
+            self._app = app
+            # set once any close starts; later signals must not start a second teardown
+            self._closing = False
+
+        def announce_startup(self):
+            """Print the CI startup marker and Kit version diagnostics."""
+            import carb
+            import omni.kit.app
+
+            # the CI runner greps this marker for hang detection; __stderr__ survives
+            # stdout being redirected to /dev/null during app creation
+            print("[ISAACLAB] AppLauncher initialization complete", file=sys.__stderr__, flush=True)
+
+            kit_app = omni.kit.app.get_app()
+            tokens = carb.tokens.get_tokens_interface()
+            kit_git_hash = tokens.resolve("${kit_git_hash}") or "unknown"
+            print(f"[ISAACLAB] Kit version: {kit_app.get_kit_version()}", file=sys.__stderr__, flush=True)
+            print(f"[ISAACLAB] Kit kernel:  {kit_app.get_kernel_version()}", file=sys.__stderr__, flush=True)
+            print(f"[ISAACLAB] Kit hash:    {kit_git_hash}", file=sys.__stderr__, flush=True)
+
+        def install_exit_handlers(self):
+            """Register the ``atexit`` hook and signal handlers implementing the exit policy."""
+            # close on normal exit so Kit shuts down cleanly instead of via __del__
+            atexit.register(self._close_at_exit)
+            signal.signal(signal.SIGTERM, self._on_abort_signal)
+            signal.signal(signal.SIGABRT, self._on_abort_signal)
+            # no SIGSEGV handler and default SIGINT — see the class docstring
+            signal.signal(signal.SIGINT, signal.default_int_handler)
+
+        def _close_at_exit(self):
+            """Close the app on normal interpreter exit, preserving a pending failure status."""
+            self._closing = True
+            with contextlib.suppress(Exception):
+                # sys.last_exc is set before atexit callbacks run for an unhandled
+                # exception (but not for SystemExit, which is not detected yet)
+                exit_code = 1 if getattr(sys, "last_exc", None) is not None else 0
+                self._close_app(exit_code)
+
+        def _on_abort_signal(self, signum, frame):
+            """Handle SIGTERM/SIGABRT: close the app once, then die by the signal."""
+            if self._closing:
+                signal.signal(signum, signal.SIG_DFL)
+                signal.raise_signal(signum)
+                return
+            self._closing = True
+            with contextlib.suppress(Exception):
+                # >= 2.18.5 tears down fully, then exits with this status; older
+                # builds exit with the status but skip the teardown
+                self._close_app(128 + signum)
+            # close() only returns when fast shutdown is disabled
+            signal.signal(signum, signal.SIG_DFL)
+            signal.raise_signal(signum)
+
+        def _close_app(self, exit_code):
+            """Close the app with ``exit_code``, warning loudly if the parameter is unsupported."""
+            # Probe the signature instead of catching ``TypeError`` from the call: a
+            # ``TypeError`` raised *inside* ``close()``'s own teardown would otherwise be
+            # misread as an unsupported ``exit_code`` and trigger a second ``close()`` on a
+            # half-torn-down app — the exact re-entrancy this class exists to prevent.
+            try:
+                accepts_exit_code = "exit_code" in inspect.signature(self._app.close).parameters
+            except (TypeError, ValueError):
+                # Signature could not be introspected (e.g. a C-bound close); fall back to
+                # the no-argument close so the app still shuts down cleanly.
+                accepts_exit_code = False
+            if accepts_exit_code:
+                self._app.close(exit_code=exit_code)
+            else:
+                print(
+                    "[ISAACLAB] WARNING: SimulationApp.close() does not accept exit_code;"
+                    " this process may report exit code 0 instead of its failure status.",
+                    file=sys.__stderr__,
+                    flush=True,
+                )
+                self._app.close()

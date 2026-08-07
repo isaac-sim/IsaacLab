@@ -35,7 +35,7 @@
   - Skip non-physical fields (indices, keys, counts, flags).
   - This rule applies to **public API docstrings only**, not test docstrings.
 - **Keep the documentation up-to-date.**
-  - When adding new files or symbols that are part of the public-facing API, make sure to keep the auto-generated documentation updated by running `uv run isaaclab -d`.
+  - When adding new files or symbols that are part of the public-facing API, make sure to keep the auto-generated documentation updated by running `uv run --isolated --extra test -- make -C docs current-docs`.
 
 ## Dependencies
 
