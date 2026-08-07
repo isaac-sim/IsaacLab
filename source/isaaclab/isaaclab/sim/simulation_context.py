@@ -234,6 +234,7 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
+
         self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
