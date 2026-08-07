@@ -27,11 +27,11 @@
         "functions": ["backward"]
     },
     {
-        "_comment": "=== USD (verified working) ===",
+        "_comment": "=== USD === Do NOT trace pxr.UsdGeom schema types (Xform, Mesh, Sphere, Cube). nsys replaces each traced attribute with a wrapper function, so UsdGeom.Mesh stops being a TfType-registered class and every prim.IsA(UsdGeom.Mesh) in the process raises 'cannot convert <function Mesh> to TfType'. This breaks USD import for any asset that reaches Newton's deformable scouting (e.g. Isaac-Lift-KukaAllegro-Camera). Only trace plain functions here, never schema classes.",
         "domain": "USD",
         "color": "0x795548",
         "module": "pxr.UsdGeom",
-        "functions": ["Xform", "Mesh", "Sphere", "Cube"]
+        "functions": []
     },
     {
         "_comment": "=== ISAACLAB ENVIRONMENTS ===",
@@ -55,14 +55,44 @@
         ]
     },
     {
-        "_comment": "=== ISAACLAB SIMULATION ===",
+        "_comment": "=== Direct workflow env. Needed for any Isaac-*-Direct task -- these never touch ManagerBased*, so without this block the whole top-level step is untraced and shows as a gap. Task hooks (_pre_physics_step, _apply_action, _get_observations, _get_rewards, _get_dones, _reset_idx) are deliberately absent: concrete tasks override them on their own subclass, so patching them on DirectRLEnv would never fire. Trace the concrete task class instead when you need them. ===",
+        "domain": "IsaacLab-Env",
+        "color": "0x9C27B0",
+        "module": "isaaclab.envs.direct_rl_env",
+        "functions": [
+            {"function": "DirectRLEnv.__init__", "color": "0x9C27B0"},
+            {"function": "DirectRLEnv._init_sim", "color": "0x9C27B0"},
+            {"function": "DirectRLEnv.step", "color": "0xAB47BC"},
+            {"function": "DirectRLEnv.reset", "color": "0xBA68C8"},
+            {"function": "DirectRLEnv._reset_envs_from_buffer", "color": "0xCE93D8"},
+            {"function": "DirectRLEnv.render", "color": "0xE1BEE7"}
+        ]
+    },
+    {
+        "_comment": "=== ISAACLAB SIMULATION === DO NOT add PhysicsManager backends (NewtonManager, PhysxManager, ...) here or in their own block. Their methods are @classmethod, and nsys's --python-functions-trace wrapper replaces the class attribute with a plain function, destroying the descriptor binding: the `cls` slot then swallows the first real argument, so SimulationContext.__init__ -> physics_manager.initialize(self) dies with 'initialize() missing 1 required positional argument: sim_context'. Physics time consequently stays inside the SimulationContext.step span -- a known, accepted gap. The same hazard applies to any @classmethod/@staticmethod anywhere in this file.",
         "domain": "IsaacLab-Sim",
         "color": "0x4CAF50",
         "module": "isaaclab.sim.simulation_context",
         "functions": [
             {"function": "SimulationContext.__init__", "color": "0x4CAF50"},
             {"function": "SimulationContext.reset", "color": "0x66BB6A"},
-            {"function": "SimulationContext.step", "color": "0x81C784"}
+            {"function": "SimulationContext.step", "color": "0x81C784"},
+            {"function": "SimulationContext.render", "color": "0xA5D6A7"},
+            {"function": "SimulationContext.update_visualizers", "color": "0xC8E6C9"},
+            {"function": "SimulationContext.forward", "color": "0xC8E6C9"}
+        ]
+    },
+    {
+        "_comment": "=== RENDER ORCHESTRATION: sits between the camera sensor and the renderer. render_into_camera wraps update_scene_state + render + read_output, so it brackets the whole per-frame render. update_scene_state is the once-per-physics-step dedupe gate that drives update_transforms/update_geometries -- when it early-outs you see the renderer do nothing, which is the expected behavior, not a gap. ===",
+        "domain": "IsaacLab-RenderContext",
+        "color": "0xFFC107",
+        "module": "isaaclab.renderers.render_context",
+        "functions": [
+            {"function": "RenderContext.render_into_camera", "color": "0xFFC107"},
+            {"function": "RenderContext.update_scene_state", "color": "0xFFD54F"},
+            {"function": "RenderContext.get_renderer", "color": "0xFFE082"},
+            {"function": "RenderContext.ensure_initialize", "color": "0xFFE082"},
+            {"function": "RenderContext.ensure_prepare_stage", "color": "0xFFE082"}
         ]
     },
     {
@@ -110,10 +140,51 @@
         ]
     },
     {
-        "_comment": "=== ISAACLAB ASSETS ===",
+        "_comment": "=== TerminationManager.compute is the first manager to run after the decimation loop, so it bisects the previously-dark span between sim.step and RewardManager.compute. If a long cudaStreamSynchronize lands inside this span, the host is blocking on queued async physics; if it lands before it, the stall is in sim.step/scene.update. ===",
+        "domain": "IsaacLab-Managers",
+        "color": "0xFF9800",
+        "module": "isaaclab.managers.termination_manager",
+        "functions": [
+            {"function": "TerminationManager.reset", "color": "0xFFA726"},
+            {"function": "TerminationManager.compute", "color": "0xFFB74D"}
+        ]
+    },
+    {
+        "_comment": "=== CommandManager.compute and EventManager.apply run in the tail of step(), after the reset branch -- previously untraced. ===",
+        "domain": "IsaacLab-Managers",
+        "color": "0xFF9800",
+        "module": "isaaclab.managers.command_manager",
+        "functions": [
+            {"function": "CommandManager.reset", "color": "0xFFA726"},
+            {"function": "CommandManager.compute", "color": "0xFFB74D"}
+        ]
+    },
+    {
+        "domain": "IsaacLab-Managers",
+        "color": "0xFF9800",
+        "module": "isaaclab.managers.event_manager",
+        "functions": [
+            {"function": "EventManager.reset", "color": "0xFFA726"},
+            {"function": "EventManager.apply", "color": "0xFFB74D"}
+        ]
+    },
+    {
+        "_comment": "=== ISAACLAB ASSETS === isaaclab.assets Articulation is a FactoryBase shell -- it resolves via getattr (so the sync test passes) but instances are the backend class, so patching here captures nothing at runtime. Kept for the PhysX path; the Newton block below is what actually fires under presets=newton_mjwarp.",
         "domain": "IsaacLab-Assets",
         "color": "0x607D8B",
         "module": "isaaclab.assets.articulation.articulation",
+        "functions": [
+            {"function": "Articulation.__init__", "color": "0x607D8B"},
+            {"function": "Articulation.reset", "color": "0x78909C"},
+            {"function": "Articulation.write_data_to_sim", "color": "0x90A4AE"},
+            {"function": "Articulation.update", "color": "0xB0BEC5"}
+        ]
+    },
+    {
+        "_comment": "=== Concrete Newton articulation -- the class actually instantiated under presets=newton_mjwarp. write_data_to_sim/update are called from InteractiveScene every physics substep. ===",
+        "domain": "IsaacLab-Assets",
+        "color": "0x607D8B",
+        "module": "isaaclab_newton.assets.articulation.articulation",
         "functions": [
             {"function": "Articulation.__init__", "color": "0x607D8B"},
             {"function": "Articulation.reset", "color": "0x78909C"},
@@ -128,8 +199,21 @@
         "module": "isaaclab.sensors.camera.camera",
         "functions": [
             {"function": "Camera.__init__", "color": "0x00BCD4"},
+            {"function": "Camera._initialize_impl", "color": "0x00BCD4"},
             {"function": "Camera.reset", "color": "0x26C6DA"},
-            {"function": "Camera.update", "color": "0x4DD0E1"}
+            {"function": "Camera._update_buffers_impl", "color": "0x4DD0E1"},
+            {"function": "Camera._update_poses", "color": "0x80DEEA"},
+            {"function": "Camera._update_camera_state", "color": "0x80DEEA"}
+        ]
+    },
+    {
+        "_comment": "=== Sensor plumbing. Camera.update is inherited from SensorBase, so trace it here (its own defining class) rather than on Camera -- patching both would double-wrap the same function. _update_outdated_buffers is the staleness gate that decides whether _update_buffers_impl runs at all. ===",
+        "domain": "IsaacLab-Sensors",
+        "color": "0x00BCD4",
+        "module": "isaaclab.sensors.sensor_base",
+        "functions": [
+            {"function": "SensorBase.update", "color": "0x26C6DA"},
+            {"function": "SensorBase._update_outdated_buffers", "color": "0x4DD0E1"}
         ]
     },
     {
@@ -164,6 +248,7 @@
         ]
     },
     {
+        "_comment": "=== OVRTX RENDERER ===",
         "domain": "OVRTXRenderer",
         "color": "0x76B800",
         "module": "isaaclab_ov.renderers.ovrtx_renderer",
@@ -171,16 +256,54 @@
             "OVRTXRenderer.prepare_stage",
             "OVRTXRenderer.create_render_data",
             "OVRTXRenderer._clone_sources_in_ovrtx",
+            "OVRTXRenderer._clone_sources_ovstage",
             "OVRTXRenderer._update_scene_partitions_after_clone",
-            "OVRTXRenderer._setup_object_bindings",
+            "OVRTXRenderer._update_scene_partitions_after_clone_ovstage",
+            "OVRTXRenderer._setup_xform_bindings",
+            "OVRTXRenderer._setup_deformable_bindings",
+            "OVRTXRenderer._setup_particle_bindings",
             "OVRTXRenderer.update_transforms",
+            "OVRTXRenderer.update_geometries",
+            "OVRTXRenderer.update_camera",
             "OVRTXRenderer.render",
             "OVRTXRenderer.read_output",
             {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "create_scene_partition_attributes"},
-            {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "export_stage_to_string"},
-            {"module": "ovrtx", "function": "Renderer.open_usd_from_string", "color": "0x87CEEB"},
-            {"module": "ovrtx", "function": "Renderer.bind_attribute", "color": "0x87CEEB"},
-            {"module": "ovrtx", "function": "Renderer.write_attribute", "color": "0x87CEEB"}
+            {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "export_stage_to_string"}
+        ]
+    },
+    {
+        "_comment": "=== OVRTX: renderer-side calls made from ovrtx_renderer.py. Renderer.step is the actual submit -- everything else is setup (bind_*, clone_usd, open_usd_from_string, attach/detach_ovstage) or per-frame data movement (write_*). Only Renderer is traced: the other ovrtx imports (BindingFlag, DataAccess, Device, PrimMode, Semantic, RendererConfig) are enum/config classes, and replacing a class with a wrapper function breaks isinstance/type dispatch -- the same failure mode documented on the USD block above. ===",
+        "domain": "ovrtx",
+        "color": "0x87CEEB",
+        "module": "ovrtx",
+        "functions": [
+            {"function": "Renderer.open_usd_from_string", "color": "0x87CEEB"},
+            {"function": "Renderer.clone_usd", "color": "0x9FD8F0"},
+            {"function": "Renderer.reset_stage", "color": "0x9FD8F0"},
+            {"function": "Renderer.attach_ovstage", "color": "0x9FD8F0"},
+            {"function": "Renderer.detach_ovstage", "color": "0x9FD8F0"},
+            {"function": "Renderer.bind_attribute", "color": "0xB8E4F5"},
+            {"function": "Renderer.bind_array_attribute", "color": "0xB8E4F5"},
+            {"function": "Renderer.read_attribute", "color": "0xB8E4F5"},
+            {"function": "Renderer.write_attribute", "color": "0x5FB8DC"},
+            {"function": "Renderer.write_array_attribute", "color": "0x5FB8DC"},
+            {"function": "Renderer.step", "color": "0x2E9BC0"}
+        ]
+    },
+    {
+        "_comment": "=== OVSTAGE: stage-side calls made from ovrtx_renderer.py. Operation.wait and advance_write_floor are the blocking barriers -- time there is a stall, not work. Only functions the renderer actually calls are listed: Stage.query and Stage.release_op exist in ovstage but are never called by IsaacLab (the renderer uses query_from_path_list; release_op appears only in a comment), so tracing them would add empty rows. The ovstage enum/type classes (AttributeSemantic, DLTensor, DLDataType, DLDataTypeCode, PathDictionary) are deliberately omitted -- replacing a class with a wrapper function breaks isinstance/type dispatch, per the USD block above. ===",
+        "domain": "ovstage",
+        "color": "0x26A69A",
+        "module": "ovstage",
+        "functions": [
+            {"function": "population.open_usd_from_string", "color": "0x00897B"},
+            {"function": "Stage.clone", "color": "0x00897B"},
+            {"function": "Stage.query_from_path_list", "color": "0x80CBC4"},
+            {"function": "Stage.release_query", "color": "0x80CBC4"},
+            {"function": "Stage.write_attribute", "color": "0x4DB6AC"},
+            {"function": "Stage.advance_write_floor", "color": "0xFF7043"},
+            {"function": "Operation.wait", "color": "0xFF7043"},
+            {"function": "make_dltensor", "color": "0xB2DFDB"}
         ]
     }
 ]

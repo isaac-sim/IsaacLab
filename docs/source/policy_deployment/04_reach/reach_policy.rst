@@ -495,7 +495,7 @@ Launch full training with many parallel environments in headless mode:
 
               .. code-block:: bash
 
-                  uv run isaaclab train --rl_library rsl_rl \
+                  uv run --extra video isaaclab train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
                       --num_envs 4096 \
                       --video --video_length 720 --video_interval 72000
@@ -517,7 +517,7 @@ Launch full training with many parallel environments in headless mode:
 
               .. code-block:: bash
 
-                  uv run isaaclab train --rl_library rsl_rl \
+                  uv run --extra video isaaclab train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
                       --num_envs 4096 \
                       --video --video_length 720 --video_interval 72000

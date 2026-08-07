@@ -47,7 +47,7 @@ The complete demo can be run with:
 
       .. code-block:: bash
 
-        uv run python scripts/demos/sensors/pva_sensor.py
+        uv run --extra isaacsim python scripts/demos/sensors/pva_sensor.py
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 

@@ -175,3 +175,17 @@ class BaseRenderer(ABC):
             render_data: The render data object to clean up, or ``None``.
         """
         pass
+
+    def close(self) -> None:
+        """Release resources owned by the renderer itself rather than by a render data.
+
+        A renderer is shared by every camera whose configuration resolves to it (see
+        :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer`), so state it owns
+        outlives any single camera and cannot be released from :meth:`cleanup`.
+        :meth:`~isaaclab.renderers.render_context.RenderContext.close` calls this once at
+        simulation teardown, while the stage and the underlying renderer backend are still alive.
+
+        The default implementation is a no-op, for backends whose state lives entirely on the
+        render data. Implementations must be idempotent.
+        """
+        return

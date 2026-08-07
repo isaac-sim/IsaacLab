@@ -1,6 +1,66 @@
 Changelog
 ---------
 
+0.10.4 (2026-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX installations to use the OVStage release compatible with the pinned OV runtime stack.
+
+
+0.10.3 (2026-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cameras using the OVRTX renderer losing their MDL materials after an environment is torn
+  down, which left surfaces such as the ground plane unshaded in the ``simple_shading_diffuse_mdl``
+  and ``simple_shading_full_mdl`` outputs. Per-camera cleanup no longer releases the stage queries,
+  tensor bindings and render products shared by every camera on the backend; those are released by
+  :meth:`~isaaclab.renderers.BaseRenderer.close` when the simulation is torn down.
+
+
+0.10.2 (2026-08-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX missing-runtime errors to recommend supported uv-managed and
+  direct-wheel commands.
+
+
+0.10.1 (2026-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the missing OVRTX runtime error to recommend the uv-managed ``ovrtx`` extra.
+
+
+0.10.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an opt-in ovstage scene-ownership path to :class:`~isaaclab_ov.renderers.OVRTXRenderer`,
+  enabled by setting ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1`` with the ``ovstage`` wheel installed. Under
+  this split-ownership model ovstage owns the scene data and ovrtx owns only rendering, replacing
+  the renderer-owned scene APIs deprecated in ovrtx 0.4. The path is selected once per renderer and
+  covers stage population, environment cloning, scene partitions, and the camera, rigid-body,
+  deformable, and particle-cloud updates. It defaults to off, so existing deployments are
+  unaffected until the variable is set.
+* Added support for :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` in
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer`. When set, authors
+  ``omni:rtx:background:source:type = "color"`` and ``omni:rtx:background:source:color`` on the
+  USD render product instead of the default ``"domeLight"`` background.
+
+
 0.9.0 (2026-07-25)
 ~~~~~~~~~~~~~~~~~~
 

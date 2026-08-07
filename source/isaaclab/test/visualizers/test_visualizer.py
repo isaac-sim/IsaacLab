@@ -31,11 +31,18 @@ def test_create_visualizer_raises_for_base_cfg():
         cfg.create_visualizer()
 
 
-def test_visualizer_cfg_tiled_camera_view_is_opt_in():
+def test_visualizer_cfg_streaming_view_is_opt_in():
     cfg = VisualizerCfg()
     assert cfg.focal_length == 12.0
-    assert cfg.tiled_cam_view is False
-    assert cfg.tiled_cam_num == 16
+    assert cfg.streaming_view is False
+    assert cfg.streaming_envs == 32
+
+
+def test_streaming_cfg_fields_on_visualizer_cfg():
+    """streaming_view is opt-in (False) and streaming_cam_renderer defaults to None."""
+    cfg = VisualizerCfg()
+    assert cfg.streaming_view is False
+    assert cfg.streaming_cam_renderer is None
 
 
 def test_create_visualizer_raises_for_unknown_type():
@@ -46,9 +53,21 @@ def test_create_visualizer_raises_for_unknown_type():
 
 def test_create_visualizer_raises_import_error_when_backend_unavailable(monkeypatch):
     monkeypatch.setattr(Visualizer, "_get_module_name", classmethod(lambda cls, backend: "does.not.exist"))
-    cfg = VisualizerCfg(visualizer_type="newton")
+    cfg = VisualizerCfg(visualizer_type="newton_gl")
     with pytest.raises(ImportError, match="isaaclab_visualizers"):
         cfg.create_visualizer()
+
+
+def test_create_visualizer_rerun_import_error_recommends_uv_extra(monkeypatch):
+    monkeypatch.delitem(Visualizer._registry, "rerun", raising=False)
+    monkeypatch.setattr(Visualizer, "_get_module_name", classmethod(lambda cls, backend: "does.not.exist"))
+    cfg = VisualizerCfg(visualizer_type="rerun")
+
+    with pytest.raises(ImportError, match=r"uv run --extra rerun <command>") as exc_info:
+        cfg.create_visualizer()
+
+    assert "Original error:" in str(exc_info.value)
+    assert "pip install isaaclab_visualizers" not in str(exc_info.value)
 
 
 #
@@ -142,7 +161,7 @@ def test_prim_world_positions_prefers_scene_articulation_state():
             root_pos_w=SimpleNamespace(torch=torch.zeros((2, 3))),
             body_pos_w=SimpleNamespace(torch=body_pos_w),
         ),
-        find_bodies=lambda name: ([0], [name]),
+        find_bodies=lambda name, **_: ([0], [name]),
     )
     scene = SimpleNamespace(articulations={"robot": articulation})
 

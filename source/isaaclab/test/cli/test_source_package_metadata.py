@@ -32,7 +32,9 @@ def test_isaaclab_usd_core_pin_stays_on_isaacsim_compatible_usd25_abi():
         dependency for dependency in pyproject["project"]["dependencies"] if dependency.startswith("usd-core")
     ]
 
-    assert usd_core_dependencies == ["usd-core>=25.11,<26.0 ; platform_machine in 'x86_64 AMD64'"]
+    assert usd_core_dependencies == [
+        "usd-core>=25.11,<26.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'"
+    ]
 
 
 def test_isaaclab_standalone_usd_providers_are_platform_disjoint():
@@ -44,4 +46,4 @@ def test_isaaclab_standalone_usd_providers_are_platform_disjoint():
         dependency for dependency in pyproject["project"]["dependencies"] if dependency.startswith("usd-exchange")
     ]
 
-    assert usd_exchange_dependencies == ["usd-exchange>=2.2 ; platform_machine in 'aarch64 arm64'"]
+    assert usd_exchange_dependencies == ["usd-exchange>=2.2 ; platform_machine == 'aarch64'"]

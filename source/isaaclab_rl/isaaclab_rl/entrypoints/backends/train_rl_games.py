@@ -18,18 +18,22 @@ import time
 from datetime import datetime
 from distutils.util import strtobool
 
-from isaaclab.app import add_launcher_args
+from isaaclab.app import add_launcher_args, report_activity
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
     apply_env_overrides,
+    apply_video_recording,
     configure_io_descriptors,
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    pre_launch_video_config,
     resolve_checkpoint_selector,
     set_hydra_args,
+    show_run_summary,
+    startup_screen,
     validate_distributed_device,
     wrap_training_capture,
     write_run_manifest,
@@ -90,141 +94,154 @@ def run(argv: list[str]) -> None:
     from isaaclab_tasks.utils import resolve_task_config
 
     args_cli = _parse_args(argv)
-    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+    with startup_screen(args_cli, num_stages=3) as screen:
+        env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+        show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="train")
+        pre_launch_video_config(env_cfg, args_cli=args_cli)
+        screen.stage("Launching simulation")
+        with launch_simulation(env_cfg, args_cli):
+            apply_env_overrides(args_cli, env_cfg)
+            validate_distributed_device(args_cli)
 
-    with launch_simulation(env_cfg, args_cli):
-        apply_env_overrides(args_cli, env_cfg)
-        validate_distributed_device(args_cli)
+            if args_cli.seed == -1:
+                args_cli.seed = random.randint(0, 10000)
 
-        if args_cli.seed == -1:
-            args_cli.seed = random.randint(0, 10000)
+            agent_cfg["params"]["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
+            agent_cfg["params"]["config"]["max_epochs"] = (
+                args_cli.max_iterations
+                if args_cli.max_iterations is not None
+                else agent_cfg["params"]["config"]["max_epochs"]
+            )
+            if args_cli.checkpoint is not None and args_cli.checkpoint not in CHECKPOINT_SELECTORS:
+                resume_path = retrieve_file_path(args_cli.checkpoint)
+                agent_cfg["params"]["load_checkpoint"] = True
+                agent_cfg["params"]["load_path"] = resume_path
+                print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
+            train_sigma = float(args_cli.sigma) if args_cli.sigma is not None else None
 
-        agent_cfg["params"]["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
-        agent_cfg["params"]["config"]["max_epochs"] = (
-            args_cli.max_iterations
-            if args_cli.max_iterations is not None
-            else agent_cfg["params"]["config"]["max_epochs"]
-        )
-        if args_cli.checkpoint is not None and args_cli.checkpoint not in CHECKPOINT_SELECTORS:
-            resume_path = retrieve_file_path(args_cli.checkpoint)
-            agent_cfg["params"]["load_checkpoint"] = True
-            agent_cfg["params"]["load_path"] = resume_path
-            print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
-        train_sigma = float(args_cli.sigma) if args_cli.sigma is not None else None
+            if args_cli.distributed:
+                agent_cfg["params"]["seed"] += int(os.getenv("RANK", "0"))
+                agent_cfg["params"]["config"]["device"] = env_cfg.sim.device
+                agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
+                agent_cfg["params"]["config"]["multi_gpu"] = True
 
-        if args_cli.distributed:
-            agent_cfg["params"]["seed"] += int(os.getenv("RANK", "0"))
-            agent_cfg["params"]["config"]["device"] = env_cfg.sim.device
-            agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
-            agent_cfg["params"]["config"]["multi_gpu"] = True
+            env_cfg.seed = agent_cfg["params"]["seed"]
 
-        env_cfg.seed = agent_cfg["params"]["seed"]
+            config_name = agent_cfg["params"]["config"]["name"]
+            log_root_path = os.path.join("logs", "rl_games", config_name)
+            if "pbt" in agent_cfg and agent_cfg["pbt"]["directory"] != ".":
+                log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
+            else:
+                log_root_path = os.path.abspath(log_root_path)
 
-        config_name = agent_cfg["params"]["config"]["name"]
-        log_root_path = os.path.join("logs", "rl_games", config_name)
-        if "pbt" in agent_cfg and agent_cfg["pbt"]["directory"] != ".":
-            log_root_path = os.path.join(agent_cfg["pbt"]["directory"], log_root_path)
-        else:
-            log_root_path = os.path.abspath(log_root_path)
+            print(f"[INFO] Logging experiment in directory: {log_root_path}")
+            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                resume_path = resolve_checkpoint_selector(
+                    log_root_path,
+                    args_cli.checkpoint,
+                    library="rl_games",
+                    task=args_cli.task,
+                    checkpoint_pattern=r".*\.pth",
+                    other_dirs=["nn"],
+                    preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
+                    metadata={"agent": args_cli.agent},
+                )
+                agent_cfg["params"]["load_checkpoint"] = True
+                agent_cfg["params"]["load_path"] = resume_path
+                print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+            log_dir = agent_cfg["params"]["config"].get(
+                "full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            )
+            agent_cfg["params"]["config"]["train_dir"] = log_root_path
+            agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
+            wandb_project = config_name if args_cli.wandb_project_name is None else args_cli.wandb_project_name
+            experiment_name = log_dir if args_cli.wandb_name is None else args_cli.wandb_name
 
-        print(f"[INFO] Logging experiment in directory: {log_root_path}")
-        if args_cli.checkpoint in CHECKPOINT_SELECTORS:
-            resume_path = resolve_checkpoint_selector(
-                log_root_path,
-                args_cli.checkpoint,
+            run_log_dir = os.path.join(log_root_path, log_dir)
+            write_run_manifest(
+                run_log_dir,
                 library="rl_games",
                 task=args_cli.task,
-                checkpoint_pattern=r".*\.pth",
-                other_dirs=["nn"],
-                preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
                 metadata={"agent": args_cli.agent},
             )
-            agent_cfg["params"]["load_checkpoint"] = True
-            agent_cfg["params"]["load_path"] = resume_path
-            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-        log_dir = agent_cfg["params"]["config"].get(
-            "full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        )
-        agent_cfg["params"]["config"]["train_dir"] = log_root_path
-        agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
-        wandb_project = config_name if args_cli.wandb_project_name is None else args_cli.wandb_project_name
-        experiment_name = log_dir if args_cli.wandb_name is None else args_cli.wandb_name
+            dump_train_configs(run_log_dir, env_cfg, agent_cfg)
+            print(f"Exact experiment name requested from command line: {run_log_dir}")
 
-        run_log_dir = os.path.join(log_root_path, log_dir)
-        write_run_manifest(
-            run_log_dir,
-            library="rl_games",
-            task=args_cli.task,
-            metadata={"agent": args_cli.agent},
-        )
-        dump_train_configs(run_log_dir, env_cfg, agent_cfg)
-        print(f"Exact experiment name requested from command line: {run_log_dir}")
+            rl_device = agent_cfg["params"]["config"]["device"]
+            clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
+            clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
+            obs_groups = agent_cfg["params"]["env"].get("obs_groups")
+            concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
 
-        rl_device = agent_cfg["params"]["config"]["device"]
-        clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
-        clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
-        obs_groups = agent_cfg["params"]["env"].get("obs_groups")
-        concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
+            configure_io_descriptors(env_cfg, args_cli, logger)
+            env_cfg.log_dir = run_log_dir
+            apply_video_recording(env_cfg, run_log_dir, args_cli)
 
-        configure_io_descriptors(env_cfg, args_cli, logger)
-        env_cfg.log_dir = run_log_dir
-
-        env = create_isaaclab_env(
-            args_cli.task,
-            env_cfg,
-            args_cli,
-            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
-        )
-        env = wrap_training_capture(env, run_log_dir, args_cli)
-
-        start_time = time.time()
-        env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
-
-        vecenv.register(
-            "IsaacRlgWrapper",
-            lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
-        )
-        env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
-
-        agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-
-        if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
-            observers = MultiObserver([IsaacAlgoObserver(), PbtAlgoObserver(agent_cfg, args_cli)])
-            runner = Runner(observers)
-        else:
-            runner = Runner(IsaacAlgoObserver())
-
-        # configure_seed must run after Runner() so torch determinism does not disturb its initialization
-        if args_cli.deterministic:
-            configure_seed(env_cfg.seed, torch_deterministic=True)
-
-        runner.load(agent_cfg)
-        runner.reset()
-
-        global_rank = int(os.getenv("RANK", "0"))
-        if args_cli.track and global_rank == 0:
-            if args_cli.wandb_entity is None:
-                raise ValueError("Weights and Biases entity must be specified for tracking.")
-            import wandb
-
-            wandb.init(
-                project=wandb_project,
-                entity=args_cli.wandb_entity,
-                name=experiment_name,
-                sync_tensorboard=True,
-                monitor_gym=True,
-                save_code=True,
+            screen.stage("Creating environment")
+            env = create_isaaclab_env(
+                args_cli.task,
+                env_cfg,
+                args_cli,
+                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
-            if not wandb.run.resumed:
-                wandb.config.update({"env_cfg": env_cfg.to_dict()})
-                wandb.config.update({"agent_cfg": agent_cfg})
+            env = wrap_training_capture(env, run_log_dir, args_cli)
 
-        try:
-            if args_cli.checkpoint is not None:
-                runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
+            screen.stage("Preparing agent")
+            start_time = time.time()
+            report_activity("Wrapping environment")
+            env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
+            report_activity(None)
+
+            vecenv.register(
+                "IsaacRlgWrapper",
+                lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
+            )
+            env_configurations.register(
+                "rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env}
+            )
+
+            agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
+
+            report_activity("Building policy")
+            if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
+                observers = MultiObserver([IsaacAlgoObserver(), PbtAlgoObserver(agent_cfg, args_cli)])
+                runner = Runner(observers)
             else:
-                runner.run({"train": True, "play": False, "sigma": train_sigma})
-            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            env.close()
-        except KeyboardInterrupt:
-            pass
+                runner = Runner(IsaacAlgoObserver())
+            report_activity(None)
+
+            # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
+
+            runner.load(agent_cfg)
+            runner.reset()
+
+            global_rank = int(os.getenv("RANK", "0"))
+            if args_cli.track and global_rank == 0:
+                if args_cli.wandb_entity is None:
+                    raise ValueError("Weights and Biases entity must be specified for tracking.")
+                import wandb
+
+                wandb.init(
+                    project=wandb_project,
+                    entity=args_cli.wandb_entity,
+                    name=experiment_name,
+                    sync_tensorboard=True,
+                    monitor_gym=True,
+                    save_code=True,
+                )
+                if not wandb.run.resumed:
+                    wandb.config.update({"env_cfg": env_cfg.to_dict()})
+                    wandb.config.update({"agent_cfg": agent_cfg})
+
+            screen.close()
+            try:
+                if args_cli.checkpoint is not None:
+                    runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
+                else:
+                    runner.run({"train": True, "play": False, "sigma": train_sigma})
+                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+                env.close()
+            except KeyboardInterrupt:
+                pass

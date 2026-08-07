@@ -20,11 +20,13 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.place import mdp as place_mdp
 from isaaclab_tasks.contrib.stack import mdp
@@ -176,7 +178,7 @@ class TerminationsCfg:
 class PhysicsCfg(PresetCfg):
     """Physics backend presets for Agibot place tasks."""
 
-    default = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.01,
         gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
         gpu_total_aggregate_pairs_capacity=16 * 1024,
@@ -202,7 +204,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = default
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = isaacsim_physx
 
 
 # Robot USD assets whose gripper revolute joints are authored with reversed
@@ -230,7 +233,7 @@ def raise_if_reversed_joints_on_newton(env_cfg) -> None:
         raise ValueError(
             "This task's robot has gripper joints authored with reversed body0/body1 ordering, "
             "which the Newton backend's USD parser does not support ('Reversed joints are not "
-            "supported'). Re-run this task with physics=physx (the default)."
+            "supported'). Re-run this task with physics=isaacsim_physx (the default)."
         )
 
 
@@ -259,9 +262,8 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.physics = PhysicsCfg()
 
-        # set viewer to see the whole scene
-        self.viewer.eye = [1.5, -1.0, 1.5]
-        self.viewer.lookat = [0.5, 0.0, 0.0]
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.5, -1.0, 1.5), lookat=(0.5, 0.0, 0.0))
 
     def validate_config(self):
         """Reject backend combinations that the configured robot cannot run on."""

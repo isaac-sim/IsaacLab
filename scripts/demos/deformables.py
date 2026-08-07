@@ -8,10 +8,16 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    uv run python scripts/demos/deformables.py
+    uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py
 
     # Usage with Newton VBD backend and default kit visualizer.
-    uv run python scripts/demos/deformables.py --physics newton_vbd
+    uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py --physics newton_vbd
+
+    # Install the optional dependencies for the legacy launcher.
+    ./isaaclab.sh -i tetrahedralization
+
+    # Usage with OvPhysX backend without a visualizer.
+    ./isaaclab.sh -p scripts/demos/deformables.py --physics ovphysx
 
 """
 
@@ -28,9 +34,15 @@ parser = argparse.ArgumentParser(
     description="This script demonstrates how to spawn deformable prims into the scene.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_vbd"], help="Physics backend.")
+parser.add_argument(
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx", "newton_vbd", "ovphysx"],
+    help="Physics backend.",
+)
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+backend_args, _ = parser.parse_known_args()
+parser.set_defaults(visualizer=None if backend_args.physics == "ovphysx" else ["kit"])
 args_cli = parser.parse_args()
 
 if args_cli.visualizer and "newton" in args_cli.visualizer and args_cli.physics != "newton_vbd":

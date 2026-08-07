@@ -1,6 +1,34 @@
 Changelog
 ---------
 
+0.7.1 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a spurious warning during ``./isaaclab.sh -i teleop`` by removing the
+  ``[tool.isaaclab] pip_upgrade_dependencies`` entry for ``isaacteleop``. The dependency is
+  declared by the root ``teleop`` extra rather than by this package, so the targeted upgrade
+  could never resolve it from the installed package metadata.
+
+
+0.7.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_teleop.check_system_requirements`, which measures the workstation against
+  the recommended teleoperation spec (CPU single-thread throughput, frequency governor, GPU memory
+  and architecture, driver, and system memory) and reports any unmet requirement. The check runs
+  automatically when a teleop session starts, is advisory only, and never blocks a session.
+
+* Added :meth:`~isaaclab_teleop.IsaacTeleopDevice.send_client_message` for sending JSON messages
+  from Isaac Lab to the connected XR client over the teleop control channel. Workstation warnings
+  use it to surface in the headset, where the operator can see them.
+
+
 0.6.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 
