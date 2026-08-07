@@ -39,7 +39,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 
-pytestmark = pytest.mark.integration
+# conversion is served by the standalone importers when Isaac Sim is absent, so these run
+# unchanged in the Kit-less container
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 # Portable Franka URDF for the kitless path (the Kit path uses the importer extension's bundled
 # ``panda_arm_hand.urdf``). Both expose the same 7 revolute + 2 prismatic joint structure.
@@ -50,6 +52,10 @@ _REPO_FRANKA_URDF = os.path.join(
 # Fixed-joint fixture for the merge tests: 7 links / 6 joints (3 fixed, 1 continuous, 2 prismatic).
 # Kept beside the tests so they are hermetic and run on either importer backend.
 _MERGE_JOINTS_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_merge_joints.urdf")
+
+# Fixed-joint-only fixture: the importer writes no PhysX data for it, so its "Physics" variant set
+# offers no "physx" variant, so requesting it must fail.
+_FIXED_ONLY_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_fixed_only.urdf")
 
 
 # Create a fixture for setup and teardown
@@ -751,3 +757,121 @@ def test_unsupported_features_warn(sim_config):
     # conversion should succeed despite deprecated options
     urdf_converter = UrdfConverter(config)
     assert os.path.exists(urdf_converter.usd_path), "USD file should be created despite deprecated options"
+
+
+def _physics_variant(usd_path: str) -> tuple[str, list[str]]:
+    """Return the authored ``"Physics"`` variant selection and the available variants.
+
+    Both are read while the stage is still referenced, since USD objects do not keep it alive.
+    """
+    from pxr import Usd
+
+    stage = Usd.Stage.Open(usd_path)
+    variant_set = stage.GetDefaultPrim().GetVariantSets().GetVariantSet("Physics")
+    return variant_set.GetVariantSelection(), variant_set.GetVariantNames()
+
+
+def _count_physics(usd_path: str) -> tuple[int, int]:
+    """Return the number of joints and articulation roots composed from the USD file at ``usd_path``.
+
+    The stage is held in a local for the whole traversal, since prims do not keep it alive.
+    """
+    from pxr import Usd, UsdPhysics
+
+    stage = Usd.Stage.Open(usd_path)
+    prims = list(stage.Traverse())
+    joints = sum(1 for prim in prims if prim.IsA(UsdPhysics.Joint))
+    roots = sum(1 for prim in prims if prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+    return joints, roots
+
+
+@pytest.mark.isaacsim_ci
+def test_physics_variant_selected_by_default(sim_config):
+    """Verify that the converter selects the backend-portable ``"physics"`` variant by default.
+
+    The importer leaves its ``"Physics"`` variant set unselected, which composes the asset without
+    joints, articulation roots, or mass properties. Without a selection this asserts 0 joints.
+    """
+    sim, config = sim_config
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(test_dir, "output", "urdf_physics_variant_default")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config.force_usd_conversion = True
+    config.usd_dir = output_dir
+    urdf_converter = UrdfConverter(config)
+
+    selection, _ = _physics_variant(urdf_converter.usd_path)
+    assert selection == "physics"
+
+    joints, roots = _count_physics(urdf_converter.usd_path)
+    assert joints > 0, "Expected the converted USD to compose joints"
+    assert roots > 0, "Expected the converted USD to compose an articulation root"
+
+
+@pytest.mark.isaacsim_ci
+def test_physics_variant_override(sim_config):
+    """Verify that ``physics_variant`` selects the requested variant instead of the default."""
+    sim, config = sim_config
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(test_dir, "output", "urdf_physics_variant_override")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config.force_usd_conversion = True
+    config.usd_dir = output_dir
+    config.physics_variant = "mujoco"
+    urdf_converter = UrdfConverter(config)
+
+    selection, _ = _physics_variant(urdf_converter.usd_path)
+    assert selection == "mujoco"
+
+    joints, roots = _count_physics(urdf_converter.usd_path)
+    assert joints > 0, "Expected the converted USD to compose joints"
+    assert roots > 0, "Expected the converted USD to compose an articulation root"
+
+
+@pytest.mark.isaacsim_ci
+def test_physics_variant_raises_when_requested_absent():
+    """Verify that requesting a variant the asset does not offer fails instead of substituting one.
+
+    ``test_fixed_only.urdf`` carries a single fixed joint, for which the importer writes no
+    PhysX-specific data, so its variant set offers only ``"none"`` and ``"physics"``. Silently
+    selecting one of those would hand back an asset configured for a different backend.
+    """
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(test_dir, "output", "urdf_physics_variant_missing")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config = UrdfConverterCfg(
+        asset_path=_FIXED_ONLY_URDF,
+        fix_base=True,
+        force_usd_conversion=True,
+        usd_dir=output_dir,
+        physics_variant="physx",
+    )
+
+    with pytest.raises(ValueError, match="no 'physx' physics variant"):
+        UrdfConverter(config)
+
+
+@pytest.mark.isaacsim_ci
+def test_physics_variant_raises_again_on_retry():
+    """Verify that a conversion which failed on the variant does not count as cached.
+
+    The converter skips conversion when the asset hash matches, so recording the hash before the
+    variant is settled would make an identical retry return the asset the importer selected.
+    """
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(test_dir, "output", "urdf_physics_variant_missing_retry")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config = UrdfConverterCfg(
+        asset_path=_FIXED_ONLY_URDF,
+        fix_base=True,
+        usd_dir=output_dir,
+        physics_variant="physx",
+    )
+
+    for _ in range(2):
+        with pytest.raises(ValueError, match="no 'physx' physics variant"):
+            UrdfConverter(config)
