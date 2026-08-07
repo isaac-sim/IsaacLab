@@ -71,11 +71,11 @@ class VisualizerCfg:
     """Target prim for the auto-created streaming camera (ignored when
     :attr:`streaming_sensor_prim_path` is set).
 
-    When ``None`` (the default), the visualizer first tries to adopt the first
-    scene camera sensor it discovers dynamically at initialisation time.  If no
-    scene camera exists it falls back to creating one with a default target.
-    Set this explicitly (e.g. ``"/World/envs/*/Robot"``) only when you want a
-    specific prim to be followed and no suitable scene camera is present.
+    When ``None`` (the default), the visualizer adopts the first scene camera
+    sensor it discovers dynamically at initialisation time.  If no scene camera
+    exists the streaming panel remains empty.  Set this explicitly (e.g.
+    ``"/World/envs/*/Robot"``) only when you need an auto-created follow-camera
+    and no suitable scene camera is present.
     """
 
     streaming_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)

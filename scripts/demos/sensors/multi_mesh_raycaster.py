@@ -105,33 +105,6 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
     },
 )
 
-
-def _create_visualizer_cfgs():
-    """Create demo-specific visualizer configs for requested backends."""
-    requested = set(args_cli.visualizer or [])
-    if not requested:
-        return []
-
-    cfgs = []
-    if "rerun" in requested:
-        from isaaclab_visualizers.rerun import RerunVisualizerCfg
-
-        cfgs.append(RerunVisualizerCfg(open_browser=True))
-    if "newton" in requested or "newton_gl" in requested:
-        from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
-        cfgs.append(NewtonGLVisualizerCfg())
-    if "viser" in requested:
-        from isaaclab_visualizers.viser import ViserVisualizerCfg
-
-        cfgs.append(ViserVisualizerCfg())
-    if "kit" in requested:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-
-        cfgs.append(KitVisualizerCfg())
-    return cfgs
-
-
 if args_cli.asset_type == "allegro_hand":
     asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
@@ -348,7 +321,7 @@ def main():
             dt=0.005,
             device=args_cli.device,
             physics=physics_cfg,
-            visualizer_cfgs=_create_visualizer_cfgs(),
+            visualizer_cfgs=None,
         )
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
