@@ -139,7 +139,7 @@ def test_version_single_source_matches_literal_pins():
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    assert versions["ovphysx"] == "0.5.9"
+    assert versions["ovphysx"] == "0.5.10"
     assert "omniverseclient==2.72.3" in dependencies
 
     # Isaac Sim extra mirrors the table, and the teleop extra repeats the same pin.
@@ -184,8 +184,8 @@ def test_version_single_source_matches_literal_pins():
     assert warp_spec in dependencies
 
 
-def test_public_ov_packages_use_public_pypi_index():
-    """Public OV packages must not resolve from the NVIDIA package index."""
+def test_ov_package_index_routing():
+    """OV runtime wheels resolve from the declared uv indexes."""
     pyproject = _root_pyproject()
     indexes = {index.get("name"): index for index in pyproject["tool"]["uv"]["index"]}
     sources = pyproject["tool"]["uv"]["sources"]
@@ -195,8 +195,16 @@ def test_public_ov_packages_use_public_pypi_index():
         "url": "https://pypi.org/simple",
         "explicit": True,
     }
-    for package in ("omniverseclient", "ovphysx", "ovstage"):
+    assert indexes["ct-omniverse-pypi"] == {
+        "name": "ct-omniverse-pypi",
+        "url": "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple",
+        "explicit": True,
+    }
+    for package in ("omniverseclient", "ovstage"):
         assert sources[package] == {"index": "pypi-public"}
+    # Pre-release OV runtime wheels live on the internal Omniverse PyPI.
+    for package in ("ovphysx", "ovrtx"):
+        assert sources[package] == {"index": "ct-omniverse-pypi"}
 
 
 def test_uv_run_declares_no_extra_conflicts():
