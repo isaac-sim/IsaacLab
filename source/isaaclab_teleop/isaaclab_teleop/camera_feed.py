@@ -1,0 +1,528 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Lifecycle management for camera image panels in XR."""
+
+from __future__ import annotations
+
+import importlib
+import logging
+import math
+import time
+from collections import Counter
+from contextlib import suppress
+from copy import deepcopy
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any
+
+import torch
+
+from isaaclab.utils.version import get_isaac_sim_version
+
+from .isaac_teleop_cfg import XrCameraFeedCfg, XrCameraFeedLayoutCfg
+
+if TYPE_CHECKING:
+    from isaaclab.sensors import Camera
+
+logger = logging.getLogger(__name__)
+
+_DLSS_EXEC_MODES = frozenset({"performance", "balanced", "quality", "auto", "rtxaa", "manual"})
+
+
+@lru_cache(maxsize=1)
+def _camera_type() -> type[Camera]:
+    """Load the concrete camera type only when feeds are presented."""
+    from isaaclab.sensors import Camera
+
+    return Camera
+
+
+def _load_kit_scene_ui_presenter() -> Any | None:
+    """Load the optional Kit SceneUI presenter without making Kit a package dependency."""
+    try:
+        module = importlib.import_module(".camera_feed_kit_scene_ui", __package__)
+    except (ImportError, ModuleNotFoundError) as exc:
+        logger.warning(
+            "XR camera PiP is unavailable because Kit SceneUI could not be loaded (%s: %s). Continuing without PiP.",
+            type(exc).__name__,
+            exc,
+        )
+        return None
+    return module._KitSceneUiCameraFeedPresenter()
+
+
+def _prepare_camera_feed_cfgs(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> list[XrCameraFeedCfg]:
+    """Validate selected scene cameras."""
+    from isaaclab.sensors import CameraCfg
+
+    prepared: list[XrCameraFeedCfg] = []
+    enabled_cfgs = deepcopy(cfgs)
+    duplicates = sorted(name for name, count in Counter(cfg.camera_name for cfg in enabled_cfgs).items() if count > 1)
+    if duplicates:
+        raise ValueError(f"XR camera feeds must have unique camera names. Duplicates: {duplicates}.")
+
+    scene = getattr(env_cfg, "scene", None)
+    if scene is None:
+        raise ValueError("XR camera feeds require an environment configuration with a scene.")
+    for cfg in enabled_cfgs:
+        if cfg.enable_dlss_ray_reconstruction is not None and type(cfg.enable_dlss_ray_reconstruction) is not bool:
+            raise TypeError(
+                f"enable_dlss_ray_reconstruction for XR camera feed {cfg.camera_name!r} must be bool or None."
+            )
+        if cfg.dlss_exec_mode is not None and (
+            not isinstance(cfg.dlss_exec_mode, str) or cfg.dlss_exec_mode not in _DLSS_EXEC_MODES
+        ):
+            raise ValueError(
+                f"dlss_exec_mode for XR camera feed {cfg.camera_name!r} must be one of "
+                f"{sorted(_DLSS_EXEC_MODES)} or None."
+            )
+        camera_cfg = getattr(scene, cfg.camera_name, None)
+        if camera_cfg is None:
+            raise ValueError(f"XR camera feed {cfg.camera_name!r} is not present in the scene.")
+        if not isinstance(camera_cfg, CameraCfg):
+            raise TypeError(f"XR camera feed {cfg.camera_name!r} does not reference a CameraCfg.")
+        if not any(data_type in {"rgb", "rgba"} for data_type in camera_cfg.data_types):
+            raise ValueError(f"XR camera feed {cfg.camera_name!r} camera must provide RGB or RGBA output.")
+        prepared.append(cfg)
+    return prepared
+
+
+def _apply_ray_reconstruction_compatibility(cfgs: list[XrCameraFeedCfg]) -> None:
+    """Resolve the effective PiP Ray Reconstruction policy for this runtime."""
+    if not any(cfg.enable_dlss_ray_reconstruction is True for cfg in cfgs):
+        return
+    isaac_sim_version = get_isaac_sim_version()
+    if (isaac_sim_version.major, isaac_sim_version.minor) >= (6, 1):
+        return
+    for cfg in cfgs:
+        if cfg.enable_dlss_ray_reconstruction is True:
+            cfg.enable_dlss_ray_reconstruction = False
+    logger.warning(
+        "DLSS Ray Reconstruction was requested for XR camera PiP, but Isaac Sim %s predates responsive "
+        "denoising. Falling back to classic DLSS for the selected feeds.",
+        isaac_sim_version,
+    )
+
+
+class XrCameraFeedSession:
+    """Manage the two-phase XR camera-feed lifecycle.
+
+    Use :meth:`prepare` before constructing the environment, then call
+    :meth:`bind` with the constructed environment before entering the session.
+    """
+
+    def __init__(
+        self,
+        cfgs: list[XrCameraFeedCfg],
+        layout_cfg: XrCameraFeedLayoutCfg | None,
+        presenter: Any | None,
+        *,
+        requires_responsive_denoising: bool,
+    ):
+        self._cfgs = cfgs
+        self._layout_cfg = layout_cfg
+        self._presenter = presenter
+        self._requires_responsive_denoising = requires_responsive_denoising
+        self._manager = None
+        self._bound = False
+
+    @classmethod
+    def prepare(
+        cls,
+        env_cfg: Any,
+        *,
+        enabled: bool,
+        camera_rendering_enabled: bool,
+    ) -> XrCameraFeedSession:
+        """Prepare task-configured camera feeds before constructing the environment.
+
+        Args:
+            env_cfg: Environment configuration containing the IsaacTeleop and scene settings.
+            enabled: Whether XR camera feeds are enabled for this run.
+            camera_rendering_enabled: Whether external camera rendering is enabled.
+
+        Returns:
+            A session ready to bind to the constructed environment.
+        """
+        if type(enabled) is not bool or type(camera_rendering_enabled) is not bool:
+            raise TypeError("enabled and camera_rendering_enabled must be bool values.")
+        teleop_cfg = getattr(env_cfg, "isaac_teleop", None)
+        if not enabled or teleop_cfg is None:
+            return cls([], None, None, requires_responsive_denoising=False)
+
+        requested = [cfg for cfg in teleop_cfg.xr_camera_feeds if cfg.enabled]
+        if not camera_rendering_enabled:
+            if requested:
+                logger.warning("XR camera PiP is disabled because external camera rendering is disabled.")
+            return cls([], None, None, requires_responsive_denoising=False)
+        if not requested:
+            return cls([], teleop_cfg.xr_camera_feed_layout, None, requires_responsive_denoising=False)
+
+        _validate_layout_cfg(teleop_cfg.xr_camera_feed_layout)
+        presenter = _load_kit_scene_ui_presenter()
+        if presenter is None:
+            return cls([], teleop_cfg.xr_camera_feed_layout, None, requires_responsive_denoising=False)
+        if int(env_cfg.scene.num_envs) != 1:
+            raise ValueError("XR camera PiP supports exactly one environment; set --num_envs 1 or disable PiP feeds.")
+        cfgs = _prepare_camera_feed_cfgs(env_cfg, requested)
+        _apply_ray_reconstruction_compatibility(cfgs)
+        return cls(
+            cfgs,
+            teleop_cfg.xr_camera_feed_layout,
+            presenter,
+            requires_responsive_denoising=any(cfg.enable_dlss_ray_reconstruction is True for cfg in cfgs),
+        )
+
+    @property
+    def enabled(self) -> bool:
+        """Whether the session has camera feeds to present."""
+        return bool(self._cfgs)
+
+    @property
+    def requires_responsive_denoising(self) -> bool:
+        """Whether the selected feeds require responsive DLSS denoising."""
+        return self._requires_responsive_denoising
+
+    def bind(self, env: Any) -> XrCameraFeedSession:
+        """Bind the prepared feeds to a constructed environment.
+
+        Args:
+            env: Constructed environment containing the selected scene cameras.
+
+        Returns:
+            This session, ready to use as a context manager.
+        """
+        if self._bound:
+            raise RuntimeError("XR camera feed session is already bound.")
+        self._bound = True
+        try:
+            if self.enabled:
+                self._manager = _XrCameraFeedManager(env, self._cfgs, self._layout_cfg, self._presenter)
+        except Exception:
+            self.close()
+            raise
+        return self
+
+    def refresh(self) -> None:
+        """Refresh and publish feed buffers after the environment resets."""
+        if not self._bound:
+            raise RuntimeError("XR camera feed session must be bound before refresh.")
+        if self._manager is not None:
+            self._manager.refresh()
+
+    def close(self) -> None:
+        """Close feed display resources and allow the session to be rebound.
+
+        Render-product policy authored while binding persists for the selected
+        camera render product's lifetime.
+        """
+        if self._manager is not None:
+            self._manager.close()
+            self._manager = None
+        self._bound = False
+
+    def __enter__(self) -> XrCameraFeedSession:
+        if not self._bound:
+            raise RuntimeError("Call bind(env) before entering an XR camera feed session.")
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
+
+def _panel_size_m(cfg: XrCameraFeedCfg, image_size: tuple[int, int]) -> tuple[float, float]:
+    width, height = image_size
+    if width <= 0 or height <= 0:
+        raise ValueError(f"XR camera feed image dimensions must be positive, got {image_size}.")
+    return cfg.panel_width_m, cfg.panel_width_m * height / width + (0.04 if cfg.label else 0.0)
+
+
+def _centered_positions(sizes: list[float], gap: float) -> list[float]:
+    cursor = -0.5 * (sum(sizes) + gap * max(0, len(sizes) - 1))
+    positions = []
+    for size in sizes:
+        positions.append(cursor + 0.5 * size)
+        cursor += size + gap
+    return positions
+
+
+def _validate_layout_cfg(layout_cfg: XrCameraFeedLayoutCfg) -> None:
+    if layout_cfg.mode not in {"manual", "horizontal", "vertical", "grid"}:
+        raise ValueError(f"Unknown XR camera feed layout mode {layout_cfg.mode!r}.")
+    if layout_cfg.placement not in {"viewer_start", "head_locked", "world"}:
+        raise ValueError(f"Unknown XR camera feed placement {layout_cfg.placement!r}.")
+    if layout_cfg.placement != "world" and (not math.isfinite(layout_cfg.distance_m) or layout_cfg.distance_m <= 0.0):
+        raise ValueError("XR camera feed layout distance_m must be finite and positive.")
+    if not math.isfinite(layout_cfg.panel_gap_m) or layout_cfg.panel_gap_m < 0.0:
+        raise ValueError("XR camera feed layout panel_gap_m must be finite and non-negative.")
+    if len(layout_cfg.center_offset_m) != 2 or not all(math.isfinite(value) for value in layout_cfg.center_offset_m):
+        raise ValueError("XR camera feed layout center_offset_m must contain two finite values.")
+    if type(layout_cfg.max_columns) is not int or layout_cfg.max_columns <= 0:
+        raise ValueError("XR camera feed layout max_columns must be positive.")
+    if layout_cfg.placement == "world":
+        position = layout_cfg.world_position_m
+        if position is None or len(position) != 3 or not all(math.isfinite(value) for value in position):
+            raise ValueError("XR camera feed layout world_position_m must contain three finite values.")
+        orientation = layout_cfg.world_orientation_xyzw
+        if len(orientation) != 4 or not all(math.isfinite(value) for value in orientation):
+            raise ValueError("XR camera feed layout world_orientation_xyzw must contain four finite values.")
+        if math.sqrt(sum(value * value for value in orientation)) <= 1.0e-8:
+            raise ValueError("XR camera feed layout world_orientation_xyzw must be non-zero.")
+
+
+def _layout_feed_cfgs(
+    cfgs: list[XrCameraFeedCfg],
+    image_sizes: list[tuple[int, int]],
+    layout_cfg: XrCameraFeedLayoutCfg,
+) -> list[XrCameraFeedCfg]:
+    if len(cfgs) != len(image_sizes):
+        raise ValueError("XR camera feed configs and image sizes must have the same length.")
+    _validate_layout_cfg(layout_cfg)
+    resolved = deepcopy(cfgs)
+    if layout_cfg.mode == "manual" or not resolved:
+        return resolved
+
+    panel_sizes = [_panel_size_m(cfg, size) for cfg, size in zip(resolved, image_sizes, strict=True)]
+    center_x, center_y = layout_cfg.center_offset_m
+    if layout_cfg.mode == "horizontal":
+        xs = _centered_positions([width for width, _ in panel_sizes], layout_cfg.panel_gap_m)
+        offsets = [(center_x + x, center_y) for x in xs]
+    elif layout_cfg.mode == "vertical":
+        ys = _centered_positions([height for _, height in panel_sizes], layout_cfg.panel_gap_m)
+        offsets = [(center_x, center_y - y) for y in ys]
+    else:
+        columns = min(layout_cfg.max_columns, len(resolved))
+        rows = [list(range(start, min(start + columns, len(resolved)))) for start in range(0, len(resolved), columns)]
+        row_heights = [max(panel_sizes[index][1] for index in row) for row in rows]
+        row_ys = _centered_positions(row_heights, layout_cfg.panel_gap_m)
+        offsets = [(0.0, 0.0)] * len(resolved)
+        for row, row_y in zip(rows, row_ys, strict=True):
+            row_xs = _centered_positions([panel_sizes[index][0] for index in row], layout_cfg.panel_gap_m)
+            for index, row_x in zip(row, row_xs, strict=True):
+                offsets[index] = (center_x + row_x, center_y - row_y)
+
+    for cfg, offset in zip(resolved, offsets, strict=True):
+        cfg.offset_m = offset
+        cfg.distance_m = layout_cfg.distance_m
+    return resolved
+
+
+@dataclass(frozen=True)
+class _PanelDescriptor:
+    label: str | None
+    width_m: float
+    offset_m: tuple[float, float]
+    distance_m: float
+    placement: str
+    world_position_m: tuple[float, float, float] | None
+    world_orientation_xyzw: tuple[float, float, float, float]
+
+
+def _panel_descriptor(cfg: XrCameraFeedCfg, layout_cfg: XrCameraFeedLayoutCfg) -> _PanelDescriptor:
+    return _PanelDescriptor(
+        label=cfg.label,
+        width_m=cfg.panel_width_m,
+        offset_m=tuple(cfg.offset_m),
+        distance_m=cfg.distance_m,
+        placement=layout_cfg.placement,
+        world_position_m=None if layout_cfg.world_position_m is None else tuple(layout_cfg.world_position_m),
+        world_orientation_xyzw=tuple(layout_cfg.world_orientation_xyzw),
+    )
+
+
+@dataclass
+class _ActiveFeed:
+    cfg: XrCameraFeedCfg
+    camera: Camera
+    fallback_image: torch.Tensor
+    image_source: Any | None
+    image: torch.Tensor
+    upload_image: torch.Tensor
+    panel: Any
+    next_update_time: float = 0.0
+
+
+class _XrCameraFeedManager:
+    """Bind camera RGBA buffers to persistent Kit SceneUI panels."""
+
+    def __init__(
+        self,
+        env: Any,
+        cfgs: list[XrCameraFeedCfg],
+        layout_cfg: XrCameraFeedLayoutCfg | None,
+        presenter: Any,
+    ):
+        self._env = env
+        self._feeds: list[_ActiveFeed] = []
+        self._presenter = presenter
+        self._layout_cfg = deepcopy(layout_cfg or XrCameraFeedLayoutCfg())
+        self._frame_subscription = None
+
+        try:
+            bound_feeds = []
+            for cfg in cfgs:
+                self._validate_cfg(cfg, self._layout_cfg.placement)
+                camera, image = self._bind_image(cfg)
+                bound_feeds.append((camera, image))
+            image_sizes = [(int(image.shape[1]), int(image.shape[0])) for _, image in bound_feeds]
+            resolved_cfgs = _layout_feed_cfgs(cfgs, image_sizes, self._layout_cfg)
+            for cfg, (camera, fallback_image) in zip(resolved_cfgs, bound_feeds, strict=True):
+                image_source = self._presenter.create_image_source(cfg.camera_name, camera, cfg)
+                try:
+                    image = image_source.get_image(tuple(fallback_image.shape)) if image_source is not None else None
+                    if image is None:
+                        image = fallback_image
+                    upload_image = image
+                    panel = self._presenter.create_panel(
+                        _panel_descriptor(cfg, self._layout_cfg),
+                        width=int(fallback_image.shape[1]),
+                        height=int(fallback_image.shape[0]),
+                    )
+                except Exception:
+                    if image_source is not None:
+                        with suppress(Exception):
+                            image_source.close()
+                    raise
+                self._feeds.append(_ActiveFeed(cfg, camera, fallback_image, image_source, image, upload_image, panel))
+            self._frame_subscription = self._presenter.subscribe_to_frame_updates(self._on_frame)
+        except Exception:
+            self.close()
+            raise
+
+    def _on_frame(self, _event: Any) -> None:
+        self.update()
+
+    @staticmethod
+    def _validate_cfg(cfg: XrCameraFeedCfg, placement: str) -> None:
+        if not math.isfinite(cfg.panel_width_m) or cfg.panel_width_m <= 0.0:
+            raise ValueError(f"panel_width_m for XR camera feed {cfg.camera_name!r} must be positive.")
+        if len(cfg.offset_m) != 2 or not all(math.isfinite(value) for value in cfg.offset_m):
+            raise ValueError(f"offset_m for XR camera feed {cfg.camera_name!r} must contain two finite values.")
+        if placement != "world" and (not math.isfinite(cfg.distance_m) or cfg.distance_m <= 0.0):
+            raise ValueError(f"distance_m for XR camera feed {cfg.camera_name!r} must be positive.")
+        if not math.isfinite(cfg.max_update_hz) or cfg.max_update_hz < 0.0:
+            raise ValueError(f"max_update_hz for XR camera feed {cfg.camera_name!r} must be finite and non-negative.")
+
+    def _bind_image(self, cfg: XrCameraFeedCfg) -> tuple[Camera, torch.Tensor]:
+        sensors = getattr(getattr(self._env, "scene", None), "sensors", {})
+        if cfg.camera_name not in sensors:
+            raise ValueError(
+                f"XR camera feed {cfg.camera_name!r} is not present in the interactive scene. "
+                f"Available sensors: {sorted(sensors.keys())}."
+            )
+        camera = sensors[cfg.camera_name]
+        if not isinstance(camera, _camera_type()):
+            raise TypeError(f"XR camera feed {cfg.camera_name!r} did not resolve to an Isaac Lab Camera.")
+        return camera, self._image_from_output(cfg, camera.data.output)
+
+    def _image_from_output(self, cfg: XrCameraFeedCfg, output: Any) -> torch.Tensor:
+        if output is None or "rgba" not in output:
+            available = [] if output is None else sorted(output.keys())
+            raise ValueError(f"Camera {cfg.camera_name!r} has no RGBA buffer. Available outputs: {available}.")
+        batch = output["rgba"].torch
+        if batch.ndim != 4 or int(batch.shape[-1]) != 4:
+            raise ValueError(f"Camera {cfg.camera_name!r} RGBA output must have shape (N, H, W, 4).")
+        image = batch[0]
+        if image.dtype != torch.uint8:
+            raise TypeError(f"Camera {cfg.camera_name!r} RGBA buffer must be uint8, got {image.dtype}.")
+        return image
+
+    @staticmethod
+    def _same_allocation(first: torch.Tensor, second: torch.Tensor) -> bool:
+        return (
+            tuple(first.shape) == tuple(second.shape)
+            and first.device == second.device
+            and first.data_ptr() == second.data_ptr()
+        )
+
+    def _rebind_feed(self, feed: _ActiveFeed, camera: Camera, fallback_image: torch.Tensor) -> None:
+        camera_changed = feed.camera is not camera
+        image_changed = not self._same_allocation(feed.fallback_image, fallback_image)
+        if not camera_changed and not image_changed:
+            return
+
+        replacement_source = feed.image_source
+        replacement_panel = feed.panel
+        if camera_changed:
+            replacement_source = self._presenter.create_image_source(feed.cfg.camera_name, camera, feed.cfg)
+        try:
+            if tuple(fallback_image.shape) != tuple(feed.fallback_image.shape):
+                replacement_panel = self._presenter.create_panel(
+                    _panel_descriptor(feed.cfg, self._layout_cfg),
+                    width=int(fallback_image.shape[1]),
+                    height=int(fallback_image.shape[0]),
+                )
+        except Exception:
+            if camera_changed and replacement_source is not None:
+                with suppress(Exception):
+                    replacement_source.close()
+            raise
+
+        if camera_changed:
+            old_source = feed.image_source
+            feed.image_source = replacement_source
+            if old_source is not None:
+                try:
+                    old_source.close()
+                except Exception:
+                    logger.exception("Failed to close XR camera feed source %r.", feed.cfg.camera_name)
+        if replacement_panel is not feed.panel:
+            old_panel = feed.panel
+            feed.panel = replacement_panel
+            old_panel.close()
+        feed.camera = camera
+        feed.fallback_image = fallback_image
+
+    def update(self) -> None:
+        now = time.monotonic()
+        for feed in self._feeds:
+            if now < feed.next_update_time:
+                continue
+            self._publish_feed(feed)
+            period = 0.0 if feed.cfg.max_update_hz == 0.0 else 1.0 / feed.cfg.max_update_hz
+            feed.next_update_time = now + period
+
+    def _publish_feed(self, feed: _ActiveFeed) -> None:
+        image = feed.image_source.get_image(tuple(feed.fallback_image.shape)) if feed.image_source is not None else None
+        if image is None:
+            fallback_image = self._image_from_output(feed.cfg, feed.camera.data.output)
+            self._rebind_feed(feed, feed.camera, fallback_image)
+            image = feed.fallback_image
+        upload_image = self._presenter.prepare_upload_image(
+            feed.cfg.camera_name,
+            image,
+            previous_source=feed.image,
+            previous_upload=feed.upload_image,
+        )
+        self._presenter.stage_upload_image(image, upload_image)
+        feed.panel.upload(upload_image)
+        feed.image = image
+        feed.upload_image = upload_image
+
+    def refresh(self, *, publish: bool = True) -> None:
+        for feed in self._feeds:
+            feed.camera.update(0.0, force_recompute=True)
+            camera, image = self._bind_image(feed.cfg)
+            self._rebind_feed(feed, camera, image)
+            if publish:
+                self._publish_feed(feed)
+            feed.next_update_time = 0.0
+
+    def close(self) -> None:
+        if self._frame_subscription is not None:
+            self._frame_subscription.close()
+            self._frame_subscription = None
+        for feed in reversed(self._feeds):
+            if feed.image_source is not None:
+                try:
+                    feed.image_source.close()
+                except Exception:
+                    logger.exception("Failed to close XR camera feed source %r.", feed.cfg.camera_name)
+            try:
+                feed.panel.close()
+            except Exception:
+                logger.exception("Failed to close XR camera feed %r.", feed.cfg.camera_name)
+        self._feeds.clear()
