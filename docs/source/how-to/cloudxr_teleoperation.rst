@@ -733,19 +733,6 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
            --dataset_file ./datasets/dataset.hdf5 \
            --xr --visualizer kit
 
-.. tip::
-
-   Once the script is running and the WSS proxy has started, you can verify that port 48322
-   is reachable from another machine on the same network:
-
-   .. code-block:: bash
-
-      nc -vz <isaac-lab-host-ip> 48322
-
-   Expected output: ``Connection to <ip> port 48322 [tcp/*] succeeded!``
-   A ``Connection refused`` result after opening the firewall indicates the proxy has not
-   yet started — wait a few seconds and retry.
-
 Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 
 For a fully headless experience, replace ``--visualizer kit`` with ``--visualizer none`` or
