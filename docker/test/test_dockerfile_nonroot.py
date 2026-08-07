@@ -109,8 +109,8 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
     assert _user_directives(dockerfile_text) == ["root", "isaaclab"]
 
 
-def test_kitless_dockerfile_installs_newton_rl_and_ovrtx_without_isaac_sim_or_ovphysx():
-    """The kit-less image installs Newton, OVRTX, and all core RL frameworks."""
+def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_sim():
+    """The kit-less image installs Newton, both OV runtimes, every Newton viewer, and the RL frameworks."""
     dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
 
     assert (
@@ -118,12 +118,16 @@ def test_kitless_dockerfile_installs_newton_rl_and_ovrtx_without_isaac_sim_or_ov
         in dockerfile_text
     )
     # Installed through the same entry point as Dockerfile.base/Dockerfile.curobo.
-    assert '"${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[ovrtx]' in dockerfile_text
+    assert '"${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all]' in dockerfile_text
     assert "COPY isaaclab.sh ./" in dockerfile_text
-    assert "ov[ovphysx]" not in dockerfile_text
+    # Isaac Sim stays out; everything else the selectors promise must be present.
     assert "'isaacsim' not in names" in dockerfile_text
-    assert "'ovphysx' not in names" in dockerfile_text
+    assert "'ovphysx' in names" in dockerfile_text
     assert "'ovrtx' in names" in dockerfile_text
+    assert "'viser' in names" in dockerfile_text
+    assert "'rerun-sdk' in names" in dockerfile_text
+    # pyglet's xlib backend resolves libXrender.so.1 at import, so `--viz newton` needs it.
+    assert "libxrender1" in dockerfile_text
     assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
     assert "COPY docker/docker-compose.yaml docker/docker-compose.yaml" in dockerfile_text
     assert "COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py" in dockerfile_text
