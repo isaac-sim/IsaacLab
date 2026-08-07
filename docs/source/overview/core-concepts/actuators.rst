@@ -94,7 +94,7 @@ paths after collection staging:
 #. **Isaac Lab actuator** -- a Lab-managed explicit model turns the actuator command into a joint
    effort and clips it before submission.
 #. **Implicit drive** -- the backend consumes the desired targets and the solver-side PD gains.
-#. **Newton actuator** -- a native explicit controller finishes processing inside the Newton solver.
+#. **Newton actuator** -- a native explicit controller follows the active backend path; the next paragraph gives its stage.
 
 For Isaac Lab-managed models, ``actuators.joint_command`` exposes the processed position, velocity,
 and effort commands submitted to the active physics backend. Native paths bypass this view, so it
