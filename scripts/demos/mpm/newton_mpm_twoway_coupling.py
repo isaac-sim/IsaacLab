@@ -36,7 +36,7 @@ args_cli = parser.parse_args()
 
 FPS = 100.0
 GRAVITY = (0.0, 0.0, -9.81)
-PARTICLES_PER_CELL = 2.0
+PARTICLES_PER_CELL = 3.0
 PARTICLE_COLOR = (0.7, 0.6, 0.4)
 SPHERE_BODY_PATTERN = r"/World/envs/env_.*/Sphere_[0-9]+"
 SPHERE_RADIUS = 0.30
