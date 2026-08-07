@@ -423,6 +423,8 @@ class TestLaunchSimulationDevicePropagation:
         """When Kit is needed, AppLauncher.device should be written to env_cfg.sim.device."""
 
         class _FakeAppLauncher:
+            is_available = staticmethod(lambda: True)
+
             def __init__(self, launcher_args):
                 self.device = "cuda:3"  # Simulate resolved device
                 self.app = types.SimpleNamespace(close=lambda: None)

@@ -10,9 +10,9 @@ from isaaclab_tasks.core.locomotion.locomotion_direct_env import LocomotionDirec
 
 
 class AntEnv(LocomotionDirectEnv):
-    """Direct-workflow Ant locomotion environment."""
+    """Direct-workflow Ant locomotion environment.
+
+    The behavior is fully defined by :class:`LocomotionDirectEnv` and :class:`AntEnvCfg`.
+    """
 
     cfg: AntEnvCfg
-
-    def __init__(self, cfg: AntEnvCfg, render_mode: str | None = None, **kwargs):
-        super().__init__(cfg, render_mode, **kwargs)

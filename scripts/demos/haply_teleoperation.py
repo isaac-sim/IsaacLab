@@ -15,22 +15,22 @@ teleoperate a robotic arm in Isaac Lab. The Haply provides:
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py
+    uv run python scripts/demos/haply_teleoperation.py
 
     # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --visualizer newton
+    uv run python scripts/demos/haply_teleoperation.py --visualizer newton
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --physics newton_mjwarp
+    uv run python scripts/demos/haply_teleoperation.py --physics newton_mjwarp
 
     # Usage with Newton visualizer and Newton (MJWarp) physics.
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --visualizer newton --physics newton_mjwarp
+    uv run python scripts/demos/haply_teleoperation.py --visualizer newton --physics newton_mjwarp
 
     # With custom WebSocket URI
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001
+    uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001
 
     # With sensitivity adjustment
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --pos_sensitivity 2.0
+    uv run python scripts/demos/haply_teleoperation.py --pos_sensitivity 2.0
 
 Prerequisites:
     1. Install websockets package: pip install websockets
@@ -51,7 +51,9 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
+)
 parser.add_argument(
     "--websocket_uri",
     type=str,

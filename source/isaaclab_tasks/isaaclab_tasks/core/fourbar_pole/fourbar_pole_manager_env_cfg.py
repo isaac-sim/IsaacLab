@@ -23,7 +23,6 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.fourbar_pole.mdp as mdp
-from isaaclab_tasks.core.fourbar_pole.mdp.rewards import UprightSuccessRateCommandCfg
 from isaaclab_tasks.utils import PresetCfg
 
 ##
@@ -96,17 +95,6 @@ class FourbarPoleSceneCfg(InteractiveSceneCfg):
 ##
 # MDP settings
 ##
-
-
-@configclass
-class CommandsCfg:
-    """Command specifications for the MDP."""
-
-    # Command term to track pole upright success rate
-    upright = UprightSuccessRateCommandCfg(
-        asset_cfg=SceneEntityCfg("robot", joint_names=["coupler_to_pole"]),
-        threshold=0.95,
-    )
 
 
 @configclass
@@ -187,11 +175,15 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    # (1) Primary task: swing the pole up and keep it upright (cos is maximal upright)
+    # (1) Primary task + success tracking: swing the pole up and keep it upright (cos is maximal upright)
     pole_upright = RewTerm(
         func=mdp.pole_upright,
         weight=1.0,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["coupler_to_pole"])},
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["coupler_to_pole"]),
+            "success_threshold": 0.9,
+            "hold_time_s": 0.5,
+        },
     )
     # (2) Shaping: damp the pole angular velocity to settle at the top
     pole_vel = RewTerm(
@@ -234,7 +226,6 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
     events: EventCfg = EventCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
@@ -246,10 +237,8 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 2
         self.episode_length_s = 5
-        # viewer settings
-        self.viewer.eye = (12.0, 0.0, 4.0)
         # Match Newton GL / --video camera to the task viewport when --viz newton creates the visualizer.
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=self.viewer.eye, lookat=self.viewer.lookat)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(12.0, 0.0, 4.0))
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation

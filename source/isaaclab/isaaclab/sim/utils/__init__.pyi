@@ -39,6 +39,7 @@ __all__ = [
     "find_matching_prim_paths",
     "find_global_fixed_joint_prim",
     "has_deformable_body_api",
+    "has_deformable_curve_api",
     "add_labels",
     "get_labels",
     "remove_labels",
@@ -48,6 +49,7 @@ __all__ = [
     "create_new_stage",
     "is_current_stage_in_memory",
     "open_stage",
+    "show_stage_in_viewport",
     "use_stage",
     "update_stage",
     "save_stage",
@@ -60,7 +62,12 @@ __all__ = [
     "resolve_prim_pose",
     "resolve_prim_scale",
     "convert_world_pose_to_local",
+    "disable_extension",
+    "enable_extension",
+    "get_extension_path",
 ]
+
+from .extensions import disable_extension, enable_extension, get_extension_path
 
 from .legacy import (
     add_reference_to_stage,
@@ -102,6 +109,7 @@ from .queries import (
     find_matching_prim_paths,
     find_global_fixed_joint_prim,
     has_deformable_body_api,
+    has_deformable_curve_api,
 )
 from .semantics import (
     add_labels,
@@ -115,6 +123,7 @@ from .stage import (
     create_new_stage,
     is_current_stage_in_memory,
     open_stage,
+    show_stage_in_viewport,
     use_stage,
     update_stage,
     save_stage,

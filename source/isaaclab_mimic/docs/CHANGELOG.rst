@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+2.0.3 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``ModuleNotFoundError: No module named 'ipywidgets'`` when running dataset generation
+  from an environment without the ``mimic`` extra. ``isaaclab_mimic.datagen.utils`` imported
+  ``ipywidgets`` and ``IPython`` at module scope even though only its interactive notebook
+  helpers use them, so importing the module for its path helpers pulled in dependencies the
+  generation path never needs.
+
+
+2.0.2 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for environment-provided demonstration recorder configurations during Mimic generation.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed locomanipulation path planning to enable the MobilityGen extension before importing
+  its Isaac Sim modules.
+* Fixed ``SceneAsset`` pose queries in the locomanipulation SDG utilities to
+  build their frame view on demand, since static scene assets no longer carry
+  a runtime view in :class:`~isaaclab.scene.InteractiveScene`.
+
+
 2.0.1 (2026-06-14)
 ~~~~~~~~~~~~~~~~~~
 

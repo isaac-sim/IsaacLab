@@ -64,6 +64,11 @@ component yet:
      - :class:`~isaaclab_physx.assets.DeformableObject`
      - :class:`~isaaclab_newton.assets.DeformableObject`
      - Not supported
+   * - Cable Object
+     - :class:`~isaaclab.assets.CableObject`
+     - Not supported
+     - :class:`~isaaclab_newton.assets.CableObject`
+     - Not supported
    * - Contact Sensor
      - :class:`~isaaclab.sensors.ContactSensor`
      - :class:`~isaaclab_physx.sensors.ContactSensor`
@@ -171,6 +176,7 @@ below shows only the physics-related fields:
 .. code-block:: python
 
     from isaaclab.envs import DirectRLEnvCfg
+    from isaaclab.physics import PhysxAutoCfg
     from isaaclab.sim import SimulationCfg
     from isaaclab.utils.configclass import configclass
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -180,12 +186,16 @@ below shows only the physics-related fields:
 
     @configclass
     class CartpolePhysicsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
-        physx: PhysxCfg = PhysxCfg()
+        isaacsim_physx: PhysxCfg = PhysxCfg()
+        ovphysx: OvPhysxCfg = OvPhysxCfg()
+        physx: PhysxAutoCfg = PhysxAutoCfg(
+            isaacsim_physx=isaacsim_physx,
+            ovphysx=ovphysx,
+        )
+        default: PhysxCfg = isaacsim_physx
         newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3)
         )
-        ovphysx: OvPhysxCfg = OvPhysxCfg()
 
     @configclass
     class CartpoleEnvCfg(DirectRLEnvCfg):
@@ -193,16 +203,47 @@ below shows only the physics-related fields:
 
 Users then select a physics backend at the command line:
 
-.. code-block:: bash
+.. tab-set::
 
-    # Default (PhysX)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+   .. tab-item:: uv (Recommended)
 
-    # MJWarp (Newton backend)
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
+      .. code-block:: bash
 
-    # OvPhysX backend
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
+          # Default (concrete Isaac Sim PhysX)
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+
+          # Automatic PhysX-family selection
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=physx
+
+          # MJWarp (Newton backend)
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+          # OvPhysX backend
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # Default (concrete Isaac Sim PhysX)
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+
+          # Automatic PhysX-family selection
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=physx
+
+          # MJWarp (Newton backend)
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
+
+          # OvPhysX backend
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
+
+When a task's default would otherwise be automatic ``PhysxAutoCfg`` selection,
+its ``default`` variant is the concrete ``isaacsim_physx`` configuration.
+Explicit defaults such as Newton remain unchanged. The ``physics=physx``
+selector is opt-in and chooses between Isaac Sim PhysX and OvPhysX at launch
+time according to whether the resolved runtime requires Kit. This mirrors
+renderer presets: the default is concrete ``isaacsim_rtx``, while
+``renderer=rtx`` opts into automatic selection.
 
 The Physics Manager
 -------------------
@@ -266,6 +307,12 @@ that all backends must provide. Current backend implementations use ``wp.array``
 
 Data classes follow the same pattern with their own factories (e.g.,
 ``ArticulationData(FactoryBase, BaseArticulationData)``).
+
+These base interfaces define the portable contract. Advanced code can also use
+each engine's native low-level data API, but those APIs deliberately retain
+different ownership and synchronization semantics. See
+:doc:`physical-backends/direct-api-access/index` for PhysX typed views, Newton
+live model/state arrays and generic selections, and OvPhysX tensor bindings.
 
 Adding a New Physics Backend
 ----------------------------

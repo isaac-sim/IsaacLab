@@ -21,7 +21,12 @@ repos:
       - id: check-added-large-files
         args: ["--maxkb=2000"]  # restrict files more than 2 MB. Should use git-lfs instead.
       - id: check-yaml
+        # OSMO workflow specs are Jinja templates, so they only become valid
+        # YAML once the submission-time parameters have been substituted.
+        exclude: '^docker/cluster/osmo_multi_gpu_workflow\.yaml$'
       - id: check-merge-conflict
+        # These verbatim license headings contain a literal "=======" separator.
+        exclude: '^docs/licenses/dependencies/(mujoco|llvmlite|numba)-license\.txt$'
       - id: check-case-conflict
       - id: check-executables-have-shebangs
       - id: check-toml

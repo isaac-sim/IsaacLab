@@ -3,17 +3,684 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for OvPhysxSceneDataBackend (new SceneDataBackend interface, post-#5128)."""
+"""Unit tests for OvPhysxSceneDataBackend (new SceneDataBackend interface, post-#5128) and OvPhysxManager."""
 
 from __future__ import annotations
 
-from types import SimpleNamespace
+import logging
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _register_ovphysx_schemas_before_test_stages():
+    """Register OvPhysX schemas before this module creates any USD stage."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    OvPhysxManager._prepare_stage_creation()
+
+
+def _make_two_environment_stage():
+    """Create an in-memory USD stage with one cube in each of two environments."""
+    from pxr import Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0/Cube", "Cube")
+    stage.DefinePrim("/World/envs/env_1/Cube", "Cube")
+    return stage
+
+
+def _serialize_full_stage_with_pending_clones(stage) -> str:
+    """Serialize ``stage`` with pending clones materialized via the production path."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    previous = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = True
+        return OvPhysxManager._serialize_selected_stage(stage)
+    finally:
+        OvPhysxManager._requires_full_stage = previous
+
+
+def _fake_rigid_body_prim(path: str):
+    """Build a traversal stub with RigidBodyAPI and no deformable schemas."""
+    return SimpleNamespace(
+        HasAPI=lambda api: True,
+        GetPath=lambda p=path: SimpleNamespace(pathString=p),
+        GetAppliedSchemas=lambda: [],
+        GetMetadata=lambda key: None,
+    )
+
+
+def test_manager_full_stage_requirement_preserves_authored_environments():
+    """A full-stage request keeps every authored environment in memory."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = _make_two_environment_stage()
+    previous = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = True
+        usda = OvPhysxManager._serialize_selected_stage(stage)
+        layer = Sdf.Layer.CreateAnonymous("full.usda")
+        assert layer.ImportFromString(usda)
+        exported = Usd.Stage.Open(layer)
+        assert exported.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
+        assert exported.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
+    finally:
+        OvPhysxManager._requires_full_stage = previous
+
+
+def test_manager_full_stage_never_replays_runtime_clones():
+    """A full-stage load never mutates the already loaded runtime through cloning."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    fake = SimpleNamespace(clone=lambda *args, **kwargs: pytest.fail("clone must not run"))
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])]
+        OvPhysxManager._replay_pending_clones(fake, requires_full_stage=True)
+        assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
+    """A full-stage export copies missing heterogeneous targets without replacing authored ones."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    stage.DefinePrim("/World/envs/env_2", "Xform")
+    source = stage.DefinePrim("/World/envs/env_0/Object", "Xform")
+    source.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set("source")
+    existing = stage.DefinePrim("/World/envs/env_1/Object", "Xform")
+    existing.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set("authored")
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [
+            (
+                "/World/envs/env_0/Object",
+                ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
+                [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0), (4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0)],
+            )
+        ]
+        materialized_usda = _serialize_full_stage_with_pending_clones(stage)
+        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+        assert layer.ImportFromString(materialized_usda)
+        exported = Usd.Stage.Open(layer)
+        assert exported.GetPrimAtPath("/World/envs/env_1/Object").GetAttribute("test:variant").Get() == "authored"
+        assert exported.GetPrimAtPath("/World/envs/env_2/Object").GetAttribute("test:variant").Get() == "source"
+        assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_full_stage_materializes_nested_targets_parent_before_child():
+    """Nested clone targets materialize shallow-to-deep regardless of queue order."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    groceries = stage.DefinePrim("/World/envs/env_0/Groceries", "Xform")
+    groceries.CreateAttribute("test:collection", Sdf.ValueTypeNames.String).Set("source")
+    object_prim = stage.DefinePrim("/World/envs/env_0/Groceries/Object", "Xform")
+    object_prim.CreateAttribute("physics:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [
+            (
+                "/World/envs/env_0/Groceries/Object",
+                ["/World/envs/env_1/Groceries/Object"],
+                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+            ),
+            (
+                "/World/envs/env_0/Groceries",
+                ["/World/envs/env_1/Groceries"],
+                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+            ),
+        ]
+        materialized_usda = _serialize_full_stage_with_pending_clones(stage)
+        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+        assert layer.ImportFromString(materialized_usda)
+        exported = Usd.Stage.Open(layer)
+        target_parent = exported.GetPrimAtPath("/World/envs/env_1/Groceries")
+        target_child = exported.GetPrimAtPath("/World/envs/env_1/Groceries/Object")
+        assert target_parent.GetAttribute("test:collection").Get() == "source"
+        assert target_child.GetAttribute("physics:enabled").Get() is True
+        assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_full_stage_promotes_generated_nested_ancestors_to_def():
+    """A child-only nested target composes beneath a generated defined parent."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    source = stage.DefinePrim("/World/envs/env_0/Groceries/Object", "Xform")
+    source.CreateAttribute("physics:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [
+            (
+                "/World/envs/env_0/Groceries/Object",
+                ["/World/envs/env_1/Groceries/Object"],
+                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+            )
+        ]
+        materialized_usda = _serialize_full_stage_with_pending_clones(stage)
+        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+        assert layer.ImportFromString(materialized_usda)
+        exported = Usd.Stage.Open(layer)
+        target_parent = exported.GetPrimAtPath("/World/envs/env_1/Groceries")
+        target_child = exported.GetPrimAtPath("/World/envs/env_1/Groceries/Object")
+        assert target_parent.IsDefined()
+        assert target_child.IsDefined()
+        assert target_child.GetAttribute("physics:enabled").Get() is True
+        assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_full_stage_overlays_existing_ancestor_without_removing_descendants():
+    """An ancestor created for another asset gains source physics while retaining descendants."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    source = stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
+    source.CreateAttribute("physics:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+    physics = stage.DefinePrim("/World/envs/env_0/Robot/Physics", "Xform")
+    physics.CreateAttribute("physics:mass", Sdf.ValueTypeNames.Float).Set(3.0)
+    camera = stage.DefinePrim("/World/envs/env_1/Robot/Camera", "Xform")
+    camera.CreateAttribute("test:keep", Sdf.ValueTypeNames.Bool).Set(True)
+
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [
+            ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])
+        ]
+        materialized_usda = _serialize_full_stage_with_pending_clones(stage)
+        layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+        assert layer.ImportFromString(materialized_usda)
+        exported = Usd.Stage.Open(layer)
+        robot = exported.GetPrimAtPath("/World/envs/env_1/Robot")
+        assert robot.GetAttribute("physics:enabled").Get() is True
+        assert exported.GetPrimAtPath("/World/envs/env_1/Robot/Physics").GetAttribute("physics:mass").Get() == 3.0
+        assert exported.GetPrimAtPath("/World/envs/env_1/Robot/Camera").GetAttribute("test:keep").Get() is True
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_retains_clone_recipes_across_full_stage_serializations():
+    """A second full-stage serialization rematerializes targets from active recipes."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    source = stage.DefinePrim("/World/envs/env_0/Object", "Xform")
+    source.CreateAttribute("physics:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+    previous_pending = OvPhysxManager._pending_clones
+    previous_active = OvPhysxManager._active_clone_recipes
+    try:
+        OvPhysxManager._pending_clones = []
+        OvPhysxManager._active_clone_recipes = []
+        OvPhysxManager.register_clone("/World/envs/env_0/Object", ["/World/envs/env_1/Object"], [(1.0, 0.0, 0.0)])
+        for _ in range(2):
+            OvPhysxManager._rearm_pending_clones()
+            materialized_usda = _serialize_full_stage_with_pending_clones(stage)
+            layer = Sdf.Layer.CreateAnonymous("materialized.usda")
+            assert layer.ImportFromString(materialized_usda)
+            exported = Usd.Stage.Open(layer)
+            assert exported.GetPrimAtPath("/World/envs/env_1/Object").GetAttribute("physics:enabled").Get() is True
+            assert OvPhysxManager._pending_clones == []
+        assert len(OvPhysxManager._active_clone_recipes) == 1
+    finally:
+        OvPhysxManager._pending_clones = previous_pending
+        OvPhysxManager._active_clone_recipes = previous_active
+
+
+def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
+    """A validation failure clears the queue without partially modifying the export."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    stage.DefinePrim("/World/envs/env_1", "Xform")
+    stage.DefinePrim("/World/envs/env_0/Object", "Xform")
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [
+            (
+                "/World/envs/env_0/Object",
+                ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
+                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), (2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+            )
+        ]
+        with pytest.raises(RuntimeError, match="clone target parent is absent"):
+            _serialize_full_stage_with_pending_clones(stage)
+        assert OvPhysxManager._pending_clones == []
+        assert not stage.GetPrimAtPath("/World/envs/env_1/Object").IsValid()
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_replays_pending_runtime_clones_without_full_stage_requirement():
+    """The default replay path forwards final world transforms to the runtime."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    class FakePhysX:
+        def __init__(self):
+            self.calls = []
+
+        def clone(self, source, targets, transforms):
+            self.calls.append(("clone", source, targets, transforms))
+            return 19
+
+        def wait_op(self, operation):
+            self.calls.append(("wait_op", operation))
+
+    fake = FakePhysX()
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
+        OvPhysxManager._replay_pending_clones(fake, requires_full_stage=False)
+        assert fake.calls == [
+            ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
+            ("wait_op", 19),
+        ]
+        assert OvPhysxManager._pending_clones == []
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
+def test_manager_resets_full_stage_requirement_between_contexts():
+    """Closing a manager context resets the full-stage requirement."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    OvPhysxManager.require_full_stage()
+    OvPhysxManager.close()
+    assert OvPhysxManager._requires_full_stage is False
+
+
+def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
+    """A forced re-warm invalidates views before replacing their attached stage."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from isaaclab.physics import PhysicsEvent
+
+    calls = []
+    monkeypatch.setattr(OvPhysxManager, "_warmup_done", False)
+    monkeypatch.setattr(OvPhysxManager, "_ovstage", object())
+    monkeypatch.setattr(OvPhysxManager, "_warmup_and_load", lambda: calls.append("warmup"))
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "dispatch_event",
+        lambda event, payload=None: calls.append(event),
+    )
+
+    OvPhysxManager.reset()
+
+    assert calls == [PhysicsEvent.STOP, "warmup", PhysicsEvent.PHYSICS_READY]
+
+
+def test_manager_supports_declared_legacy_runtime_api():
+    """The declared public OVPhysX wheel keeps its constructor, step, and reset API."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    class LegacyPhysX:
+        def __init__(self, *, device, active_cuda_gpus=None, config=None):
+            self.constructor = {"device": device, "active_cuda_gpus": active_cuda_gpus, "config": config}
+            self.calls = []
+
+        def set_config_int32(self, key, value):
+            self.calls.append(("set_config_int32", key, value))
+
+        def step_sync(self, *, dt, sim_time):
+            self.calls.append(("step_sync", dt, sim_time))
+
+        def reset(self):
+            self.calls.append(("reset",))
+            return 17
+
+        def wait_op(self, operation):
+            self.calls.append(("wait_op", operation))
+
+    runtime = SimpleNamespace(
+        PhysX=LegacyPhysX,
+        PhysXConfig=lambda **kwargs: SimpleNamespace(**kwargs),
+        ConfigInt32=SimpleNamespace(NUM_THREADS="num_threads"),
+    )
+
+    physx = OvPhysxManager._create_physx_instance(runtime, "gpu", 2)
+    OvPhysxManager._step_physx(physx, dt=0.01, sim_time=1.5)
+    OvPhysxManager._reset_physx_stage(physx)
+
+    assert physx.constructor["device"] == "gpu"
+    assert physx.constructor["active_cuda_gpus"] == "2"
+    assert physx.calls == [
+        ("set_config_int32", "num_threads", 8),
+        ("step_sync", 0.01, 1.5),
+        ("reset",),
+        ("wait_op", 17),
+    ]
+
+
+def test_manager_supports_current_runtime_api():
+    """The trusted current OVPhysX wheel keeps its class-mode, step, and reset API."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    class CurrentPhysX:
+        cpu_mode = None
+
+        @classmethod
+        def set_cpu_mode(cls, enabled):
+            cls.cpu_mode = enabled
+
+        def __init__(self, *, active_cuda_gpus=None, config=None):
+            self.constructor = {"active_cuda_gpus": active_cuda_gpus, "config": config}
+            self.calls = []
+
+        def step_sync(self, *, dt):
+            self.calls.append(("step_sync", dt))
+
+        def reset_stage(self):
+            self.calls.append(("reset_stage",))
+            return 23
+
+        def wait_op(self, operation):
+            self.calls.append(("wait_op", operation))
+
+    runtime = SimpleNamespace(
+        PhysX=CurrentPhysX,
+        PhysXConfig=lambda **kwargs: SimpleNamespace(**kwargs),
+    )
+
+    physx = OvPhysxManager._create_physx_instance(runtime, "cpu", 0)
+    OvPhysxManager._step_physx(physx, dt=0.02, sim_time=3.0)
+    OvPhysxManager._reset_physx_stage(physx)
+
+    assert CurrentPhysX.cpu_mode is True
+    assert physx.constructor["active_cuda_gpus"] is None
+    assert physx.constructor["config"].num_threads == 8
+    assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
+
+
+def test_manager_serializes_env0_only_stage_in_memory(caplog):
+    """The OVPhysX input keeps globals and env 0 without writing cloned envs."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    for path in ("/World/Ground", "/World/envs/env_0/Cube", "/World/envs/env_1/Cube"):
+        UsdGeom.Xform.Define(stage, path)
+
+    previous = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = False
+        with caplog.at_level(logging.INFO, logger=OvPhysxManager.__module__):
+            usda = OvPhysxManager._serialize_selected_stage(stage)
+    finally:
+        OvPhysxManager._requires_full_stage = previous
+    layer = Sdf.Layer.CreateAnonymous("filtered.usda")
+    assert layer.ImportFromString(usda)
+    filtered = Usd.Stage.Open(layer)
+
+    assert filtered.GetPrimAtPath("/World/Ground").IsValid()
+    assert filtered.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
+    assert not filtered.GetPrimAtPath("/World/envs/env_1").IsValid()
+    assert "stripped 1 env_<i!=0> subtrees from in-memory USD" in caplog.text
+
+
+def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
+    """The in-memory serializer diagnoses stages without the standard env namespace."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/Ground")
+
+    previous = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = False
+        with caplog.at_level(logging.DEBUG, logger=OvPhysxManager.__module__):
+            OvPhysxManager._serialize_selected_stage(stage)
+    finally:
+        OvPhysxManager._requires_full_stage = previous
+
+    assert "no cloned environments to strip — serialized stage as-is" in caplog.text
+
+
+def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
+    """The manager owns OVStage from population through PhysX release."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    events = []
+
+    class FakeStage:
+        def __init__(self, name):
+            events.append(("stage", name))
+
+        def destroy(self):
+            events.append(("destroy",))
+
+    class FakePhysX:
+        def attach_ovstage(self, stage, read_ordinal):
+            events.append(("attach", stage, read_ordinal))
+
+        def reset_stage(self):
+            events.append(("reset",))
+            return 17
+
+        def wait_op(self, op):
+            events.append(("wait", op))
+
+    fake_ovstage = ModuleType("ovstage")
+    fake_ovstage.Stage = FakeStage
+    fake_ovstage.PopulationDomain = SimpleNamespace(ALL="all")
+    fake_ovstage.population = SimpleNamespace(
+        open_usd_from_string=lambda stage, usda, ordinal, domains: events.append(
+            ("populate", stage, usda, ordinal, domains)
+        )
+    )
+    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
+
+    previous_physx = OvPhysxManager._physx
+    previous_ovstage = getattr(OvPhysxManager, "_ovstage", None)
+    OvPhysxManager._physx = FakePhysX()
+    OvPhysxManager._ovstage = None
+    try:
+        OvPhysxManager._attach_ovstage("#usda 1.0")
+        stage = OvPhysxManager._ovstage
+        OvPhysxManager._release_physx()
+    finally:
+        OvPhysxManager._physx = previous_physx
+        OvPhysxManager._ovstage = previous_ovstage
+
+    assert events == [
+        ("stage", "isaaclab"),
+        ("populate", stage, "#usda 1.0", 1, "all"),
+        ("attach", stage, 1),
+        ("reset",),
+        ("wait", 17),
+        ("destroy",),
+    ]
+
+
+def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
+    """A failed in-memory population does not leak its OVStage allocation."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    destroyed = []
+
+    class FakeStage:
+        def __init__(self, name):
+            self.name = name
+
+        def destroy(self):
+            destroyed.append(self.name)
+
+    def fail_population(*args, **kwargs):
+        raise RuntimeError("population failed")
+
+    fake_ovstage = ModuleType("ovstage")
+    fake_ovstage.Stage = FakeStage
+    fake_ovstage.PopulationDomain = SimpleNamespace(ALL="all")
+    fake_ovstage.population = SimpleNamespace(open_usd_from_string=fail_population)
+    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
+
+    previous_ovstage = getattr(OvPhysxManager, "_ovstage", None)
+    OvPhysxManager._ovstage = None
+    try:
+        with pytest.raises(RuntimeError, match="population failed"):
+            OvPhysxManager._attach_ovstage("#usda 1.0")
+        assert OvPhysxManager._ovstage is None
+    finally:
+        OvPhysxManager._ovstage = previous_ovstage
+
+    assert destroyed == ["isaaclab"]
+
+
+def test_manager_keeps_kit_physx_provider_and_registers_deformable_schema(monkeypatch, tmp_path):
+    """Keep Kit's PhysX provider while registering the wheel's deformable schema."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    class FakeRegistry:
+        def __init__(self):
+            self.get_all_calls = 0
+            self.registered_paths = []
+
+        def GetAllPlugins(self):
+            self.get_all_calls += 1
+            return [SimpleNamespace(name="physxSchema")]
+
+        def RegisterPlugins(self, path):
+            self.registered_paths.append(path)
+
+    registry = FakeRegistry()
+    fake_pxr = ModuleType("pxr")
+    fake_pxr.Plug = SimpleNamespace(Registry=lambda: registry)
+    fake_ovphysx = ModuleType("ovphysx")
+    fake_ovphysx.__file__ = str(tmp_path / "ovphysx" / "__init__.py")
+    deformable_schema_path = tmp_path / "ovphysx" / "plugins" / "usd" / "OmniUsdPhysicsDeformableSchema" / "resources"
+    deformable_schema_path.mkdir(parents=True)
+    monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
+    monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
+
+    previous = OvPhysxManager._physx_schemas_registered
+    OvPhysxManager._physx_schemas_registered = False
+    try:
+        OvPhysxManager._ensure_physx_schemas_registered()
+    finally:
+        OvPhysxManager._physx_schemas_registered = previous
+
+    assert registry.get_all_calls == 1
+    assert registry.registered_paths == [str(deformable_schema_path)]
+
+
+def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):
+    """Creating an eager preset alternative leaves global USD plugins unchanged."""
+    from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager
+
+    calls = []
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_ensure_physx_schemas_registered",
+        classmethod(lambda cls: calls.append(cls)),
+    )
+
+    OvPhysxCfg()
+
+    assert calls == []
+
+
+def test_ovphysx_manager_registers_schemas_during_pre_stage_setup(monkeypatch):
+    """The selected OvPhysX manager registers schemas in its pre-stage hook."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    calls = []
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_ensure_physx_schemas_registered",
+        classmethod(lambda cls: calls.append(cls)),
+    )
+
+    OvPhysxManager._prepare_stage_creation()
+
+    assert calls == [OvPhysxManager]
+
+
+def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkeypatch):
+    """Automatic kitless PhysX selection prepares OvPhysX before creating the USD stage."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    import isaaclab.sim.simulation_context as simulation_context_module
+    from isaaclab.app.sim_launcher import make_physics_cfg
+    from isaaclab.sim import SimulationCfg, SimulationContext
+
+    class StageCreationReached(Exception):
+        """Signal that initialization reached stage creation."""
+
+    class StubPhysxManager:
+        """Stand in for the Kit-only manager while recording its pre-stage hook."""
+
+        @classmethod
+        def _prepare_stage_creation(cls):
+            events.append("physx")
+
+    events = []
+    monkeypatch.setattr(simulation_context_module, "has_kit", lambda: False)
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_prepare_stage_creation",
+        classmethod(lambda cls: events.append("ovphysx")),
+    )
+
+    def _stop_at_stage_creation():
+        events.append("stage")
+        raise StageCreationReached
+
+    monkeypatch.setattr(simulation_context_module, "create_new_stage", _stop_at_stage_creation)
+    cfg = SimulationCfg(create_stage_in_memory=True)
+    physics_cfg = make_physics_cfg("physx")
+    physics_cfg.class_type = StubPhysxManager
+    cfg.physics = physics_cfg
+
+    with pytest.raises(StageCreationReached):
+        SimulationContext(cfg)
+
+    assert events == ["ovphysx", "stage"]
+    assert SimulationContext.instance() is None
 
 
 def _make_stub_binding(prim_paths: list[str]) -> SimpleNamespace:
@@ -106,10 +773,7 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
 
     def fake_traverse():
         for p in paths:
-            yield SimpleNamespace(
-                HasAPI=lambda api: True,
-                GetPath=lambda p=p: SimpleNamespace(pathString=p),
-            )
+            yield _fake_rigid_body_prim(p)
 
     stage = SimpleNamespace(Traverse=fake_traverse)
 
@@ -133,6 +797,8 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
     import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
 
     monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    # Rigid-body setup uses a SimpleNamespace stage stub; skip deformable discovery.
+    monkeypatch.setattr(om_mod, "discover_deformables_on_stage", lambda stage: [])
 
     b.setup(FakePhysX(), stage, "cpu")
 
@@ -267,10 +933,7 @@ def test_setup_continues_when_create_tensor_binding_raises(monkeypatch, caplog):
 
     def fake_traverse():
         for p in paths:
-            yield SimpleNamespace(
-                HasAPI=lambda api: True,
-                GetPath=lambda p=p: SimpleNamespace(pathString=p),
-            )
+            yield _fake_rigid_body_prim(p)
 
     stage = SimpleNamespace(Traverse=fake_traverse)
 
@@ -285,6 +948,8 @@ def test_setup_continues_when_create_tensor_binding_raises(monkeypatch, caplog):
     import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
 
     monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    # Rigid-body setup uses a SimpleNamespace stage stub; skip deformable discovery.
+    monkeypatch.setattr(om_mod, "discover_deformables_on_stage", lambda stage: [])
 
     with caplog.at_level(logging.WARNING, logger=om_mod.logger.name):
         b.setup(FlakyPhysX(), stage, "cpu")
@@ -353,3 +1018,108 @@ def test_transforms_logs_warning_when_a_binding_read_fails(caplog):
     # Good row was still written; bad row is left at the merged buffer's prior contents (zeros).
     flat = out.transforms.numpy().view("<f4").reshape((2, 7))
     assert flat[0, 0] == 7.0
+
+
+def test_setup_deformable_bindings_passes_surface_tensor_types(monkeypatch):
+    """Surface SceneData views must pass OVPhysX deformable tensor-type kwargs.
+
+    Regression: constructing ``OvPhysxDeformableBodyView`` without
+    ``simulation_nodal_position_type`` / ``simulation_element_indices_type``
+    left cloth ``point_count`` at 0, so OVRTX wrote identity-xformed rest
+    buffers and the Franka cloth disappeared.
+    """
+    import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
+    from isaaclab_ovphysx import tensor_types as TT
+    from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxSceneDataBackend
+
+    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
+
+    b = OvPhysxSceneDataBackend()
+    captured: dict = {}
+
+    class _FakeView:
+        count = 2
+        max_simulation_nodes_per_body = 4
+        # Views may report a child mesh; SceneData must publish discovered roots.
+        prim_paths = [
+            "/World/envs/env_0/Deformable/sim_mesh",
+            "/World/envs/env_1/Deformable/sim_mesh",
+        ]
+
+        def __init__(self, physx, **kwargs):
+            captured.update(kwargs)
+
+        def read_into(self, tensor_type, dst):
+            captured["read_tensor_type"] = tensor_type
+
+    monkeypatch.setattr(
+        "isaaclab_ovphysx.assets.deformable_object.views.OvPhysxDeformableBodyView",
+        _FakeView,
+    )
+    monkeypatch.setattr(
+        om_mod,
+        "discover_deformables_on_stage",
+        lambda stage: [
+            DeformableStageEntry(
+                root_path="/World/envs/env_0/Deformable",
+                sim_mesh_path="/World/envs/env_0/Deformable/sim_mesh",
+                vis_mesh_path="/World/envs/env_0/Deformable/geometry/mesh",
+                deformable_type="surface",
+                vertex_count=4,
+                vis_vertex_count=4,
+            ),
+            DeformableStageEntry(
+                root_path="/World/envs/env_1/Deformable",
+                sim_mesh_path="/World/envs/env_1/Deformable/sim_mesh",
+                vis_mesh_path="/World/envs/env_1/Deformable/geometry/mesh",
+                deformable_type="surface",
+                vertex_count=4,
+                vis_vertex_count=4,
+            ),
+        ],
+    )
+
+    b._setup_deformable_bindings(physx=object(), stage=object(), device="cpu")
+
+    assert captured["simulation_nodal_position_type"] == TT.SURFACE_DEFORMABLE_SIM_POSITION
+    assert captured["simulation_element_indices_type"] == TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES
+    assert TT.SURFACE_DEFORMABLE_SIM_POSITION in captured["tensor_types"]
+    assert TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES in captured["tensor_types"]
+    assert b.point_count == 8
+    assert b.geometry_paths == [
+        "/World/envs/env_0/Deformable",
+        "/World/envs/env_1/Deformable",
+    ]
+    assert b.geometry_counts == [4, 4]
+
+    _ = b.points
+    assert captured["read_tensor_type"] == TT.SURFACE_DEFORMABLE_SIM_POSITION
+
+
+def test_setup_runs_deformable_bindings_without_rigid_bodies(monkeypatch):
+    """Deformable-only scenes must still create SceneData geometry bindings."""
+    import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
+    from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxSceneDataBackend
+
+    b = OvPhysxSceneDataBackend()
+    called: dict[str, object] = {}
+
+    def _fake_setup_deformable_bindings(self, physx, stage, device):
+        called["physx"] = physx
+        called["stage"] = stage
+        called["device"] = device
+
+    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    monkeypatch.setattr(
+        OvPhysxSceneDataBackend,
+        "_setup_deformable_bindings",
+        _fake_setup_deformable_bindings,
+    )
+
+    stage = SimpleNamespace(Traverse=lambda: iter(()))
+    physx = object()
+    b.setup(physx, stage, "cpu")
+
+    assert called == {"physx": physx, "stage": stage, "device": "cpu"}
+    assert b.transform_count == 0
+    assert b._rigid_bindings == []

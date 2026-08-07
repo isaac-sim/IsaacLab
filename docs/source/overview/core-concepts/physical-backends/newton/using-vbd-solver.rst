@@ -17,30 +17,67 @@ before it works well with VBD.
 VBD is usually exposed through a task-specific physics preset rather than a
 general ``newton_vbd`` preset. Deformable-only scenes can use
 :class:`~isaaclab_contrib.deformable.VBDSolverCfg` directly. Robot or
-rigid-body scenes usually use
-:class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` or
-:class:`~isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg` so one
-solver advances rigid bodies and VBD advances deformable particles.
+rigid-body scenes can use either:
+
+* :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` for the proxy coupling
+  used by the core Franka tasks.
+* :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` for the
+  opt-in shared-model example with custom substep ordering.
 
 Start from a Supported Deformable Task
 --------------------------------------
 
+.. note::
+
+   The ``Isaac-Lift-Soft-Franka`` task requires automatic tetrahedralization.
+   Install its optional dependencies before running the examples below:
+
+   .. code-block:: bash
+
+      uv sync --inexact --extra tetrahedralization
+
+   With the legacy installer:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 Before adding VBD to a new task, first run one of the experimental Franka
 deformable tasks:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
 For the surface-deformable cloth variant, use:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Cloth-Franka --num_envs 1 --visualizer kit
 
 Both tasks configure MJWarp for the rigid Franka and VBD for the deformable
 object through
-:class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg`.
+:class:`~isaaclab_contrib.coupling.CouplerProxyCfg`.
 Use these tasks as starting points for asset setup, solver coupling, and contact
 tuning.
 
@@ -49,60 +86,64 @@ Add a VBD Physics Preset
 
 Tasks that support multiple physics options usually store ``SimulationCfg.physics``
 as a :class:`~isaaclab_tasks.utils.hydra.PresetCfg`. For deformable Newton tasks,
-the preset can use a small :class:`~isaaclab_newton.physics.NewtonCfg` subclass
-to carry :class:`~isaaclab_contrib.deformable.NewtonModelCfg` alongside the
-normal Newton fields:
+the preset is a plain :class:`~isaaclab_newton.physics.NewtonCfg` whose solver
+config carries :class:`~isaaclab_contrib.deformable.NewtonModelCfg` through its
+:class:`~isaaclab_contrib.deformable.NewtonModelSolverCfg` base class.
 
-.. code-block:: python
-
-    from isaaclab.utils.configclass import configclass
-    from isaaclab_newton.physics import NewtonCfg
-
-    from isaaclab_contrib.deformable import NewtonModelCfg
-
-
-    @configclass
-    class DeformableNewtonCfg(NewtonCfg):
-        model_cfg: NewtonModelCfg | None = None
-
-
-The Franka soft-body task defines a ``newton_mjwarp_vbd`` preset that couples
-MJWarp and VBD:
-
-.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
-    :language: python
-    :start-at: class PhysicsCfg
-    :end-at: default = newton_mjwarp_vbd
-    :emphasize-lines: 3-15
+The Franka soft-body and cloth tasks define task-specific proxy presets.
 
 The important pieces are:
 
-* Add a Newton physics preset whose value is ``DeformableNewtonCfg``.
-* Use :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` when rigid
-  bodies and deformables must interact in the same scene.
-* Use ``soft_solver_cfg=VBDSolverCfg(integrate_with_external_rigid_solver=True)``
-  inside a coupled solver so VBD advances only the deformable particles.
-* Add :class:`~isaaclab_contrib.deformable.NewtonModelCfg` when body-particle or
+* Add a Newton physics preset whose value is a
+  :class:`~isaaclab_newton.physics.NewtonCfg`.
+* Use :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` with named
+  :class:`~isaaclab_contrib.coupling.CouplerEntryCfg` entries to partition the
+  rigid bodies and deformable particles between MJWarp and VBD.
+* Add :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` entries for the
+  collidable rigid bodies exposed to VBD. Leave
+  ``integrate_with_external_rigid_solver=False`` for proxy-coupled VBD entries.
+* Set the solver config's ``model_cfg`` to a
+  :class:`~isaaclab_contrib.deformable.NewtonModelCfg` when body-particle or
   self-contact values need task-level tuning.
 * Keep the preset at the same config path used by the task's
   :class:`~isaaclab.sim.SimulationCfg`, for example ``env.sim.physics``.
 
 You can select the deformable Newton preset globally:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd_proxy
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd_proxy
 
 or select the physics field directly:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd_proxy
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd_proxy
 
 Use the direct path override when only one task field should use the VBD preset.
-Use ``physics=newton_mjwarp_vbd`` when you want every matching preset field in
-the task config to resolve to that preset. Isaac Lab training commands accept
-these Hydra overrides after the regular command line flags; no separator is
+Use ``physics=newton_mjwarp_vbd_proxy`` when you want every matching preset
+field in the task config to resolve to that preset. Isaac Lab training commands
+accept these Hydra overrides after the regular command line flags; no separator is
 needed for the examples above.
 
 
@@ -120,8 +161,8 @@ task, validate the following before tuning solver parameters:
   for volume deformables and
   :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableBodyMaterialCfg`
   for cloth or surface deformables.
-* Coupled robot tasks should start with ``coupling_mode="two_way"`` when the
-  robot should feel contact forces from the deformable object.
+* Proxy-coupled robot tasks should expose only the collidable bodies needed for
+  deformable contact.
 * Contact-heavy scenes usually need task-specific ``num_substeps``,
   :class:`~isaaclab_contrib.deformable.VBDSolverCfg`, and
   :class:`~isaaclab_contrib.deformable.NewtonModelCfg` values. Start from the
@@ -148,7 +189,7 @@ Core Solve
     * - ``iterations``
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
     * - ``integrate_with_external_rigid_solver``
-      - Default: ``False``. Set to ``True`` when VBD is used inside a coupled solver so the rigid sub-solver owns rigid-body integration. Leave ``False`` for deformable-only VBD scenes.
+      - Default: ``False``. Set to ``True`` only when a manual manager integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
 
 
 Self-Contact
@@ -178,11 +219,14 @@ Self-Contact
       - Default: ``0.0`` [m]. Filters self-contact candidates whose rest-configuration distance is shorter than this distance. Increase it when rest-neighbor contacts produce unwanted resistance.
 
 
-Coupled Solver Parameters
--------------------------
+Custom MJWarp + VBD Parameters
+------------------------------
 
-Use the coupled solver configs when one solver should advance rigid bodies and
-VBD should advance deformables:
+The opt-in
+:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` runs
+MJWarp and VBD over one shared model. Import
+:mod:`isaaclab_contrib.custom_coupling.tasks` explicitly before using its
+registered task.
 
 .. list-table::
     :header-rows: 1
@@ -191,20 +235,134 @@ VBD should advance deformables:
     * - Parameter
       - Description
     * - ``rigid_solver_cfg``
-      - Rigid-body sub-solver configuration. :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` uses :class:`~isaaclab_newton.physics.MJWarpSolverCfg`; :class:`~isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg` uses :class:`~isaaclab_newton.physics.FeatherstoneSolverCfg`.
+      - MJWarp configuration for rigid bodies.
     * - ``soft_solver_cfg``
-      - VBD sub-solver configuration. In coupled scenes, set ``integrate_with_external_rigid_solver=True`` so VBD advances only deformable particles.
+      - VBD configuration. Set ``integrate_with_external_rigid_solver=True``
+        so VBD advances only particles.
     * - ``coupling_mode="one_way"``
-      - Rigid solver advances first, and VBD reacts to the updated rigid poses. The rigid solver does not feel particle contact forces.
+      - Advance rigid bodies first, then particles without rigid reaction
+        forces.
     * - ``coupling_mode="two_way"``
-      - Contact reactions from deformables are injected into the rigid solver before the rigid step, then VBD advances deformables against the shared contacts. Use this for manipulation tasks where the robot should be pushed back by deformable contact.
-    * - ``coupling_mode="kinematic"``
-      - Available on :class:`~isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg`. Rigid bodies are kinematically updated by Featherstone, and VBD reacts to them. The rigid solver does not feel particle contacts.
+      - Inject particle reactions before MJWarp, then advance VBD with the same
+        contacts.
 
-The rigid solver parameters still matter. For example, MJWarp's ``nconmax`` and
-``njmax`` must be large enough for the rigid contacts in the scene, and
-``ccd_iterations`` can affect fast rigid contacts near deformables. See
-:doc:`mjwarp-solver` for the MJWarp-side parameters.
+MJWarp ``nconmax`` and ``njmax`` must cover the rigid contacts and constraints
+in the scene. ``ccd_iterations`` can affect fast rigid contacts near
+deformables. See :doc:`mjwarp-solver` for the rigid-solver parameters.
+
+Use the custom manager for direct shared-model substep ordering. Use proxy
+coupling when deformable contact is localized to selected rigid bodies.
+
+
+.. _newton-vbd-proxy-coupling:
+
+Proxy-Coupled MJWarp + VBD
+--------------------------
+
+:class:`~isaaclab_contrib.coupling.CouplerProxyCfg` is the coupling used by
+the core Franka tasks. It partitions the model between named solver entries and
+exposes selected source bodies to the destination solver as proxies. Contact
+feedback returns to the source solver as lagged impulses. This keeps deformable
+contact work localized to the rigid bodies that need it, such as a gripper hand
+and fingers. The pinned proxy solver supports at most two entries and rejects
+joints that cross entry boundaries.
+
+The core Franka soft-body task demonstrates the proxy configuration:
+
+.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
+    :language: python
+    :start-at: newton_mjwarp_vbd_proxy: NewtonCfg
+    :end-before: isaacsim_physx: PhysxCfg = PhysxCfg()
+    :dedent: 4
+
+What the selectors do:
+
+* ``entries`` contains one
+  :class:`~isaaclab_contrib.coupling.CouplerEntryCfg` per sub-solver. Each
+  entry has a stable ``name``, its own ``solver_cfg``, and explicit model
+  ownership selectors.
+* An entry's ``bodies`` selectors are full Newton body-label regex strings.
+  By default, joints inherit their child body's owner and
+  shapes inherit their body's owner. Use ``all_particles=True`` to own all
+  deformable particles and ``include_static_shapes=True`` to own world
+  geometry. Bodies, particles, joints, and shapes may be assigned to at most
+  one entry; unassigned elements remain outside the nested solver views.
+* ``proxies`` contains directed
+  :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` mappings. Each mapping
+  names its ``source`` and ``destination`` entries, then uses ``bodies`` to
+  select the source bodies that the destination solver should collide against.
+  Only bodies that own at least one ``newton.ShapeFlags.COLLIDE_SHAPES`` shape
+  are kept.
+* In the snippet above, the entire Franka articulation is routed to MJWarp,
+  while the deformable particles and static table/world shapes are routed to
+  VBD. Only the ``panda_hand`` and the two fingers are exposed as proxies,
+  so VBD sees three rigid proxies regardless of the number of arm links.
+
+.. important::
+
+    The coupler currently rejects
+    :class:`~isaaclab_newton.physics.KaminoSolverCfg` entries and
+    :class:`~isaaclab_newton.physics.MPMSolverCfg` entries configured with
+    ``project_outside_colliders=True``, as well as
+    :class:`~isaaclab_newton.physics.MJWarpSolverCfg` entries configured with
+    ``use_mujoco_cpu=True``. These configurations require manager-specific
+    build, forward-kinematics, reset, or per-step lifecycle hooks that are not
+    yet available to nested solvers. Use MPM with
+    ``project_outside_colliders=False`` and GPU MJWarp, or run these solvers
+    through their standalone managers until nested lifecycle support is added.
+
+Key proxy-specific parameters:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 30 70
+
+    * - Parameter
+      - Description
+    * - ``CouplerProxyMappingCfg.mode``
+      - Default: ``"lagged"``. ``"lagged"`` syncs source begin poses and end
+        velocities, then rewinds lagged feedback before the destination solve.
+        ``"staggered"`` syncs source end poses and end velocities directly.
+        Lagged is the safer default; staggered can be tighter but is more
+        sensitive to timestep.
+    * - ``CouplerProxyCfg.iterations``
+      - Default: ``1``. Number of relaxation iterations per coupled substep.
+        Increase it when proxy contact feedback needs more accuracy.
+    * - ``CouplerProxyMappingCfg.collide_interval``
+      - Default: ``None`` (every proxy pass). How often the proxy collision
+        pipeline rebuilds candidate pairs. Increase it for cheaper but slightly
+        staler proxy contacts.
+    * - ``CouplerProxyMappingCfg.mass_scale``
+      - Default: ``1.0``. Multiplier for the virtual inertia of proxy bodies
+        in the VBD view. Increase it to make proxies behave more like fixed
+        obstacles to VBD.
+
+Body selectors must use full Newton body-label regexes, such as
+``/World/envs/env_.*/Robot``. Proxy mappings also accept raw Newton body ids.
+
+Try the demo:
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          # zero-agent visual smoke test
+          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+
+          # scripted pick-and-lift via state machine
+          uv run python scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # zero-agent visual smoke test
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+
+          # scripted pick-and-lift via state machine
+          ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
 
 
 Contact and Material Parameters
@@ -228,12 +386,11 @@ to the finalized Newton model:
       - Default: ``1.0e-2`` [N*s/m]. Contact damping. Increase it to reduce chatter or bouncing. Too much damping can make contact response sticky or overdamped.
     * - ``soft_contact_mu``
       - Default: ``0.5``. Friction coefficient for body-particle and particle self-contact. Increase it when a gripper cannot carry the deformable object without slipping.
-    * - ``shape_material_ke``
-      - Default: ``None`` [N/m]. Optional override for all rigid collision-shape contact stiffness values in the Newton model. Use this when the rigid-side material parsed from the asset is not appropriate for deformable contact.
-    * - ``shape_material_kd``
-      - Default: ``None`` [N*s/m]. Optional override for all rigid collision-shape contact damping values in the Newton model.
-    * - ``shape_material_mu``
-      - Default: ``None``. Optional override for all rigid collision-shape friction values in the Newton model. Body-particle friction depends on both the soft contact and rigid shape friction coefficients.
+
+To set rigid collision-shape contact properties (``ke``, ``kd``, ``mu``) for
+shapes that lack an explicit per-asset material, use
+:class:`~isaaclab_newton.physics.NewtonShapeCfg` on ``NewtonCfg.default_shape_cfg``
+instead. Per-asset materials override these defaults.
 
 
 Volume Deformable Materials
@@ -296,7 +453,7 @@ Use the following sequence when bringing up a new VBD task:
 
 1. Run one of the supported Franka deformable tasks and confirm your
    installation, visualizer, and deformable rendering path work.
-2. Add a task-specific VBD or coupled VBD preset copied from the closest
+2. Add a task-specific VBD or proxy-coupled VBD preset copied from the closest
    supported task.
 3. Run a small visual smoke test with ``--num_envs 1`` before training.
 4. Tune deformable material stiffness and damping until the object deforms in
@@ -330,7 +487,7 @@ Symptoms and First Parameters to Check
     * - Rigid bodies visibly clip through the deformable.
       - Increase ``soft_contact_ke``, VBD ``iterations``, ``num_substeps``, or the deformable material ``particle_radius``.
     * - The robot cannot lift the deformable.
-      - Use ``coupling_mode="two_way"``, then increase ``soft_contact_mu`` and rigid-side ``shape_material_mu``. Also check gripper actuator stiffness and effort limits.
+      - Check that the gripper bodies are included in the proxy, then increase ``soft_contact_mu`` and rigid-side shape friction (per-asset material ``mu`` or ``NewtonShapeCfg.mu``). Also check gripper actuator stiffness and effort limits.
     * - The deformable barely deforms.
       - Reduce material stiffness, ``soft_contact_ke``, or shape contact stiffness.
     * - Contact chatters or bounces.
@@ -340,5 +497,5 @@ Symptoms and First Parameters to Check
     * - Self-contact is too expensive.
       - Increase ``particle_collision_detection_interval``, reduce mesh resolution, or disable self-contact until the rest of the scene is tuned.
 
-For implementation details of the VBD and coupled solver managers, see
+For implementation details of the VBD managers and Newton coupler, see
 :doc:`newton-manager-abstraction`.

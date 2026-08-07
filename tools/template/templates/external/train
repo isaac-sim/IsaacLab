@@ -1,0 +1,19 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Unified training executable for '{{ name }}' reinforcement learning tasks."""
+
+import {{ name }}.tasks  # noqa: F401
+
+from isaaclab_rl.entrypoints import run_train_cli
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the selected reinforcement learning training library."""
+    return run_train_cli(argv)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

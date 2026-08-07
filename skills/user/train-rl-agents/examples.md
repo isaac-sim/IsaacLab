@@ -4,7 +4,7 @@
 
 Use these as starting points, then confirm the task's registered agent config exists.
 
-Training runs headless by default; omit any visualizer flag for fastest training. The legacy `--headless` flag is deprecated. To watch a run, pass `--viz kit` (or `--viz rerun,newton,viser`); use `--viz none` to force-disable configured visualizers. Use suffixless task names, for example `Isaac-Cartpole` instead of `Isaac-Cartpole-v0`.
+Training runs headless by default; omit any visualizer option for fastest training. To watch a run, pass `--viz kit` (or `--viz rerun,newton,viser`); use `--viz none` to force-disable configured visualizers. Use suffixless task names, for example `Isaac-Cartpole` instead of `Isaac-Cartpole-v0`.
 
 RSL-RL:
 
@@ -38,7 +38,7 @@ Always run a small random-action check first:
 uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
 ```
 
-For visual observations or camera tasks, lower `--num_envs` and confirm renderer and sensor support before scaling. Do not add `--enable_cameras` unless the current task or docs explicitly require it.
+For visual observations or camera tasks, lower `--num_envs` and confirm renderer and sensor support before scaling. Camera support is automatic; select a compatible renderer instead of adding obsolete camera-launch options.
 
 ## After Training
 
@@ -59,6 +59,23 @@ Resume example:
 ```bash
 uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --resume --load_run RUN_NAME --checkpoint model_100.pt
 ```
+
+## Programmatic API
+
+To launch train/play from Python instead of the CLI, use the typed requests from `isaaclab_rl`. The `backend` field maps to `--rl_library`; `hydra_args` carries Hydra overrides and preset selectors. Both functions return the process exit code.
+
+```python
+from isaaclab_rl import PlaybackRequest, TrainingRequest, play, train
+
+train(TrainingRequest(backend="rsl_rl", task="Isaac-Cartpole", num_envs=64, max_iterations=100))
+
+# Resume from a checkpoint (path, or the "latest"/"best" selectors)
+train(TrainingRequest(backend="rsl_rl", task="Isaac-Cartpole", checkpoint="latest"))
+
+play(PlaybackRequest(backend="rsl_rl", task="Isaac-Cartpole", checkpoint="latest"))
+```
+
+For raw argument lists (same tokens as the CLI, without the executable name), use `run_train_cli(argv)` and `run_play_cli(argv)` from `isaaclab_rl`.
 
 ## Config Lookup
 

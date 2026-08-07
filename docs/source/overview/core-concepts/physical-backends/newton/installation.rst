@@ -57,7 +57,7 @@ Install the correct version of torch and torchvision:
 
 .. isaaclab-torch-install:: cu128
 
-Install Isaac Lab extensions and dependencies (this includes Newton 1.0):
+Install Isaac Lab extensions and dependencies (this includes the pinned Newton development commit):
 
 .. code-block:: bash
 
@@ -69,6 +69,15 @@ Testing the Installation
 
 To verify that the installation was successful, run the following command from the root directory of your Isaac Lab repository:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp

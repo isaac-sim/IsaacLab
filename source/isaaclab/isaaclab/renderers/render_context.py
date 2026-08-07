@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
+from isaaclab.app.logging_utils import force_log_level
 from isaaclab.sensors.camera.camera_data import CameraData
 
 from .base_renderer import BaseRenderer
@@ -27,7 +28,7 @@ class RenderContext:
     maps to a different implementation (e.g. Isaac RTX vs Newton) produces another backend; each
     has :meth:`BaseRenderer.prepare_stage` run before use.
 
-    :meth:`update_transforms` is invoked at most once per :meth:`get_physics_step_count` for the
+    :meth:`update_scene_state` is invoked at most once per :meth:`get_physics_step_count` for the
     context;
     """
 
@@ -36,7 +37,7 @@ class RenderContext:
         "_physics_initialized",
         "_prepared_renderer_ids",
         "_prepared_num_envs",
-        "_last_transforms_step",
+        "_last_scene_state_step",
     )
 
     def __init__(self) -> None:
@@ -44,7 +45,7 @@ class RenderContext:
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
-        self._last_transforms_step: int | None = None
+        self._last_scene_state_step: int | None = None
 
     def _check_global_settings_compatible(self, cfg: RendererCfg) -> None:
         """Reject conflicting process-global renderer settings."""
@@ -78,10 +79,8 @@ class RenderContext:
                 return r
         new_renderer = cast(BaseRenderer, Renderer(cfg))  # type: ignore[misc]
         self._renderer_entries.append((cfg, new_renderer))
-        logger.info(
-            "Created new renderer for simulation: %s",
-            type(new_renderer).__name__,
-        )
+        with force_log_level(logging.INFO):
+            logger.info("Created new renderer for simulation: %s", type(new_renderer).__name__)
         if self._physics_initialized:
             new_renderer.initialize()
         return new_renderer
@@ -124,15 +123,23 @@ class RenderContext:
         if self._prepared_num_envs is None:
             self._prepared_num_envs = num_envs
 
-    def update_transforms(self, physics_step_count: int) -> None:
-        """Call :meth:`BaseRenderer.update_transforms` on all backends (at most once per step)."""
+    def update_scene_state(self, physics_step_count: int) -> None:
+        """Update scene state on all backends (at most once per step).
+
+        Invokes :meth:`BaseRenderer.update_transforms` and then
+        :meth:`BaseRenderer.update_geometries` on each registered renderer.
+        """
         if not self._renderer_entries:
             return
-        if self._last_transforms_step == physics_step_count:
+
+        if self._last_scene_state_step == physics_step_count:
             return
+
         for _cfg, renderer in self._renderer_entries:
             renderer.update_transforms()
-        self._last_transforms_step = physics_step_count
+            renderer.update_geometries()
+
+        self._last_scene_state_step = physics_step_count
 
     def render_into_camera(
         self,
@@ -141,8 +148,8 @@ class RenderContext:
         camera_data: CameraData,
         physics_step_count: int,
     ) -> None:
-        """Sync scene transforms, render, and read outputs into ``camera_data``."""
-        self.update_transforms(physics_step_count)
+        """Sync scene state, render, and read outputs into ``camera_data``."""
+        self.update_scene_state(physics_step_count)
         renderer.render(render_data)
         renderer.read_output(render_data, camera_data)
 
@@ -151,6 +158,35 @@ class RenderContext:
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
 
-    def reset_transform_cadence(self) -> None:
-        """Clear per-step transform dedupe (e.g. a long pause with no physics)."""
-        self._last_transforms_step = None
+    def reset_scene_state_cadence(self) -> None:
+        """Clear per-step scene state update dedupe (e.g. a long pause with no physics)."""
+        self._last_scene_state_step = None
+
+    def close(self) -> None:
+        """Close every registered backend and drop it from this context.
+
+        Called from :meth:`~isaaclab.sim.simulation_context.SimulationContext.clear_instance` after
+        cameras have released their render data and before the stage is torn down, so
+        :meth:`BaseRenderer.close` runs while the stage is still alive. A backend that raises does
+        not prevent the others from closing; the failure is reported once every backend has been
+        given the chance. Idempotent.
+
+        Raises:
+            RuntimeError: If any backend's :meth:`BaseRenderer.close` raised.
+        """
+        errors: list[Exception] = []
+        for _cfg, renderer in self._renderer_entries:
+            try:
+                renderer.close()
+            except Exception as exc:  # noqa: BLE001 - re-raised below once every backend is closed
+                logger.error("Error closing renderer %s: %s", type(renderer).__name__, exc)
+                errors.append(exc)
+        self._renderer_entries.clear()
+        self._prepared_renderer_ids.clear()
+        self._prepared_num_envs = None
+        self._last_scene_state_step = None
+        self._physics_initialized = False
+
+        if errors:
+            # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
+            raise RuntimeError(f"{len(errors)} renderer(s) failed to close") from errors[0]

@@ -282,7 +282,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
 
 
 @configclass
-class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg_PLAY(RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg):
+class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -308,7 +308,7 @@ class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg_PLAY(RmpFlowGalbotLeft
 # Task Envs for VLA Policy Close-loop Evaluation (in Task Space)
 ##
 @configclass
-class GalbotLeftArmRmpFlowCubeStackVisuomotorEnvCfg_PLAY(RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg):
+class GalbotLeftArmRmpFlowCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

@@ -6,15 +6,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
 
 import torch
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from ._fabric_notices import disabled_fabric_change_notifies
-from .cloner_utils import split_clone_template
-from .replicate_session import REPLICATION_QUEUE
+from .path import split
 
 
 def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
@@ -120,13 +118,25 @@ class UsdReplicateContext:
         for depth in sorted(depth_to_items.keys()):
             with Sdf.ChangeBlock():
                 for src, tmpl, target_envs, positions, quaternions in depth_to_items[depth]:
-                    _, clone_suffix = split_clone_template(tmpl)
+                    _, clone_suffix = split(tmpl)
                     is_instance_root = clone_suffix == ""
 
                     for wid in target_envs.tolist():
                         wid = int(wid)
                         dp = tmpl.format(wid)
                         Sdf.CreatePrimInLayer(rl, dp)
+                        # ``CreatePrimInLayer`` authors missing intermediate ancestors (e.g. the
+                        # ``Groceries`` scope in ``env_{}/Groceries/Object``) as ``over`` specs. A
+                        # ``def`` copied below an ``over`` ancestor never composes as defined, so
+                        # Hydra skips it and its references stay unexpanded. Promote such ancestors
+                        # to ``def``; for ancestors already defined elsewhere this is a no-op.
+                        ancestor = Sdf.Path(dp).GetParentPath()
+                        while ancestor != Sdf.Path.absoluteRootPath:
+                            ancestor_spec = rl.GetPrimAtPath(ancestor)
+                            if ancestor_spec is None or ancestor_spec.specifier != Sdf.SpecifierOver:
+                                break
+                            ancestor_spec.specifier = Sdf.SpecifierDef
+                            ancestor = ancestor.GetParentPath()
                         if src != dp:
                             Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
 
@@ -153,16 +163,6 @@ class UsdReplicateContext:
                                     ps, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
                                 )
                                 op_order.default = Vt.TokenArray(op_names)
-
-
-def queue_usd_replication(cfg: Any) -> None:
-    """Register ``cfg`` for USD replication when :func:`~isaaclab.cloner.replicate` next runs.
-
-    Appends ``(cfg, UsdReplicateContext)`` to :data:`~isaaclab.cloner.REPLICATION_QUEUE`.
-    The actual row resolution and dispatch happen inside :func:`~isaaclab.cloner.replicate`,
-    so this helper is safe to call from any asset constructor — no active session is required.
-    """
-    REPLICATION_QUEUE.append((cfg, UsdReplicateContext))
 
 
 def usd_replicate(

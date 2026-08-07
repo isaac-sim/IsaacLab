@@ -87,9 +87,9 @@ def test_validate_rejects_orphan_paragraph_from_fixture():
 def _pkg_under(tmp_path: Path, name: str) -> cli.Package:
     """Build a managed-looking Package rooted at ``tmp_path/source/<name>``."""
     root = tmp_path / "source" / name
-    (root / "config").mkdir(parents=True)
+    root.mkdir(parents=True)
     (root / "docs").mkdir(parents=True)
-    (root / "config" / "extension.toml").write_text('version = "0.0.0"\n', encoding="utf-8")
+    (root / "pyproject.toml").write_text('[project]\nversion = "0.0.0"\n', encoding="utf-8")
     (root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n\n", encoding="utf-8")
     return cli.Package(root)
 
@@ -254,8 +254,8 @@ def test_compile_raises_on_package_missing_changelog(tmp_path):
     """Constructing a Package directly at an unmanaged root and calling
     ``compile()`` must raise (not silently warn-and-write a stale toml)."""
     pkg_root = tmp_path / "pkg"
-    (pkg_root / "config").mkdir(parents=True)
-    (pkg_root / "config" / "extension.toml").write_text('version = "1.2.3"\n', encoding="utf-8")
+    pkg_root.mkdir(parents=True)
+    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n', encoding="utf-8")
     # No docs/CHANGELOG.rst — package is not managed.
     pkg = cli.Package(pkg_root)
     assert pkg.is_managed is False
@@ -364,9 +364,9 @@ def test_write_changelog_entry_self_heals_missing_blank_line(tmp_path):
     (PR #5748); the nightly compile raised before this self-heal landed.
     """
     pkg_root = tmp_path / "pkg"
-    (pkg_root / "config").mkdir(parents=True)
+    pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
-    (pkg_root / "config" / "extension.toml").write_text('version = "0.1.0"\n', encoding="utf-8")
+    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
     # The exact malformed shape that wedged the nightly.
     (pkg_root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n", encoding="utf-8")
     pkg = cli.Package(pkg_root)
@@ -382,9 +382,9 @@ def test_write_changelog_entry_self_heal_is_noop_on_well_formed(tmp_path):
     self-heal regex; this test locks it.
     """
     pkg_root = tmp_path / "pkg"
-    (pkg_root / "config").mkdir(parents=True)
+    pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
-    (pkg_root / "config" / "extension.toml").write_text('version = "0.1.0"\n', encoding="utf-8")
+    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
     original = "Changelog\n---------\n\n0.1.0 (2026-05-20)\n~~~~~~~~~~~~~~~~~~\n\nAdded\n^^^^^\n\n* Initial.\n"
     (pkg_root / "docs" / "CHANGELOG.rst").write_text(original, encoding="utf-8")
     pkg = cli.Package(pkg_root)
@@ -409,10 +409,10 @@ def test_compile_failure_preserves_fragments_and_version(tmp_path):
     silently lose work on the failed package each cycle.
     """
     pkg_root = tmp_path / "pkg"
-    (pkg_root / "config").mkdir(parents=True)
+    pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
     (pkg_root / "changelog.d").mkdir()
-    (pkg_root / "config" / "extension.toml").write_text('version = "0.1.0"\n', encoding="utf-8")
+    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
     # Unrecoverable shape: no ``Changelog`` header at all — self-heal can't
     # do anything and the strict regex raises ValueError.
     (pkg_root / "docs" / "CHANGELOG.rst").write_text("No header at all\n", encoding="utf-8")
@@ -427,7 +427,7 @@ def test_compile_failure_preserves_fragments_and_version(tmp_path):
     assert fragment.exists(), "fragment must be preserved when compile raises"
     assert fragment.read_text(encoding="utf-8") == "Added\n^^^^^\n\n* Did a thing.\n"
     # Version unchanged.
-    assert 'version = "0.1.0"' in (pkg_root / "config" / "extension.toml").read_text(encoding="utf-8")
+    assert 'version = "0.1.0"' in (pkg_root / "pyproject.toml").read_text(encoding="utf-8")
     # CHANGELOG.rst unchanged (no entry prepended).
     assert (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8") == "No header at all\n"
 
@@ -435,8 +435,7 @@ def test_compile_failure_preserves_fragments_and_version(tmp_path):
 def test_cmd_compile_continues_after_per_package_failure(tmp_path, monkeypatch, capsys):
     """One package's compile failure must not abort the batch.
 
-    Defense-in-depth for future failure modes (version mismatch between
-    extension.toml and pyproject.toml, filesystem permission, direct push
+    Defense-in-depth for future failure modes (filesystem permission, direct push
     bypassing PR gate). The healthy package still ships; the broken one
     is named in the failure summary.
     """
@@ -445,10 +444,10 @@ def test_cmd_compile_continues_after_per_package_failure(tmp_path, monkeypatch, 
 
     def _mk(name: str, changelog_text: str) -> None:
         root = packages_root / name
-        (root / "config").mkdir(parents=True)
+        root.mkdir(parents=True)
         (root / "docs").mkdir(parents=True)
         (root / "changelog.d").mkdir()
-        (root / "config" / "extension.toml").write_text('version = "0.1.0"\n', encoding="utf-8")
+        (root / "pyproject.toml").write_text('[project]\nversion = "0.1.0"\n', encoding="utf-8")
         (root / "docs" / "CHANGELOG.rst").write_text(changelog_text, encoding="utf-8")
         (root / "changelog.d" / "test.rst").write_text("Added\n^^^^^\n\n* Did a thing.\n", encoding="utf-8")
 
@@ -495,9 +494,9 @@ def test_compile_rejects_fragments_that_check_would_reject(tmp_path):
     paths must agree on what a valid fragment looks like.
     """
     pkg_root = tmp_path / "pkg"
-    (pkg_root / "config").mkdir(parents=True)
+    pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
-    (pkg_root / "config" / "extension.toml").write_text('version = "1.2.3"\n', encoding="utf-8")
+    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n', encoding="utf-8")
     (pkg_root / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n\n", encoding="utf-8")
     pkg = cli.Package(pkg_root)
 

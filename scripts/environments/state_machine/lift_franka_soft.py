@@ -11,7 +11,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py
+    uv run python scripts/environments/state_machine/lift_franka_soft.py
 
 """
 
@@ -38,7 +38,6 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
-# RecordVideo needs an rgb_array render mode, which in turn requires cameras to be enabled.
 if args_cli.video:
     args_cli.enable_cameras = True
 
@@ -47,9 +46,9 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 # disable metrics assembler due to scene graph instancing
-from isaacsim.core.experimental.utils.app import enable_extension
+from isaaclab.sim.utils import disable_extension
 
-enable_extension("omni.usd.metrics.assembler.ui", enabled=False)
+disable_extension("omni.usd.metrics.assembler.ui")
 
 """Rest everything else."""
 
@@ -61,10 +60,10 @@ import torch
 import warp as wp
 
 from isaaclab.assets.deformable_object.deformable_object_data import DeformableObjectData
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg
-from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # initialize warp
@@ -282,41 +281,28 @@ class PickAndLiftSm:
 
 
 def main():
-    # create environment
-    render_mode = "rgb_array" if args_cli.video else None
-    if args_cli.task == "Isaac-Lift-Soft-Franka":
-        # parse configuration
-        env_cfg: FrankaSoftEnvCfg = parse_env_cfg(
-            "Isaac-Lift-Soft-Franka",
-            device=args_cli.device,
-            num_envs=args_cli.num_envs,
-        )
-        env_cfg.viewer.eye = (2.1, 1.0, 1.3)
-        env = gym.make("Isaac-Lift-Soft-Franka", cfg=env_cfg, render_mode=render_mode)
-    elif args_cli.task == "Isaac-Lift-Cloth-Franka":
-        # parse configuration
-        env_cfg: FrankaClothEnvCfg = parse_env_cfg(
-            "Isaac-Lift-Cloth-Franka",
-            device=args_cli.device,
-            num_envs=args_cli.num_envs,
-        )
-        env_cfg.viewer.eye = (2.1, 1.0, 1.3)
-        env = gym.make("Isaac-Lift-Cloth-Franka", cfg=FrankaClothEnvCfg(), render_mode=render_mode)
-    else:
-        raise ValueError(f"Unknown task: {args_cli.task}")
+    # parse configuration
+    env_cfg = parse_env_cfg(
+        args_cli.task,
+        device=args_cli.device,
+        num_envs=args_cli.num_envs,
+    )
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(2.1, 1.0, 1.3))
 
-    # wrap for video recording
+    # attach internal video recorder when --video is requested
     if args_cli.video:
         video_folder = os.path.abspath(args_cli.video_folder)
-        os.makedirs(video_folder, exist_ok=True)
-        env = gym.wrappers.RecordVideo(
-            env,
-            video_folder=video_folder,
-            step_trigger=lambda step: step == 0,
-            video_length=args_cli.video_length,
-            disable_logger=True,
-        )
+        env_cfg.video_recorders = [
+            VideoRecorderCfg(
+                source="visualizer",
+                output_dir=video_folder,
+                video_length=args_cli.video_length,
+                video_interval=0,
+            )
+        ]
         print(f"[INFO] Recording video to {video_folder} (length={args_cli.video_length} steps)")
+
+    env = gym.make(args_cli.task, cfg=env_cfg)
 
     # reset environment at start
     env.reset()

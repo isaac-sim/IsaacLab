@@ -8,13 +8,13 @@
 """Real-backend tests for the OVPhysX PVA sensor.
 
 Mirrors the structure of source/isaaclab_physx/test/sensors/test_pva.py
-but runs kitless under ./isaaclab.sh -p -m pytest — no AppLauncher needed.
+but runs kitless under uv run python -m pytest — no AppLauncher needed.
 SimulationContext is instantiated directly (it does not require Kit).
 
 Tests that load the PhysX pendulum URDF (``test_single_dof_pendulum`` and
 ``test_indirect_attachment``) are skipped pending a USD-converted pendulum
 asset. URDF→USD conversion requires the Kit URDF importer extension, which
-is not loaded under the direct ./isaaclab.sh -p runner.
+is not loaded under the direct uv run python runner.
 
 All tests use procedural USD assets so the kitless suite does not depend on
 Nucleus or ``omni.client`` loader state.
@@ -837,7 +837,7 @@ def test_sensor_print(sim_ctx, device):
 _PENDULUM_SKIP_REASON = (
     "Blocked on a USD-converted pendulum asset (the PhysX test loads"
     " source/isaaclab_physx/test/sensors/urdfs/simple_2_link.urdf via the Kit URDF importer,"
-    " which is not loaded under the direct ./isaaclab.sh -p runner). Re-enable"
+    " which is not loaded under the direct uv run python runner). Re-enable"
     " once a pre-converted USD pendulum is available, and port the assertion body from"
     " source/isaaclab_physx/test/sensors/test_pva.py."
 )

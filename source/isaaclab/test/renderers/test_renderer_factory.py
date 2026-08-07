@@ -45,6 +45,9 @@ def _make_mock_renderer_class(name: str):
         def update_transforms(self):
             pass
 
+        def update_geometries(self):
+            pass
+
         def update_camera(self, render_data, positions, orientations, intrinsics):
             pass
 

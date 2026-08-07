@@ -9,6 +9,11 @@
 
     AssetBase
     AssetBaseCfg
+    BaseCableObject
+    BaseCableObjectData
+    CableObject
+    CableObjectData
+    CableObjectCfg
     RigidObject
     RigidObjectData
     RigidObjectCfg
@@ -87,6 +92,39 @@ Rigid Object Collection
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+Cable Object
+------------
+
+Cable object dynamics are currently supported only by the Newton backend.
+
+.. autoclass:: CableObject
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: BaseCableObject
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: CableObjectData
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: BaseCableObjectData
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: CableObjectCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type, InitialStateCfg
 
 Deformable Object
 -----------------

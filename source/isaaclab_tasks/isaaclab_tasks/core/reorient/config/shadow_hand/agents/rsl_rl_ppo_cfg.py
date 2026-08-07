@@ -5,7 +5,7 @@
 
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, RslRlRNNModelCfg
 
 
 @configclass
@@ -47,6 +47,7 @@ class ShadowHandAsymFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 10000
     save_interval = 250
     experiment_name = "shadow_hand_openai_ff"
+    obs_groups = {"actor": ["policy"], "critic": ["critic"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[400, 400, 200, 100],
         activation="elu",
@@ -75,11 +76,36 @@ class ShadowHandAsymFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
+class ShadowHandAsymLSTMPPORunnerCfg(ShadowHandAsymFFPPORunnerCfg):
+    """RSL-RL recurrent policy configuration for the asymmetric OpenAI observations."""
+
+    experiment_name = "shadow_hand_openai_lstm"
+    actor = RslRlRNNModelCfg(
+        hidden_dims=[400, 400, 200, 100],
+        activation="elu",
+        obs_normalization=True,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
+        rnn_type="lstm",
+        rnn_hidden_dim=256,
+        rnn_num_layers=1,
+    )
+    critic = RslRlRNNModelCfg(
+        hidden_dims=[512, 512, 256, 128],
+        activation="elu",
+        obs_normalization=True,
+        rnn_type="lstm",
+        rnn_hidden_dim=256,
+        rnn_num_layers=1,
+    )
+
+
+@configclass
 class ShadowHandCameraFFPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 64
-    max_iterations = 50000
+    max_iterations = 5000
     save_interval = 250
     experiment_name = "shadow_hand_camera"
+    obs_groups = {"actor": ["policy"], "critic": ["critic"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[1024, 512, 512, 256, 128],
         activation="elu",

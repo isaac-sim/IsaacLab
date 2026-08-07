@@ -31,6 +31,12 @@ _THIS_SCRIPT = Path(__file__).resolve()
 _EXPORT_BATCH_SIZE = 8
 _EXPORT_BATCH_TIMEOUT = 600
 _OUTPUT_TAIL_CHARS = 5000
+_PROCESS_FAILURE_PATTERNS = (
+    "Traceback (most recent call last):",
+    "FileNotFoundError:",
+    "[ERROR]",
+    "Segmentation fault",
+)
 
 
 # Tasks with confirmed pretrained checkpoints (Direct and no-checkpoint tasks excluded).
@@ -40,69 +46,42 @@ TASKS = [
     "Isaac-Cartpole",
     # Navigation
     "IsaacContrib-Navigation-Flat-AnymalC",
-    "IsaacContrib-Navigation-Flat-AnymalC-Play",
     # Locomotion Velocity
     "IsaacContrib-Velocity-Flat-AnymalB",
-    "IsaacContrib-Velocity-Flat-AnymalB-Play",
     "IsaacContrib-Velocity-Rough-AnymalB",
-    "IsaacContrib-Velocity-Rough-AnymalB-Play",
     "IsaacContrib-Velocity-Flat-AnymalC",
-    "IsaacContrib-Velocity-Flat-AnymalC-Play",
     "IsaacContrib-Velocity-Rough-AnymalC",
-    "IsaacContrib-Velocity-Rough-AnymalC-Play",
     "Isaac-Velocity-Flat-AnymalD",
-    "Isaac-Velocity-Flat-AnymalD-Play",
     "Isaac-Velocity-Rough-AnymalD",
-    "Isaac-Velocity-Rough-AnymalD-Play",
     "Isaac-Velocity-Flat-Cassie",
-    "Isaac-Velocity-Flat-Cassie-Play",
     "Isaac-Velocity-Rough-Cassie",
-    "Isaac-Velocity-Rough-Cassie-Play",
     "Isaac-Velocity-Flat-G1",
-    "Isaac-Velocity-Flat-G1-Play",
     "Isaac-Velocity-Rough-G1",
-    "Isaac-Velocity-Rough-G1-Play",
     "Isaac-Velocity-Flat-H1",
-    "Isaac-Velocity-Flat-H1-Play",
     "Isaac-Velocity-Rough-H1",
-    "Isaac-Velocity-Rough-H1-Play",
-    "Isaac-Velocity-Flat-Spot",
-    "Isaac-Velocity-Flat-Spot-Play",
+    "IsaacContrib-Velocity-Flat-Spot",
     "IsaacContrib-Velocity-Flat-UnitreeA1",
-    "IsaacContrib-Velocity-Flat-UnitreeA1-Play",
     "IsaacContrib-Velocity-Rough-UnitreeA1",
-    "IsaacContrib-Velocity-Rough-UnitreeA1-Play",
     "IsaacContrib-Velocity-Flat-UnitreeGo1",
-    "IsaacContrib-Velocity-Flat-UnitreeGo1-Play",
     "IsaacContrib-Velocity-Rough-UnitreeGo1",
-    "IsaacContrib-Velocity-Rough-UnitreeGo1-Play",
     "Isaac-Velocity-Flat-UnitreeGo2",
-    "Isaac-Velocity-Flat-UnitreeGo2-Play",
     "Isaac-Velocity-Rough-UnitreeGo2",
-    "Isaac-Velocity-Rough-UnitreeGo2-Play",
     # Manipulation Reach
     "Isaac-Reach-Franka",
-    "Isaac-Reach-Franka-Play",
     "Isaac-Reach-UR10",
-    "Isaac-Reach-UR10-Play",
     # Manipulation Lift
-    "Isaac-Lift-Cube-Franka",
-    "Isaac-Lift-Cube-Franka-Play",
+    "Isaac-Lift-Franka",
     # Manipulation Cabinet
     "Isaac-Open-Drawer-Franka",
-    "Isaac-Open-Drawer-Franka-Play",
-    # Dexsuite
+    # Dexterous manipulation
     "Isaac-Reorient-KukaAllegro",
-    "Isaac-Reorient-KukaAllegro-Play",
     "Isaac-Lift-KukaAllegro",
-    "Isaac-Lift-KukaAllegro-Play",
 ]
 
 
 def _export_dir(task_name: str) -> str:
     """Return the directory where export.py writes artifacts for *task_name*."""
-    train_task = task_name.replace("-Play", "")
-    return os.path.join(_REPO_ROOT, ".pretrained_checkpoints", "rsl_rl", train_task, task_name)
+    return os.path.join(_REPO_ROOT, ".pretrained_checkpoints", "rsl_rl", task_name, task_name)
 
 
 def _task_batches(tasks: list[str]) -> list[list[str]]:
@@ -134,6 +113,18 @@ def _leapp_log_tail(export_dir: str) -> str:
     with open(log_txt_path) as f:
         last_lines = f.readlines()[-50:]
     return f"\n--- leapp log.txt (last 50 lines) ---\n{''.join(last_lines)}"
+
+
+def _fail_on_process_error(result: subprocess.CompletedProcess[str], task_names: list[str]) -> None:
+    """Fail when Isaac Sim reports an error but exits with a successful status."""
+    output = f"{result.stdout}\n{result.stderr}"
+    for pattern in _PROCESS_FAILURE_PATTERNS:
+        if pattern in output:
+            pytest.fail(
+                f"export batch reported {pattern!r} for {task_names}.\n"
+                f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
+                f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
+            )
 
 
 def _load_export_module():
@@ -223,7 +214,6 @@ def _export_args(task_name: str):
             task_name,
             "--use_pretrained_checkpoint",
             "--disable_graph_visualization",
-            "--headless",
         ]
     )
     return args_cli
@@ -316,6 +306,19 @@ def test_recurrent_state_helpers_support_modular_rnn_model_lstm():
     assert policy.rnn.hidden_state is registered_state
 
 
+def test_export_flow_fails_on_sim_traceback():
+    """Catch simulator failures even when the process reports success."""
+    result = subprocess.CompletedProcess(
+        args=["export-flow"],
+        returncode=0,
+        stdout="Traceback (most recent call last):\nFileNotFoundError: missing asset",
+        stderr="",
+    )
+
+    with pytest.raises(pytest.fail.Exception):
+        _fail_on_process_error(result, ["Isaac-Reach-Franka"])
+
+
 @pytest.mark.parametrize("task_names", _task_batches(TASKS), ids=_batch_id)
 def test_export_flow(task_names: list[str]):
     """Run export.py for a task batch and assert the expected artifacts are created."""
@@ -342,6 +345,8 @@ def test_export_flow(task_names: list[str]):
             f"--- stdout tail ---\n{result.stdout[-_OUTPUT_TAIL_CHARS:]}\n"
             f"--- stderr tail ---\n{result.stderr[-_OUTPUT_TAIL_CHARS:]}"
         )
+
+    _fail_on_process_error(result, task_names)
 
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "--export-flow-batch":

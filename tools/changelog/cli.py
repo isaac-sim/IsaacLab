@@ -531,7 +531,7 @@ class Package:
 
     @property
     def toml_path(self) -> Path:
-        return self.root / "config" / "extension.toml"
+        return self.root / "pyproject.toml"
 
     @property
     def default_fragment_dir(self) -> Path:
@@ -541,20 +541,9 @@ class Package:
     def is_managed(self) -> bool:
         return self.toml_path.is_file() and self.changelog_path.is_file()
 
-    def _extension_toml_version(self) -> Version:
-        for line in self.toml_path.read_text(encoding="utf-8").splitlines():
-            m = re.match(r'^version\s*=\s*"([^"]+)"', line)
-            if m:
-                return Version(m.group(1))
-        raise ValueError(f"No version field found in {self.toml_path}")
-
-    def _pyproject_version(self) -> Version | None:
-        """Read the ``[project]`` version from ``pyproject.toml``, or ``None`` if absent."""
-        pyproject_path = self.root / "pyproject.toml"
-        if not pyproject_path.is_file():
-            return None
+    def current_version(self) -> Version:
         in_project = False
-        for line in pyproject_path.read_text(encoding="utf-8").splitlines():
+        for line in self.toml_path.read_text(encoding="utf-8").splitlines():
             if re.match(r"^\[project\]", line):
                 in_project = True
             elif re.match(r"^\[", line):
@@ -563,18 +552,7 @@ class Package:
                 m = re.match(r'^version\s*=\s*"([^"]+)"', line)
                 if m:
                     return Version(m.group(1))
-        return None
-
-    def current_version(self) -> Version:
-        ext_ver = self._extension_toml_version()
-        py_ver = self._pyproject_version()
-        if py_ver is not None and py_ver != ext_ver:
-            raise ValueError(
-                f"{self.name}: version mismatch — "
-                f"config/extension.toml={ext_ver}, pyproject.toml={py_ver}. "
-                f"Reconcile both files to the same value before running compile."
-            )
-        return ext_ver
+        raise ValueError(f"{self.name}: no version field found under [project] in {self.toml_path}")
 
     def write_changelog_entry(self, entry: str, *, dry_run: bool) -> None:
         text = self.changelog_path.read_text(encoding="utf-8")
@@ -600,36 +578,20 @@ class Package:
 
     def write_version(self, new_version: Version, *, dry_run: bool) -> None:
         text = self.toml_path.read_text(encoding="utf-8")
-        updated = re.sub(r'^version\s*=\s*"[^"]+"', f'version = "{new_version}"', text, flags=re.MULTILINE)
+        in_project = False
+        new_lines = []
+        for line in text.splitlines(keepends=True):
+            if re.match(r"^\[project\]", line):
+                in_project = True
+            elif re.match(r"^\[", line):
+                in_project = False
+            if in_project and re.match(r'^version\s*=\s*"[^"]+"', line):
+                line = re.sub(r'^(version\s*=\s*)"[^"]+"', f'\\1"{new_version}"', line)
+            new_lines.append(line)
         if dry_run:
             print(f'DRY RUN — would set version = "{new_version}" in {_display_path(self.toml_path)}')
         else:
-            self.toml_path.write_text(updated, encoding="utf-8")
-
-        # Also update [project] version in pyproject.toml if it exists.
-        pyproject_path = self.root / "pyproject.toml"
-        if pyproject_path.is_file():
-            py_text = pyproject_path.read_text(encoding="utf-8")
-            in_project = False
-            new_lines = []
-            changed = False
-            for line in py_text.splitlines(keepends=True):
-                if re.match(r"^\[project\]", line):
-                    in_project = True
-                elif re.match(r"^\[", line):
-                    in_project = False
-                if in_project and re.match(r'^version\s*=\s*"[^"]+"', line):
-                    new_line = re.sub(r'^(version\s*=\s*)"[^"]+"', f'\\1"{new_version}"', line)
-                    if new_line != line:
-                        changed = True
-                    new_lines.append(new_line)
-                else:
-                    new_lines.append(line)
-            if changed:
-                if dry_run:
-                    print(f'DRY RUN — would set version = "{new_version}" in {_display_path(pyproject_path)}')
-                else:
-                    pyproject_path.write_text("".join(new_lines), encoding="utf-8")
+            self.toml_path.write_text("".join(new_lines), encoding="utf-8")
 
     @classmethod
     def from_name(cls, name: str, packages_root: Path = PACKAGES_ROOT) -> Package:
@@ -917,7 +879,7 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
         )
     # Validate ``--version`` shape up front so a typo like ``--version 4.7``
     # fails at argument parsing instead of silently writing ``4.7`` into
-    # ``CHANGELOG.rst`` and ``extension.toml``.
+    # ``CHANGELOG.rst`` and ``pyproject.toml``.
     explicit_version: Version | None = None
     if args.version is not None:
         try:
@@ -931,7 +893,7 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
             parser.error(f"--package {args.package!r}: directory not found at {pkg.root}")
         if not pkg.is_managed:
             parser.error(
-                f"--package {args.package!r} is not managed: missing config/extension.toml or "
+                f"--package {args.package!r} is not managed: missing pyproject.toml or "
                 f"docs/CHANGELOG.rst at {pkg.root}. Run with --all to see the discovered list."
             )
         packages = [pkg]

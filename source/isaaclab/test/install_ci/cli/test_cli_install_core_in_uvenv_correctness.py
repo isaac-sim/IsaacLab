@@ -10,6 +10,8 @@ Tests:
     - ./isaaclab.sh -i core -> verify all core packages importable
     - ./isaaclab.sh -i core -> verify optional submodules (mimic, teleop, ovrtx, ovphysx) NOT installed
     - ./isaaclab.sh -i core -> verify isaaclab_physx test suite passes
+    - ./isaaclab.sh -i core -> verify the Newton importer mesh-processing dependencies
+      (coacd, fast-simplification) are installed
 """
 
 from __future__ import annotations
@@ -91,6 +93,31 @@ class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
             for pkg in ("ovrtx", "ovphysx"):
                 result = self.run_in_uv_env(["python", "-c", f"import {pkg}"])
                 assert result.returncode != 0, f"{pkg} should not be installed after -i core"
+
+        finally:
+            self.destroy_uv_env()
+
+    @pytest.mark.install_path_cli
+    @pytest.mark.uv
+    @pytest.mark.slow
+    @pytest.mark.timeout(1800)
+    def test_install_core_provides_newton_importer_dependencies(self, isaaclab_root):
+        """Newton's mesh-processing deps ship with -i core (via newton[sim,importers]).
+
+        Without them, Newton warns and falls back to a single convex hull instead of
+        honoring an authored ``physics:approximation`` (behavior is unit-tested in
+        isaaclab_newton's test_collision_approximation.py).
+        """
+        try:
+            self.create_uv_env(isaaclab_root)
+
+            result = self.run_in_uv_env([str(self.cli_script), "-i", "core"], cwd=isaaclab_root)
+            assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
+
+            result = self.run_in_uv_env(["python", "-c", "import coacd, fast_simplification"])
+            assert result.returncode == 0, (
+                f"Newton importer mesh-processing deps missing:\n{result.stdout}\n{result.stderr}"
+            )
 
         finally:
             self.destroy_uv_env()

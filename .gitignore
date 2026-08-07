@@ -42,6 +42,7 @@ docker/.container.cfg
 **/.neptune/*
 docker/artifacts/
 *.tmp
+**/__tracked_surface.stl
 
 # Doc Outputs
 **/docs/_build/*
@@ -76,6 +77,8 @@ _build
 
 # No benchmarks output
 /benchmarks/
+benchmark_*.json
+
 
 # Ruff cache
 **/.ruff_cache/

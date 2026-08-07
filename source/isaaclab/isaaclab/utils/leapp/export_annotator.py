@@ -44,6 +44,7 @@ from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
+from isaaclab.utils.array import convert_to_torch
 
 from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
@@ -58,6 +59,34 @@ if TYPE_CHECKING:
 
 
 VARIABLE_IMPEDANCE_MODES = frozenset({"variable", "variable_kp"})
+
+
+def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    """Return per-joint ``(kp, kd)`` tensors reflecting each actuator's PD gains.
+
+    ``data.default_joint_stiffness`` / ``data.default_joint_damping`` only hold the gains of
+    *implicit* actuators, which write them to the simulation. *Explicit* actuators (e.g.
+    :class:`~isaaclab.actuators.DCMotor`, :class:`~isaaclab.actuators.IdealPDActuator`) compute
+    their PD term internally and apply it as joint effort, leaving the sim-level gains at zero --
+    so reading the data buffers alone exports zero ``kp``/``kd`` for those joints and the deployed
+    policy graph carries no gains. Aggregating from ``asset.actuators`` recovers the true gains for
+    every actuator model (a no-op for implicit actuators, whose buffers already match).
+
+    Returns ``None`` independently for any joint-gain buffer the asset does not expose.
+    """
+    data = getattr(real_asset, "data", None)
+    stiffness = getattr(data, "default_joint_stiffness", None)
+    damping = getattr(data, "default_joint_damping", None)
+    if stiffness is None and damping is None:
+        return None, None
+    kp = stiffness.torch.clone() if stiffness is not None else None
+    kd = damping.torch.clone() if damping is not None else None
+    for actuator in getattr(real_asset, "actuators", {}).values():
+        if kp is not None:
+            kp[:, actuator.joint_indices] = actuator.stiffness
+        if kd is not None:
+            kd[:, actuator.joint_indices] = actuator.damping
+    return kp, kd
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -240,7 +269,13 @@ class ExportPatcher:
                 self._patch_history_buffer_append(circular_buffer, state_name)
 
     def _patch_history_buffer_append(self, circular_buffer, state_name: str):
-        """Wrap ``_append`` so history buffers become explicit LEAPP state.
+        """Replace ``append`` with a functional shift so history is LEAPP state.
+
+        Production :meth:`~isaaclab.utils.buffers.CircularBuffer.append` shifts
+        with in-place ``copy_``, which the tracer cannot see. During export the
+        same oldest→newest layout is produced with ``torch.cat`` so the
+        recurrence appears in the graph. Observation-manager buffers use the
+        legacy ``(K, B, ...)`` layout (no ``stack_dim``).
 
         Args:
             circular_buffer: Circular buffer instance to patch.
@@ -250,27 +285,32 @@ class ExportPatcher:
             return
 
         task_name = self.task_name
-        original_append = circular_buffer._append
+        circular_buffer._leapp_original_append = circular_buffer.append
 
-        def patched_append(data: torch.Tensor):
-            """Annotate history buffer updates as LEAPP state transitions.
+        def patched_append(data: torch.Tensor) -> None:
+            """Shift history with ``torch.cat`` and annotate as LEAPP state.
 
             Args:
                 data: New observation slice appended to the buffer.
-
-            Returns:
-                ``None``.
             """
-            if circular_buffer._buffer is not None:
-                circular_buffer._buffer = annotate.state_tensors(task_name, {state_name: circular_buffer._buffer})
+            if data.shape[0] != circular_buffer.batch_size:
+                raise ValueError(
+                    f"The input data has '{data.shape[0]}' batch size while expecting '{circular_buffer.batch_size}'"
+                )
+            data = data.to(circular_buffer._device)
 
-            original_append(data)
+            if circular_buffer._buffer is None:
+                # Match first-push backfill: broadcast into all K slots.
+                circular_buffer._buffer = data.unsqueeze(0).expand(circular_buffer._max_len_int, *data.shape).clone()
+            else:
+                buffer = annotate.state_tensors(task_name, {state_name: circular_buffer._buffer})
+                circular_buffer._buffer = torch.cat([buffer[1:], data.unsqueeze(0)], dim=0)
 
-            if circular_buffer._buffer is not None:
-                circular_buffer._buffer = annotate.update_state(task_name, {state_name: circular_buffer._buffer})
+            circular_buffer._buffer = annotate.update_state(task_name, {state_name: circular_buffer._buffer})
+            circular_buffer._num_pushes += 1
+            circular_buffer._need_reset = False
 
-        circular_buffer._leapp_original_append = original_append
-        circular_buffer._append = patched_append
+        circular_buffer.append = patched_append
 
     def _patch_observation_manager(self, obs_manager, proxy_env):
         """Patch observation terms to use annotating proxies and disable noise.
@@ -661,27 +701,33 @@ class ExportPatcher:
             asset = getattr(term, "_asset", None)
             real_asset = getattr(asset, "_real_asset", asset)
             if real_asset and hasattr(real_asset, "data"):
-                data = real_asset.data
                 joint_ids = getattr(term, "_joint_ids", None)
                 joint_names = getattr(real_asset, "joint_names", None)
                 scene_key = self._action_term_scene_keys.get(term_name, "ego")
-                if hasattr(data, "default_joint_stiffness") and data.default_joint_stiffness is not None:
-                    gains = data.default_joint_stiffness.torch
+                # Source the PD gains from the actuators so they are correct for every actuator
+                # model. Reading ``data.default_joint_stiffness``/``default_joint_damping`` alone
+                # exports zero gains for explicit actuators (DCMotor, IdealPDActuator, ...), which
+                # keep their gains on the actuator rather than in the sim. See _effective_joint_gains.
+                kp_gains, kd_gains = _effective_joint_gains(real_asset)
+                gain_reference = kp_gains if kp_gains is not None else kd_gains
+                if joint_ids is not None and not isinstance(joint_ids, slice) and gain_reference is not None:
+                    joint_ids = convert_to_torch(joint_ids, dtype=torch.long, device=gain_reference.device)
+
+                if kp_gains is not None:
                     static_values.append(
                         TensorSemantics(
                             name=f"{term_name}_kp_gains",
-                            ref=gains[:, joint_ids] if joint_ids else gains,
+                            ref=kp_gains if joint_ids is None else kp_gains[:, joint_ids],
                             kind="kp",
                             element_names=select_element_names(joint_names, joint_ids),
                             extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim_index"),
                         )
                     )
-                if hasattr(data, "default_joint_damping") and data.default_joint_damping is not None:
-                    gains = data.default_joint_damping.torch
+                if kd_gains is not None:
                     static_values.append(
                         TensorSemantics(
                             name=f"{term_name}_kd_gains",
-                            ref=gains[:, joint_ids] if joint_ids else gains,
+                            ref=kd_gains if joint_ids is None else kd_gains[:, joint_ids],
                             kind="kd",
                             element_names=select_element_names(joint_names, joint_ids),
                             extra=build_write_connection(scene_key, "write_joint_damping_to_sim_index"),

@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
 from gymnasium.envs.registration import EnvSpec
 
 
@@ -38,17 +39,21 @@ _bootstrap_paths()
 from environ_docs import (  # noqa: E402
     COMPREHENSIVE_LIST_END_MARKER,
     COMPREHENSIVE_LIST_START_MARKER,
+    ENVIRONMENT_BROWSER_TASKS_END_MARKER,
+    ENVIRONMENT_BROWSER_TASKS_START_MARKER,
     EnvironmentDocRow,
     _physics_names_for_docs,
     apply_rl_library_overrides,
     collect_environment_doc_rows,
-    find_inference_task_name,
     format_presets_rst,
     format_rl_libraries,
     is_training_task,
     parse_rl_libraries_from_kwargs,
+    patch_curated_environment_tables,
+    patch_environment_browser_javascript,
     patch_environments_rst,
     render_comprehensive_list_table,
+    render_environment_browser_task_rows,
 )
 
 import isaaclab_tasks  # noqa: E402, F401
@@ -57,9 +62,7 @@ from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 
 def test_is_training_task_filters_inference_variants():
     assert is_training_task("Isaac-Cartpole")
-    assert not is_training_task("Isaac-Cartpole-Play-v0")
     assert not is_training_task("IsaacContrib-Assemble-Trocar-G129-Dex3-Eval")
-    assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0")
 
 
@@ -98,72 +101,70 @@ def test_apply_rl_library_overrides_supplements_registry_gaps():
     assert agents == {"rlinf": ["PPO"]}
 
 
-def test_find_inference_task_name_supports_play_and_eval():
-    registry_ids = {
-        "Isaac-Ant-v0",
-        "Isaac-Ant-Play-v0",
-        "IsaacContrib-Assemble-Trocar-G129-Dex3",
-        "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval",
-    }
-    assert find_inference_task_name("Isaac-Ant-v0", registry_ids) == "Isaac-Ant-Play-v0"
-    assert (
-        find_inference_task_name("IsaacContrib-Assemble-Trocar-G129-Dex3", registry_ids)
-        == "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval"
-    )
-    assert find_inference_task_name("Isaac-Cartpole", registry_ids) is None
-
-
 def test_format_presets_rst_single_and_multi_line():
-    single = format_presets_rst({PresetTarget.PHYSICS: ["physx", "newton_mjwarp"]})
-    assert single == "**physics=** ``physx``, ``newton_mjwarp``"
+    single = format_presets_rst({PresetTarget.PHYSICS: ["physx", "isaacsim_physx", "newton_mjwarp"]})
+    assert single == "**physics=** ``isaacsim_physx``, ``newton_mjwarp``"
 
     multi = format_presets_rst(
         {
-            PresetTarget.PHYSICS: ["physx"],
-            PresetTarget.RENDERER: ["isaacsim_rtx_renderer"],
+            PresetTarget.PHYSICS: ["physx", "isaacsim_physx"],
+            PresetTarget.RENDERER: ["rtx", "isaacsim_rtx", "ovrtx"],
             PresetTarget.DOMAIN: ["rgb", "depth"],
         }
     )
-    assert "| **physics=** ``physx``" in multi
-    assert "**renderer=** ``isaacsim_rtx_renderer``" in multi
+    assert "| **physics=** ``isaacsim_physx``" in multi
+    assert "**renderer=** ``isaacsim_rtx``, ``ovrtx``" in multi
     assert "**presets=** ``rgb``, ``depth``" in multi
+    assert "``physx``" not in multi
+    assert "``rtx``" not in multi
 
 
 def test_format_presets_rst_hides_domain_names_duplicated_by_physics():
     formatted = format_presets_rst(
         {
-            PresetTarget.PHYSICS: ["newton_kamino", "newton_mjwarp", "physx"],
+            PresetTarget.PHYSICS: ["isaacsim_physx", "newton_kamino", "newton_mjwarp", "physx"],
             PresetTarget.DOMAIN: ["newton_mjwarp", "physx"],
         }
     )
-    assert formatted == "**physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``"
+    assert formatted == "**physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``"
     assert "presets=" not in formatted
 
 
 def test_format_presets_rst_hides_physics_backend_mirrors_without_physics_preset():
     formatted = format_presets_rst(
         {
-            PresetTarget.PHYSICS: ["newton_mjwarp", "physx"],
+            PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp", "physx"],
             PresetTarget.DOMAIN: ["newton_mjwarp", "ovphysx", "physx"],
         }
     )
-    assert formatted == "**physics=** ``newton_mjwarp``, ``physx``"
+    assert formatted == "**physics=** ``isaacsim_physx``, ``newton_mjwarp``"
     assert "ovphysx" not in formatted
+
+
+def test_format_presets_rst_hides_concrete_backend_mirrors_without_typed_selectors():
+    formatted = format_presets_rst(
+        {
+            PresetTarget.PHYSICS: [],
+            PresetTarget.RENDERER: [],
+            PresetTarget.DOMAIN: ["isaacsim_physx", "isaacsim_rtx", "ovrtx", "rgb"],
+        }
+    )
+    assert formatted == "**presets=** ``rgb``"
 
 
 def test_format_presets_rst_keeps_ovphysx_on_physics():
     formatted = format_presets_rst(
         {
-            PresetTarget.PHYSICS: ["newton_kamino", "newton_mjwarp", "ovphysx", "physx"],
+            PresetTarget.PHYSICS: ["isaacsim_physx", "newton_kamino", "newton_mjwarp", "ovphysx", "physx"],
             PresetTarget.DOMAIN: ["newton_mjwarp", "physx"],
         }
     )
-    assert formatted == "**physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``"
+    assert formatted == ("**physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``")
 
 
 def test_physics_names_for_docs_infers_physx_from_default():
     names = _physics_names_for_docs(
-        "Isaac-Velocity-Flat-G1-v0",
+        "Isaac-Velocity-Flat-G1",
         {PresetTarget.PHYSICS: ["newton_mjwarp"], PresetTarget.DOMAIN: [], PresetTarget.RENDERER: []},
     )
     assert names == ["newton_mjwarp", "physx"]
@@ -183,17 +184,38 @@ def test_collect_environment_doc_rows_from_mock_specs():
             },
         ),
         EnvSpec(
-            id="Isaac-Cartpole-Direct-Play-v0",
+            id="Isaac-Cartpole-Direct-Eval",
             entry_point="isaaclab_tasks.core.cartpole.cartpole_direct_env:CartpoleEnv",
-            kwargs={"env_cfg_entry_point": "cfg:CartpoleEnvCfg_PLAY"},
+            kwargs={"env_cfg_entry_point": "cfg:CartpoleEnvCfg"},
         ),
     ]
     rows = collect_environment_doc_rows(specs)
     assert len(rows) == 1
     assert rows[0].task_name == "Isaac-Cartpole-Direct"
-    assert rows[0].inference_task_name == "Isaac-Cartpole-Direct-Play-v0"
     assert rows[0].workflow == "Direct"
     assert "sb3" in rows[0].rl_libraries
+
+
+def test_collect_environment_doc_rows_excludes_deprecated_task_aliases():
+    specs = [
+        EnvSpec(
+            id="Isaac-Example",
+            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            kwargs={"env_cfg_entry_point": "cfg:ExampleEnvCfg"},
+        ),
+        EnvSpec(
+            id="Isaac-Example-v0",
+            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            kwargs={
+                "env_cfg_entry_point": "cfg:ExampleEnvCfg",
+                "deprecated": {"alias": "--task Isaac-Example"},
+            },
+        ),
+    ]
+
+    rows = collect_environment_doc_rows(specs)
+
+    assert [row.task_name for row in rows] == ["Isaac-Example"]
 
 
 def test_collect_environment_doc_rows_applies_rlinf_override():
@@ -205,7 +227,7 @@ def test_collect_environment_doc_rows_applies_rlinf_override():
         ),
     ]
     rows = collect_environment_doc_rows(specs)
-    assert rows[0].rl_libraries == "**rlinf** (PPO)"
+    assert rows[0].rl_libraries == {"rlinf": ["PPO"]}
 
 
 def test_format_presets_rst_returns_empty_string_when_unavailable():
@@ -222,21 +244,20 @@ def test_render_comprehensive_list_table_uses_blank_cells_for_missing_values():
         [
             EnvironmentDocRow(
                 task_name="Isaac-Ant-v0",
-                inference_task_name=None,
                 workflow="Manager Based",
-                rl_libraries="",
-                presets="",
+                rl_libraries={},
+                presets=None,
             )
         ]
     )
     assert "Isaac-Ant-v0" in table
     assert "      - -\n" not in table
-    assert "      -\n      - Manager Based" in table
+    assert "    * - Isaac-Ant-v0\n      - Manager Based" in table
 
 
 def test_render_comprehensive_list_table_uses_narrower_task_column_width():
     table = render_comprehensive_list_table([])
-    assert ":widths: 18 17 10 22 33" in table
+    assert ":widths: 22 12 30 36" in table
 
 
 def test_patch_environments_rst_replaces_marked_section():
@@ -252,6 +273,92 @@ def test_patch_environments_rst_replaces_marked_section():
     assert "old" not in updated
     assert ".. list-table::\n    new" in updated
     assert updated.endswith("Footer")
+
+
+def test_patch_curated_environment_tables_synchronizes_concrete_presets():
+    original = (
+        ".. table::\n\n"
+        "    +-------+------------------+-------------+------------------+\n"
+        "    | World | Environment ID   | Description | Presets          |\n"
+        "    +=======+==================+=============+==================+\n"
+        "    | demo  | |cartpole-link|  | Example     | **physics=**     |\n"
+        "    |       |                  |             | ``physx``        |\n"
+        "    +-------+------------------+-------------+------------------+\n\n"
+        ".. |cartpole-link| replace:: :isaaclab-source:`Isaac-Cartpole <cfg.py>`\n\n"
+        f"{COMPREHENSIVE_LIST_START_MARKER}\n"
+    )
+    rows = [
+        EnvironmentDocRow(
+            task_name="Isaac-Cartpole",
+            workflow="Manager Based",
+            rl_libraries={},
+            presets={
+                PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp", "ovphysx"],
+                PresetTarget.RENDERER: ["isaacsim_rtx", "ovrtx"],
+                PresetTarget.DOMAIN: ["rgb"],
+            },
+        )
+    ]
+
+    updated = patch_curated_environment_tables(original, rows)
+
+    assert "``isaacsim_physx``" in updated
+    assert "``newton_mjwarp``" in updated
+    assert "``ovphysx``" in updated
+    assert "``isaacsim_rtx``" in updated
+    assert "``ovrtx``" in updated
+    assert "``rgb``" in updated
+    assert "``physx``" not in updated
+
+
+def test_environment_browser_rows_include_only_concrete_core_selectors():
+    rows = [
+        EnvironmentDocRow(
+            task_name="Isaac-Cartpole",
+            workflow="Manager Based",
+            rl_libraries={"rsl_rl": ["PPO"], "skrl": ["PPO"]},
+            presets={
+                PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
+                PresetTarget.RENDERER: ["isaacsim_rtx", "ovrtx"],
+                PresetTarget.DOMAIN: ["rgb"],
+            },
+        ),
+        EnvironmentDocRow(
+            task_name="IsaacContrib-Cartpole",
+            workflow="Manager Based",
+            rl_libraries={"rsl_rl": ["PPO"]},
+            presets={PresetTarget.PHYSICS: ["ovphysx"]},
+        ),
+    ]
+    rendered = render_environment_browser_task_rows(rows)
+    original = (
+        f"        {ENVIRONMENT_BROWSER_TASKS_START_MARKER}\n"
+        "        const taskRows = [];\n"
+        f"        {ENVIRONMENT_BROWSER_TASKS_END_MARKER}\n"
+        "        const preserved = true;\n"
+    )
+
+    updated = patch_environment_browser_javascript(original, rendered)
+
+    assert '"Isaac-Cartpole"' in updated
+    assert '"rsl_rl,skrl"' in updated
+    assert '"isaacsim_physx,newton_mjwarp"' in updated
+    assert '"isaacsim_rtx,ovrtx"' in updated
+    assert '"rgb"' in updated
+    assert "IsaacContrib-Cartpole" not in updated
+    assert "const preserved = true;" in updated
+
+
+def test_patch_environment_browser_rejects_markers_around_non_generated_code():
+    original = (
+        f"{ENVIRONMENT_BROWSER_TASKS_START_MARKER}\n"
+        "const taskRows = [];\n"
+        "const preserved = true;\n"
+        f"{ENVIRONMENT_BROWSER_TASKS_END_MARKER}\n"
+    )
+
+    with pytest.raises(ValueError, match="only the generated taskRows array"):
+        patch_environment_browser_javascript(original, "const taskRows = [];")
 
 
 def test_render_comprehensive_list_table_includes_header():

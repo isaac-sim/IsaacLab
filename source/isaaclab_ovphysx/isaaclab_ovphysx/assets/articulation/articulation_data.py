@@ -12,16 +12,19 @@ from typing import Any
 import numpy as np
 import warp as wp
 
+from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets.kernels import (
     _compose_root_com_pose,
     _compute_heading,
     _copy_first_body,
+    _fd_joint_acc_ordered,
     _projected_gravity,
     _world_vel_to_body_ang,
     _world_vel_to_body_lin,
@@ -34,6 +37,7 @@ from isaaclab_ovphysx.assets.kernels import (
 from isaaclab_ovphysx.physics import OvPhysxManager
 from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
+from . import kernels as articulation_kernels
 from .kernels import _fd_joint_acc
 
 # import logger
@@ -59,15 +63,25 @@ class ArticulationData(BaseArticulationData):
 
     .. note::
         **Pull-to-refresh model.** OVPhysX state properties are *not* automatically updated each
-        simulation step. Each property getter pulls fresh data from the OVPhysX ``TensorBinding``
-        on first access per timestamp, then caches the result until the next step. This differs
-        from the Newton backend, where buffers are refreshed automatically by the simulation.
+        simulation step. Without ordering or joint-direction correction, first access per timestamp
+        refreshes the public buffer directly from the OVPhysX ``TensorBinding`` and caches it until
+        the next step. Otherwise, the getter normalizes a backend-order staging buffer into an owned
+        public-order shadow. Newton's solver-owned backend-order buffers
+        are refreshed automatically by the simulation, and its nonidentity public-order shadows are
+        published automatically once per simulation step.
 
     .. note::
         **CPU-only bindings.** OVPhysX exposes a subset of bindings (``BODY_MASS``, ``BODY_COM_POSE``,
         ``BODY_INERTIA``, and most ``DOF_*`` property bindings) on CPU only. These are routed through
         pinned-host staging buffers via :meth:`_binding_read` so that GPU-resident consumers see the
         data without per-step host allocations.
+
+    .. note::
+        **Recorded read commands.** OVPhysX reads into stable, pre-allocated destination buffers.
+        Outside CUDA graph capture, repeated Warp kernels that derive or reorder public data from
+        those buffers reuse recorded launch commands. Direct ``TensorBinding`` reads continue to use
+        :class:`OvPhysxView`'s object-identity cache. Recorded commands are discarded whenever ordering
+        buffers may be replaced or the data container is invalidated.
     """
 
     __backend_name__: str = "ovphysx"
@@ -106,6 +120,9 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp: float = 0.0
         self._fk_timestamp: float = 0.0
         self._is_primed: bool = False
+        self._read_launch_cache = _WarpLaunchCache(device)
+        self._joint_dof_signs = wp.ones(self.num_joints, dtype=wp.int32, device=device)
+        self._has_reversed_joints = False
         # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
 
@@ -203,13 +220,27 @@ class ArticulationData(BaseArticulationData):
             [
                 self._root_com_pose_w if from_link else None,
                 self._body_link_pose_w,
+                self._body_link_pose_w_backend,
                 self._body_com_pose_w,
+                self._root_link_vel_w,
+                self._body_link_vel_w,
+                self._body_com_vel_w,
+                self._body_com_vel_w_backend,
+                self._projected_gravity_b,
+                self._heading_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
                 self._root_state_w_buf,
                 self._root_link_state_w_buf,
                 self._root_com_state_w_buf,
                 self._body_state_w_buf,
                 self._body_link_state_w_buf,
                 self._body_com_state_w_buf,
+                self._body_com_jacobian_w,
+                self._mass_matrix,
+                self._gravity_compensation_forces,
             ]
         )
         # Force a kinematic refresh on the next FK-dependent read.
@@ -233,27 +264,7 @@ class ArticulationData(BaseArticulationData):
             [
                 self._root_link_vel_w if from_com else None,
                 self._body_com_vel_w,
-                self._body_link_vel_w,
-                self._root_state_w_buf,
-                self._root_link_state_w_buf,
-                self._root_com_state_w_buf,
-                self._body_state_w_buf,
-                self._body_link_state_w_buf,
-                self._body_com_state_w_buf,
-            ]
-        )
-        # Force a kinematic refresh on the next FK-dependent read.
-        self._fk_timestamp = -1.0
-
-    def _reset_body_com_pose_b_dependents(self) -> None:
-        """Reset cached properties derived from body-frame center-of-mass offsets."""
-        reset_timestamps(
-            [
-                self._root_com_pose_w,
-                self._root_com_vel_w,
-                self._root_link_vel_w,
-                self._body_com_pose_w,
-                self._body_com_vel_w,
+                self._body_com_vel_w_backend,
                 self._body_link_vel_w,
                 self._root_link_lin_vel_b,
                 self._root_link_ang_vel_b,
@@ -267,16 +278,55 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_state_w_buf,
             ]
         )
+        # Force a kinematic refresh on the next FK-dependent read.
+        self._fk_timestamp = -1.0
+
+    def _reset_dynamics(
+        self, *, body_com_jacobian: bool = False, mass_matrix: bool = False, gravity_compensation: bool = False
+    ) -> None:
+        """Reset selected computed-dynamics caches after same-timestamp model writes."""
+        reset_timestamps(
+            [
+                self._body_com_jacobian_w if body_com_jacobian else None,
+                self._mass_matrix if mass_matrix else None,
+                self._gravity_compensation_forces if gravity_compensation else None,
+            ]
+        )
+
+    def _reset_body_com_pose_b_dependents(self) -> None:
+        """Reset cached properties derived from body-frame center-of-mass offsets."""
+        reset_timestamps(
+            [
+                self._root_com_pose_w,
+                self._root_com_vel_w,
+                self._root_link_vel_w,
+                self._body_com_pose_w,
+                self._body_com_vel_w,
+                self._body_com_vel_w_backend,
+                self._body_link_vel_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
+                self._root_state_w_buf,
+                self._root_link_state_w_buf,
+                self._root_com_state_w_buf,
+                self._body_state_w_buf,
+                self._body_link_state_w_buf,
+                self._body_com_state_w_buf,
+            ]
+        )
+        self._reset_dynamics(body_com_jacobian=True, mass_matrix=True, gravity_compensation=True)
 
     """
     Names.
     """
 
     body_names: list[str] = None
-    """Body names in the order parsed by the simulation view."""
+    """Body names in public order (configured ordering when set, otherwise backend order)."""
 
     joint_names: list[str] = None
-    """Joint names in the order parsed by the simulation view."""
+    """Joint names in public order (configured ordering when set, otherwise backend order)."""
 
     fixed_tendon_names: list[str] = None
     """Fixed tendon names in the order parsed by USD."""
@@ -461,7 +511,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_STIFFNESS`` is a
         CPU-only OVPhysX binding.
         """
-        self._read_scalar_binding(TT.DOF_STIFFNESS, self._joint_stiffness)
+        self._read_joint_property_binding(TT.DOF_STIFFNESS, self._joint_stiffness, self._joint_stiffness_backend)
         if self._joint_stiffness_ta is None:
             self._joint_stiffness_ta = ProxyArray(self._joint_stiffness.data)
         return self._joint_stiffness_ta
@@ -475,7 +525,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_DAMPING`` is a
         CPU-only OVPhysX binding.
         """
-        self._read_scalar_binding(TT.DOF_DAMPING, self._joint_damping)
+        self._read_joint_property_binding(TT.DOF_DAMPING, self._joint_damping, self._joint_damping_backend)
         if self._joint_damping_ta is None:
             self._joint_damping_ta = ProxyArray(self._joint_damping.data)
         return self._joint_damping_ta
@@ -489,7 +539,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_ARMATURE`` is a
         CPU-only OVPhysX binding.
         """
-        self._read_scalar_binding(TT.DOF_ARMATURE, self._joint_armature)
+        self._read_joint_property_binding(TT.DOF_ARMATURE, self._joint_armature, self._joint_armature_backend)
         if self._joint_armature_ta is None:
             self._joint_armature_ta = ProxyArray(self._joint_armature.data)
         return self._joint_armature_ta
@@ -504,7 +554,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_FRICTION_PROPERTIES``
         is a CPU-only OVPhysX binding.
         """
-        self._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, self._joint_friction_props_buf)
+        self._read_joint_friction_binding()
         if self._joint_friction_coeff_ta is None:
             self._joint_friction_coeff_ta = ProxyArray(self._joint_friction_coeff)
         return self._joint_friction_coeff_ta
@@ -519,7 +569,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_FRICTION_PROPERTIES``
         is a CPU-only OVPhysX binding.
         """
-        self._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, self._joint_friction_props_buf)
+        self._read_joint_friction_binding()
         if self._joint_dynamic_friction_coeff_ta is None:
             self._joint_dynamic_friction_coeff_ta = ProxyArray(self._joint_dynamic_friction_coeff)
         return self._joint_dynamic_friction_coeff_ta
@@ -534,7 +584,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_FRICTION_PROPERTIES``
         is a CPU-only OVPhysX binding.
         """
-        self._read_scalar_binding(TT.DOF_FRICTION_PROPERTIES, self._joint_friction_props_buf)
+        self._read_joint_friction_binding()
         if self._joint_viscous_friction_coeff_ta is None:
             self._joint_viscous_friction_coeff_ta = ProxyArray(self._joint_viscous_friction_coeff)
         return self._joint_viscous_friction_coeff_ta
@@ -549,7 +599,7 @@ class ArticulationData(BaseArticulationData):
         The limits are in the order :math:`[lower, upper]`.  Routed through
         pinned-host staging because ``DOF_LIMIT`` is a CPU-only OVPhysX binding.
         """
-        self._read_scalar_binding(TT.DOF_LIMIT, self._joint_pos_limits)
+        self._read_joint_property_binding(TT.DOF_LIMIT, self._joint_pos_limits, self._joint_pos_limits_backend)
         if self._joint_pos_limits_ta is None:
             self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits.data)
         return self._joint_pos_limits_ta
@@ -563,7 +613,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_MAX_VELOCITY`` is a
         CPU-only OVPhysX binding.
         """
-        self._read_scalar_binding(TT.DOF_MAX_VELOCITY, self._joint_vel_limits)
+        self._read_joint_property_binding(TT.DOF_MAX_VELOCITY, self._joint_vel_limits, self._joint_vel_limits_backend)
         if self._joint_vel_limits_ta is None:
             self._joint_vel_limits_ta = ProxyArray(self._joint_vel_limits.data)
         return self._joint_vel_limits_ta
@@ -577,7 +627,9 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because ``DOF_MAX_FORCE`` is a
         CPU-only OVPhysX binding.
         """
-        self._read_scalar_binding(TT.DOF_MAX_FORCE, self._joint_effort_limits)
+        self._read_joint_property_binding(
+            TT.DOF_MAX_FORCE, self._joint_effort_limits, self._joint_effort_limits_backend
+        )
         if self._joint_effort_limits_ta is None:
             self._joint_effort_limits_ta = ProxyArray(self._joint_effort_limits.data)
         return self._joint_effort_limits_ta
@@ -799,16 +851,22 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation root's actor frame
         relative to the world.
         """
+        self._ensure_fk_fresh()
         # ovphysx ROOT_VELOCITY is COM velocity; link velocity comes from the first
-        # element of the per-link velocity tensor.
-        self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_link_vel_w)
+        # element of the backend-order per-link velocity tensor.
+        if self.has_body_ordering:
+            backend_buffer = self._body_com_vel_w_backend
+            self._read_spatial_vector_binding(TT.LINK_VELOCITY, backend_buffer)
+        else:
+            backend_buffer = self._body_com_vel_w
+            self._read_spatial_vector_binding(TT.LINK_VELOCITY, backend_buffer)
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_vel_w",
                 _copy_first_body,
                 dim=self.num_instances,
-                inputs=[self._body_link_vel_w.data],
+                inputs=[backend_buffer.data],
                 outputs=[self._root_link_vel_w.data],
-                device=self.device,
             )
             self._root_link_vel_w.timestamp = self._sim_timestamp
         if self._root_link_vel_w_ta is None:
@@ -826,12 +884,12 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_pose_w",
                 _compose_root_com_pose,
                 dim=self.num_instances,
-                inputs=[self.root_link_pose_w, self.body_com_pose_b],
+                inputs=[self.root_link_pose_w, self._backend_body_com_pose_b],
                 outputs=[self._root_com_pose_w.data],
-                device=self.device,
             )
             self._root_com_pose_w.timestamp = self._sim_timestamp
         if self._root_com_pose_w_ta is None:
@@ -853,9 +911,82 @@ class ArticulationData(BaseArticulationData):
             self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w.data)
         return self._root_com_vel_w_ta
 
+    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBuffer) -> None:
+        """Read the current backend-order body COM pose from its binding when stale.
+
+        Backend fetch for the shared :meth:`_ensure_body_com_pose_b_current` /
+        :attr:`_backend_body_com_pose_b`. ``BODY_COM_POSE`` is a static binding, so this
+        stages it at most once per invalidation via
+        :meth:`_read_static_binding_into_buf`.
+        """
+        self._read_static_binding_into_buf(TT.BODY_COM_POSE, buf)
+
+    @property
+    def _backend_body_link_pose_w(self) -> wp.array(dtype=wp.transformf, ndim=2):
+        """Backend-order body link pose buffer for wrench composition.
+
+        Refreshes the world-frame link poses straight from the ``LINK_POSE`` binding in backend
+        body order, skipping the backend-to-public reorder that :attr:`body_link_pose_w` performs.
+        Used by wrench composition, which only needs each body's world orientation and position
+        (identical in either order for the same physical body), so it must not advance the public
+        :attr:`body_link_pose_w` shadow.
+        """
+        self._ensure_fk_fresh()
+        if not self.has_body_ordering:
+            self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
+            return self._body_link_pose_w.data
+        backend_buffer = self._body_link_pose_w_backend
+        self._read_transform_binding(TT.LINK_POSE, backend_buffer)
+        return backend_buffer.data
+
     """
     Body state properties.
     """
+
+    def _refresh_reordered_body_buffer(
+        self,
+        buf: TimestampedBuffer,
+        backend_buffer: TimestampedBuffer | None,
+        tensor_type: int,
+        *,
+        component_count: int | None = None,
+    ) -> None:
+        """Refresh a body buffer from its binding, gathering into public order under body ordering.
+
+        Under identity body ordering the binding is read straight into the public buffer;
+        otherwise it is staged in backend order and gathered into public order when the
+        public buffer is stale for the current step.
+
+        Args:
+            buf: Owned public-order buffer to refresh in place.
+            backend_buffer: Backend-order staging buffer used under body ordering.
+            tensor_type: ``TensorType`` key of the source binding.
+            component_count: Trailing components per body for a three-dimensional buffer,
+                or ``None`` for a two-dimensional buffer.
+        """
+        if self.body_ordering is None:
+            self._read_binding_into_buf(tensor_type, buf)
+            return
+        if buf.timestamp >= self._sim_timestamp:
+            return
+        self._read_binding_into_buf(tensor_type, backend_buffer)
+        if component_count is None:
+            self._read_launch_cache.launch(
+                (id(buf), "body_2d"),
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[backend_buffer.data, self.body_ordering.user_to_backend],
+                outputs=[buf.data],
+            )
+        else:
+            self._read_launch_cache.launch(
+                (id(buf), "body_3d"),
+                ordering_kernels.reorder_3d_backend_to_user,
+                dim=(self._num_instances, self._num_bodies, component_count),
+                inputs=[backend_buffer.data, self.body_ordering.user_to_backend],
+                outputs=[buf.data],
+            )
+        buf.timestamp = backend_buffer.timestamp
 
     @property
     def body_mass(self) -> ProxyArray:
@@ -866,7 +997,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because the underlying OVPhysX
         binding is CPU-only (``ARTICULATION_BODY_MASS``).
         """
-        self._read_scalar_binding(TT.BODY_MASS, self._body_mass)
+        self._refresh_reordered_body_buffer(self._body_mass, self._body_mass_backend, TT.BODY_MASS)
         if self._body_mass_ta is None:
             self._body_mass_ta = ProxyArray(self._body_mass.data)
         return self._body_mass_ta
@@ -881,7 +1012,9 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging (``ARTICULATION_BODY_INERTIA`` is
         a CPU-only binding).
         """
-        self._read_scalar_binding(TT.BODY_INERTIA, self._body_inertia)
+        self._refresh_reordered_body_buffer(
+            self._body_inertia, self._body_inertia_backend, TT.BODY_INERTIA, component_count=9
+        )
         if self._body_inertia_ta is None:
             self._body_inertia_ta = ProxyArray(self._body_inertia.data)
         return self._body_inertia_ta
@@ -897,7 +1030,7 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         self._ensure_fk_fresh()
-        self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
+        self._refresh_reordered_body_buffer(self._body_link_pose_w, self._body_link_pose_w_backend, TT.LINK_POSE)
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
         return self._body_link_pose_w_ta
@@ -910,7 +1043,7 @@ class ArticulationData(BaseArticulationData):
         In torch this resolves to (num_instances, num_bodies, 6).
         """
         self._ensure_fk_fresh()
-        self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w)
+        self._refresh_reordered_body_buffer(self._body_com_vel_w, self._body_com_vel_w_backend, TT.LINK_VELOCITY)
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
         return self._body_com_vel_w_ta
@@ -932,12 +1065,12 @@ class ArticulationData(BaseArticulationData):
         _ = self.body_com_vel_w
         _ = self.body_link_pose_w
         _ = self.body_com_pose_b
-        wp.launch(
+        self._read_launch_cache.launch(
+            "body_link_vel_w",
             get_body_link_vel_from_body_com_vel,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_com_vel_w.data, self._body_link_pose_w.data, self._body_com_pose_b.data],
             outputs=[self._body_link_vel_w.data],
-            device=self.device,
         )
         self._body_link_vel_w.timestamp = self._sim_timestamp
         if self._body_link_vel_w_ta is None:
@@ -961,12 +1094,12 @@ class ArticulationData(BaseArticulationData):
             return self._body_com_pose_w_ta
         _ = self.body_link_pose_w
         _ = self.body_com_pose_b
-        wp.launch(
+        self._read_launch_cache.launch(
+            "body_com_pose_w",
             get_body_com_pose_from_body_link_pose,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_link_pose_w.data, self._body_com_pose_b.data],
             outputs=[self._body_com_pose_w.data],
-            device=self.device,
         )
         self._body_com_pose_w.timestamp = self._sim_timestamp
         if self._body_com_pose_w_ta is None:
@@ -982,7 +1115,7 @@ class ArticulationData(BaseArticulationData):
 
         All values are relative to the world.
         """
-        self._read_spatial_vector_binding(TT.LINK_ACCELERATION, self._body_com_acc_w)
+        self._refresh_reordered_body_buffer(self._body_com_acc_w, self._body_com_acc_w_backend, TT.LINK_ACCELERATION)
         if self._body_com_acc_w_ta is None:
             self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
         return self._body_com_acc_w_ta
@@ -997,11 +1130,106 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_com_pose_b.timestamp < 0.0:
-            self._read_transform_binding(TT.BODY_COM_POSE, self._body_com_pose_b)
+        self._ensure_body_com_pose_b_current()
         if self._body_com_pose_b_ta is None:
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         return self._body_com_pose_b_ta
+
+    """
+    Dynamics quantities (task-space controllers).
+    """
+
+    @property
+    def body_com_jacobian_w(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`."""
+        if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
+            has_body_ordering = self.has_body_ordering
+            has_joint_ordering = self.has_joint_ordering
+            if has_body_ordering or has_joint_ordering or self._has_reversed_joints:
+                self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w_backend)
+                self._read_launch_cache.launch(
+                    "body_com_jacobian_w",
+                    ordering_kernels.reorder_jacobian_backend_to_user,
+                    dim=self._body_com_jacobian_w.data.shape,
+                    inputs=[
+                        self._body_com_jacobian_w_backend,
+                        self._jacobian_body_user_to_backend,
+                        self._jacobian_joint_user_to_backend,
+                        self._joint_dof_signs,
+                        self._num_base_dofs,
+                        has_body_ordering,
+                        has_joint_ordering,
+                    ],
+                    outputs=[self._body_com_jacobian_w.data],
+                )
+            else:
+                self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w.data)
+            self._body_com_jacobian_w.timestamp = self._sim_timestamp
+        return self._body_com_jacobian_w_ta
+
+    @property
+    def body_link_jacobian_w(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.body_link_jacobian_w`."""
+        self._read_launch_cache.launch(
+            "body_link_jacobian_w",
+            articulation_kernels.shift_jacobian_com_to_origin,
+            dim=self._body_link_jacobian_w.shape[:2] + (self._body_link_jacobian_w.shape[3],),
+            inputs=[
+                self.body_link_pose_w.warp,
+                self.body_com_pos_b.warp,
+                self._jacobian_link_offset,
+                self.body_com_jacobian_w.warp,
+            ],
+            outputs=[self._body_link_jacobian_w],
+        )
+        return self._body_link_jacobian_w_ta
+
+    def _refresh_generalized_dynamics_buffer(
+        self, buffer: TimestampedBuffer, backend_buffer: wp.array, tensor_type: int, reorder_kernel: wp.Kernel
+    ) -> None:
+        """Refresh a generalized dynamics buffer and gather its joint axes when needed."""
+        if buffer.timestamp >= self._sim_timestamp:
+            return
+        if self.has_joint_ordering or self._has_reversed_joints:
+            self._binding_read(tensor_type, backend_buffer)
+            self._read_launch_cache.launch(
+                (id(buffer), "generalized_dynamics"),
+                reorder_kernel,
+                dim=buffer.data.shape,
+                inputs=[
+                    backend_buffer,
+                    self._jacobian_joint_user_to_backend,
+                    self._joint_dof_signs,
+                    self._num_base_dofs,
+                    self.has_joint_ordering,
+                ],
+                outputs=[buffer.data],
+            )
+        else:
+            self._binding_read(tensor_type, buffer.data)
+        buffer.timestamp = self._sim_timestamp
+
+    @property
+    def mass_matrix(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`."""
+        self._refresh_generalized_dynamics_buffer(
+            self._mass_matrix,
+            self._mass_matrix_backend,
+            TT.MASS_MATRIX,
+            ordering_kernels.reorder_mass_matrix_backend_to_user,
+        )
+        return self._mass_matrix_ta
+
+    @property
+    def gravity_compensation_forces(self) -> ProxyArray:
+        """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`."""
+        self._refresh_generalized_dynamics_buffer(
+            self._gravity_compensation_forces,
+            self._gravity_compensation_forces_backend,
+            TT.GRAVITY_FORCE,
+            ordering_kernels.reorder_generalized_vector_backend_to_user,
+        )
+        return self._gravity_compensation_forces_ta
 
     """
     Joint state properties.
@@ -1013,10 +1241,56 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        self._read_binding_into_buf(TT.DOF_POSITION, self._joint_pos_buf)
+        self._refresh_joint_pos()
         if self._joint_pos_ta is None:
             self._joint_pos_ta = ProxyArray(self._joint_pos_buf.data)
         return self._joint_pos_ta
+
+    def _refresh_joint_state_user(
+        self,
+        user_buffer: TimestampedBuffer,
+        backend_buffer: TimestampedBuffer | None,
+        tensor_type: int,
+    ) -> None:
+        """Refresh public and backend-order joint-state buffers when stale."""
+        if not self.has_joint_ordering:
+            self._read_binding_into_buf(tensor_type, user_buffer)
+            return
+
+        self._read_binding_into_buf(tensor_type, backend_buffer)
+        if user_buffer.timestamp < backend_buffer.timestamp:
+            self._read_launch_cache.launch(
+                (id(user_buffer), "joint_state"),
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[backend_buffer.data, self.joint_ordering.user_to_backend],
+                outputs=[user_buffer.data],
+            )
+            user_buffer.timestamp = backend_buffer.timestamp
+
+    def _get_joint_state_write_buffer(
+        self,
+        user_buffer: TimestampedBuffer,
+        backend_buffer: TimestampedBuffer | None,
+        tensor_type: int,
+        require_current: bool,
+    ) -> wp.array:
+        """Return complete backend-order joint-state rows used by OVPhysX setters."""
+        if require_current:
+            self._refresh_joint_state_user(user_buffer, backend_buffer, tensor_type)
+        if not self.has_joint_ordering:
+            return user_buffer.data
+        return backend_buffer.data
+
+    def _refresh_joint_pos(self) -> None:
+        """Refresh public and backend-order joint-position buffers when stale."""
+        self._refresh_joint_state_user(self._joint_pos_buf, self._joint_pos_backend, TT.DOF_POSITION)
+
+    def _get_joint_pos_write_buffer(self, require_current: bool) -> wp.array:
+        """Return the complete backend-order position rows used by OVPhysX setters."""
+        return self._get_joint_state_write_buffer(
+            self._joint_pos_buf, self._joint_pos_backend, TT.DOF_POSITION, require_current
+        )
 
     @property
     def joint_vel(self) -> ProxyArray:
@@ -1024,10 +1298,20 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        self._read_binding_into_buf(TT.DOF_VELOCITY, self._joint_vel_buf)
+        self._refresh_joint_vel()
         if self._joint_vel_ta is None:
             self._joint_vel_ta = ProxyArray(self._joint_vel_buf.data)
         return self._joint_vel_ta
+
+    def _refresh_joint_vel(self) -> None:
+        """Refresh public and backend-order joint-velocity buffers when stale."""
+        self._refresh_joint_state_user(self._joint_vel_buf, self._joint_vel_backend, TT.DOF_VELOCITY)
+
+    def _get_joint_vel_write_buffer(self, require_current: bool) -> wp.array:
+        """Return the complete backend-order velocity rows used by OVPhysX setters."""
+        return self._get_joint_state_write_buffer(
+            self._joint_vel_buf, self._joint_vel_backend, TT.DOF_VELOCITY, require_current
+        )
 
     @property
     def joint_acc(self) -> ProxyArray:
@@ -1042,18 +1326,37 @@ class ArticulationData(BaseArticulationData):
             the finite-difference baseline.
         """
         if self._joint_acc.timestamp < self._sim_timestamp:
-            # Finite-difference the joint velocities. ``_fd_joint_acc`` also advances
+            # Finite-difference the joint velocities. The FD kernel also advances
             # ``_previous_joint_vel`` in place, so no separate copy is needed.
             time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
-            cur_vel_buf = self._joint_vel_buf
-            self._read_binding_into_buf(TT.DOF_VELOCITY, cur_vel_buf)
-            wp.launch(
-                _fd_joint_acc,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[cur_vel_buf.data, self._previous_joint_vel, 1.0 / time_elapsed],
-                outputs=[self._joint_acc.data],
-                device=self.device,
-            )
+            if self.joint_ordering is not None:
+                # Fuse the backend-to-public reorder into the finite difference: read the
+                # backend-order velocity source directly and map it to public order inside the
+                # kernel, saving the separate reorder launch that ``joint_vel`` would run.
+                # ``_previous_joint_vel`` stays in public order to match the joint-velocity
+                # write path, which resets the finite-difference baseline in public order.
+                self._read_binding_into_buf(TT.DOF_VELOCITY, self._joint_vel_backend)
+                wp.launch(
+                    _fd_joint_acc_ordered,
+                    dim=(self._num_instances, self._num_joints),
+                    inputs=[
+                        self._joint_vel_backend.data,
+                        self.joint_ordering.user_to_backend,
+                        self._previous_joint_vel,
+                        1.0 / time_elapsed,
+                    ],
+                    outputs=[self._joint_acc.data],
+                    device=self.device,
+                )
+            else:
+                joint_vel = self.joint_vel.warp
+                wp.launch(
+                    _fd_joint_acc,
+                    dim=(self._num_instances, self._num_joints),
+                    inputs=[joint_vel, self._previous_joint_vel, 1.0 / time_elapsed],
+                    outputs=[self._joint_acc.data],
+                    device=self.device,
+                )
             self._joint_acc.timestamp = self._sim_timestamp
         if self._joint_acc_ta is None:
             self._joint_acc_ta = ProxyArray(self._joint_acc.data)
@@ -1070,12 +1373,12 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "projected_gravity_b",
                 _projected_gravity,
                 dim=self.num_instances,
                 inputs=[self.GRAVITY_VEC_W, self.root_link_pose_w],
                 outputs=[self._projected_gravity_b.data],
-                device=self.device,
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
         if self._projected_gravity_b_ta is None:
@@ -1093,12 +1396,12 @@ class ArticulationData(BaseArticulationData):
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
         if self._heading_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "heading_w",
                 _compute_heading,
                 dim=self.num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_pose_w],
                 outputs=[self._heading_w.data],
-                device=self.device,
             )
             self._heading_w.timestamp = self._sim_timestamp
         if self._heading_w_ta is None:
@@ -1114,12 +1417,12 @@ class ArticulationData(BaseArticulationData):
         This quantity is the linear velocity of the articulation root's actor frame with respect to its actor frame.
         """
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_lin_vel_b",
                 _world_vel_to_body_lin,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_link_vel_w],
                 outputs=[self._root_link_lin_vel_b.data],
-                device=self.device,
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
         if self._root_link_lin_vel_b_ta is None:
@@ -1135,12 +1438,12 @@ class ArticulationData(BaseArticulationData):
         This quantity is the angular velocity of the articulation root's actor frame with respect to its actor frame.
         """
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_ang_vel_b",
                 _world_vel_to_body_ang,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_link_vel_w],
                 outputs=[self._root_link_ang_vel_b.data],
-                device=self.device,
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
         if self._root_link_ang_vel_b_ta is None:
@@ -1157,12 +1460,12 @@ class ArticulationData(BaseArticulationData):
         with respect to its actor frame.
         """
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_lin_vel_b",
                 _world_vel_to_body_lin,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_com_vel_w],
                 outputs=[self._root_com_lin_vel_b.data],
-                device=self.device,
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
         if self._root_com_lin_vel_b_ta is None:
@@ -1179,12 +1482,12 @@ class ArticulationData(BaseArticulationData):
         with respect to its actor frame.
         """
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_ang_vel_b",
                 _world_vel_to_body_ang,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_com_vel_w],
                 outputs=[self._root_com_ang_vel_b.data],
-                device=self.device,
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp
         if self._root_com_ang_vel_b_ta is None:
@@ -1433,7 +1736,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     def _create_buffers(self) -> None:  # noqa: C901
-        """Eagerly allocate every TimestampedBuffer and pinned CPU staging buffer."""
+        """Allocate core buffers and defer optional nonidentity joint/body-ordering staging."""
         super()._create_buffers()
 
         N = self._num_instances
@@ -1449,18 +1752,40 @@ class ArticulationData(BaseArticulationData):
 
         # -- Body state buffers
         self._body_link_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
+        self._body_link_pose_w_backend: TimestampedBuffer | None = None
         self._body_link_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_pose_b = TimestampedBuffer((N, L), dev, wp.transformf)
+        self._body_com_pose_b_backend: TimestampedBuffer | None = None
         self._body_com_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
+        self._body_com_vel_w_backend: TimestampedBuffer | None = None
         self._body_com_acc_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
+        self._body_com_acc_w_backend: TimestampedBuffer | None = None
         # -- Joint state buffers
         self._joint_pos_buf = TimestampedBuffer((N, D), dev, wp.float32)
+        self._joint_pos_backend: TimestampedBuffer | None = None
         self._joint_vel_buf = TimestampedBuffer((N, D), dev, wp.float32)
+        self._joint_vel_backend: TimestampedBuffer | None = None
         self._joint_acc = TimestampedBuffer((N, D), dev, wp.float32)
         self._previous_joint_vel = wp.zeros((N, D), dtype=wp.float32, device=dev)
-        # Read-only zeros source used to clear the joint-acceleration cache on velocity writes.
-        self._joint_acc_zeros = wp.zeros((N, D), dtype=wp.float32, device=dev)
+
+        # -- Dynamics quantities for task-space controllers
+        self._jacobian_link_offset = 1 if self._view.is_fixed_base else 0
+        self._num_base_dofs = 0 if self._view.is_fixed_base else 6
+        num_jacobian_bodies = L - self._jacobian_link_offset
+        num_generalized_dofs = D + self._num_base_dofs
+        jacobian_shape = (N, num_jacobian_bodies, 6, num_generalized_dofs)
+        mass_matrix_shape = (N, num_generalized_dofs, num_generalized_dofs)
+        gravity_shape = (N, num_generalized_dofs)
+        self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
+        self._jacobian_joint_user_to_backend = wp.array(range(D), dtype=wp.int32, device=dev)
+        self._body_com_jacobian_w = TimestampedBuffer(jacobian_shape, dev, wp.float32)
+        self._body_com_jacobian_w_backend = wp.zeros(jacobian_shape, dtype=wp.float32, device=dev)
+        self._body_link_jacobian_w = wp.zeros(jacobian_shape, dtype=wp.float32, device=dev)
+        self._mass_matrix = TimestampedBuffer(mass_matrix_shape, dev, wp.float32)
+        self._mass_matrix_backend = wp.zeros(mass_matrix_shape, dtype=wp.float32, device=dev)
+        self._gravity_compensation_forces = TimestampedBuffer(gravity_shape, dev, wp.float32)
+        self._gravity_compensation_forces_backend = wp.zeros(gravity_shape, dtype=wp.float32, device=dev)
 
         # -- Joint properties (CPU-only; timestamped so they can be re-read after writes)
         self._joint_stiffness = TimestampedBuffer((N, D), dev, wp.float32)
@@ -1469,8 +1794,15 @@ class ArticulationData(BaseArticulationData):
         self._joint_pos_limits = TimestampedBuffer((N, D), dev, wp.vec2f)
         self._joint_vel_limits = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_effort_limits = TimestampedBuffer((N, D), dev, wp.float32)
+        self._joint_stiffness_backend: TimestampedBuffer | None = None
+        self._joint_damping_backend: TimestampedBuffer | None = None
+        self._joint_armature_backend: TimestampedBuffer | None = None
+        self._joint_pos_limits_backend: TimestampedBuffer | None = None
+        self._joint_vel_limits_backend: TimestampedBuffer | None = None
+        self._joint_effort_limits_backend: TimestampedBuffer | None = None
         # Friction: single (N, D, 3) TimestampedBuffer; per-component views are created lazily.
         self._joint_friction_props_buf = TimestampedBuffer((N, D, 3), dev, wp.float32)
+        self._joint_friction_props_backend: TimestampedBuffer | None = None
         # These are strided wp.array views into _joint_friction_props_buf.data; created in
         # _pin_proxy_arrays after the buffer exists.
         self._joint_friction_coeff: wp.array | None = None
@@ -1479,7 +1811,9 @@ class ArticulationData(BaseArticulationData):
 
         # -- Body properties (CPU-only; read once at init, re-read via _read_scalar_binding)
         self._body_mass = TimestampedBuffer((N, L), dev, wp.float32)
+        self._body_mass_backend: TimestampedBuffer | None = None
         self._body_inertia = TimestampedBuffer((N, L, 9), dev, wp.float32)
+        self._body_inertia_backend: TimestampedBuffer | None = None
 
         # -- Soft limits / custom joint properties
         self._soft_joint_pos_limits = wp.zeros((N, D), dtype=wp.vec2f, device=dev)
@@ -1787,6 +2121,130 @@ class ArticulationData(BaseArticulationData):
                     self._binding_read(tt, buf.data)
                     buf.timestamp = self._sim_timestamp
 
+    def _configure_ordering_buffers(self) -> None:
+        """Allocate and seed buffers owned only by nonidentity ordering."""
+        if self.has_joint_ordering:
+            self._joint_pos_backend = TimestampedBuffer((self.num_instances, self.num_joints), self.device, wp.float32)
+            self._joint_vel_backend = TimestampedBuffer((self.num_instances, self.num_joints), self.device, wp.float32)
+
+            joint_property_specs = (
+                (self._joint_stiffness, "_joint_stiffness_backend", wp.float32),
+                (self._joint_damping, "_joint_damping_backend", wp.float32),
+                (self._joint_armature, "_joint_armature_backend", wp.float32),
+                (self._joint_pos_limits, "_joint_pos_limits_backend", wp.vec2f),
+                (self._joint_vel_limits, "_joint_vel_limits_backend", wp.float32),
+                (self._joint_effort_limits, "_joint_effort_limits_backend", wp.float32),
+            )
+            for user_buffer, backend_name, dtype in joint_property_specs:
+                backend_buffer = TimestampedBuffer((self.num_instances, self.num_joints), self.device, dtype)
+                backend_buffer.data.assign(user_buffer.data)
+                backend_buffer.timestamp = user_buffer.timestamp
+                setattr(self, backend_name, backend_buffer)
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[backend_buffer.data, self.joint_ordering.user_to_backend],
+                    outputs=[user_buffer.data],
+                    device=self.device,
+                )
+                user_buffer.timestamp = backend_buffer.timestamp
+
+            self._joint_friction_props_backend = TimestampedBuffer(
+                (self.num_instances, self.num_joints, 3), self.device, wp.float32
+            )
+            self._joint_friction_props_backend.data.assign(self._joint_friction_props_buf.data)
+            self._joint_friction_props_backend.timestamp = self._joint_friction_props_buf.timestamp
+            wp.launch(
+                ordering_kernels.reorder_3d_backend_to_user,
+                dim=(self.num_instances, self.num_joints, 3),
+                inputs=[self._joint_friction_props_backend.data, self.joint_ordering.user_to_backend],
+                outputs=[self._joint_friction_props_buf.data],
+                device=self.device,
+            )
+            self._joint_friction_props_buf.timestamp = self._joint_friction_props_backend.timestamp
+
+            if self._get_binding(TT.DOF_VELOCITY) is not None:
+                self._binding_read(TT.DOF_VELOCITY, self._joint_vel_backend.data)
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[self._joint_vel_backend.data, self.joint_ordering.user_to_backend],
+                    outputs=[self._previous_joint_vel],
+                    device=self.device,
+                )
+            reset_timestamps(
+                [
+                    self._joint_pos_buf,
+                    self._joint_vel_buf,
+                    self._joint_acc,
+                    self._joint_pos_backend,
+                    self._joint_vel_backend,
+                ]
+            )
+
+        if self.has_body_ordering:
+            self._body_link_pose_w_backend = TimestampedBuffer(
+                (self.num_instances, self.num_bodies), self.device, wp.transformf
+            )
+            self._body_com_pose_b_backend = TimestampedBuffer(
+                (self.num_instances, self.num_bodies), self.device, wp.transformf
+            )
+            self._body_com_vel_w_backend = TimestampedBuffer(
+                (self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf
+            )
+            self._body_com_acc_w_backend = TimestampedBuffer(
+                (self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf
+            )
+            # Invariant: from seeding onward, each backend staging must stay the backend-order
+            # image of its public buffer. Partial body-property setters scatter only the
+            # selected cells into both buffers and push full backend rows to the simulation,
+            # so a stale or divergent staging silently corrupts the unselected cells.
+            self._body_mass_backend = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.float32)
+            self._body_mass_backend.data.assign(self._body_mass.data)
+            self._body_mass_backend.timestamp = self._body_mass.timestamp
+            self._body_inertia_backend = TimestampedBuffer(
+                (self.num_instances, self.num_bodies, 9), self.device, wp.float32
+            )
+            self._body_inertia_backend.data.assign(self._body_inertia.data)
+            self._body_inertia_backend.timestamp = self._body_inertia.timestamp
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self._body_mass_backend.data, self.body_ordering.user_to_backend],
+                outputs=[self._body_mass.data],
+                device=self.device,
+            )
+            self._body_mass.timestamp = self._body_mass_backend.timestamp
+            wp.launch(
+                ordering_kernels.reorder_3d_backend_to_user,
+                dim=(self.num_instances, self.num_bodies, 9),
+                inputs=[self._body_inertia_backend.data, self.body_ordering.user_to_backend],
+                outputs=[self._body_inertia.data],
+                device=self.device,
+            )
+            self._body_inertia.timestamp = self._body_inertia_backend.timestamp
+            reset_timestamps([self._body_com_pose_b, self._body_com_pose_b_backend])
+
+        self._reset_pose()
+        self._reset_velocity()
+        self._reset_body_com_pose_b_dependents()
+        reset_timestamps([self._body_com_acc_w, self._body_com_acc_w_backend])
+
+    def _apply_ordering_maps_after_resolve(self) -> None:
+        """Configure public-order buffers after articulation ordering maps are installed."""
+        self._read_launch_cache.clear()
+        self._configure_ordering_buffers()
+        self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
+        if self.has_joint_ordering:
+            self._jacobian_joint_user_to_backend = self.joint_ordering.user_to_backend
+        reset_timestamps(
+            [
+                self._body_com_jacobian_w,
+                self._mass_matrix,
+                self._gravity_compensation_forces,
+            ]
+        )
+
     def _pin_proxy_arrays(self) -> None:
         """Create pinned ProxyArray wrappers for all data buffers.
 
@@ -1843,6 +2301,11 @@ class ArticulationData(BaseArticulationData):
         self._body_com_vel_w_ta: ProxyArray | None = None
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
+        # Dynamics quantities (task-space controllers)
+        self._body_com_jacobian_w_ta = ProxyArray(self._body_com_jacobian_w.data)
+        self._body_link_jacobian_w_ta = ProxyArray(self._body_link_jacobian_w)
+        self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
+        self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None
@@ -1934,6 +2397,7 @@ class ArticulationData(BaseArticulationData):
         Args:
             event: Simulation event (unused).
         """
+        self._read_launch_cache.clear()
         self._is_primed = False
         self._sim_timestamp = 0.0
         # Reset every TimestampedBuffer timestamp so the next property access
@@ -1959,6 +2423,15 @@ class ArticulationData(BaseArticulationData):
             The TensorBinding, or ``None`` if not available for these prims.
         """
         return self._view.try_binding_for(tensor_type)
+
+    def _read_static_binding_into_buf(self, tensor_type: int, buf: TimestampedBuffer) -> None:
+        """Read a static binding once after explicit invalidation."""
+        if buf.timestamp >= 0.0:
+            return
+        if self._get_binding(tensor_type) is None:
+            return
+        self._binding_read(tensor_type, buf.data)
+        buf.timestamp = 0.0
 
     def _read_binding_into_buf(self, tensor_type: int, buf: TimestampedBuffer) -> None:
         """Refresh *buf* from the matching binding via the view, skipping if fresh or absent.
@@ -1986,6 +2459,48 @@ class ArticulationData(BaseArticulationData):
     _read_transform_binding = _read_binding_into_buf
     _read_spatial_vector_binding = _read_binding_into_buf
     _read_scalar_binding = _read_binding_into_buf
+
+    def _read_joint_property_binding(
+        self,
+        tensor_type: int,
+        user_buffer: TimestampedBuffer,
+        backend_buffer: TimestampedBuffer | None,
+        component_count: int | None = None,
+    ) -> None:
+        """Refresh a joint property binding into a public user-order buffer."""
+        if not self.has_joint_ordering:
+            self._read_scalar_binding(tensor_type, user_buffer)
+            return
+
+        if user_buffer.timestamp >= self._sim_timestamp:
+            return
+        self._read_scalar_binding(tensor_type, backend_buffer)
+        if component_count is None:
+            self._read_launch_cache.launch(
+                (id(user_buffer), "joint_property_2d"),
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[backend_buffer.data, self.joint_ordering.user_to_backend],
+                outputs=[user_buffer.data],
+            )
+        else:
+            self._read_launch_cache.launch(
+                (id(user_buffer), "joint_property_3d"),
+                ordering_kernels.reorder_3d_backend_to_user,
+                dim=(self.num_instances, self.num_joints, component_count),
+                inputs=[backend_buffer.data, self.joint_ordering.user_to_backend],
+                outputs=[user_buffer.data],
+            )
+        user_buffer.timestamp = backend_buffer.timestamp
+
+    def _read_joint_friction_binding(self) -> None:
+        """Refresh joint friction properties into the public user-order buffer."""
+        self._read_joint_property_binding(
+            TT.DOF_FRICTION_PROPERTIES,
+            self._joint_friction_props_buf,
+            self._joint_friction_props_backend,
+            component_count=3,
+        )
 
     def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
         """Return a position view aliased into a transform array.
@@ -2070,12 +2585,12 @@ class ArticulationData(BaseArticulationData):
             DeprecationWarning,
             stacklevel=2,
         )
-        wp.launch(
+        self._read_launch_cache.launch(
+            "default_root_state",
             concat_root_pose_and_vel_to_state,
             dim=self.num_instances,
             inputs=[self._default_root_pose, self._default_root_vel],
             outputs=[self._default_root_state_buf],
-            device=self.device,
         )
         if self._default_root_state_ta is None:
             self._default_root_state_ta = ProxyArray(self._default_root_state_buf)
@@ -2094,12 +2609,12 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_state_w_buf.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_state_w",
                 concat_root_pose_and_vel_to_state,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_com_vel_w],
                 outputs=[self._root_state_w_buf.data],
-                device=self.device,
             )
             self._root_state_w_buf.timestamp = self._sim_timestamp
         if self._root_state_w_ta is None:
@@ -2119,12 +2634,12 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_link_state_w_buf.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_link_state_w",
                 concat_root_pose_and_vel_to_state,
                 dim=self.num_instances,
                 inputs=[self.root_link_pose_w, self.root_link_vel_w],
                 outputs=[self._root_link_state_w_buf.data],
-                device=self.device,
             )
             self._root_link_state_w_buf.timestamp = self._sim_timestamp
         if self._root_link_state_w_ta is None:
@@ -2144,12 +2659,12 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_com_state_w_buf.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "root_com_state_w",
                 concat_root_pose_and_vel_to_state,
                 dim=self.num_instances,
                 inputs=[self.root_com_pose_w, self.root_com_vel_w],
                 outputs=[self._root_com_state_w_buf.data],
-                device=self.device,
             )
             self._root_com_state_w_buf.timestamp = self._sim_timestamp
         if self._root_com_state_w_ta is None:
@@ -2175,12 +2690,12 @@ class ArticulationData(BaseArticulationData):
             return self._body_state_w_ta
         _ = self.body_link_pose_w
         _ = self.body_com_vel_w
-        wp.launch(
+        self._read_launch_cache.launch(
+            "body_state_w",
             concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_link_pose_w.data, self._body_com_vel_w.data],
             outputs=[self._body_state_w_buf.data],
-            device=self.device,
         )
         self._body_state_w_buf.timestamp = self._sim_timestamp
         if self._body_state_w_ta is None:
@@ -2206,12 +2721,12 @@ class ArticulationData(BaseArticulationData):
             return self._body_link_state_w_ta
         _ = self.body_link_pose_w
         _ = self.body_link_vel_w
-        wp.launch(
+        self._read_launch_cache.launch(
+            "body_link_state_w",
             concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_link_pose_w.data, self._body_link_vel_w.data],
             outputs=[self._body_link_state_w_buf.data],
-            device=self.device,
         )
         self._body_link_state_w_buf.timestamp = self._sim_timestamp
         if self._body_link_state_w_ta is None:
@@ -2237,12 +2752,12 @@ class ArticulationData(BaseArticulationData):
             return self._body_com_state_w_ta
         _ = self.body_com_pose_w
         _ = self.body_com_vel_w
-        wp.launch(
+        self._read_launch_cache.launch(
+            "body_com_state_w",
             concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
             inputs=[self._body_com_pose_w.data, self._body_com_vel_w.data],
             outputs=[self._body_com_state_w_buf.data],
-            device=self.device,
         )
         self._body_com_state_w_buf.timestamp = self._sim_timestamp
         if self._body_com_state_w_ta is None:

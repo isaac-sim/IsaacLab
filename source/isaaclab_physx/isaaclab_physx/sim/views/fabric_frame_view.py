@@ -7,7 +7,10 @@
 
 from __future__ import annotations
 
+import contextlib
+import itertools
 import logging
+import sys
 
 import torch
 import warp as wp
@@ -22,6 +25,26 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
+
+
+def _parent_path(prim_path: str) -> str:
+    """Parent prim path of ``prim_path``.
+
+    Args:
+        prim_path: Absolute prim path, so it always contains a separator.
+
+    Raises:
+        RuntimeError: If the prim is directly under the stage root and thus has
+            no non-pseudoroot parent to read Fabric matrices from.
+    """
+    parent = prim_path[: prim_path.rfind("/")]
+    if not parent:
+        raise RuntimeError(
+            f"Child prim '{prim_path}' is at the stage root and has no parent prim. "
+            "FabricFrameView requires every prim to have a non-pseudoroot parent "
+            "with Fabric world+local matrices."
+        )
+    return parent
 
 
 def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
@@ -88,7 +111,7 @@ class FabricFrameView(BaseFrameView):
       transactional all-or-nothing semantics, snapshot the matrices
       yourself before entering the scope.
     * **Fabric Hierarchy listeners are paused while a writer scope is
-      active.**  On enter, the writer calls
+      active when the hierarchy bindings are available.**  On enter, the writer calls
       :meth:`IFabricHierarchy.track_local_xform_changes(False)` /
       :meth:`track_world_xform_changes(False)` (saving the prior state).
       Fabric itself is just a flat attribute store; the plugin that
@@ -121,37 +144,34 @@ class FabricFrameView(BaseFrameView):
       directly from Fabric storage on the render path; it observes our
       final writes unchanged.
 
+      Headless experiences without FSD do not expose the hierarchy Python
+      bindings and do not run hierarchy update ticks.  In that case the
+      writer skips listener pause/restore while retaining the same direct
+      Fabric matrix writes.
+
       Note: the scope is synchronous Python code, so no simulation step
       and no render tick can run while it is open -- callers must not
       advance the simulation from inside the scope (see
       :mod:`isaaclab.sim.views.xform_space_writer` for the full contract).
       The "torn data" concern is what motivates that no-step rule; it
       is separate from why the tracking pause exists.
-    * **Two persistent selections, flipped by the writer scope.**  Two
-      selections are built once during ``_initialize_fabric`` and kept for
-      the view's lifetime:
-
-      .. code-block:: text
-
-          _sel_ro :  worldMatrix=RO, localMatrix=RO   (steady state)
-          _sel_rw :  worldMatrix=RW, localMatrix=RW   (inside writer scope)
-
-      Each selection has its own bundle of indexed-fabric arrays
-      (``_world_ifa_*``, ``_local_ifa_*``, ``_parent_world_ifa_*``) cached
-      against the selection's path ordering.  Writer ``__enter__`` flips an
-      ``_is_rw`` flag so subsequent get/set helpers resolve to the RW
-      bundle; ``__exit__`` flips back to RO.  Nothing is rebuilt on the
-      flip -- both bundles are always kept consistent via independent
-      ``PrepareForReuse()`` polls in the accessors.
-
-      The RO steady state tells Kit's next-tick
-      ``update_world_xforms()`` that no attribute is user-authored, so it
-      leaves both alone.  Combined with the tracking pause and the
-      opposite-space derive at scope exit, this is what keeps the next
-      render tick from overwriting our writes.
-    * **Topology-adaptive.**  Fabric topology changes are detected on each
-      access via per-selection ``PrepareForReuse()`` polls; the affected
-      indexed arrays rebuild automatically and no manual refresh is required.
+    * **Selections are scoped to the view, not the stage.**  The view tags its
+      own prims (and their parents) with private per-view index attributes and
+      requires those attributes in every prim selection, so a selection resolves
+      to exactly the prims the view manages however large the stage grows.
+      Tag names are unique per view instance, so views never interfere with one
+      another.  The tags are authored on first use and removed again by
+      :meth:`close` -- or, best-effort and with a warning, when the view is
+      garbage collected.  Call :meth:`close` when done with a view;
+      collection timing is up to the interpreter, so relying on it can remove
+      the tags at an arbitrary point in the frame (or, on a leaked reference,
+      not at all).
+    * **Topology changes are absorbed, with no cache to invalidate.**  The
+      view-to-Fabric mapping is re-derived from live Fabric data on every
+      access, so prims moving between Fabric buckets can never leave a stale
+      mapping behind.  If a managed prim disappears (prim or attribute removed)
+      the next access raises :class:`RuntimeError` and the view must be
+      recreated.  See ``_refresh_child_selection`` for how this is done.
 
     Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`; the
     convenience :meth:`set_world_poses` / :meth:`set_local_poses` helpers accept
@@ -162,6 +182,12 @@ class FabricFrameView(BaseFrameView):
 
     _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
     _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
+
+    # Process-wide uid source for per-view Fabric attribute names.  A monotonic
+    # counter (NOT ``id(self)``/``hash(self)``) guarantees a name is never
+    # reused after a view is garbage-collected, so a dead view's leftover
+    # attributes can never satisfy a live view's selection.
+    _view_uid_counter = itertools.count()
 
     def __init__(
         self,
@@ -198,32 +224,87 @@ class FabricFrameView(BaseFrameView):
         self._stage = None
         self._fabric_hierarchy = None
 
-        # Two persistent Fabric selections.  ``_is_rw`` is True only inside
-        # an active writer scope; the accessors below resolve to the matching
-        # bundle of indexed arrays.
+        # Per-view Fabric index attributes (authored once in ``_initialize_fabric``).
+        self._child_index_attr: str | None = None
+        self._parent_index_attr: str | None = None
+        self._unique_parent_paths: list[str] = []
+
+        # Three persistent selections keyed on the index attributes: child RO
+        # (steady state), child RW (active inside a writer scope; ``_is_rw``
+        # flips between them), and parent world (always read-only).
         self._sel_ro = None
         self._sel_rw = None
+        self._sel_parent = None
         self._is_rw: bool = False
 
-        # View-side indices array (shared across both bundles).
+        # View-side indices array.
         self._view_indices: wp.array | None = None
 
-        # Per-selection view->fabric mappings.
-        self._ro_fabric_indices: wp.array | None = None
-        self._rw_fabric_indices: wp.array | None = None
-        self._ro_parent_fabric_indices: wp.array | None = None
-        self._rw_parent_fabric_indices: wp.array | None = None
-
-        # Indexed fabric arrays per (selection, attribute) pair.
-        self._world_ifa_ro = None
-        self._local_ifa_ro = None
-        self._parent_world_ifa_ro = None
-        self._world_ifa_rw = None
-        self._local_ifa_rw = None
-        self._parent_world_ifa_rw = None
+        # Kernel-built view->fabric slot mappings, refreshed on every selection
+        # access (see ``_refresh_child_selection``).  ``_child_parent_map`` holds
+        # view-side indices (uint32, like the Fabric ``UInt`` index attributes);
+        # the ``*_slots_buf`` buffers hold Fabric slots and must be int32, the
+        # only dtype ``wp.indexedfabricarray`` accepts for indices.
+        self._child_parent_map: wp.array | None = None
+        self._child_slots_buf: wp.array | None = None
+        self._parent_slots_buf: wp.array | None = None
+        self._parent_slot_of_child_buf: wp.array | None = None
 
         # Sentinel passed to compose/decompose kernels for unused slots.
         self._fabric_empty_2d_array_sentinel: wp.array | None = None
+
+        # Index-attribute cleanup state (see ``close``): the ``(attribute,
+        # prims)`` groups authored by ``_initialize_fabric``, and the flag that
+        # makes ``close()`` idempotent and lets ``__del__`` warn when cleanup
+        # had to happen via garbage collection.
+        self._tagged_prims: list[tuple[str, list]] = []
+        self._is_closed: bool = False
+
+    def close(self) -> None:
+        """Remove this view's Fabric index attributes. The view must not be used afterwards.
+
+        Calling :meth:`close` again is a no-op.  If :meth:`close` is never
+        called, the same cleanup runs best-effort from ``__del__`` (with a
+        warning, since collection timing is up to the interpreter) -- except at
+        interpreter exit, where Fabric is being torn down anyway and the
+        attributes die with it.
+        """
+        if self._is_closed:
+            return
+        self._is_closed = True
+        failed = total = 0
+        for attr, prims in self._tagged_prims:
+            total += len(prims)
+            for prim in prims:
+                try:
+                    prim.RemoveProperty(attr)
+                except Exception:  # noqa: BLE001 -- one bad handle must not strand the remaining tags
+                    failed += 1
+        self._tagged_prims = []
+        if failed:
+            logger.debug("FabricFrameView(%s): %d of %d tag removals failed", self._usd_view._prim_path, failed, total)
+
+    def __del__(self, _sys=sys):
+        """Best-effort cleanup when the view is collected without :meth:`close`.
+
+        Follows the repo's shutdown-safe ``__del__`` idiom (see
+        :meth:`~isaaclab.envs.ManagerBasedEnv.__del__`): ``sys`` is bound as a
+        default argument so it survives module teardown, and nothing runs during
+        interpreter finalization, when calling into Kit can crash and the
+        attributes die with Fabric anyway.
+        """
+        # getattr: __init__ may have raised before the flag existed
+        if getattr(self, "_is_closed", True) or _sys.is_finalizing() or _sys.meta_path is None:
+            return
+        if self._tagged_prims:
+            logger.warning(
+                "FabricFrameView(%s) was garbage-collected without close(); its Fabric index "
+                "attributes were removed best-effort at an arbitrary point in the frame. Call "
+                "close() for deterministic cleanup.",
+                self._usd_view._prim_path,
+            )
+        with contextlib.suppress(Exception):  # never propagate from __del__
+            self.close()
 
     # ------------------------------------------------------------------
     # Delegated properties
@@ -273,7 +354,6 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
     # Getter hooks -- read directly from Fabric (no lazy sync)
     # ------------------------------------------------------------------
-
     def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
             return self._usd_view._get_world_poses_impl(indices)
@@ -428,13 +508,14 @@ class FabricFrameView(BaseFrameView):
         Storage convention: see
         :func:`isaaclab.utils.warp.fabric.update_indexed_local_matrix_from_world`.
         """
+        world_ifa, local_ifa = self._get_child_ifas()
         wp.launch(
             kernel=fabric_utils.update_indexed_local_matrix_from_world,
             dim=self.count,
             inputs=[
-                self._get_world_ifa(),
+                world_ifa,
                 self._get_parent_world_ifa(),
-                self._get_local_ifa(),
+                local_ifa,
                 self._view_indices,
             ],
             device=self._device,
@@ -448,91 +529,109 @@ class FabricFrameView(BaseFrameView):
         Storage convention: see
         :func:`isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`.
         """
+        world_ifa, local_ifa = self._get_child_ifas()
         wp.launch(
             kernel=fabric_utils.update_indexed_world_matrix_from_local,
             dim=self.count,
             inputs=[
-                self._get_local_ifa(),
+                local_ifa,
                 self._get_parent_world_ifa(),
-                self._get_world_ifa(),
+                world_ifa,
                 self._view_indices,
             ],
             device=self._device,
         )
 
     # ------------------------------------------------------------------
-    # Internal -- selection accessors with on-demand index rebuild
+    # Internal -- selection accessors (kernel-built slot mappings)
     # ------------------------------------------------------------------
 
-    def _get_world_ifa(self):
-        self._refresh_active_bundle_if_needed()
-        return self._world_ifa_rw if self._is_rw else self._world_ifa_ro
+    def _get_world_ifa(self) -> wp.indexedfabricarray:
+        sel = self._refresh_child_selection()
+        return wp.indexedfabricarray(fa=wp.fabricarray(sel, self._WORLD_MATRIX_NAME), indices=self._child_slots_buf)
 
-    def _get_local_ifa(self):
-        self._refresh_active_bundle_if_needed()
-        return self._local_ifa_rw if self._is_rw else self._local_ifa_ro
+    def _get_local_ifa(self) -> wp.indexedfabricarray:
+        sel = self._refresh_child_selection()
+        return wp.indexedfabricarray(fa=wp.fabricarray(sel, self._LOCAL_MATRIX_NAME), indices=self._child_slots_buf)
 
-    def _get_parent_world_ifa(self):
-        self._refresh_active_bundle_if_needed()
-        return self._parent_world_ifa_rw if self._is_rw else self._parent_world_ifa_ro
+    def _get_child_ifas(self) -> tuple[wp.indexedfabricarray, wp.indexedfabricarray]:
+        """Return ``(world, local)`` child arrays from a single selection refresh.
 
-    def _refresh_active_bundle_if_needed(self) -> None:
-        """Rebuild the active bundle's indexed arrays if its selection's buckets changed."""
-        if self._is_rw:
-            if self._world_ifa_rw is None or self._sel_rw.PrepareForReuse():
-                self._rebuild_rw_arrays()
-        else:
-            if self._world_ifa_ro is None or self._sel_ro.PrepareForReuse():
-                self._rebuild_ro_arrays()
-
-    def _rebuild_ro_arrays(self) -> None:
-        """Rebuild the four ``_sel_ro``-keyed indexed arrays (children + parents)."""
-        self._ro_fabric_indices = self._compute_fabric_indices(self._sel_ro)
-        self._world_ifa_ro = self._build_indexed_array(self._sel_ro, self._WORLD_MATRIX_NAME, self._ro_fabric_indices)
-        self._local_ifa_ro = self._build_indexed_array(self._sel_ro, self._LOCAL_MATRIX_NAME, self._ro_fabric_indices)
-        self._ro_parent_fabric_indices = self._compute_parent_fabric_indices(self._sel_ro)
-        self._parent_world_ifa_ro = wp.indexedfabricarray(
-            fa=wp.fabricarray(self._sel_ro, self._WORLD_MATRIX_NAME),
-            indices=self._ro_parent_fabric_indices,
+        Callers that need both spaces must use this instead of calling
+        :meth:`_get_world_ifa` and :meth:`_get_local_ifa`, which would refresh
+        the same selection -- and re-run its mapping kernel -- twice.
+        """
+        sel = self._refresh_child_selection()
+        return (
+            wp.indexedfabricarray(fa=wp.fabricarray(sel, self._WORLD_MATRIX_NAME), indices=self._child_slots_buf),
+            wp.indexedfabricarray(fa=wp.fabricarray(sel, self._LOCAL_MATRIX_NAME), indices=self._child_slots_buf),
         )
 
-    def _rebuild_rw_arrays(self) -> None:
-        """Rebuild the four ``_sel_rw``-keyed indexed arrays (children + parents)."""
-        self._rw_fabric_indices = self._compute_fabric_indices(self._sel_rw)
-        self._world_ifa_rw = self._build_indexed_array(self._sel_rw, self._WORLD_MATRIX_NAME, self._rw_fabric_indices)
-        self._local_ifa_rw = self._build_indexed_array(self._sel_rw, self._LOCAL_MATRIX_NAME, self._rw_fabric_indices)
-        self._rw_parent_fabric_indices = self._compute_parent_fabric_indices(self._sel_rw)
-        self._parent_world_ifa_rw = wp.indexedfabricarray(
-            fa=wp.fabricarray(self._sel_rw, self._WORLD_MATRIX_NAME),
-            indices=self._rw_parent_fabric_indices,
+    def _get_parent_world_ifa(self) -> wp.indexedfabricarray:
+        self._refresh_parent_selection()
+        return wp.indexedfabricarray(
+            fa=wp.fabricarray(self._sel_parent, self._WORLD_MATRIX_NAME),
+            indices=self._parent_slot_of_child_buf,
         )
 
-    # ------------------------------------------------------------------
-    # Internal -- index computation
-    # ------------------------------------------------------------------
+    def _refresh_child_selection(self):
+        """Refresh the active child selection and rebuild its slot mapping on device.
 
-    def _compute_fabric_indices(self, selection) -> wp.array:
-        """View-side indices that map each managed prim into ``selection``."""
-        return self._compute_fabric_indices_for(selection, list(self.prim_paths))
+        Runs on every accessor call.  ``PrepareForReuse`` lets the persistent
+        selection absorb Fabric bucket changes (and notifies the renderer for
+        the RW selection); a single Warp kernel launch over the selection's
+        index attribute then rebuilds ``_child_slots_buf`` so that entry ``i``
+        is the fabric-side slot of view prim ``i``.  Re-deriving the mapping
+        from live Fabric data on each access means bucket reorders can never
+        leave a stale mapping behind, with no host-side path resolution and no
+        cache to invalidate.
 
-    def _compute_parent_fabric_indices(self, selection) -> wp.array:
-        """View-side indices that map each managed prim's parent into ``selection``."""
+        Returns:
+            The active (RO or RW) child prim selection.
+        """
+        sel = self._sel_rw if self._is_rw else self._sel_ro
+        sel.PrepareForReuse()
+        self._check_selection_count(sel.GetCount(), self.count, self._child_index_attr)
+        wp.launch(
+            kernel=fabric_utils.map_view_indices_to_fabric_slots,
+            dim=self.count,
+            inputs=[wp.fabricarray(sel, self._child_index_attr), self._child_slots_buf],
+            device=self._device,
+        )
+        return sel
 
-        def parent_path(prim_path: str) -> str:
-            p = prim_path.rsplit("/", 1)[0]
-            if not p:
-                raise RuntimeError(
-                    f"Child prim '{prim_path}' is at stage root and has no parent prim. "
-                    "FabricFrameView requires every prim to have a non-pseudoroot parent "
-                    "with Fabric world+local matrices."
-                )
-            return p
+    def _refresh_parent_selection(self) -> None:
+        """Refresh the parent selection and rebuild the per-child parent-slot mapping.
 
-        return self._compute_fabric_indices_for(selection, [parent_path(p) for p in self.prim_paths])
+        Two kernel launches: the first inverts the parent index attribute into
+        per-ordinal fabric slots, the second gathers those slots per child
+        through ``_child_parent_map`` (children sharing a parent read the same
+        slot).
+        """
+        num_parents = self._parent_slots_buf.shape[0]
+        self._sel_parent.PrepareForReuse()
+        self._check_selection_count(self._sel_parent.GetCount(), num_parents, self._parent_index_attr)
+        wp.launch(
+            kernel=fabric_utils.map_view_indices_to_fabric_slots,
+            dim=num_parents,
+            inputs=[wp.fabricarray(self._sel_parent, self._parent_index_attr), self._parent_slots_buf],
+            device=self._device,
+        )
+        wp.launch(
+            kernel=fabric_utils.gather_fabric_slots,
+            dim=self.count,
+            inputs=[self._parent_slots_buf, self._child_parent_map, self._parent_slot_of_child_buf],
+            device=self._device,
+        )
 
-    def _build_indexed_array(self, selection, attribute_name: str, fabric_indices: wp.array) -> wp.indexedfabricarray:
-        fa = wp.fabricarray(selection, attribute_name)
-        return wp.indexedfabricarray(fa=fa, indices=fabric_indices)
+    def _check_selection_count(self, found: int, expected: int, index_attr: str) -> None:
+        """Raise if a selection stopped matching exactly the view's tagged prims."""
+        if found != expected:
+            raise RuntimeError(
+                f"FabricFrameView: selection on '{index_attr}' matched {found} prims, expected {expected}. "
+                "A prim managed by this view (or one of its Fabric matrix/index attributes) was removed "
+                "from the Fabric stage; recreate the view."
+            )
 
     def _resolve_indices_wp(self, indices: wp.array | None) -> wp.array:
         """Resolve view indices as a Warp uint32 array."""
@@ -540,18 +639,28 @@ class FabricFrameView(BaseFrameView):
             if self._view_indices is None:
                 raise RuntimeError("Fabric view indices are not initialized.")
             return self._view_indices
-        if indices.dtype != wp.uint32:
-            return wp.array(indices.numpy().astype("uint32"), dtype=wp.uint32, device=self._device)
-        return indices
+        if indices.dtype == wp.uint32:
+            return indices
+        if indices.dtype == wp.int32:
+            # Zero-copy reinterpret: callers (e.g. Camera) pass non-negative int32 indices.
+            # Device placement is not checked here; ``wp.launch`` validates it for every input.
+            return indices.view(wp.uint32)
+        return wp.array(indices.numpy().astype("uint32"), dtype=wp.uint32, device=self._device)
 
     # ------------------------------------------------------------------
     # Internal -- Fabric initialization
     # ------------------------------------------------------------------
-
     def _initialize_fabric(self) -> None:
-        """One-time Fabric setup: hierarchy handle, attribute population, selections, indexed arrays."""
+        """One-time Fabric setup: hierarchy handle, per-view index tagging, selections, buffers."""
         import usdrt  # noqa: PLC0415
+
+        # The hierarchy bindings are a separate submodule and are not loaded by ``import usdrt``.
         from usdrt import Rt  # noqa: PLC0415
+
+        try:
+            from usdrt import hierarchy  # noqa: PLC0415
+        except ImportError:
+            hierarchy = None
 
         from isaaclab.sim.utils import get_current_stage_id  # noqa: PLC0415
 
@@ -560,43 +669,77 @@ class FabricFrameView(BaseFrameView):
         self._stage = usdrt.Usd.Stage.Attach(stage_id)
         fabric_id = self._stage.GetFabricId()
         self._fabric_id = fabric_id.id
-        self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-            fabric_id, self._stage.GetStageIdAsStageId()
-        )
+        if hierarchy is not None:
+            self._fabric_hierarchy = hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                fabric_id, self._stage.GetStageIdAsStageId()
+            )
 
-        # Ensure each child prim AND its parent have BOTH Fabric world and local matrix
-        # attributes.  ``Create*Attr`` calls are idempotent.
-        seen_paths: set[str] = set()
-        for child_path in self.prim_paths:
-            for path in (child_path, child_path.rsplit("/", 1)[0]):
-                if path in seen_paths:
-                    continue
-                seen_paths.add(path)
+        # Per-view Fabric index attribute names (see ``_view_uid_counter``).
+        uid = next(FabricFrameView._view_uid_counter)
+        self._child_index_attr = f"isaaclab:fabricFrameView:{uid}:index"
+        self._parent_index_attr = f"isaaclab:fabricFrameView:{uid}:parentIndex"
+
+        # Per-child parent paths, computed once and reused for the ordinal map
+        # below.  Unique parents keep first-occurrence order; ``parent_ordinal``
+        # maps a parent path to its position in that order.
+        child_parent_paths = [_parent_path(p) for p in self.prim_paths]
+        self._unique_parent_paths = list(dict.fromkeys(child_parent_paths))
+        parent_ordinal = {path: i for i, path in enumerate(self._unique_parent_paths)}
+
+        # Tag children and parents with their per-view index and ensure both
+        # carry the Fabric world+local matrix attributes (``Create*Attr`` calls
+        # are idempotent).  The index attribute doubles as the selection filter:
+        # the selections below match ONLY tagged prims, so their size is
+        # O(view), not O(stage).  A prim that is both a child and a parent of
+        # this view receives both index attributes.
+        tagged_prims: list[tuple[str, list]] = []
+        for paths, index_attr in (
+            (list(self.prim_paths), self._child_index_attr),
+            (self._unique_parent_paths, self._parent_index_attr),
+        ):
+            group_prims: list = []
+            for i, path in enumerate(paths):
                 rt_prim = self._stage.GetPrimAtPath(path)
                 if not rt_prim.IsValid():
-                    continue
+                    raise RuntimeError(f"FabricFrameView: prim '{path}' does not exist in the Fabric stage.")
                 rt_xformable = Rt.Xformable(rt_prim)
                 rt_xformable.CreateFabricHierarchyWorldMatrixAttr()
                 rt_xformable.CreateFabricHierarchyLocalMatrixAttr()
                 rt_xformable.SetLocalXformFromUsd()
                 rt_xformable.SetWorldXformFromUsd()
+                rt_prim.CreateAttribute(index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
+                rt_prim.GetAttribute(index_attr).Set(i)
+                group_prims.append(rt_prim)
+            tagged_prims.append((index_attr, group_prims))
 
-        # Two persistent selections: all-RO (steady state) and all-RW (active
-        # only inside a writer scope).  Each will own its own bundle of
-        # indexed-fabric arrays built lazily by ``_rebuild_{ro,rw}_arrays``.
+        # Remembered so ``close()`` / ``__del__`` can remove the tags again.
+        self._tagged_prims = tagged_prims
+
+        # Three persistent selections keyed on the per-view index attributes:
+        # child RO (steady state), child RW (active only inside a writer
+        # scope), and parent world (always read-only).
         matrix = usdrt.Sdf.ValueTypeNames.Matrix4d
+        uint_type = usdrt.Sdf.ValueTypeNames.UInt
         ro = usdrt.Usd.Access.Read
         rw = usdrt.Usd.Access.ReadWrite
+        child_tag = (uint_type, self._child_index_attr, ro)
+        parent_tag = (uint_type, self._parent_index_attr, ro)
         wm_ro = (matrix, self._WORLD_MATRIX_NAME, ro)
         lm_ro = (matrix, self._LOCAL_MATRIX_NAME, ro)
         wm_rw = (matrix, self._WORLD_MATRIX_NAME, rw)
         lm_rw = (matrix, self._LOCAL_MATRIX_NAME, rw)
-        self._sel_ro = self._stage.SelectPrims(require_attrs=[wm_ro, lm_ro], device=self._device, want_paths=True)
-        self._sel_rw = self._stage.SelectPrims(require_attrs=[wm_rw, lm_rw], device=self._device, want_paths=True)
+        self._sel_ro = self._stage.SelectPrims(require_attrs=[child_tag, wm_ro, lm_ro], device=self._device)
+        self._sel_rw = self._stage.SelectPrims(require_attrs=[child_tag, wm_rw, lm_rw], device=self._device)
+        self._sel_parent = self._stage.SelectPrims(require_attrs=[parent_tag, wm_ro], device=self._device)
 
+        # View-side indices + kernel-built slot-mapping buffers.
         self._view_indices = wp.array(list(range(self.count)), dtype=wp.uint32, device=self._device)
-        self._rebuild_ro_arrays()
-        self._rebuild_rw_arrays()
+        self._child_parent_map = wp.array(
+            [parent_ordinal[p] for p in child_parent_paths], dtype=wp.uint32, device=self._device
+        )
+        self._child_slots_buf = wp.empty((self.count,), dtype=wp.int32, device=self._device)
+        self._parent_slots_buf = wp.empty((len(self._unique_parent_paths),), dtype=wp.int32, device=self._device)
+        self._parent_slot_of_child_buf = wp.empty((self.count,), dtype=wp.int32, device=self._device)
 
         # Pre-allocated reusable output buffers (world + local + scales).
         self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
@@ -615,8 +758,8 @@ class FabricFrameView(BaseFrameView):
         self._fabric_initialized = True
 
         # Seed Fabric matrices from USD authoritatively.  The seed writes, so
-        # flip into the RW bundle for its duration; flip back to RO afterwards
-        # so steady-state getters use the RO bundle.
+        # flip onto the RW selection for its duration; flip back afterwards so
+        # steady-state getters use the RO selection.
         self._is_rw = True
         try:
             self._sync_fabric_from_usd_initial()
@@ -637,7 +780,7 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=self.count,
             inputs=[
-                self._local_ifa_rw,  # explicit RW: init-time write, no scope yet
+                self._get_local_ifa(),  # caller holds ``_is_rw=True``: init-time write, no scope yet
                 _to_float32_2d(local_pos_ta.warp),
                 _to_float32_2d(local_ori_ta.warp),
                 _to_float32_2d(scales_wp),
@@ -650,8 +793,10 @@ class FabricFrameView(BaseFrameView):
         )
 
         # --- Parents (one entry per unique parent path) ---
-        unique_parent_paths = list(dict.fromkeys(p.rsplit("/", 1)[0] for p in self.prim_paths))
+        unique_parent_paths = self._unique_parent_paths
         if unique_parent_paths:
+            import usdrt  # noqa: PLC0415
+
             from isaaclab.sim.utils import get_current_stage  # noqa: PLC0415
 
             usd_stage = get_current_stage()
@@ -694,9 +839,25 @@ class FabricFrameView(BaseFrameView):
             parent_pos_wp = wp.array(world_pos_rows, dtype=wp.float32, device=self._device)
             parent_ori_wp = wp.array(world_ori_rows, dtype=wp.float32, device=self._device)
             parent_scale_wp = wp.array(world_scale_rows, dtype=wp.float32, device=self._device)
+            # One-off RW selection on the parent tag for the initial seed; the
+            # persistent ``_sel_parent`` stays read-only for steady-state reads.
+            sel_parent_rw = self._stage.SelectPrims(
+                require_attrs=[
+                    (usdrt.Sdf.ValueTypeNames.UInt, self._parent_index_attr, usdrt.Usd.Access.Read),
+                    (usdrt.Sdf.ValueTypeNames.Matrix4d, self._WORLD_MATRIX_NAME, usdrt.Usd.Access.ReadWrite),
+                ],
+                device=self._device,
+            )
+            self._check_selection_count(sel_parent_rw.GetCount(), len(unique_parent_paths), self._parent_index_attr)
+            wp.launch(
+                kernel=fabric_utils.map_view_indices_to_fabric_slots,
+                dim=len(unique_parent_paths),
+                inputs=[wp.fabricarray(sel_parent_rw, self._parent_index_attr), self._parent_slots_buf],
+                device=self._device,
+            )
             parent_world_rw = wp.indexedfabricarray(
-                fa=wp.fabricarray(self._sel_rw, self._WORLD_MATRIX_NAME),
-                indices=self._compute_fabric_indices_for(self._sel_rw, unique_parent_paths),
+                fa=wp.fabricarray(sel_parent_rw, self._WORLD_MATRIX_NAME),
+                indices=self._parent_slots_buf,
             )
             wp.launch(
                 kernel=fabric_utils.compose_indexed_fabric_transforms,
@@ -720,24 +881,6 @@ class FabricFrameView(BaseFrameView):
         self._recompute_world_from_local_all()
         wp.synchronize()
 
-    def _compute_fabric_indices_for(self, selection, paths: list[str]) -> wp.array:
-        """Look up each path in ``selection`` and return the matching fabric-side indices.
-
-        Shared primitive used by :meth:`_compute_fabric_indices` (children),
-        :meth:`_compute_parent_fabric_indices` (parents), and one-off
-        index arrays such as the parent-world seed in
-        :meth:`_sync_fabric_from_usd_initial`.
-        """
-        path_to_idx = {str(p): i for i, p in enumerate(selection.GetPaths())}
-
-        def lookup(path: str) -> int:
-            idx = path_to_idx.get(path)
-            if idx is None:
-                raise RuntimeError(f"Path '{path}' not found in Fabric selection.")
-            return idx
-
-        return wp.array([lookup(p) for p in paths], dtype=wp.int32, device=self._device)
-
 
 # ----------------------------------------------------------------------
 # Concrete writer classes for FabricFrameView
@@ -750,11 +893,11 @@ class _FabricWriterMixin:
     On enter: pauses ``track_local_xform_changes`` / ``track_world_xform_changes``
     on the Fabric hierarchy (saving prior state) and flips the view's
     ``_is_rw`` so all get/set helpers resolve to the persistent RW selection
-    bundle (no rebuild -- both bundles are kept alive for the view's lifetime).
+    (both selections are kept alive for the view's lifetime).
 
     On exit (normal or via exception): runs a best-effort opposite-space
     derive + ``wp.synchronize()`` whenever any write happened inside the
-    scope, then flips ``_is_rw`` back to ``False`` (RO bundle for
+    scope, then flips ``_is_rw`` back to ``False`` (RO selection for
     steady-state reads) and restores hierarchy-tracking state.
 
     **Exception safety.** If the scope unwinds because of an exception
@@ -777,12 +920,13 @@ class _FabricWriterMixin:
             view._initialize_fabric()
         self._wrote_anything = False
         h = view._fabric_hierarchy
-        self._was_tracking_local = h.tracking_local_xform_changes
-        self._was_tracking_world = h.tracking_world_xform_changes
-        if self._was_tracking_local:
-            h.track_local_xform_changes(False)
-        if self._was_tracking_world:
-            h.track_world_xform_changes(False)
+        self._was_tracking_local = h is not None and h.tracking_local_xform_changes
+        self._was_tracking_world = h is not None and h.tracking_world_xform_changes
+        if h is not None:
+            if self._was_tracking_local:
+                h.track_local_xform_changes(False)
+            if self._was_tracking_world:
+                h.track_world_xform_changes(False)
         view._is_rw = True
 
     def _exit_impl(self, exc_type, exc_val, exc_tb) -> None:
@@ -811,10 +955,11 @@ class _FabricWriterMixin:
             # subsequent updateWorldXforms tick sees a fully-RO selection.
             view._is_rw = False
             h = view._fabric_hierarchy
-            if self._was_tracking_world:
-                h.track_world_xform_changes(True)
-            if self._was_tracking_local:
-                h.track_local_xform_changes(True)
+            if h is not None:
+                if self._was_tracking_world:
+                    h.track_world_xform_changes(True)
+                if self._was_tracking_local:
+                    h.track_local_xform_changes(True)
 
     def _derive_opposite(self) -> None:
         raise NotImplementedError
@@ -823,7 +968,7 @@ class _FabricWriterMixin:
 class _FabricWorldSpaceWriter(_FabricWriterMixin, FrameViewWorldSpaceWriter):
     """World-space writer for :class:`FabricFrameView`.
 
-    Writes flow through ``_world_ifa_rw`` (the RW-bundle worldMatrix array);
+    Writes flow through the RW selection's ``worldMatrix`` indexed array;
     on exit ``localMatrix`` is derived from the just-written ``worldMatrix``
     via :func:`update_indexed_local_matrix_from_world`.
     """
@@ -884,7 +1029,7 @@ class _FabricWorldSpaceWriter(_FabricWriterMixin, FrameViewWorldSpaceWriter):
 class _FabricLocalSpaceWriter(_FabricWriterMixin, FrameViewLocalSpaceWriter):
     """Local-space writer for :class:`FabricFrameView`.
 
-    Writes flow through ``_local_ifa_rw`` (the RW-bundle localMatrix array);
+    Writes flow through the RW selection's ``localMatrix`` indexed array;
     on exit ``worldMatrix`` is derived from the just-written ``localMatrix``
     via :func:`update_indexed_world_matrix_from_local`.
     """

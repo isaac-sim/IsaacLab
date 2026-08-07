@@ -137,6 +137,24 @@ class BaseArticulationData(ABC):
     spatial_tendon_names: list[str] | None = None
     """Spatial tendon names in active backend solver-view order."""
 
+    @property
+    def has_joint_ordering(self) -> bool:
+        """Whether a nonidentity joint ordering is active.
+
+        Derived from :attr:`joint_ordering`; a non-``None`` map always denotes an
+        actual permutation between backend and public joint order.
+        """
+        return self.joint_ordering is not None
+
+    @property
+    def has_body_ordering(self) -> bool:
+        """Whether a nonidentity body ordering is active.
+
+        Derived from :attr:`body_ordering`; a non-``None`` map always denotes an
+        actual permutation between backend and public body order.
+        """
+        return self.body_ordering is not None
+
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Configure backend-order staging after the articulation resolves ordering maps.
 

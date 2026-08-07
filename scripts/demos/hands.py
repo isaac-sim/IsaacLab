@@ -8,16 +8,16 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/hands.py
+    uv run python scripts/demos/hands.py
 
     # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/hands.py --visualizer newton
+    uv run python scripts/demos/hands.py --visualizer newton
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/hands.py --physics newton_mjwarp
+    uv run python scripts/demos/hands.py --physics newton_mjwarp
 
     # Usage with Newton visualizer and Newton (MJWarp) physics.
-    ./isaaclab.sh -p scripts/demos/hands.py --visualizer newton --physics newton_mjwarp
+    uv run python scripts/demos/hands.py --visualizer newton --physics newton_mjwarp
 
 """
 
@@ -32,7 +32,9 @@ parser = argparse.ArgumentParser(
     description="This script demonstrates different dexterous hands.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
@@ -50,7 +52,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG  # isort:skip
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg  # isort:skip
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import ShadowHandRobotCfg  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

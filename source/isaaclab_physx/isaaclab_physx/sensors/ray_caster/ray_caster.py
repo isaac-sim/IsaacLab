@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -18,6 +19,11 @@ from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
 
 from isaaclab_physx.physics import PhysxManager
+
+if TYPE_CHECKING:
+    from isaaclab.sensors.ray_caster.ray_caster_cfg import RayCasterCfg
+
+logger = logging.getLogger(__name__)
 
 
 def _has_rigid_body_api(prim) -> bool:
@@ -187,3 +193,102 @@ class _PhysXRayCasterMixin:
 
 class RayCaster(_PhysXRayCasterMixin, BaseRayCaster):
     """PhysX ray-caster implementation."""
+
+    def __init__(self, cfg: RayCasterCfg):
+        """Initialize the PhysX ray-caster.
+
+        Args:
+            cfg: The ray-caster configuration.
+        """
+        super().__init__(cfg)
+        self._raw_transforms: wp.array | None = None
+        self._compute_graph: wp.Graph | None = None
+        self._use_graph: bool = False
+        self._env_mask: wp.array | None = None
+        self._transforms_prefetched: bool = False
+
+    def _initialize_impl(self) -> None:
+        """Initialize the sensor and enable CUDA graph replay on CUDA devices."""
+        super()._initialize_impl()
+        self._use_graph = wp.get_device(self._device).is_cuda
+
+    def _get_view_transforms_wp(self) -> wp.array:
+        """Refresh the PhysX transform buffer and return its cached typed Warp view."""
+        if self._transforms_prefetched:
+            if self._raw_transforms is None:
+                raise RuntimeError("RayCaster transforms were marked prefetched before a buffer was cached.")
+            return self._raw_transforms
+
+        if self._physx_body_view is None:
+            if self._raw_transforms is None:
+                self._raw_transforms = self._static_view_transforms_wp
+            return self._raw_transforms
+
+        transforms = self._physx_body_view.get_transforms()
+        if self._raw_transforms is None:
+            if isinstance(transforms, wp.array):
+                self._raw_transforms = transforms.view(wp.transformf)
+            else:
+                self._raw_transforms = wp.from_torch(transforms.contiguous()).view(wp.transformf)
+        return self._raw_transforms
+
+    def _update_buffers_impl(self, env_mask: wp.array) -> None:
+        """Refresh PhysX transforms and update ray data eagerly or through a CUDA graph.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active. The PhysX transform read
+                cannot be graph-captured, so replays of such a graph would consume stale
+                transforms.
+        """
+        device = wp.get_device(self._device)
+        if device.is_capturing:
+            raise RuntimeError(
+                f"Cannot update the ray caster at '{self.cfg.prim_path}' while a CUDA graph capture is"
+                " active: the PhysX transform read cannot be graph-captured, so replaying the captured"
+                " graph would consume stale transforms."
+            )
+
+        # PhysX refreshes this stable output buffer in place. Fetch it outside the graph, then
+        # let the graph consume the cached typed view without calling back into PhysX.
+        self._get_view_transforms_wp()
+        self._transforms_prefetched = True
+        self._env_mask = env_mask
+
+        try:
+            if not self._use_graph:
+                self._compute()
+                return
+
+            if self._compute_graph is None:
+                try:
+                    with wp.ScopedCapture(device=device) as capture:
+                        self._compute()
+                except Exception as exc:
+                    self._use_graph = False
+                    logger.warning(
+                        f"Failed to capture the update of the ray caster at '{self.cfg.prim_path}' into a"
+                        f" CUDA graph. Falling back to eager kernel launches. Reason: {exc}"
+                    )
+                    self._compute()
+                    return
+                self._compute_graph = capture.graph
+            wp.capture_launch(self._compute_graph)
+        finally:
+            self._transforms_prefetched = False
+
+    def _compute(self) -> None:
+        """Launch the Warp kernels that update the standard ray-caster data."""
+        env_mask = self._env_mask
+        if env_mask is None:
+            raise RuntimeError("RayCaster update kernels cannot run without an environment mask.")
+        super()._update_buffers_impl(env_mask)
+
+    def _invalidate_initialize_callback(self, event) -> None:
+        """Invalidate physics handles and graph state."""
+        super()._invalidate_initialize_callback(event)
+        self._view = None
+        self._physx_body_view = None
+        self._raw_transforms = None
+        self._compute_graph = None
+        self._env_mask = None
+        self._transforms_prefetched = False

@@ -12,10 +12,12 @@ from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
+from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -24,8 +26,10 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 @configclass
 class CartpolePhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg()
-    physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=5,
@@ -60,7 +64,6 @@ class CartpolePhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 
 @configclass
@@ -72,9 +75,6 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     action_space = 1
     observation_space = 4
     state_space = 0
-
-    # viewer
-    viewer: ViewerCfg = ViewerCfg(eye=(8.0, 0.0, 5.0))
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=CartpolePhysicsCfg())
@@ -101,3 +101,6 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     rew_scale_pole_pos = -1.0
     rew_scale_cart_vel = -0.01
     rew_scale_pole_vel = -0.005
+
+    def __post_init__(self):
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))

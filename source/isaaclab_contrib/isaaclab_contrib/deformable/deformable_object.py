@@ -13,12 +13,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
-from isaaclab.cloner import queue_usd_replication
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
@@ -183,12 +181,6 @@ def add_registered_deformables_to_builder(
         add_deformable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation)
 
 
-def color_registered_deformables(builder) -> None:
-    """Color the Newton builder when deformables were registered."""
-    if SimulationManager._deformable_registry:
-        builder.color()
-
-
 def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]) -> None:
     """Bind registered deformable visual meshes to their Newton particle slices in Fabric."""
     if manager_cls._clone_physics_only or not manager_cls._deformable_registry:
@@ -250,12 +242,8 @@ def install_deformable_builder_hooks() -> None:
     SimulationManager._deformable_registry = []
     if not hasattr(SimulationManager, "_per_world_builder_hooks"):
         SimulationManager._per_world_builder_hooks = []
-    if not hasattr(SimulationManager, "_post_replicate_hooks"):
-        SimulationManager._post_replicate_hooks = []
     if add_registered_deformables_to_builder not in SimulationManager._per_world_builder_hooks:
         SimulationManager._per_world_builder_hooks.append(add_registered_deformables_to_builder)
-    if color_registered_deformables not in SimulationManager._post_replicate_hooks:
-        SimulationManager._post_replicate_hooks.append(color_registered_deformables)
 
 
 def clear_deformable_builder_hooks() -> None:
@@ -266,10 +254,6 @@ def clear_deformable_builder_hooks() -> None:
             hook
             for hook in SimulationManager._per_world_builder_hooks
             if hook is not add_registered_deformables_to_builder
-        ]
-    if hasattr(SimulationManager, "_post_replicate_hooks"):
-        SimulationManager._post_replicate_hooks = [
-            hook for hook in SimulationManager._post_replicate_hooks if hook is not color_registered_deformables
         ]
 
 
@@ -299,8 +283,6 @@ class DeformableObject(BaseDeformableObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        queue_usd_replication(cfg)
-        queue_newton_physics_replication(cfg)
 
         # initialize deformable type to None, should be set to either surface or volume on initialization
         self._deformable_type: str | None = None

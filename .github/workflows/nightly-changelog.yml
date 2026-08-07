@@ -210,7 +210,7 @@ jobs:
           git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
           git add source/*/changelog.d/ \
                   source/*/docs/CHANGELOG.rst \
-                  source/*/config/extension.toml
+                  source/*/pyproject.toml
           if git diff --staged --quiet; then
             echo "No changelog fragments found — nothing to commit."
           else
@@ -224,7 +224,7 @@ jobs:
             # ``workflow_dispatch``) is preserved for traceability.
             #
             # The body lists every package that bumped, derived from the
-            # staged ``extension.toml`` diff so the entries are accurate
+            # staged pyproject.toml diff so the entries are accurate
             # regardless of which packages happen to have pending
             # fragments this run.
             MSG_FILE=$(mktemp)
@@ -232,8 +232,8 @@ jobs:
               echo "[CI][Auto Version Bump] Compile changelog fragments (${{ github.event_name }})"
               echo
               echo "Bumped packages:"
-              for tom in $(git diff --staged --name-only -- 'source/*/config/extension.toml'); do
-                pkg=$(echo "$tom" | sed -E 's|source/([^/]+)/config/extension.toml|\1|')
+              for tom in $(git diff --staged --name-only -- 'source/*/pyproject.toml'); do
+                pkg=$(echo "$tom" | sed -E 's|source/([^/]+)/pyproject.toml|\1|')
                 old=$(git diff --staged "$tom" | awk -F'"' '/^-version/{print $2; exit}')
                 new=$(git diff --staged "$tom" | awk -F'"' '/^\+version/{print $2; exit}')
                 echo "- $pkg: $old → $new"

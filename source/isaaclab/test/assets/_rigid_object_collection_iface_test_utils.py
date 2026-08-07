@@ -8,41 +8,9 @@
 
 """Shared mocked rigid-object-collection backend factories for interface tests."""
 
-import os
-import sys
-import importlib.util
 from unittest.mock import MagicMock
 
-# When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
-# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
-# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
-# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
-# set (bare Python, no Kit at all).
-_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
-    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
-)
-
-if not _kitless:
-    from isaaclab.app import AppLauncher
-
-    simulation_app = AppLauncher(headless=True).app
-else:
-    simulation_app = None
-    # Stub out the Kit/Omniverse modules that are not present under
-    # run_ovphysx.sh (pxr, carb, omni, omni.kit[.app] are real on PYTHONPATH).
-    # ``omni`` is a real namespace package, so missing submodules also need
-    # to be installed as attributes on it -- ``sys.modules`` alone is not
-    # enough because attribute access on the real ``omni`` won't fall
-    # through to ``sys.modules``.
-    import omni as _omni
-
-    for _mod in ("physics", "physics.tensors", "physx", "timeline", "usd"):
-        _stub = MagicMock()
-        sys.modules[f"omni.{_mod}"] = _stub
-        # Bind the leaf attribute so that ``omni.<leaf>`` resolves.
-        setattr(_omni, _mod.split(".", 1)[0], _stub)
-    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
-        sys.modules.setdefault(_mod, MagicMock())
+from _iface_test_boot import simulation_app
 
 import numpy as np
 import warp as wp
@@ -51,28 +19,28 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
-# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity
-_mock_physics_sim_view = MagicMock()
-_mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
-SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
-
 BACKENDS = ["Mock"]  # Mock backend is always available.
 
-if importlib.util.find_spec("isaaclab_physx") is not None:
+try:
     from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as PhysXRigidObjectCollection,
     )
     from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import (
         RigidObjectCollectionData as PhysXRigidObjectCollectionData,
     )
+    from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
+except ImportError:
+    pass
+else:
+    # PhysX data classes need gravity even though interface tests do not create a physics scene.
+    _mock_physics_sim_view = MagicMock()
+    _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
+    SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
     BACKENDS.append("physx")
 
-if importlib.util.find_spec("isaaclab_newton") is not None:
+try:
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as NewtonRigidObjectCollection,
     )
@@ -81,13 +49,14 @@ if importlib.util.find_spec("isaaclab_newton") is not None:
     )
     from isaaclab_newton.test.mock_interfaces.mock_newton import MockWrenchComposer as NewtonMockWrenchComposer
     from isaaclab_newton.test.mock_interfaces.views import MockNewtonCollectionView as NewtonMockCollectionView
-
+except ImportError:
+    pass
+else:
     BACKENDS.append("newton")
 
-if (
-    importlib.util.find_spec("isaaclab_ovphysx") is not None
-    and importlib.util.find_spec("ovphysx") is not None
-):
+try:
+    import ovphysx  # noqa: F401
+
     from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as OvPhysxRigidObjectCollection,
     )
@@ -95,7 +64,9 @@ if (
         RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
     )
     from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
-
+except ImportError:
+    pass
+else:
     if hasattr(OvPhysxRigidObjectCollection, "_create_buffers"):
         BACKENDS.append("ovphysx")
 
@@ -147,6 +118,16 @@ def create_physx_rigid_object_collection(
         collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
     )
     object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
+    num_view_ids = num_instances * num_bodies
+    all_view_ids = wp.array(np.arange(num_view_ids, dtype=np.int32), device=device)
+    object.__setattr__(collection, "_ALL_VIEW_INDICES", all_view_ids)
+    object.__setattr__(collection, "_sim_view_ids", wp.empty(num_view_ids, dtype=wp.int32, device=device))
+    object.__setattr__(collection, "_sim_view_ids_views", {})
+    cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+    wp.copy(cpu_all_view_ids, all_view_ids)
+    object.__setattr__(collection, "_cpu_all_view_ids", cpu_all_view_ids)
+    object.__setattr__(collection, "_cpu_view_ids", wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True))
+    object.__setattr__(collection, "_cpu_view_ids_views", {})
 
     return collection, mock_view
 
@@ -174,7 +155,12 @@ def create_newton_rigid_object_collection(
 
     # Mock NewtonManager (aliased as SimulationManager in Newton modules)
     mock_model = MagicMock()
-    mock_model.gravity = wp.array(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), dtype=wp.vec3f, device=device)
+    mock_model.world_count = num_instances
+    mock_model.gravity = wp.array(
+        np.tile(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), (num_instances + 1, 1)),
+        dtype=wp.vec3f,
+        device=device,
+    )
     mock_state = MagicMock()
     mock_control = MagicMock()
 
@@ -258,13 +244,14 @@ def create_ovphysx_rigid_object_collection(
 
     object.__setattr__(collection, "_device", device)
     object.__setattr__(collection, "_ovphysx", MagicMock())
+    object.__setattr__(collection, "_root_view", mock_bindings.view)
     object.__setattr__(collection, "_bindings", mock_bindings.bindings)
     object.__setattr__(collection, "_num_instances", num_instances)
     object.__setattr__(collection, "_num_bodies", num_bodies)
     object.__setattr__(collection, "_body_names_list", body_names)
 
     # Create RigidObjectCollectionData
-    data = OvPhysxRigidObjectCollectionData(mock_bindings.bindings, num_bodies, device)
+    data = OvPhysxRigidObjectCollectionData(mock_bindings.view, num_bodies, device)
     data.num_instances = num_instances
     data.num_bodies = num_bodies
     data._is_primed = True

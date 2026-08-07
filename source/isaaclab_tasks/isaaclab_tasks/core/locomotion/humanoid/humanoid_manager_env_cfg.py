@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -15,6 +16,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -23,13 +25,31 @@ from isaaclab.utils.configclass import configclass
 import isaaclab_tasks.core.locomotion.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.humanoid import HUMANOID_CFG  # isort:skip
+from isaaclab_assets.robots.humanoid import HUMANOID_CFG
+
+JOINT_GEARS = {
+    ".*_waist.*": 67.5,
+    ".*_upper_arm.*": 67.5,
+    "pelvis": 67.5,
+    ".*_lower_arm": 45.0,
+    ".*_thigh:0": 45.0,
+    ".*_thigh:1": 135.0,
+    ".*_thigh:2": 45.0,
+    ".*_shin": 90.0,
+    ".*_foot.*": 22.5,
+}
+"""Effort scale per joint [N·m], keyed by joint name expression."""
+
+JOINT_EFFORT_LIMITS = {name: (-gear, gear) for name, gear in JOINT_GEARS.items()}
+"""Effort clip per joint [N·m], i.e. the effort produced by a unit action."""
 
 
 @configclass
 class HumanoidPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default: PhysxCfg = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=80,
@@ -84,20 +104,10 @@ class HumanoidSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
+    # the effort is clipped at the gear magnitude, i.e. to a unit action: unbounded joint efforts
+    # drive the solver to NaN
     joint_effort = mdp.JointEffortActionCfg(
-        asset_name="robot",
-        joint_names=[".*"],
-        scale={
-            ".*_waist.*": 67.5,
-            ".*_upper_arm.*": 67.5,
-            "pelvis": 67.5,
-            ".*_lower_arm": 45.0,
-            ".*_thigh:0": 45.0,
-            ".*_thigh:1": 135.0,
-            ".*_thigh:2": 45.0,
-            ".*_shin": 90.0,
-            ".*_foot.*": 22.5,
-        },
+        asset_name="robot", joint_names=[".*"], scale=JOINT_GEARS, clip=JOINT_EFFORT_LIMITS
     )
 
 
@@ -135,8 +145,9 @@ class ObservationsCfg:
 
 @configclass
 class HumanoidObservationsCfg(PresetCfg):
-    default: ObservationsCfg = ObservationsCfg()
     physx: ObservationsCfg = ObservationsCfg()
+    isaacsim_physx: ObservationsCfg = physx
+    default: ObservationsCfg = isaacsim_physx
     newton_mjwarp: ObservationsCfg = ObservationsCfg()
 
 
@@ -177,42 +188,17 @@ class RewardsCfg:
     # (5) Penalty for large action commands
     action_l2 = RewTerm(func=mdp.action_l2, weight=-0.01)
     # (6) Penalty for energy consumption
-    energy = RewTerm(
-        func=mdp.power_consumption,
-        weight=-0.005,
-        params={
-            "gear_ratio": {
-                ".*_waist.*": 67.5,
-                ".*_upper_arm.*": 67.5,
-                "pelvis": 67.5,
-                ".*_lower_arm": 45.0,
-                ".*_thigh:0": 45.0,
-                ".*_thigh:1": 135.0,
-                ".*_thigh:2": 45.0,
-                ".*_shin": 90.0,
-                ".*_foot.*": 22.5,
-            }
-        },
-    )
+    energy = RewTerm(func=mdp.power_consumption, weight=-0.005, params={"gear_ratio": JOINT_GEARS})
     # (7) Penalty for reaching close to joint limits
     joint_pos_limits = RewTerm(
         func=mdp.joint_pos_limits_penalty_ratio,
         weight=-0.25,
-        params={
-            "threshold": 0.98,
-            "gear_ratio": {
-                ".*_waist.*": 67.5,
-                ".*_upper_arm.*": 67.5,
-                "pelvis": 67.5,
-                ".*_lower_arm": 45.0,
-                ".*_thigh:0": 45.0,
-                ".*_thigh:1": 135.0,
-                ".*_thigh:2": 45.0,
-                ".*_shin": 90.0,
-                ".*_foot.*": 22.5,
-            },
-        },
+        params={"threshold": 0.98, "gear_ratio": JOINT_GEARS},
     )
+    # (8) Penalty for falling over, applied once on the terminating step
+    terminating = RewTerm(func=mdp.terminated_penalty, weight=-1.0)
+    # (9) Survival rate metric (logged only, contributes no reward)
+    success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
 @configclass

@@ -28,8 +28,6 @@ from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.envs.direct_rl_env import DirectRLEnv
 from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
-
-# from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import EventManager
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
@@ -167,18 +165,6 @@ class DirectRLEnvWarp(DirectRLEnv):
                 self.scene.initialize_renderers()
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
-
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-        offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-        if has_gui or offscreen_render:
-            # self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-            self.viewport_camera_controller = None
-        else:
-            self.viewport_camera_controller = None
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -377,7 +363,9 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # return observations
         self._get_observations()
-        return {"policy": self.torch_obs_buf.clone()}, self.extras
+        # store the returned buffer so RslRlVecEnvWrapper.get_observations() can read env.obs_buf
+        self.obs_buf = {"policy": self.torch_obs_buf.clone()}
+        return self.obs_buf, self.extras
 
     @Timer(name="env_step", msg="Step took:", enable=DEBUG_TIMER_STEP or DEBUG_TIMERS)
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
@@ -460,8 +448,10 @@ class DirectRLEnvWarp(DirectRLEnv):
             self._post_step_visualize()
 
         # return observations, rewards, resets and extras
+        # store the returned buffer so RslRlVecEnvWrapper.get_observations() can read env.obs_buf
+        self.obs_buf = {"policy": self.torch_obs_buf.clone()}
         return (
-            {"policy": self.torch_obs_buf.clone()},
+            self.obs_buf,
             self.torch_reward_buf,
             self.torch_reset_terminated,
             self.torch_reset_time_outs,
@@ -570,29 +560,24 @@ class DirectRLEnvWarp(DirectRLEnv):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # check that if any render could have happened
-            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
-            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
-            # Rendering is possible if we have GUI or offscreen rendering enabled
-            can_render = has_gui or offscreen_render
-
-            if not can_render:
+            # rendering requires a GUI or offscreen rendering (mirrors the stable env)
+            if not (self.sim.has_gui or self.sim.has_offscreen_render):
                 render_mode_name = "NO_GUI_OR_RENDERING"
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' when the simulation render mode is"
                     f" '{render_mode_name}'. Please set the simulation render mode"
                     " to:'PARTIAL_RENDERING' or"
-                    " 'FULL_RENDERING'. If running headless, make"
-                    " sure --enable_cameras is set."
+                    " 'FULL_RENDERING'."
                 )
             # create the annotator if it does not exist
             if not hasattr(self, "_rgb_annotator"):
                 import omni.replicator.core as rep
 
-                # create render product
-                self._render_product = rep.create.render_product(
-                    self.cfg.viewer.cam_prim_path, self.cfg.viewer.resolution
-                )
+                # create render product from the main Kit viewport camera
+                _cam_prim_path = "/OmniverseKit_Persp"
+                _resolution = (1280, 720)
+                self._render_product = rep.create.render_product(_cam_prim_path, _resolution)
+                self._render_resolution = _resolution
                 # create rgb annotator -- used to read data from the render product
                 self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
                 self._rgb_annotator.attach([self._render_product])
@@ -603,7 +588,7 @@ class DirectRLEnvWarp(DirectRLEnv):
             # return the rgb data
             # note: initially the renerer is warming up and returns empty data
             if rgb_data.size == 0:
-                return np.zeros((self.cfg.viewer.resolution[1], self.cfg.viewer.resolution[0], 3), dtype=np.uint8)
+                return np.zeros((self._render_resolution[1], self._render_resolution[0], 3), dtype=np.uint8)
             else:
                 return rgb_data[:, :, :3]
         else:
@@ -619,8 +604,6 @@ class DirectRLEnvWarp(DirectRLEnv):
             if self.cfg.events:
                 del self.event_manager
             del self.scene
-            if self.viewport_camera_controller is not None:
-                del self.viewport_camera_controller
 
             # # clear callbacks and instance
             # if float(".".join(get_version()[2])) >= 5:

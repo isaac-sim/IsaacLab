@@ -89,8 +89,8 @@ Table of Contents
 
    source/setup/ecosystem
    source/setup/installation/index
-   source/deployment/index
-   source/setup/installation/cloud_installation
+   source/setup/environments
+   source/setup/quickstart
    source/refs/reference_architecture/index
 
 
@@ -99,7 +99,6 @@ Table of Contents
    :caption: Getting Started
    :titlesonly:
 
-   source/setup/quickstart
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
@@ -127,6 +126,7 @@ Table of Contents
    :caption: Features
 
    source/features/isaac_teleop
+   source/features/docker_cloud
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training

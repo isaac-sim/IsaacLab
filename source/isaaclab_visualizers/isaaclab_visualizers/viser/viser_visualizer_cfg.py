@@ -39,9 +39,6 @@ class ViserVisualizerCfg(VisualizerCfg):
     The viewer URL is always logged during initialization. Set this to ``True`` to auto-launch it.
     """
 
-    label: str | None = "Isaac Lab Simulation"
-    """Optional label shown in the viewer page title."""
-
     verbose: bool = True
     """Whether to print viewer server startup information."""
 
@@ -50,3 +47,11 @@ class ViserVisualizerCfg(VisualizerCfg):
 
     record_to_viser: str | None = None
     """Path to save a .viser recording file. None = no recording."""
+
+    show_particles: bool = True
+    """Whether to render particle systems (MPM, VBD) in the Viser viewer.
+
+    Defaults to ``True`` so particle simulations (granular, cloth, soft-body) are
+    visible on startup.  Can also be toggled at runtime via the Visualization Markers
+    panel in the Viser sidebar.
+    """

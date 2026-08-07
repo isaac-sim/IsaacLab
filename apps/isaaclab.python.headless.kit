@@ -23,12 +23,16 @@ log.outputStreamLevel = "Warn"
 # Omniverse related dependencies #
 ##################################
 [dependencies]
+"omni.physics" = {}
+"omni.physics.physx" = {}
+"omni.physics.stageupdate" = {}
 "omni.physx" = {}
 "omni.physx.tensors" = {}
 "omni.physx.fabric" = {}
 "usdrt.scenegraph" = {}
 "omni.kit.telemetry" = {}
 "omni.kit.loop" = {}
+"isaacsim.storage.native" = {}
 # this is needed to create physics material through CreatePreviewSurfaceMaterialPrim
 "omni.kit.usd.mdl" = {}
 # this is used for converting assets that have the wrong units
@@ -180,7 +184,6 @@ folders = [
     "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
     "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
     "${app}", # needed to find other app files
-    "${app}/../source", # needed to find extensions in Isaac Lab
 ]
 
 [settings.ngx]
@@ -190,22 +193,9 @@ enabled=true # Enable this for DLSS
 # Isaac Sim Extensions #
 ########################
 [dependencies]
-"isaacsim.simulation_app" = {}
-"isaacsim.core.simulation_manager" = {}
 "isaacsim.core.version" = {}
-
-########################
-# Isaac Lab Extensions #
-########################
-
-# Load Isaac Lab extensions last
-"isaaclab" = {order = 1000}
-"isaaclab_physx" = {order = 1000}
-"isaaclab_newton" = {order = 1000}
-"isaaclab_assets" = {order = 1000}
-"isaaclab_tasks" = {order = 1000}
-"isaaclab_mimic" = {order = 1000}
-"isaaclab_rl" = {order = 1000}
+# USD schema plugins must load before the schema registry is first accessed.
+"omni.usd.schema.mujoco" = {}
 
 # Asset path
 # set the S3 directory manually to the latest published S3

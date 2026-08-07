@@ -112,7 +112,7 @@ DEFAULT_JOINT_POS: dict[str, float] = {
 
 def make_g1_29dof_dex3_cfg(
     *,
-    prim_path: str = "/World/envs/env_.*/Robot",
+    prim_path: str = "{ENV_REGEX_NS}/Robot",
     init_pos: tuple[float, float, float] = (-0.15, 0.0, 0.744),
     init_rot: tuple[float, float, float, float] = (0, 0, 0.7071, 0.7071),
     custom_joint_pos: dict[str, float] | None = None,

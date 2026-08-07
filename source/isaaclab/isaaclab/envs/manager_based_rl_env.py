@@ -15,7 +15,6 @@ import numpy as np
 import torch
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
-from isaaclab.ui.widgets import ManagerLiveVisualizer
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -77,14 +76,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
 
-        # Forward render_mode and viewer camera to VideoRecorderCfg before super().__init__()
-        # creates the VideoRecorder, so fallback cameras are only spawned when --video is active
-        # (env_render_mode="rgb_array") and the perspective view matches the task viewport.
-        if cfg.video_recorder is not None:
-            cfg.video_recorder.env_render_mode = render_mode
-            cfg.video_recorder.eye = tuple(float(x) for x in cfg.viewer.eye)
-            cfg.video_recorder.lookat = tuple(float(x) for x in cfg.viewer.lookat)
-
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
         # store the render mode
@@ -144,15 +135,37 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms."""
+        """Wire manager terms and episode metrics into live plots for all active visualizer backends.
 
+        Calls :meth:`~isaaclab.visualizers.BaseVisualizer.add_live_plots` on every visualizer
+        registered with the simulation context.  In addition to manager terms, registers
+        ``episode/mean_reward`` and ``episode/episode_length`` as direct scalar sources so
+        that top-level training metrics are always visible alongside per-term breakdowns.
+        For the Kit backend this also populates :attr:`manager_visualizers` with
+        :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer` instances so that
+        :class:`~isaaclab.envs.ui.BaseEnvWindow` can build the omni.ui panels.
+        """
+        managers = {
+            "action_manager": self.action_manager,
+            "observation_manager": self.observation_manager,
+            "command_manager": self.command_manager,
+            "termination_manager": self.termination_manager,
+            "reward_manager": self.reward_manager,
+            "curriculum_manager": self.curriculum_manager,
+        }
+        scalars = {
+            "episode": {
+                "mean_reward": lambda: float(getattr(self, "reward_buf", None).mean())
+                if getattr(self, "reward_buf", None) is not None
+                else 0.0,
+                "episode_length": lambda: float(self.episode_length_buf.float().mean()),
+            }
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots(managers, scalars=scalars)
+        # Populate manager_visualizers for the Kit window (BaseEnvWindow reads this attribute).
         self.manager_visualizers = {
-            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
-            "command_manager": ManagerLiveVisualizer(manager=self.command_manager),
-            "termination_manager": ManagerLiveVisualizer(manager=self.termination_manager),
-            "reward_manager": ManagerLiveVisualizer(manager=self.reward_manager),
-            "curriculum_manager": ManagerLiveVisualizer(manager=self.curriculum_manager),
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
         }
 
     """
@@ -264,11 +277,28 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # trigger recorder terms for post-reset calls
             self.recorder_manager.record_post_reset(reset_env_ids)
 
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            # Only reset envs not already reset this step to avoid redundant resets.
+            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+            not_yet_reset[reset_env_ids] = False
+            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
+            if len(manual_reset_ids) > 0:
+                # mark as terminated so RL wrappers observe the episode boundary
+                self.reset_terminated[manual_reset_ids] = True
+                # mirror the recorder lifecycle used for normal resets
+                self.recorder_manager.record_pre_reset(manual_reset_ids)
+                self._reset_idx(manual_reset_ids)
+                self.recorder_manager.record_post_reset(manual_reset_ids)
+
         # -- update command
         self.command_manager.compute(dt=self.step_dt)
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
+        # -- advance video recorders (after render and resets, before final obs)
+        for recorder in self.video_recorders:
+            recorder.step()
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
         self.obs_buf = self.observation_manager.compute(update_history=True)
@@ -282,15 +312,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
-          x-by-y pixel image, suitable for turning into a video.
+
+        .. note::
+            ``render_mode="rgb_array"`` is no longer supported.  Use
+            :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` on
+            ``env_cfg.video_recorders`` instead.
 
         Args:
             recompute: Whether to force a render even if the simulator has already rendered the scene.
                 Defaults to False.
 
         Returns:
-            The rendered image as a numpy array if mode is "rgb_array". Otherwise, returns None.
+            None.
 
         Raises:
             RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
@@ -303,12 +336,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
+        if self.render_mode == "rgb_array":
+            import warnings
+
+            warnings.warn(
+                "render_mode='rgb_array' is deprecated and will be removed in a future release. "
+                "Use VideoRecorderCfg on env_cfg.video_recorders to capture frames instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return None
         if self.render_mode == "human" or self.render_mode is None:
             return None
-        elif self.render_mode == "rgb_array":
-            if self.video_recorder is None:
-                return None
-            return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
@@ -409,3 +448,5 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
+
+        self.sim.render_context.reset_scene_state_cadence()
