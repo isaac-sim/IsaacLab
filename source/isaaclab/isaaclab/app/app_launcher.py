@@ -33,6 +33,7 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
+from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 from isaaclab.utils._device import set_cuda_device
@@ -155,16 +156,17 @@ class AppLauncher:
     @staticmethod
     def _parse_visualizer_csv(value: str) -> list[str] | None:
         """Parse visualizer list from a single comma-delimited CLI token."""
-        valid = {"kit", "newton", "rerun", "viser", "none"}
+        _deprecated_aliases = {"newton": "newton_gl"}
+        valid = {"kit", "newton_gl", "newton_rtx", "rerun", "viser", "none"} | set(_deprecated_aliases)
         token = (value or "").strip()
         if not token:
             raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton."
+                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton_gl."
             )
         if " " in token:
             raise argparse.ArgumentTypeError(
                 "Invalid --visualizer value: spaces are not allowed. "
-                "Use a comma-separated list without spaces, e.g. --viz kit,newton,rerun,viser."
+                "Use a comma-separated list without spaces, e.g. --viz kit,newton_gl,rerun,viser."
             )
 
         names = [item.strip().lower() for item in token.split(",")]
@@ -176,16 +178,32 @@ class AppLauncher:
         invalid = [name for name in names if name not in valid]
         if invalid:
             raise argparse.ArgumentTypeError(
-                f"Invalid --visualizer value(s): {', '.join(invalid)}. Valid options: {', '.join(sorted(valid))}."
+                f"Invalid --visualizer value(s): {', '.join(invalid)}. "
+                f"Valid options: {', '.join(sorted(valid - set(_deprecated_aliases)))}."
             )
-        if "none" in names:
-            if len(names) > 1:
+        # Resolve deprecated aliases with a warning.
+        resolved = []
+        for name in names:
+            if name in _deprecated_aliases:
+                canonical = _deprecated_aliases[name]
+                import warnings
+
+                warnings.warn(
+                    f"--viz '{name}' is deprecated. Use '--viz {canonical}' instead.",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
+                resolved.append(canonical)
+            else:
+                resolved.append(name)
+        if "none" in resolved:
+            if len(resolved) > 1:
                 raise argparse.ArgumentTypeError(
                     "Invalid --visualizer value: 'none' cannot be combined with other visualizer types."
                 )
             return None
         # De-duplicate while preserving order.
-        return list(dict.fromkeys(names))
+        return list(dict.fromkeys(resolved))
 
     @staticmethod
     def _normalize_visualizer_intent(intent: Any) -> tuple[bool, bool]:
@@ -366,21 +384,6 @@ class AppLauncher:
         else:
             raise RuntimeError("The `AppLauncher.app` member cannot be retrieved until the class is initialized.")
 
-    @property
-    def has_window(self) -> bool:
-        """Whether a window exists that can render UI and receive input.
-
-        True when a windowed visualizer was requested, or when livestreaming, which renders a
-        window and forwards input from the remote client. Use this rather than the headless
-        state to decide whether UI-driven features are available: livestreaming runs the host
-        headless yet still presents an interactive window.
-
-        Distinct from :meth:`has_gui`, which also counts an XR session as interactive. A
-        windowless XR run has somewhere to display but no window to click in or type into, so
-        prefer this for keyboard bindings, viewport widgets, and other window-bound features.
-        """
-        return not self._headless or self._livestream >= 1
-
     """
     Operations.
     """
@@ -486,12 +489,15 @@ class AppLauncher:
           Valid options are:
 
           - ``rerun``: Use Rerun visualizer.
-          - ``newton``: Use Newton visualizer.
+          - ``newton_gl``: Use Newton GL visualizer.
+          - ``newton_rtx``: Use Newton RTX path-tracer visualizer (experimental).
           - ``viser``: Use Viser visualizer.
           - ``kit``: Use Omniverse Kit visualizer.
           - ``none``: Disable all visualizers explicitly.
           - Multiple visualizers can be specified as a comma-delimited list:
-            ``--viz rerun,newton,viser``.
+            ``--viz rerun,newton_gl,viser``.
+
+          .. deprecated:: Use ``newton_gl`` instead of ``newton``.
 
         * ``max_visible_envs`` (int | None): Optional global override for partial visualization by capping
           how many environments are shown in the visualizers.
@@ -651,10 +657,6 @@ class AppLauncher:
     """
     Internal functions.
     """
-
-    # Set by :meth:`_resolve_xr_settings`. Defaulted here so :meth:`_resolve_headless_settings`
-    # stays independent of resolver call order and of whether XR was resolved at all.
-    _xr_implies_headless: bool = False
 
     _APPLAUNCHER_CFG_INFO: dict[str, tuple[list[type], Any]] = {
         "headless": ([bool], False),
@@ -888,15 +890,7 @@ class AppLauncher:
 
         # Resolve headless from visualizer intent when livestream is disabled.
         if self._livestream == 0:
-            if self._xr_implies_headless:
-                # XR without an explicit windowed visualizer: no viewport to start the session from.
-                if not self._headless:
-                    logger.info(
-                        "XR is enabled without an explicit windowed visualizer, so running headless. "
-                        "To also open a local viewport, pass '--viz <names>' (for example '--viz kit')."
-                    )
-                self._headless = True
-            elif self._cli_visualizer_explicit:
+            if self._cli_visualizer_explicit:
                 # Explicit CLI selection controls headless: only Kit implies non-headless.
                 requested_visualizers = set(self._cli_visualizer_types)
                 if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
@@ -949,14 +943,33 @@ class AppLauncher:
         if visualizer_explicit and "none" in visualizer_types and len(visualizer_types) > 1:
             raise ValueError("Invalid '--visualizer' value: 'none' cannot be combined with other visualizer types.")
 
-        valid_visualizer_types = {"kit", "newton", "rerun", "viser", "none"}
+        _deprecated_viz_aliases = {"newton": "newton_gl"}
+        valid_visualizer_types = {"kit", "newton_gl", "newton_rtx", "rerun", "viser", "none"} | set(
+            _deprecated_viz_aliases
+        )
         # Secondary validation for the list path (kwargs); the string path is already validated by
         invalid_visualizers = [v for v in visualizer_types if v not in valid_visualizer_types]
         if invalid_visualizers:
             raise ValueError(
                 f"Invalid value(s) for '--visualizer': {invalid_visualizers}. "
-                "Expected one or more of: ['kit', 'newton', 'rerun', 'viser', 'none']."
+                "Expected one or more of: ['kit', 'newton_gl', 'newton_rtx', 'rerun', 'viser', 'none']."
             )
+        # Resolve deprecated aliases, emitting a DeprecationWarning for each one found.
+        resolved = []
+        for v in visualizer_types:
+            if v in _deprecated_viz_aliases:
+                canonical = _deprecated_viz_aliases[v]
+                import warnings
+
+                warnings.warn(
+                    f"--viz '{v}' is deprecated. Use '--viz {canonical}' instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                resolved.append(canonical)
+            else:
+                resolved.append(v)
+        visualizer_types = resolved
 
         self._cli_visualizer_explicit = visualizer_explicit
         self._cli_visualizer_disable_all = visualizer_explicit and (
@@ -987,14 +1000,16 @@ class AppLauncher:
         else:
             self._xr = bool(xr_env)
 
-        # Whether XR alone should force headless. Without an explicit windowed visualizer there
-        # is no viewport to start the session from, so a window would serve no purpose. This only
-        # adds to the headless decision below; it never makes a run non-headless.
+        # Determine whether XR should auto-inject a KitVisualizer.
+        # When XR is enabled but no Kit visualizer was explicitly requested via
+        # CLI, we auto-inject one so that app.update() and forward() are pumped
+        # each frame -- the XR runtime needs both to receive updated hand/joint
+        # transforms.
         if self._xr:
             has_explicit_kit = self._cli_visualizer_explicit and "kit" in set(self._cli_visualizer_types)
-            self._xr_implies_headless = not has_explicit_kit
+            self._xr_auto_start = not has_explicit_kit
         else:
-            self._xr_implies_headless = False
+            self._xr_auto_start = False
 
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
@@ -1249,7 +1264,9 @@ class AppLauncher:
 
         sys.argv = _sanitize_sys_argv_for_kit(sys.argv)
 
+        report_activity("Starting Isaac Sim")
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+        report_activity(None)
 
         # enable sys stdout and stderr
         sys.stdout = sys.__stdout__
@@ -1305,12 +1322,10 @@ class AppLauncher:
 
         # set setting to indicate XR mode is enabled
         settings.set_bool("/isaaclab/xr/enabled", self._xr)
-        # set setting to indicate XR auto-start mode -- with no window to start the
-        # session from, the AR profile must be enabled programmatically so that the
-        # OpenXR session starts without user interaction. This must key off the
-        # resolved headless state: HEADLESS=1 and livestreaming both run windowless
-        # even when a Kit visualizer was explicitly requested.
-        settings.set_bool("/isaaclab/xr/auto_start", self._xr and self._headless)
+        # set setting to indicate XR auto-start mode -- when running headless
+        # (no Kit GUI) the AR profile must be enabled programmatically so that
+        # the OpenXR session starts without user interaction
+        settings.set_bool("/isaaclab/xr/auto_start", self._headless and self._xr)
         # set setting to indicate video recording mode
         settings.set_bool("/isaaclab/video/enabled", self._video_enabled)
 

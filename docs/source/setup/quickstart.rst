@@ -127,9 +127,10 @@ for the complete training and playback reference.
 Choose a backend
 ----------------
 
-Add ``physics=<backend>`` to a task command to select its physics backend. The
-backends available to a task depend on its configuration; use the task help to
-see the supported selectors:
+Add ``physics=<backend>`` to a task command to select its physics backend. For
+camera tasks, you can also choose a renderer backend with
+``renderer=<backend>``. The backends available to a task depend on its
+configuration; use the task help to see the supported selectors:
 
 .. code-block:: bash
 
@@ -153,12 +154,16 @@ see the supported selectors:
      - ``ov`` or ``ovphysx``
    * - ``physics=isaacsim_physx``
      - Isaac Sim PhysX.
-     - ``isaacsim``
+   * - ``renderer=newton_renderer``
+     - Newton Warp renderer.
+   * - ``renderer=ovrtx``
+     - OV RTX renderer.
+   * - ``renderer=isaacsim_rtx``
+     - Isaac Sim RTX renderer.
+   * - ``renderer=rtx``
+     - Automatic RTX renderer selection.
 
-Camera tasks can also take ``renderer=<renderer>``. Common choices are
-``renderer=newton_renderer`` for the Newton Warp renderer, ``renderer=ovrtx``
-for OV RTX, and ``renderer=rtx`` for automatic RTX renderer selection. Add
-task-specific options with ``presets=<name>``; for example:
+Add task-specific options with ``presets=<name>``; for example:
 
 .. code-block:: bash
 
