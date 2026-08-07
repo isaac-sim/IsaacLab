@@ -25,8 +25,8 @@ use the Omniverse Kit to edit the asset and export it to other file formats. Isa
 these importers by default. They can also be enabled manually in Omniverse Kit.
 
 Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
-Isaac Sim when the full runtime is installed. In kit-less environments, install
-the standalone importer wheel as described in
+Isaac Sim when the full runtime is installed. In kit-less environments they use the
+standalone importers that ship with Isaac Lab, as described in
 :ref:`installation-standalone-importers` below.
 The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
 
@@ -43,18 +43,23 @@ For more details on instanceable assets, please check the Isaac Sim `documentati
 Standalone URDF/MJCF importers
 ------------------------------
 
-The URDF and MJCF converter scripts can run without Isaac Sim when the standalone
-``isaacsim-asset-isolated`` wheel is installed in the active environment. The wheel is not
-published on PyPI, so replace ``PACKAGE_INDEX_URL`` with the package index that hosts it:
+The URDF and MJCF converter scripts run without Isaac Sim, using the standalone
+``isaacsim-asset-isolated`` importers. They ship in the ``importers`` extra, which is not
+installed by default because it cannot share an environment with Isaac Sim -- both provide the
+same ``isaacsim.asset`` importers. Install it from a source checkout:
 
 .. code-block:: bash
 
-   uv pip install "isaacsim-asset-isolated>=6.0,<6.1" \
-     --extra-index-url "PACKAGE_INDEX_URL"
+   ./isaaclab.sh --install 'newton,rl[rsl-rl],importers'
 
-After installing the wheel, run conversion in the kit-less environment. Optionally pass
-``--viz newton`` (or ``rerun`` / ``viser``) to preview the converted asset in a kit-less
-Isaac Lab visualizer:
+or into an environment built from the published wheel:
+
+.. code-block:: bash
+
+   uv pip install 'isaaclab[importers]'
+
+Run conversion in the kit-less environment. Optionally pass ``--viz newton`` (or ``rerun`` /
+``viser``) to preview the converted asset in a kit-less Isaac Lab visualizer:
 
 .. code-block:: bash
 
