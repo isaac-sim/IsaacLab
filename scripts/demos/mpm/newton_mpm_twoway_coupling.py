@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import argparse
 
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Newton rigid-box and MPM-sand two-way coupling demo.")
@@ -57,8 +59,6 @@ def create_visualizer_cfgs():
     """Create the demo-specific Newton visualizer configuration."""
     if not {"newton", "newton_gl"}.intersection(args_cli.visualizer or []):
         return []
-
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     return [
         NewtonGLVisualizerCfg(
