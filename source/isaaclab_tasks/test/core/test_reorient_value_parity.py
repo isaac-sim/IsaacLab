@@ -50,3 +50,22 @@ def test_manager_config_matches_direct_values(direct_cls, manager_cls):
     streak_cap = getattr(manager.terminations, "max_consecutive_success", None)
     assert (0 if streak_cap is None else streak_cap.params["num_success"]) == direct.max_consecutive_success
     assert streak_cap is None or streak_cap.time_out
+
+
+def test_handover_manager_config_matches_direct_values():
+    """The handover manager task mirrors its Direct counterpart's task-defining values."""
+    from isaaclab_tasks.core.handover.handover_env_cfg import HandoverEnvCfg
+    from isaaclab_tasks.core.handover.handover_manager_env_cfg import HandoverManagerEnvCfg
+
+    direct, manager = HandoverEnvCfg(), HandoverManagerEnvCfg()
+
+    assert (manager.decimation, manager.episode_length_s, manager.sim.dt) == (
+        direct.decimation,
+        direct.episode_length_s,
+        direct.sim.dt,
+    )
+    assert manager.sim.render_interval == direct.sim.render_interval
+    assert manager.commands.object_pose.success_distance_threshold == pytest.approx(direct.success_distance_threshold)
+    assert manager.rewards.goal_distance.params["distance_scale"] == pytest.approx(direct.dist_reward_scale)
+    for action_term in (manager.actions.right_hand, manager.actions.left_hand):
+        assert action_term.alpha == pytest.approx(direct.act_moving_average)

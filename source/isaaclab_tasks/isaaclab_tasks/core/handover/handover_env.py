@@ -232,8 +232,7 @@ class HandoverEnv(DirectMARLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor | None):
         if env_ids is None:
             env_ids = self.right_hand._ALL_INDICES
-        # Flush per-episode success (sticky binary: object ever reached the goal within threshold).
-        # 0-dim device tensor, for the same reason
+        # Flush the sticky per-episode success bit.
         self.extras.setdefault("log", {})["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean()
         for statistic, value in self._goal_distance.reset(env_ids).items():
             self.extras["log"][f"Diagnostics/episode_min_goal_distance_{statistic}"] = value

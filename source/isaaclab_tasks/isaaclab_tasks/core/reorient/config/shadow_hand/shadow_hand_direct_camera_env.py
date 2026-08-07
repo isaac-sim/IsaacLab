@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 import torch
@@ -140,3 +141,31 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
 
         observations = {"policy": obs, "critic": state}
         return observations
+
+
+def compute_keypoints(
+    pose: torch.Tensor,
+    num_keypoints: int = 8,
+    size: tuple[float, float, float] = (2 * 0.03, 2 * 0.03, 2 * 0.03),
+    out: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Compute cube keypoints using the shared implementation.
+
+    .. deprecated:: 9.0.0
+        Use :func:`compute_cube_keypoints` instead.
+
+    Args:
+        pose: Cube center poses ``(x, y, z, qx, qy, qz, qw)`` [m, unit quaternion].
+        num_keypoints: Number of binary-sign corners to compute.
+        size: Cube side lengths along each axis [m].
+        out: Optional output buffer [m], shape ``(num_envs, num_keypoints, 3)``.
+
+    Returns:
+        Cube-corner positions [m], shape ``(num_envs, num_keypoints, 3)``.
+    """
+    warnings.warn(
+        "compute_keypoints() is deprecated; use compute_cube_keypoints() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return compute_cube_keypoints(pose, num_keypoints=num_keypoints, size=size, out=out)

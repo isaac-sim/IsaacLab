@@ -15,8 +15,13 @@ marker templates) stay module-level constants.
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkersCfg
 
+from isaaclab_tasks.utils.hydra import preset
+
 from isaaclab_assets.robots.shadow_hand import (
     SHADOW_ACTUATED_JOINT_NAMES as ACTUATED_JOINT_NAMES,
+)
+from isaaclab_assets.robots.shadow_hand import (
+    SHADOW_ACTUATED_JOINT_NAMES_NEWTON,
 )
 from isaaclab_assets.robots.shadow_hand import (
     SHADOW_FINGERTIP_BODY_NAMES as FINGERTIP_BODY_NAMES,
@@ -24,11 +29,22 @@ from isaaclab_assets.robots.shadow_hand import (
 
 __all__ = [
     "ACTUATED_JOINT_NAMES",
+    "ACTUATED_JOINT_NAMES_PRESET",
     "FINGERTIP_BODY_NAMES",
     "GOAL_MARKER_CFG",
     "GOAL_POSITION_OFFSET",
     "OBJECT_RADIUS",
 ]
+
+
+ACTUATED_JOINT_NAMES_PRESET = preset(
+    physx=ACTUATED_JOINT_NAMES,
+    isaacsim_physx=ACTUATED_JOINT_NAMES,
+    newton_mjwarp=SHADOW_ACTUATED_JOINT_NAMES_NEWTON,
+    ovphysx=ACTUATED_JOINT_NAMES,
+    default=ACTUATED_JOINT_NAMES,
+)
+"""Per-backend actuated joint names, resolved by the physics preset key."""
 
 
 OBJECT_RADIUS: float = 0.0335

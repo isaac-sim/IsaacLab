@@ -169,9 +169,10 @@ SHADOW_HAND_NEWTON_CFG = ArticulationCfg(
 )
 """Configuration of the Shadow Hand robot on the Newton (MJWarp) asset.
 
-The Newton USD renumbers the finger joints (+1) relative to :obj:`SHADOW_HAND_CFG`, but the
-names in :obj:`SHADOW_ACTUATED_JOINT_NAMES` resolve on both assets, so the two backends share
-one actuated-joint list. Gains default to the PhysX values; tasks override them as needed.
+The Newton USD renumbers the finger joints (+1) relative to :obj:`SHADOW_HAND_CFG`. Actuator
+regexes resolve on both assets, so the two backends share one actuator configuration, but terms
+that need the joints in order use :obj:`SHADOW_ACTUATED_JOINT_NAMES_NEWTON` on this asset.
+Gains default to the PhysX values; tasks override them as needed.
 """
 
 
@@ -209,4 +210,32 @@ SHADOW_ACTUATED_JOINT_NAMES: list[str] = [
 """Shadow Hand actuated joint names, in the Direct task's actuation order.
 
 These names resolve on both the PhysX and Newton assets, so every backend shares this list.
+"""
+
+SHADOW_ACTUATED_JOINT_NAMES_NEWTON: list[str] = [
+    "robot0_WRJ1",
+    "robot0_WRJ0",
+    "robot0_FFJ4",
+    "robot0_FFJ3",
+    "robot0_FFJ2",
+    "robot0_MFJ4",
+    "robot0_MFJ3",
+    "robot0_MFJ2",
+    "robot0_RFJ4",
+    "robot0_RFJ3",
+    "robot0_RFJ2",
+    "robot0_LFJ5",
+    "robot0_LFJ4",
+    "robot0_LFJ3",
+    "robot0_LFJ2",
+    "robot0_THJ4",
+    "robot0_THJ3",
+    "robot0_THJ2",
+    "robot0_THJ1",
+    "robot0_THJ0",
+]
+"""Shadow Hand actuated joint names on the Newton asset, in the same order.
+
+The Newton USD numbers the finger joints one higher than :obj:`SHADOW_ACTUATED_JOINT_NAMES`,
+so action terms that address joints by name need this list rather than the PhysX one.
 """

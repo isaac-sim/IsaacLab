@@ -15,6 +15,9 @@ __all__ = [
     "fingertip_wrench",
     "reorient_last_action",
     "openai_policy_observation",
+    "ShadowHandCameraFeatures",
+    "shadow_hand_camera_cached_features",
+    "shadow_hand_goal_keypoints",
     "goal_quat_diff",
     "success_bonus",
     "track_orientation_inv_l2",
@@ -30,6 +33,9 @@ from .commands import ReorientCommand, ReorientCommandCfg
 from .events import reset_reorient_state
 from .actions import NoisyEMAJointPositionToLimitsAction, NoisyEMAJointPositionToLimitsActionCfg
 from .observations import (
+    ShadowHandCameraFeatures,
+    shadow_hand_camera_cached_features,
+    shadow_hand_goal_keypoints,
     fingertip_pos,
     fingertip_quat,
     fingertip_vel,
