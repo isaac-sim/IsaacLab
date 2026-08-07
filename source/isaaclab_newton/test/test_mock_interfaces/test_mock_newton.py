@@ -5,7 +5,10 @@
 
 """Tests for shared Newton simulation mocks."""
 
+import pytest
 from isaaclab_newton.test.mock_interfaces import MockNewtonModel
+
+pytestmark = pytest.mark.kitless
 
 
 def test_mock_newton_model_derives_articulation_topology() -> None:

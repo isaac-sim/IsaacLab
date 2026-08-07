@@ -5,12 +5,15 @@
 
 """Tests for Newton mock factory functions."""
 
+import pytest
 from isaaclab_newton.test.mock_interfaces.factories import (
     create_mock_articulation_view,
     create_mock_humanoid_view,
     create_mock_quadruped_view,
 )
 from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView
+
+pytestmark = pytest.mark.kitless
 
 
 class TestFactories:

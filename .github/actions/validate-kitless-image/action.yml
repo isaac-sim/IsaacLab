@@ -54,20 +54,20 @@ runs:
       print("ovrtx renderer initialized")
       '
 
-      # The Newton training probe is the shared one architecture CI also runs, so
-      # the command and its assertions live in one place. pytest goes only into
-      # this disposable layer; reinstalling the workspace would fail against the
-      # read-only source mount.
+      # Files are discovered by grep, not by pointing pytest at a directory: this image has no
+      # Isaac Sim, and collecting a directory imports every module in it to read its markers,
+      # which most of the suite cannot survive. Adding coverage is a `kitless` marker, nothing
+      # here. pytest goes only into this disposable layer; reinstalling the workspace would fail
+      # against the read-only source mount.
       docker run --rm --gpus all --network host \
         "${mount_args[@]}" \
         "$IMAGE_TAG" \
         bash -lc '
       set -euo pipefail
       uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
-      python -m pytest \
-        source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py::test_train_cartpole_state_completes \
-        source/isaaclab_newton/test/test_mock_interfaces \
-        -q -p no:cacheprovider
+      mapfile -t suite < <(grep -rl --include="*.py" "pytest\.mark\.kitless" source/)
+      [ "${#suite[@]}" -gt 0 ] || { echo "::error::no tests carry the kitless marker"; exit 1; }
+      python -m pytest -m kitless "${suite[@]}" -q -p no:cacheprovider
       '
 
       runtime_identity="$(docker run --rm --entrypoint bash "$IMAGE_TAG" \

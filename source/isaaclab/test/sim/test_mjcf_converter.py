@@ -37,7 +37,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+# conversion is served by the standalone importers when Isaac Sim is absent, so these run
+# unchanged in the Kit-less container
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci, pytest.mark.kitless]
 
 _MJCF_IMPORTER_EXTENSION = "isaacsim.asset.importer.mjcf"
 

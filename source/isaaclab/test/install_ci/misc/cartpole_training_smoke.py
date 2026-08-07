@@ -16,6 +16,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 _STATE_TRAIN_CMD = [
     "train",
     "--rl_library",
@@ -74,6 +76,7 @@ def _run_training(command: list[str], timeout: int) -> None:
     _assert_training_passed(result)
 
 
+@pytest.mark.kitless
 def test_train_cartpole_state_completes() -> None:
     """Verify that state-observation Cartpole completes short rsl_rl training."""
     _run_training(_STATE_TRAIN_CMD, timeout=600)

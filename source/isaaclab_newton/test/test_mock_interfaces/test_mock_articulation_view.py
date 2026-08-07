@@ -8,6 +8,8 @@
 import numpy as np
 import pytest
 import warp as wp
+
+pytestmark = pytest.mark.kitless
 from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView
 
 
