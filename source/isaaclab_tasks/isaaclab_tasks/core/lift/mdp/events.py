@@ -903,30 +903,24 @@ def reset_deformable_over_support(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
     position_range: dict[str, tuple[float, float]],
-    support_offset_range: dict[str, tuple[float, float]],
+    clear_gap_range: tuple[float, float],
+    support_cfg: tuple[SceneEntityCfg, SceneEntityCfg],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
-    support_cfg: SceneEntityCfg = SceneEntityCfg("cube"),
 ) -> None:
-    """Reset a deformable object and keep a support body underneath it.
-
-    The deformable is displaced from its default nodal state by a sample from
-    :paramref:`position_range`. The support receives the same planar displacement plus an
-    independent sample from :paramref:`support_offset_range`, so it stays under the deformable
-    while still varying between resets.
+    """Reset a deformable object and move its supports with it.
 
     Args:
         env: The environment instance.
         env_ids: The environment indices to reset.
-        position_range: Deformable displacement bounds [m] keyed by ``x``, ``y``, ``z``.
-        support_offset_range: Support jitter bounds [m] keyed by ``x``, ``y``, applied on top of
-            the deformable's displacement.
+        position_range: Deformable displacement bounds [m] keyed by ``x``, ``y``, ``z``. The planar
+            displacement is shared with the supports.
+        clear_gap_range: Clear gap bounds [m] for a support pair.
+        support_cfg: Negative-Y and positive-Y support pair.
         asset_cfg: Scene entity of the deformable object to reset.
-        support_cfg: Scene entity of the rigid support body to keep underneath.
     """
     deformable: DeformableObject = env.scene[asset_cfg.name]
-    support: RigidObject = env.scene[support_cfg.name]
+    supports: tuple[RigidObject, RigidObject] = (env.scene[support_cfg[0].name], env.scene[support_cfg[1].name])
 
-    # shared planar displacement, so the support tracks the deformable
     ranges = torch.tensor([position_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z")], device=deformable.device)
     offset = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=deformable.device)
 
@@ -934,13 +928,20 @@ def reset_deformable_over_support(
     nodal_state[..., :3] += offset.unsqueeze(1)
     deformable.write_nodal_state_to_sim_index(nodal_state, env_ids=env_ids)
 
-    ranges = torch.tensor([support_offset_range.get(key, (0.0, 0.0)) for key in ("x", "y")], device=support.device)
-    jitter = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 2), device=support.device)
+    root_poses = [support.data.default_root_pose.torch[env_ids].clone() for support in supports]
+    for root_pose in root_poses:
+        root_pose[:, :3] += env.scene.env_origins[env_ids]
+        root_pose[:, :2] += offset[:, :2]
 
-    root_pose = support.data.default_root_pose.torch[env_ids].clone()
-    root_pose[:, :3] += env.scene.env_origins[env_ids]
-    root_pose[:, :2] += offset[:, :2] + jitter
-    support.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
-    support.write_root_velocity_to_sim_index(
-        root_velocity=torch.zeros_like(support.data.default_root_vel.torch[env_ids]), env_ids=env_ids
-    )
+    gap = sample_uniform(*clear_gap_range, (len(env_ids),), device=supports[0].device)
+    center_y = 0.5 * (root_poses[0][:, 1] + root_poses[1][:, 1])
+    thickness_neg = supports[0].cfg.spawn.size[1]
+    thickness_pos = supports[1].cfg.spawn.size[1]
+    root_poses[0][:, 1] = center_y - 0.5 * (gap + thickness_neg)
+    root_poses[1][:, 1] = center_y + 0.5 * (gap + thickness_pos)
+
+    for support, root_pose in zip(supports, root_poses):
+        support.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+        support.write_root_velocity_to_sim_index(
+            root_velocity=torch.zeros_like(support.data.default_root_vel.torch[env_ids]), env_ids=env_ids
+        )

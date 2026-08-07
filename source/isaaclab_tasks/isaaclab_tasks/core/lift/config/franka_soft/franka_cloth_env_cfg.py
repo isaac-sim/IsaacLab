@@ -57,8 +57,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=20,
                         integrator="implicitfast",
                     ),
-                    # the cube is a rigid body, so it must be owned by the rigid entry
-                    bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Cube"],
+                    bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Support(Neg|Pos)Y"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
@@ -74,7 +73,7 @@ class PhysicsCfg(PresetCfg):
                     bodies=[
                         r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
                         r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
-                        r"/World/envs/env_.*/Cube",
+                        r"/World/envs/env_.*/Support(Neg|Pos)Y",
                     ],
                     collide_interval=1,
                     collision_pipeline=NewtonCollisionPipelineCfg(
@@ -83,12 +82,22 @@ class PhysicsCfg(PresetCfg):
                 )
             ],
             iterations=1,
-            model_cfg=NewtonModelCfg(soft_contact_ke=8.0e3, soft_contact_mu=10.0),
+            model_cfg=NewtonModelCfg(soft_contact_ke=8e3, soft_contact_mu=10.0),
         ),
         num_substeps=2,
     )
 
     default = newton_mjwarp_vbd_proxy
+
+
+SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
+    size=(0.1, 0.02, 0.15),
+    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
+    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+    collision_props=sim_utils.CollisionPropertiesCfg(),
+    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
+    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
+)
 
 
 @configclass
@@ -97,7 +106,7 @@ class DeformableCfg(PresetCfg):
 
     newton_mjwarp_vbd_proxy: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Deformable",
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.1)),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
             resolution=(8, 8),
@@ -135,20 +144,15 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
         ),
     )
 
-    # Collidable cube the cloth drapes onto (sits on the table top at z = 0). Kinematic so the
-    # reset event can move it under the randomized cloth without it being simulated.
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.05, 0.04)),
-        spawn=sim_utils.CuboidCfg(
-            size=(0.01, 0.03, 0.08),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            # low friction so the cloth slides off the cube easily when lifted
-            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
-        ),
+    support_neg_y: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/SupportNegY",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.02, 0.075)),
+        spawn=SUPPORT_SPAWN_CFG,
+    )
+    support_pos_y: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/SupportPosY",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.02, 0.075)),
+        spawn=SUPPORT_SPAWN_CFG,
     )
 
 
@@ -174,15 +178,14 @@ class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
 class FrankaClothEventCfg(FrankaSoftEventCfg):
     """Reset and startup events for the Franka cloth environment."""
 
-    # Replaces the base term so the cube follows the randomized cloth position.
     reset_deformable = EventTerm(
         func=mdp.reset_deformable_over_support,
         mode="reset",
         params={
             "position_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
-            "support_offset_range": {"x": (-0.02, 0.02), "y": (-0.02, 0.02)},
+            "clear_gap_range": (0.008, 0.03),
             "asset_cfg": SceneEntityCfg("deformable"),
-            "support_cfg": SceneEntityCfg("cube"),
+            "support_cfg": (SceneEntityCfg("support_neg_y"), SceneEntityCfg("support_pos_y")),
         },
     )
 
@@ -204,7 +207,7 @@ class FrankaClothRewardsCfg(FrankaSoftRewardsCfg):
 
     lifting_deformable = RewTerm(
         func=mdp.deformable_lifting,
-        params={"std": 0.1, "minimal_height": 0.08, "asset_cfg": SceneEntityCfg("deformable")},
+        params={"std": 0.1, "minimal_height": 0.11, "asset_cfg": SceneEntityCfg("deformable")},
         weight=5.0,
     )
 
