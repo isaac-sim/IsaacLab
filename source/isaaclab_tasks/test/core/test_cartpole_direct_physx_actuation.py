@@ -97,9 +97,7 @@ def test_cartpole_direct_physx_isolation_matches_backend_device(physics_backend:
     output = result.stdout + result.stderr
     assert result.returncode == 0, f"Cartpole diagnostic failed:\n{output}"
     assert "Traceback (most recent call last):" not in output, f"Cartpole diagnostic failed:\n{output}"
-    assert f"CARTPOLE_DIAGNOSTIC_PASSED {physics_backend} {device}" in output, (
-        f"Cartpole diagnostic failed:\n{output}"
-    )
+    assert f"CARTPOLE_DIAGNOSTIC_PASSED {physics_backend} {device}" in output, f"Cartpole diagnostic failed:\n{output}"
 
 
 if __name__ == "__main__":
