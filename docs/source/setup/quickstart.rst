@@ -44,15 +44,14 @@ Training outputs, including checkpoints, are written under ``logs/``. Use
 
    .. code-block:: bash
 
-      uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl \
+      uv run --extra ovphysx isaaclab train --rl_library rsl_rl \
          --task Isaac-Cartpole-Direct physics=ovphysx
 
    Extras install capabilities; task selectors choose how to use them. For example,
    ``--extra ovphysx`` makes the OV PhysX integration available, while
-   ``physics=ovphysx`` selects it for the task. Common extras include ``rl-games``,
-   ``skrl``, ``sb3``, ``rlinf``, ``ov`` (both OV backends), ``ovphysx``, ``ovrtx``,
-   ``rerun``, ``viser``, and ``video``. Use ``--extra all`` for a larger compatible
-   bundle.
+   ``physics=ovphysx`` selects it for the task. See
+   :ref:`installation-optional-extras` for the complete list and incompatible
+   combinations.
 
 
 Choose an RL library
@@ -137,19 +136,24 @@ see the supported selectors:
    uv run isaaclab train --task Isaac-Cartpole-Direct --help
 
 .. list-table::
-   :widths: 28 72
+   :widths: 28 48 24
    :header-rows: 1
 
    * - Selector
      - Backend
+     - Required extra
    * - ``physics=newton_mjwarp``
      - Newton using the MuJoCo-Warp solver. This is a good default for the quickstart.
+     - None
    * - ``physics=newton_kamino``
      - Newton using the Kamino solver. This backend is beta and supports a limited set of tasks.
+     - None
    * - ``physics=ovphysx``
      - OV PhysX.
+     - ``ov`` or ``ovphysx``
    * - ``physics=isaacsim_physx``
      - Isaac Sim PhysX.
+     - ``isaacsim``
 
 Camera tasks can also take ``renderer=<renderer>``. Common choices are
 ``renderer=newton_renderer`` for the Newton Warp renderer, ``renderer=ovrtx``
@@ -173,23 +177,27 @@ Use ``--viz`` (or ``--visualizer``) to select one or more visualizers during tra
 comma-separated list without spaces, such as ``--viz newton,rerun``.
 
 .. list-table::
-   :widths: 18 82
+   :widths: 18 58 24
    :header-rows: 1
 
    * - Option
      - Use it to
+     - Required extra
    * - ``--viz newton``
      - Open the Newton visualizer.
+     - None
    * - ``--viz rerun``
-     - Stream the task to the Rerun visualizer. Add ``--extra rerun`` before
-       ``isaaclab`` when it is not already installed.
+     - Stream the task to the Rerun visualizer.
+     - ``rerun``
    * - ``--viz viser``
-     - Open the web-based Viser visualizer. Add ``--extra viser`` before
-       ``isaaclab`` when it is not already installed.
+     - Open the web-based Viser visualizer.
+     - ``viser``
    * - ``--viz kit``
      - Open the Kit visualizer when it is available in your environment.
+     - ``isaacsim``
    * - Omit ``--viz`` or use ``--viz none``
      - Run headlessly.
+     - None
 
 For example, view the same task in both the Newton and Rerun visualizers:
 

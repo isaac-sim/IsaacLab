@@ -142,9 +142,9 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
-         # Add OV PhysX and OVRTX only when needed
-         uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct physics=newton_mjwarp
+         # OV PhysX backend
+         uv run --extra ovphysx isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct physics=ovphysx
 
          # Full Isaac Sim support
          uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
@@ -168,9 +168,9 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
-         # Add OV PhysX and OVRTX only when needed
-         uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct physics=newton_mjwarp
+         # OV PhysX backend
+         uv run --extra ovphysx isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct physics=ovphysx
 
          # Full Isaac Sim support
          uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
@@ -208,9 +208,9 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          uv run isaaclab train --rl_library rsl_rl ^
             --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
-         :: Add OV PhysX and OVRTX only when needed
-         uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl ^
-            --task Isaac-Cartpole-Direct physics=newton_mjwarp
+         :: OV PhysX backend
+         uv run --extra ovphysx isaaclab train --rl_library rsl_rl ^
+            --task Isaac-Cartpole-Direct physics=ovphysx
 
          :: Full Isaac Sim support
          uv run --extra isaacsim isaaclab train --rl_library rsl_rl ^
@@ -219,11 +219,11 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          :: Play a policy
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
-``uv run`` installs the core dependencies automatically. Add ``--extra <name>``
-before ``isaaclab`` when a command needs an optional integration. Pass a
-comma-separated list to enable several extras, or repeat ``--extra``. For example,
-``--extra ovphysx,ovrtx`` enables both OV backends. Use ``--extra all`` for a
-larger compatible bundle.
+``uv run`` installs the core dependencies automatically. Its ``--extra <name>``
+option resolves an optional integration only when that command needs it. Place it
+before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
+backends. Pass a comma-separated list or repeat ``--extra``. See
+:ref:`installation-optional-extras` for the available extras and compatibility.
 
 You are now ready to use Isaac Lab. Continue with the :doc:`/source/setup/quickstart`,
 which starts with your first task and introduces the available commands, RL libraries,
@@ -554,6 +554,8 @@ The project workflow records the dependency in ``pyproject.toml`` and updates ``
 when Isaac Lab is part of an application you maintain; use a standalone environment for exploratory
 or temporary work.
 
+.. _installation-optional-extras:
+
 Optional extras
 ~~~~~~~~~~~~~~~
 
@@ -572,6 +574,27 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
    * - ``isaacsim``
      - Isaac Sim (``isaacsim[all,extscache]`` version |isaacsim_version|) from
        `pypi.nvidia.com <https://pypi.nvidia.com>`__.
+   * - ``ov``
+     - Both OV backends: OV PhysX and OV RTX.
+   * - ``ovphysx`` / ``ovrtx``
+     - OV PhysX only / OV RTX only.
+   * - ``rl-games`` / ``sb3`` / ``skrl`` / ``rsl-rl``
+     - The corresponding RL framework.
+   * - ``rlinf``
+     - RLinf VLA post-training.
+   * - ``rerun`` / ``viser``
+     - The corresponding visualizer.
+   * - ``mimic`` / ``teleop``
+     - Imitation learning / XR teleoperation.
+   * - ``tetrahedralization`` / ``video``
+     - Mesh tetrahedralization / video recording.
+   * - ``leapp``
+     - LEAP model support.
+   * - ``test``
+     - Developer test and documentation tooling.
+
+Do not combine ``isaacsim`` or ``teleop`` with ``ov`` or ``ovphysx``. Choose
+either the Isaac Sim or OV backend stack for a command.
 
 For example, use ``isaaclab[all]`` for the RL extras or
 ``isaaclab[isaacsim,all]`` for a full Isaac Sim and RL workflow. Combining ``isaacsim`` and
