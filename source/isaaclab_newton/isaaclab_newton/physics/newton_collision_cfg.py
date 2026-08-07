@@ -115,15 +115,6 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``True`` (same as Newton's default).
     """
 
-    contact_matching: Literal["disabled", "latest", "sticky"] = "disabled"
-    """Frame-to-frame rigid-contact matching mode."""
-
-    contact_matching_pos_threshold: float = 0.0005
-    """Maximum midpoint distance for matching rigid contacts [m]."""
-
-    contact_matching_normal_dot_threshold: float = 0.995
-    """Minimum normal dot product for matching rigid contacts."""
-
     rigid_contact_max: int | None = None
     """Maximum number of rigid contacts to allocate.
 
