@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright 2025 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="openarm_body">
+
+
+  <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/body/openarm_body_macro.xacro" />
+
+      <xacro:macro name="openarm_body"
+      params="body_type
+              body_prefix:=''
+              no_prefix:=false
+              description_pkg:='openarm_description'
+              connected_to:='world'
+              xyz:='0 0 0'
+              rpy:='0 0 0'
+              inertials
+              kinematics
+              kinematics_link">
+
+    <!-- <xacro:property name="prefix" value="${'' if no_prefix else body_prefix + 'body_'}" /> -->
+    <xacro:property name="prefix" value="${'' if no_prefix else 'openarm_' + 'body_'}" />
+
+    <xacro:unless value="${not connected_to}">
+    <link name="${connected_to}" />
+    <joint name="${prefix}${connected_to}_joint" type="fixed">
+    <parent link="${connected_to}" />
+    <child link="${prefix}link0" />
+    <origin xyz="${xyz}" rpy="${rpy}" />
+    </joint>
+    </xacro:unless>
+
+    <xacro:body_link_with_sc
+    name="body_link0"
+    no_prefix="${no_prefix}"
+    kinematics_link="${kinematics_link}" />
+    </xacro:macro>
+
+</robot>

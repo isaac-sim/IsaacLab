@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+<!--
+Copyright 2025 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+<xacro:macro name="openarm_arm_ros2_control"
+         params="arm_type
+             control_gains
+             can_interface
+             use_fake_hardware:=^|false
+             fake_sensor_commands:=^|false
+             hand:=^|false
+             ee_type:=^|parallel_link
+             gazebo_effort:=^|false
+             arm_prefix:=''
+             bimanual:=false
+             can_fd:=^|true">
+
+    <ros2_control name="openarm_hardware_interface" type="system">
+        <hardware>
+          <param name="arm_type">${arm_type}</param>
+          <param name="prefix">${arm_prefix}</param>
+          <xacro:if value="${use_fake_hardware}">
+            <plugin>mock_components/GenericSystem</plugin>
+            <param name="fake_sensor_commands">${fake_sensor_commands}</param>
+            <param name="state_following_offset">0.0</param>
+          </xacro:if>
+          <xacro:if value="${use_fake_hardware == 0}">
+            <plugin>openarm_hardware/OpenArmHW</plugin>
+            <param name="can_interface">${can_interface}</param>
+            <param name="arm_prefix">${arm_prefix}</param>
+            <param name="hand">${hand}</param>
+            <param name="can_fd">${can_fd}</param>
+            <param name="ee_type">${ee_type}</param>
+            <param name="kp1">${control_gains['joint1']['kp']}</param>
+            <param name="kp2">${control_gains['joint2']['kp']}</param>
+            <param name="kp3">${control_gains['joint3']['kp']}</param>
+            <param name="kp4">${control_gains['joint4']['kp']}</param>
+            <param name="kp5">${control_gains['joint5']['kp']}</param>
+            <param name="kp6">${control_gains['joint6']['kp']}</param>
+            <param name="kp7">${control_gains['joint7']['kp']}</param>
+            <param name="kd1">${control_gains['joint1']['kd']}</param>
+            <param name="kd2">${control_gains['joint2']['kd']}</param>
+            <param name="kd3">${control_gains['joint3']['kd']}</param>
+            <param name="kd4">${control_gains['joint4']['kd']}</param>
+            <param name="kd5">${control_gains['joint5']['kd']}</param>
+            <param name="kd6">${control_gains['joint6']['kd']}</param>
+            <param name="kd7">${control_gains['joint7']['kd']}</param>
+          </xacro:if>
+        </hardware>
+
+      <xacro:macro name="configure_joint" params="joint_name initial_position">
+        <joint name="${joint_name}">
+          <!--
+            deactivated for gazebo velocity and position interface due to a bug
+            https://github.com/ros-controls/gz_ros2_control/issues/343
+
+            Command Interfaces -->
+            <command_interface name="position"/>
+            <command_interface name="velocity"/>
+            <command_interface name="effort"/>
+
+          <!-- State Interfaces -->
+          <state_interface name="position">
+            <param name="initial_value">${initial_position}</param>
+          </state_interface>
+
+          <state_interface name="velocity">
+            <param name="initial_value">0.0</param>
+          </state_interface>
+
+          <state_interface name="effort">
+            <param name="initial_value">0.0</param>
+          </state_interface>
+
+        </joint>
+      </xacro:macro>
+
+      <xacro:configure_joint joint_name="openarm_${arm_prefix}joint1" initial_position="0.0"/>
+      <xacro:configure_joint joint_name="openarm_${arm_prefix}joint2" initial_position="0.0"/>
+      <xacro:configure_joint joint_name="openarm_${arm_prefix}joint3" initial_position="0.0"/>
+      <xacro:configure_joint joint_name="openarm_${arm_prefix}joint4" initial_position="0.0"/>
+      <xacro:configure_joint joint_name="openarm_${arm_prefix}joint5" initial_position="0.0"/>
+      <xacro:configure_joint joint_name="openarm_${arm_prefix}joint6" initial_position="0.0"/>
+      <xacro:configure_joint joint_name="openarm_${arm_prefix}joint7" initial_position="0.0"/>
+
+      <xacro:if value="${hand}">
+        <xacro:configure_joint joint_name="openarm_${arm_prefix}finger_joint1" initial_position="0.0" />
+      </xacro:if>
+
+    </ros2_control>
+
+  </xacro:macro>
+
+
+</robot>

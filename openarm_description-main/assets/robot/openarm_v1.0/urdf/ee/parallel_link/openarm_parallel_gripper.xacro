@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright 2025 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="parallel_gripper">
+
+  <!--
+    tcp_xyz: offset from hand link to hand_tcp along +Z of hand (metres).
+    Default 0 0 0.0835 is the calibrated fingertip-centre offset for the
+    parallel-link gripper — measured from the hand frame origin.
+  -->
+  <xacro:macro name="openarm_parallel_gripper" params="connected_to:='' arm_type arm_prefix:='' ee_type ee_inertials ee_kinematics ee_kinematics_link ee_joints_limits rpy_ee:='0 0 0' xyz_ee:='0 0 0' tcp_xyz:='0 0 0.0835' tcp_rpy:='0 0 0' description_pkg:=openarm_description">
+
+    <xacro:property name="ee_prefix" default=""/>
+
+    <xacro:unless value="${arm_type == ''}">
+      <xacro:property name="ee_prefix" value="openarm_${arm_prefix}" />
+    </xacro:unless>
+
+    <link name="${ee_prefix}hand">
+      <visual name="${ee_prefix}hand_visual">
+        <xacro:openarm-ee-kinematics-link config="${ee_kinematics_link}" name="hand" />
+        <geometry>
+          <mesh filename="package://${description_pkg}/assets/end_effector/parallel_link/meshes/visual/hand.dae" scale="0.001 0.001 0.001"/>
+        </geometry>
+      </visual>
+      <collision name="${ee_prefix}hand_collision">
+        <xacro:openarm-ee-kinematics-link config="${ee_kinematics_link}" name="hand" />
+        <geometry>
+          <mesh filename="package://${description_pkg}/assets/end_effector/parallel_link/meshes/collision/hand.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <xacro:ee-inertials name="hand"/>
+    </link>
+
+    <joint name="${ee_prefix}hand_joint" type="fixed">
+      <xacro:openarm-ee-kinematics config="${ee_kinematics}" name="hand" />
+      <parent link="${connected_to}" />
+      <child link="${ee_prefix}hand" />
+    </joint>
+
+    <link name="${ee_prefix}hand_tcp" />
+
+    <joint name="${ee_prefix}hand_tcp_joint" type="fixed">
+      <origin xyz="${tcp_xyz}" rpy="${tcp_rpy}" />
+      <parent link="${ee_prefix}hand" /> <child link="${ee_prefix}hand_tcp" />
+    </joint>
+
+    <link name="${ee_prefix}left_finger">
+      <visual name="${ee_prefix}left_finger_visual">
+        <xacro:openarm-ee-kinematics-link config="${ee_kinematics_link}" name="left_finger" />
+        <geometry>
+          <mesh filename="package://${description_pkg}/assets/end_effector/parallel_link/meshes/visual/finger.dae" scale="0.001 0.001 0.001"/>
+        </geometry>
+      </visual>
+      <collision name="${ee_prefix}left_finger_collision">
+        <xacro:openarm-ee-kinematics-link config="${ee_kinematics_link}" name="left_finger" />
+        <geometry>
+          <mesh filename="package://${description_pkg}/assets/end_effector/parallel_link/meshes/collision/finger.stl" scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <xacro:ee-inertials name="left_finger"/>
+    </link>
+
+    <link name="${ee_prefix}right_finger">
+      <visual name="${ee_prefix}right_finger_visual">
+        <xacro:openarm-ee-kinematics-link config="${ee_kinematics_link}" name="right_finger" />
+        <geometry>
+          <mesh filename="package://${description_pkg}/assets/end_effector/parallel_link/meshes/visual/finger.dae" scale="0.001 -0.001 0.001"/>
+        </geometry>
+      </visual>
+      <collision name="${ee_prefix}right_finger_collision">
+        <xacro:openarm-ee-kinematics-link config="${ee_kinematics_link}" name="right_finger" />
+        <geometry>
+          <mesh filename="package://${description_pkg}/assets/end_effector/parallel_link/meshes/collision/finger.stl" scale="0.001 -0.001 0.001" />
+        </geometry>
+      </collision>
+      <xacro:ee-inertials name="right_finger"/>
+    </link>
+
+    <joint name="${ee_prefix}finger_joint1" type="prismatic">
+        <parent link="${connected_to}" />
+        <child link="${ee_prefix}right_finger" />
+        <xacro:openarm-ee-kinematics config="${ee_kinematics}" name="finger_joint" />
+        <axis xyz="0 -1 0" />
+        <limit effort="333" lower="0.0" upper="0.044" velocity="10.0" />
+    </joint>
+
+    <joint name="${ee_prefix}finger_joint2" type="prismatic">
+        <parent link="${connected_to}" />
+        <child link="${ee_prefix}left_finger" />
+        <xacro:property name="fj" value="${ee_kinematics['finger_joint']['kinematic']}" />
+        <origin xyz="${fj.x} ${-fj.y} ${fj.z}" rpy="0 0 0" />
+        <axis xyz="0 1 0" />
+        <limit effort="333" lower="0.0" upper="0.044" velocity="10.0" />
+        <mimic joint="${ee_prefix}finger_joint1" />
+    </joint>
+
+    <!-- <joint name="${ee_prefix}finger_joint1" type="prismatic">
+      <parent link="${connected_to}" /> <child link="${ee_prefix}right_finger" />
+      <origin xyz="0 -0.006 0.115" rpy="0 0 0" />
+      <axis xyz="0 -1 0" />
+      <limit effort="333" lower="0.0" upper="0.044" velocity="10.0" />
+    </joint>
+
+    <joint name="${ee_prefix}finger_joint2" type="prismatic">
+      <parent link="${connected_to}" /> <child link="${ee_prefix}left_finger" />
+      <origin xyz="0 0.006 0.115" rpy="0 0 0" />
+      <axis xyz="0 1 0" />
+      <limit effort="333" lower="0.0" upper="0.044" velocity="10.0" />
+      <mimic joint="${ee_prefix}finger_joint1" />
+    </joint> -->
+
+  </xacro:macro>
+</robot>

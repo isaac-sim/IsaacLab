@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright 2026 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="parallel_link">
+
+  <xacro:arg name="ee_config_dir" default="$(find openarm_description)/assets/end_effector/parallel_link/config" />
+  <xacro:arg name="mesh_root" default="$(find openarm_description)/assets/end_effector/parallel_link/meshes" />
+  <xacro:arg name="tcp_xyz" default="0 0 0" />
+  <xacro:arg name="tcp_rpy" default="0 0 0" />
+
+  <xacro:property name="ee_inertials" value="${xacro.load_yaml('$(arg ee_config_dir)/inertials.yaml')}" />
+  <xacro:property name="ee_kinematics" value="${xacro.load_yaml('$(arg ee_config_dir)/kinematics.yaml')}" />
+  <xacro:property name="ee_kinematics_link" value="${xacro.load_yaml('$(arg ee_config_dir)/kinematics_link.yaml')}" />
+  <xacro:property name="ee_joint_limits" value="${xacro.load_yaml('$(arg ee_config_dir)/joint_limits.yaml')}" />
+
+  <xacro:macro name="parallel_link_inertial" params="name">
+    <xacro:property name="I" value="${ee_inertials[name]}" lazy_eval="false" />
+    <inertial>
+      <origin
+        xyz="${I.origin.x} ${I.origin.y} ${I.origin.z}"
+        rpy="${I.origin.roll} ${I.origin.pitch} ${I.origin.yaw}" />
+      <mass value="${I.mass}" />
+      <inertia ixx="${I.inertia.xx}" ixy="${I.inertia.xy}" ixz="${I.inertia.xz}"
+               iyy="${I.inertia.yy}" iyz="${I.inertia.yz}" izz="${I.inertia.zz}" />
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="parallel_link_visual_collision" params="name mesh_name mesh_scale">
+    <xacro:property name="K" value="${ee_kinematics_link[name]['kinematic']}" lazy_eval="false" />
+    <visual name="${name}_visual">
+      <origin xyz="${K.x} ${K.y} ${K.z}" rpy="${K.roll} ${K.pitch} ${K.yaw}" />
+      <geometry>
+        <mesh filename="$(arg mesh_root)/visual/${mesh_name}.dae" scale="${mesh_scale}" />
+      </geometry>
+    </visual>
+    <collision name="${name}_collision">
+      <origin xyz="${K.x} ${K.y} ${K.z}" rpy="${K.roll} ${K.pitch} ${K.yaw}" />
+      <geometry>
+        <mesh filename="$(arg mesh_root)/collision/${mesh_name}.stl" scale="${mesh_scale}" />
+      </geometry>
+    </collision>
+  </xacro:macro>
+
+  <link name="base_link">
+    <visual name="base_link_visual">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="$(arg mesh_root)/visual/hand.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="base_link_collision">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="$(arg mesh_root)/collision/hand.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="hand_tcp" />
+  <joint name="hand_tcp_joint" type="fixed">
+    <origin xyz="$(arg tcp_xyz)" rpy="$(arg tcp_rpy)" />
+    <parent link="base_link" />
+    <child link="hand_tcp" />
+  </joint>
+
+  <link name="right_finger">
+    <xacro:parallel_link_visual_collision name="right_finger" mesh_name="finger" mesh_scale="-0.001 0.001 0.001" />
+    <xacro:parallel_link_inertial name="right_finger" />
+  </link>
+
+  <link name="left_finger">
+    <xacro:parallel_link_visual_collision name="left_finger" mesh_name="finger" mesh_scale="0.001 0.001 0.001" />
+    <xacro:parallel_link_inertial name="left_finger" />
+  </link>
+
+  <joint name="finger_joint1" type="prismatic">
+    <parent link="base_link" />
+    <child link="right_finger" />
+    <xacro:property name="fj" value="${ee_kinematics['finger_joint']['kinematic']}" />
+    <origin xyz="${fj.x} ${fj.y} ${fj.z}" rpy="${fj.roll} ${fj.pitch} ${fj.yaw}" />
+    <axis xyz="0 -1 0" />
+    <limit
+      effort="${ee_joint_limits['finger_joint']['limit']['effort']}"
+      lower="${ee_joint_limits['finger_joint']['limit']['lower']}"
+      upper="${ee_joint_limits['finger_joint']['limit']['upper']}"
+      velocity="${ee_joint_limits['finger_joint']['limit']['velocity']}" />
+  </joint>
+
+  <joint name="finger_joint2" type="prismatic">
+    <parent link="base_link" />
+    <child link="left_finger" />
+    <xacro:property name="fj" value="${ee_kinematics['finger_joint']['kinematic']}" />
+    <origin xyz="${fj.x} ${-fj.y} ${fj.z}" rpy="${fj.roll} ${fj.pitch} ${fj.yaw}" />
+    <axis xyz="0 1 0" />
+    <limit
+      effort="${ee_joint_limits['finger_joint']['limit']['effort']}"
+      lower="${ee_joint_limits['finger_joint']['limit']['lower']}"
+      upper="${ee_joint_limits['finger_joint']['limit']['upper']}"
+      velocity="${ee_joint_limits['finger_joint']['limit']['velocity']}" />
+    <mimic joint="finger_joint1" />
+  </joint>
+
+</robot>

@@ -1,0 +1,223 @@
+<?xml version="1.0"?>
+<!--
+Copyright 2026 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Emit one origin while optionally mirroring translation along selected axes. -->
+  <xacro:macro name="openarm_v20_emit_origin" params="origin reflect_x:=1 reflect_y:=1 reflect_z:=1 reflect_position:=true">
+    <origin
+      xyz="${(reflect_x * origin['x']) if reflect_position else origin['x']} ${(reflect_y * origin['y']) if reflect_position else origin['y']} ${(reflect_z * origin['z']) if reflect_position else origin['z']}"
+      rpy="${origin['roll']} ${origin['pitch']} ${origin['yaw']}" />
+  </xacro:macro>
+
+  <!-- Compose two poses in xacro so mount transforms can be absorbed into geometry or joints. -->
+  <xacro:macro name="openarm_v20_emit_composed_origin" params="first second reflect_x:=1 reflect_y:=1 reflect_z:=1 reflect_position:=true">
+    <xacro:property name="a_r" value="${first['roll']}" />
+    <xacro:property name="a_p" value="${first['pitch']}" />
+    <xacro:property name="a_y" value="${first['yaw']}" />
+    <xacro:property name="b_r" value="${second['roll']}" />
+    <xacro:property name="b_p" value="${second['pitch']}" />
+    <xacro:property name="b_y" value="${second['yaw']}" />
+
+    <xacro:property name="acr" value="${cos(a_r)}" />
+    <xacro:property name="asr" value="${sin(a_r)}" />
+    <xacro:property name="acp" value="${cos(a_p)}" />
+    <xacro:property name="asp" value="${sin(a_p)}" />
+    <xacro:property name="acy" value="${cos(a_y)}" />
+    <xacro:property name="asy" value="${sin(a_y)}" />
+    <xacro:property name="bcr" value="${cos(b_r)}" />
+    <xacro:property name="bsr" value="${sin(b_r)}" />
+    <xacro:property name="bcp" value="${cos(b_p)}" />
+    <xacro:property name="bsp" value="${sin(b_p)}" />
+    <xacro:property name="bcy" value="${cos(b_y)}" />
+    <xacro:property name="bsy" value="${sin(b_y)}" />
+
+    <xacro:property name="a11" value="${acy * acp}" />
+    <xacro:property name="a12" value="${acy * asp * asr - asy * acr}" />
+    <xacro:property name="a13" value="${acy * asp * acr + asy * asr}" />
+    <xacro:property name="a21" value="${asy * acp}" />
+    <xacro:property name="a22" value="${asy * asp * asr + acy * acr}" />
+    <xacro:property name="a23" value="${asy * asp * acr - acy * asr}" />
+    <xacro:property name="a31" value="${-asp}" />
+    <xacro:property name="a32" value="${acp * asr}" />
+    <xacro:property name="a33" value="${acp * acr}" />
+
+    <xacro:property name="b11" value="${bcy * bcp}" />
+    <xacro:property name="b12" value="${bcy * bsp * bsr - bsy * bcr}" />
+    <xacro:property name="b13" value="${bcy * bsp * bcr + bsy * bsr}" />
+    <xacro:property name="b21" value="${bsy * bcp}" />
+    <xacro:property name="b22" value="${bsy * bsp * bsr + bcy * bcr}" />
+    <xacro:property name="b23" value="${bsy * bsp * bcr - bcy * bsr}" />
+    <xacro:property name="b31" value="${-bsp}" />
+    <xacro:property name="b32" value="${bcp * bsr}" />
+    <xacro:property name="b33" value="${bcp * bcr}" />
+
+    <xacro:property name="c11" value="${a11 * b11 + a12 * b21 + a13 * b31}" />
+    <xacro:property name="c21" value="${a21 * b11 + a22 * b21 + a23 * b31}" />
+    <xacro:property name="c22" value="${a21 * b12 + a22 * b22 + a23 * b32}" />
+    <xacro:property name="c23" value="${a21 * b13 + a22 * b23 + a23 * b33}" />
+    <xacro:property name="c31" value="${a31 * b11 + a32 * b21 + a33 * b31}" />
+    <xacro:property name="c32" value="${a31 * b12 + a32 * b22 + a33 * b32}" />
+    <xacro:property name="c33" value="${a31 * b13 + a32 * b23 + a33 * b33}" />
+
+    <xacro:property name="tx" value="${first['x'] + a11 * second['x'] + a12 * second['y'] + a13 * second['z']}" />
+    <xacro:property name="ty" value="${first['y'] + a21 * second['x'] + a22 * second['y'] + a23 * second['z']}" />
+    <xacro:property name="tz" value="${first['z'] + a31 * second['x'] + a32 * second['y'] + a33 * second['z']}" />
+    <xacro:property name="cy_norm" value="${sqrt(c11 * c11 + c21 * c21)}" />
+    <xacro:property name="rr" value="${atan2(c32, c33) if cy_norm > 1e-9 else atan2(-c23, c22)}" />
+    <xacro:property name="rp" value="${atan2(-c31, cy_norm)}" />
+    <xacro:property name="ry" value="${atan2(c21, c11) if cy_norm > 1e-9 else 0.0}" />
+
+    <origin
+      xyz="${(reflect_x * tx) if reflect_position else tx} ${(reflect_y * ty) if reflect_position else ty} ${(reflect_z * tz) if reflect_position else tz}"
+      rpy="${rr} ${rp} ${ry}" />
+  </xacro:macro>
+
+  <xacro:macro name="openarm_v20_emit_limit" params="limit">
+    <limit
+      lower="${limit['lower']}"
+      upper="${limit['upper']}"
+      effort="${limit['effort']}"
+      velocity="${limit['velocity']}" />
+  </xacro:macro>
+
+  <!-- Generic link emitter shared by body, arm links, and EE finger links. -->
+  <xacro:macro name="openarm_v20_emit_link" params="link_name source_name inertials visuals collisions reflect_x:=1 reflect_y:=1 reflect_z:=1 visual_override:=none collision_override:=none inertial_override:=none frame_shift:=none">
+    <link name="${link_name}">
+      <xacro:if value="${visual_override != 'none' or source_name in visuals}">
+        <visual name="${link_name}_visual">
+          <xacro:property name="visual_cfg" value="${visual_override if visual_override != 'none' else visuals[source_name]}" lazy_eval="false" />
+          <xacro:if value="${frame_shift != 'none'}">
+            <xacro:openarm_v20_emit_composed_origin first="${frame_shift}" second="${visual_cfg.origin}" reflect_x="${reflect_x}" reflect_y="${reflect_y}" reflect_z="${reflect_z}" />
+          </xacro:if>
+          <xacro:unless value="${frame_shift != 'none'}">
+            <xacro:openarm_v20_emit_origin origin="${visual_cfg.origin}" reflect_x="${reflect_x}" reflect_y="${reflect_y}" reflect_z="${reflect_z}" />
+          </xacro:unless>
+          <geometry>
+            <mesh
+              filename="${visual_cfg.geometry.mesh}"
+              scale="${reflect_x * visual_cfg.geometry.scale.x} ${reflect_y * visual_cfg.geometry.scale.y} ${reflect_z * visual_cfg.geometry.scale.z}" />
+          </geometry>
+          <material name="${link_name}_material">
+            <color rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+          </material>
+        </visual>
+      </xacro:if>
+
+      <xacro:if value="${collision_override != 'none' or source_name in collisions}">
+        <collision name="${link_name}_collision">
+          <xacro:property name="collision_cfg" value="${collision_override if collision_override != 'none' else collisions[source_name]}" lazy_eval="false" />
+          <xacro:if value="${frame_shift != 'none'}">
+            <xacro:openarm_v20_emit_composed_origin first="${frame_shift}" second="${collision_cfg.origin}" reflect_x="${reflect_x}" reflect_y="${reflect_y}" reflect_z="${reflect_z}" />
+          </xacro:if>
+          <xacro:unless value="${frame_shift != 'none'}">
+            <xacro:openarm_v20_emit_origin origin="${collision_cfg.origin}" reflect_x="${reflect_x}" reflect_y="${reflect_y}" reflect_z="${reflect_z}" />
+          </xacro:unless>
+          <geometry>
+            <mesh
+              filename="${collision_cfg.geometry.mesh}"
+              scale="${reflect_x * collision_cfg.geometry.scale.x} ${reflect_y * collision_cfg.geometry.scale.y} ${reflect_z * collision_cfg.geometry.scale.z}" />
+          </geometry>
+        </collision>
+      </xacro:if>
+
+      <xacro:if value="${inertial_override != 'none' or source_name in inertials}">
+        <xacro:property name="inertial_cfg" value="${inertial_override if inertial_override != 'none' else inertials[source_name]}" lazy_eval="false" />
+        <xacro:property name="inertia_terms" value="${inertial_cfg.inertia}" lazy_eval="false" />
+        <inertial>
+          <xacro:if value="${frame_shift != 'none'}">
+            <xacro:openarm_v20_emit_composed_origin first="${frame_shift}" second="${inertial_cfg.origin}" reflect_x="${reflect_x}" reflect_y="${reflect_y}" reflect_z="${reflect_z}" />
+          </xacro:if>
+          <xacro:unless value="${frame_shift != 'none'}">
+            <xacro:openarm_v20_emit_origin origin="${inertial_cfg.origin}" reflect_x="${reflect_x}" reflect_y="${reflect_y}" reflect_z="${reflect_z}" />
+          </xacro:unless>
+          <mass value="${inertial_cfg.mass}" />
+          <inertia
+            ixx="${inertia_terms.xx}"
+            ixy="${reflect_x * reflect_y * inertia_terms.xy}"
+            ixz="${reflect_x * reflect_z * inertia_terms.xz}"
+            iyy="${inertia_terms.yy}"
+            iyz="${reflect_y * reflect_z * inertia_terms.yz}"
+            izz="${inertia_terms.zz}" />
+        </inertial>
+      </xacro:if>
+    </link>
+  </xacro:macro>
+
+  <!-- Emit a helper frame as a zero-mass link fixed to an existing parent link. -->
+  <xacro:macro name="openarm_v20_emit_reference_link" params="link_name parent_link origin reflect_x:=1 reflect_y:=1 reflect_z:=1 frame_shift:=none">
+    <link name="${link_name}" />
+    <joint name="${link_name}_joint" type="fixed">
+      <xacro:if value="${frame_shift != 'none'}">
+        <xacro:openarm_v20_emit_composed_origin first="${frame_shift}" second="${origin}" reflect_x="${reflect_x}" reflect_y="${reflect_y}" reflect_z="${reflect_z}" />
+      </xacro:if>
+      <xacro:unless value="${frame_shift != 'none'}">
+        <xacro:openarm_v20_emit_origin origin="${origin}" reflect_x="${reflect_x}" reflect_y="${reflect_y}" reflect_z="${reflect_z}" />
+      </xacro:unless>
+      <parent link="${parent_link}" />
+      <child link="${link_name}" />
+    </joint>
+  </xacro:macro>
+
+  <!-- Generic joint emitter with optional overrides for origin, axis, limits, and mimic. -->
+  <xacro:macro name="openarm_v20_emit_joint" params="joint_name joint_type parent_link child_link joint_origins joint_axes joint_limits reflect_x:=1 reflect_y:=1 reflect_z:=1 source_name:='' origin_override:=none axis_override:=none limit_override:=none mimic_override:=none mirror_limit_sign:=false frame_shift:=none">
+    <xacro:property name="source_joint_name" value="${source_name if source_name != '' else joint_name}" />
+    <xacro:property name="joint_origin_cfg" value="${origin_override if origin_override != 'none' else joint_origins[source_joint_name].origin}" lazy_eval="false" />
+    <joint name="${joint_name}" type="${joint_type}">
+      <xacro:if value="${frame_shift != 'none'}">
+        <xacro:openarm_v20_emit_composed_origin first="${frame_shift}" second="${joint_origin_cfg}" reflect_x="${reflect_x}" reflect_y="${reflect_y}" reflect_z="${reflect_z}" />
+      </xacro:if>
+      <xacro:unless value="${frame_shift != 'none'}">
+        <xacro:openarm_v20_emit_origin origin="${joint_origin_cfg}" reflect_x="${reflect_x}" reflect_y="${reflect_y}" reflect_z="${reflect_z}" />
+      </xacro:unless>
+      <parent link="${parent_link}" />
+      <child link="${child_link}" />
+
+      <xacro:if value="${joint_type != 'fixed'}">
+        <xacro:property name="joint_axis_cfg" value="${axis_override if axis_override != 'none' else joint_axes[source_joint_name].axis}" lazy_eval="false" />
+        <xacro:property
+          name="joint_axis_reflect_sign"
+          value="${-1 if ((reflect_x == -1 and joint_axis_cfg.x * joint_axis_cfg.x > 1e-18) or (reflect_y == -1 and joint_axis_cfg.y * joint_axis_cfg.y > 1e-18) or (reflect_z == -1 and joint_axis_cfg.z * joint_axis_cfg.z > 1e-18)) else 1}"
+          lazy_eval="false" />
+        <axis xyz="${joint_axis_reflect_sign * joint_axis_cfg.x} ${joint_axis_reflect_sign * joint_axis_cfg.y} ${joint_axis_reflect_sign * joint_axis_cfg.z}" />
+      </xacro:if>
+
+      <xacro:if value="${joint_type != 'fixed' and (limit_override != 'none' or source_joint_name in joint_limits)}">
+        <xacro:property name="joint_limit_cfg" value="${limit_override if limit_override != 'none' else joint_limits[source_joint_name].limit}" lazy_eval="false" />
+        <xacro:property
+          name="effective_mirror_limit_sign"
+          value="${mirror_limit_sign or joint_axis_reflect_sign == -1}"
+          lazy_eval="false" />
+        <xacro:if value="${effective_mirror_limit_sign}">
+          <xacro:property
+            name="mirrored_limit_cfg"
+            value="${dict(lower=(-joint_limit_cfg['upper']), upper=(-joint_limit_cfg['lower']), effort=joint_limit_cfg['effort'], velocity=joint_limit_cfg['velocity'])}"
+            lazy_eval="false" />
+          <xacro:openarm_v20_emit_limit limit="${mirrored_limit_cfg}" />
+        </xacro:if>
+      <xacro:unless value="${effective_mirror_limit_sign}">
+          <xacro:openarm_v20_emit_limit limit="${joint_limit_cfg}" />
+        </xacro:unless>
+      </xacro:if>
+
+      <xacro:if value="${joint_type != 'fixed' and mimic_override != 'none'}">
+        <mimic
+          joint="${mimic_override['joint']}"
+          multiplier="${mimic_override['multiplier']}"
+          offset="${mimic_override['offset']}" />
+      </xacro:if>
+    </joint>
+  </xacro:macro>
+
+</robot>

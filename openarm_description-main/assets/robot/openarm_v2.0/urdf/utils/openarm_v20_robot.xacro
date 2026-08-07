@@ -1,0 +1,624 @@
+<?xml version="1.0"?>
+<!--
+Copyright 2026 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v2.0/urdf/utils/openarm_v20_arm.xacro" />
+  <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v2.0/urdf/utils/openarm_v20_ee.xacro" />
+  <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v2.0/urdf/utils/openarm_v20_sensor.xacro" />
+  <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v2.0/urdf/utils/openarm_v20_utils.xacro" />
+
+  <!-- Small helper to keep configuration checks readable and fail fast. -->
+  <xacro:macro name="openarm_v20_require" params="condition message">
+    <xacro:unless value="${condition}">
+      <xacro:property name="openarm_v20_requirement_failed" value="${xacro.fatal(message)}" lazy_eval="false" />
+    </xacro:unless>
+  </xacro:macro>
+
+  <!-- Emit the body component through the same mount contract used by other component types. -->
+  <xacro:macro name="openarm_v20_body"
+    params="link_name connected_to mount_origin topology inertials visuals collisions reflect_x:=1 reflect_y:=1 reflect_z:=1 reflect_include_links:=^ skip_mount_joint:=false base_frame_shift:=none">
+
+    <xacro:property name="base_link_name" value="${topology['links'][0]}" lazy_eval="false" />
+    <xacro:property name="resolved_base_frame_shift" value="${base_frame_shift if base_frame_shift != 'none' else 'none'}" lazy_eval="false" />
+    <xacro:property name="base_link_reflects" value="${base_link_name in reflect_include_links}" lazy_eval="false" />
+
+    <xacro:openarm_v20_emit_link
+      link_name="${link_name}"
+      source_name="${base_link_name}"
+      inertials="${inertials}"
+      visuals="${visuals}"
+      collisions="${collisions}"
+      reflect_x="${reflect_x if base_link_reflects else 1}"
+      reflect_y="${reflect_y if base_link_reflects else 1}"
+      reflect_z="${reflect_z if base_link_reflects else 1}"
+      frame_shift="${resolved_base_frame_shift}" />
+
+    <xacro:unless value="${skip_mount_joint}">
+      <joint name="${link_name}_mount_joint" type="fixed">
+        <xacro:openarm_v20_emit_origin origin="${mount_origin}" reflect_x="1" reflect_y="1" reflect_z="1" reflect_position="false" />
+        <parent link="${connected_to}" />
+        <child link="${link_name}" />
+      </joint>
+    </xacro:unless>
+  </xacro:macro>
+
+  <!-- Load static resources and normalize product-specific preset data. -->
+  <xacro:macro name="openarm_v20_load_component_descriptor"
+    params="component_name component_cfg config_root out_name">
+
+    <xacro:property name="empty_dict" value="${dict()}" lazy_eval="false" />
+    <xacro:property name="source_type" value="${component_cfg['type']}" lazy_eval="false" />
+    <xacro:property name="product" value="${component_cfg['product']}" lazy_eval="false" />
+    <xacro:property name="component_config" value="${component_cfg['config']}" lazy_eval="false" />
+    <xacro:property name="component_prefix" value="${component_cfg['prefix'] if 'prefix' in component_cfg else ''}" lazy_eval="false" />
+
+    <xacro:if value="${source_type == 'sensor'}">
+      <xacro:property name="sensor_name" value="${component_config['camera_name'] if 'camera_name' in component_config else (component_prefix + product)}" lazy_eval="false" />
+      <xacro:property name="sensor_root_link" value="${sensor_name + '_camera_link'}" lazy_eval="false" />
+      <xacro:property
+        name="${out_name}"
+        value="${dict(name=component_name,
+                     source_type=source_type,
+                     component_type='sensor',
+                     product=product,
+                     config=component_config,
+                     prefix=component_prefix,
+                     link_prefix=component_prefix,
+                     root_link_actual=sensor_root_link,
+                     topology=dict(links=[sensor_root_link], joints=dict()),
+                     reference_points=empty_dict,
+                     joint_origins=empty_dict,
+                     joint_axes=empty_dict,
+                     joint_limits=empty_dict,
+                     joint_mimics=empty_dict,
+                     inertials=empty_dict,
+                     visuals=empty_dict,
+                     collisions=empty_dict,
+                     link_name_map=empty_dict,
+                     default_mount_parent=sensor_root_link,
+                     supports_tip_collapse=False)}"
+        scope="parent"
+        lazy_eval="false" />
+    </xacro:if>
+
+    <xacro:unless value="${source_type == 'sensor'}">
+      <xacro:if value="${source_type == 'robot'}">
+        <xacro:property name="component_type" value="${component_config}" lazy_eval="false" />
+        <xacro:property name="component_cfg_root" value="${config_root + '/' + component_config}" lazy_eval="false" />
+      </xacro:if>
+      <xacro:if value="${source_type == 'end_effector'}">
+        <xacro:property name="component_type" value="end_effector" lazy_eval="false" />
+        <xacro:property
+          name="component_cfg_root"
+          value="${('$(find openarm_description)/assets/end_effector/' + product + '/config') if component_config == None else ('$(find openarm_description)/assets/end_effector/' + product + '/' + component_config + '/config')}"
+          lazy_eval="false" />
+      </xacro:if>
+
+      <xacro:property name="component_link_prefix" value="${component_prefix + ('ee_' if component_type == 'end_effector' else '')}" lazy_eval="false" />
+      <xacro:property name="component_topology" value="${xacro.load_yaml(component_cfg_root + '/struct/topology.yaml')}" lazy_eval="false" />
+      <xacro:property name="component_reference_points" value="${xacro.load_yaml(component_cfg_root + '/struct/reference_points.yaml')}" lazy_eval="false" />
+      <xacro:property name="component_joint_origins" value="${xacro.load_yaml(component_cfg_root + '/joint/joint_origins.yaml') if component_type != 'body' else empty_dict}" lazy_eval="false" />
+      <xacro:property name="component_joint_axes" value="${xacro.load_yaml(component_cfg_root + '/joint/joint_axes.yaml') if component_type != 'body' else empty_dict}" lazy_eval="false" />
+      <xacro:property name="component_joint_limits" value="${xacro.load_yaml(component_cfg_root + '/joint/joint_limits.yaml') if component_type != 'body' else empty_dict}" lazy_eval="false" />
+      <xacro:property name="component_joint_mimics" value="${xacro.load_yaml(component_cfg_root + '/joint/joint_mimics.yaml') if component_type == 'end_effector' else empty_dict}" lazy_eval="false" />
+      <xacro:property name="component_inertials" value="${xacro.load_yaml(component_cfg_root + '/inertials/' + component_cfg['inertials'] + '.yaml')}" lazy_eval="false" />
+      <xacro:property name="component_visuals" value="${xacro.load_yaml(component_cfg_root + '/link/visuals.yaml')}" lazy_eval="false" />
+      <xacro:property name="component_collisions" value="${xacro.load_yaml(component_cfg_root + '/link/collisions.yaml')}" lazy_eval="false" />
+      <xacro:property name="component_link_name_map" value="${dict(body_link0=component_cfg['link_name']) if component_type == 'body' else empty_dict}" lazy_eval="false" />
+      <xacro:property name="component_root_link_actual" value="${component_cfg['link_name'] if component_type == 'body' else (component_link_prefix + component_topology['links'][0])}" lazy_eval="false" />
+      <xacro:property name="component_default_mount_parent" value="${component_cfg['link_name'] if component_type == 'body' else (component_link_prefix + component_topology['links'][-1])}" lazy_eval="false" />
+      <xacro:property name="component_supports_tip_collapse" value="${component_type == 'arm'}" lazy_eval="false" />
+
+      <xacro:property
+        name="${out_name}"
+        value="${dict(name=component_name,
+                     source_type=source_type,
+                     component_type=component_type,
+                     product=product,
+                     config=component_config,
+                     config_root=component_cfg_root,
+                     prefix=component_prefix,
+                     link_prefix=component_link_prefix,
+                     root_link_actual=component_root_link_actual,
+                     topology=component_topology,
+                     reference_points=component_reference_points,
+                     joint_origins=component_joint_origins,
+                     joint_axes=component_joint_axes,
+                     joint_limits=component_joint_limits,
+                     joint_mimics=component_joint_mimics,
+                     inertials=component_inertials,
+                     visuals=component_visuals,
+                     collisions=component_collisions,
+                     link_name_map=component_link_name_map,
+                     default_mount_parent=component_default_mount_parent,
+                     supports_tip_collapse=component_supports_tip_collapse)}"
+        scope="parent"
+        lazy_eval="false" />
+    </xacro:unless>
+  </xacro:macro>
+
+  <!-- Walk up attach_to links to validate parent existence, enable state, and cycle safety. -->
+  <xacro:macro name="openarm_v20_validate_component_lineage"
+    params="component_name components robot_preset depth:=0">
+
+    <xacro:property name="component_cfg" value="${robot_preset[component_name]}" lazy_eval="false" />
+    <xacro:property name="connection" value="${component_cfg['connection'] if 'connection' in component_cfg else dict()}" lazy_eval="false" />
+    <xacro:property name="attach_to" value="${connection['attach_to'] if 'attach_to' in connection else None}" lazy_eval="false" />
+
+    <xacro:if value="${attach_to != None}">
+      <xacro:openarm_v20_require
+        condition="${depth &lt; len(components)}"
+        message="${'Invalid robot preset: attachment cycle detected while resolving `%s`.' % component_name}" />
+      <xacro:openarm_v20_require
+        condition="${attach_to in robot_preset}"
+        message="${'Invalid robot preset: component `%s` attaches to missing parent `%s`.' % (component_name, attach_to)}" />
+      <xacro:openarm_v20_require
+        condition="${attach_to in components}"
+        message="${'Invalid robot preset: component `%s` attaches to `%s`, but `%s` is not listed in robot.components.' % (component_name, attach_to, attach_to)}" />
+      <xacro:openarm_v20_require
+        condition="${robot_preset[attach_to]['enabled']}"
+        message="${'Invalid robot preset: component `%s` attaches to disabled parent `%s`.' % (component_name, attach_to)}" />
+      <xacro:openarm_v20_require
+        condition="${robot_preset[attach_to]['type'] in ['robot', 'end_effector', 'sensor']}"
+        message="${'Invalid robot preset: component `%s` attaches to unsupported parent type `%s` on `%s`.' % (component_name, robot_preset[attach_to]['type'], attach_to)}" />
+
+      <xacro:openarm_v20_validate_component_lineage
+        component_name="${attach_to}"
+        components="${components}"
+        robot_preset="${robot_preset}"
+        depth="${depth + 1}" />
+    </xacro:if>
+  </xacro:macro>
+
+  <!-- Validate each robot.components entry before any URDF is emitted. -->
+  <xacro:macro name="openarm_v20_validate_component_entries"
+    params="index components robot_preset">
+
+    <xacro:if value="${index &lt; len(components)}">
+      <xacro:property name="component_name" value="${components[index]}" lazy_eval="false" />
+
+      <xacro:openarm_v20_require
+        condition="${component_name not in components[:index]}"
+        message="${'Invalid robot preset: duplicate component `%s` in robot.components.' % component_name}" />
+      <xacro:openarm_v20_require
+        condition="${component_name in robot_preset}"
+        message="${'Invalid robot preset: robot.components references missing component `%s`.' % component_name}" />
+
+      <xacro:property name="component_cfg" value="${robot_preset[component_name]}" lazy_eval="false" />
+      <xacro:property name="component_type" value="${component_cfg['type']}" lazy_eval="false" />
+      <xacro:property name="component_config" value="${component_cfg['config'] if 'config' in component_cfg else None}" lazy_eval="false" />
+      <xacro:property name="reflect_cfg" value="${component_cfg['reflect'] if 'reflect' in component_cfg else dict(x=1, y=1, z=1)}" lazy_eval="false" />
+
+      <xacro:openarm_v20_require
+        condition="${component_type in ['robot', 'end_effector', 'sensor']}"
+        message="${'Invalid robot preset: component `%s` has unsupported type `%s`.' % (component_name, component_type)}" />
+      <xacro:openarm_v20_require
+        condition="${'product' in component_cfg}"
+        message="${'Invalid robot preset: component `%s` must define product.' % component_name}" />
+      <xacro:openarm_v20_require
+        condition="${'config' in component_cfg}"
+        message="${'Invalid robot preset: component `%s` must define config. Use null when no extra config index is needed.' % component_name}" />
+      <xacro:if value="${component_type == 'robot'}">
+        <xacro:openarm_v20_require
+          condition="${component_cfg['product'] == 'openarm_v2.0'}"
+          message="${'Invalid robot preset: robot component `%s` uses unsupported product `%s`.' % (component_name, component_cfg['product'])}" />
+        <xacro:openarm_v20_require
+          condition="${component_config in ['body', 'arm']}"
+          message="${'Invalid robot preset: robot component `%s` has unsupported config `%s`.' % (component_name, component_config)}" />
+      </xacro:if>
+      <xacro:if value="${component_type == 'sensor'}">
+        <xacro:openarm_v20_require
+          condition="${component_cfg['product'] == 'zed'}"
+          message="${'Invalid robot preset: sensor component `%s` uses unsupported product `%s`.' % (component_name, component_cfg['product'])}" />
+        <xacro:openarm_v20_require
+          condition="${component_config != None and 'camera_model' in component_config}"
+          message="${'Invalid robot preset: sensor component `%s` must use config object with at least camera_model.' % component_name}" />
+      </xacro:if>
+      <xacro:openarm_v20_require
+        condition="${reflect_cfg['x'] in [-1, 1] and reflect_cfg['y'] in [-1, 1] and reflect_cfg['z'] in [-1, 1]}"
+        message="${'Invalid robot preset: component `%s` must use reflect axes of either 1 or -1.' % component_name}" />
+      <xacro:openarm_v20_require
+        condition="${(1 if reflect_cfg['x'] == -1 else 0) + (1 if reflect_cfg['y'] == -1 else 0) + (1 if reflect_cfg['z'] == -1 else 0) &lt;= 1}"
+        message="${'Invalid robot preset: component `%s` requests combined reflection %s, but only single-axis reflection is currently supported.' % (component_name, reflect_cfg)}" />
+
+      <xacro:if value="${component_cfg['enabled']}">
+        <xacro:openarm_v20_validate_component_lineage
+          component_name="${component_name}"
+          components="${components}"
+          robot_preset="${robot_preset}" />
+      </xacro:if>
+
+      <xacro:openarm_v20_validate_component_entries
+        index="${index + 1}"
+        components="${components}"
+        robot_preset="${robot_preset}" />
+    </xacro:if>
+  </xacro:macro>
+
+  <!-- Robot-level validation: check root structure, then validate individual entries. -->
+  <xacro:macro name="openarm_v20_validate_robot_preset"
+    params="components robot_preset">
+
+    <xacro:property
+      name="enabled_components"
+      value="${[name for name in components if name in robot_preset and robot_preset[name]['enabled']]}"
+      lazy_eval="false" />
+    <xacro:property
+      name="root_components"
+      value="${[name for name in enabled_components if not ('connection' in robot_preset[name] and 'attach_to' in robot_preset[name]['connection'] and robot_preset[name]['connection']['attach_to'] != None)]}"
+      lazy_eval="false" />
+
+    <xacro:openarm_v20_require
+      condition="${len(enabled_components) > 0}"
+      message="${'Invalid robot preset: robot.components does not contain any enabled component.'}" />
+    <xacro:openarm_v20_require
+      condition="${len(root_components) == 1}"
+      message="${'Invalid robot preset: expected exactly one enabled root component, found %d (%s).' % (len(root_components), root_components)}" />
+
+    <xacro:openarm_v20_validate_component_entries
+      index="0"
+      components="${components}"
+      robot_preset="${robot_preset}" />
+  </xacro:macro>
+
+  <!-- Resolve runtime assembly data from a static descriptor plus preset overrides. -->
+  <xacro:macro name="openarm_v20_resolve_component_runtime"
+    params="component_name components robot_preset config_root root_frame component_cfg component_desc parent_desc:=none collapse_internal_empty_links:=false out_name">
+
+    <xacro:property name="none_value" value="${'none'}" lazy_eval="false" />
+    <xacro:property name="zero_origin" value="${dict(x=0.0, y=0.0, z=0.0, roll=0.0, pitch=0.0, yaw=0.0)}" lazy_eval="false" />
+    <xacro:property name="reflect_cfg" value="${component_cfg['reflect'] if 'reflect' in component_cfg else dict(x=1, y=1, z=1)}" lazy_eval="false" />
+    <xacro:property name="reflect_include_cfg" value="${reflect_cfg['include'] if 'include' in reflect_cfg else dict()}" lazy_eval="false" />
+    <xacro:property name="reflect_x" value="${reflect_cfg['x']}" lazy_eval="false" />
+    <xacro:property name="reflect_y" value="${reflect_cfg['y']}" lazy_eval="false" />
+    <xacro:property name="reflect_z" value="${reflect_cfg['z']}" lazy_eval="false" />
+    <xacro:property name="component_reflects" value="${reflect_x == -1 or reflect_y == -1 or reflect_z == -1}" lazy_eval="false" />
+    <xacro:property name="reflect_include_links" value="${reflect_include_cfg['links'] if 'links' in reflect_include_cfg else component_desc['topology']['links']}" lazy_eval="false" />
+    <xacro:property name="reflect_include_joints" value="${reflect_include_cfg['joints'] if 'joints' in reflect_include_cfg else list(component_desc['topology']['joints'].keys())}" lazy_eval="false" />
+    <xacro:property name="reflect_include_reference_points" value="${reflect_include_cfg['reference_points'] if 'reference_points' in reflect_include_cfg else list(component_desc['reference_points'].keys())}" lazy_eval="false" />
+    <xacro:property name="limit_override_joints" value="${component_cfg['limit_override_joints'] if 'limit_override_joints' in component_cfg else dict()}" lazy_eval="false" />
+    <xacro:property name="connection" value="${component_cfg['connection'] if 'connection' in component_cfg else dict()}" lazy_eval="false" />
+    <xacro:property name="parent_component_name" value="${connection['attach_to'] if 'attach_to' in connection else none_value}" lazy_eval="false" />
+    <xacro:property name="has_parent_desc" value="${parent_desc != none_value}" lazy_eval="false" />
+    <xacro:property name="connected_to_default" value="${connection['parent'] if 'parent' in connection and connection['parent'] != None else (parent_desc['default_mount_parent'] if has_parent_desc else root_frame)}" lazy_eval="false" />
+    <xacro:property name="mount_origin_default" value="${connection['origin'] if 'origin' in connection and connection['origin'] != None else zero_origin}" lazy_eval="false" />
+    <xacro:property name="resolved_connected_to" value="${connected_to_default}" lazy_eval="false" />
+    <xacro:property name="resolved_mount_origin" value="${mount_origin_default}" lazy_eval="false" />
+    <xacro:property name="collapse_source_link" value="${none_value}" lazy_eval="false" />
+    <xacro:property name="collapse_child_link" value="${none_value}" lazy_eval="false" />
+    <xacro:property name="collapse_child_name" value="${none_value}" lazy_eval="false" />
+    <xacro:property name="collapse_child_desc" value="${none_value}" lazy_eval="false" />
+    <xacro:property name="skip_mount_joint" value="${False}" lazy_eval="false" />
+    <xacro:property name="base_frame_shift" value="${none_value}" lazy_eval="false" />
+    <xacro:property name="has_parent_reference_key" value="${'parent_reference_point' in connection and connection['parent_reference_point'] != None}" lazy_eval="false" />
+    <xacro:property name="has_parent_override" value="${'parent' in connection and connection['parent'] != None}" lazy_eval="false" />
+    <xacro:property name="has_origin_override" value="${'origin' in connection and connection['origin'] != None}" lazy_eval="false" />
+
+    <!-- Start from defaults, then let reference-point lookup and explicit overrides refine the mount. -->
+    <xacro:if value="${has_parent_reference_key}">
+      <xacro:openarm_v20_require
+        condition="${has_parent_desc}"
+        message="${'Invalid robot preset: component `%s` sets parent_reference_point without attach_to.' % component_name}" />
+      <xacro:property name="parent_ref_name" value="${connection['parent_reference_point']}" lazy_eval="false" />
+      <xacro:openarm_v20_require
+        condition="${parent_ref_name in parent_desc['reference_points']}"
+        message="${'Invalid robot preset: component `%s` references missing parent_reference_point `%s` on `%s`.' % (component_name, parent_ref_name, parent_desc['name'])}" />
+      <xacro:property name="parent_component_cfg" value="${robot_preset[parent_component_name]}" lazy_eval="false" />
+      <xacro:property name="parent_reflect_cfg" value="${parent_component_cfg['reflect'] if 'reflect' in parent_component_cfg else dict(x=1, y=1, z=1)}" lazy_eval="false" />
+      <xacro:property name="parent_reflect_include_cfg" value="${parent_reflect_cfg['include'] if 'include' in parent_reflect_cfg else dict()}" lazy_eval="false" />
+      <xacro:property name="parent_component_reflects" value="${parent_reflect_cfg['x'] == -1 or parent_reflect_cfg['y'] == -1 or parent_reflect_cfg['z'] == -1}" lazy_eval="false" />
+      <xacro:property name="parent_reflect_include_reference_points" value="${parent_reflect_include_cfg['reference_points'] if 'reference_points' in parent_reflect_include_cfg else list(parent_desc['reference_points'].keys())}" lazy_eval="false" />
+      <xacro:property name="parent_ref" value="${parent_desc['reference_points'][parent_ref_name]}" lazy_eval="false" />
+      <xacro:property name="parent_ref_should_reflect" value="${parent_component_reflects and parent_ref_name in parent_reflect_include_reference_points}" lazy_eval="false" />
+      <xacro:property name="parent_ref_canonical_link" value="${parent_ref['parent']}" lazy_eval="false" />
+      <xacro:property
+        name="resolved_connected_to"
+        value="${parent_desc['link_name_map'][parent_ref_canonical_link] if parent_ref_canonical_link in parent_desc['link_name_map'] else parent_desc['link_prefix'] + parent_ref_canonical_link}"
+        lazy_eval="false" />
+      <xacro:property
+        name="resolved_mount_origin"
+        value="${dict(x=((parent_reflect_cfg['x'] * parent_ref['origin']['x']) if parent_ref_should_reflect else parent_ref['origin']['x']),
+                     y=((parent_reflect_cfg['y'] * parent_ref['origin']['y']) if parent_ref_should_reflect else parent_ref['origin']['y']),
+                     z=((parent_reflect_cfg['z'] * parent_ref['origin']['z']) if parent_ref_should_reflect else parent_ref['origin']['z']),
+                     roll=parent_ref['origin']['roll'],
+                     pitch=parent_ref['origin']['pitch'],
+                     yaw=parent_ref['origin']['yaw'])}"
+        lazy_eval="false" />
+    </xacro:if>
+
+    <xacro:if value="${has_parent_override}">
+      <xacro:property name="resolved_connected_to" value="${connection['parent']}" lazy_eval="false" />
+    </xacro:if>
+
+    <xacro:if value="${has_origin_override}">
+      <xacro:property name="origin_override" value="${connection['origin']}" lazy_eval="false" />
+      <xacro:property
+        name="resolved_mount_origin"
+        value="${dict(x=(origin_override['x'] if origin_override['x'] != None else resolved_mount_origin['x']),
+                     y=(origin_override['y'] if origin_override['y'] != None else resolved_mount_origin['y']),
+                     z=(origin_override['z'] if origin_override['z'] != None else resolved_mount_origin['z']),
+                     roll=(origin_override['roll'] if origin_override['roll'] != None else resolved_mount_origin['roll']),
+                     pitch=(origin_override['pitch'] if origin_override['pitch'] != None else resolved_mount_origin['pitch']),
+                     yaw=(origin_override['yaw'] if origin_override['yaw'] != None else resolved_mount_origin['yaw']))}"
+        lazy_eval="false" />
+    </xacro:if>
+
+    <!-- reference point child empty links are already absorbed into config; runtime collapse only targets the parent's terminal empty link -->
+    <xacro:property
+      name="parent_terminal_link_empty"
+      value="${has_parent_desc and parent_desc['supports_tip_collapse'] and parent_desc['topology']['links'][-1] not in parent_desc['inertials'] and parent_desc['topology']['links'][-1] not in parent_desc['visuals'] and parent_desc['topology']['links'][-1] not in parent_desc['collisions']}"
+      lazy_eval="false" />
+    <xacro:if value="${has_parent_reference_key and not has_parent_override and collapse_internal_empty_links and parent_terminal_link_empty and parent_ref_canonical_link == parent_desc['topology']['links'][-1]}">
+      <xacro:property name="skip_mount_joint" value="${True}" lazy_eval="false" />
+      <xacro:property name="base_frame_shift" value="${resolved_mount_origin}" lazy_eval="false" />
+    </xacro:if>
+
+    <!-- A parent can expose at most one child that consumes its terminal empty link. -->
+    <xacro:property
+      name="attached_children"
+      value="${[name for name in components if name in robot_preset and robot_preset[name]['enabled'] and 'connection' in robot_preset[name] and 'attach_to' in robot_preset[name]['connection'] and robot_preset[name]['connection']['attach_to'] == component_name]}"
+      lazy_eval="false" />
+    <xacro:property name="component_terminal_link" value="${component_desc['topology']['links'][-1]}" lazy_eval="false" />
+    <xacro:property
+      name="component_terminal_link_empty"
+      value="${component_desc['supports_tip_collapse'] and component_terminal_link not in component_desc['inertials'] and component_terminal_link not in component_desc['visuals'] and component_terminal_link not in component_desc['collisions']}"
+      lazy_eval="false" />
+    <xacro:property
+      name="collapse_candidate_names"
+      value="${[name for name in attached_children if collapse_internal_empty_links and component_terminal_link_empty and 'parent_reference_point' in robot_preset[name]['connection'] and robot_preset[name]['connection']['parent_reference_point'] != None and ('parent' not in robot_preset[name]['connection'] or robot_preset[name]['connection']['parent'] == None) and robot_preset[name]['connection']['parent_reference_point'] in component_desc['reference_points'] and component_desc['reference_points'][robot_preset[name]['connection']['parent_reference_point']]['parent'] == component_terminal_link]}"
+      lazy_eval="false" />
+
+    <xacro:openarm_v20_require
+      condition="${len(collapse_candidate_names) &lt;= 1}"
+      message="${'Invalid robot preset: component `%s` has multiple children competing to collapse the same terminal empty link: %s.' % (component_name, collapse_candidate_names)}" />
+
+    <xacro:if value="${len(collapse_candidate_names) == 1}">
+      <xacro:property name="collapse_child_name" value="${collapse_candidate_names[0]}" lazy_eval="false" />
+      <xacro:property name="collapse_child_cfg" value="${robot_preset[collapse_child_name]}" lazy_eval="false" />
+      <!-- Preload the child descriptor once so the later recursion step can reuse it. -->
+      <xacro:openarm_v20_load_component_descriptor
+        component_name="${collapse_child_name}"
+        component_cfg="${collapse_child_cfg}"
+        config_root="${config_root}"
+        out_name="collapse_child_desc" />
+      <xacro:property name="collapse_source_link" value="${component_terminal_link}" lazy_eval="false" />
+      <xacro:property name="collapse_child_link" value="${collapse_child_desc['root_link_actual']}" lazy_eval="false" />
+    </xacro:if>
+
+    <xacro:property
+      name="${out_name}"
+      value="${dict(component_type=component_desc['component_type'],
+                   component_reflects=component_reflects,
+                   reflect_x=reflect_x,
+                   reflect_y=reflect_y,
+                   reflect_z=reflect_z,
+                   reflect_include_links=reflect_include_links,
+                   reflect_include_joints=reflect_include_joints,
+                   reflect_include_reference_points=reflect_include_reference_points,
+                   limit_override_joints=limit_override_joints,
+                   resolved_connected_to=resolved_connected_to,
+                   resolved_mount_origin=resolved_mount_origin,
+                   skip_mount_joint=skip_mount_joint,
+                   base_frame_shift=base_frame_shift,
+                   collapse_source_link=collapse_source_link,
+                   collapse_child_link=collapse_child_link,
+                   collapse_child_name=collapse_child_name,
+                   collapse_child_desc=collapse_child_desc)}"
+      scope="parent"
+      lazy_eval="false" />
+  </xacro:macro>
+
+  <!-- Dispatch a resolved component to the concrete emitter for its type. -->
+  <xacro:macro name="openarm_v20_emit_component_from_runtime"
+    params="component_desc component_runtime emit_grasp_frame:=false">
+
+    <xacro:property name="component_type" value="${component_runtime['component_type']}" lazy_eval="false" />
+
+    <xacro:if value="${component_type == 'body'}">
+      <xacro:openarm_v20_body
+        link_name="${component_desc['root_link_actual']}"
+        connected_to="${component_runtime['resolved_connected_to']}"
+        mount_origin="${component_runtime['resolved_mount_origin']}"
+        topology="${component_desc['topology']}"
+        inertials="${component_desc['inertials']}"
+        visuals="${component_desc['visuals']}"
+        collisions="${component_desc['collisions']}"
+        reflect_x="${component_runtime['reflect_x']}"
+        reflect_y="${component_runtime['reflect_y']}"
+        reflect_z="${component_runtime['reflect_z']}"
+        reflect_include_links="${component_runtime['reflect_include_links']}"
+        skip_mount_joint="${component_runtime['skip_mount_joint']}"
+        base_frame_shift="${component_runtime['base_frame_shift']}" />
+    </xacro:if>
+
+    <xacro:if value="${component_type == 'arm'}">
+      <xacro:openarm_v20_arm
+        prefix="${component_desc['prefix']}"
+        connected_to="${component_runtime['resolved_connected_to']}"
+        mount_origin="${component_runtime['resolved_mount_origin']}"
+        topology="${component_desc['topology']}"
+        joint_origins="${component_desc['joint_origins']}"
+        joint_axes="${component_desc['joint_axes']}"
+        joint_limits="${component_desc['joint_limits']}"
+        inertials="${component_desc['inertials']}"
+        visuals="${component_desc['visuals']}"
+        collisions="${component_desc['collisions']}"
+        reflect_x="${component_runtime['reflect_x']}"
+        reflect_y="${component_runtime['reflect_y']}"
+        reflect_z="${component_runtime['reflect_z']}"
+        component_reflects="${component_runtime['component_reflects']}"
+        reflect_include_links="${component_runtime['reflect_include_links']}"
+        reflect_include_joints="${component_runtime['reflect_include_joints']}"
+        limit_override_joints="${component_runtime['limit_override_joints']}"
+        tip_collapse_source_link="${component_runtime['collapse_source_link']}"
+        tip_collapse_child_link="${component_runtime['collapse_child_link']}"
+        skip_mount_joint="${component_runtime['skip_mount_joint']}"
+        base_frame_shift="${component_runtime['base_frame_shift']}" />
+    </xacro:if>
+
+    <xacro:if value="${component_type == 'end_effector'}">
+      <xacro:openarm_v20_ee
+        prefix="${component_desc['prefix']}"
+        connected_to="${component_runtime['resolved_connected_to']}"
+        mount_origin="${component_runtime['resolved_mount_origin']}"
+        topology="${component_desc['topology']}"
+        ee_reference_points="${component_desc['reference_points']}"
+        joint_origins="${component_desc['joint_origins']}"
+        joint_axes="${component_desc['joint_axes']}"
+        joint_limits="${component_desc['joint_limits']}"
+        joint_mimics="${component_desc['joint_mimics']}"
+        inertials="${component_desc['inertials']}"
+        visuals="${component_desc['visuals']}"
+        collisions="${component_desc['collisions']}"
+        reflect_x="${component_runtime['reflect_x']}"
+        reflect_y="${component_runtime['reflect_y']}"
+        reflect_z="${component_runtime['reflect_z']}"
+        component_reflects="${component_runtime['component_reflects']}"
+        reflect_include_links="${component_runtime['reflect_include_links']}"
+        reflect_include_joints="${component_runtime['reflect_include_joints']}"
+        reflect_include_reference_points="${component_runtime['reflect_include_reference_points']}"
+        limit_override_joints="${component_runtime['limit_override_joints']}"
+        emit_grasp_frame="${emit_grasp_frame}"
+        skip_mount_joint="${component_runtime['skip_mount_joint']}"
+        base_frame_shift="${component_runtime['base_frame_shift']}" />
+    </xacro:if>
+
+    <xacro:if value="${component_type == 'sensor'}">
+      <xacro:openarm_v20_sensor
+        product="${component_desc['product']}"
+        config="${component_desc['config']}"
+        connected_to="${component_runtime['resolved_connected_to']}"
+        mount_origin="${component_runtime['resolved_mount_origin']}"
+        prefix="${component_desc['prefix']}" />
+    </xacro:if>
+  </xacro:macro>
+
+  <!-- Per-component orchestration: descriptor -> runtime resolution -> emission -> child recursion. -->
+  <xacro:macro name="openarm_v20_emit_component_tree"
+    params="component_name components robot_preset config_root root_frame parent_desc:=none preloaded_desc:=none collapse_internal_empty_links:=false emit_grasp_frame:=false">
+
+    <xacro:property name="none_value" value="${'none'}" lazy_eval="false" />
+    <xacro:property name="component_cfg" value="${robot_preset[component_name]}" lazy_eval="false" />
+    <xacro:property name="component_desc" value="${preloaded_desc}" lazy_eval="false" />
+
+    <xacro:if value="${component_desc == none_value}">
+      <xacro:openarm_v20_load_component_descriptor
+        component_name="${component_name}"
+        component_cfg="${component_cfg}"
+        config_root="${config_root}"
+        out_name="component_desc" />
+    </xacro:if>
+
+    <xacro:openarm_v20_resolve_component_runtime
+      component_name="${component_name}"
+      components="${components}"
+      robot_preset="${robot_preset}"
+      config_root="${config_root}"
+      root_frame="${root_frame}"
+      component_cfg="${component_cfg}"
+      component_desc="${component_desc}"
+      parent_desc="${parent_desc}"
+      collapse_internal_empty_links="${collapse_internal_empty_links}"
+      out_name="component_runtime" />
+
+    <xacro:openarm_v20_emit_component_from_runtime
+      component_desc="${component_desc}"
+      component_runtime="${component_runtime}"
+      emit_grasp_frame="${emit_grasp_frame}" />
+
+    <xacro:openarm_v20_emit_attached_components
+      index="0"
+      components="${components}"
+      parent_component_name="${component_name}"
+      robot_preset="${robot_preset}"
+      config_root="${config_root}"
+      root_frame="${root_frame}"
+      parent_desc="${component_desc}"
+      preloaded_component_name="${component_runtime['collapse_child_name']}"
+      preloaded_component_desc="${component_runtime['collapse_child_desc']}"
+      collapse_internal_empty_links="${collapse_internal_empty_links}"
+      emit_grasp_frame="${emit_grasp_frame}" />
+  </xacro:macro>
+
+  <!-- Scan robot.components and emit every enabled child attached to the requested parent. -->
+  <xacro:macro name="openarm_v20_emit_attached_components"
+    params="index components parent_component_name robot_preset config_root root_frame parent_desc:=none preloaded_component_name:=none preloaded_component_desc:=none collapse_internal_empty_links:=false emit_grasp_frame:=false">
+
+    <xacro:if value="${index &lt; len(components)}">
+      <xacro:property name="none_value" value="${'none'}" lazy_eval="false" />
+      <xacro:property name="component_name" value="${components[index]}" lazy_eval="false" />
+      <xacro:property name="component_cfg" value="${robot_preset[component_name]}" lazy_eval="false" />
+      <xacro:property name="component_enabled" value="${component_cfg['enabled']}" lazy_eval="false" />
+      <xacro:property name="connection" value="${component_cfg['connection'] if 'connection' in component_cfg else dict()}" lazy_eval="false" />
+      <xacro:property name="attach_to" value="${connection['attach_to'] if 'attach_to' in connection else None}" lazy_eval="false" />
+      <xacro:property name="is_root_component" value="${parent_component_name == '__root__' and attach_to == None}" lazy_eval="false" />
+      <xacro:property name="is_attached_child" value="${attach_to == parent_component_name}" lazy_eval="false" />
+      <!-- Reuse a preloaded descriptor when collapse analysis already loaded it for this child. -->
+      <xacro:property name="component_desc_override" value="${preloaded_component_desc if component_name == preloaded_component_name else none_value}" lazy_eval="false" />
+
+      <xacro:if value="${component_enabled and (is_root_component or is_attached_child)}">
+        <xacro:openarm_v20_emit_component_tree
+          component_name="${component_name}"
+          components="${components}"
+          robot_preset="${robot_preset}"
+          config_root="${config_root}"
+          root_frame="${root_frame}"
+          parent_desc="${none_value if is_root_component else parent_desc}"
+          preloaded_desc="${component_desc_override}"
+          collapse_internal_empty_links="${collapse_internal_empty_links}"
+          emit_grasp_frame="${emit_grasp_frame}" />
+      </xacro:if>
+
+      <xacro:openarm_v20_emit_attached_components
+        index="${index + 1}"
+        components="${components}"
+        parent_component_name="${parent_component_name}"
+        robot_preset="${robot_preset}"
+        config_root="${config_root}"
+        root_frame="${root_frame}"
+        parent_desc="${parent_desc}"
+        preloaded_component_name="${preloaded_component_name}"
+        preloaded_component_desc="${preloaded_component_desc}"
+        collapse_internal_empty_links="${collapse_internal_empty_links}"
+        emit_grasp_frame="${emit_grasp_frame}" />
+    </xacro:if>
+  </xacro:macro>
+
+  <!-- Top-level robot emitter: validate the preset, emit the root frame, then expand the component tree. -->
+  <xacro:macro name="openarm_v20_robot"
+    params="config_root robot_preset collapse_internal_empty_links:=false emit_grasp_frame:=false">
+
+    <xacro:property name="robot_cfg" value="${robot_preset['robot']}" lazy_eval="false" />
+    <xacro:property name="root_frame" value="${robot_cfg['root_frame']}" lazy_eval="false" />
+    <xacro:property name="components" value="${robot_cfg['components'] if 'components' in robot_cfg else []}" lazy_eval="false" />
+
+    <xacro:openarm_v20_validate_robot_preset
+      components="${components}"
+      robot_preset="${robot_preset}" />
+
+    <link name="${root_frame}" />
+
+    <xacro:openarm_v20_emit_attached_components
+      index="0"
+      components="${components}"
+      parent_component_name="__root__"
+      robot_preset="${robot_preset}"
+      config_root="${config_root}"
+      root_frame="${root_frame}"
+      collapse_internal_empty_links="${collapse_internal_empty_links}"
+      emit_grasp_frame="${emit_grasp_frame}" />
+  </xacro:macro>
+
+</robot>

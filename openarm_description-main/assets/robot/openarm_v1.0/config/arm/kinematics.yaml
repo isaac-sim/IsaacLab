@@ -1,0 +1,103 @@
+# Copyright 2025 Enactic, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+joint1:
+  kinematic:
+    x: 0.0
+    y: 0.0
+    z: 0.0625
+    roll: 0
+    pitch: 0
+    yaw: 0
+
+joint2:
+  kinematic:
+    x: -0.0301
+    y: 0.0
+    z: 0.06
+    roll: 0
+    pitch: 0
+    yaw: 0
+
+joint3:
+  kinematic:
+    x: 0.0301
+    y: 0.0
+    z: 0.06625
+    roll: 0
+    pitch: 0
+    yaw: 0
+
+joint4:
+  kinematic:
+    x: -0.0
+    y: 0.0315
+    z: 0.15375
+    roll: 0
+    pitch: 0
+    yaw: 0
+
+joint5:
+  kinematic:
+    x: 0.0
+    y: -0.0315
+    z: 0.0955
+    roll: 0
+    pitch: 0
+    yaw: 0
+
+joint6:
+  kinematic:
+    x: 0.0375
+    y: 0.0
+    z: 0.1205
+    roll: 0
+    pitch: 0
+    yaw: 0
+
+# joint7:
+#   kinematic:
+#     x: -0.0375
+#     y: 0.0205
+#     z: 0.0
+#     roll: 0
+#     pitch: 0
+#     yaw: 0
+
+joint7:
+  kinematic:
+    x: -0.0375
+    y: 0.0
+    z: 0.0
+    roll: 0
+    pitch: 0
+    yaw: 0
+
+# joint8:
+#   kinematic:
+#     x: 1e-06
+#     y: -0.098
+#     z: 0.114501
+#     roll: 0
+#     pitch: 0
+#     yaw: 0
+
+joint8:
+  kinematic:
+    x: 1e-06
+    y: 0.0205
+    z: 0.0
+    roll: 0
+    pitch: 0
+    yaw: 0

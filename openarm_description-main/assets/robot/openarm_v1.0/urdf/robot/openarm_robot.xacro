@@ -1,0 +1,198 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+Copyright 2025 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <xacro:macro name="openarm_robot"
+    params="arm_type
+            joint_limits
+            control_gains
+            kinematics
+            kinematics_link
+            kinematics_offset
+            inertials
+            body_type
+            body_inertials
+            body_kinematics
+            body_kinematics_link
+            ee_kinematics
+            ee_kinematics_link
+            ee_inertials
+            ee_joints_limits
+            parent:='world'
+            xyz:='0 0 0'
+            rpy:='0 0 0'
+            ee_type:=''
+            ros2_control:=false
+            can_interface:=''
+            use_fake_hardware:=false
+            fake_sensor_commands:=false
+            no_prefix:='false'
+            arm_prefix:=''
+            body_prefix:=''
+            arm_connected_to='base'
+            body_connected_to='world'
+            bimanual:=false
+            right_arm_base_xyz='0 0 0'
+            left_arm_base_xyz='0 0 0'
+            right_arm_base_rpy='0 0 0'
+            left_arm_base_rpy='0 0 0'
+            left_can_interface:='can1'
+            right_can_interface:='can0'
+            left_arm_prefix:='left_'
+            right_arm_prefix:='right_'
+            can_fd:='true'
+            "
+            >
+
+    <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/arm/openarm_macro.xacro" />
+    <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/arm/openarm_arm.xacro" />
+
+    <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/body/openarm_body_macro.xacro" />
+    <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/body/openarm_body.xacro" />
+
+    <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/ee/ee_dispatcher.xacro" />
+    <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/ee/openarm_ee_macro.xacro" />
+
+    <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/ros2_control/openarm.ros2_control.xacro" />
+    <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/ros2_control/openarm.bimanual.ros2_control.xacro" />
+
+    <xacro:property name="arm_prefix_modified" value="${'' if arm_prefix == '' else arm_prefix + '_'}" />
+    <xacro:property name="body_prefix_modified" value="${'' if body_prefix == '' else body_prefix + '_'}" />
+
+    <xacro:if value="${bimanual}">
+
+        <xacro:openarm_body
+        body_type="${body_type}"
+        body_prefix="${body_prefix_modified}"
+        no_prefix="${no_prefix}"
+        description_pkg="openarm_description"
+        connected_to="${body_connected_to}"
+        xyz="${xyz}"
+        rpy="${rpy}"
+        inertials="${body_inertials}"
+        kinematics="${body_kinematics}"
+        kinematics_link="${body_kinematics_link}" />
+
+        <!-- left arm -->
+        <xacro:openarm_arm
+        arm_type="${arm_type}"
+        arm_prefix="left_"
+        no_prefix="false"
+        description_pkg="openarm_description"
+        connected_to="openarm_body_link0"
+        xyz="${left_arm_base_xyz}"
+        rpy="${left_arm_base_rpy}"
+        joint_limits="${joint_limits}"
+        inertials="${inertials}"
+        kinematics="${kinematics}"
+        kinematics_link="${kinematics_link}"
+        kinematics_offset="${kinematics_offset}" />
+
+        <!-- right arm -->
+        <xacro:openarm_arm
+        arm_type="${arm_type}"
+        arm_prefix="right_"
+        no_prefix="false"
+        description_pkg="openarm_description"
+        connected_to="openarm_body_link0"
+        xyz="${right_arm_base_xyz}"
+        rpy="${right_arm_base_rpy}"
+        joint_limits="${joint_limits}"
+        inertials="${inertials}"
+        kinematics="${kinematics}"
+        kinematics_link="${kinematics_link}"
+        kinematics_offset="${kinematics_offset}" />
+
+        <xacro:openarm_ee
+            connected_to="openarm_left_link7"
+            arm_type="${arm_type}"
+            arm_prefix="left_"
+            ee_type="${ee_type}"
+            ee_kinematics="${ee_kinematics}"
+            ee_kinematics_link="${ee_kinematics_link}"
+            ee_inertials="${ee_inertials}"
+            ee_joints_limits="${ee_joints_limits}"
+        />
+        <xacro:openarm_ee
+            connected_to="openarm_right_link7"
+            arm_type="${arm_type}"
+            arm_prefix="right_"
+            ee_type="${ee_type}"
+            ee_kinematics="${ee_kinematics}"
+            ee_kinematics_link="${ee_kinematics_link}"
+            ee_inertials="${ee_inertials}"
+            ee_joints_limits="${ee_joints_limits}"
+        />
+
+        <!-- ros2_control hardware interfaces for bimanual setup -->
+        <xacro:if value="${ros2_control}">
+            <xacro:openarm_bimanual_ros2_control
+            arm_type="${arm_type}"
+            control_gains="${control_gains}"
+            left_can_interface="${left_can_interface}"
+            right_can_interface="${right_can_interface}"
+            use_fake_hardware="${use_fake_hardware}"
+            fake_sensor_commands="${fake_sensor_commands}"
+            left_arm_prefix="${left_arm_prefix}"
+            right_arm_prefix="${right_arm_prefix}"
+            hand="true"
+            ee_type="${ee_type}"/>
+        </xacro:if>
+    </xacro:if>
+
+
+    <xacro:if value="${not bimanual}">
+
+        <xacro:openarm_arm
+            arm_type="${arm_type}"
+            arm_prefix="${arm_prefix_modified}"
+            no_prefix="${no_prefix}"
+            xyz="${xyz}"
+            rpy="${rpy}"
+            joint_limits="${joint_limits}"
+            kinematics="${kinematics}"
+            kinematics_link="${kinematics_link}"
+            inertials="${inertials}"
+            connected_to=""
+        />
+
+        <xacro:openarm_ee
+            connected_to="openarm_${arm_prefix_modified}link7" arm_type="${arm_type}"
+            arm_prefix="${arm_prefix_modified}"
+            ee_type="${ee_type}"
+            ee_kinematics="${ee_kinematics}"
+            ee_kinematics_link="${ee_kinematics_link}"
+            ee_inertials="${ee_inertials}"
+            ee_joints_limits="${ee_joints_limits}"
+        />
+
+        <xacro:if value="${ros2_control}">
+            <xacro:openarm_arm_ros2_control
+                arm_type="${arm_type}"
+                control_gains="${control_gains}"
+                arm_prefix="${arm_prefix_modified}"
+                can_interface="${can_interface}"
+                use_fake_hardware="${use_fake_hardware}"
+                fake_sensor_commands="${fake_sensor_commands}"
+                hand="true"
+                can_fd="${can_fd}"
+                ee_type="${ee_type}"/>
+        </xacro:if>
+
+    </xacro:if>
+
+
+
+  </xacro:macro>
+</robot>

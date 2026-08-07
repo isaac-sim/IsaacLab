@@ -1,0 +1,65 @@
+# Copyright 2025 Enactic, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+left_finger:
+  origin:
+    x: 0.0064528
+    y: 0.017020
+    z: 0.0219685
+    roll: 0
+    pitch: 0
+    yaw: 0
+  mass: 0.03602545343277134
+  inertia:
+    xx: 2.3749999999999997e-06
+    yy: 2.3749999999999997e-06
+    zz: 7.5e-07
+    xy: 1e-06
+    xz: 1e-06
+    yz: 1e-06
+
+right_finger:
+  origin:
+    x: 0.0064528
+    y: -0.017020
+    z: 0.0219685
+    roll: 0
+    pitch: 0
+    yaw: 0
+  mass: 0.03602545343277134
+  inertia:
+    xx: 2.3749999999999997e-06
+    yy: 2.3749999999999997e-06
+    zz: 7.5e-07
+    xy: 1e-06
+    xz: 1e-06
+    yz: 1e-06
+
+# left_finger: &finger
+#   origin:
+#     x: 00064528
+#     y: 0.017020
+#     z: 0.0219685
+#     roll: 0
+#     pitch: 0
+#     yaw: 0
+#   mass: 0.03602545343277134
+#   inertia:
+#     xx: 2.3749999999999997e-06
+#     yy: 2.3749999999999997e-06
+#     zz: 7.5e-07
+#     xy: 0
+#     xz: 0
+#     yz: 0
+# right_finger: *finger

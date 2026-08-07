@@ -1,0 +1,94 @@
+<?xml version="1.0"?>
+<!--
+Copyright 2025 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="ee-inertials" params="name ee_inertials:=^">
+    <xacro:unless value="${name in ee_inertials}">
+      ${xacro.warning('No inertia properties defined for: ' + name)}
+    </xacro:unless>
+    <xacro:if value="${name in ee_inertials}">
+      <xacro:property name="link_inertials" value="${ee_inertials[name]}" lazy_eval="false" />
+      <xacro:property name="xyz" value="${link_inertials.origin.x} ${link_inertials.origin.y} ${link_inertials.origin.z}" />
+      <xacro:property name="rpy" value="${link_inertials.origin.roll} ${link_inertials.origin.pitch} ${link_inertials.origin.yaw}" />
+      <inertial>
+        <origin xyz="${xyz}" rpy="${rpy}" />
+        <mass value="${link_inertials.mass}" />
+        <xacro:if value="${'inertia' in link_inertials}">
+          <xacro:property name="I" value="${link_inertials.inertia}" />
+          <inertia ixx="${I.xx}" ixy="${I.xy}" ixz="${I.xz}"
+                   iyy="${I.yy}" iyz="${I.yz}" izz="${I.zz}" />
+        </xacro:if>
+      </inertial>
+    </xacro:if>
+  </xacro:macro>
+
+  <xacro:macro name="ee_link_with_sc" params="name prefix rpy:='0 0 0' ee_kinematics_link reflect:=1">
+    <xacro:property name="ee_mesh_root" value="${'package://' + description_pkg + '/assets/end_effector/parallel_link/meshes' if ee_type == 'parallel_link' else 'package://' + description_pkg + '/assets/end_effector/pinch_gripper/meshes'}" />
+    <link name="${prefix}${name}">
+      <visual name="${prefix}${name}_visual">
+        <xacro:openarm-ee-kinematics-link config="${ee_kinematics_link}" name="${name}" />
+        <geometry>
+          <mesh filename="${ee_mesh_root + '/visual/' + name + '.dae'}" scale="0.001 ${0.001*reflect} 0.001" />
+        </geometry>
+      </visual>
+      <collision name="${prefix}${name}_collision">
+        <xacro:openarm-ee-kinematics-link config="${ee_kinematics_link}" name="${name}" />
+        <geometry>
+          <mesh filename="${ee_mesh_root + '/collision/' + name + '.stl'}" scale="0.001 ${0.001*reflect} 0.001" />
+        </geometry>
+      </collision>
+      <xacro:ee-inertials name="${name}" />
+    </link>
+</xacro:macro>
+
+  <xacro:macro name="openarm-ee-kinematics" params="config name">
+      <xacro:property name="kinematics" value="${config[name]['kinematic']}" lazy_eval="false" />
+      <origin rpy="${kinematics.roll} ${kinematics.pitch} ${kinematics.yaw}"
+            xyz="${kinematics.x} ${kinematics.y} ${kinematics.z}" />
+  </xacro:macro>
+
+  <xacro:macro name="openarm-ee-kinematics-link" params="config name">
+    <xacro:property name="kinematics_link" value="${config[name]['kinematic']}" lazy_eval="false" />
+    <origin rpy="${kinematics_link.roll} ${kinematics_link.pitch} ${kinematics_link.yaw}"
+            xyz="${kinematics_link.x} ${kinematics_link.y} ${kinematics_link.z}" />
+  </xacro:macro>
+
+
+
+  <xacro:macro name="ee_finger_link_with_sc" params="name prefix ee_kinematics_link arm_reflect:=1 finger_reflect:=1">
+    <xacro:property name="ee_mesh_root" value="${'package://' + description_pkg + '/assets/end_effector/parallel_link/meshes' if ee_type == 'parallel_link' else 'package://' + description_pkg + '/assets/end_effector/pinch_gripper/meshes'}" />
+    <link name="${prefix}${name}">
+      <visual name="${prefix}${name}_visual">
+        <xacro:openarm-ee-kinematics-link config="${ee_kinematics_link}" name="${name}" />
+        <geometry>
+          <mesh filename="${ee_mesh_root + '/visual/finger.dae'}"
+                scale="${0.001*finger_reflect} ${0.001*arm_reflect} 0.001" />
+        </geometry>
+      </visual>
+      <collision name="${prefix}${name}_collision">
+        <xacro:openarm-ee-kinematics-link config="${ee_kinematics_link}" name="${name}" />
+        <geometry>
+          <mesh filename="${ee_mesh_root + '/collision/finger.stl'}"
+                scale="${0.001*finger_reflect} ${0.001*arm_reflect} 0.001" />
+        </geometry>
+      </collision>
+      <xacro:ee-inertials name="${name}" />
+    </link>
+</xacro:macro>
+
+
+
+
+</robot>

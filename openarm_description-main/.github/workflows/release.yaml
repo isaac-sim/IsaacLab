@@ -1,0 +1,136 @@
+# Copyright 2025 Enactic, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Release
+on:
+  - push
+  - pull_request
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        id:
+          - "rolling"
+          - "kilted"
+          - "jazzy"
+          - "humble"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build URDF files
+        run: |
+          docker container run \
+            --rm \
+            --volume ${PWD}:/source \
+            osrf/ros:${{ matrix.id }}-desktop-full \
+            bash -c '
+              cd /source
+              colcon build
+              source install/setup.bash
+
+              mkdir -p urdf_output
+
+              # v1.0 bimanual
+              xacro assets/robot/openarm_v1.0/urdf/openarm_v10.urdf.xacro \
+                arm_type:=v10 bimanual:=true \
+                > urdf_output/openarm_v10_bimanual_${{ matrix.id }}.urdf
+
+              # v2.0 bimanual
+              xacro assets/robot/openarm_v2.0/urdf/openarm_v20.urdf.xacro \
+                robot_preset:=default_bimanual \
+                > urdf_output/openarm_v20_bimanual_${{ matrix.id }}.urdf'
+      - uses: actions/upload-artifact@v7
+        with:
+          name: urdf-${{ matrix.id }}
+          path: urdf_output/*.urdf
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      discussions: write
+    steps:
+      - name: Set environments
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "VERSION=${GITHUB_REF_NAME}" >> ${GITHUB_ENV}
+          else
+            echo "VERSION=x.y.z" >> ${GITHUB_ENV}
+          fi
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            echo "REF=${GITHUB_SHA}" >> ${GITHUB_ENV}
+          else
+            echo "REF=${GITHUB_REF_NAME}" >> ${GITHUB_ENV}
+          fi
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: urdf-*
+          path: artifacts
+          merge-multiple: true
+      - name: Create source archive
+        run: |
+          name="openarm-description-${VERSION}"
+          git archive --format=tar ${REF} \
+            --prefix "${name}/" \
+            --output "${name}.tar"
+
+          mkdir "${name}"
+          mv artifacts "${name}/urdf"
+          find "${name}/urdf" -type f | tar -rf "${name}.tar" -T -
+          gzip "${name}.tar"
+
+          sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256"
+          sha512sum "${name}.tar.gz" > "${name}.tar.gz.sha512"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: source-archive
+          path: openarm-description-*.tar.gz*
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${GITHUB_REF_NAME} \
+            --discussion-category Announcements \
+            --generate-notes \
+            --repo ${GITHUB_REPOSITORY} \
+            --title "OpenArm Description ${VERSION}" \
+            --verify-tag \
+            openarm-description-${VERSION}.tar.gz*
+      - name: Post to Discord
+        if: github.ref_type == 'tag'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+                    --raw-field tag_name="${GITHUB_REF_NAME}" \
+                    --raw-field configuration_file_path=.github/release-notification.yml \
+                    --jq .body |
+                    sed 's/<!--[^>]*-->//g' |
+                    tee content.md
+
+          echo "## Help and Feedback" | tee -a content.md
+          echo "If you have any URDF related problems or improvements, please file them to https://github.com/enactic/openarm_description/issues and/or https://github.com/enactic/openarm_description/pulls !" | tee -a content.md
+
+          curl --request POST "${DISCORD_WEBHOOK_URL}" \
+             --header "Content-Type: application/json" \
+             --data "$(jq --null-input \
+                         --arg thread_name "OpenArm Description ${VERSION}" \
+                         --arg content "$(cat content.md)" \
+                         '{thread_name: $thread_name, content: $content}')"

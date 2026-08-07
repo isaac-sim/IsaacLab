@@ -1,0 +1,50 @@
+# Copyright 2026 Enactic, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+links:
+  canonical_to_original:
+    base_link: base_link
+    link1: link1
+    link2: link2
+    link3: link3
+    link4: link4
+    link5: link5
+    link6: link6
+    link7: empty_link_for_J7
+  original_to_canonical:
+    base_link: base_link
+    link1: link1
+    link2: link2
+    link3: link3
+    link4: link4
+    link5: link5
+    link6: link6
+    empty_link_for_J7: link7
+joints:
+  canonical_to_original:
+    joint1: joint1
+    joint2: joint2
+    joint3: joint3
+    joint4: joint4
+    joint5: joint5
+    joint6: joint6
+    joint7: joint7
+  original_to_canonical:
+    joint1: joint1
+    joint2: joint2
+    joint3: joint3
+    joint4: joint4
+    joint5: joint5
+    joint6: joint6
+    joint7: joint7

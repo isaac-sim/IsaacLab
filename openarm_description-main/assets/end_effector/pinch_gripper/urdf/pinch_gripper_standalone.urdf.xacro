@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright 2026 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="pinch_gripper">
+
+  <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v2.0/urdf/utils/openarm_v20_utils.xacro" />
+  <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v2.0/urdf/utils/openarm_v20_ee.xacro" />
+
+  <xacro:macro name="openarm_v20_require" params="condition message">
+    <xacro:unless value="${condition}">
+      <xacro:property name="openarm_v20_requirement_failed" value="${xacro.fatal(message)}" lazy_eval="false" />
+    </xacro:unless>
+  </xacro:macro>
+
+  <xacro:arg name="ee_config_dir" default="$(find openarm_description)/assets/end_effector/pinch_gripper/config" />
+  <xacro:arg name="ee_inertials_name" default="nominal" />
+  <xacro:arg name="reflect_x" default="1" />
+  <xacro:arg name="reflect_y" default="1" />
+  <xacro:arg name="reflect_z" default="1" />
+  <xacro:arg name="emit_grasp_frame" default="false" />
+
+  <xacro:property name="reflect_x_value" value="${float('$(arg reflect_x)')}" lazy_eval="false" />
+  <xacro:property name="reflect_y_value" value="${float('$(arg reflect_y)')}" lazy_eval="false" />
+  <xacro:property name="reflect_z_value" value="${float('$(arg reflect_z)')}" lazy_eval="false" />
+
+  <xacro:openarm_v20_require
+    condition="${reflect_x_value in [-1.0, 1.0] and reflect_y_value in [-1.0, 1.0] and reflect_z_value in [-1.0, 1.0]}"
+    message="${'Invalid standalone gripper reflection: each reflect axis must be either 1 or -1.'}" />
+  <xacro:openarm_v20_require
+    condition="${(1 if reflect_x_value == -1.0 else 0) + (1 if reflect_y_value == -1.0 else 0) + (1 if reflect_z_value == -1.0 else 0) &lt;= 1}"
+    message="${'Invalid standalone gripper reflection: combined x/y/z reflections are not currently supported.'}" />
+
+  <link name="world" />
+
+  <xacro:property name="ee_topology" value="${xacro.load_yaml('$(arg ee_config_dir)/struct/topology.yaml')}" lazy_eval="false" />
+  <xacro:property name="ee_reference_points" value="${xacro.load_yaml('$(arg ee_config_dir)/struct/reference_points.yaml')}" lazy_eval="false" />
+
+  <xacro:openarm_v20_ee
+    prefix=""
+    connected_to="world"
+    topology="${ee_topology}"
+    ee_reference_points="${ee_reference_points}"
+    joint_origins="${xacro.load_yaml('$(arg ee_config_dir)/joint/joint_origins.yaml')}"
+    joint_axes="${xacro.load_yaml('$(arg ee_config_dir)/joint/joint_axes.yaml')}"
+    joint_limits="${xacro.load_yaml('$(arg ee_config_dir)/joint/joint_limits.yaml')}"
+    joint_mimics="${xacro.load_yaml('$(arg ee_config_dir)/joint/joint_mimics.yaml')}"
+    inertials="${xacro.load_yaml('$(arg ee_config_dir)/inertials/$(arg ee_inertials_name).yaml')}"
+    visuals="${xacro.load_yaml('$(arg ee_config_dir)/link/visuals.yaml')}"
+    collisions="${xacro.load_yaml('$(arg ee_config_dir)/link/collisions.yaml')}"
+    reflect_x="$(arg reflect_x)"
+    reflect_y="$(arg reflect_y)"
+    reflect_z="$(arg reflect_z)"
+    reflect_include_links="${ee_topology['links']}"
+    reflect_include_joints="${list(ee_topology['joints'].keys())}"
+    reflect_include_reference_points="${list(ee_reference_points.keys())}"
+    limit_override_joints="${dict()}"
+    emit_grasp_frame="$(arg emit_grasp_frame)" />
+
+</robot>

@@ -1,0 +1,62 @@
+# Copyright 2026 Enactic, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+base_link:
+  origin:
+    x: -0.0067098
+    y: 0.008407299999999999
+    z: -0.05938
+    roll: 0
+    pitch: -0
+    yaw: 0
+  mass: 0.52832
+  inertia:
+    xx: 0.00021911
+    xy: 4.1683e-06
+    xz: 1.4043e-06
+    yy: 0.00015627
+    yz: -1.5124e-06
+    zz: 0.0001659
+link1:
+  origin:
+    x: -0.0124990911725494
+    y: 0.00176592789915655
+    z: -0.0241663193888537
+    roll: 0
+    pitch: -0
+    yaw: 0
+  mass: 0.125979047366671
+  inertia:
+    xx: 3.61105363396623e-05
+    xy: 1.35880208293387e-06
+    xz: 7.13916341634141e-06
+    yy: 3.62137424319396e-05
+    yz: -3.60343788693423e-06
+    zz: 1.74958961632907e-05
+link2:
+  origin:
+    x: -0.012796
+    y: -0.0020183
+    z: -0.026792
+    roll: 0
+    pitch: -0
+    yaw: 0
+  mass: 0.11372
+  inertia:
+    xx: 3.4565e-05
+    xy: -1.3392e-06
+    xz: 7.1576e-06
+    yy: 3.5306e-05
+    yz: 3.7172e-06
+    zz: 1.6571e-05

@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+Copyright 2025 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/ee/parallel_link/openarm_parallel_gripper.xacro" />
+
+  <xacro:macro name="openarm_ee" params="ee_type connected_to arm_type arm_prefix ee_kinematics ee_kinematics_link ee_inertials ee_joints_limits rpy_ee:='0 0 0' xyz_ee:='0 0 0' tcp_xyz:='0 0 0' tcp_rpy:='0 0 0' description_pkg:=openarm_description">
+    <xacro:if value="${ee_type == 'parallel_link'}">
+      <xacro:openarm_parallel_gripper
+        connected_to="${connected_to}"
+        arm_type="${arm_type}"
+        arm_prefix="${arm_prefix}"
+        ee_type="${ee_type}"
+        ee_kinematics="${ee_kinematics}"
+        ee_kinematics_link="${ee_kinematics_link}"
+        ee_inertials="${ee_inertials}"
+        ee_joints_limits="${ee_joints_limits}"
+      />
+    </xacro:if>
+    <xacro:unless value="${ee_type == 'parallel_link'}">
+      ${xacro.error('assets/robot/openarm_v1.0 only supports ee_type:=parallel_link.')}
+    </xacro:unless>
+  </xacro:macro>
+</robot>

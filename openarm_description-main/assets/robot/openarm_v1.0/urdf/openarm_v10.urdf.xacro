@@ -1,0 +1,90 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+Copyright 2025 Enactic, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="openarm">
+
+  <xacro:include filename="$(find openarm_description)/assets/robot/openarm_v1.0/urdf/robot/openarm_robot.xacro"/>
+
+  <xacro:arg name="arm_type" default="v10" />
+  <xacro:arg name="body_type" default="v10" />
+  <xacro:arg name="no_prefix" default="false"/>
+  <xacro:arg name="parent" default="world" />
+  <xacro:arg name="xyz" default="0 0 0" />
+  <xacro:arg name="rpy" default="0 0 0" />
+  <xacro:arg name="ros2_control" default="false" />
+  <xacro:arg name="can_interface" default="can0" />
+  <xacro:arg name="left_can_interface" default="can1" />
+  <xacro:arg name="right_can_interface" default="can0" />
+  <xacro:arg name="left_arm_prefix" default="left_" />
+  <xacro:arg name="right_arm_prefix" default="right_" />
+  <xacro:arg name="use_fake_hardware" default="false" />
+  <xacro:arg name="fake_sensor_commands" default="false" />
+  <xacro:arg name="bimanual" default="true" />
+  <xacro:arg name="right_arm_base_xyz" default="0.0 -0.031 0.698" />
+  <xacro:arg name="right_arm_base_rpy" default="1.5708 0 0" />
+  <xacro:arg name="left_arm_base_xyz" default="0.0 0.031 0.698" />
+  <xacro:arg name="left_arm_base_rpy" default="-1.5708 0 0" />
+  <xacro:arg name="can_fd" default="true" />
+  <xacro:property name="accepted_arm_types" value="${('v10', 'v1.0', 'v1_0', 'openarm_v10', 'openarm_v1.0', 'openarm_v1_0')}" />
+  <xacro:if value="${'$(arg arm_type)' not in accepted_arm_types}">
+    ${xacro.error('assets/robot/openarm_v1.0 supports arm_type in ' + str(accepted_arm_types) + ' (got: $(arg arm_type)). Use assets/robot/openarm_v2.0 for newer hardware variants.')}
+  </xacro:if>
+  <xacro:if value="${'$(arg body_type)' != 'v10'}">
+    ${xacro.error('assets/robot/openarm_v1.0 only supports body_type:=v10.')}
+  </xacro:if>
+  <xacro:property name="arm_cfg_root" value="$(find openarm_description)/assets/robot/openarm_v1.0/config/arm" />
+  <xacro:property name="body_cfg_root" value="$(find openarm_description)/assets/robot/openarm_v1.0/config/body" />
+  <xacro:property name="parallel_link_cfg_root" value="$(find openarm_description)/assets/end_effector/parallel_link/config" />
+
+  <xacro:openarm_robot
+  arm_type="v10"
+  body_type="$(arg body_type)"
+  joint_limits="${xacro.load_yaml(arm_cfg_root + '/joint_limits.yaml')}"
+  control_gains="${xacro.load_yaml(arm_cfg_root + '/control_gains.yaml')}"
+  inertials="${xacro.load_yaml(arm_cfg_root + '/inertials.yaml')}"
+  kinematics="${xacro.load_yaml(arm_cfg_root + '/kinematics.yaml')}"
+  kinematics_link="${xacro.load_yaml(arm_cfg_root + '/kinematics_link.yaml')}"
+  kinematics_offset="${xacro.load_yaml(arm_cfg_root + '/kinematics_offset.yaml')}"
+  body_inertials="${xacro.load_yaml(body_cfg_root + '/inertials.yaml')}"
+  body_kinematics="${xacro.load_yaml(body_cfg_root + '/kinematics.yaml')}"
+  body_kinematics_link="${xacro.load_yaml(body_cfg_root + '/kinematics_link.yaml')}"
+
+  ee_inertials="${xacro.load_yaml(parallel_link_cfg_root + '/inertials.yaml')}"
+  ee_kinematics="${xacro.load_yaml(parallel_link_cfg_root + '/kinematics.yaml')}"
+  ee_kinematics_link="${xacro.load_yaml(parallel_link_cfg_root + '/kinematics_link.yaml')}"
+  ee_joints_limits="${xacro.load_yaml(parallel_link_cfg_root + '/joint_limits.yaml')}"
+  ee_type="parallel_link"
+
+  ros2_control="$(arg ros2_control)"
+  can_interface="$(arg can_interface)"
+  left_can_interface="$(arg left_can_interface)"
+  right_can_interface="$(arg right_can_interface)"
+  left_arm_prefix="$(arg left_arm_prefix)"
+  right_arm_prefix="$(arg right_arm_prefix)"
+  use_fake_hardware="$(arg use_fake_hardware)"
+  fake_sensor_commands="$(arg fake_sensor_commands)"
+  no_prefix="$(arg no_prefix)"
+  arm_prefix=""
+  body_prefix=""
+  arm_connected_to="base"
+  body_connected_to="world"
+  bimanual="$(arg bimanual)"
+  right_arm_base_xyz="$(arg right_arm_base_xyz)"
+  left_arm_base_xyz="$(arg left_arm_base_xyz)"
+  right_arm_base_rpy="$(arg right_arm_base_rpy)"
+  left_arm_base_rpy="$(arg left_arm_base_rpy)"
+  can_fd="$(arg can_fd)"
+  />
+
+</robot>

@@ -1,0 +1,76 @@
+# Copyright 2025 Enactic, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+joint1:
+  limit:
+    lower: -1.396263
+    upper: 3.490659
+    velocity: 16.754666
+    effort: 40
+
+joint2:
+  limit:
+    lower: -1.745329
+    upper: 1.745329
+    velocity: 16.754666
+    effort: 40
+
+joint3:
+  limit:
+    lower: -1.570796
+    upper: 1.570796
+    velocity: 5.445426
+    effort: 27
+
+joint4:
+  limit:
+    lower: 0.0
+    upper: 2.443461
+    velocity: 5.445426
+    effort: 27
+
+joint5:
+  limit:
+    lower: -1.570796
+    upper: 1.570796
+    velocity: 20.943946
+    effort: 7
+
+joint6:
+  limit:
+    lower: -0.785398
+    upper: 0.785398
+    velocity: 20.943946
+    effort: 7
+
+joint7:
+  limit:
+    lower: -1.570796
+    upper: 1.570796
+    velocity: 20.943946
+    effort: 7
+
+# joint_gripper1:
+#   limit:
+#     lower: 0.0
+#     upper: 0.043
+#     velocity: 100
+#     effort: 100
+
+# joint_gripper2:
+#   limit:
+#     lower: 0.0
+#     upper: 0.043
+#     velocity: 100
+#     effort: 100
