@@ -133,8 +133,10 @@ ActuatorCfg velocity/effort limits considerations
 
 In Isaac Lab 3.0, the plain ``velocity_limit`` and ``effort_limit`` fields describe actuator-side
 constraints, while ``velocity_limit_sim`` and ``effort_limit_sim`` request solver-side constraints.
-For explicit actuators, the plain fields are consumed by the actuator model; the ``_sim`` fields
-are submitted to the physics solver.
+For explicit actuators, ``effort_limit`` clips the actuator output. ``velocity_limit`` populates the
+resolved velocity-limit view and is consumed computationally only by speed-dependent models such as
+``DCMotor``; ``IdealPDActuator``, ``DelayedPDActuator``, and ``RemotizedPDActuator`` do not use it in
+their computation. The ``_sim`` fields are submitted to the physics solver.
 
 For implicit actuators, ``velocity_limit`` populates the actuator-resolved soft velocity-limit view
 without being submitted to the solver. ``effort_limit`` is a deprecated alias of
@@ -153,10 +155,11 @@ without being submitted to the solver. ``effort_limit`` is a deprecated alias of
         - **Explicit Actuator**
       * - ``velocity_limit``
         - Populates the soft velocity-limit view; not sent to the solver
-        - Used by the model (e.g. DC motor), not set into simulation
+        - Populates the resolved view; used computationally only by speed-dependent models (e.g.
+          ``DCMotor``), not sent to the solver
       * - ``effort_limit``
         - Deprecated (alias for ``effort_limit_sim``)
-        - Used by the model, not set into simulation
+        - Clips actuator output; not sent to the solver
       * - ``velocity_limit_sim``
         - Requested from the solver; enforcement is backend-dependent
         - Requested from the solver; enforcement is backend-dependent

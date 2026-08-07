@@ -106,13 +106,17 @@ Newton-native models and their limitations, see :ref:`actuators-native`.
     :class: only-light
     :align: center
     :width: 90%
-    :alt: The pipeline from actuator commands through actuator models to simulated joint commands.
+    :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
+        execute in the solver, and native models execute inside the Newton/MJWarp solver or in the
+        PhysX adapter before submission.
 
 .. figure:: ../../_static/actuators/pipeline-dark.png
     :class: only-dark
     :align: center
     :width: 90%
-    :alt: The pipeline from actuator commands through actuator models to simulated joint commands.
+    :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
+        execute in the solver, and native models execute inside the Newton/MJWarp solver or in the
+        PhysX adapter before submission.
 
 Where the gains land differs by path, and this is the single most common source of confusion:
 
