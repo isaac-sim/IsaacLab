@@ -150,7 +150,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         width=256,
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2)),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.85418), rot=(0.0, 0.98502, 0.0, -0.17246), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.85418), rot=(0.98502, 0.0, 0.0, -0.17246), convention="ros"),
     )
 
     # Ground plane
