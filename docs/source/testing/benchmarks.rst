@@ -89,6 +89,9 @@ step supplies that diagnostic without being removed from the measured window.
 Read The Result
 ~~~~~~~~~~~~~~~
 
+A throughput and resource summary is printed to the console when the run
+finishes. The JSON output holds the full result.
+
 Read ``runtime.environment_step_timing.environment_step_fps`` for the aggregate
 environment-step rate. Runtime samples random actions before starting the
 ``env.step()`` timer, so random-action generation is outside this timing. For a
@@ -312,6 +315,9 @@ time.
 Read The Result
 ~~~~~~~~~~~~~~~
 
+A throughput, resource, and learning summary is printed to the console when the
+run finishes. The JSON output holds the full result.
+
 Use ``runtime.collection_fps`` for rollout collection without policy update,
 ``runtime.total_fps`` for collection plus update, and
 ``runtime.environment_step_timing.environment_step_fps`` for environment-only
@@ -371,12 +377,21 @@ fresh process and control cache state and execution order when comparing runs.
 Read The Result
 ~~~~~~~~~~~~~~~
 
+A per-phase wall-time summary is printed to the console when the run finishes,
+including the timers that ran during ``env_creation``. The JSON output holds the
+full profile.
+
 Read the wall time and attributed functions under each entry in ``phases``.
 Pass ``--whitelist_config scripts/benchmarks/startup_whitelist.yaml`` to select
 stable ``fnmatch`` patterns for specific phases. Whitelist mode ignores
 ``--top_n`` for listed phases. A pattern that matches no profiled function is
 still emitted with zero own time, cumulative time, and calls, which preserves
-stable dashboard keys.
+stable dashboard keys, and logs a warning naming the pattern.
+
+Patterns match profile labels, which are built relative to each installed
+package root: in-repo functions carry no package prefix
+(``utils.assets:_find_asset_dependencies``), while external packages keep their
+full dotted path (``warp._src.context:launch``).
 
 The typed result replaces runtime throughput fields with startup-specific
 ``config`` and ``phases`` mappings. Each phase reports wall time and selected
@@ -455,7 +470,7 @@ typed schema paths:
 
    jq '.run, .runtime.collection_fps, .runtime.total_fps' benchmark_*_schema.json
    jq '.runtime.environment_step_timing' benchmark_*_schema.json
-   jq '.phases' startup_*_schema.json
+   jq '.phases' benchmark_startup_*_schema.json
 
 With multiple formatters, the ``_schema`` suffix identifies the typed bundle.
 
