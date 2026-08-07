@@ -16,6 +16,28 @@ runs:
   steps:
     - shell: bash
       run: |
+        # TEMPORARY DIAGNOSTIC (remove before merge): prints only registry names
+        # and booleans, never credential values, to establish whether the runner's
+        # nvcr.io credential is plain-auths (survives the rewrite below) or
+        # helper-backed (destroyed by it). See the fork-PR cuRobo build failures.
+        dump_docker_cfg() {
+          echo "🔍 docker config: $1"
+          python3 -c '
+        import json, os, sys
+        path = sys.argv[1]
+        if not os.path.exists(path):
+            print("   <no config file>")
+            raise SystemExit
+        cfg = json.load(open(path))
+        auths = cfg.get("auths", {})
+        print("   registries      :", sorted(auths))
+        print("   has_credential  :", {k: bool(v) for k, v in sorted(auths.items())})
+        print("   credsStore_set  :", bool(cfg.get("credsStore")))
+        print("   credHelpers_for :", sorted(cfg.get("credHelpers", {})))
+        ' "$1"
+        }
+        dump_docker_cfg "${HOME}/.docker/config.json"
+
         # The runner's credential helper backend is broken ("not implemented")
         # and causes docker login calls to fail unless we point DOCKER_CONFIG at
         # a temp config with credsStore disabled. The value is written to
@@ -23,6 +45,7 @@ runs:
         # invocation sees it already set and short-circuits.
         if [ -n "${DOCKER_CONFIG:-}" ] && [ -f "${DOCKER_CONFIG}/config.json" ]; then
           echo "🟢 Docker config already set up at ${DOCKER_CONFIG}, skipping"
+          dump_docker_cfg "${DOCKER_CONFIG}/config.json"
           exit 0
         fi
 
@@ -34,6 +57,7 @@ runs:
         fi
         export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
         echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+        dump_docker_cfg "${DOCKER_CONFIG_DIR}/config.json"
 
         if [ -n "${NGC_API_KEY:-}" ]; then
           echo "🔵 Logging into nvcr.io..."
