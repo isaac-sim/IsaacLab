@@ -208,8 +208,15 @@ jobs:
     - name: Resolve Warp version for JIT cache key
       id: warp_version
       run: |
-        version="$(sed -n 's/.*warp-lang[^0-9]*\([0-9][0-9A-Za-z.\-]*\).*/\1/p' source/isaaclab/pyproject.toml | head -n1)"
-        [ -z "$version" ] && version="unpinned"
+        # warp-lang is pinned in the repo-root pyproject.toml, not the isaaclab
+        # package one. Reading the wrong file silently yielded "unpinned", so the
+        # key never varied with Warp and a cache built by another version could
+        # restore as a hit. Fail loudly rather than degrade quietly again.
+        version="$(sed -n 's/.*warp-lang[^0-9]*\([0-9][0-9A-Za-z.\-]*\).*/\1/p' pyproject.toml | head -n1)"
+        if [ -z "$version" ]; then
+          echo "::error::Could not resolve the warp-lang pin from pyproject.toml; the JIT cache key would stop tracking the Warp version"
+          exit 1
+        fi
         echo "value=$version" >> "$GITHUB_OUTPUT"
         echo "JIT cache keyed to Warp $version"
 
