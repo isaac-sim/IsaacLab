@@ -860,7 +860,7 @@ Clone Isaac Lab, then build, start, and enter the development container:
 .. code-block:: bash
 
    ./docker/container.py start
-   ./docker/container.py enter base
+   ./docker/container.py base enter
 
 The container uses ``/isaac-sim/python.sh`` and mounts the repository's ``source`` and ``docs``
 directories for live editing. Use ``./docker/container.py stop`` to stop it and

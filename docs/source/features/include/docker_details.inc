@@ -72,12 +72,13 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
 
 
 The script ``container.py`` parallels basic ``docker compose`` commands. Each can accept an `image extension argument <#isaac-lab-image-extensions>`_,
-or else they will default to the ``base`` image extension. These commands are:
+or else they will default to the ``base`` image extension. The profile is written before the command, so that stepping a
+container through its lifecycle only changes the last word. The reverse order is also accepted. These commands are:
 
 * **build**: This builds the image for the given profile. It does not bring up the container.
 * **start**: This builds the image and brings up the container in detached mode (i.e. in the background).
-* **enter**: This begins a new bash process in an existing Isaac Lab container, and which can be exited
-  without bringing down the container.
+* **enter**: This begins a new bash process in an Isaac Lab container, and which can be exited
+  without bringing down the container. If the container is not running, it is started first.
 * **config**: This outputs the compose.yaml which would be result from the inputs given to ``container.py start``. This command is useful
   for debugging a compose configuration.
 * **copy**: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``isaac-lab-logs``, ``isaac-lab-data`` and ``isaac-lab-docs``
@@ -98,7 +99,7 @@ The following shows how to launch the container in a detached state and enter it
 
     # Enter the container
     # We pass 'base' explicitly, but if we hadn't it would default to 'base'
-    ./docker/container.py enter base
+    ./docker/container.py base enter
 
 The Isaac Lab base, ROS 2, cuRobo, and kit-less images run as a non-root user with uid/gid 1000 to keep
 bind-mounted workspaces writable on GitHub runners. If you run one of these images directly with
@@ -262,20 +263,20 @@ the name. ``suffix`` should not be used with cluster deployments.
     # start base by default, named isaac-lab-base
     ./docker/container.py start
     # stop base explicitly, named isaac-lab-base
-    ./docker/container.py stop base
+    ./docker/container.py base stop
     # start ros2 container named isaac-lab-ros2
-    ./docker/container.py start ros2
+    ./docker/container.py ros2 start
     # stop ros2 container named isaac-lab-ros2
-    ./docker/container.py stop ros2
+    ./docker/container.py ros2 stop
 
     # start base container named isaac-lab-base-custom
-    ./docker/container.py start base --suffix custom
+    ./docker/container.py base start --suffix custom
     # stop base container named isaac-lab-base-custom
-    ./docker/container.py stop base --suffix custom
+    ./docker/container.py base stop --suffix custom
     # start ros2 container named isaac-lab-ros2-custom
-    ./docker/container.py start ros2 --suffix custom
+    ./docker/container.py ros2 start --suffix custom
     # stop ros2 container named isaac-lab-ros2-custom
-    ./docker/container.py stop ros2 --suffix custom
+    ./docker/container.py ros2 stop --suffix custom
 
 The passed profile argument will build the image defined in ``Dockerfile.${profile}``,
 with the corresponding `profile`_ in ``docker-compose.yaml``. Isaac Sim-based extensions load ``.env.base``
@@ -330,14 +331,14 @@ To build, start, and enter the image through the same ``container.py`` interface
 
 .. code:: bash
 
-    ./docker/container.py build kitless
-    ./docker/container.py start kitless
-    ./docker/container.py enter kitless
-    ./docker/container.py stop kitless
+    ./docker/container.py kitless build
+    ./docker/container.py kitless start
+    ./docker/container.py kitless enter
+    ./docker/container.py kitless stop
 
 The Compose profile bind-mounts the repository's ``source``, ``scripts``, ``apps``, and ``tools`` directories.
 It also retains the uv cache, Warp cache, documentation output, logs, and data storage in named volumes. Use
-``./docker/container.py copy kitless`` to copy the retained outputs to the host.
+``./docker/container.py kitless copy`` to copy the retained outputs to the host.
 
 To build the image directly, run:
 
