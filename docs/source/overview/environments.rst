@@ -209,6 +209,23 @@ for the lift-cube environment:
 * |lift-cube-ik-abs-link|: Franka arm with absolute IK control
 * |lift-cube-ik-rel-link|: Franka arm with relative IK control
 
+.. note::
+
+   The ``Isaac-Lift-Soft-Franka`` task and its camera variant require automatic tetrahedralization.
+   The ``Isaac-Lift-Cloth-Franka`` task and its camera variant use surface deformables and do not
+   require these dependencies.
+   Install the optional dependencies before running the soft-body tasks from a source checkout:
+
+   .. code-block:: bash
+
+      uv sync --inexact --extra tetrahedralization
+
+   With the legacy installer:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 .. table::
     :widths: 25 30 25 20
 
