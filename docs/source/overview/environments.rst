@@ -1152,11 +1152,15 @@ including disabling runtime perturbations used for training.
     * - Isaac-Reorient-Cube-Allegro
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reorient-Cube-Allegro-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Reorient-Cube-Shadow
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reorient-Cube-Shadow-Camera-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO)
@@ -1167,9 +1171,17 @@ including disabling runtime perturbations used for training.
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Reorient-Cube-Shadow-OpenAI-FF
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Reorient-Cube-Shadow-OpenAI-LSTM
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
       - Direct

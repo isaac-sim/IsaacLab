@@ -18,6 +18,29 @@ from isaaclab_tasks.core.reorient.config.shadow_hand import agents
 reorient_direct_entry = "isaaclab_tasks.core.reorient.reorient_direct_env:ReorientDirectEnv"
 
 gym.register(
+    id="Isaac-Reorient-Cube-Shadow",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_manager_env_cfg:ShadowHandManagerEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandPPORunnerCfg",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Isaac-Reorient-Cube-Shadow-Camera-Direct",
+    entry_point=f"{__name__}.shadow_hand_direct_camera_env:ShadowHandCameraEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_direct_camera_env_cfg:ShadowHandCameraEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandCameraFFPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_camera_cfg.yaml",
+    },
+)
+
+gym.register(
     id="Isaac-Reorient-Cube-Shadow-Direct",
     entry_point=reorient_direct_entry,
     disable_env_checker=True,
@@ -26,6 +49,18 @@ gym.register(
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
+    },
+)
+
+gym.register(
+    id="Isaac-Reorient-Cube-Shadow-OpenAI-FF",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_openai_manager_env_cfg:ShadowHandOpenAIManagerEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_ff_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandAsymFFPPORunnerCfg",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ff_ppo_cfg.yaml",
     },
 )
 
@@ -42,6 +77,17 @@ gym.register(
 )
 
 gym.register(
+    id="Isaac-Reorient-Cube-Shadow-OpenAI-LSTM",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_openai_manager_env_cfg:ShadowHandOpenAIManagerEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_lstm_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandAsymLSTMPPORunnerCfg",
+    },
+)
+
+gym.register(
     id="Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct",
     entry_point=reorient_direct_entry,
     disable_env_checker=True,
@@ -49,31 +95,5 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.shadow_hand_direct_env_cfg:ShadowHandOpenAIEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_lstm_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandAsymLSTMPPORunnerCfg",
-    },
-)
-
-# -------
-# Vision
-# -------
-
-gym.register(
-    id="Isaac-Reorient-Cube-Shadow-Camera-Direct",
-    entry_point=f"{__name__}.shadow_hand_direct_camera_env:ShadowHandCameraEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.shadow_hand_direct_camera_env_cfg:ShadowHandCameraEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandCameraFFPPORunnerCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_camera_cfg.yaml",
-    },
-)
-
-gym.register(
-    id="Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct",
-    entry_point=f"{__name__}.shadow_hand_direct_camera_env:ShadowHandCameraEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.shadow_hand_direct_camera_env_cfg:ShadowHandCameraBenchmarkEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandCameraFFPPORunnerCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_camera_cfg.yaml",
     },
 )

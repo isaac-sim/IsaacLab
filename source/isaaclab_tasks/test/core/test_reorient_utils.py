@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for utilities shared by core tasks."""
+"""Tests for the helpers shared by the reorientation and hand-over tasks."""
 
 import pytest
 import torch
 
-import isaaclab_tasks.core.utils as core_utils
+import isaaclab_tasks.core.reorient.utils as core_utils
 
 
 def test_sample_joint_positions_within_limits_interpolates_endpoints(monkeypatch):

@@ -21,8 +21,11 @@ from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
 from isaaclab_tasks.core.reorient.mdp.rewards import evaluate_reorient_success, reorient_reward
-from isaaclab_tasks.core.reorient.reorient_common import GOAL_MARKER_POSITION, IN_HAND_POS_OFFSET
-from isaaclab_tasks.core.utils import EpisodeErrorRecorder, randomize_rotation, sample_joint_positions_within_limits
+from isaaclab_tasks.core.reorient.utils import (
+    EpisodeErrorRecorder,
+    randomize_rotation,
+    sample_joint_positions_within_limits,
+)
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
@@ -64,11 +67,11 @@ class ReorientDirectEnv(DirectRLEnv):
         # -- goal and success state --
         # in-hand target = object default position + shared offset (mirrors ReorientCommand)
         self.in_hand_pos = self.object.data.default_root_pose.torch[:, 0:3].clone()
-        self.in_hand_pos += torch.tensor(IN_HAND_POS_OFFSET, dtype=torch.float, device=self.device)
+        self.in_hand_pos += torch.tensor(self.cfg.in_hand_pos_offset, dtype=torch.float, device=self.device)
         self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
         self.goal_rot[:, 3] = 1.0  # identity quaternion in (x, y, z, w) layout
         self.goal_pos = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
-        self.goal_pos[:, :] = torch.tensor(GOAL_MARKER_POSITION, device=self.device)
+        self.goal_pos[:, :] = torch.tensor(self.cfg.goal_marker_position, device=self.device)
         self.reset_goal_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.consecutive_successes = torch.zeros(1, dtype=torch.float, device=self.device)
