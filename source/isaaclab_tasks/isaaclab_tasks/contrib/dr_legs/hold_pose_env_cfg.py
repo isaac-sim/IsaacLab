@@ -8,7 +8,7 @@
 The robot must keep its pelvis upright at a target height.
 """
 
-from isaaclab_newton.physics import NewtonCfg, NewtonShapeCfg, kamino_dvi_solver_cfg, kamino_padmm_solver_cfg
+from isaaclab_newton.physics import NewtonCfg, NewtonShapeCfg, kamino_padmm_solver_cfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -64,26 +64,12 @@ def _kamino_newton_cfg() -> NewtonCfg:
     )
 
 
-def _kamino_dvi_newton_cfg() -> NewtonCfg:
-    """Kamino DVI preset for DR Legs."""
-    return NewtonCfg(
-        solver_cfg=kamino_dvi_solver_cfg(
-            use_collision_detector=False,
-            use_fk_solver=True,
-            max_contacts_per_world=32,
-        ),
-        use_cuda_graph=True,
-        default_shape_cfg=NewtonShapeCfg(margin=0.0, gap=0.001),
-    )
-
-
 @configclass
 class DrLegsPhysicsCfg(PresetCfg):
     """Physics backend presets for DR Legs."""
 
     default: NewtonCfg = _kamino_newton_cfg()
     newton_kamino: NewtonCfg = _kamino_newton_cfg()
-    newton_kamino_dvi: NewtonCfg = _kamino_dvi_newton_cfg()
     isaacsim_physx: PhysxCfg = PhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
