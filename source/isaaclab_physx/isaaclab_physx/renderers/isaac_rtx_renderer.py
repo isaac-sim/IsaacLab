@@ -531,6 +531,20 @@ class IsaacRtxRenderer(BaseRenderer):
             else:
                 tiled_data_buffer = output
 
+            # An annotator can hand back an EMPTY buffer, e.g. when the render product produced no
+            # data for this frame. The reshape launch below is dimensioned by the DESTINATION, so
+            # every one of its view_count * height * width threads would read past the end of a
+            # zero-length source: an illegal memory access that surfaces asynchronously, often
+            # inside an unrelated device free, and takes the whole process down. A renderer with no
+            # pixels should report no pixels.
+            if getattr(tiled_data_buffer, "size", None) == 0:
+                logger.warning(
+                    "[IsaacRtxRenderer] annotator '%s' returned an empty buffer; skipping this"
+                    " frame's reshape. The output for this frame will be blank.",
+                    data_type,
+                )
+                continue
+
             # convert data buffer to warp array
             if isinstance(tiled_data_buffer, np.ndarray):
                 # Let warp infer the dtype from numpy array instead of hardcoding uint8

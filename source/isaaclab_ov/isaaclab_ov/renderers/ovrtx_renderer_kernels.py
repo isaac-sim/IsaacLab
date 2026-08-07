@@ -186,3 +186,47 @@ def sync_newton_transforms_kernel(
     body_idx = newton_body_indices[i]
     transform = newton_body_q[body_idx]
     ovrtx_transforms[i] = wp.transpose(wp.mat44d(wp.transform_to_matrix(transform)))
+
+
+@wp.kernel(enable_backward=False)
+def compute_cable_points_world_kernel(
+    shape_ids: wp.array(dtype=wp.int32),  # type: ignore
+    offsets: wp.array(dtype=wp.int32),  # type: ignore
+    counts: wp.array(dtype=wp.int32),  # type: ignore
+    point_offsets: wp.array(dtype=wp.int32),  # type: ignore
+    shape_body: wp.array(dtype=wp.int32),  # type: ignore
+    body_q: wp.array(dtype=wp.transformf),  # type: ignore
+    shape_transform: wp.array(dtype=wp.transformf),  # type: ignore
+    shape_scale: wp.array(dtype=wp.vec3f),  # type: ignore
+    points_out: wp.array(dtype=wp.vec3f),  # type: ignore
+):
+    """Write world-space cable curve points from Newton segment bodies.
+
+    Mirrors NewtonManager._sync_cable_points, but emits world space because the OVRTX cable
+    prims pin an identity omni:xform with the transform stack reset. Endpoints come from the
+    first and last capsule; interior points are the midpoint of the two adjacent capsule ends.
+    """
+    curve = wp.tid()
+    offset = offsets[curve]
+    segment_count = counts[curve]
+    point_base = point_offsets[curve]
+
+    for point in range(segment_count + 1):
+        endpoint_w = wp.vec3f()
+        if point == 0:
+            shape = shape_ids[offset]
+            shape_q = wp.transform_multiply(body_q[shape_body[shape]], shape_transform[shape])
+            endpoint_w = wp.transform_point(shape_q, wp.vec3f(0.0, 0.0, -shape_scale[shape][1]))
+        elif point == segment_count:
+            shape = shape_ids[offset + segment_count - 1]
+            shape_q = wp.transform_multiply(body_q[shape_body[shape]], shape_transform[shape])
+            endpoint_w = wp.transform_point(shape_q, wp.vec3f(0.0, 0.0, shape_scale[shape][1]))
+        else:
+            left_shape = shape_ids[offset + point - 1]
+            left_q = wp.transform_multiply(body_q[shape_body[left_shape]], shape_transform[left_shape])
+            left_w = wp.transform_point(left_q, wp.vec3f(0.0, 0.0, shape_scale[left_shape][1]))
+            right_shape = shape_ids[offset + point]
+            right_q = wp.transform_multiply(body_q[shape_body[right_shape]], shape_transform[right_shape])
+            right_w = wp.transform_point(right_q, wp.vec3f(0.0, 0.0, -shape_scale[right_shape][1]))
+            endpoint_w = 0.5 * (left_w + right_w)
+        points_out[point_base + point] = endpoint_w
