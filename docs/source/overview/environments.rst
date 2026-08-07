@@ -216,15 +216,13 @@ for the lift-cube environment:
     | World                   | Environment ID               | Description                                                                 | Presets                                 |
     +=========================+==============================+=============================================================================+=========================================+
     | |reach-franka|          | |reach-franka-link|          | Move the end-effector to a sampled target pose with the Franka robot        | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
-    |                         |                              |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     |                         |                              |                                                                             | **presets=** ``diffik``,                |
     |                         |                              |                                                                             | ``diffik_abs``, ``joint_pos``,          |
     |                         |                              |                                                                             | ``newton_ik``                           |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |reach-ur10|            | |reach-ur10-link|            | Move the end-effector to a sampled target pose with the UR10 robot          | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
-    |                         |                              |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |deploy-reach-ur10e|    | |deploy-reach-ur10e-link|    | Move the end-effector to a sampled target pose with the UR10e robot         |                                         |
     |                         |                              | This policy has been deployed to a real robot                               |                                         |
@@ -1144,16 +1142,16 @@ including disabling runtime perturbations used for training.
     * - Isaac-Reach-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
           | **presets=** ``diffik``, ``diffik_abs``, ``joint_pos``, ``newton_ik``
     * - Isaac-Reach-Franka-OSC
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reach-UR10
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reorient-Cube-Allegro
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
