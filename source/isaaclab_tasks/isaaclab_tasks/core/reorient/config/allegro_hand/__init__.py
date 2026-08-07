@@ -20,6 +20,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.allegro_hand_manager_env_cfg:AllegroCubeEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AllegroCubePPORunnerCfg",
+        "default_agent": "rsl_rl",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
     },
@@ -37,6 +38,7 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.allegro_hand_direct_env_cfg:AllegroHandEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AllegroHandPPORunnerCfg",
+        "default_agent": "rsl_rl",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",
     },
 )

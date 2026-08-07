@@ -67,7 +67,7 @@ class RoughPhysicsCfg(PresetCfg):
         # on triangle-mesh terrain. See isaaclab_newton 0.5.22 changelog.
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
-    default = isaacsim_physx
+    default = newton_mjwarp
 
 
 ##
