@@ -1145,6 +1145,14 @@ future release:
    :class:`~isaaclab.assets.ArticulationData`; do not migrate either property to the actuator
    collection.
 
+.. important::
+
+   LEAPP-exported action terms are a temporary exception. The collection command setters do not
+   yet carry LEAPP output annotations, so exportable terms must continue to call the deprecated,
+   annotated ``Articulation.set_joint_*_target_index`` or ``*_mask`` methods until collection
+   setters are supported by the exporter. Runtime code that is not exported should use the
+   collection API.
+
 Actuator group topology is configuration-time state. Add or remove a group on
 :attr:`~isaaclab.assets.ArticulationCfg.actuators` before creating the articulation:
 

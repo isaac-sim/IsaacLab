@@ -12,17 +12,25 @@ finite torque, bounded speed, transmission delays, and gearbox effects.
 Isaac Lab exposes two ways to reproduce that behavior in simulation:
 
 * **Implicit actuators** hand the position/velocity gains to the physics engine, which runs a
-  spring-damper (PD) controller in its discrete solver. This is accurate and cheap, and it is the
-  right default for most robots.
-* **Explicit actuators** run a user-side model every step to compute a joint torque, clip it to the
-  motor's capabilities, and submit only the resulting effort. This trades some cost for the ability
-  to model saturation, delay, gearing, or a learned drive.
+  spring-damper (PD) controller in its discrete solver. This is a low-overhead default when the
+  built-in PD model is sufficient. PhysX implicit drives may tolerate higher gains or a larger time
+  step in isolation, but contacts, mimic joints, joint limits, large target jumps, and insufficient
+  solver convergence can still destabilize them. See the `PhysX articulation drive stability
+  guidance
+  <https://nvidia-omniverse.github.io/PhysX/physx/5.8.0/docs/Articulations.html#articulation-drive-stability>`_.
+* **Explicit actuators** normally run an Isaac Lab model every step to compute a joint torque, clip
+  it to the motor's capabilities, and submit only the resulting effort. Supported native actuator
+  paths bypass the collection's processed-command buffers: Newton finishes processing inside the
+  solver, while the PhysX adapter processes commands during ``write_data_to_sim()``. Explicit
+  models trade some cost for the ability to model saturation, delay, gearing, or a learned drive.
 
 Every actuator group -- implicit or explicit -- is configured on
 :attr:`~isaaclab.assets.ArticulationCfg.actuators` and exposed by the runtime
 :class:`~isaaclab.actuators.ActuatorCollection` on
 :attr:`~isaaclab.assets.Articulation.actuators`. The collection routes groups and stages commands
-and telemetry. You drive the articulation at runtime through the collection.
+and telemetry. Ordinary runtime code sets desired targets through the collection; the articulation
+owns actuator execution and command submission. LEAPP-exported action terms are the temporary
+exception described in :ref:`actuators-migrating-setters`.
 
 .. contents:: On this page
     :local:
@@ -64,10 +72,11 @@ by articulation joint. The setters are keyword-only and default to all environme
     values = torch.full((robot.num_instances, robot.num_joints), 0.5, device=robot.device)
     robot.actuators.command.set_position_index(value=values)
 
-You never call the models yourself: the articulation computes and submits the actuator commands
-inside :meth:`~isaaclab.assets.Articulation.write_data_to_sim`, which runs once per physics step.
-The rest of this page explains what happens between the actuator command you set and the joint
-command submitted to physics, then documents every gain and limit with side-by-side comparisons.
+You never call the models yourself: the articulation stages and submits actuator commands inside
+:meth:`~isaaclab.assets.Articulation.write_data_to_sim`. Isaac Lab-managed models and the PhysX
+native adapter run during this call; Newton-native controllers finish processing inside the solver.
+The rest of this page explains what happens between the desired command you set and the command
+consumed by physics, then documents every gain and limit with side-by-side comparisons.
 
 
 .. _actuators-pipeline:
@@ -84,8 +93,11 @@ stages:
    commands, and telemetry. It does not own actuator-model gains or scratch state.
 #. **Actuator model** -- an *explicit* model turns the actuator command into a joint effort and
    clips it; an *implicit* model passes its command to the simulator drive.
-#. **Joint command** -- ``actuators.joint_command`` exposes the processed position, velocity, and
-   effort commands submitted to the active physics backend.
+#. **Joint command** -- for Isaac Lab-managed models, ``actuators.joint_command`` exposes the
+   processed position, velocity, and effort commands submitted to the active physics backend. A
+   native path bypasses this view, so it is not submitted-command telemetry there. Newton-native
+   controllers process inside the solver; the PhysX native adapter processes during
+   ``write_data_to_sim()``.
 
 .. figure:: ../../_static/actuators/pipeline-light.png
     :class: only-light
@@ -103,7 +115,8 @@ Where the gains land differs by path, and this is the single most common source 
 
 * For an **implicit** group, :attr:`~isaaclab.actuators.ActuatorBaseCfg.stiffness` and
   :attr:`~isaaclab.actuators.ActuatorBaseCfg.damping` are written straight into the solver, which
-  runs the PD law. ``compute()`` does nothing except record an approximate torque for telemetry.
+  runs the PD law. ``compute()`` passes the desired targets through unchanged while recording an
+  approximate torque for telemetry.
 * For an **explicit** group, the same gains are consumed by the model to compute a torque, and the
   solver's own PD gains for those joints are set to zero. Reading ``data.joint_stiffness`` or
   ``data.joint_damping`` on an explicit joint therefore returns **zero** -- the gains live in the
@@ -117,10 +130,11 @@ explicit actuator joints. They are not a collection-wide mirror of the actuator-
 
 .. note::
 
-    Because the whole pipeline runs inside :meth:`~isaaclab.assets.Articulation.write_data_to_sim`,
-    a command you set is not visible in the simulation until the next physics step. Telemetry
-    buffers (:attr:`~isaaclab.actuators.ActuatorCollection.computed_torque`,
-    :attr:`~isaaclab.actuators.ActuatorCollection.applied_torque`) reflect the most recent step.
+    Each call to :meth:`~isaaclab.assets.Articulation.write_data_to_sim` runs collection staging and
+    submission; Newton-native processing then continues inside the solver. Call it before advancing
+    the simulation, or rely on the scene or environment loop to call it. Telemetry buffers
+    (:attr:`~isaaclab.actuators.ActuatorCollection.computed_torque`,
+    :attr:`~isaaclab.actuators.ActuatorCollection.applied_torque`) reflect the most recent call.
 
 
 Choosing a model
@@ -227,9 +241,13 @@ Run a single comparison interactively (with the visualizer) via
     ``effort_limit_sim`` because it names the stage it acts on. The analogous
     :attr:`~isaaclab.actuators.ActuatorBaseCfg.velocity_limit` populates the actuator-resolved soft
     velocity-limit view for implicit actuators but is not sent to the solver; only
-    ``velocity_limit_sim`` reaches the solver. Explicit models such as the DC motor use
-    ``velocity_limit`` for their model. Setting ``effort_limit`` on an implicit group logs a
-    deprecation warning, and setting both fields to conflicting values raises an error.
+    ``velocity_limit_sim`` is requested from the solver. Enforcement is backend-dependent: PhysX
+    consumes its supported clamp and Newton's Kamino solver honors it, while MJWarp currently does
+    not enforce it. Do not treat ``velocity_limit_sim`` as a portable safety boundary. See
+    :doc:`physical-backends/newton/migrating-assets-from-physx-to-newton` for details. Explicit
+    models such as the DC motor use ``velocity_limit`` for their model. Setting ``effort_limit`` on
+    an implicit group logs a deprecation warning, and setting both fields to conflicting values
+    raises an error.
 
 
 Stiffness
@@ -290,15 +308,17 @@ Armature
 
 Armature [kg or kg·m², depending on joint type] models the reflected rotor inertia of the
 drivetrain: it is added directly to the joint-space inertia. Physically it captures the gearbox and
-motor inertia a real drive carries; numerically it is the primary stability knob for explicit
-actuators. Under identical gains, more armature makes the joint respond more sluggishly but
-tolerates stiffer gains and larger time steps without going unstable.
+motor inertia a real drive carries. Increasing a physically justified armature lowers the drive's
+effective natural frequency and can improve numerical conditioning, especially for low-inertia
+joints, but it also changes the physical model. In this single-joint comparison, more armature
+makes the response more sluggish and increases the margin before the chosen gains become unstable.
 
 Both paths run at discrete solver steps, but explicit models submit an effort while implicit models
 use the solver's joint drive. Explicit models can therefore require different stability tuning.
-Raising ``armature`` is the first remedy when an explicit-actuator policy will not
-converge or diverges where the same robot was stable on implicit actuators. See the `OmniPhysics
-articulation stability guide
+When an explicit-actuator simulation diverges, check mass and inertia, target scaling and update
+rate, effort limits, gains, time step, and solver convergence settings. Tune armature from the
+motor and transmission model alongside those parameters. See the `OmniPhysics articulation
+stability guide
 <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_
 for the solver-side background.
 
@@ -399,7 +419,8 @@ the achievable torque decreases linearly as the joint approaches it, defining th
 torque-speed envelope. The curve below is that envelope for a range of velocity limits -- a lower
 limit shrinks the usable speed band and clamps torque earlier. A DC motor consumes ``velocity_limit``
 for this torque-speed clipping. An implicit group exposes it through the soft velocity-limit view,
-while only ``velocity_limit_sim`` reaches the solver.
+while ``velocity_limit_sim`` requests a solver clamp. Whether that clamp is enforced depends on the
+backend, as described in :ref:`newton-velocity-limits`.
 
 .. figure:: ../../_static/actuators/velocity-limit-curve-light.png
     :class: only-light
@@ -445,12 +466,13 @@ on real transport lag.
 Implicit vs. explicit
 ^^^^^^^^^^^^^^^^^^^^^
 
-With identical gains, an implicit actuator and an ideal-PD explicit actuator produce nearly the same
-response, but they are not identical: the implicit path uses the solver's joint drive while the
-explicit model evaluates the PD law once per step. The overlaid
-curve below shows the two responses for the same stiffness and damping. This is why a policy trained
-on implicit actuators may not transfer unchanged to explicit ones -- and why the explicit joint's
-``data.joint_stiffness`` / ``data.joint_damping`` read zero, since those gains now live in the model.
+In this single-joint demo at :math:`dt = 1/360\text{ s}`, an implicit actuator and an ideal-PD
+explicit actuator with identical gains produce nearly the same response. This is not a general
+equivalence or stability guarantee: the implicit path uses the solver's joint drive while the
+explicit model evaluates the PD law once per step. The overlaid curve below shows the two responses
+for the same stiffness and damping. This is why a policy trained on implicit actuators may not
+transfer unchanged to explicit ones -- and why the explicit joint's ``data.joint_stiffness`` /
+``data.joint_damping`` read zero, since those gains now live in the model.
 
 .. figure:: ../../_static/actuators/implicit-vs-explicit-curve-light.png
     :class: only-light
@@ -502,6 +524,9 @@ Named entries such as ``hips`` and ``knees`` retain separate configuration and a
 Isaac Lab may combine disjoint compatible stateless groups for execution without changing the
 group tensors returned by ``robot.actuators["hips"]``. Groups remain separate when they overlap,
 use incompatible classes, are stateful or neural-network models, or run through a native controller.
+Overlapping Isaac Lab-managed groups execute in configuration order; the later group owns the
+collection-wide processed-command and torque-telemetry entries for every shared joint. Avoid
+overlap unless that precedence is intentional.
 Set commands and perform lifecycle operations through the articulation and its
 :class:`~isaaclab.actuators.ActuatorCollection`; execution batching is private.
 
@@ -510,7 +535,7 @@ Commands, telemetry, and lifecycle
 
 **Setting actuator commands.** The mutable ``command`` view contains the desired position,
 velocity, and effort received by the actuator models. Use its index setters for the common case
-(contiguous environment/joint id lists) and its mask setters when you already hold boolean Warp
+(environment/joint index lists or tensors) and its mask setters when you already hold boolean Warp
 masks. All are keyword-only:
 
 .. code-block:: python
@@ -522,19 +547,25 @@ masks. All are keyword-only:
     sub = torch.zeros((env_ids.numel(), ids.numel()), device=robot.device)
     robot.actuators.command.set_position_index(value=sub, joint_ids=ids, env_ids=env_ids)
 
+Each index selector must contain unique environment and joint indices. Duplicate indices launch
+concurrent writes to the same destination, so write ordering and the resulting value are undefined.
+Deduplicate the selectors or use a boolean mask; a mask selects each destination at most once.
+
 By default ``value`` is shaped ``(len(env_ids), len(joint_ids))``. Pass ``full_data=True`` when
 ``value`` is already a full ``(num_instances, num_joints)`` command buffer, so you don't have to
 build a per-index sub-tensor: the same scatter kernel runs either way, but the source is then read
 at full-buffer coordinates.
 
-**Reading commands and telemetry.** ``command`` exposes what the actuator models received, while
-the ``joint_command`` view exposes what they produced for the simulated joints. Read the underlying
-arrays through ``.torch`` (or ``.warp``):
+**Reading commands and telemetry.** ``command`` exposes the desired commands staged for actuator
+processing. For Isaac Lab-managed models, ``joint_command`` exposes the processed commands produced
+for the simulated joints. Native paths bypass this view, so it is not submitted-command telemetry
+there. Newton-native controllers process inside the solver, while the PhysX native adapter processes
+during ``write_data_to_sim()``. Read the underlying arrays through ``.torch`` (or ``.warp``):
 
 .. code-block:: python
 
     desired_position = robot.actuators.command.position.torch
-    submitted_effort = robot.actuators.joint_command.effort.torch
+    processed_effort = robot.actuators.joint_command.effort.torch  # Isaac Lab-managed path
     applied = robot.actuators.applied_torque.torch      # after clipping [N·m or N]
     computed = robot.actuators.computed_torque.torch   # before clipping [N·m or N]
 
@@ -556,9 +587,11 @@ forward the values to native controllers when active:
     )
 
 **Lifecycle.** You do not call ``compute()`` or ``submit_commands()`` yourself. The articulation
-runs, in order, ``actuators.reset()`` on env resets and ``actuators.compute()`` followed by
-``actuators.submit_commands()`` inside :meth:`~isaaclab.assets.Articulation.write_data_to_sim`, once
-per physics step. Your job is to set actuator commands before the step.
+runs ``actuators.reset()`` on environment resets. Each call to
+:meth:`~isaaclab.assets.Articulation.write_data_to_sim` invokes actuator compute, staging, and
+submission; call it before advancing the simulation, or rely on the scene or environment loop.
+
+.. _actuators-migrating-setters:
 
 .. rubric:: Migrating from the deprecated setters
 
@@ -572,6 +605,10 @@ the collection and emit a :class:`DeprecationWarning`:
 
     # After
     robot.actuators.command.set_position_index(value=target, joint_ids=ids)
+
+LEAPP-exported action terms must keep using the annotated articulation ``*_index`` or ``*_mask``
+setters until the exporter supports collection setters. Other runtime code should migrate to the
+collection API.
 
 The old data reads move too: ``articulation.data.joint_pos_target`` becomes
 ``robot.actuators.command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become
@@ -682,8 +719,10 @@ of them:
     * - Backend
       - Submit behavior
     * - PhysX
-      - Processed position, velocity, and effort staging buffers are pushed through the PhysX Tensor
-        API; a fused reorder gather runs first when a non-identity joint ordering is active.
+      - The Isaac Lab-managed path pushes processed position, velocity, and effort staging buffers
+        through the PhysX Tensor API. The native adapter processes commands during
+        ``write_data_to_sim()`` and submits raw position and velocity targets plus its computed
+        effort. A fused reorder gather runs first when a non-identity joint ordering is active.
     * - OVPhysX
       - The post-clip ``applied_torque`` is pushed as the effort together with the raw position and
         velocity target buffers (not the processed staging buffers) via OV ``set_attribute`` tensor

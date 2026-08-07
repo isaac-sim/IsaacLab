@@ -111,10 +111,10 @@ class ImplicitActuator(ActuatorBase):
     ) -> ArticulationActions:
         """Process the actuator group actions and compute the articulation actions.
 
-        In case of implicit actuator, the control action is directly returned as the computed action.
-        This function is a no-op and does not perform any computation on the input control action.
-        However, it computes the approximate torques for the actuated joint since PhysX does not compute
-        this quantity explicitly.
+        For an implicit actuator, the desired control action is returned unchanged because the
+        physics solver applies the PD drive. This method still computes approximate computed and
+        applied effort telemetry from the current joint state. That telemetry may differ from the
+        effort applied internally by the solver.
 
         Args:
             control_action: The joint action instance comprising of the desired joint positions, joint velocities

@@ -131,8 +131,8 @@ to combine them into a single actuator model.
 ActuatorCfg velocity/effort limits considerations
 -------------------------------------------------
 
-In IsaacLab v1.4.0, the plain ``velocity_limit`` and ``effort_limit`` attributes were **not** consistently
-pushed into the physics solver:
+In Isaac Lab v1.4.0, the plain ``velocity_limit`` and ``effort_limit`` attributes were **not**
+consistently pushed into the physics solver:
 
 - **Implicit actuators**
   - velocity_limit was ignored (never set in simulation)
@@ -142,27 +142,24 @@ pushed into the physics solver:
   - both velocity_limit and effort_limit were used only by the drive model, not by the solver
 
 
-In v2.0.1 we accidentally changed this: all velocity_limit & effort_limit, implicit or
-explicit, were being applied to the solver. That caused many training under the old default uncaped solver
-limits to break.
+In v2.0.1, all ``velocity_limit`` and ``effort_limit`` values, implicit or explicit, were
+accidentally applied to the solver. That broke training workflows that relied on the previous
+uncapped solver limits.
 
-To restore the original behavior while still giving users full control over solver limits, we introduced two new flags:
+To restore the original behavior while still giving users control over solver limits, two fields
+were introduced:
 
 * **velocity_limit_sim**
-  Sets the physics-solver's maximum joint-velocity cap in simulation.
+  Requests the physics solver's maximum joint-velocity cap in simulation.
 
 * **effort_limit_sim**
   Sets the physics-solver's maximum joint-effort cap in simulation.
 
 
-These explicitly set the solver's joint-velocity and joint-effort caps at simulation level.
-
-On the other hand, velocity_limit and effort_limit model the motor's hardware-level constraints in torque
-computation for all explicit actuators rather than limiting simulation-level constraint.
-For implicit actuators, since they do not model motor hardware limitations, ``velocity_limit`` were removed in v2.1.1
-and marked as deprecated. This preserves same behavior as they did in v1.4.0. Eventually, ``velocity_limit`` and
-``effort_limit`` will be deprecated for implicit actuators, preserving only ``velocity_limit_sim`` and
-``effort_limit_sim``
+The plain ``velocity_limit`` and ``effort_limit`` fields represent motor-side constraints used by
+explicit actuator models rather than solver-level constraints. For implicit actuators,
+``velocity_limit`` populates the actuator-resolved soft velocity-limit view but is not sent to the
+solver. ``effort_limit`` remains a deprecated alias of ``effort_limit_sim`` for implicit actuators.
 
 
 .. table:: Limit Options Comparison
@@ -175,21 +172,25 @@ and marked as deprecated. This preserves same behavior as they did in v1.4.0. Ev
         - **Implicit Actuator**
         - **Explicit Actuator**
       * - ``velocity_limit``
-        - Deprecated (alias for ``velocity_limit_sim``)
+        - Populates the soft velocity-limit view; not sent to the solver
         - Used by the model (e.g. DC motor), not set into simulation
       * - ``effort_limit``
         - Deprecated (alias for ``effort_limit_sim``)
         - Used by the model, not set into simulation
       * - ``velocity_limit_sim``
-        - Set into simulation
-        - Set into simulation
+        - Requested from the solver; enforcement is backend-dependent
+        - Requested from the solver; enforcement is backend-dependent
       * - ``effort_limit_sim``
         - Set into simulation
         - Set into simulation
 
 
 
-Users who want to tune the underlying physics-solver limits should set the ``_sim`` flags.
+Users who want to tune the underlying physics-solver limits should set the ``_sim`` fields. PhysX
+consumes its supported velocity clamp and Newton's Kamino solver honors it, while MJWarp currently
+does not enforce ``velocity_limit_sim``. Do not treat that field as a backend-independent safety
+boundary. See :ref:`overview-actuators` and :ref:`newton-velocity-limits` for the current backend
+behavior.
 
 
 USD vs. ActuatorCfg discrepancy resolution

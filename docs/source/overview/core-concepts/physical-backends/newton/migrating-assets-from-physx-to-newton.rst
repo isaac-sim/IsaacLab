@@ -192,6 +192,8 @@ incorrect collision geometry, or insufficient actuator effort. See :ref:`mjwarp-
 the complete tuning sequence.
 
 
+.. _newton-velocity-limits:
+
 Velocity limits distinction
 ---------------------------
 

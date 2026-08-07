@@ -61,14 +61,14 @@ class ActuatorBaseCfg:
         This attribute describes the joint's peak velocity, i.e. the actuator's rated speed
         reflected at the joint (after any gearbox). It populates the articulation data
         buffers (e.g. :attr:`~isaaclab.assets.ArticulationData.soft_joint_vel_limits`, read by
-        velocity-limit terminations and rewards) and clips the effort output of explicit
-        actuator models, but it is **not** pushed to the physics solver.
+        velocity-limit terminations and rewards). Explicit models with speed-dependent limits,
+        such as :class:`DCMotor`, also use it to clip effort. It is **not** pushed to the physics
+        solver.
 
-        Use :attr:`velocity_limit_sim` to additionally impose a solver-level hard clamp
-        (PhysX ``maxJointVelocity``). A physical actuator limits joint speed through its
-        torque curve rather than a kinematic clamp, so the two limits are resolved
-        independently. When only :attr:`velocity_limit_sim` is set, it also serves as the
-        joint velocity limit.
+        Use :attr:`velocity_limit_sim` to request a solver-level hard clamp. A physical
+        actuator limits joint speed through its torque curve rather than a kinematic clamp,
+        so the two limits are resolved independently. When only
+        :attr:`velocity_limit_sim` is set, it also serves as the joint velocity limit.
     """
 
     effort_limit_sim: dict[str, float] | float | None = None
@@ -89,18 +89,19 @@ class ActuatorBaseCfg:
     """
 
     velocity_limit_sim: dict[str, float] | float | None = None
-    """Velocity limit of the joints in the group applied to the simulation physics solver. Defaults to None.
+    """Requested solver velocity limit [m/s or rad/s, depending on joint type]. Defaults to None.
 
-    The velocity limit is used to constrain the joint velocities in the physics engine. The joint will only
-    be able to reach this velocity if the joint's effort limit is sufficiently large. If the joint is moving
-    faster than this velocity, the physics engine will actually try to brake the joint to reach this velocity.
+    Enforcement depends on the active backend. PhysX consumes its supported clamp and Newton's
+    Kamino solver honors it, while MJWarp currently does not enforce this value. Do not use it as a
+    backend-independent safety boundary.
 
-    If None, the limit is set to the value specified in the USD joint prim for both implicit and explicit actuators.
+    If None, the limit is set to the value specified in the USD joint prim for both implicit and
+    explicit actuators.
 
     .. tip::
-        If the velocity limit is too tight, the physics engine may have trouble converging to a solution.
-        In such cases, we recommend either keeping this value sufficiently large or tuning the stiffness and
-        damping parameters of the joint to ensure the limits are not violated.
+        On backends that enforce it, a tight velocity limit can impair solver convergence. Keep the
+        value sufficiently large or tune joint stiffness and damping so the drive does not repeatedly
+        violate the limit.
 
     """
 

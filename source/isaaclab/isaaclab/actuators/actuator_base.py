@@ -99,10 +99,10 @@ class ActuatorBase(ABC):
     """
 
     velocity_limit_sim: torch.Tensor
-    """The solver-level velocity clamp for the actuator group [rad/s or m/s]. Shape is (num_envs, num_joints).
+    """The requested solver velocity clamp [rad/s or m/s]. Shape is (num_envs, num_joints).
 
-    Written to the simulation (PhysX ``maxJointVelocity``); resolved independently of
-    :attr:`velocity_limit`.
+    This value is resolved independently of :attr:`velocity_limit`. Enforcement depends on the
+    active simulation backend.
     """
 
     stiffness: torch.Tensor

@@ -63,6 +63,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
         Position and velocity commands use joint-side coordinates. All command
         arrays are indexed by articulation joint, not by motor shaft.
+
+        Index selectors must contain unique environment and joint indices. Repeated
+        indices dispatch concurrent writes to the same destination and produce an
+        undefined result. Deduplicate selectors or use mask setters.
         """
 
         def __init__(self, collection: ActuatorCollection) -> None:
@@ -248,7 +252,12 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             )
 
     class JointCommand:
-        """Processed commands produced for the simulated joints."""
+        """Processed commands produced for the simulated joints.
+
+        These arrays contain submitted-command telemetry for Isaac Lab-managed
+        actuator models. Native controllers bypass the arrays, so they do not
+        provide submitted-command telemetry on a native path.
+        """
 
         def __init__(self, collection: ActuatorCollection) -> None:
             """Initialize the joint command view.
@@ -335,7 +344,11 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
     @property
     def joint_command(self) -> JointCommand:
-        """Processed commands produced for the simulated joints."""
+        """Processed commands produced for the simulated joints.
+
+        This view is not submitted-command telemetry for native controllers, which
+        bypass the processed-command arrays.
+        """
         return self._joint_command
 
     @property
