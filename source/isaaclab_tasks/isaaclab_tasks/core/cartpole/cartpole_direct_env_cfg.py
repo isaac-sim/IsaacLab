@@ -48,10 +48,7 @@ class CartpolePhysicsCfg(PresetCfg):
         use_cuda_graph=True,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=kamino_padmm_solver_cfg(
-            use_collision_detector=True,
-            collision_detector=KaminoCollisionDetectorCfg(max_contacts_per_pair=8),
-        ),
+        solver_cfg=kamino_padmm_solver_cfg(),
         debug_mode=False,
         use_cuda_graph=True,
     )
