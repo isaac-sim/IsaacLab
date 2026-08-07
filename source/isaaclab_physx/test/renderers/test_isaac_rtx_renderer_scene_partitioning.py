@@ -50,7 +50,9 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
 _ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
-_PARTITION_XFAIL = pytest.mark.xfail(reason="Kit c0b875cd scene partitioning regression", strict=False, run=False)
+_PARTITION_XFAIL = pytest.mark.xfail(
+    reason="NVBug 6264822: Kit c0b875cd scene partitioning regression", strict=False, run=False
+)
 
 
 @pytest.fixture()
