@@ -63,6 +63,7 @@ try:
         Renderer,
         RendererConfig,
         Semantic,
+        TextureStreamingMode,
     )
 except ModuleNotFoundError as exc:
     if exc.name != "ovrtx":
@@ -71,7 +72,7 @@ except ModuleNotFoundError as exc:
         "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
         "Run your command with: uv run --extra ovrtx <command> "
         "(or, manually: python -m pip install --extra-index-url https://pypi.nvidia.com "
-        "'ovrtx>=0.4.0,<0.5.0')."
+        "'ovrtx>=0.4.1,<0.5.0')."
     ) from exc
 
 from isaaclab.cloner.clone_plan import ClonePlan
@@ -399,6 +400,7 @@ class OVRTXRenderer(BaseRenderer):
             log_level=self.cfg.log_level,
             read_gpu_transforms=_read_gpu_transforms_enabled(),
             keep_system_alive=True,
+            texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
         self._renderer = Renderer(OVRTX_CONFIG)
         if not self._renderer:
