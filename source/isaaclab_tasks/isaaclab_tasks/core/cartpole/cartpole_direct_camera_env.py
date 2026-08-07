@@ -56,8 +56,10 @@ class CartpoleCameraEnv(CartpoleEnv):
         plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
 
-        # Isaac Sim PhysX replication requires explicit collision filtering between environments.
-        if self.scene.physics_backend == "physxmanager":
+        # Isaac Sim PhysX always needs USD filtering; OvPhysX needs it on CPU.
+        if self.scene.physics_backend == "physxmanager" or (
+            self.scene.physics_backend == "ovphysxmanager" and self.device == "cpu"
+        ):
             self.scene.filter_collisions(global_prim_paths=[])
 
         # add articulation and sensors to scene
