@@ -674,6 +674,41 @@ runtime command is needed.
      ``sudo chown -R 1000:1000`` them before launching, so the non-root user can write to
      them.
 
+Because the Isaac Lab container runs with ``network_mode: host``, the container's ports are
+exposed directly on the host network stack. The host firewall therefore governs whether XR
+devices can reach Isaac Lab. Apply the same ``ufw`` rules from :ref:`install-isaac-teleop`
+**on the host machine** before starting the container:
+
+.. tab-set::
+
+   .. tab-item:: Meta Quest 3 / Pico 4 Ultra (web client)
+
+      .. code-block:: bash
+
+         sudo ufw allow 49100/tcp   # Signaling (WebRTC)
+         sudo ufw allow 47998/udp   # Media stream
+         sudo ufw allow 48322/tcp   # WSS proxy — required for cert acceptance and streaming
+
+   .. tab-item:: Apple Vision Pro (native client)
+
+      .. code-block:: bash
+
+         sudo ufw allow 48010/tcp   # Standard mode signaling
+         sudo ufw allow 48322/tcp   # Secure mode signaling
+         sudo ufw allow 47998/udp
+         sudo ufw allow 48005/udp
+         sudo ufw allow 48008/udp
+         sudo ufw allow 48012/udp
+         sudo ufw allow 47999/udp
+         sudo ufw allow 48000/udp
+         sudo ufw allow 48002/udp
+
+.. note::
+
+   If port 48322 is not open, the headset browser will show **"This site can't be reached"**
+   when navigating to the certificate-acceptance page — the TCP connection fails before any
+   certificate exchange occurs.
+
 Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
 .. tab-set::
