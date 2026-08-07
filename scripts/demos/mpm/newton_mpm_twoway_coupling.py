@@ -20,9 +20,13 @@ pause or resume the simulation and ``.`` to advance one step while paused.
 from __future__ import annotations
 
 import argparse
+from functools import partial
 
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
+from pxr import Gf, Usd, UsdGeom
+
+import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Newton rigid-sphere and MPM-sand two-way coupling demo.")
@@ -42,12 +46,29 @@ SPHERE_BODY_PATTERN = r"/World/envs/env_.*/Sphere_[0-9]+"
 SPHERE_RADIUS = 0.30
 SPHERE_MASS = 450.0
 SPHERE_POSITIONS = ((-0.90, 0.25, 1.10), (0.0, -0.30, 1.10), (0.90, 0.30, 1.10))
+SPHERE_COLORS = ((0.20, 0.45, 0.85), (0.85, 0.25, 0.20), (0.25, 0.70, 0.30))
 
 BATH_INTERIOR_SIZE = (3.6, 2.6)
-BATH_WALL_HEIGHT = 1.5
+BATH_WALL_HEIGHT = 1.2
 BATH_WALL_THICKNESS = 0.15
 SAND_LOWER = (-1.65, -1.15, 0.05)
 SAND_UPPER = (1.65, 1.15, 0.72)
+
+
+@sim_utils.clone
+def _spawn_colored_sphere(
+    prim_path: str,
+    cfg: sim_utils.SphereCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    *,
+    color: tuple[float, float, float],
+) -> Usd.Prim:
+    """Spawn a sphere with a display color understood by the Newton viewer."""
+    prim = sim_utils.spawn_sphere(prim_path, cfg, translation, orientation)
+    mesh = UsdGeom.Gprim(prim.GetStage().GetPrimAtPath(f"{prim_path}/geometry/mesh"))
+    mesh.CreateDisplayColorAttr().Set([Gf.Vec3f(*color)])
+    return prim
 
 
 def create_visualizer_cfgs():
@@ -68,8 +89,6 @@ def create_visualizer_cfgs():
 def create_sim_cfg():
     """Create the proxy-coupled MJWarp and MPM simulation configuration."""
     from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg
-
-    import isaaclab.sim as sim_utils
 
     from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -122,7 +141,6 @@ def create_scene_cfg():
     from isaaclab_newton.assets.mpm_object import MPMObjectCfg
     from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 
-    import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.utils.configclass import configclass
@@ -148,6 +166,7 @@ def create_scene_cfg():
         rigid_objects[f"sphere_{index}"] = RigidObjectCfg(
             prim_path=f"{{ENV_REGEX_NS}}/Sphere_{index}",
             spawn=sim_utils.SphereCfg(
+                func=partial(_spawn_colored_sphere, color=SPHERE_COLORS[index]),
                 radius=SPHERE_RADIUS,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(),
                 mass_props=sim_utils.MassPropertiesCfg(mass=SPHERE_MASS),
@@ -228,7 +247,6 @@ def main() -> None:
     """Launch the two-way rigid-MPM coupling demo."""
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
-        import isaaclab.sim as sim_utils
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
