@@ -33,6 +33,7 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
+from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 from isaaclab.utils._device import set_cuda_device
@@ -1263,7 +1264,9 @@ class AppLauncher:
 
         sys.argv = _sanitize_sys_argv_for_kit(sys.argv)
 
+        report_activity("Starting Isaac Sim")
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+        report_activity(None)
 
         # enable sys stdout and stderr
         sys.stdout = sys.__stdout__
