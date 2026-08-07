@@ -110,6 +110,8 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+
+        # sim
         self.sim.physics.newton_mjwarp.num_substeps = 2
         # scene
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
