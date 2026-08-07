@@ -40,17 +40,9 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
         return result
 
     def _reset_idx(self, env_ids: Sequence[int]):
-        """Reset selected environments and restore the zero-action arm target."""
+        """Reset selected environments and discard stale conveyor forces."""
         super()._reset_idx(env_ids)
 
         conveyor_driver = getattr(self, "_conveyor_driver", None)
         if conveyor_driver is not None:
             conveyor_driver.clear()
-
-        # There is deliberately no arm action term yet. Keep the position-controlled
-        # Franka at its configured pose during zero-action scene playback.
-        robot = self.scene["robot"]
-        joint_targets = robot.data.default_joint_pos
-        if env_ids is not None:
-            joint_targets = joint_targets[env_ids]
-        robot.set_joint_position_target(joint_targets, env_ids=env_ids)

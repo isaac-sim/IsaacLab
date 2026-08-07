@@ -8,20 +8,27 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonMaterialPropertiesCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim.schemas import UsdPhysicsCollisionCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
-
+from . import mdp
 from .conveyor_geometry import (
-    BELT_CENTER_X,
     BELT_CENTER_Y,
     BELT_COLOR,
     BELT_TURN_RADIUS,
@@ -31,6 +38,7 @@ from .conveyor_geometry import (
     belt_mesh_spec,
     guard_mesh_specs,
 )
+from .franka_robot_cfg import FRANKA_PANDA_CONVEYOR_CFG
 
 _DYNAMIC_PROPERTIES = sim_utils.RigidBodyBaseCfg()
 
@@ -44,16 +52,146 @@ def _srgb_to_linear_channel(value: float) -> float:
 
 @configclass
 class ActionsCfg:
-    """Empty action configuration for zero-action scene playback."""
+    """Relative arm and binary gripper actions."""
 
-    pass
+    arm_action = mdp.ConveyorRelativeJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["panda_joint[1-7]"],
+        scale=0.12,
+        max_delta=0.12,
+        gravity_compensation=True,
+    )
+    gripper_action = mdp.ResetBufferedGripperActionCfg(
+        asset_name="robot",
+        joint_names=["panda_finger_joint[1-2]"],
+        open_command_expr={"panda_finger_joint.*": 0.04},
+        close_command_expr={"panda_finger_joint.*": 0.0},
+        force_close_steps=5,
+    )
 
 
 @configclass
 class ObservationsCfg:
-    """Empty observation configuration while the task objective is being designed."""
+    """Policy observations with stable cube identity and transfer commands."""
 
-    pass
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Fully observed transfer policy input."""
+
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint[1-7]"])},
+        )
+        joint_vel = ObsTerm(
+            func=mdp.joint_vel_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint[1-7]"])},
+        )
+        gripper_pos = ObsTerm(
+            func=mdp.gripper_joint_positions,
+            params={"robot_cfg": SceneEntityCfg("robot", joint_names=["panda_finger_joint[1-2]"])},
+        )
+        objects = ObsTerm(func=mdp.transfer_object_observation)
+        active_transfer = ObsTerm(func=mdp.active_transfer_features)
+        target_cube = ObsTerm(func=mdp.target_cube_one_hot)
+        cube_conveyors = ObsTerm(func=mdp.cube_conveyor_state)
+        target_side = ObsTerm(func=mdp.target_side_one_hot)
+        eef_velocity = ObsTerm(func=mdp.end_effector_velocity)
+        eef_axes = ObsTerm(func=mdp.end_effector_axes)
+        last_action = ObsTerm(func=mdp.last_action)
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class EventCfg:
+    """Reset the scene, then restore one validated transfer state."""
+
+    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+    reset_from_state_table = EventTerm(
+        func=mdp.ConveyorResetStateTable,
+        mode="reset",
+        params={
+            "fixed_recipe": None,
+            "fixed_variant_id": None,
+            "fixed_target_cube_id": None,
+            "fixed_source_side_id": None,
+            "belt_start_x_range": (0.30, 0.82),
+            "cube_position_noise": 0.015,
+            "arm_joint_noise": 0.015,
+        },
+    )
+
+
+@configclass
+class RewardsCfg:
+    """Transfer progress, completion, and regularization rewards."""
+
+    progress = RewTerm(func=mdp.ConveyorTransferProgressReward, weight=60.0)
+    success = RewTerm(func=mdp.transfer_success_reward, weight=600.0)
+    failure = RewTerm(func=mdp.terminal_failure, weight=-60.0)
+    arm_action_l2 = RewTerm(
+        func=mdp.action_term_l2,
+        params={"action_name": "arm_action"},
+        weight=-1.0e-3,
+    )
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1.0e-3)
+    joint_velocity_l2 = RewTerm(
+        func=mdp.finite_joint_velocity_l2,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint[1-7]"])},
+        weight=-1.0e-4,
+    )
+
+
+@configclass
+class TerminationsCfg:
+    """Successful placement, physical failure, and horizon terms."""
+
+    learning_progress_context = DoneTerm(
+        func=mdp.ConveyorResetLearningProgress,
+        params={
+            "minimum_episode_steps": 3,
+            "minimum_progress": 0.35,
+            "maximum_target_potential": 5.0,
+        },
+    )
+    success = DoneTerm(
+        func=mdp.StableConveyorTransfer,
+        params={
+            "minimum_episode_steps": 2,
+            "hold_steps": 3,
+            "lateral_tolerance": 0.055,
+            "maximum_cube_speed": 0.65,
+            "minimum_finger_position": 0.027,
+            "minimum_tool_clearance": 0.055,
+        },
+    )
+    cube_out_of_workspace = DoneTerm(func=mdp.cube_out_of_workspace)
+    nonfinite_scene_state = DoneTerm(func=mdp.nonfinite_scene_state)
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+
+
+@configclass
+class CurriculumCfg:
+    """Adaptive phase-balanced reset-state sampling."""
+
+    reset_sampling = CurrTerm(
+        func=mdp.ConveyorResetCurriculum,
+        params={
+            "progress_context_name": "learning_progress_context",
+            "final_success_termination_name": "success",
+            # Match Franka Stack: sampling follows each row's recent policy
+            # competence instead of retaining stale early failures forever.
+            "monitored_history_len": 50,
+            # Keep a deployment-facing stream while the remaining starts
+            # adapt around the rolling pickup-to-placement frontier. Adaptive
+            # rows remain balanced across recipe, cube identity, and side.
+            "deployment_probability": 0.35,
+        },
+    )
 
 
 @configclass
@@ -149,14 +287,21 @@ def _static_mesh(
     friction: float,
     roughness: float,
     metallic: float,
+    mujoco_priority: int | None = None,
 ) -> AssetBaseCfg:
     """Build a static colliding triangle-mesh configuration."""
+    collision_props = sim_utils.CollisionBaseCfg()
+    if mujoco_priority is not None:
+        collision_props = [
+            UsdPhysicsCollisionCfg(collision_enabled=True),
+            MujocoCollisionCfg(priority=mujoco_priority),
+        ]
     return AssetBaseCfg(
         prim_path=prim_path,
         spawn=sim_utils.MeshCustomCfg(
             vertices=spec.vertices,
             faces=spec.faces,
-            collision_props=sim_utils.CollisionBaseCfg(),
+            collision_props=collision_props,
             physics_material=RigidBodyMaterialBaseCfg(
                 static_friction=friction,
                 dynamic_friction=friction,
@@ -171,21 +316,29 @@ def _static_mesh(
     )
 
 
-def _parcel(
+def _cube(
     name: str,
-    spawn: sim_utils.ShapeCfg,
+    color: tuple[float, float, float],
     pos: tuple[float, float, float],
 ) -> RigidObjectCfg:
-    """Build a dynamic parcel configuration."""
+    """Build one numbered dynamic transfer cube."""
+    spawn = sim_utils.CuboidCfg(
+        size=(0.04, 0.04, 0.04),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, roughness=0.75),
+    )
     spawn.rigid_props = _DYNAMIC_PROPERTIES
-    spawn.mass_props = sim_utils.MassPropertiesCfg(mass=0.25)
-    spawn.collision_props = sim_utils.CollisionBaseCfg()
-    spawn.physics_material = RigidBodyMaterialBaseCfg(
-        # The force driver supplies traction explicitly. This is just above MuJoCo's
-        # minimum valid coefficient and mirrors Newton's force-conveyor example.
-        static_friction=1.1e-5,
-        dynamic_friction=1.1e-5,
-        restitution=0.05,
+    spawn.mass_props = sim_utils.MassPropertiesCfg(mass=0.05)
+    spawn.collision_props = sim_utils.CollisionBaseCfg(contact_offset=0.0, rest_offset=0.0)
+    spawn.physics_material = NewtonMaterialPropertiesCfg(
+        # The belt's higher MuJoCo contact priority overrides this friction
+        # only for belt/cube pairs, leaving physical finger/cube friction.
+        static_friction=0.8,
+        dynamic_friction=0.6,
+        restitution=0.0,
+        torsional_friction=0.002,
+        rolling_friction=0.0001,
+        contact_stiffness=1.0e4,
+        contact_damping=200.0,
     )
     spawn.func = _spawn_shape_with_display_color
     return RigidObjectCfg(
@@ -199,8 +352,8 @@ def _parcel(
 class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
     """Scene with two counter-rotating racetrack conveyors around a table-mounted Franka."""
 
-    # Use the MuJoCo Menagerie-derived model with Newton's MuJoCo MJWarp solver.
-    robot = FRANKA_PANDA_MENAGERIE_CFG.replace(
+    # Use the MuJoCo Menagerie-derived model with explicit manipulation gains.
+    robot = FRANKA_PANDA_CONVEYOR_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos={
@@ -229,43 +382,13 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
         color=(0.18, 0.20, 0.23),
     )
 
-    parcel_left_box = _parcel(
-        "ParcelLeftBox",
-        sim_utils.CuboidCfg(
-            size=(0.075, 0.055, 0.06),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=PARCEL_COLOR, roughness=0.8),
-        ),
-        (BELT_CENTER_X - 0.12, BELT_CENTER_Y + BELT_TURN_RADIUS, 0.085),
-    )
-    parcel_left_cylinder = _parcel(
-        "ParcelLeftCylinder",
-        sim_utils.CylinderCfg(
-            radius=0.032,
-            height=0.065,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.18, 0.48, 0.82), roughness=0.8),
-        ),
-        (BELT_CENTER_X + 0.18, BELT_CENTER_Y - BELT_TURN_RADIUS, 0.085),
-    )
-    parcel_right_box = _parcel(
-        "ParcelRightBox",
-        sim_utils.CuboidCfg(
-            size=(0.06, 0.06, 0.075),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.86, 0.34, 0.12), roughness=0.8),
-        ),
-        (BELT_CENTER_X + 0.14, -BELT_CENTER_Y + BELT_TURN_RADIUS, 0.0925),
-    )
-    parcel_right_capsule = _parcel(
-        "ParcelRightCapsule",
-        sim_utils.CapsuleCfg(
-            radius=0.026,
-            height=0.075,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.34, 0.68, 0.28), roughness=0.8),
-        ),
-        (BELT_CENTER_X - 0.18, -BELT_CENTER_Y - BELT_TURN_RADIUS, 0.095),
-    )
+    cube_0 = _cube("Cube0", (0.15, 0.35, 0.90), (0.30, BELT_CENTER_Y - BELT_TURN_RADIUS, 0.06))
+    cube_1 = _cube("Cube1", (0.90, 0.20, 0.15), (0.78, BELT_CENTER_Y - BELT_TURN_RADIUS, 0.06))
+    cube_2 = _cube("Cube2", (0.15, 0.75, 0.25), (0.30, -BELT_CENTER_Y + BELT_TURN_RADIUS, 0.06))
+    cube_3 = _cube("Cube3", PARCEL_COLOR, (0.78, -BELT_CENTER_Y + BELT_TURN_RADIUS, 0.06))
 
-    parcel_contacts = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Parcel.*",
+    cube_contacts = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Cube.*",
         update_period=0.0,
         history_length=1,
         debug_vis=False,
@@ -297,6 +420,9 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
                     friction=1.1e-5,
                     roughness=0.9,
                     metallic=0.0,
+                    # MuJoCo otherwise resolves equal-priority pair friction
+                    # with max(belt, cube), pinning parcels to the static mesh.
+                    mujoco_priority=1,
                 ),
             )
 
@@ -318,17 +444,18 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
-    """Manager-based environment configuration for the conveyor Franka scene."""
+    """Manager-based RL task for commanded conveyor-to-conveyor cube transfer."""
 
     scene: ConveyorFrankaSceneCfg = ConveyorFrankaSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=True)
     conveyor_force: ConveyorForceCfg = ConveyorForceCfg()
-    # MDP managers will be populated once the manipulation objective is defined.
     actions: ActionsCfg = ActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()
-    rewards = None
-    terminations = None
-    decimation: int = 1
-    episode_length_s: float = 1.0e6
+    events: EventCfg = EventCfg()
+    rewards: RewardsCfg = RewardsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
+    curriculum: CurriculumCfg = CurriculumCfg()
+    decimation: int = 2
+    episode_length_s: float = 10.0
 
     sim: SimulationCfg = SimulationCfg(
         dt=1.0 / 120.0,
@@ -349,7 +476,10 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
                 ccd_iterations=35,
             ),
             collision_cfg=NewtonCollisionPipelineCfg(),
-            default_shape_cfg=NewtonShapeCfg(),
+            # Refresh contacts between the two 240 Hz solver substeps and
+            # preserve the authored surfaces without speculative separation.
+            collision_decimation=1,
+            default_shape_cfg=NewtonShapeCfg(margin=0.0, gap=0.0),
             num_substeps=2,
             use_cuda_graph=False,
             load_visual_shapes=True,
@@ -371,3 +501,11 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
             eye=(2.3, -2.7, 1.8),
             lookat=(0.45, 0.0, 0.35),
         )
+
+    def play_mode(self) -> None:
+        """Evaluate complete transfers from randomized moving-belt starts."""
+        super().play_mode()
+        self.scene.num_envs = min(self.scene.num_envs, 8)
+        self.events.reset_from_state_table.params["fixed_recipe"] = int(mdp.ConveyorResetRecipe.BELT)
+        self.events.reset_from_state_table.params["fixed_variant_id"] = mdp.BELT_DEPLOYMENT_VARIANT
+        self.curriculum = None
