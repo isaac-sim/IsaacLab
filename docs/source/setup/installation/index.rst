@@ -225,7 +225,7 @@ before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
 backends. Pass a comma-separated list or repeat ``--extra``. See
 :ref:`installation-optional-extras` for the available extras and compatibility.
 
-Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and 
+Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
 
 .. _installation-legacy-installer:
