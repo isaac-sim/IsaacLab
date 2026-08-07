@@ -30,6 +30,7 @@ from isaaclab_rl.entrypoints.common import (
     add_frontend_args,
     apply_video_recording,
     create_isaaclab_env,
+    pre_launch_video_config,
     preserve_attribute,
     resolve_checkpoint_selector,
     resolve_play_task_name,
@@ -148,6 +149,7 @@ def _main():
     env_cfg, experiment_cfg = resolve_task_config(
         args_cli.task, agent_cfg_entry_point, play_mode=not args_cli.train_env_cfg
     )
+    pre_launch_video_config(env_cfg, args_cli=args_cli)
     with launch_simulation(env_cfg, args_cli):
         if args_cli.ml_framework.startswith("torch"):
             from skrl.utils.runner.torch import Runner

@@ -112,6 +112,8 @@ class SceneAsset(HasPose):
         cloned prims exist.
         """
         if self._xform_view is None or self._xform_view.count == 0:
+            if self._xform_view is not None:
+                self._xform_view.close()
             entity = self.scene[self.entity_name]
             prim_path = (
                 entity.prim_path
