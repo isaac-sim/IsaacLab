@@ -120,6 +120,29 @@ class ContainerInterface:
     Operations.
     """
 
+    def _run_docker_command(self, cmd: list[str], action: str, check: bool = True) -> int:
+        """Run a docker command in the context directory and surface its failure.
+
+        Args:
+            cmd: The docker command to run.
+            action: Description of the attempted operation, used in the failure message.
+            check: Whether a non-zero exit code raises. Defaults to True. Pass False for
+                operations whose failure should not abort the caller.
+
+        Returns:
+            The exit code of the command.
+
+        Raises:
+            RuntimeError: If the command exits non-zero and :paramref:`check` is True.
+        """
+        returncode = subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ).returncode
+        if returncode != 0:
+            message = f"Failed to {action} (exit code {returncode}). Command: {' '.join(cmd)}"
+            if check:
+                raise RuntimeError(message)
+            print(f"[WARN] {message}\n")
+        return returncode
+
     def is_container_running(self) -> bool:
         """Check if the container is running.
 
@@ -156,7 +179,7 @@ class ContainerInterface:
                 + ["--env-file", ".env.base"]
                 + ["build", self.base_service_name]
             )
-            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+            self._run_docker_command(cmd, "build the docker image for the profile 'base'")
             print("[INFO] Finished building the docker image for the profile 'base'.\n")
 
         # build the image for the profile
@@ -169,7 +192,7 @@ class ContainerInterface:
                 + self.add_env_files
                 + ["build", self.service_name]
             )
-            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+            self._run_docker_command(cmd, f"build the docker image for the profile '{self.profile}'")
             print(f"[INFO] Finished building the docker image for the profile '{self.profile}'.\n")
 
     def start(self):
@@ -194,7 +217,7 @@ class ContainerInterface:
                 + ["--env-file", ".env.base"]
                 + ["build", self.base_service_name]
             )
-            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+            self._run_docker_command(cmd, "build the docker image for the profile 'base'")
 
         # start the container and build the image if not available
         cmd = (
@@ -204,7 +227,7 @@ class ContainerInterface:
             + self.add_env_files
             + ["up", "--detach", "--build", "--remove-orphans"]
         )
-        subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+        self._run_docker_command(cmd, f"start the container '{self.container_name}'")
 
     def enter(self):
         """Enter the running container by executing a bash shell.
@@ -231,7 +254,7 @@ class ContainerInterface:
             cmd = (
                 ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["down", "--volumes"]
             )
-            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+            self._run_docker_command(cmd, f"stop the container '{self.container_name}'")
         else:
             print(
                 f"[INFO] Can't stop container '{self.container_name}' as it is not running."
@@ -275,7 +298,9 @@ class ContainerInterface:
             # copy the artifacts
             for container_path, host_path in artifacts.items():
                 cmd = ["docker", "cp", f"{self.container_name}:{container_path}/", host_path]
-                subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+                # An absent artifact directory is normal, so a copy failure warns
+                # rather than aborting the remaining copies.
+                self._run_docker_command(cmd, f"copy '{container_path}' from the container", check=False)
             print("\n[INFO] Finished copying the artifacts from the container.")
         else:
             raise RuntimeError(f"The container '{self.container_name}' is not running.")
@@ -300,7 +325,7 @@ class ContainerInterface:
 
         # run the docker compose config command to generate the configuration
         cmd = ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["config"] + output
-        subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+        self._run_docker_command(cmd, "generate the docker compose configuration")
 
     """
     Helper functions.
