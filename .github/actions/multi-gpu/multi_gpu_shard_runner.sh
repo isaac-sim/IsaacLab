@@ -33,7 +33,7 @@
 
 set +e  # keep going on errors; per-shard exit codes are aggregated at the end
 cd /workspace/isaaclab
-unset HUB__ARGS__DETECT_ONLY DISPLAY  # clear vars that would force Kit into detect-only / headed (X11) mode
+unset DISPLAY  # clear the var that would force Kit into headed (X11) mode
 
 # Container-level HOME + PYTHONUSERBASE for pip --user installs. The image
 # runs as --user $host_uid:$host_gid with no matching /etc/passwd entry, so

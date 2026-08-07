@@ -212,11 +212,26 @@ def test_dockerfile_prepares_volume_mounts_from_compose(dockerfile_name: str, vo
 def test_isaac_sim_dockerfiles_chown_the_omnihub_cache(dockerfile_name: str):
     """OmniHub's cache belongs to the isaac-sim user, so the runtime user must be given it.
 
-    Without this, the hub child exits 1 before writing its config and omni.client retries
-    for ~10 s at every Kit startup.
+    Without this, OmniHub cannot write the cache it is pointed at once it is allowed to
+    start.
     """
     dockerfile_text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
 
     chown_block = re.search(r"chown -R isaaclab:isaaclab((?:\s*\\\s*\S+)+)", dockerfile_text)
     assert chown_block, f"{dockerfile_name} has no 'chown -R isaaclab:isaaclab' block"
     assert "/var/cache/hub" in chown_block.group(1)
+
+
+@pytest.mark.parametrize("dockerfile_name", ["Dockerfile.base", "Dockerfile.curobo"])
+def test_isaac_sim_dockerfiles_let_omnihub_start(dockerfile_name: str):
+    """The Isaac Sim image sets ``HUB__ARGS__DETECT_ONLY=true``, forbidding OmniHub to start.
+
+    omni.client asks it to launch anyway, so every Kit startup retries ~39 times. The value
+    must be exactly ``false``: ``--detect-only`` takes a value, so clearing it with
+    ``ENV HUB__ARGS__DETECT_ONLY=`` aborts hub with "a value is required" instead.
+    """
+    dockerfile_text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
+
+    assert re.search(r"^ENV HUB__ARGS__DETECT_ONLY=false$", dockerfile_text, re.MULTILINE), (
+        f"{dockerfile_name} must set 'ENV HUB__ARGS__DETECT_ONLY=false' exactly"
+    )

@@ -189,9 +189,12 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc 
 RUN groupadd --non-unique --gid 1000 isaaclab \
  && useradd --non-unique --uid 1000 --gid 1000 -M -l -s /bin/bash -d ${DOCKER_USER_HOME} isaaclab
 
-# /var/cache/hub belongs to the isaac-sim user (uid 1234) from the Isaac Sim image, so the
-# uid 1000 runtime user cannot write it. OmniHub then exits 1 before writing its config and
-# omni.client retries for ~10 s at every Kit startup.
+# The Isaac Sim image sets HUB__ARGS__DETECT_ONLY=true, which forbids OmniHub from starting.
+# omni.client still asks it to launch, so every Kit startup retries ~39 times before giving
+# up. Letting OmniHub start also needs its cache at /var/cache/hub, owned by the isaac-sim
+# user (uid 1234) upstream, to be writable by the uid 1000 runtime user.
+ENV HUB__ARGS__DETECT_ONLY=false
+
 RUN chown -R isaaclab:isaaclab \
         ${ISAACLAB_PATH} \
         ${DOCKER_USER_HOME} \
