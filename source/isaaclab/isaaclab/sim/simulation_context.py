@@ -45,7 +45,9 @@ from .spawners import DomeLightCfg, GroundPlaneCfg
 logger = logging.getLogger(__name__)
 
 # Visualizer type names (CLI and config). App launcher parses CSV and stores as a space-separated setting.
-_VISUALIZER_TYPES = ("newton", "rerun", "viser", "kit")
+_VISUALIZER_TYPES = ("newton_gl", "newton_rtx", "rerun", "viser", "kit")
+# Deprecated aliases mapped to their canonical names.
+_VISUALIZER_ALIASES = {"newton": "newton_gl"}
 
 
 def _resolve_physics_cfg(physics_cfg: Any, use_isaac_sim: bool) -> PhysicsCfg:
@@ -375,19 +377,33 @@ class SimulationContext:
         default_configs = []
         cfg_class_names = {
             "kit": "KitVisualizerCfg",
-            "newton": "NewtonVisualizerCfg",
+            "newton_gl": "NewtonGLVisualizerCfg",
+            "newton_rtx": "NewtonRTXVisualizerCfg",
             "rerun": "RerunVisualizerCfg",
             "viser": "ViserVisualizerCfg",
         }
+        # newton_gl and newton_rtx both live in the isaaclab_visualizers.newton package.
+        module_overrides = {"newton_gl": "isaaclab_visualizers.newton", "newton_rtx": "isaaclab_visualizers.newton"}
         for viz_type in requested_visualizers:
             try:
+                # Resolve deprecated aliases before lookup.
+                if viz_type in _VISUALIZER_ALIASES:
+                    canonical = _VISUALIZER_ALIASES[viz_type]
+                    import warnings
+
+                    warnings.warn(
+                        f"Visualizer type '{viz_type}' is deprecated. Use '{canonical}' instead.",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+                    viz_type = canonical
                 if viz_type not in _VISUALIZER_TYPES:
                     logger.warning(
                         f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
                         f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. Skipping."
                     )
                     continue
-                mod = importlib.import_module(f"isaaclab_visualizers.{viz_type}")
+                mod = importlib.import_module(module_overrides.get(viz_type, f"isaaclab_visualizers.{viz_type}"))
                 cfg_cls = getattr(mod, cfg_class_names[viz_type])
                 cfg = cfg_cls()
                 self._apply_default_visualizer_cfg(cfg)
@@ -413,15 +429,26 @@ class SimulationContext:
     def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
         """Apply shared default visualizer settings to a backend-specific config.
 
-        Only sets fields that are still at the backend class's own factory default,
-        so explicitly customized values on ``cfg`` (e.g. ``window_width=320``) are
-        preserved while env-level hints (e.g. ``eye``, ``lookat``) are propagated.
+        Only propagates fields that were **explicitly set** in ``default_visualizer_cfg``
+        (i.e. differ from the base :class:`~isaaclab.visualizers.VisualizerCfg` defaults)
+        AND are still at the backend cfg's own factory default (i.e. not already
+        customised by the caller).  This prevents base-class defaults such as
+        ``streaming_view=False`` from stomping backend-specific defaults like
+        ``NewtonGLVisualizerCfg.streaming_view=True``.
         """
+        from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
         default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
         if default_cfg is None:
             return
-        # Instantiate a fresh backend cfg to detect which fields the caller
-        # has already customized beyond the class defaults.
+        # Base VisualizerCfg defaults — used to detect which fields on default_cfg
+        # were explicitly set by the env vs. left at the base-class default.
+        try:
+            base_defaults = VisualizerCfg()
+        except Exception:
+            base_defaults = None
+        # Backend-specific factory defaults — used to detect which fields on cfg
+        # the caller has already customised beyond the class defaults.
         try:
             factory_defaults = type(cfg)()
         except Exception:
@@ -429,10 +456,19 @@ class SimulationContext:
         for field in fields(default_cfg):
             if field.name == "visualizer_type" or not hasattr(cfg, field.name):
                 continue
-            # Preserve explicitly customized fields on cfg.
-            if factory_defaults is not None and getattr(cfg, field.name) != getattr(factory_defaults, field.name):
+            default_val = getattr(default_cfg, field.name)
+            # Skip fields that were not explicitly set in default_cfg (still at base default).
+            if base_defaults is not None and hasattr(base_defaults, field.name):
+                if default_val == getattr(base_defaults, field.name):
+                    continue
+            # Preserve explicitly customised fields on cfg.  When factory_defaults is None
+            # (backend cfg constructor raised), skip the field rather than overwriting it
+            # unconditionally — we cannot tell whether the caller customised it.
+            if factory_defaults is None:
                 continue
-            setattr(cfg, field.name, getattr(default_cfg, field.name))
+            if getattr(cfg, field.name) != getattr(factory_defaults, field.name):
+                continue
+            setattr(cfg, field.name, default_val)
 
     def _get_cli_visualizer_types(self) -> list[str]:
         """Return list of visualizer types requested via CLI (setting)."""
@@ -724,7 +760,7 @@ class SimulationContext:
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
         return (
-            getattr(cfg, "visualizer_type", None) == "newton"
+            getattr(cfg, "visualizer_type", None) in {"newton_gl", "newton_rtx"}
             and bool(getattr(cfg, "enable_picking", False))
             and not bool(getattr(cfg, "headless", False))
         )
@@ -1023,8 +1059,9 @@ def build_simulation_context(
         add_ground_plane: Whether to add a ground plane. Defaults to False.
         add_lighting: Whether to add a dome light. Defaults to False.
         auto_add_lighting: Whether to auto-add lighting if GUI present. Defaults to False.
-        visualizers: List of visualizer backend keys to enable (e.g. ``["kit", "newton", "rerun"]``).
-            Valid types: ``"kit"``, ``"newton"``, ``"rerun"``, ``"viser"``.
+        visualizers: List of visualizer backend keys to enable (e.g. ``["kit", "newton_gl", "rerun"]``).
+            Valid types: ``"kit"``, ``"newton_gl"``, ``"newton_rtx"``, ``"rerun"``, ``"viser"``.
+            ``"newton"`` is a deprecated alias for ``"newton_gl"``.
             When provided, sets the ``/isaaclab/visualizer/types`` setting so the
             existing visualizer resolution machinery picks them up. Defaults to None.
 

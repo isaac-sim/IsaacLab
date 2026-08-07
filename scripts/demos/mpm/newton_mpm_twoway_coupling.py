@@ -55,13 +55,14 @@ BOX_OFFSETS_XY = (
 
 def create_visualizer_cfgs():
     """Create the demo-specific Newton visualizer configuration."""
-    if "newton" not in (args_cli.visualizer or []):
+    if not {"newton", "newton_gl"}.intersection(args_cli.visualizer or []):
         return []
 
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     return [
-        NewtonVisualizerCfg(
+        NewtonGLVisualizerCfg(
+            streaming_view=False,
             show_particles=True,
             particle_color=PARTICLE_COLOR,
             update_frequency=1,
