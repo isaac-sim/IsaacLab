@@ -890,6 +890,103 @@ jobs:
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm
+
+  # These compatibility jobs preserve the exact status names currently required
+  # by branch protection.  The matrix job names above are not stable status
+  # contexts on pull requests, so docs-only runs would otherwise leave the old
+  # required checks in the Expected state.
+  required-standalone-demos-kit:
+    name: standalone demos (headless, Kit)
+    runs-on: ubuntu-latest
+    needs: [changes, test-standalone-demos]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+    - name: Check standalone demo result
+      env:
+        CHANGES_RESULT: ${{ needs.changes.result }}
+        SHOULD_RUN: ${{ needs.changes.outputs.should_run }}
+        TEST_RESULT: ${{ needs.test-standalone-demos.result }}
+      run: |
+        set -euo pipefail
+
+        if [ "$CHANGES_RESULT" != "success" ]; then
+          echo "Change detection failed with result: $CHANGES_RESULT"
+          exit 1
+        fi
+
+        if [ "$SHOULD_RUN" != "true" ]; then
+          echo "Standalone demo tests are not required for this change."
+          exit 0
+        fi
+
+        if [ "$TEST_RESULT" != "success" ]; then
+          echo "Standalone demo tests did not pass: $TEST_RESULT"
+          exit 1
+        fi
+
+        echo "Standalone demo tests passed."
+
+  required-standalone-demos-non-kit:
+    name: standalone demos (headless, non-Kit)
+    runs-on: ubuntu-latest
+    needs: [changes, test-standalone-demos]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+    - name: Check standalone demo result
+      env:
+        CHANGES_RESULT: ${{ needs.changes.result }}
+        SHOULD_RUN: ${{ needs.changes.outputs.should_run }}
+        TEST_RESULT: ${{ needs.test-standalone-demos.result }}
+      run: |
+        set -euo pipefail
+
+        if [ "$CHANGES_RESULT" != "success" ]; then
+          echo "Change detection failed with result: $CHANGES_RESULT"
+          exit 1
+        fi
+
+        if [ "$SHOULD_RUN" != "true" ]; then
+          echo "Standalone demo tests are not required for this change."
+          exit 0
+        fi
+
+        if [ "$TEST_RESULT" != "success" ]; then
+          echo "Standalone demo tests did not pass: $TEST_RESULT"
+          exit 1
+        fi
+
+        echo "Standalone demo tests passed."
+
+  required-rendering-correctness-kitless-legacy:
+    name: rendering-correctness-kitless (legacy)
+    runs-on: ubuntu-latest
+    needs: [changes, test-rendering-correctness-kitless]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+    - name: Check kit-less rendering result
+      env:
+        CHANGES_RESULT: ${{ needs.changes.result }}
+        SHOULD_RUN: ${{ needs.changes.outputs.should_run }}
+        TEST_RESULT: ${{ needs.test-rendering-correctness-kitless.result }}
+      run: |
+        set -euo pipefail
+
+        if [ "$CHANGES_RESULT" != "success" ]; then
+          echo "Change detection failed with result: $CHANGES_RESULT"
+          exit 1
+        fi
+
+        if [ "$SHOULD_RUN" != "true" ]; then
+          echo "Kit-less rendering tests are not required for this change."
+          exit 0
+        fi
+
+        if [ "$TEST_RESULT" != "success" ]; then
+          echo "Kit-less rendering tests did not pass: $TEST_RESULT"
+          exit 1
+        fi
+
+        echo "Kit-less rendering tests passed."
   #endregion
 
 #region disabled quarantined tests
