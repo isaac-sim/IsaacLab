@@ -211,11 +211,11 @@ def test_newton_records_nonblack_clip():
     render_rgb_array() calls may return the same framebuffer.  Non-black confirms
     the GL viewer drew a real scene.
     """
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg = _cartpole_cfg_newton(num_envs=1)
-        env_cfg.sim.visualizer_cfgs = [NewtonVisualizerCfg(window_width=320, window_height=240)]
+        env_cfg.sim.visualizer_cfgs = [NewtonGLVisualizerCfg(window_width=320, window_height=240)]
         env_cfg.video_recorders = [_recorder_cfg(output_dir, "visualizer:newton", prefix="newton")]
         _run_cartpole(env_cfg)
         _assert_clip_nonblack(os.path.join(output_dir, "newton_0000.mp4"), "newton")

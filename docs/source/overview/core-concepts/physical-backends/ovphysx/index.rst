@@ -187,3 +187,6 @@ conservative. Broader feature coverage and documentation parity are tracked in
 `issue #5634 <https://github.com/isaac-sim/IsaacLab/issues/5634>`_.
 
 For architectural context, see :doc:`../../multi_backend_architecture`.
+
+For raw ``TensorBinding`` access and :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`,
+see :doc:`../direct-api-access/ovphysx`.

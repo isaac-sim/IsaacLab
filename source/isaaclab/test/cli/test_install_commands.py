@@ -983,3 +983,30 @@ class TestRePointPrebundlePackages:
 
         assert (prebundle / pkg_name).is_symlink(), f"{pkg_name} should be repointed"
         assert (prebundle / pkg_name).resolve() == (site_pkgs / pkg_name).resolve()
+
+
+class TestInstallRootExtraExcludesIsaacSim:
+    """The ``teleop`` extra lists Isaac Sim for uv, but pip must never resolve it inline."""
+
+    def test_root_extra_dependencies_exclude_isaacsim(self):
+        """pip has no override mechanism, so isaacsim + isaacteleop in one pass cannot resolve."""
+        dependencies = install_cmd._root_extra_dependencies("teleop")
+
+        assert not any(d.startswith("isaacsim") for d in dependencies)
+        assert any(d.startswith("isaacteleop") for d in dependencies)
+
+    def test_install_root_extra_omits_isaacsim_from_the_pip_command(self, tmp_path):
+        """``./isaaclab.sh -i teleop`` must not hand Isaac Sim to pip alongside Isaac Teleop."""
+        python_exe = str(tmp_path / "python")
+        pip_cmd = [python_exe, "-m", "pip"]
+
+        with (
+            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=python_exe),
+            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
+            mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+        ):
+            install_cmd._install_root_extra("teleop")
+
+        installed = " ".join(" ".join(call.args[0]) for call in mock_run.call_args_list)
+        assert "isaacsim[all,extscache]" not in installed
+        assert "isaacteleop" in installed

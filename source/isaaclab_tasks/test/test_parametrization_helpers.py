@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import pytest
 import rendering_test_utils
 from rendering_test_utils import (
+    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
     attach_comparison_properties,
     generate_html_report,
     make_kitless_rendering_params,
@@ -94,15 +95,32 @@ def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
     assert marked[0].marks[0].kwargs["reason"] == "Native renderer crash."
 
 
+def test_kitless_matrix_scopes_texture_readiness_xfail_to_newton() -> None:
+    """OVPhysX textured AOVs pass outside Lift, so the shared readiness xfail stays Newton-only."""
+    params = {param.id: param for param in KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS}
+
+    for data_type in ("albedo", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
+        newton_param = params[f"newton-ovrtx-{data_type}"]
+        assert [mark.name for mark in newton_param.marks] == ["xfail"]
+        assert "NVBUG#6505191" in newton_param.marks[0].kwargs["reason"]
+
+        ovphysx_param = params[f"ovphysx-ovrtx-{data_type}"]
+        assert "xfail" not in [mark.name for mark in ovphysx_param.marks]
+
+
 def test_lift_factory_applies_shared_native_crash_policy() -> None:
-    """Both stage variants should share the ticketed Lift MDL skips."""
+    """Both backends skip the crash-prone MDL AOVs, which xfail cannot contain."""
     params = {param.id: param for param in make_kitless_rendering_params_lift()}
 
     for variant in ("legacy", "ovstage"):
-        for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
-            param = params[f"{variant}-newton-ovrtx-{data_type}"]
-            assert [mark.name for mark in param.marks] == ["skip"]
-            assert "NVBUG#6524987" in param.marks[0].kwargs["reason"]
+        for physics_backend in ("newton", "ovphysx"):
+            for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
+                param = params[f"{variant}-{physics_backend}-ovrtx-{data_type}"]
+                assert [mark.name for mark in param.marks] == ["skip"]
+                assert "NVBUG#6524987" in param.marks[0].kwargs["reason"]
+
+    # Lift OVPhysX albedo passes, so it must not inherit an exemption from the MDL policy.
+    assert "xfail" not in [mark.name for mark in params["legacy-ovphysx-ovrtx-albedo"].marks]
 
 
 def test_franka_factory_adds_cloth_only_motion_policy() -> None:
