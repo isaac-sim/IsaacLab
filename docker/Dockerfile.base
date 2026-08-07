@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# CI diagnostic: bust the deps-cache so the image is really built (remove with the diagnostic).
 # Isaac Sim base container: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim
 # Please check the NGC container page for license information.
 
