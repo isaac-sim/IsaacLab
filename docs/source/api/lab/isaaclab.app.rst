@@ -15,7 +15,6 @@
 
    .. autosummary::
 
-      format_run_summary
       launch_simulation
       make_physics_cfg
       report_activity

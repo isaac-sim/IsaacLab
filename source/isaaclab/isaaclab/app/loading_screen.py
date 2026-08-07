@@ -8,18 +8,27 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 import tempfile
 import threading
 import time
 from typing import IO, Any
 
-from tqdm import tqdm
+from rich.cells import cell_len, chop_cells, set_cell_size
+from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
+from rich.constrain import Constrain
+from rich.live import Live
+from rich.text import Text
 
 _LABEL_WIDTH = 14
 _STAGE_WIDTH = 22
 _ACTIVITY_WIDTH = 24
-_TICK_INTERVAL = 0.1
+_REFRESH_PER_SECOND = 10
+_SUMMARY_WIDTH = 50
+_STANDARD_WIDTH = 80
+_WIDE_WIDTH = 120
+_COLUMN_GAP = 6
 # Reported steps per stage that fill the stage's slice of the bar, and the share
 # of that slice they may fill. Sub-steps are not known in advance, so a stage
 # that reports more than this keeps its progress just short of the next stage;
@@ -28,6 +37,7 @@ _STEPS_PER_STAGE = 8
 _STEP_CEILING = 0.9
 _BOX = ("╭", "╮", "╰", "╯", "─", "│")
 _ASCII_BOX = ("+", "+", "+", "+", "-", "|")
+_WRAP_CONSOLE = Console(color_system=None, force_terminal=False, width=120)
 
 LOGO = r"""Welcome to Isaac Lab!
 
@@ -38,7 +48,26 @@ LOGO = r"""Welcome to Isaac Lab!
      '-------'"""
 """Greeting drawn beside the run summary. Kept short enough to fit alongside it."""
 
+LOGO_WIDE = r"""Welcome to Isaac Lab!
+
+██╗███████╗ █████╗  █████╗  ██████╗   ██╗      █████╗ ██████╗
+██║██╔════╝██╔══██╗██╔══██╗██╔════╝   ██║     ██╔══██╗██╔══██╗
+██║███████╗███████║███████║██║        ██║     ███████║██████╔╝
+██║╚════██║██╔══██║██╔══██║██║        ██║     ██╔══██║██╔══██╗
+██║███████║██║  ██║██║  ██║╚██████╗   ███████╗██║  ██║██████╔╝
+╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝   ╚══════╝╚═╝  ╚═╝╚═════╝"""
+"""Wide greeting used when a 120-column display is available."""
+
 _active_screen: LoadingScreen | None = None
+
+
+def _display_width(terminal_width: int) -> int:
+    """Return the responsive width of the live display."""
+    if terminal_width < _STANDARD_WIDTH:
+        return terminal_width
+    if terminal_width < _WIDE_WIDTH:
+        return _STANDARD_WIDTH
+    return _WIDE_WIDTH
 
 
 def report_activity(activity: str | None) -> None:
@@ -62,28 +91,63 @@ def report_activity(activity: str | None) -> None:
         _active_screen.set_activity(activity)
 
 
-def format_run_summary(title: str, fields: dict[str, str], *, ascii_only: bool = False) -> str:
-    """Render a boxed summary of a run's configuration.
+def _format_run_summary(title: str, fields: dict[str, str], *, width: int, ascii_only: bool = False) -> str:
+    """Render a boxed run summary at an exact outer width."""
+    if width < 4:
+        raise ValueError(f"Summary width must be at least 4 columns, got {width}")
 
-    Args:
-        title: Text shown in the top border of the box.
-        fields: Label to value mapping rendered as one row per entry, in order.
-        ascii_only: Whether to draw the box with ASCII characters instead of
-            box-drawing characters.
-
-    Returns:
-        The rendered box, without a trailing newline.
-    """
     top_left, top_right, bottom_left, bottom_right, horizontal, vertical = _ASCII_BOX if ascii_only else _BOX
-    rows = [f"{label.ljust(_LABEL_WIDTH)}{value}" for label, value in fields.items()]
-    width = max(len(title) + 4, max((len(row) for row in rows), default=0) + 2)
-    lines = [f"{top_left}{horizontal} {title} {horizontal * (width - len(title) - 3)}{top_right}"]
-    lines += [f"{vertical} {row.ljust(width - 2)} {vertical}" for row in rows]
-    lines.append(f"{bottom_left}{horizontal * width}{bottom_right}")
+    inner_width = width - 2
+    content_width = width - 4
+    title_width = max(0, inner_width - 3)
+    clipped_title = chop_cells(title, title_width)[0] if title and title_width else ""
+    top_label = f"{horizontal} {clipped_title} " if clipped_title else horizontal
+    top = f"{top_left}{top_label}{horizontal * (inner_width - cell_len(top_label))}{top_right}"
+
+    label_width = min(_LABEL_WIDTH, max(0, content_width - 1))
+    value_width = content_width - label_width
+    rows: list[str] = []
+    for label, value in fields.items():
+        wrapped = Text(value).wrap(_WRAP_CONSOLE, value_width, overflow="fold") if value_width else []
+        value_lines = [line.plain for line in wrapped] or [""]
+        for index, value_line in enumerate(value_lines):
+            row_label = set_cell_size(label if index == 0 else "", label_width)
+            row = set_cell_size(f"{row_label}{value_line}", content_width)
+            rows.append(f"{vertical} {row} {vertical}")
+
+    lines = [top, *rows, f"{bottom_left}{horizontal * inner_width}{bottom_right}"]
     return "\n".join(lines)
 
 
-def _join_columns(left: str, right: str, gap: int = 6) -> str:
+def _format_header(
+    title: str,
+    fields: dict[str, str],
+    logos: tuple[str, ...],
+    terminal_width: int,
+    *,
+    ascii_only: bool = False,
+) -> tuple[str, int]:
+    """Render the summary and largest fitting logo at the responsive width."""
+    display_width = _display_width(terminal_width)
+    if display_width < 4:
+        return "", display_width
+    summary = _format_run_summary(title, fields, width=min(_SUMMARY_WIDTH, display_width), ascii_only=ascii_only)
+    if terminal_width < _STANDARD_WIDTH:
+        return summary, display_width
+
+    available = display_width - _block_width(summary) - _COLUMN_GAP
+    fitting = [logo for logo in logos if _block_width(logo) <= available]
+    if fitting:
+        summary = _join_columns(summary, max(fitting, key=_block_width))
+    return summary, display_width
+
+
+def _block_width(block: str) -> int:
+    """Return the width of the widest line in a multiline text block."""
+    return max((cell_len(line) for line in block.splitlines()), default=0)
+
+
+def _join_columns(left: str, right: str, gap: int = _COLUMN_GAP) -> str:
     """Lay two blocks of text out side by side, top aligned.
 
     Args:
@@ -96,16 +160,64 @@ def _join_columns(left: str, right: str, gap: int = 6) -> str:
         The combined block, without a trailing newline.
     """
     left_lines, right_lines = left.splitlines(), right.splitlines()
-    width = max(len(line) for line in left_lines)
+    width = _block_width(left)
     rows = range(max(len(left_lines), len(right_lines)))
     return "\n".join(
         (
-            (left_lines[row] if row < len(left_lines) else "").ljust(width)
+            set_cell_size(left_lines[row] if row < len(left_lines) else "", width)
             + " " * gap
             + (right_lines[row] if row < len(right_lines) else "")
         ).rstrip()
         for row in rows
     )
+
+
+def _format_progress(
+    stage: str,
+    activity: str,
+    percent: float,
+    elapsed: float,
+    width: int,
+    *,
+    ascii_only: bool = False,
+) -> str:
+    """Render the progress row at an exact terminal width."""
+    if width <= 0:
+        return ""
+
+    percent = min(100.0, max(0.0, percent))
+    elapsed_text = _format_elapsed(elapsed)
+    suffix = f" {percent:3.0f}% [{elapsed_text}]"
+    prefix = "  "
+    fixed_description_width = _STAGE_WIDTH + _ACTIVITY_WIDTH
+    description_width = min(fixed_description_width, max(0, width - cell_len(prefix + suffix) - 2))
+    description = set_cell_size(
+        f"{set_cell_size(stage, _STAGE_WIDTH)}{set_cell_size(activity, _ACTIVITY_WIDTH)}", description_width
+    )
+    bar_width = max(0, width - cell_len(prefix + description + suffix) - 1)
+    bar = _format_bar(percent, bar_width, ascii_only=ascii_only)
+    separator = " " if bar_width else ""
+    return set_cell_size(f"{prefix}{description}{separator}{bar}{suffix}", width)
+
+
+def _format_bar(percent: float, width: int, *, ascii_only: bool) -> str:
+    """Render a tqdm-style block bar."""
+    if width <= 0:
+        return ""
+    subdivisions = 10 if ascii_only else 8
+    units = int(width * subdivisions * percent / 100)
+    complete, partial = divmod(units, subdivisions)
+    fractions = " 123456789" if ascii_only else " ▏▎▍▌▋▊▉"
+    filled = "#" if ascii_only else "█"
+    partial_cell = fractions[partial] if partial and complete < width else ""
+    return f"{filled * complete}{partial_cell}".ljust(width)
+
+
+def _format_elapsed(elapsed: float) -> str:
+    """Format elapsed seconds like tqdm's compact timer."""
+    minutes, seconds = divmod(max(0, int(elapsed)), 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes:02}:{seconds:02}"
 
 
 class LoadingScreen:
@@ -138,6 +250,17 @@ class LoadingScreen:
             screen.close()
     """
 
+    class _Display:
+        """Rich renderable that reads the loading screen's current state."""
+
+        def __init__(self, screen: LoadingScreen) -> None:
+            self._screen = screen
+
+        def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+            with self._screen._render_lock:
+                renderable = self._screen._render(options.max_width)
+            yield renderable
+
     def __init__(self, num_stages: int, *, enabled: bool | None = None, logo: bool = True) -> None:
         """Initialize the screen.
 
@@ -146,25 +269,29 @@ class LoadingScreen:
             enabled: Whether to draw a live progress bar and spool startup
                 output. Defaults to None, which enables both when standard
                 output is a terminal.
-            logo: Whether :meth:`summary` greets the user with :data:`LOGO`.
-                Defaults to True.
+            logo: Whether :meth:`summary` shows a responsive greeting beside
+                the run summary. Defaults to True.
         """
         self._num_stages = num_stages
-        self._logo = logo
+        self._logos = (LOGO, LOGO_WIDE) if logo else ()
         self._enabled = _console_is_interactive() if enabled is None else enabled
         self._console: IO[str] = sys.stdout
         self._ascii_only = not _supports_box_drawing(self._console)
-        self._bar: tqdm | None = None
-        self._bar_lock = threading.Lock()
+        self._rich_console: Console | None = None
+        self._live: Live | None = None
+        self._display = self._Display(self)
+        self._render_lock = threading.RLock()
         self._spool: IO[str] | None = None
-        self._ticker: threading.Thread | None = None
-        self._stop_ticking = threading.Event()
         self._saved_fds: tuple[int, int] | None = None
         self._started = 0.0
         self._index = 0
         self._stage = ""
         self._steps = 0
         self._activities: list[str] = []
+        self._progress_percent = 0.0
+        self._show_progress = False
+        self._summary_title: str | None = None
+        self._summary_fields: dict[str, str] = {}
 
     def __enter__(self) -> LoadingScreen:
         """Take over the console and start spooling startup output."""
@@ -172,8 +299,22 @@ class LoadingScreen:
         self._started = time.monotonic()
         if self._enabled:
             self._redirect()
-            self._ticker = threading.Thread(target=self._tick, daemon=True)
-            self._ticker.start()
+            if self._enabled:
+                self._rich_console = Console(
+                    file=self._console,
+                    color_system="truecolor",
+                    force_terminal=True,
+                    highlight=False,
+                )
+                self._live = Live(
+                    self._display,
+                    console=self._rich_console,
+                    screen=True,
+                    refresh_per_second=_REFRESH_PER_SECOND,
+                    redirect_stdout=False,
+                    redirect_stderr=False,
+                )
+                self._live.start(refresh=True)
         _active_screen = self
         return self
 
@@ -193,11 +334,14 @@ class LoadingScreen:
             title: Text shown in the top border of the box.
             fields: Label to value mapping rendered as one row per entry.
         """
-        summary = format_run_summary(title, fields, ascii_only=self._ascii_only)
-        # the greeting shares the summary's rows, so it is skipped rather than
-        # allowed to run past the bottom of a short summary
-        if self._logo and LOGO.count("\n") <= summary.count("\n"):
-            summary = _join_columns(summary, LOGO)
+        with self._render_lock:
+            self._summary_title = title
+            self._summary_fields = fields.copy()
+        if self._enabled:
+            self._refresh()
+            return
+        terminal_width = shutil.get_terminal_size(fallback=(_STANDARD_WIDTH, 24)).columns
+        summary, _ = _format_header(title, fields, self._logos, terminal_width, ascii_only=self._ascii_only)
         self._write(f"\n{summary}\n\n")
 
     def stage(self, name: str) -> None:
@@ -206,25 +350,17 @@ class LoadingScreen:
         Args:
             name: Human-readable name of the stage that is about to run.
         """
-        self._index += 1
-        if not self._enabled:
-            self._write(f"[{self._index}/{self._num_stages}] {name}\n")
-            return
-        with self._bar_lock:
-            if self._bar is None:
-                self._bar = tqdm(
-                    total=100,
-                    file=self._console,
-                    bar_format="  {desc} {bar} {percentage:3.0f}% [{elapsed}]",
-                    ascii=self._ascii_only,
-                    leave=False,
-                    dynamic_ncols=True,
-                )
+        with self._render_lock:
+            self._index += 1
             self._stage = name
             self._activities.clear()
             self._steps = 0
             self._set_progress(self._stage_progress())
-            self._redraw_description()
+            self._show_progress = True
+        if self._enabled:
+            self._refresh()
+        else:
+            self._write(f"[{self._index}/{self._num_stages}] {name}\n")
 
     def set_activity(self, activity: str | None) -> None:
         """Push *activity* as the step currently running, or pop it when None.
@@ -234,7 +370,7 @@ class LoadingScreen:
         """
         if not self._enabled:
             return
-        with self._bar_lock:
+        with self._render_lock:
             if activity is None:
                 if self._activities:
                     self._activities.pop()
@@ -242,7 +378,7 @@ class LoadingScreen:
                 self._activities.append(activity)
                 self._steps += 1
                 self._set_progress(self._stage_progress())
-            self._redraw_description()
+        self._refresh()
 
     def close(self) -> None:
         """Hand the console back to the rest of the run, dropping the spooled output."""
@@ -253,28 +389,44 @@ class LoadingScreen:
         global _active_screen
         if _active_screen is self:
             _active_screen = None
-        self._stop_ticking.set()
-        if self._ticker is not None:
-            self._ticker.join(timeout=1.0)
-            self._ticker = None
-        with self._bar_lock:
-            if self._bar is not None:
-                if not replay:
-                    # only a successful hand-over completes the bar
-                    self._set_progress(100)
-                self._bar.close()
-                self._bar = None
-        if self._saved_fds is None:
-            return
-        hidden = self._restore()
-        if replay:
-            self._write(hidden)
-        else:
-            elapsed = time.monotonic() - self._started
-            lines = hidden.count("\n")
-            self._write(f"  Ready in {elapsed:.1f}s ({lines} lines of startup output hidden; use --info to show)\n\n")
-        self._console.close()
-        self._console = sys.stdout
+        live: Live | None
+        final_header = ""
+        with self._render_lock:
+            if not replay:
+                self._set_progress(100)
+            self._show_progress = False
+            live = self._live
+            if live is not None and self._rich_console is not None and self._summary_title is not None:
+                final_header, _ = _format_header(
+                    self._summary_title,
+                    self._summary_fields,
+                    self._logos,
+                    self._rich_console.width,
+                    ascii_only=self._ascii_only,
+                )
+            self._live = None
+            self._rich_console = None
+        try:
+            if live is not None:
+                live.stop()
+            if final_header:
+                self._write(f"\n{final_header}\n\n")
+        finally:
+            if self._saved_fds is not None:
+                hidden = self._restore()
+                try:
+                    if replay:
+                        self._write(hidden)
+                    else:
+                        elapsed = time.monotonic() - self._started
+                        lines = hidden.count("\n")
+                        self._write(
+                            f"  Ready in {elapsed:.1f}s "
+                            f"({lines} lines of startup output hidden; use --info to show)\n\n"
+                        )
+                finally:
+                    self._console.close()
+                    self._console = sys.stdout
 
     def _stage_progress(self) -> float:
         """Bar position for the current stage and the steps reported within it, in percent."""
@@ -283,16 +435,46 @@ class LoadingScreen:
         return (self._index - 1) * span + span * filled
 
     def _set_progress(self, percent: float) -> None:
-        """Move the bar to *percent*. The caller must hold the bar lock."""
-        if self._bar is not None:
-            self._bar.update(percent - self._bar.n)
+        """Move the bar to *percent*. The caller must hold the render lock."""
+        self._progress_percent = percent
 
-    def _redraw_description(self) -> None:
-        """Refresh the stage and activity columns. The caller must hold the bar lock."""
-        if self._bar is not None:
+    def _refresh(self) -> None:
+        """Refresh the live display when it owns the console."""
+        # Rich holds its own lock while rendering the display, which then reads
+        # state under ``_render_lock``. Call this only after releasing that lock.
+        live = self._live
+        if live is not None:
+            live.refresh()
+
+    def _render(self, terminal_width: int) -> RenderableType:
+        """Render the current header and progress state for a terminal width."""
+        display_width = _display_width(terminal_width)
+        renderables: list[RenderableType] = []
+        if self._summary_title is not None:
+            header, _ = _format_header(
+                self._summary_title,
+                self._summary_fields,
+                self._logos,
+                terminal_width,
+                ascii_only=self._ascii_only,
+            )
+            if header:
+                renderables.extend((Text(""), Text(header, no_wrap=True, overflow="crop")))
+        if self._show_progress:
+            if renderables:
+                renderables.append(Text(""))
+            elapsed = time.monotonic() - self._started if self._started else 0.0
             activity = self._activities[-1] if self._activities else ""
-            # fixed-width columns so the bar does not resize as activities come and go
-            self._bar.set_description_str(f"{self._stage.ljust(_STAGE_WIDTH)}{activity.ljust(_ACTIVITY_WIDTH)}")
+            progress = _format_progress(
+                self._stage,
+                activity,
+                self._progress_percent,
+                elapsed,
+                display_width,
+                ascii_only=self._ascii_only,
+            )
+            renderables.append(Text(progress, no_wrap=True, overflow="crop"))
+        return Constrain(Group(*renderables) if renderables else Text(""), display_width)
 
     def _write(self, text: str) -> None:
         """Write *text* straight to the console, bypassing the spool."""
@@ -331,14 +513,6 @@ class LoadingScreen:
         self._spool.close()
         self._spool = None
         return spooled
-
-    def _tick(self) -> None:
-        """Redraw the bar periodically so its clock advances during silent steps."""
-        while not self._stop_ticking.is_set():
-            with self._bar_lock:
-                if self._bar is not None:
-                    self._bar.refresh()
-            self._stop_ticking.wait(_TICK_INTERVAL)
 
 
 def _console_is_interactive() -> bool:
