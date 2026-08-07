@@ -9,8 +9,7 @@
 # (frozen at 6.1.0-alpha.2). Both images use Isaac Sim's NGC org, which is current and
 # which the CI credential can reach.
 isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
-# Pinned to the build that flips the DLSS-RR `responsiveDenoising` default (Kit 9e5dd32c,
-# OMPE-65433); the RTX rendering goldens are generated against it.
-isaacsim_image_tag: latest-develop@sha256:4b0a6a6c86e24d137ce6bbeef355ea22b7327aa034c819024c09094d9cd448e7
+# Pinned to Isaac Sim commit 307e5486 for reproducible CI.
+isaacsim_image_tag: latest-develop-307e5486@sha256:a13867a6403488a9e640288f96492e6ecd44c3a525b5b85793a2da68fdac48ad
 isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""
