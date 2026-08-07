@@ -268,7 +268,7 @@ def cli() -> None:
         help=(
             "Build Isaac Sim from the source checkout at PATH, package it as wheels, and link\n"
             "them as '_isaac_sim_wheels' for 'uv run --extra isaacsim-local'.\n"
-            "Skips the build when the checkout is already built."
+            "Runs the normal incremental build on every invocation."
         ),
     )
 

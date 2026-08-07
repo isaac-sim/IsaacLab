@@ -1,7 +1,7 @@
 Added
 ^^^^^
 
-* Added the ``--isaacsim_source`` CLI option, which builds Isaac Sim from a source checkout,
+* Added the ``--isaacsim_source`` CLI option, which incrementally builds Isaac Sim from a source checkout,
   packages the build as Python wheels, links them into the repository as ``_isaac_sim_wheels``,
   points ``uv`` at that directory through ``find-links`` in ``pyproject.toml``, pins the
   ``isaacsim-local`` extra to the version it built, and re-resolves Isaac Sim from those

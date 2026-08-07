@@ -64,3 +64,29 @@ def test_build_docs_explains_how_to_install_uv():
         mock.call("uv could not be found. Please install uv and try again."),
         mock.call("https://docs.astral.sh/uv/getting-started/installation/"),
     ]
+
+
+def test_build_isaacsim_runs_incremental_build_for_existing_checkout(tmp_path):
+    """The source-build workflow must update an existing Isaac Sim build incrementally."""
+    isaacsim_root = tmp_path / "IsaacSim"
+    build_script = isaacsim_root / "build.sh"
+    build_script.parent.mkdir()
+    build_script.touch()
+    (isaacsim_root / "repo.sh").touch()
+    wheel_dir = isaacsim_root / "_build" / "packages" / "dist"
+    wheel_dir.mkdir(parents=True)
+    (wheel_dir / "isaacsim-6.0.1+local-py3-none-any.whl").touch()
+
+    workspace = tmp_path / "IsaacLab"
+    workspace.mkdir()
+
+    with (
+        mock.patch.object(misc, "ISAACLAB_ROOT", workspace),
+        mock.patch.object(misc, "run_command") as run_command,
+        mock.patch.object(misc, "_set_uv_find_links"),
+        mock.patch.object(misc, "_pin_isaacsim_local_extra"),
+        mock.patch("shutil.which", return_value=None),
+    ):
+        misc.command_build_isaacsim(str(isaacsim_root))
+
+    assert run_command.call_args_list[0] == mock.call([str(build_script)], cwd=isaacsim_root)

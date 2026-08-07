@@ -749,7 +749,7 @@ On Windows, enable `long-path support
 <https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later>`__
 before building.
 For the recommended ``uv`` workflow, clone the Isaac Sim source next to an Isaac Lab checkout and
-run the following command from the Isaac Lab root. It builds Isaac Sim when necessary, packages the
+run the following command from the Isaac Lab root. It triggers an incremental Isaac Sim build, packages the
 build as wheels, and configures ``uv`` to use those wheels:
 
 .. code-block:: bash
@@ -766,7 +766,7 @@ published Isaac Sim packages, revert both files before committing. Then run Isaa
    uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
-The platform instructions below are useful when building or debugging Isaac Sim manually. After a
+The platform instructions below are useful when debugging Isaac Sim manually. After a
 manual build, run the same ``--isaacsim_source`` command to package it and configure ``uv``.
 
 

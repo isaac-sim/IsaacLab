@@ -124,9 +124,9 @@ def command_build_docs() -> None:
 def command_build_isaacsim(source_path: str) -> None:
     """Build Isaac Sim from source and make it usable through ``uv`` (--isaacsim_source).
 
-    Builds the Isaac Sim checkout when it has no build output yet, packages that build into
-    Python wheels, links the wheels into the Isaac Lab repository as ``_isaac_sim_wheels``, points
-    uv at that directory through ``find-links``, pins the ``isaacsim-local`` extra to the version
+    Runs an incremental Isaac Sim build, packages the resulting Python wheels, links them into the
+    Isaac Lab repository as ``_isaac_sim_wheels``, points uv at that directory through
+    ``find-links``, pins the ``isaacsim-local`` extra to the version that was built, and re-resolves
     that was built, and re-resolves Isaac Sim from those wheels. Afterwards, run Isaac Lab against
     the build with ``uv run --extra isaacsim-local``.
 
@@ -147,12 +147,8 @@ def command_build_isaacsim(source_path: str) -> None:
         raise SystemExit(1)
 
     build_dir = isaacsim_root / "_build"
-    if build_dir.is_dir():
-        print_info(f"Using the existing Isaac Sim build in {build_dir}.")
-        print_info(f"To rebuild, run {build_script} yourself before this command.")
-    else:
-        print_info("Building Isaac Sim from source. This takes a while...")
-        run_command([str(build_script)], cwd=isaacsim_root)
+    print_info("Incrementally building Isaac Sim from source. This may take a while...")
+    run_command([str(build_script)], cwd=isaacsim_root)
 
     print_info("Packaging the Isaac Sim build as Python wheels...")
     for repo_args in (["python_package", "--create"], ["comment_archive_deps"], ["python_package", "--wheel"]):
