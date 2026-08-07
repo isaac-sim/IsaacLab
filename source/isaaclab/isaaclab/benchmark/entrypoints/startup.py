@@ -41,7 +41,8 @@ import sys
 import time
 from datetime import datetime, timezone
 
-_VALID_PHASES = {"app_launch", "python_imports", "task_config", "env_creation", "first_step"}
+_PHASE_ORDER = ("python_imports", "task_config", "app_launch", "env_creation", "first_step")
+_VALID_PHASES = set(_PHASE_ORDER)
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -171,6 +172,24 @@ def _isaaclab_source_prefixes() -> list[str]:
     return list(dict.fromkeys(prefixes))
 
 
+def _timer_totals(since: dict[str, float] | None = None) -> dict[str, float]:
+    """Return the cumulative time [s] recorded by each named :class:`~isaaclab.utils.timer.Timer`.
+
+    Args:
+        since: Earlier snapshot to subtract, keeping only timers that advanced.
+
+    Returns:
+        Cumulative (or elapsed, when ``since`` is given) seconds keyed by timer name.
+    """
+    from isaaclab.utils.timer import Timer
+
+    totals = {name: info["mean"] * info["n"] for name, info in Timer.timing_info.items()}
+    if since is None:
+        return totals
+    elapsed = {name: total - since.get(name, 0.0) for name, total in totals.items()}
+    return {name: seconds for name, seconds in elapsed.items() if seconds > 1e-6}
+
+
 def run(argv: list[str]) -> BenchmarkResult:
     """Run the startup benchmark and write the selected formatter outputs.
 
@@ -188,7 +207,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     import torch
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkResult, builders, capture, console, stepping
     from isaaclab.benchmark.profiling import parse_cprofile_stats
     from isaaclab.benchmark.schema import CProfileFunction, StartupPhase
 
@@ -234,12 +253,17 @@ def run(argv: list[str]) -> BenchmarkResult:
         env_creation_profile = cProfile.Profile()
         env_creation_time_begin = time.perf_counter_ns()
         try:
+            timers_before = _timer_totals()
             env_creation_profile.enable()
             try:
                 env = gym.make(args.task, cfg=env_cfg)
+                env_reset_time_begin = time.perf_counter_ns()
                 env.reset()
+                env_reset_time_end = time.perf_counter_ns()
             finally:
                 env_creation_profile.disable()
+            env_creation_detail = _timer_totals(since=timers_before)
+            env_creation_detail["env_reset"] = (env_reset_time_end - env_reset_time_begin) / 1e9
 
             if torch.cuda.is_available() and torch.cuda.is_initialized():
                 torch.cuda.synchronize()
@@ -260,10 +284,11 @@ def run(argv: list[str]) -> BenchmarkResult:
             first_step_time_end = time.perf_counter_ns()
             end_utc = capture.now_utc_iso()
 
+            # Ordered chronologically: the bundle and the console summary preserve this order.
             phase_profiles: dict[str, tuple[cProfile.Profile, float]] = {
-                "app_launch": (app_launch_profile, (app_launch_time_end - app_launch_time_begin) / 1e6),
                 "python_imports": (imports_profile, (imports_time_end - imports_time_begin) / 1e6),
                 "task_config": (task_config_profile, (task_config_time_end - task_config_time_begin) / 1e6),
+                "app_launch": (app_launch_profile, (app_launch_time_end - app_launch_time_begin) / 1e6),
                 "env_creation": (env_creation_profile, (env_creation_time_end - env_creation_time_begin) / 1e6),
                 "first_step": (first_step_profile, (first_step_time_end - first_step_time_begin) / 1e6),
             }
@@ -307,7 +332,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 formatter_type=args.benchmark_formatter,
                 output_path=args.output_path,
                 use_recorders=True,
-                output_prefix=f"startup_{args.task}",
+                output_prefix=f"benchmark_startup_{args.task}",
                 workflow_metadata={
                     "metadata": [
                         {"name": "task", "data": args.task},
@@ -327,10 +352,12 @@ def run(argv: list[str]) -> BenchmarkResult:
                 phases=phases,
                 top_n=args.top_n,
                 whitelist=args.whitelist_config,
+                extra={f"env_creation.{name}_s": seconds for name, seconds in env_creation_detail.items()},
             )
             benchmark.attach_bundle(bundle)
             output_paths = benchmark.finalize()
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
+            console.print_startup_report(bundle, output_paths, env_creation_detail)
         finally:
             if env is not None:
                 env.close()

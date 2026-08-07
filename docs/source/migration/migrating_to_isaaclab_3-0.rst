@@ -32,12 +32,65 @@ Visualizers are lightweight viewer apps for monitoring, debugging, and recording
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.
 
-- ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
+- ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton_gl``).
+  ``"newton"`` is a deprecated alias for ``"newton_gl"``; prefer ``"newton_gl"`` or ``"newton_rtx"``.
 - If omitted, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
 - ``--viz none`` explicitly disables all visualizers, including config-defined ones.
 
 For the full behavior of visualizer resolution with the visualizer CLI argument and visualizer configs,
 see :ref:`visualization-common-modes`.
+
+**Breaking change — ``--headless`` no longer suppresses visualizers.**
+
+In Isaac Lab 2.x, passing ``--headless`` disabled all visualizers regardless of ``--viz``.
+In Isaac Lab 3.0, ``--headless`` and ``--viz`` are independent:
+
+- ``--headless`` controls the simulation rendering pipeline (Kit app mode, GPU context).
+- ``--viz <type>`` controls which visualizer backends to launch.
+
+Passing ``--viz kit --headless`` now launches a Kit visualizer in headless mode using the
+Replicator offscreen renderer (no display window required).  Passing ``--viz newton_gl --headless``
+launches a Newton GL visualizer using pyglet's EGL headless backend.  To disable all visualizers
+explicitly, use ``--viz none``.
+
+.. list-table:: Headless visualizer requirements
+   :header-rows: 1
+   :widths: 20 25 55
+
+   * - Visualizer
+     - Headless mechanism
+     - Extra requirement
+   * - ``kit``
+     - Replicator offscreen renderer (no display)
+     - Must also pass ``--enable_cameras``; without it, ``render_rgb_array()`` returns
+       black frames. ``--video`` sets this automatically.
+   * - ``newton_gl``
+     - pyglet EGL backend (no display)
+     - None — ``NewtonGLVisualizer`` auto-detects a missing ``$DISPLAY`` and selects EGL.
+   * - ``newton_rtx``
+     - Not supported headlessly
+     - ``render_rgb_array()`` returns ``None``; frame capture requires a display.
+
+**Headless video recording (``--video`` without ``--viz``).**
+
+In Isaac Lab 2.x, ``--video`` alone would use the Kit Replicator pipeline implicitly.
+In Isaac Lab 3.0, the equivalent is:
+
+.. code-block:: bash
+
+   # Record from Kit viewport headlessly (equivalent to 2.x --video behaviour)
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
+       --viz kit --enable_cameras --headless --video
+
+As a convenience, passing ``--video`` without ``--viz`` still works: Isaac Lab
+auto-creates a headless Kit visualizer (falling back to Newton GL if Kit is unavailable)
+and sets ``source="visualizer:kit"`` on the default recorder, printing:
+
+.. code-block:: text
+
+   [INFO] --video specified without --viz: auto-creating a headless Kit visualizer
+   for video recording. Pass --viz <type> to choose a different visualizer, or
+   set video_recorders in your env config to record from a scene sensor instead.
 
 
 Reinforcement Learning CLI Entrypoints
@@ -2569,6 +2622,110 @@ The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated
 tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
 
 
+Streaming Camera View (``tiled_cam_*`` fields removed)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``tiled_cam_*`` configuration fields on visualizer configs (e.g. ``tiled_cam_view``,
+``tiled_cam_num``, ``tiled_cam_prim_path``) have been removed and replaced by the unified
+``streaming_*`` API available on all four visualizer backends.  A one-release deprecation
+shim forwards each removed field to its ``streaming_*`` equivalent and emits
+:class:`DeprecationWarning`; the shim will be removed in the next major release.
+
+.. list-table:: Field rename reference
+   :header-rows: 1
+   :widths: 40 40 20
+
+   * - Old field (removed)
+     - New field
+     - Notes
+   * - ``tiled_cam_view``
+     - ``streaming_view``
+     - Default is now ``False`` (opt-in)
+   * - ``tiled_cam_num``
+     - ``streaming_envs``
+     - Accepts ``int`` or ``list[int]``
+   * - ``tiled_cam_prim_path``
+     - ``streaming_sensor_prim_path``
+     - Existing sensor path; takes priority over auto-created camera
+   * - ``tiled_cam_eye``
+     - ``streaming_cam_eye``
+     -
+   * - ``tiled_cam_renderer``
+     - ``streaming_cam_renderer``
+     - Accepts ``"newton_warp"``, ``"ovrtx"``, ``"isaac_rtx"``, or ``None``
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   from isaaclab_visualizers.newton import NewtonVisualizerCfg
+   cfg = NewtonVisualizerCfg(
+       tiled_cam_view=True,
+       tiled_cam_num=16,
+       tiled_cam_prim_path="/World/envs/env_.*/Camera",
+   )
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+   cfg = NewtonGLVisualizerCfg(
+       streaming_view=True,
+       streaming_envs=16,
+       streaming_sensor_prim_path="/World/envs/env_.*/Camera",
+   )
+
+.. note::
+   :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` is deprecated in this release.
+   Use :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` (OpenGL rasterizer) or
+   :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (OVRTX path tracer) instead.
+
+
+Newton Visualizer Type Split (``newton`` → ``newton_gl`` / ``newton_rtx``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The single ``NewtonVisualizerCfg`` (``visualizer_type="newton"``) has been split into two
+dedicated configs with separate type identifiers:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
+
+   * - Old (removed / deprecated)
+     - New
+     - Notes
+   * - ``NewtonVisualizerCfg`` (``visualizer_type="newton"``)
+     - :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` (``visualizer_type="newton_gl"``)
+     - OpenGL rasterizer; default Newton visualizer
+   * - —
+     - :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (``visualizer_type="newton_rtx"``)
+     - OVRTX path tracer (experimental)
+
+The ``--viz newton`` CLI argument remains as a **deprecated alias** for ``--viz newton_gl``.
+Update scripts and config files to use the explicit form:
+
+.. code-block:: bash
+
+   # Before (Isaac Lab 2.x)
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+
+   # After (Isaac Lab 3.x)
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_gl
+
+Similarly, when importing the config class directly:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   from isaaclab_visualizers.newton import NewtonVisualizerCfg
+   cfg = NewtonVisualizerCfg()
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg  # or NewtonRTXVisualizerCfg
+   cfg = NewtonGLVisualizerCfg()
+
+The ``source="visualizer:newton"`` string in :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg`
+continues to work as a backward-compatible alias for ``"visualizer:newton_gl"``, but
+``"visualizer:newton_gl"`` and ``"visualizer:newton_rtx"`` are now the canonical source strings.
+
+
 Video Recording (``gym.wrappers.RecordVideo`` replaced)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2589,9 +2746,12 @@ environment config, sourcing frames from the active visualizer or a scene sensor
    ]
    env = gym.make(task, cfg=env_cfg)
 
-Available sources: ``"visualizer"`` (auto-pick), ``"visualizer:kit"``, ``"visualizer:newton"``,
-``"visualizer:newton:tiled"``, ``"sensor:<name>"``.  The ``eye`` and ``lookat`` fields have been
-removed from ``VideoRecorderCfg``; position the camera via ``sim.default_visualizer_cfg`` instead.
+Available sources: ``"visualizer"`` (auto-pick), ``"visualizer:kit"``, ``"visualizer:newton_gl"``,
+``"visualizer:newton_rtx"``, ``"visualizer:newton_gl:tiled"``, ``"sensor:<name>"``.
+``"visualizer:newton"`` and ``"visualizer:newton:tiled"`` remain as deprecated backward-compatible
+aliases for ``"visualizer:newton_gl"`` and ``"visualizer:newton_gl:tiled"`` respectively.
+The ``eye`` and ``lookat`` fields have been removed from ``VideoRecorderCfg``; position the
+camera via ``sim.default_visualizer_cfg`` instead.
 
 The ``isaaclab.envs.utils.recording_hooks`` module has been removed.  Physics-backend recording
 hooks are now registered via :meth:`~isaaclab.sim.SimulationContext.add_render_callback`.
