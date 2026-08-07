@@ -22,11 +22,17 @@ Shared @wp.func helpers.
 
 
 @wp.func
-def update_wrench_with_force_and_torque(
-    force: wp.vec3f,
-    torque: wp.vec3f,
+def pack_body_wrench_to_world(
+    force_b: wp.vec3f,
+    torque_b: wp.vec3f,
+    body_rot_w: wp.quatf,
 ) -> wp.spatial_vectorf:
-    return wp.spatial_vector(force, torque, wp.float32)
+    """Rotate a body-frame COM wrench into world frame and pack it."""
+    return wp.spatial_vector(
+        wp.quat_rotate(body_rot_w, force_b),
+        wp.quat_rotate(body_rot_w, torque_b),
+        wp.float32,
+    )
 
 
 @wp.func
@@ -1545,7 +1551,8 @@ def update_wrench_array_with_force_and_torque(
     env_index, body_index = wp.tid()
     if env_ids[env_index] and body_ids[body_index]:
         body_rot_w = wp.transform_get_rotation(body_link_pose_w[env_index, body_index])
-        wrench[env_index, body_index] = update_wrench_with_force_and_torque(
-            wp.quat_rotate(body_rot_w, forces[env_index, body_index]),
-            wp.quat_rotate(body_rot_w, torques[env_index, body_index]),
+        wrench[env_index, body_index] = pack_body_wrench_to_world(
+            forces[env_index, body_index],
+            torques[env_index, body_index],
+            body_rot_w,
         )

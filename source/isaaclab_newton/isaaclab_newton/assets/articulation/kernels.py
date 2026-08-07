@@ -12,6 +12,8 @@ import warp as wp
 from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
+from isaaclab_newton.assets.kernels import pack_body_wrench_to_world
+
 if TYPE_CHECKING:
     import torch
 
@@ -82,10 +84,10 @@ def update_wrench_array_with_force_and_torque_ordered(
     if env_mask[env_id] and body_mask[user_body_id]:
         backend_body_id = user_to_backend[user_body_id]
         body_rot_w = wp.transform_get_rotation(body_link_pose_w[env_id, user_body_id])
-        wrench[env_id, backend_body_id] = wp.spatial_vector(
-            wp.quat_rotate(body_rot_w, forces[env_id, user_body_id]),
-            wp.quat_rotate(body_rot_w, torques[env_id, user_body_id]),
-            wp.float32,
+        wrench[env_id, backend_body_id] = pack_body_wrench_to_world(
+            forces[env_id, user_body_id],
+            torques[env_id, user_body_id],
+            body_rot_w,
         )
 
 
