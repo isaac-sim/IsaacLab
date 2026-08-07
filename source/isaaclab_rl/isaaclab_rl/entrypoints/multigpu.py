@@ -18,11 +18,13 @@ import warp as wp
 wp.config.enable_backward = False
 
 import argparse  # noqa: E402
+import contextlib  # noqa: E402
 import os  # noqa: E402
 import shlex  # noqa: E402
 import signal  # noqa: E402
 import subprocess  # noqa: E402
 import sys  # noqa: E402
+import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 from types import FrameType  # noqa: E402
 
@@ -53,6 +55,14 @@ TORCHRUN_ARGS = (
 )
 SKRL_JAX_ARGS = ("nnodes", "node_rank", "coordinator_address")
 SKRL_JAX_TORCHRUN_ONLY_ARGS = tuple(name for name in TORCHRUN_ARGS if name not in SKRL_JAX_ARGS)
+
+# torchelastic gives its own workers 30 s before it SIGKILLs them, so the graceful window stays
+# above that rather than preempting a shutdown that is already making progress.
+_POLL_INTERVAL_S = 0.2
+_GRACEFUL_SHUTDOWN_S = 40.0
+_FORCED_SHUTDOWN_S = 15.0
+_STRAGGLER_GRACE_S = 10.0
+
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     """Parse multi-GPU launcher arguments and return forwarded training arguments."""
@@ -264,20 +274,103 @@ def _build_distributed_command(args_cli: argparse.Namespace, train_args: list[st
     return _build_torchrun_command(args_cli, train_args)
 
 
-def _run_distributed_command(command: list[str]) -> int:
-    """Run the distributed launcher and forward termination signals to the child process."""
+def _signal_group(pgid: int, sig: int) -> None:
+    """Signal every process in the worker group, ignoring a group that already exited."""
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(pgid, sig)
+
+
+def _group_is_alive(pgid: int) -> bool:
+    """Return whether any process remains in the worker group."""
+    try:
+        os.killpg(pgid, 0)
+    except (ProcessLookupError, PermissionError):
+        return False
+    return True
+
+
+def _reap_group(pgid: int) -> None:
+    """Kill workers that outlived the launcher.
+
+    A worker wedged in a native CUDA, NCCL, or renderer call never returns to Python to observe a
+    signal, so it survives torchrun and keeps holding GPU memory.
+    """
+    deadline = time.monotonic() + _STRAGGLER_GRACE_S
+    while _group_is_alive(pgid):
+        if time.monotonic() >= deadline:
+            print("[WARNING] Killing distributed workers that outlived the launcher.", file=sys.stderr)
+            _signal_group(pgid, signal.SIGKILL)
+            return
+        time.sleep(_POLL_INTERVAL_S)
+
+
+def _run_supervised(command: list[str]) -> int:
+    """Run the launcher in its own process group and tear that group down however the run ends.
+
+    Sharing this process's group lets the terminal deliver Ctrl-C to torchrun and every worker at the
+    same moment this handler forwards a signal of its own. The extra signal lands inside
+    torchelastic's shutdown handler, which then aborts before reaping the workers it spawned.
+    """
+    proc = subprocess.Popen(command, start_new_session=True)
+    pgid = os.getpgid(proc.pid)
+    deadlines: dict[str, float] = {}
+
+    def _forward(signum: int, _frame: FrameType | None) -> None:
+        if deadlines:
+            print("[WARNING] Second interrupt received; killing distributed workers now.", file=sys.stderr)
+            _signal_group(pgid, signal.SIGKILL)
+            return
+        now = time.monotonic()
+        deadlines.update(terminate=now + _GRACEFUL_SHUTDOWN_S, kill=now + _GRACEFUL_SHUTDOWN_S + _FORCED_SHUTDOWN_S)
+        print(
+            f"\n[INFO] Received {signal.Signals(signum).name}; shutting down distributed workers."
+            " Press Ctrl-C again to kill them immediately.",
+            file=sys.stderr,
+        )
+        _signal_group(pgid, signum)
+
+    previous = [(sig, signal.signal(sig, _forward)) for sig in (signal.SIGINT, signal.SIGTERM)]
+    try:
+        while True:
+            try:
+                return proc.wait(timeout=_POLL_INTERVAL_S)
+            except subprocess.TimeoutExpired:
+                pass
+            if not deadlines:
+                continue
+            now = time.monotonic()
+            if now >= deadlines["kill"]:
+                _signal_group(pgid, signal.SIGKILL)
+                deadlines["kill"] = now + _FORCED_SHUTDOWN_S
+            elif now >= deadlines["terminate"]:
+                _signal_group(pgid, signal.SIGTERM)
+                deadlines["terminate"] = now + _FORCED_SHUTDOWN_S
+    finally:
+        for sig, handler in previous:
+            signal.signal(sig, handler)
+        _reap_group(pgid)
+
+
+def _run_terminating_child(command: list[str]) -> int:
+    """Run the launcher and forward termination to it, for platforms without process groups."""
     proc = subprocess.Popen(command)
 
-    def _terminate_child(_signum: int, _frame: FrameType | None) -> None:
+    def _terminate(_signum: int, _frame: FrameType | None) -> None:
         proc.terminate()
 
-    previous_sigterm = signal.signal(signal.SIGTERM, _terminate_child)
-    previous_sigint = signal.signal(signal.SIGINT, _terminate_child)
+    previous = [(sig, signal.signal(sig, _terminate)) for sig in (signal.SIGINT, signal.SIGTERM)]
     try:
         return proc.wait()
     finally:
-        signal.signal(signal.SIGTERM, previous_sigterm)
-        signal.signal(signal.SIGINT, previous_sigint)
+        for sig, handler in previous:
+            signal.signal(sig, handler)
+
+
+def _run_distributed_command(command: list[str]) -> int:
+    """Run the distributed launcher, supervising its whole worker group where the platform allows."""
+    if hasattr(os, "killpg"):
+        return _run_supervised(command)
+    return _run_terminating_child(command)
 
 
 def run_train_multigpu_cli(argv: list[str] | None = None) -> int:
