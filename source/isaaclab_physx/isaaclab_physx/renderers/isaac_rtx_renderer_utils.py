@@ -242,7 +242,13 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     # Sync physics results → Fabric so RTX sees updated positions.
     # physics_manager.step() only runs simulate()/fetch_results() and does NOT
     # call _update_fabric(), so without this the render would lag one frame behind.
-    sim.physics_manager.forward()
+    #
+    # ``pre_render`` rather than ``forward``: forward() refreshes rigid-body transforms only, while
+    # Newton-authored geometry — cable curve points, particle points — is written into Fabric by the
+    # sync_*_to_usd calls that only pre_render() makes. A sensor read that skips them draws bodies at
+    # the current pose and cables frozen at their spawn pose, which still yields a stable, plausible
+    # image.
+    sim.physics_manager.pre_render()
 
     import omni.kit.app
 

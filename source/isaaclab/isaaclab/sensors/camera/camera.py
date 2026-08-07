@@ -542,7 +542,11 @@ class Camera(SensorBase):
             device=device_str,
             num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
-            view_count=self._num_envs,
+            # The number of camera PRIMS, which is not the environment count when a single fixed
+            # camera frames several environments. The tiled reshape is launched over ``view_count``
+            # tiles against a render product built from ``camera_prim_paths``, so a mismatch reads
+            # past the end of the annotator buffer.
+            view_count=len(cam_paths) if cam_paths else self._num_envs,
             camera_path_relative_to_env_0=rel_under_env0,
         )
 

@@ -102,6 +102,13 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._particle_points_binding = None
     renderer._particle_visual_offsets = []
     renderer._particle_visual_counts = []
+    renderer._particle_workaround_applied = False
+    # Cable bindings are set in __init__, which this fixture bypasses via __new__. Without them
+    # _update_geometries_legacy raises AttributeError on its cable check before reaching anything
+    # this module is testing.
+    renderer._cable_points_binding = None
+    renderer._cable_segment_counts = []
+    renderer._cable_point_offsets = []
     renderer._use_ovstage = False
     return renderer, renderer._renderer
 
@@ -459,3 +466,107 @@ def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytes
     assert renderer._particle_points_binding.write_kwargs is not None
     assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
     assert renderer._particle_points_binding.write_kwargs["cuda_stream"] == 42
+    assert len(backend.writes) == 0
+
+
+def _cable_registry(shapes: dict[str, list[int]]):
+    """Return a ``collect_cable_segment_shapes`` replacement yielding ``shapes``."""
+    return classmethod(lambda cls: dict(shapes))
+
+
+def test_setup_cable_bindings_binds_curve_points(monkeypatch: pytest.MonkeyPatch):
+    """Renderable cables create a ``points`` array binding over their curve prims."""
+    renderer, backend = _make_renderer_without_backend()
+    monkeypatch.setattr(
+        NewtonManager,
+        "collect_cable_segment_shapes",
+        _cable_registry({"/World/envs/env_0/Cable/geometry/mesh": [4, 5, 6]}),
+    )
+
+    renderer._setup_cable_bindings()
+
+    assert len(backend.calls) == 1
+    assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Cable/geometry/mesh"]
+    assert backend.calls[0]["attribute_name"] == "points"
+    assert backend.calls[0]["dtype"] is np.float32
+    assert backend.calls[0]["shape"] == (3,)
+    assert backend.calls[0]["flags"] is BindingFlag.OPTIMIZE
+    assert renderer._cable_points_binding is backend.bindings["points"]
+
+    # World-space points are written directly, so the inherited env transform must be neutralised
+    # or it is applied twice -- the same contract the deformable path relies on.
+    assert [write["attribute_name"] for write in backend.writes] == ["omni:resetXformStack", "omni:xform"]
+
+
+def test_setup_cable_bindings_offsets_span_every_curve(monkeypatch: pytest.MonkeyPatch):
+    """Each cable owns ``segments + 1`` points, laid end to end in one flat buffer.
+
+    This is the arithmetic that silently breaks under replication: a single cable is correct for
+    almost any indexing scheme, so the guard is several cables of *different* lengths.
+    """
+    renderer, _ = _make_renderer_without_backend()
+    monkeypatch.setattr(
+        NewtonManager,
+        "collect_cable_segment_shapes",
+        _cable_registry(
+            {
+                "/World/envs/env_0/Cable/geometry/mesh": [0, 1, 2],
+                "/World/envs/env_1/Cable/geometry/mesh": [3, 4, 5, 6, 7],
+                "/World/envs/env_2/Cable/geometry/mesh": [8, 9],
+            }
+        ),
+    )
+
+    renderer._setup_cable_bindings()
+
+    assert renderer._cable_segment_counts == [3, 5, 2]
+    # 4 points, then 6, then 3 -- each cable starts where the previous one ended.
+    assert renderer._cable_point_offsets == [0, 4, 10]
+    assert len(renderer._cable_points) == 13
+
+
+def test_setup_cable_bindings_noop_without_cables(monkeypatch: pytest.MonkeyPatch):
+    """A scene with no renderable cables binds nothing rather than failing."""
+    renderer, backend = _make_renderer_without_backend()
+    monkeypatch.setattr(NewtonManager, "collect_cable_segment_shapes", _cable_registry({}))
+
+    renderer._setup_cable_bindings()
+
+    assert renderer._cable_points_binding is None
+    assert backend.calls == []
+
+
+def test_write_cable_points_writes_one_slice_per_cable(monkeypatch: pytest.MonkeyPatch):
+    """Every cable is handed exactly its own span of the shared point buffer."""
+    renderer, _ = _make_renderer_without_backend()
+    monkeypatch.setattr(
+        NewtonManager,
+        "collect_cable_segment_shapes",
+        _cable_registry(
+            {
+                "/World/envs/env_0/Cable/geometry/mesh": [0, 1],
+                "/World/envs/env_1/Cable/geometry/mesh": [2, 3, 4],
+            }
+        ),
+    )
+    renderer._setup_cable_bindings()
+
+    model = SimpleNamespace(shape_body=None, shape_transform=None, shape_scale=None)
+    monkeypatch.setattr(NewtonManager, "_model", model)
+    monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: SimpleNamespace(body_q=None)))
+    # The kernel needs a live Newton model; this test covers the slicing around it, not the maths in it.
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", lambda *args, **kwargs: None)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: SimpleNamespace(cuda_stream=1234))
+
+    renderer._write_cable_points()
+
+    written = renderer._cable_points_binding.written
+    assert written is not None
+    assert [len(slice_) for slice_ in written] == [3, 4]
+    assert written[0].ptr == renderer._cable_points[0:3].ptr
+    assert written[1].ptr == renderer._cable_points[3:7].ptr
+    # Zero-copy: OVRTX is handed the Warp stream so it waits on the kernel instead of forcing a host
+    # round-trip. Switching to SYNC would silently reintroduce a per-frame device copy, and is the
+    # only guard against that -- the downgrade does not raise, it just renders from a stale copy.
+    assert renderer._cable_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert renderer._cable_points_binding.write_kwargs["cuda_stream"] == 1234

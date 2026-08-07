@@ -35,3 +35,16 @@ class CameraRenderSpec:
     camera_prim_paths: tuple[str, ...]
     view_count: int
     camera_path_relative_to_env_0: str
+
+    def __post_init__(self) -> None:
+        """Enforce the ``view_count`` / ``camera_prim_paths`` agreement documented above.
+
+        Backends size the render product from :attr:`camera_prim_paths` but launch their tiled
+        kernels over :attr:`view_count`, so a mismatch reads past the end of the annotator buffer
+        and surfaces asynchronously, far from its cause.
+        """
+        if self.camera_prim_paths and self.view_count != len(self.camera_prim_paths):
+            raise ValueError(
+                f"view_count ({self.view_count}) must match the number of camera prims"
+                f" ({len(self.camera_prim_paths)}): {list(self.camera_prim_paths)}."
+            )
