@@ -154,7 +154,7 @@ class DirectRLEnv(gym.Env):
             logger.warning(msg)
 
         # generate scene
-        with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
+        with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
@@ -179,7 +179,7 @@ class DirectRLEnv(gym.Env):
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
         print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
-        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start", activity="Starting physics"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
             with use_stage(self.sim.stage):

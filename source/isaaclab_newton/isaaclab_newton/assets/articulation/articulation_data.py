@@ -80,7 +80,10 @@ class ArticulationData(BaseArticulationData):
 
         # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2) so
         # per-env gravity randomization stays live; consumers normalize on read.
-        self.GRAVITY_VEC_W = ProxyArray(SimulationManager.get_model().gravity)
+        # The final entry is reserved for Newton's global world and is not an
+        # Isaac Lab environment.
+        model = SimulationManager.get_model()
+        self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
         forward_vec = np.full((self._root_view.count, 3), (1.0, 0.0, 0.0), dtype=np.float32)
         self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
 
@@ -1682,10 +1685,10 @@ class ArticulationData(BaseArticulationData):
             ]
             self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", SimulationManager.get_control())[:, 0]
             self._sim_bind_joint_position_target = self._root_view.get_attribute(
-                "joint_target_pos", SimulationManager.get_control()
+                "joint_target_q", SimulationManager.get_control()
             )[:, 0]
             self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
-                "joint_target_vel", SimulationManager.get_control()
+                "joint_target_qd", SimulationManager.get_control()
             )[:, 0]
         else:
             # No joints (e.g., free-floating rigid body) - set bindings to empty arrays

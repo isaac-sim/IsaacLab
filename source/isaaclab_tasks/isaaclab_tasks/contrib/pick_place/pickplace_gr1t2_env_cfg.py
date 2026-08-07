@@ -27,8 +27,9 @@ from . import mdp
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg  # isort: skip
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg  # isort: skip
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg  # isort: skip
 from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
 
 
 def _build_gr1t2_pickplace_pipeline():
@@ -363,6 +364,17 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
 
+@configclass
+class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
+    """GR1T2 pick-place scene with the camera observation shown in XR PiP."""
+
+    robot_pov_cam = robot_pov_camera_cfg(
+        parent_prim_path="{ENV_REGEX_NS}/Robot/base_link",
+        offset_pos=(0.11999996, -0.00000233, 0.74674994),
+        offset_rot=(-0.69303199, 0.69304552, -0.14034840, 0.14034565),
+    )
+
+
 ##
 # MDP settings
 ##
@@ -516,6 +528,25 @@ class ObservationsCfg:
 
 
 @configclass
+class PickPlaceGR1T2ObservationsCfg(ObservationsCfg):
+    """GR1T2 pick-place observations including the camera shown in XR PiP."""
+
+    @configclass
+    class PolicyCfg(ObservationsCfg.PolicyCfg):
+        robot_pov_cam = ObsTerm(
+            func=base_mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
+                "data_type": "rgb",
+                "normalize": False,
+                "clone": False,
+            },
+        )
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
@@ -553,9 +584,9 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: PickPlaceGR1T2SceneCfg = PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
+    observations: PickPlaceGR1T2ObservationsCfg = PickPlaceGR1T2ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     # MDP settings
     terminations: TerminationsCfg = TerminationsCfg()
@@ -619,6 +650,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
+        self.num_rerenders_on_reset = 3
 
         # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
         self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path
@@ -633,7 +665,17 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+            xr_camera_feeds=[
+                XrCameraFeedCfg(
+                    camera_name="robot_pov_cam",
+                    enable_dlss_ray_reconstruction=True,
+                    dlss_exec_mode="quality",
+                    offset_m=(0.0, -0.15),
+                    max_update_hz=0.0,
+                )
+            ],
         )
+        self.image_obs_list = ["robot_pov_cam"]
 
         # Per-finger haptic glove feedback: vibrate each finger of the operator's
         # glove in proportion to how tightly it grips the object. The session

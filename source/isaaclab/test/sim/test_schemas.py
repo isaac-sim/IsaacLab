@@ -107,10 +107,13 @@ def test_valid_properties_cfg(setup_simulation):
     # deprecation aliases are nulled by __post_init__ after forwarding to the canonical
     # field; exclude them from the all-non-None check.
     deprecation_aliases = {"max_velocity", "max_effort"}
+    # nested opt-in cfgs whose ``None`` means "leave the USD-authored value alone"
+    optional_nested_cfgs = {"mesh_collision_property"}
     for cfg in [arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg]:
         for k, v in cfg.__dict__.items():
-            # skip class-metadata keys (``_usd_*``) and deprecation aliases nulled in __post_init__
-            if k.startswith("_") or k in deprecation_aliases:
+            # skip class-metadata keys (``_usd_*``), deprecation aliases nulled in __post_init__,
+            # and nested cfgs that are meaningfully unset
+            if k.startswith("_") or k in deprecation_aliases or k in optional_nested_cfgs:
                 continue
             assert v is not None, f"{cfg.__class__.__name__}:{k} is None. Please make sure schemas are valid."
 
@@ -1052,7 +1055,11 @@ def _validate_collision_properties_on_prim(prim_path: str, collision_cfg, verbos
             if UsdPhysics.CollisionAPI(mesh_prim):
                 for attr_name, attr_value in collision_cfg.__dict__.items():
                     # skip names we know are not present and class-metadata keys
-                    if attr_name.startswith("_") or attr_name in ["func", "collision_enabled"]:
+                    if attr_name.startswith("_") or attr_name in [
+                        "func",
+                        "collision_enabled",
+                        "mesh_collision_property",
+                    ]:
                         continue
                     # convert attribute name in prim to cfg name
                     prim_prop_name = f"physxCollision:{to_camel_case(attr_name, to='cC')}"

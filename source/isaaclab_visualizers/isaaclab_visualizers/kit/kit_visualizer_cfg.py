@@ -13,7 +13,14 @@ from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 @configclass
 class KitVisualizerCfg(VisualizerCfg):
-    """Configuration for Kit visualizer using Isaac Sim viewport."""
+    """Configuration for Kit visualizer using Isaac Sim viewport.
+
+    .. note::
+        The streaming camera panel (``streaming_view=True``) requires the
+        ``--enable_cameras`` CLI flag.  Without it, the streaming view is silently
+        skipped and no image panel is created.  Set ``dock_position="RIGHT"`` so
+        the panel appears side-by-side with the Viewport instead of as a hidden tab.
+    """
 
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""
@@ -31,7 +38,16 @@ class KitVisualizerCfg(VisualizerCfg):
     """Run without creating viewport windows when supported by the app."""
 
     dock_position: str = "SAME"
-    """Dock position for a new viewport. Options: 'LEFT', 'RIGHT', 'BOTTOM', 'SAME'."""
+    """Dock position for the streaming image panel and any new viewport window.
+
+    Options: ``'LEFT'``, ``'RIGHT'``, ``'BOTTOM'``, ``'SAME'``.
+
+    .. note::
+        ``'SAME'`` (the default) places the streaming panel as a hidden tab in the
+        same dock group as the main Viewport — you must click the panel's tab to see it.
+        Use ``'RIGHT'`` to keep both the Viewport and the streaming panel visible
+        side-by-side.
+    """
 
     window_width: int = 1280
     """Viewport width in pixels (when :attr:`create_viewport` is ``True``)."""
