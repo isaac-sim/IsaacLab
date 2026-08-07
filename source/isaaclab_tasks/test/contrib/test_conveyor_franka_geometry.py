@@ -5,11 +5,12 @@
 
 """Tests for the contributed conveyor Franka racetrack geometry."""
 
+import sys
 from collections import Counter
 
 import pytest
 
-from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import ConveyorForceCfg
+from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import ConveyorForceCfg, ConveyorFrankaEnvCfg
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
     BELT_TOP_Z,
     TURN_SEGMENT_COUNT,
@@ -65,6 +66,15 @@ def test_belt_top_faces_point_upward():
 def test_racetrack_lanes_counter_rotate():
     """Verify the two analytic conveyor velocity fields use opposite directions."""
     assert belt_direction("Left") == -belt_direction("Right")
+
+
+def test_environment_config_without_optional_visualizers(monkeypatch):
+    """The task configuration remains usable without the visualizer package."""
+    monkeypatch.setitem(sys.modules, "isaaclab_visualizers", None)
+
+    cfg = ConveyorFrankaEnvCfg()
+
+    assert cfg.sim.default_visualizer_cfg is None
 
 
 @pytest.mark.parametrize(

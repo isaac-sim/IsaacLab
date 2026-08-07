@@ -359,6 +359,12 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         self.seed = 42
         # Frame the complete robot and both conveyor lanes in the Newton viewer.
+        try:
+            import isaaclab_visualizers  # noqa: F401
+        except ModuleNotFoundError as exc:
+            if exc.name != "isaaclab_visualizers":
+                raise
+            return
         from isaaclab_visualizers.newton import NewtonVisualizerCfg
 
         self.sim.default_visualizer_cfg = NewtonVisualizerCfg(
