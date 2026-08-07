@@ -10,6 +10,9 @@ from __future__ import annotations
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
+from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
+from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -17,6 +20,7 @@ from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
@@ -87,6 +91,13 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
     )
 
+    isaacsim_physx: PhysxCfg = PhysxCfg(
+        friction_offset_threshold=0.005,
+        friction_correlation_distance=0.01,
+    )
+
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+
     default = newton_mjwarp_vbd_proxy
 
 
@@ -102,7 +113,7 @@ SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
 
 @configclass
 class DeformableCfg(PresetCfg):
-    """Preset config for the deformable object, matching the Newton example."""
+    """Preset configurations for the cloth."""
 
     newton_mjwarp_vbd_proxy: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Deformable",
@@ -123,6 +134,30 @@ class DeformableCfg(PresetCfg):
             ),
         ),
     )
+
+    physx: DeformableObjectCfg = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Deformable",
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
+        spawn=sim_utils.MeshRectangleCfg(
+            size=(0.2, 0.2),
+            resolution=(8, 8),
+            deformable_props=PhysxDeformableBodyPropertiesCfg(),
+            collision_props=[PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01)],
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
+            physics_material=PhysxSurfaceDeformableBodyMaterialCfg(
+                density=10.0,
+                youngs_modulus=2000.0,
+                poissons_ratio=0.25,
+                surface_thickness=0.005,
+                surface_stretch_stiffness=0.8,
+                surface_shear_stiffness=0.7,
+                surface_bend_stiffness=0.6,
+                elasticity_damping=0.03,
+                bend_damping=0.04,
+            ),
+        ),
+    )
+    isaacsim_physx = physx
 
     default = newton_mjwarp_vbd_proxy
 
@@ -164,6 +199,10 @@ class FrankaClothScenePresetCfg(PresetCfg):
         num_envs=2048, env_spacing=2.0, replicate_physics=True
     )
 
+    # PhysX does not support replicating physics for deformable objects
+    physx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    isaacsim_physx = physx
+
     default = newton_mjwarp_vbd_proxy
 
 
@@ -172,6 +211,18 @@ class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
     """Franka cloth scene with a base camera."""
 
     base_camera: CameraCfg = FRANKA_CAMERA_CFG
+
+
+@configclass
+class FrankaClothCameraScenePresetCfg(PresetCfg):
+    """Scene presets for visual Franka cloth lifting."""
+
+    newton_mjwarp_vbd_proxy: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(
+        num_envs=128, env_spacing=2.5, replicate_physics=True
+    )
+    physx: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+    isaacsim_physx = physx
+    default = newton_mjwarp_vbd_proxy
 
 
 @configclass
@@ -230,7 +281,7 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
 class FrankaClothCameraEnvCfg(FrankaClothEnvCfg):
     """Visual Franka surface-deformable lifting environment."""
 
-    scene: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
+    scene: FrankaClothCameraScenePresetCfg = FrankaClothCameraScenePresetCfg()
     observations: FrankaCameraObservationsCfg = FrankaCameraObservationsCfg()
 
     def __post_init__(self) -> None:
