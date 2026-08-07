@@ -110,7 +110,7 @@ def build_visualization_builder_from_stage_envs(
         )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
         shadow_entities, registry_groups = add_shadow_deformables_to_builder(
-            builder, stage, env_paths, device=device, entries=deformable_entries
+            builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
         )
         return builder, (shadow_entities, registry_groups)
 
@@ -148,6 +148,6 @@ def build_visualization_builder_from_stage_envs(
     replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
     rename_builder_labels(builder, sources, destinations, env_ids, mapping)
     shadow_entities, registry_groups = add_shadow_deformables_to_builder(
-        builder, stage, env_paths, device=device, entries=deformable_entries
+        builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
     )
     return builder, (shadow_entities, registry_groups)
