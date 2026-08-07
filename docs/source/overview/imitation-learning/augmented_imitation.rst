@@ -28,7 +28,7 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
 
       .. code:: bash
 
-          uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+          uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
           --device cpu --num_envs 10 --generation_num_trials 1000 \
           --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
           --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0
@@ -328,7 +328,7 @@ Using the generated data, we can now train a visuomotor BC agent for ``IsaacCont
 
       .. code:: bash
 
-          uv run --extra mimic python scripts/imitation_learning/robomimic/train.py \
+          uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
           --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos --algo bc \
           --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
           --name bc_rnn_image_franka_stack_mimic_cosmos
@@ -420,7 +420,7 @@ Example usage for the cube stacking task:
 
       .. code:: bash
 
-          uv run --extra mimic python scripts/imitation_learning/robomimic/robust_eval.py \
+          uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/robust_eval.py \
           --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
           --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
           --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \

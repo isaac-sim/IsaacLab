@@ -31,6 +31,12 @@ optional arguments:
 
 """Launch Isaac Sim Simulator first."""
 
+# Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
+# time spent building kernels on a cold kernel cache.
+import warp as wp
+
+wp.config.enable_backward = False
+
 # Standard library imports
 import argparse
 import contextlib
