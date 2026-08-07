@@ -66,46 +66,76 @@ done
 
 extract_findings() {
     jq -r '
-      (
-        [
-          .Results[]
-          | select(.Class == "os-pkgs" or .Class == "lang-pkgs")
-          | (
-              if .Class == "os-pkgs"
-              then "OS Packages"
-              else .Target
-              end
-            ) as $package_type
-          | .Packages[]?
-          | {
-              key: (
-                ($package_type + "\u0000" + .Name)
-                | ascii_downcase
-              ),
-              value: (.Version // "")
-            }
-        ]
-        | from_entries
-      ) as $versions
+      [
+        .Results[]
+        | select(.Class == "os-pkgs" or .Class == "lang-pkgs")
+        | (
+            if .Class == "os-pkgs"
+            then "OS Packages"
+            else .Target
+            end
+          ) as $package_type
+        | .Packages[]?
+        | select((.Name // "") != "")
+        | {
+            key: (
+              ($package_type + "\u0000" + .Name)
+              | ascii_downcase
+            ),
+            package_type: $package_type,
+            package: .Name,
+            version: (.Version // "")
+          }
+      ] as $inventory
       |
-      .Results[]
-      | select(.Class == "license")
-      | .Target as $package_type
-      | .Licenses[]?
-      | select((.PkgName // "") != "")
-      | [
-          $package_type,
-          .PkgName,
-          (
-            $versions[
-              (($package_type + "\u0000" + .PkgName) | ascii_downcase)
-            ] // ""
-          ),
-          .Name,
-          .Category,
-          .Severity,
-          ""
-        ]
+      ($inventory | map({key: .key, value: .version}) | from_entries) as $versions
+      |
+      [
+        .Results[]
+        | select(.Class == "license")
+        | .Target as $package_type
+        | .Licenses[]?
+        | select((.PkgName // "") != "")
+        | {
+            key: (
+              ($package_type + "\u0000" + .PkgName)
+              | ascii_downcase
+            ),
+            finding: [
+              $package_type,
+              .PkgName,
+              (
+                $versions[
+                  (($package_type + "\u0000" + .PkgName) | ascii_downcase)
+                ] // ""
+              ),
+              .Name,
+              .Category,
+              .Severity,
+              ""
+            ]
+          }
+      ] as $licenses
+      |
+      ($licenses | map({key: .key, value: true}) | from_entries) as $licensed_packages
+      |
+      (
+        $licenses[].finding,
+        (
+          $inventory[]
+          | .key as $key
+          | select(($licensed_packages[$key] // false) | not)
+          | [
+              .package_type,
+              .package,
+              .version,
+              "UNKNOWN",
+              "missing-license-metadata",
+              "UNKNOWN",
+              ""
+            ]
+        )
+      )
       | map(tostring)
       | join("\u001f")
     ' "$1" | sort -u
@@ -202,7 +232,11 @@ while IFS="$FINDINGS_DELIMITER" read -r \
         ' "$EXCEPTIONS_FILE"
     )"
     if [[ -z "$exception" ]]; then
-        record_violation "No reviewed exception"
+        if [[ "$category" == "missing-license-metadata" ]]; then
+            record_violation "Trivy reported no license metadata for this inventoried package"
+        else
+            record_violation "No reviewed exception"
+        fi
         continue
     fi
 
