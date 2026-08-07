@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TypeAliasType
@@ -313,6 +314,17 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._build_execution_batches()
         if debug_value_resolution:
             self._print_value_resolution_table()
+        if not getattr(self._control, "native_active", False):
+            explicit_group_names = [
+                name for name, actuator in self._groups.items() if isinstance(actuator, IdealPDActuator)
+            ]
+            if explicit_group_names:
+                warnings.warn(
+                    "Isaac Lab execution of explicit actuator models is deprecated. Use Newton actuator execution "
+                    f"instead. Affected groups: {', '.join(explicit_group_names)}.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
 
     """
     Mapping interface.
@@ -667,9 +679,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             names = tuple(name for name, group in self._groups.items() if type(group) is actuator_type)
             groups = [self._groups[name] for name in names]
             joint_indices = [group_joint_indices[name] for name in names]
-            supported = actuator_type.__dict__.get("_supports_execution_aggregation", False)
+            parameter_names = actuator_type.__dict__.get("_EXECUTION_PARAMETER_NAMES")
 
-            if native_active or not supported:
+            if native_active or parameter_names is None:
                 for name, group, indices in zip(names, groups, joint_indices):
                     batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
                 continue
@@ -697,8 +709,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             combined = torch.cat(safe_indices)
             executor = actuator_type._build_execution_actuator(safe_groups)
             batch = self._make_execution_batch(safe_names, safe_groups, combined, executor=executor)
-            self._validate_execution_batch(batch, safe_groups)
-            self._bind_execution_batch_parameters(batch, safe_groups)
+            self._validate_execution_batch(batch, safe_groups, parameter_names)
+            self._bind_execution_batch_parameters(batch, safe_groups, parameter_names)
             for name in safe_names:
                 batch_by_group[name] = batch
 
@@ -712,7 +724,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 seen.add(id(batch))
 
     def _validate_execution_batch(
-        self, batch: ActuatorCollection._ExecutionBatch, groups: Sequence[ActuatorBase]
+        self,
+        batch: ActuatorCollection._ExecutionBatch,
+        groups: Sequence[ActuatorBase],
+        parameter_names: tuple[str, ...],
     ) -> None:
         expected_joint_names = [name for group in groups for name in group.joint_names]
         expected_num_joints = len(expected_joint_names)
@@ -748,7 +763,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         if expected_start != expected_num_joints:
             raise ValueError("Execution batch group slices do not cover all executor joints.")
 
-        tensor_names = (*ActuatorBase._EXECUTION_PARAMETER_NAMES, "computed_effort", "applied_effort")
+        tensor_names = (*parameter_names, "computed_effort", "applied_effort")
         for name in tensor_names:
             value = getattr(batch.actuator, name)
             if value.shape != (self.num_instances, expected_num_joints):
@@ -757,9 +772,12 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 raise ValueError(f"Execution batch tensor '{name}' has an unexpected dtype or device.")
 
     def _bind_execution_batch_parameters(
-        self, batch: ActuatorCollection._ExecutionBatch, groups: Sequence[ActuatorBase]
+        self,
+        batch: ActuatorCollection._ExecutionBatch,
+        groups: Sequence[ActuatorBase],
+        parameter_names: tuple[str, ...],
     ) -> None:
-        tensor_names = (*ActuatorBase._EXECUTION_PARAMETER_NAMES, "computed_effort", "applied_effort")
+        tensor_names = (*parameter_names, "computed_effort", "applied_effort")
         bindings: list[tuple[ActuatorBase, str, torch.Tensor]] = []
         for group, group_slice in zip(groups, batch.group_slices):
             for name in tensor_names:

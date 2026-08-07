@@ -646,9 +646,9 @@ Newton native actuators
 ------------------------
 
 By default Isaac Lab runs explicit actuator models in Python, once per step, outside the solver
-(typically on the selected Torch or Warp device). Set
-:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``True`` to instead run the explicit
-models **inside the Newton solver**:
+(typically on the selected Torch or Warp device). This Isaac Lab execution path is deprecated.
+Set :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``True`` to instead run the
+explicit models **inside the Newton solver**:
 
 .. code-block:: python
 

@@ -14,6 +14,9 @@ Deprecated
   torque-telemetry properties on articulation data. Use the command view and
   ``computed_torque`` or ``applied_torque`` views on
   :attr:`~isaaclab.assets.Articulation.actuators` instead.
+* Deprecated Isaac Lab execution of explicit actuator models. Enable
+  :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to execute these
+  models with Newton instead.
 
 Changed
 ^^^^^^^

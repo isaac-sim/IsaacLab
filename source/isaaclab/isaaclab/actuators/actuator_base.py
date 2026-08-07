@@ -44,21 +44,6 @@ class ActuatorBase(ABC):
     If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
     """
 
-    # Aggregated executors remap these tensors to the logical groups' views.
-    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = (
-        "effort_limit",
-        "effort_limit_sim",
-        "velocity_limit",
-        "velocity_limit_sim",
-        "stiffness",
-        "damping",
-        "armature",
-        "friction",
-        "dynamic_friction",
-        "viscous_friction",
-    )
-    _supports_execution_aggregation: ClassVar[bool] = False
-
     computed_effort: torch.Tensor
     """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
 
@@ -324,7 +309,7 @@ class ActuatorBase(ABC):
         # cloning the logical groups' tensor storage.
         executor = copy.copy(actuators[0])
         executor._joint_names = [name for actuator in actuators for name in actuator.joint_names]
-        for name in cls._EXECUTION_PARAMETER_NAMES:
+        for name in cls.__dict__["_EXECUTION_PARAMETER_NAMES"]:
             setattr(executor, name, torch.cat([getattr(actuator, name) for actuator in actuators], dim=1))
         executor.computed_effort = torch.zeros(executor._num_envs, len(executor._joint_names), device=executor._device)
         executor.applied_effort = torch.zeros_like(executor.computed_effort)

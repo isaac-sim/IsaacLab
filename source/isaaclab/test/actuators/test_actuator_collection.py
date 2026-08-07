@@ -18,6 +18,7 @@ import warp as wp
 
 import isaaclab.envs.mdp.events as events
 from isaaclab.actuators import (
+    ActuatorBase,
     ActuatorCollection,
     ActuatorControl,
     ActuatorJointProperties,
@@ -78,8 +79,10 @@ def _dc_cfg(
 
 def _make_unbatched_reference(monkeypatch, actuator_type, cfgs, control):
     with monkeypatch.context() as patch:
-        patch.setattr(actuator_type, "_supports_execution_aggregation", False)
-        return ActuatorCollection(cfgs, control)
+        patch.delattr(actuator_type, "_EXECUTION_PARAMETER_NAMES")
+        reference = ActuatorCollection(cfgs, control)
+        assert len(reference._execution_batches) == len(cfgs)
+        return reference
 
 
 def _assign_deterministic_inputs(collection: ActuatorCollection, control: FakeActuatorControl) -> None:
@@ -296,6 +299,9 @@ class NativeFakeActuatorControl(FakeActuatorControl):
     @property
     def native_active(self) -> bool:
         return True
+
+    def prepare_native_actuators(self, collection, actuator_cfgs) -> set[str]:
+        return set(actuator_cfgs)
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
         return True
@@ -605,6 +611,62 @@ def test_same_stateless_class_builds_one_execution_batch_with_group_views():
     for group_name in batch.group_names:
         for name in parameter_names:
             assert id(getattr(collection[group_name], name)) == group_tensor_ids[group_name][name]
+
+
+def test_execution_parameter_schema_is_owned_by_exact_aggregation_types():
+    assert "_EXECUTION_PARAMETER_NAMES" not in ActuatorBase.__dict__
+    assert all(
+        "_EXECUTION_PARAMETER_NAMES" in actuator_type.__dict__
+        for actuator_type in (ImplicitActuator, IdealPDActuator, DCMotor)
+    )
+
+
+def test_disjoint_implicit_groups_share_one_execution_batch():
+    collection = ActuatorCollection(
+        {
+            "first": ImplicitActuatorCfg(joint_names_expr=["joint_0", "joint_1"], stiffness=1.0, damping=1.0),
+            "second": ImplicitActuatorCfg(joint_names_expr=["joint_2", "joint_3"], stiffness=2.0, damping=2.0),
+        },
+        FakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2", "joint_3"]),
+    )
+
+    assert len(collection._execution_batches) == 1
+    assert type(collection._execution_batches[0].actuator) is ImplicitActuator
+    assert collection._execution_batches[0].group_names == ("first", "second")
+
+
+def test_lab_executed_explicit_groups_warn_once():
+    explicit_cfgs = {
+        "ideal": _ideal_cfg(["joint_0"], stiffness=1.0, damping=1.0, effort_limit=10.0),
+        "delayed": DelayedPDActuatorCfg(
+            joint_names_expr=["joint_1", "joint_2"],
+            stiffness=1.0,
+            damping=1.0,
+            effort_limit=10.0,
+            velocity_limit=10.0,
+            max_delay=0,
+        ),
+    }
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        warnings.simplefilter("always")
+        ActuatorCollection(explicit_cfgs, FakeActuatorControl())
+
+    deprecations = [warning for warning in caught_warnings if warning.category is DeprecationWarning]
+    assert [str(warning.message) for warning in deprecations] == [
+        "Isaac Lab execution of explicit actuator models is deprecated. Use Newton actuator execution instead. "
+        "Affected groups: ideal, delayed."
+    ]
+
+
+def test_native_executed_explicit_group_does_not_warn():
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        warnings.simplefilter("always")
+        ActuatorCollection(
+            {"native": _ideal_cfg([".*"], stiffness=1.0, damping=1.0, effort_limit=10.0)},
+            NativeFakeActuatorControl(),
+        )
+
+    assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
 
 
 def test_dc_motor_execution_batch_packs_different_saturation_efforts(monkeypatch):

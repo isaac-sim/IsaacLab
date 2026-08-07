@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import numpy as np
 import torch
@@ -300,8 +300,8 @@ class NewtonActuatorAdapter:
 
         This is the PhysX-side counterpart of Newton's
         ``ModelBuilder.add_usd``. It reads the same prims and constructs matching
-        :class:`~newton.actuators.Actuator` objects. Joints with the same
-        controller, gains, clamping, and delay are merged into one actuator with
+        :class:`~newton.actuators.Actuator` objects. Structurally compatible
+        joints are merged into one actuator with per-DOF parameter arrays and
         combined indices. Newton backends use ``model.actuators`` instead.
 
         On PhysX, :paramref:`joint_names` is in this adapter's local public order
@@ -461,27 +461,56 @@ def build_newton_actuator_defaults(
 # PhysX-only USD parsing
 # ---------------------------------------------------------------------------
 
+_ResolvedComponent: TypeAlias = tuple[type, dict[str, Any]]
+_ResolvedActuatorSpec: TypeAlias = tuple[int, type, dict[str, Any], list[_ResolvedComponent]]
 
-def _actuator_signature(parsed: Any) -> tuple:
-    """Build a hashable key from a parsed actuator spec for grouping.
 
-    Joints whose prims resolve to the same signature share identical
-    controller type, gains, clamping chain, and delay configuration and
-    can therefore be merged into a single :class:`~newton.actuators.Actuator`
-    with combined index arrays.
-    """
-    ctrl_resolved = parsed.controller_class.resolve_arguments(
-        dict(parsed.controller_kwargs),
-    )
-    ctrl_key = (parsed.controller_class, tuple(sorted(ctrl_resolved.items())))
+def _actuator_signature(
+    controller_class: type,
+    controller_arguments: dict[str, Any],
+    component_arguments: list[_ResolvedComponent],
+) -> tuple:
+    """Build Newton's structural grouping key for a parsed actuator spec."""
 
-    comp_keys: list[tuple] = []
-    for comp_cls, comp_kwargs in parsed.component_specs:
-        resolved = comp_cls.resolve_arguments(comp_kwargs)
-        comp_keys.append((comp_cls, tuple(sorted(resolved.items()))))
-    comp_keys.sort(key=lambda t: t[0].__name__)
+    def make_hashable(value: Any) -> Any:
+        if isinstance(value, list | tuple):
+            return tuple(make_hashable(item) for item in value)
+        return value
 
-    return (ctrl_key, tuple(comp_keys))
+    def shared_key(component_class: type, resolved: dict[str, Any]) -> tuple:
+        shared_names = getattr(component_class, "SHARED_PARAMS", set())
+        return tuple(sorted((name, make_hashable(resolved[name])) for name in shared_names if name in resolved))
+
+    clamping_key: list[tuple] = []
+    has_delay = False
+    for comp_cls, resolved in component_arguments:
+        if issubclass(comp_cls, Delay):
+            has_delay = True
+        elif issubclass(comp_cls, Clamping):
+            clamping_key.append((comp_cls, shared_key(comp_cls, resolved)))
+
+    return (controller_class, has_delay, tuple(clamping_key), shared_key(controller_class, controller_arguments))
+
+
+def _tile_per_dof_arguments(
+    arguments: list[dict[str, Any]],
+    num_envs: int,
+    dtype: type,
+    device: wp.Device,
+) -> dict[str, wp.array]:
+    """Pack per-joint scalar arguments in environment-major order."""
+    if not arguments:
+        return {}
+
+    numpy_dtype = np.int32 if dtype == wp.int32 else np.float32
+    return {
+        name: wp.array(
+            np.tile(np.asarray([per_joint[name] for per_joint in arguments], dtype=numpy_dtype), num_envs),
+            dtype=dtype,
+            device=device,
+        )
+        for name in arguments[0]
+    }
 
 
 def _create_actuators_from_usd(
@@ -504,14 +533,11 @@ def _create_actuators_from_usd(
     ``indices`` array is therefore sufficient for all index roles
     (``indices``, ``pos_indices``, ``target_pos_indices``).
 
-    Joints with identical controller type, gains, clamping chain, and
-    delay are merged into one :class:`Actuator` with combined indices.
-
-    Each per-DOF scalar parameter (``kp``, ``kd``, ``saturation_effort``,
-    etc.) is broadcast via :func:`wp.full` to match the group size.
-    Parameters marked as ``SHARED_PARAMS`` on the controller or clamping
-    class (e.g. ``model_path``, ``lookup_positions``) are passed through
-    directly without broadcast.
+    Joints with the same controller and clamping structure are merged into
+    one :class:`Actuator`. Scalar parameters (``kp``, ``kd``,
+    ``saturation_effort``, delay, etc.) are packed per DOF. Parameters marked
+    as ``SHARED_PARAMS`` (e.g. ``model_path``, ``lookup_positions``) remain
+    part of the grouping key and are passed through directly.
     """
     from collections import defaultdict  # noqa: PLC0415
 
@@ -540,68 +566,84 @@ def _create_actuators_from_usd(
     if not parsed_per_joint:
         raise ValueError(f"No NewtonActuator prims found targeting any of: {joint_names}")
 
-    groups: dict[tuple, list[int]] = defaultdict(list)
-    sig_to_parsed: dict[tuple, Any] = {}
+    groups: dict[tuple, list[_ResolvedActuatorSpec]] = defaultdict(list)
     for local_idx, parsed in sorted(parsed_per_joint.items()):
-        sig = _actuator_signature(parsed)
-        groups[sig].append(local_idx)
-        if sig not in sig_to_parsed:
-            sig_to_parsed[sig] = parsed
+        controller_arguments = parsed.controller_class.resolve_arguments(dict(parsed.controller_kwargs))
+        component_arguments = [
+            (comp_cls, comp_cls.resolve_arguments(comp_kwargs)) for comp_cls, comp_kwargs in parsed.component_specs
+        ]
+        sig = _actuator_signature(parsed.controller_class, controller_arguments, component_arguments)
+        groups[sig].append((local_idx, parsed.controller_class, controller_arguments, component_arguments))
 
     actuators = []
-    for sig, local_indices in groups.items():
-        parsed = sig_to_parsed[sig]
+    for grouped_specs in groups.values():
+        local_indices = [spec[0] for spec in grouped_specs]
+        controller_class = grouped_specs[0][1]
+        resolved_controllers = [spec[2] for spec in grouped_specs]
+        resolved_components = [spec[3] for spec in grouped_specs]
 
         flat_indices = np.array(
             [idx + e * num_total_joints for e in range(num_envs) for idx in local_indices],
             dtype=np.uint32,
         )
         indices = wp.array(flat_indices, device=wp_device)
-        num_dofs_in_group = len(local_indices) * num_envs
 
         # Controller
-        ctrl_kwargs = dict(parsed.controller_kwargs)
-        resolved = parsed.controller_class.resolve_arguments(ctrl_kwargs)
-        shared_ctrl = getattr(parsed.controller_class, "SHARED_PARAMS", set())
-        ctrl_arrays = {}
-        for key, val in resolved.items():
-            if key in shared_ctrl:
-                ctrl_arrays[key] = val
-            else:
-                ctrl_arrays[key] = wp.full(num_dofs_in_group, float(val), dtype=wp.float32, device=wp_device)
-        controller = parsed.controller_class(**ctrl_arrays)
+        shared_ctrl = getattr(controller_class, "SHARED_PARAMS", set())
+        ctrl_arguments = [
+            {key: value for key, value in resolved.items() if key not in shared_ctrl}
+            for resolved in resolved_controllers
+        ]
+        ctrl_shared = {key: value for key, value in resolved_controllers[0].items() if key in shared_ctrl}
+        controller = controller_class(
+            **_tile_per_dof_arguments(ctrl_arguments, num_envs, wp.float32, wp_device),
+            **ctrl_shared,
+        )
 
         # Components (delay + clampings)
-        clampings = []
+        clamping_components = [
+            [(comp_cls, resolved) for comp_cls, resolved in components if issubclass(comp_cls, Clamping)]
+            for components in resolved_components
+        ]
+        delay_arguments = [
+            resolved
+            for components in resolved_components
+            for comp_cls, resolved in components
+            if issubclass(comp_cls, Delay)
+        ]
+
         delay = None
-        for comp_cls, comp_kwargs in parsed.component_specs:
-            if issubclass(comp_cls, Delay):
-                resolved_kw = Delay.resolve_arguments(comp_kwargs)
-                delay_steps = int(resolved_kw.get("delay_steps", 0))
-                if delay_steps > 0:
-                    delay_arr = wp.full(num_dofs_in_group, delay_steps, dtype=wp.int32, device=wp_device)
-                    delay = Delay(delay_steps=delay_arr, max_delay=delay_steps)
-            elif issubclass(comp_cls, Clamping):
-                resolved_kw = comp_cls.resolve_arguments(comp_kwargs)
-                shared_clamp = getattr(comp_cls, "SHARED_PARAMS", set())
-                clamp_arrays = {}
-                for k, v in resolved_kw.items():
-                    if k in shared_clamp:
-                        clamp_arrays[k] = v
-                    else:
-                        clamp_arrays[k] = wp.full(
-                            num_dofs_in_group,
-                            float(v),
-                            dtype=wp.float32,
-                            device=wp_device,
-                        )
-                clampings.append(comp_cls(**clamp_arrays))
+        if delay_arguments:
+            max_delay = max(int(arguments["delay_steps"]) for arguments in delay_arguments)
+            if max_delay > 0:
+                delay = Delay(
+                    **_tile_per_dof_arguments(delay_arguments, num_envs, wp.int32, wp_device),
+                    max_delay=max_delay,
+                )
+
+        clampings = []
+        for component_index, (comp_cls, _) in enumerate(clamping_components[0]):
+            resolved_clampings = [components[component_index][1] for components in clamping_components]
+            shared_clamp = getattr(comp_cls, "SHARED_PARAMS", set())
+            clamp_arguments = [
+                {key: value for key, value in resolved.items() if key not in shared_clamp}
+                for resolved in resolved_clampings
+            ]
+            clamp_shared = {key: value for key, value in resolved_clampings[0].items() if key in shared_clamp}
+            clampings.append(
+                comp_cls(
+                    **_tile_per_dof_arguments(clamp_arguments, num_envs, wp.float32, wp_device),
+                    **clamp_shared,
+                )
+            )
 
         actuator = Actuator(
             indices=indices,
             controller=controller,
             delay=delay,
             clamping=clampings if clampings else None,
+            control_target_pos_attr="joint_target_pos",
+            control_target_vel_attr="joint_target_vel",
         )
         actuators.append(actuator)
 

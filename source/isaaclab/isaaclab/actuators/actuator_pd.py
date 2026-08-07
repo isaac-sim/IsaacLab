@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
@@ -28,6 +28,19 @@ if TYPE_CHECKING:
 # import logger
 logger = logging.getLogger(__name__)
 
+_STATELESS_EXECUTION_PARAMETER_NAMES = (
+    "effort_limit",
+    "effort_limit_sim",
+    "velocity_limit",
+    "velocity_limit_sim",
+    "stiffness",
+    "damping",
+    "armature",
+    "friction",
+    "dynamic_friction",
+    "viscous_friction",
+)
+
 """
 Implicit Actuator Models.
 """
@@ -45,7 +58,7 @@ class ImplicitActuator(ActuatorBase):
     cfg: ImplicitActuatorCfg
     """The configuration for the actuator model."""
 
-    _supports_execution_aggregation = True
+    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _STATELESS_EXECUTION_PARAMETER_NAMES
 
     def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
         # effort limits
@@ -165,7 +178,7 @@ class IdealPDActuator(ActuatorBase):
     cfg: IdealPDActuatorCfg
     """The configuration for the actuator model."""
 
-    _supports_execution_aggregation = True
+    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _STATELESS_EXECUTION_PARAMETER_NAMES
 
     """
     Operations.
@@ -253,7 +266,7 @@ class DCMotor(IdealPDActuator):
     cfg: DCMotorCfg
     """The configuration for the actuator model."""
 
-    _supports_execution_aggregation = True
+    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _STATELESS_EXECUTION_PARAMETER_NAMES
 
     def __init__(self, cfg: DCMotorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
