@@ -86,7 +86,7 @@ _RENDER_CORRECTNESS_TASK_IDS = [
 
 
 @pytest.mark.parametrize("task_id, presets, env_name", _RENDER_CORRECTNESS_TASK_IDS)
-# Scene-partition coverage is xfailed in isaaclab_physx for Kit c0b875cd.
+# TODO: Restore enable_scene_partition after NVBug 6264822 is fixed.
 def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str):
     """Test registered tasks rendering correctness."""
     env = None
