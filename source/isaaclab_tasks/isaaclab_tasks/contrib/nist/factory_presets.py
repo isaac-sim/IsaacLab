@@ -22,6 +22,7 @@ import math
 from dataclasses import MISSING
 
 from isaaclab.assets import ArticulationCfg
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
@@ -522,3 +523,38 @@ class GraspedPoseRangeCfg(PresetCfg):
     peg_insert_16mm: dict = _INSERT_GRASPED_RANGE
 
     default: dict = nut_thread_m16
+
+
+@configclass
+class ResetAssetsCfg(PresetCfg):
+    """Scene entities the accumulator banks and restores for each assembly.
+
+    Anything omitted keeps whatever pose the previous episode left it in. The gear variants
+    put two spare gears on the board, and the board itself is re-placed every reset, so they
+    have to ride along or they end up seated against a board that has since moved.
+    """
+
+    default: list = ["nistboard", "fixed_asset", "held_asset", "robot"]
+    gear_mesh_small: list = ["nistboard", "fixed_asset", "held_asset", "robot", "medium_gear", "large_gear"]
+    gear_mesh_medium: list = ["nistboard", "fixed_asset", "held_asset", "robot", "small_gear", "large_gear"]
+    gear_mesh_large: list = ["nistboard", "fixed_asset", "held_asset", "robot", "small_gear", "medium_gear"]
+
+
+@configclass
+class HeldAssetObstaclesCfg(PresetCfg):
+    """Entities the held asset is checked against before a reset state is accepted.
+
+    A state that seats the held asset inside something not listed here is banked as valid.
+    PhysX pushes such a state apart; MuJoCo/Newton diverges to NaN instead, so the spare
+    gears have to be checked as well.
+    """
+
+    default: list = [
+        SceneEntityCfg("fixed_asset"),
+        SceneEntityCfg("robot"),
+        SceneEntityCfg("nistboard"),
+        SceneEntityCfg("table"),
+    ]
+    gear_mesh_small: list = default + [SceneEntityCfg("medium_gear"), SceneEntityCfg("large_gear")]
+    gear_mesh_medium: list = default + [SceneEntityCfg("small_gear"), SceneEntityCfg("large_gear")]
+    gear_mesh_large: list = default + [SceneEntityCfg("small_gear"), SceneEntityCfg("medium_gear")]

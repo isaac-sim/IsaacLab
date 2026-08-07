@@ -28,7 +28,9 @@ from .factory_presets import (
     HeldAssetGraspDiameterCfg,
     HeldAssetGraspMiddleCfg,
     HeldAssetGraspPointCfg,
+    HeldAssetObstaclesCfg,
     IKJointNamesCfg,
+    ResetAssetsCfg,
 )
 
 GRIPPER_GRASP_ASSET_IN_AIR = EventTerm(
@@ -250,19 +252,14 @@ ACCUMULATOR_RESET = EventTerm(
     func=mdp.reset_accumulator,
     mode="reset",
     params={
-        "reset_assets": ["nistboard", "fixed_asset", "held_asset", "robot"],
+        "reset_assets": ResetAssetsCfg(),
         "acceptance_conditions": {
             "object_collision_free": mdp.CollisionAnalyzerCfg(
                 num_points=256,
                 max_dist=0.5,
                 min_dist=-0.0005,
                 asset_cfg=SceneEntityCfg("held_asset"),
-                obstacle_cfgs=[
-                    SceneEntityCfg("fixed_asset"),
-                    SceneEntityCfg("robot"),
-                    SceneEntityCfg("nistboard"),
-                    SceneEntityCfg("table"),
-                ],
+                obstacle_cfgs=HeldAssetObstaclesCfg(),
             ),
             "robot_collision_free": mdp.CollisionAnalyzerCfg(
                 num_points=1024,
