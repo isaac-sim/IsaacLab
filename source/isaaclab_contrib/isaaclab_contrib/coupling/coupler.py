@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 
+import warp as wp
 from isaaclab_newton.physics import (
     KaminoSolverCfg,
     MJWarpSolverCfg,
@@ -217,6 +218,20 @@ class NewtonCouplerManager(NewtonVBDManager):
             not isinstance(entry.solver_cfg, MPMSolverCfg) or entry.solver_cfg.grid_type == "fixed"
             for entry in getattr(solver_cfg, "entries", ())
         )
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Promote a selected single MPM world to the solver's full-reset path."""
+        model = NewtonManager._model
+        mpm_solvers = NewtonMPMManager._implicit_mpm_solvers()
+        if world_mask is not None and model is not None and model.world_count == 1 and mpm_solvers:
+            selected = world_mask.numpy()
+            if not selected.any():
+                return
+            if selected[0] and not selected[-1]:
+                NewtonMPMManager.reset_solver_state(world_mask=None, flags=0)
+                return
+        super()._reset_solver_internals(world_mask)
 
     @classmethod
     def _resolve_entry(
