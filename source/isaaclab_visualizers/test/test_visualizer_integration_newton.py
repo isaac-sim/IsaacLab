@@ -37,23 +37,11 @@ def test_cartpole_env_visualizers_motion_with_play_pause_newton(
     _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
 
 
-@pytest.mark.parametrize(
-    "visualizer_kind",
-    [
-        pytest.param(
-            "kit",
-            marks=pytest.mark.xfail(
-                reason="NVBug 6570125: responsive denoising changes paused-frame stability", strict=False
-            ),
-        ),
-        "newton",
-    ],
-)
 def test_visualizer_tiled_integration_newton(
-    visualizer_kind: str, caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
+    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Cartpole env + tiled visualizer on Newton MJWarp."""
-    run_cartpole_env_visualizers_tiled_camera_motion("newton", caplog, visualizer_kinds=(visualizer_kind,))
+    """Cartpole env + tiled Kit/Newton visualizers on Newton MJWarp."""
+    run_cartpole_env_visualizers_tiled_camera_motion("newton", caplog)
     _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
 
 
