@@ -30,6 +30,7 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    pre_launch_video_config,
     resolve_checkpoint_selector,
     scoped_torch_backend_flags,
     set_hydra_args,
@@ -124,6 +125,7 @@ def _run(args_cli: argparse.Namespace) -> None:
     installed_version = _check_rsl_rl_version()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
 
+    pre_launch_video_config(env_cfg, args_cli=args_cli)
     with launch_simulation(env_cfg, args_cli):
         agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
         apply_env_overrides(args_cli, env_cfg)
@@ -206,10 +208,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         dump_train_configs(log_dir, env_cfg, agent_cfg)
 
         try:
-            runner.learn(
-                num_learning_iterations=agent_cfg.max_iterations,
-                init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
-            )
+            runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
             env.close()
         except KeyboardInterrupt:

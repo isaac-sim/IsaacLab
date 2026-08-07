@@ -570,6 +570,67 @@ def wrap_sensor_capture(env: gym.Env, log_dir: str, args_cli: argparse.Namespace
     return CaptureEnvSensors(env, **sensor_capture_kwargs)
 
 
+def pre_launch_video_config(env_cfg: Any, log_dir: str | None = None, args_cli: Any = None) -> None:
+    """Pre-inject a recording visualizer into env_cfg before launch_simulation().
+
+    Must be called BEFORE :func:`~isaaclab.app.AppLauncher.launch_simulation` so the
+    launcher can include the Kit runtime requirement in its backend scan.
+
+    Only acts when:
+
+    * ``--video`` is set,
+    * no ``video_recorders`` are pre-configured,
+    * no explicit ``--viz`` was passed (or only ``"none"`` entries were passed),
+    * no concrete visualizer is already in ``sim.visualizer_cfgs``, and
+    * ``--viz none`` was not passed.
+
+    Args:
+        env_cfg: Isaac Lab environment config to modify in-place.
+        log_dir: Unused; kept for API symmetry with :func:`apply_video_recording`.
+        args_cli: Parsed command-line arguments.
+    """
+    if not getattr(args_cli, "video", False):
+        return
+
+    existing: list = getattr(env_cfg, "video_recorders", []) or []
+    if existing:
+        return
+
+    cli_visualizers: list[str] = getattr(args_cli, "visualizer", None) or []
+    if isinstance(cli_visualizers, str):
+        cli_visualizers = [cli_visualizers]
+    active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
+    if active_cli_visualizers:
+        # User already chose a visualizer; apply_video_recording() will wire the source.
+        return
+
+    sim_cfg = getattr(env_cfg, "sim", None)
+    if sim_cfg is None:
+        return
+
+    existing_viz_cfg = getattr(sim_cfg, "default_visualizer_cfg", None)
+    existing_viz_cfgs = getattr(sim_cfg, "visualizer_cfgs", []) or []
+    has_concrete_visualizer = any(getattr(c, "visualizer_type", None) is not None for c in existing_viz_cfgs) or (
+        existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None
+    )
+    if has_concrete_visualizer:
+        return
+
+    if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
+        sim_cfg.visualizer_cfgs = []
+
+    try:
+        from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+
+        sim_cfg.visualizer_cfgs.append(_KitCfg(headless=True))
+        print(
+            "[INFO] pre_launch_video_config: pre-injecting a headless Kit visualizer so the launcher "
+            "includes the Kit runtime. Pass --viz <type> to choose a different visualizer."
+        )
+    except (ImportError, ModuleNotFoundError):
+        pass
+
+
 def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespace, *, subdir: str = "train") -> None:
     """Configure internal video recording on the environment config.
 
@@ -612,24 +673,120 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
 
     existing: list = getattr(env_cfg, "video_recorders", []) or []
     if not existing:
-        # Preserve historical --video cadence: record immediately then every 2000 steps.
-        env_cfg.video_recorders = [VideoRecorderCfg(video_interval=2000)]
-        # Set a default visualizer hint so source="visualizer" can resolve a capture target.
-        # Use default_visualizer_cfg rather than visualizer_cfgs so the launcher's backend
-        # selection (auto_rtx, PhysxAutoCfg) remains visible to launch_simulation.
+        # No recorders pre-configured: create a default Kit-viewport recorder, mirroring the
+        # historical --video behaviour (record immediately, then every 2 000 steps).
+        # If the user did not pass --viz, we auto-create a headless Kit visualizer exactly as
+        # teleop and other headless-capable modes do — cameras are enabled by
+        # enable_cameras_for_video() before launch_simulation() is called.
         sim_cfg = getattr(env_cfg, "sim", None)
-        if sim_cfg is not None and getattr(sim_cfg, "default_visualizer_cfg", None) is None:
-            try:
-                from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+        visualizer_source = "visualizer"  # fallback when no specific backend is available
 
-                sim_cfg.default_visualizer_cfg = _KitCfg()
-            except (ImportError, ModuleNotFoundError):
+        # Check whether the user explicitly requested a visualizer via --viz.  If so,
+        # that visualizer will be created by the launcher and we should record from it
+        # without injecting a second one.
+        cli_visualizers: list[str] = getattr(args_cli, "visualizer", None) or []
+        if isinstance(cli_visualizers, str):
+            cli_visualizers = [cli_visualizers]
+
+        # Reject the explicit --viz none --video combination: "none" disables all visualizers,
+        # so there is nothing to record from.  The user must either remove --viz none, pick a
+        # capture-capable visualizer type, or configure video_recorders in the env cfg to use
+        # a sensor source instead.
+        # NOTE: _parse_visualizer_csv("none") returns None (not ["none"]), so cli_visualizers
+        # is [] even when --viz none was passed.  Use the ExplicitAction sentinel instead.
+        viz_explicitly_none = (
+            getattr(args_cli, "visualizer_explicit", False) and getattr(args_cli, "visualizer", "not_none") is None
+        )
+        if viz_explicitly_none:
+            raise ValueError(
+                "--video is not compatible with --viz none: there is no active visualizer to record from. "
+                "Remove --viz none so that video recording can auto-create a visualizer, "
+                "pass --viz kit (or another capture-capable type), "
+                "or add VideoRecorderCfg(source='sensor:<name>') to your env config."
+            )
+
+        # Filter out "none" entries — "none" disables all visualizers, so treat it the
+        # same as "no visualizer specified" for the purpose of picking a recorder source.
+        active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
+
+        # Streaming visualizers (rerun, viser) and the RTX path-tracer (newton_rtx) do not
+        # expose a local frame-capture API and cannot serve as video recording sources.
+        _NO_CAPTURE = {"newton_rtx", "rerun", "viser"}
+
+        if active_cli_visualizers:
+            # Partition into capture-capable and no-capture lists.
+            capture_capable = [v for v in active_cli_visualizers if v not in _NO_CAPTURE]
+            no_capture = [v for v in active_cli_visualizers if v in _NO_CAPTURE]
+
+            if no_capture and not capture_capable:
+                names = " and ".join(repr(v) for v in no_capture)
+                example_cfg = {
+                    "rerun": "RerunVisualizerCfg",
+                    "viser": "ViserVisualizerCfg",
+                    "newton_rtx": "NewtonRTXVisualizerCfg",
+                }.get(no_capture[0], f"{no_capture[0].title()}VisualizerCfg")
+                raise ValueError(
+                    f"--video is not supported with --viz {names}: {names} "
+                    f"{'is a streaming visualizer' if len(no_capture) == 1 else 'are streaming visualizers'} "
+                    "and do not expose a local frame-capture API.\n\n"
+                    "Supported recording backends (both support headless mode for zero UI overhead):\n"
+                    "  --viz kit        Kit/Omniverse viewport\n"
+                    "  --viz newton_gl  Newton OpenGL viewport\n\n"
+                    f"To run {names} alongside video recording, add a headless capture backend\n"
+                    "to sim.visualizer_cfgs in your environment config, for example:\n\n"
+                    f"  sim_cfg.visualizer_cfgs = [\n"
+                    f"      {example_cfg}(...),\n"
+                    f"      KitVisualizerCfg(headless=True),   # provides frames for --video\n"
+                    f"  ]\n\n"
+                    "Frames can also be captured from a scene camera sensor without any visualizer:\n"
+                    "  VideoRecorderCfg(source='sensor:<name>')   # add to env_cfg.video_recorders\n\n"
+                    "See: https://isaac-sim.github.io/IsaacLab/main/source/how-to/record_video.html"
+                )
+
+            # Use the first capture-capable visualizer as the recording source.
+            visualizer_source = f"visualizer:{capture_capable[0]}"
+        else:
+            # No --viz: determine whether a concrete visualizer is already configured in
+            # the env cfg.  A base VisualizerCfg with visualizer_type=None is a hint-only
+            # placeholder that cannot create a real visualizer; treat it as "not configured".
+            existing_viz_cfg = getattr(sim_cfg, "default_visualizer_cfg", None) if sim_cfg is not None else None
+            existing_viz_cfgs = getattr(sim_cfg, "visualizer_cfgs", []) if sim_cfg is not None else []
+            has_concrete_visualizer = bool(existing_viz_cfgs) or (
+                existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None
+            )
+
+            if sim_cfg is not None and not has_concrete_visualizer:
+                # Inject a headless Kit visualizer so there is something to record from.
+                # pre_launch_video_config() already injected one before launch_simulation()
+                # so this branch is normally not reached; it handles edge cases where that
+                # pre-launch hook was skipped or failed (e.g. isaaclab_visualizers not installed).
+                if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
+                    sim_cfg.visualizer_cfgs = []
                 try:
-                    from isaaclab_visualizers.newton import NewtonVisualizerCfg as _NwtCfg
+                    from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
 
-                    sim_cfg.default_visualizer_cfg = _NwtCfg(headless=True)
+                    sim_cfg.visualizer_cfgs.append(_KitCfg(headless=True))
+                    visualizer_source = "visualizer:kit"
+                    print(
+                        "[INFO] --video specified without --viz: auto-creating a headless Kit visualizer "
+                        "for video recording. Pass --viz <type> to choose a different visualizer, or "
+                        "set video_recorders in your env config to record from a scene sensor instead."
+                    )
                 except (ImportError, ModuleNotFoundError):
                     pass
+            elif has_concrete_visualizer:
+                # A concrete visualizer is already configured in the env cfg: record from it.
+                # Prefer capture-capable types (kit, newton_gl) over streaming-only ones.
+                all_viz_cfgs = list(existing_viz_cfgs or [])
+                if existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None:
+                    all_viz_cfgs.append(existing_viz_cfg)
+                # Two-pass: capture-capable first, then fall back to whatever is present.
+                for vcfg in sorted(all_viz_cfgs, key=lambda c: getattr(c, "visualizer_type", None) in _NO_CAPTURE):
+                    vtype = getattr(vcfg, "visualizer_type", None)
+                    if vtype:
+                        visualizer_source = f"visualizer:{vtype}"
+                        break
+        env_cfg.video_recorders = [VideoRecorderCfg(source=visualizer_source, video_interval=2000)]
 
     fallback_output_dir = os.path.join(log_dir, "videos", subdir)
     video_length = getattr(args_cli, "video_length", None)
