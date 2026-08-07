@@ -172,7 +172,7 @@ def test_spawn_custom_mesh(sim):
     assert mesh_prim.GetAttribute("faceVertexIndices").Get() == [0, 1, 2, 0, 2, 3]
     assert mesh_prim.GetAttribute("subdivisionScheme").Get() == "none"
     assert mesh_prim.GetAttribute("physics:approximation").Get() == "none"
-    assert mesh_prim.GetAttribute("primvars:displayColor").HasAuthoredValue()
+    assert not mesh_prim.GetAttribute("primvars:displayColor").HasAuthoredValue()
 
 
 """

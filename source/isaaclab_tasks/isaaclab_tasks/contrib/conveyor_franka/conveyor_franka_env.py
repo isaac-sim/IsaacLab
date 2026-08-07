@@ -1,4 +1,4 @@
-# Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -23,10 +23,8 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
 
     cfg: ConveyorFrankaEnvCfg
 
-    def __init__(self, cfg: ConveyorFrankaEnvCfg, **kwargs):
-        # Gym forwards registry metadata alongside the resolved configuration.
-        del kwargs
-        super().__init__(cfg)
+    def __init__(self, cfg: ConveyorFrankaEnvCfg, render_mode: str | None = None, **kwargs):
+        super().__init__(cfg, render_mode=render_mode, **kwargs)
         self._conveyor_driver = ConveyorForceDriver(
             num_envs=self.num_envs,
             speed=cfg.conveyor_force.speed,

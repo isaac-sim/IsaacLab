@@ -87,6 +87,15 @@ def spawn_mesh_custom(
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
     stage = get_current_stage()
     _spawn_mesh_geom_from_mesh(prim_path, cfg, mesh, translation, orientation, stage=stage)
+
+    # Author the diffuse color as a fallback for kitless visualizers, where materials cannot be bound.
+    if not has_kit():
+        diffuse_color = getattr(cfg.visual_material, "diffuse_color", None)
+        if diffuse_color is not None:
+            display_color = tuple(_srgb_to_linear_channel(value) for value in diffuse_color)
+            mesh_prim = UsdGeom.Mesh(stage.GetPrimAtPath(f"{prim_path}/geometry/mesh"))
+            mesh_prim.CreateDisplayColorAttr([display_color])
+
     return stage.GetPrimAtPath(prim_path)
 
 
@@ -545,15 +554,8 @@ def _spawn_mesh_geom_from_mesh(
 
     # apply visual material
     if cfg.visual_material is not None:
-        # Keep PreviewSurface colors available to lightweight renderers that
-        # consume USD displayColor but cannot construct Kit materials.
-        diffuse_color = getattr(cfg.visual_material, "diffuse_color", None)
-        if diffuse_color is not None:
-            display_color = tuple(_srgb_to_linear_channel(value) for value in diffuse_color)
-            UsdGeom.Mesh(mesh_prim).CreateDisplayColorAttr([display_color])
         if not has_kit():
-            if diffuse_color is None:
-                logger.warning("Skipping visual material application for '%s' in kitless mode.", mesh_prim_path)
+            logger.warning("Skipping visual material application for '%s' in kitless mode.", mesh_prim_path)
         else:
             if not cfg.visual_material_path.startswith("/"):
                 material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
