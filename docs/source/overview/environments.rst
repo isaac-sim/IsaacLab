@@ -1420,6 +1420,14 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
+    * - IsaacContrib-Reach-Reachy2-Bimanual
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
+    * - IsaacContrib-Reach-Reachy2-Bimanual-Play
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``newton_kamino``, ``newton_mjwarp``, ``physx``
     * - IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic
       - Manager Based
       -
