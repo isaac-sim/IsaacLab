@@ -20,6 +20,7 @@ from isaaclab_visualizers.newton import (
     NewtonRTXVisualizerCfg,
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
+from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
 from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
@@ -208,6 +209,49 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
     assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
 
 
+def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exists(monkeypatch):
+    """Auto-create mode should not silently replace its configured view with a scene camera."""
+    existing_camera = SimpleNamespace(
+        _view=SimpleNamespace(count=4),
+        cfg=SimpleNamespace(
+            prim_path="/World/envs/env_.*/Camera",
+            renderer_cfg=SimpleNamespace(renderer_type="newton_warp"),
+        ),
+    )
+    generated_camera = object()
+    create_calls = []
+
+    def _create_visualizer_camera(**kwargs):
+        create_calls.append(kwargs)
+        return generated_camera, ["/World/envs/env_0/VisualizerCamera"], True, ("camera-key",)
+
+    monkeypatch.setattr(newton_visualizer_module, "create_visualizer_camera", _create_visualizer_camera)
+
+    visualizer = NewtonGLVisualizer(
+        NewtonGLVisualizerCfg(
+            streaming_view=True,
+            streaming_envs=4,
+            streaming_cam_eye=(2.25, 0.0, 1.25),
+            streaming_cam_target_prim_path="/World/envs/*/Robot",
+            window_width=400,
+            window_height=400,
+        )
+    )
+    visualizer._scene_data_provider = SimpleNamespace(
+        get_camera_sensors=lambda: {"task_camera": existing_camera},
+    )
+    visualizer._update_owned_camera_poses = lambda: None
+
+    visualizer._setup_streaming_view(num_envs=4)
+
+    assert visualizer._camera_sensor is generated_camera
+    assert len(create_calls) == 1
+    assert create_calls[0]["width"] == 200
+    assert create_calls[0]["height"] == 200
+    assert create_calls[0]["target_prim_path"] == "/World/envs/*/Robot"
+    assert create_calls[0]["eye"] == (2.25, 0.0, 1.25)
+
+
 def test_newton_visualizer_render_rgb_array_returns_viewer_frame():
     frame = np.zeros((4, 6, 3), dtype=np.uint8)
     viewer = SimpleNamespace(get_frame=lambda: SimpleNamespace(numpy=lambda: frame))
@@ -390,6 +434,9 @@ class _Viewer:
     def end_frame(self):
         pass
 
+    def get_frame(self):
+        return SimpleNamespace(numpy=lambda: np.zeros((4, 6, 3), dtype=np.uint8))
+
 
 class _Proxy:
     def __init__(self, tensor):
@@ -430,6 +477,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None):
     visualizer._state = None
     visualizer._scene_data_provider = scene_data_provider
     visualizer._resolved_visible_env_ids = None
+    visualizer._live_plot_sources = []
     visualizer._log_camera_sensor_image = lambda: None
     return visualizer
 
@@ -449,6 +497,28 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
 
     assert viewer.logged_state is state
     assert viewer.logged_contacts == (contacts, state)
+
+
+def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
+    """Headless EGL should defer rendering until a frame is requested."""
+    from isaaclab_newton.physics import NewtonManager
+
+    state = SimpleNamespace(body_q=_BodyQ())
+    viewer = _Viewer()
+
+    monkeypatch.setattr(NewtonManager, "get_state", lambda _scene_data_provider=None: state)
+    monkeypatch.setattr(NewtonManager, "get_contacts", lambda: None)
+    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
+
+    visualizer = _make_newton_visualizer(viewer)
+    visualizer._runtime_headless = True
+    visualizer.step(0.1)
+
+    assert viewer.logged_state is None
+
+    visualizer.render_rgb_array()
+
+    assert viewer.logged_state is state
 
 
 def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypatch):

@@ -947,8 +947,8 @@ class NewtonVisualizer(BaseVisualizer):
 
         from isaaclab_newton.physics import NewtonManager
 
-        # Headless mode: skip the render cycle; render on demand via render_rgb_array().
-        # State is still updated so render_rgb_array() always has the latest physics pose.
+        # Headless mode renders on demand via render_rgb_array(). Keep the latest
+        # physics state available without paying the per-step render cost.
         if self._runtime_headless:
             self._state = NewtonManager.get_state(self._scene_data_provider)
             return
@@ -1150,27 +1150,7 @@ class NewtonVisualizer(BaseVisualizer):
         )
 
     def _setup_streaming_view(self, num_envs: int) -> None:
-        """Resolve or create the camera sensor for the streaming view.
-
-        .. note:: **Auto-create camera mode and Newton MJWarp (``replicate_physics=True``)**
-
-            When :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_sensor_prim_path`
-            is ``None`` (auto-create mode), a camera prim is spawned after
-            ``scene.initialize_renderers()`` has already finalised Newton's clone plan.
-            With ``replicate_physics=True``, only ``env_0`` exists as a USD prim
-            post-init; Newton handles ``env_1..N`` internally without USD prims.
-            Attempting to spawn camera prims at ``env_1..N`` silently fails, so
-            ``FrameView`` only resolves one prim and the sensor count check raises.
-
-            **Workaround**: set :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_sensor_prim_path`
-            to an existing scene camera (e.g. one already declared in the scene config)
-            so the camera is created during scene setup and included in Newton's clone plan.
-
-            **Proper fix**: add a ``pre_physics_init`` hook to :class:`NewtonVisualizer`
-            that spawns the camera prim at ``env_0`` *before* Newton finalises its clone
-            plan, allowing Newton to replicate it to all worlds automatically.  This hook
-            does not yet exist in the visualizer infrastructure.
-        """
+        """Resolve or create the camera sensor for the streaming view."""
         if not self._uses_streaming_view():
             return
 
@@ -1201,35 +1181,6 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         renderer_cfg = self._resolve_streaming_renderer_cfg()
-        renderer_type = getattr(renderer_cfg, "renderer_type", None)
-
-        # Auto-detect fallback: with Newton MJWarp replicate_physics=True, camera prims
-        # created post-physics-init only survive at env_0 — spawning fails for env_1..N.
-        # Reuse the first scene camera with a matching renderer_type (preferred) or any
-        # scene camera with the correct env count (fallback).
-        scene_cameras = self._scene_data_provider.get_camera_sensors()
-        _fallback_cam = None
-        for cam in scene_cameras.values():
-            if cam._view.count != num_envs:
-                continue
-            cam_renderer_type = getattr(getattr(cam.cfg, "renderer_cfg", None), "renderer_type", None)
-            if cam_renderer_type == renderer_type:
-                _fallback_cam = cam
-                break
-            if _fallback_cam is None:
-                _fallback_cam = cam  # keep first match by count as secondary fallback
-        if _fallback_cam is not None:
-            logger.info(
-                "[%s] Auto-create camera fell back to existing scene camera '%s' "
-                "(Newton replicate_physics=True prevents post-init prim spawning). "
-                "Set streaming_sensor_prim_path explicitly to silence this warning.",
-                type(self).__name__,
-                _fallback_cam.cfg.prim_path,
-            )
-            self._camera_sensor = _fallback_cam
-            self._camera_sensor_indices = env_ids
-            return
-
         count = max(1, len(env_ids))
         tile_w, tile_h = compute_tile_resolution(
             self.cfg.window_width, self.cfg.window_height, count, n_gt=len(gt_types)
@@ -1241,12 +1192,13 @@ class NewtonVisualizer(BaseVisualizer):
                 height=tile_h,
                 renderer_cfg=renderer_cfg,
                 data_types=sensor_keys_for_gt_types(gt_types),
+                target_prim_path=self.cfg.streaming_cam_target_prim_path,
+                eye=self.cfg.streaming_cam_eye,
                 streaming_envs=tuple(int(i) for i in env_ids),
             )
         except Exception:
             logger.warning(
-                "[%s] Streaming view disabled: could not auto-create a camera sensor "
-                "(Newton replicate_physics=True limits post-init spawning to env_0). "
+                "[%s] Streaming view disabled: could not auto-create a camera sensor. "
                 "Add a TiledCamera to the scene config or set streaming_sensor_prim_path "
                 "to point to an existing camera.",
                 type(self).__name__,
@@ -1738,8 +1690,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
     def render_rgb_array(self) -> np.ndarray:
         """Return the latest RGB frame rendered by the Newton GL viewer.
 
-        When :attr:`~NewtonGLVisualizerCfg.capture_only` is ``True``, a full render cycle
-        is executed on demand (``begin_frame`` → ``log_state`` → ``end_frame``) using the
+        In headless mode, a full render cycle is executed on demand using the
         state captured during the most recent :meth:`step` call.
 
         Returns:
@@ -1750,7 +1701,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
         """
         if self._viewer is None:
             raise RuntimeError("NewtonGLVisualizer must be initialized before capturing an RGB frame.")
-        if self._runtime_headless and self._state is not None:
+        if self._runtime_headless and self._state is not None and not self._viewer.is_paused():
             self._pre_step()
             self._viewer.begin_frame(self._sim_time)
             try:
