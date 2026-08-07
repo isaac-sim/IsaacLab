@@ -246,8 +246,7 @@ def get_checkpoint_path(
             run_path = os.path.join(runs[-1], *other_dirs)
         else:
             run_path = runs[-1]
-    # FileNotFoundError covers a log directory that does not exist at all, which os.scandir raises
-    # before any run can be matched. Both cases mean the same thing to the caller: no runs.
+    # os.scandir raises FileNotFoundError when the directory is absent; same meaning: no runs.
     except (IndexError, FileNotFoundError):
         raise ValueError(f"No runs present in the directory: '{log_path}' match: '{run_dir}'.")
 

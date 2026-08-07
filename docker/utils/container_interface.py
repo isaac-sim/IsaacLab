@@ -298,8 +298,7 @@ class ContainerInterface:
             # copy the artifacts
             for container_path, host_path in artifacts.items():
                 cmd = ["docker", "cp", f"{self.container_name}:{container_path}/", host_path]
-                # An absent artifact directory is normal, so a copy failure warns
-                # rather than aborting the remaining copies.
+                # An absent artifact directory is normal, so warn rather than abort.
                 self._run_docker_command(cmd, f"copy '{container_path}' from the container", check=False)
             print("\n[INFO] Finished copying the artifacts from the container.")
         else:

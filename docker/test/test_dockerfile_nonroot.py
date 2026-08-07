@@ -120,13 +120,11 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     # Installed through the same entry point as Dockerfile.base/Dockerfile.curobo.
     assert '"${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all]' in dockerfile_text
     assert "COPY isaaclab.sh ./" in dockerfile_text
-    # Isaac Sim stays out; everything else the selectors promise must be present.
     assert "'isaacsim' not in names" in dockerfile_text
     assert "'ovphysx' in names" in dockerfile_text
     assert "'ovrtx' in names" in dockerfile_text
     assert "'viser' in names" in dockerfile_text
     assert "'rerun-sdk' in names" in dockerfile_text
-    # pyglet's xlib backend resolves libXrender.so.1 at import, so `--viz newton` needs it.
     assert "libxrender1" in dockerfile_text
     assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
     assert "COPY docker/docker-compose.yaml docker/docker-compose.yaml" in dockerfile_text

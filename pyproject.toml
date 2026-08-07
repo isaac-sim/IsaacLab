@@ -397,20 +397,13 @@ override-dependencies = [
     "typing-extensions>=4.15.0",
     "websockets>=14.0,<17.0.0",
     "coverage>=7.6.1",
-    # ovphysx caps packaging at <24, but its whole use of the library is a single
-    # ``from packaging.version import Version`` in ``ovphysx/api.py`` -- an over-strict
-    # cap, not a real constraint. Without this override ovphysx cannot co-exist with
-    # ray (via rl[all]), which requires packaging>=24.2. The floor matches Isaac Sim's
-    # own packaging==26.0 so overriding here does not drag that resolution downwards.
+    # Over-strict cap in ovphysx; see the note below. Floor matches Isaac Sim's ==26.0.
     "packaging>=26.0",
 ]
-# ovphysx pins packaging>=20,<24, which collides with both isaacsim-core (==26.0) and
-# ray (>=24.2, pulled in by rl[all]). That cap is over-strict rather than real -- ovphysx's
-# entire use of the library is one ``from packaging.version import Version`` in
-# ``ovphysx/api.py`` -- so the ``packaging>=26.0`` override above reconciles it, the same
-# way the other entries reconcile their over-strict pins. The pairs below are retained
-# because the isaacsim/teleop combinations have not been re-validated against the override;
-# the kit-less image (ovphysx + ray, no isaacsim) is verified to resolve and run.
+# ovphysx caps packaging <24, colliding with ray (>=24.2, via rl[all]) and isaacsim-core
+# (==26.0). The cap is over-strict -- one ``packaging.version.Version`` import -- so the
+# override above reconciles it. The pairs below stay: the isaacsim/teleop combinations have
+# not been re-validated against the override.
 conflicts = [
     [{ extra = "teleop" }, { extra = "ov" }],
     [{ extra = "teleop" }, { extra = "ovphysx" }],
