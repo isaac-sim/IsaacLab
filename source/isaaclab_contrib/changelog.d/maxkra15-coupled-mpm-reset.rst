@@ -1,4 +1,4 @@
 Fixed
 ^^^^^
 
-* Fixed single-world coupled MPM resets and avoided unnecessary host synchronization for other coupled solvers.
+* Fixed single-world coupled MPM resets by promoting the only local world to a full-grid reset.

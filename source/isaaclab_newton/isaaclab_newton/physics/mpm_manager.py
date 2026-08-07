@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import warp as wp
-from newton import BodyFlags, Contacts, Control, GeoType, Model, ModelBuilder, State, StateFlags
+from newton import BodyFlags, Contacts, Control, GeoType, Model, ModelBuilder, State
 from newton.solvers import SolverImplicitMPM
 from warp.fem import TemporaryStore
 
@@ -129,20 +129,6 @@ class NewtonMPMManager(NewtonManager):
         return cls._solver.grid_type == "fixed"
 
     @classmethod
-    def _implicit_mpm_solvers(cls) -> tuple[SolverImplicitMPM, ...]:
-        """Return direct or coupled implicit-MPM solvers without importing the coupler."""
-        root_solver = NewtonManager._solver
-        if isinstance(root_solver, SolverImplicitMPM):
-            return (root_solver,)
-        if root_solver is None or not hasattr(root_solver, "entry_names") or not hasattr(root_solver, "solver"):
-            return ()
-        return tuple(
-            entry_solver
-            for name in root_solver.entry_names()
-            if isinstance((entry_solver := root_solver.solver(name)), SolverImplicitMPM)
-        )
-
-    @classmethod
     def _step_solver(
         cls, state_0: State, state_1: State, control: Control, contacts: Contacts | None, substep_dt: float
     ) -> None:
@@ -173,63 +159,6 @@ class NewtonMPMManager(NewtonManager):
         Args:
             world_mask: Per-world reset mask, ignored.
         """
-
-    @classmethod
-    def reset_solver_state(
-        cls,
-        state: State | None = None,
-        world_mask: wp.array(dtype=wp.bool) | None = None,
-        flags: StateFlags | int | None = None,
-    ) -> None:
-        """Reset MPM and coupled-solver history after task state is rewritten.
-
-        When :paramref:`state` is omitted, both distinct manager state buffers
-        are reset so a later buffer swap cannot restore stale history. A mask
-        follows Newton's canonical ``world_count + 1`` contract, where the last
-        entry selects global entities in world -1. A selected single local world
-        is promoted to a full reset because a one-world MPM grid has no
-        environment offsets.
-
-        Args:
-            state: State whose solver-owned history should be reset. If omitted,
-                reset both manager states.
-            world_mask: Canonical per-world mask, including the final global-world entry.
-            flags: State components whose solver-owned history should reset.
-
-        Raises:
-            RuntimeError: If the MPM solver or a usable state is not initialized.
-            ValueError: If :paramref:`world_mask` does not use Newton's canonical shape.
-        """
-        solver = NewtonManager._solver
-        model = NewtonManager._model
-        if solver is None or model is None or not cls._implicit_mpm_solvers():
-            raise RuntimeError("An implicit MPM solver is not initialized; cannot reset solver state.")
-
-        reset_mask = world_mask
-        if world_mask is not None:
-            expected_shape = (model.world_count + 1,)
-            if world_mask.shape != expected_shape:
-                raise ValueError(f"world_mask must have shape {expected_shape}; got {world_mask.shape}.")
-            if model.world_count == 1:
-                selected = world_mask.numpy()
-                if not selected.any():
-                    return
-                if selected[0] and not selected[-1]:
-                    reset_mask = None
-
-        candidates = (state,) if state is not None else (NewtonManager._state_1, NewtonManager._state_0)
-        states: list[State] = []
-        seen: set[int] = set()
-        for candidate in candidates:
-            if candidate is None or id(candidate) in seen:
-                continue
-            seen.add(id(candidate))
-            states.append(candidate)
-        if not states:
-            raise RuntimeError("Newton state is not initialized; provide an explicit state to reset.")
-
-        for candidate in states:
-            solver.reset(candidate, world_mask=reset_mask, flags=flags)
 
     @classmethod
     def _solver_specific_clear(cls) -> None:

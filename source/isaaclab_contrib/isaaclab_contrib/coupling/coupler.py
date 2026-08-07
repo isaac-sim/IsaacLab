@@ -223,13 +223,14 @@ class NewtonCouplerManager(NewtonVBDManager):
     def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
         """Promote a selected single MPM world to the solver's full-reset path."""
         model = NewtonManager._model
-        mpm_solvers = NewtonMPMManager._implicit_mpm_solvers()
-        if world_mask is not None and model is not None and model.world_count == 1 and mpm_solvers:
+        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+        has_mpm_entry = any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ()))
+        if world_mask is not None and model is not None and model.world_count == 1 and has_mpm_entry:
             selected = world_mask.numpy()
             if not selected.any():
                 return
             if selected[0] and not selected[-1]:
-                NewtonMPMManager.reset_solver_state(world_mask=None, flags=0)
+                NewtonManager._solver.reset(NewtonManager._state_0, world_mask=None, flags=0)
                 return
         super()._reset_solver_internals(world_mask)
 
