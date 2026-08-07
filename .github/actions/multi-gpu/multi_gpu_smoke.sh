@@ -33,14 +33,37 @@ echo "::group::GPU topology on this runner"
 # Recorded because it decides which cases run: a host with no cross-socket pair
 # skips the xfail case, and a host with no same-switch pair skips the strict
 # camera guard. Without this the skips in the report have no visible cause.
-nvidia-smi topo -m || echo "topology unavailable"
+TOPO="$(nvidia-smi topo -m 2>/dev/null || true)"
+echo "${TOPO:-topology unavailable}"
 echo "::endgroup::"
+
+# A runner whose GPUs all share a switch cannot reproduce NVBUG#6565122 at all.
+# That is a correct skip, but silently: three skips among many read as a normal
+# green run, so the step would look like it covered the defect when it did not.
+# Say so where the run summary shows it.
+if [ -z "$TOPO" ]; then
+  echo "::warning::GPU topology unavailable -- multi-GPU smoke cases will skip; this run does not cover NVBUG#6565122"
+elif ! grep -qw SYS <<<"$TOPO"; then
+  echo "::warning::No cross-socket (SYS) GPU pair on this runner -- the NVBUG#6565122 cases will skip; this run does not cover the cross-socket regression"
+fi
+if ! grep -qwE "PIX|NV[0-9]+" <<<"$TOPO"; then
+  echo "::warning::No same-switch (PIX/NVLink) GPU pair on this runner -- the strict camera regression guard will skip"
+fi
 
 # --entrypoint bash is required: the image inherits /isaac-sim/runheadless.sh from
 # the Isaac Sim base, which would swallow the command and launch Kit instead of
 # running pytest. multi_gpu_host_launcher.sh overrides it for the same reason.
+# Mount the checkout and run as the host user, exactly as multi_gpu_host_launcher.sh
+# does: the image's baked-in /workspace/isaaclab predates this commit, so without
+# the mount pytest collects 0 items, and without --user the container writes
+# root-owned files into the runner's workspace.
+host_uid="$(id -u)"
+host_gid="$(id -g)"
 docker run --rm --name "$CONTAINER" \
   --entrypoint bash \
+  --user "${host_uid}:${host_gid}" \
+  -e USER="$(id -un)" \
+  -v "$PWD:/workspace/isaaclab:rw" \
   --gpus all --network host --shm-size=16g \
   -e ACCEPT_EULA=Y -e PRIVACY_CONSENT=Y -e OMNI_KIT_ACCEPT_EULA=YES \
   -e NVIDIA_DRIVER_CAPABILITIES=all \
