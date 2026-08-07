@@ -138,11 +138,10 @@ class NewtonCfg(PhysicsCfg):
     """Determinism guarantee applied to the Newton solver and collision pipeline.
 
     The values ``"not_guaranteed"``, ``"run_to_run"``, and ``"gpu_to_gpu"``
-    map to the corresponding ``warp.DeterministicMode`` values. The
-    ``--deterministic`` launcher flag selects ``"gpu_to_gpu"``. Deterministic
+    map to the corresponding ``warp.DeterministicMode`` values. Deterministic
     execution increases memory use and can reduce simulation performance.
 
-    MJWarp on the GPU, XPBD, Featherstone, and VBD support this setting. Newton
+    MJWarp on the GPU, XPBD, and Featherstone support this setting. Newton
     raises an error during solver initialization for unsupported solvers rather
     than silently running them without the requested guarantee.
     """

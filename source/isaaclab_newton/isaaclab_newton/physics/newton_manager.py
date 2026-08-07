@@ -111,7 +111,10 @@ from isaaclab_newton.cloner.newton_clone_utils import (
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
 
-from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
+from .featherstone_manager_cfg import FeatherstoneSolverCfg
+from .mjwarp_manager_cfg import MJWarpSolverCfg
+from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
+from .xpbd_manager_cfg import XPBDSolverCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.actuators import NewtonActuatorAdapter
@@ -119,10 +122,6 @@ if TYPE_CHECKING:
     from .newton_collision_cfg import NewtonCollisionPipelineCfg
 
 logger = logging.getLogger(__name__)
-
-_DETERMINISTIC_SOLVER_CFG_TYPES = frozenset(
-    {"FeatherstoneSolverCfg", "MJWarpSolverCfg", "VBDSolverCfg", "XPBDSolverCfg"}
-)
 
 # Tagged union for entries in _cl_site_index_map.
 # _GlobalSite: (global_shape_idx, None)           — body_pattern was None
@@ -1953,15 +1952,17 @@ class NewtonManager(PhysicsManager):
         return kwargs
 
     @staticmethod
-    def _validate_deterministic_solver_cfg(solver_cfg, deterministic_mode: wp.DeterministicMode) -> None:
+    def _validate_deterministic_solver_cfg(
+        solver_cfg: NewtonSolverCfg, deterministic_mode: wp.DeterministicMode
+    ) -> None:
         """Validate that a solver can provide the requested determinism guarantee."""
         if deterministic_mode == wp.DeterministicMode.NOT_GUARANTEED:
             return
         solver_cfg_type = type(solver_cfg).__name__
-        if solver_cfg_type not in _DETERMINISTIC_SOLVER_CFG_TYPES:
+        if not isinstance(solver_cfg, (FeatherstoneSolverCfg, MJWarpSolverCfg, XPBDSolverCfg)):
             raise ValueError(
                 f"Newton deterministic mode {deterministic_mode.name} is not supported by {solver_cfg_type}. "
-                "Use MJWarp on the GPU, XPBD, Featherstone, or VBD, or disable deterministic mode."
+                "Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
             )
         if getattr(solver_cfg, "use_mujoco_cpu", False):
             raise ValueError(

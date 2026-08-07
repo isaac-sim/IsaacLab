@@ -197,6 +197,16 @@ def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
         NewtonManager._validate_deterministic_solver_cfg(solver_cfg, wp.DeterministicMode.GPU_TO_GPU)
 
 
+@pytest.mark.parametrize("solver_cfg_cls", [FeatherstoneSolverCfg, MJWarpSolverCfg, XPBDSolverCfg])
+def test_deterministic_mode_accepts_supported_solver_cfg_subclasses(solver_cfg_cls) -> None:
+    """Custom subclasses of supported solver configs should retain deterministic support."""
+
+    class CustomSolverCfg(solver_cfg_cls):
+        pass
+
+    NewtonManager._validate_deterministic_solver_cfg(CustomSolverCfg(), wp.DeterministicMode.GPU_TO_GPU)
+
+
 def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -20,33 +20,24 @@ simulation results are reproducible across different runs. The seed is set into 
 parameters :attr:`isaaclab.envs.ManagerBasedEnvCfg.seed` or :attr:`isaaclab.envs.DirectRLEnvCfg.seed`
 depending on the manager-based or direct environment implementation respectively.
 
-Deterministic execution via ``AppLauncher``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+App-level deterministic rendering via ``AppLauncher``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``--deterministic`` flag is provided by :meth:`isaaclab.app.AppLauncher.add_app_launcher_args`.
-:class:`~isaaclab.app.app_launcher.AppLauncher` publishes ``/isaaclab/render/deterministic`` for rendering.
-The Isaac RTX backend reads this setting on init and applies
+:class:`~isaaclab.app.app_launcher.AppLauncher` publishes ``/isaaclab/render/deterministic``.
+The Isaac RTX backend reads it on init and applies
 :func:`isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings`.
-
-When Newton physics is active, the simulation launcher also sets
-:attr:`isaaclab_newton.physics.NewtonCfg.deterministic_mode` to
-``warp.DeterministicMode.GPU_TO_GPU``. Newton applies the mode to supported
-solver kernels and enables deterministic contact ordering in its collision
-pipeline. This mode targets reproducibility across GPU architectures and can
-increase memory use and reduce simulation performance. MJWarp on the GPU,
-XPBD, Featherstone, and VBD are supported; selecting an unsupported Newton
-solver with ``--deterministic`` raises an error.
 
 **Strict PyTorch determinism** (calling :meth:`~isaaclab.utils.seed.configure_seed` with
 ``torch_deterministic=True`` when you pass ``--deterministic``) is wired into the RL training entrypoints
 for **RL-Games**, **skrl**, **RSL-RL**, and **Stable-Baselines3**: each calls
 :meth:`~isaaclab.utils.seed.configure_seed` after constructing its framework runner or agent object
 so library initialization is not disturbed, then training proceeds with the requested global RNG and
-optional PyTorch deterministic algorithms. Whether you need ``--deterministic`` depends on the
-workload: **Newton physics** requires it for the strongest cross-GPU guarantee; **RTX** rendering
-(non-minimal mode) requires it for reproducible imagery; **Newton rendering** does not require it.
+optional PyTorch deterministic algorithms. Whether you need ``--deterministic`` at the app level
+depends on the workload: **physics-only** simulation does not require it; **RTX** rendering
+(non-minimal mode) does require it for reproducible imagery; **Newton** rendering does not require it.
 
-Pass ``--deterministic`` to request deterministic execution from every supported subsystem in the workflow.
+Pass ``--deterministic`` to enable reproducible rendering from the app launcher. (Isaac RTX only)
 
 .. tab-set::
 
@@ -63,6 +54,17 @@ Pass ``--deterministic`` to request deterministic execution from every supported
 
         ./isaaclab.sh train --rl_library rl_games \
           --task Isaac-Cartpole-Camera --deterministic
+
+Newton physics determinism
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set :attr:`isaaclab_newton.physics.NewtonCfg.deterministic_mode` to
+``"gpu_to_gpu"`` to request reproducibility across GPU architectures, or to
+``"run_to_run"`` to request reproducibility on one GPU. Newton applies the
+selected mode to supported solver kernels and enables deterministic contact
+ordering in its collision pipeline. Deterministic execution can increase
+memory use and reduce simulation performance. MJWarp on the GPU, XPBD, and
+Featherstone are supported; selecting an unsupported solver raises an error.
 
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
 
