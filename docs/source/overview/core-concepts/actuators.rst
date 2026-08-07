@@ -84,20 +84,23 @@ consumed by physics, then documents every gain and limit with side-by-side compa
 The actuator pipeline
 ---------------------
 
-Setting an actuator command does not talk to the solver directly. The value flows through four
-stages:
+Setting an actuator command does not talk to the solver directly. The diagram shows three execution
+paths after collection staging:
 
 #. **Actuator command** -- ``actuators.command.set_*_index`` / ``_mask`` write the desired
    position, velocity, and effort into buffers expressed in joint-side coordinates.
 #. **ActuatorCollection** -- routes groups and stages full-articulation commands, processed joint
    commands, and telemetry. It does not own actuator-model gains or scratch state.
-#. **Actuator model** -- an *explicit* model turns the actuator command into a joint effort and
-   clips it; an *implicit* model passes its command to the simulator drive.
-#. **Joint command** -- for Isaac Lab-managed models, ``actuators.joint_command`` exposes the
-   processed position, velocity, and effort commands submitted to the active physics backend. A
-   native path bypasses this view, so it is not submitted-command telemetry there. Newton-native
-   controllers process inside the solver; the PhysX native adapter processes during
-   ``write_data_to_sim()``.
+#. **Isaac Lab actuator** -- a Lab-managed explicit model turns the actuator command into a joint
+   effort and clips it before submission.
+#. **Implicit drive** -- the backend consumes the desired targets and the solver-side PD gains.
+#. **Newton actuator** -- a native explicit controller finishes processing inside the Newton solver.
+
+For Isaac Lab-managed models, ``actuators.joint_command`` exposes the processed position, velocity,
+and effort commands submitted to the active physics backend. Native paths bypass this view, so it
+is not submitted-command telemetry for them. The PhysX native adapter processes commands during
+``write_data_to_sim()``; Newton-native controllers finish inside the solver. For supported
+Newton-native models and their limitations, see :ref:`actuators-native`.
 
 .. figure:: ../../_static/actuators/pipeline-light.png
     :class: only-light

@@ -131,35 +131,15 @@ to combine them into a single actuator model.
 ActuatorCfg velocity/effort limits considerations
 -------------------------------------------------
 
-In Isaac Lab v1.4.0, the plain ``velocity_limit`` and ``effort_limit`` attributes were **not**
-consistently pushed into the physics solver:
+In Isaac Lab 3.0, the plain ``velocity_limit`` and ``effort_limit`` fields describe actuator-side
+constraints, while ``velocity_limit_sim`` and ``effort_limit_sim`` request solver-side constraints.
+For explicit actuators, the plain fields are consumed by the actuator model; the ``_sim`` fields
+are submitted to the physics solver.
 
-- **Implicit actuators**
-  - velocity_limit was ignored (never set in simulation)
-  - effort_limit was set into simulation
-
-- **Explicit actuators**
-  - both velocity_limit and effort_limit were used only by the drive model, not by the solver
-
-
-In v2.0.1, all ``velocity_limit`` and ``effort_limit`` values, implicit or explicit, were
-accidentally applied to the solver. That broke training workflows that relied on the previous
-uncapped solver limits.
-
-To restore the original behavior while still giving users control over solver limits, two fields
-were introduced:
-
-* **velocity_limit_sim**
-  Requests the physics solver's maximum joint-velocity cap in simulation.
-
-* **effort_limit_sim**
-  Sets the physics-solver's maximum joint-effort cap in simulation.
-
-
-The plain ``velocity_limit`` and ``effort_limit`` fields represent motor-side constraints used by
-explicit actuator models rather than solver-level constraints. For implicit actuators,
-``velocity_limit`` populates the actuator-resolved soft velocity-limit view but is not sent to the
-solver. ``effort_limit`` remains a deprecated alias of ``effort_limit_sim`` for implicit actuators.
+For implicit actuators, ``velocity_limit`` populates the actuator-resolved soft velocity-limit view
+without being submitted to the solver. ``effort_limit`` is a deprecated alias of
+``effort_limit_sim``. Solver velocity enforcement is backend-dependent; set
+``velocity_limit_sim`` only when requesting the backend's solver-side clamp.
 
 
 .. table:: Limit Options Comparison
@@ -189,7 +169,7 @@ solver. ``effort_limit`` remains a deprecated alias of ``effort_limit_sim`` for 
 Users who want to tune the underlying physics-solver limits should set the ``_sim`` fields. PhysX
 consumes its supported velocity clamp and Newton's Kamino solver honors it, while MJWarp currently
 does not enforce ``velocity_limit_sim``. Do not treat that field as a backend-independent safety
-boundary. See :ref:`overview-actuators` and :ref:`newton-velocity-limits` for the current backend
+boundary. See :ref:`overview-actuators` and :ref:`newton-velocity-limits` for current backend
 behavior.
 
 
