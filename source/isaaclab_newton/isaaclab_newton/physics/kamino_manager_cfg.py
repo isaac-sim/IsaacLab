@@ -165,6 +165,15 @@ class KaminoSolverCfg(NewtonSolverCfg):
     Only used when :attr:`use_collision_detector` is ``True``. If ``None``, Newton's default is used.
     """
 
+    collision_detector_max_contacts_per_world: int | None = None
+    """Maximum number of contacts to pre-allocate per simulation world for Kamino's internal detector.
+
+    Only used when :attr:`use_collision_detector` is ``True``. When set, this overrides the
+    geometry-based contact capacity estimation and guarantees the collision pipeline is created even
+    when the model has no pre-computed explicit broadphase pairs. If ``None``, Newton estimates
+    capacity from the model's collidable geometry.
+    """
+
     max_contacts_per_world: int | None = None
     """Cap the per-world contact pre-allocation handed to Kamino.
 
@@ -228,6 +237,8 @@ class KaminoSolverCfg(NewtonSolverCfg):
                 cd_kwargs["pipeline"] = self.collision_detector_pipeline
             if self.collision_detector_max_contacts_per_pair is not None:
                 cd_kwargs["max_contacts_per_pair"] = self.collision_detector_max_contacts_per_pair
+            if self.collision_detector_max_contacts_per_world is not None:
+                cd_kwargs["max_contacts_per_world"] = self.collision_detector_max_contacts_per_world
             collision_detector = CollisionDetectorConfig(**cd_kwargs)
 
         return SolverKamino.Config(
