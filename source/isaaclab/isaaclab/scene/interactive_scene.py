@@ -520,6 +520,47 @@ class InteractiveScene:
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
 
+    def reset_to_default(self, env_ids: Sequence[int] | None = None, reset_joint_targets: bool = False) -> None:
+        """Restore asset state configured by each entity's initial-state configuration.
+
+        Args:
+            env_ids: The indices of the environments to reset. Defaults to all environments.
+            reset_joint_targets: Whether to also restore articulation position and velocity targets.
+        """
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+
+        for rigid_object in self._rigid_objects.values():
+            root_pose = rigid_object.data.default_root_pose.torch[env_ids].clone()
+            root_velocity = rigid_object.data.default_root_vel.torch[env_ids].clone()
+            root_pose[:, :3] += self.env_origins[env_ids]
+            rigid_object.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+
+        for articulation in self._articulations.values():
+            root_pose = articulation.data.default_root_pose.torch[env_ids].clone()
+            root_velocity = articulation.data.default_root_vel.torch[env_ids].clone()
+            root_pose[:, :3] += self.env_origins[env_ids]
+            articulation.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+            articulation.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+            joint_position = articulation.data.default_joint_pos.torch[env_ids].clone()
+            joint_velocity = articulation.data.default_joint_vel.torch[env_ids].clone()
+            articulation.write_joint_position_to_sim_index(position=joint_position, env_ids=env_ids)
+            articulation.write_joint_velocity_to_sim_index(velocity=joint_velocity, env_ids=env_ids)
+            if reset_joint_targets:
+                articulation.set_joint_position_target_index(target=joint_position, env_ids=env_ids)
+                articulation.set_joint_velocity_target_index(target=joint_velocity, env_ids=env_ids)
+
+        for cable_object in self._cable_objects.values():
+            segment_pose = cable_object.data.default_segment_pose_w.torch[env_ids].clone()
+            segment_velocity = cable_object.data.default_segment_velocity_w.torch[env_ids].clone()
+            cable_object.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
+            cable_object.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
+
+        for deformable_object in self._deformable_objects.values():
+            nodal_state = deformable_object.data.default_nodal_state_w.torch[env_ids].clone()
+            deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
+
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
         # -- assets

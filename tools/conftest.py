@@ -61,13 +61,8 @@ STARTUP_HANG_RETRIES = 2
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
-PROCESS_FAILURE_RETRIES_BY_FILE = {
-    "test_visualizer_integration_physx.py": 4,
-    "test_visualizer_integration_newton.py": 4,
-    "test_visualizer_tiled_integration_physx.py": 4,
-    "test_visualizer_tiled_integration_newton.py": 4,
-}
-"""Extra fresh-process attempts for visualizer tests that can enter stale render states."""
+PROCESS_FAILURE_RETRIES_BY_FILE = {}
+"""Extra fresh-process attempts for tests with known transient process failures."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.

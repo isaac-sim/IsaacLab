@@ -55,9 +55,7 @@ PER_TEST_TIMEOUTS = {
     "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 1000,
     "test_manager_based_rl_env_obs_spaces_task_integration.py": 1000,
-    # Newton cloth warmup can reach ~2750 s under GPU throttling (50 frames × ~55 s each).
-    # cold-cache buffer (+700 s) is added automatically for the first camera-enabled test.
-    "test_visualizer_golden_newton.py": 6000,
+    "test_visualizer_rendering.py": 1200,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
     "test_rigid_object_collection.py": 1500,
@@ -67,15 +65,11 @@ PER_TEST_TIMEOUTS = {
     "test_shadow_hand_camera_presets.py": 5000,
     "test_environments_newton.py": 5000,
     "test_surface_gripper.py": 3000,
-    # The first test in the kitless rendering test job will take longer to run due to RTX shader compilation.
-    "test_rendering_cartpole_kitless.py": 2000,
-    # Every kitless rendering file runs each AOV twice (the ``ovstage_variant`` fixture covers the
-    # legacy and ovstage OVRTX code paths). At 76 cases the Kuka Allegro scene overruns the default
-    # budget; the remaining kitless files still fit but have little headroom.
-    "test_rendering_lift_kuka_homo_kitless.py": 2000,
-    # Budgets ~45s per AOV: one full RTX env is built and torn down per parametrized data type.
-    # Bump this when renderer cases are added to _DEFAULT_SENSOR_DATA_TYPES in rendering_test_utils.py.
-    "test_rendering_shadow_hand.py": 1500,
+    "test_rendering_kit.py": 600,
+    "test_rendering_kitless_legacy_newton.py": 600,
+    "test_rendering_kitless_legacy_ovphysx.py": 600,
+    "test_rendering_kitless_ovstage_newton.py": 600,
+    "test_rendering_kitless_ovstage_ovphysx.py": 600,
     "test_contact_sensor.py": 2000,
 }
 """A dictionary of tests and their timeouts in seconds.

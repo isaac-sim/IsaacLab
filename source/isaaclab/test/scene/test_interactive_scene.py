@@ -182,6 +182,56 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     assert_state_equal(prev_state, scene.get_state())
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_reset_to_default_restores_configured_state_and_joint_targets(device, setup_scene):
+    make_scene, sim = setup_scene
+    scene = InteractiveScene(make_scene(num_envs=4))
+    sim.reset()
+
+    robot = scene["robot"]
+    rigid_object = scene["rigid_obj"]
+    robot_pose = robot.data.default_root_pose.torch.clone()
+    robot_pose[:, :3] += 1.0
+    robot.write_root_pose_to_sim_index(root_pose=robot_pose)
+    robot.write_root_velocity_to_sim_index(root_velocity=robot.data.default_root_vel.torch + 1.0)
+    robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch + 1.0)
+    robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch + 1.0)
+    robot.set_joint_position_target_index(target=robot.data.default_joint_pos.torch + 2.0)
+    robot.set_joint_velocity_target_index(target=robot.data.default_joint_vel.torch + 2.0)
+    rigid_pose = rigid_object.data.default_root_pose.torch.clone()
+    rigid_pose[:, :3] += 1.0
+    rigid_object.write_root_pose_to_sim_index(root_pose=rigid_pose)
+    rigid_object.write_root_velocity_to_sim_index(root_velocity=rigid_object.data.default_root_vel.torch + 1.0)
+
+    scene.reset_to_default(reset_joint_targets=True)
+    scene.update(0.0)
+
+    state = scene.get_state(is_relative=True)
+    robot_state = state["articulation"]["robot"]
+    rigid_state = state["rigid_object"]["rigid_obj"]
+    for actual, expected in (
+        (robot_state["root_pose"], robot.data.default_root_pose.torch),
+        (robot_state["root_velocity"], robot.data.default_root_vel.torch),
+        (robot_state["joint_position"], robot.data.default_joint_pos.torch),
+        (robot_state["joint_velocity"], robot.data.default_joint_vel.torch),
+        (rigid_state["root_pose"], rigid_object.data.default_root_pose.torch),
+        (rigid_state["root_velocity"], rigid_object.data.default_root_vel.torch),
+    ):
+        torch.testing.assert_close(actual, expected, rtol=0.0, atol=0.0)
+    torch.testing.assert_close(
+        robot.data.joint_pos_target.torch,
+        robot.data.default_joint_pos.torch,
+        rtol=0.0,
+        atol=0.0,
+    )
+    torch.testing.assert_close(
+        robot.data.joint_vel_target.torch,
+        robot.data.default_joint_vel.torch,
+        rtol=0.0,
+        atol=0.0,
+    )
+
+
 def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
     """A cfg-driven scene forwards the right plan and stage to cloner.replicate.
 

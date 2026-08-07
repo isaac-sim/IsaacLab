@@ -5,38 +5,25 @@
 
 # Stable rendering correctness tests used by post-merge CI.
 rendering-correctness = [
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx-albedo]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx-depth]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx-semantic_segmentation]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx-albedo]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx-depth]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx-semantic_segmentation]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-newton_warp-depth]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-newton_warp-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-albedo-cartpole]",
-  "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-depth-cartpole]",
-  "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-None-cartpole]",
-  "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-rgb-cartpole]",
+  "source/isaaclab/test/test_golden_scene_architecture.py::test_golden_ownership_has_no_task_or_environment_dependencies",
+  "source/isaaclab/test/test_golden_scene_architecture.py::test_removed_task_and_visualizer_harnesses_stay_removed",
+  "source/isaaclab/test/test_golden_scene_architecture.py::test_one_scene_configuration_owns_deliberate_composition",
+  "source/isaaclab/test/test_golden_scene_architecture.py::test_renderer_matrix_bundles_compatible_aovs",
+  "source/isaaclab/test/test_golden_scene_architecture.py::test_reset_manager_is_only_an_adapter",
+  "source/isaaclab/test/test_golden_scene_architecture.py::test_golden_inventory_matches_case_matrix",
+  "source/isaaclab/test/renderers/test_rendering_kit.py::test_rendering_scene[physx-isaac_rtx-standard]",
+  "source/isaaclab/test/renderers/test_rendering_kit.py::test_rendering_scene[newton-isaac_rtx-standard]",
+  "source/isaaclab/test/renderers/test_rendering_kit.py::test_rendering_scene[physx-newton_warp-standard]",
 ]
 
 rendering-correctness-kitless-legacy = [
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-newton_warp-depth]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-newton_warp-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-ovrtx-albedo]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-ovrtx-depth]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-newton_warp-depth]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-newton_warp-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-albedo]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-semantic_segmentation]",
+  "source/isaaclab/test/renderers/test_rendering_kitless_legacy_ovphysx.py::test_rendering_scene_kitless[legacy-ovphysx-ovrtx-standard-rgb]",
+  "source/isaaclab/test/renderers/test_rendering_kitless_legacy_newton.py::test_rendering_scene_kitless[legacy-newton-ovrtx-standard-rgb]",
+  "source/isaaclab/test/renderers/test_rendering_kitless_legacy_ovphysx.py::test_rendering_scene_kitless[legacy-ovphysx-newton_warp-standard]",
+  "source/isaaclab/test/renderers/test_rendering_kitless_legacy_newton.py::test_rendering_scene_kitless[legacy-newton-newton_warp-standard]",
 ]
 
 rendering-correctness-kitless-ovstage = [
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-newton-ovrtx-albedo]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-newton-ovrtx-depth]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx-albedo]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx-semantic_segmentation]",
+  "source/isaaclab/test/renderers/test_rendering_kitless_ovstage_ovphysx.py::test_rendering_scene_kitless[ovstage-ovphysx-ovrtx-standard-rgb]",
+  "source/isaaclab/test/renderers/test_rendering_kitless_ovstage_newton.py::test_rendering_scene_kitless[ovstage-newton-ovrtx-standard-rgb]",
 ]

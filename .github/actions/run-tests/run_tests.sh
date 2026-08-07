@@ -452,7 +452,7 @@ run_tests() {
     fi
   fi
 
-  # Copy comparison images (saved by source/isaaclab_tasks/test/test_rendering_*.py).
+  # Copy comparison images saved by golden-image tests.
   local img_dir="$reports_dir/comparison-images"
   if [ -n "$volume_mount_source" ] && [ -d "${volume_mount_source}/tests/comparison-images" ]; then
     cp -r "${volume_mount_source}/tests/comparison-images" "$img_dir"
