@@ -1,4 +1,4 @@
 Added
 ^^^^^
 
-* Added a three-cube MJWarp Newton demo for interactive rigid-body dragging.
+* Added XPBD domino, VBD block-and-tackle, and coupled rigid-box/MPM demos for Newton viewer dragging.

@@ -455,7 +455,7 @@ Newton Visualizer
 .. note::
 
    Object dragging requires an interactive Newton visualizer with a Newton
-   rigid-body solver (MJWarp, XPBD, Featherstone, or Kamino), either standalone
+   rigid-body solver (MJWarp, XPBD, VBD, Featherstone, or Kamino), either standalone
    or in a supported coupled solver with a rigid-body entry. Static and
    kinematic bodies and MPM particles are not moved. Picking is disabled
    automatically for headless viewers, standalone MPM, and non-Newton physics.

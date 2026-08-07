@@ -115,8 +115,14 @@ class VBDSolverCfg(NewtonModelSolverCfg):
     Only used when ``particle_enable_self_contact`` is ``True``.
     """
 
+    rigid_contact_hard: bool = True
+    """Whether rigid body contacts use augmented-Lagrangian constraints instead of soft penalties."""
+
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for all rigid body contacts [N/m]."""
+
+    rigid_body_contact_buffer_size: int = 64
+    """Maximum number of rigid contacts stored per body."""
 
 
 @configclass
