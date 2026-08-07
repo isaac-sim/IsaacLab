@@ -225,7 +225,10 @@ def _pair_or_skip(kind: str) -> tuple[int, int]:
     """Return a GPU pair of ``kind``, or skip with the reason it is unavailable."""
     pairs = gpu_pairs_by_topology()
     if not pairs:
-        pytest.skip("GPU topology could not be determined from nvidia-smi topo -m")
+        pytest.skip(
+            "GPU topology unreadable (nvidia-smi topo -m gave no usable matrix); "
+            "cannot tell whether this host has a qualifying pair"
+        )
     if kind not in pairs:
         pytest.skip(f"host has no {kind} GPU pair (available: {sorted(pairs)})")
     return pairs[kind]
