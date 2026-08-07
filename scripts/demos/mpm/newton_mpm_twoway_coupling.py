@@ -204,7 +204,7 @@ def create_scene_cfg():
                 voxel_size=args_cli.voxel_size,
                 particles_per_cell=PARTICLES_PER_CELL,
                 jitter=args_cli.voxel_size / PARTICLES_PER_CELL,
-                material=MPMParticleMaterialCfg(density=2500.0, friction=0.75, yield_pressure=1.0e15),
+                material=MPMParticleMaterialCfg(density=2500.0, friction=0.5, yield_pressure=1.0e5),
                 visual_color=PARTICLE_COLOR,
             ),
         )
