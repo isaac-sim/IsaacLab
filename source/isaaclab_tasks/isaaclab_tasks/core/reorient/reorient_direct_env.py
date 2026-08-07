@@ -154,14 +154,8 @@ class ReorientDirectEnv(DirectRLEnv):
         if self.cfg.asymmetric_obs:
             self._update_fingertip_force_sensors()
 
-        if self.cfg.obs_type == "openai":
-            obs = self.compute_reduced_observations()
-        elif self.cfg.obs_type == "full":
-            obs = self.compute_full_observations()
-        else:
-            raise ValueError(f"Unknown observation type: {self.cfg.obs_type}. Should be 'full' or 'openai'.")
-
-        observations = {"policy": obs}
+        policy = self.compute_reduced_observations() if self.cfg.reduced_obs else self.compute_full_observations()
+        observations = {"policy": policy}
         if self.cfg.asymmetric_obs:
             observations["critic"] = self.compute_full_state()
         return observations
@@ -237,19 +231,16 @@ class ReorientDirectEnv(DirectRLEnv):
             self.object_rot, self.goal_rot, self.cfg.success_tolerance
         )
 
-        if self.cfg.max_consecutive_success > 0:
-            # reset progress (episode length buf) on goal environments
-            self.episode_length_buf = torch.where(
-                self._success_flags,
-                torch.zeros_like(self.episode_length_buf),
-                self.episode_length_buf,
-            )
-            max_success_reached = self.successes >= self.cfg.max_consecutive_success
+        return out_of_reach, self._compute_time_out()
 
-        time_out = self.episode_length_buf >= self.max_episode_length - 1
-        if self.cfg.max_consecutive_success > 0:
-            time_out = time_out | max_success_reached
-        return out_of_reach, time_out
+    def _compute_time_out(self) -> torch.Tensor:
+        """Flag environments that have run the full episode length.
+
+        Called after :attr:`_success_flags` is refreshed, so subclasses whose episode
+        budget depends on goal progress can override this. ``ShadowHandOpenAIEnv`` does,
+        to spend the budget per goal rather than per episode.
+        """
+        return self.episode_length_buf >= self.max_episode_length - 1
 
     def _reset_idx(self, env_ids: Sequence[int]):
         # Episode counts as successful when goals reached >= cfg.success_count_threshold.
@@ -334,23 +325,6 @@ class ReorientDirectEnv(DirectRLEnv):
         self.object_linvel = self.object.data.root_lin_vel_w.torch
         self.object_angvel = self.object.data.root_ang_vel_w.torch
 
-    def compute_reduced_observations(self):
-        # Per https://arxiv.org/pdf/1808.00177.pdf Table 2
-        #   Fingertip positions
-        #   Object Position, but not orientation
-        #   Relative target orientation
-        obs = torch.cat(
-            (
-                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
-                self.object_pos,
-                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),
-                self.actions,
-            ),
-            dim=-1,
-        )
-
-        return obs
-
     def compute_full_observations(self):
         obs = torch.cat(
             (
@@ -376,6 +350,25 @@ class ReorientDirectEnv(DirectRLEnv):
             dim=-1,
         )
         return obs
+
+    def compute_reduced_observations(self):
+        """Compose the actor observation used with ``presets=openai``.
+
+        Fingertip positions, object position but *not* its orientation, the relative goal
+        orientation, and the last action -- the quantities a physical hand can estimate
+        reliably. Follows Table 2 of `Learning Dexterous In-Hand Manipulation`_.
+
+        .. _Learning Dexterous In-Hand Manipulation: https://arxiv.org/pdf/1808.00177.pdf
+        """
+        return torch.cat(
+            (
+                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
+                self.object_pos,
+                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),
+                self.actions,
+            ),
+            dim=-1,
+        )
 
     def compute_full_state(self):
         states = torch.cat(

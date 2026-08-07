@@ -23,9 +23,7 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
-import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import (
@@ -117,22 +115,6 @@ class ShadowHandEventCfg:
 
 
 @configclass
-class ShadowHandManagerEventCfg(ShadowHandEventCfg):
-    """Randomization plus the state reset the manager tasks apply on every episode."""
-
-    reset_state = EventTerm(
-        func=reorient_mdp.reset_reorient_state,
-        mode="reset",
-        params={
-            "position_noise": 0.01,  # [m]
-            "joint_position_noise": 0.2,  # [rad]
-            "joint_velocity_noise": 0.0,  # [rad/s]
-            "action_name": "joint_pos",
-        },
-    )
-
-
-@configclass
 class ShadowHandRobotCfg(PresetCfg):
     physx = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot").replace(
         init_state=ArticulationCfg.InitialStateCfg(
@@ -218,15 +200,4 @@ GOAL_OBJECT_CFG = VisualizationMarkersCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
         )
     },
-)
-
-
-# Per-step gaussian noise + reset-sampled bias, shared verbatim by the manager-based variant.
-OPENAI_ACTION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
-    noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),
-    bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.015, operation="abs"),
-)
-OPENAI_OBSERVATION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
-    noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
-    bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
 )

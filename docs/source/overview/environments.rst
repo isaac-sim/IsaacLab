@@ -259,8 +259,8 @@ for the lift-cube environment:
     |                         |                              | with the UR10 arm and long surface gripper                                  | ``newton_mjwarp``                       |
     |                         | |short-suction-link|         | or short surface gripper (cpu only).                                        |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
+    | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |                                         |
+    |                         |                              |                                                                             |                                         |
     |                         | |franka-direct-link|         |                                                                             |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
@@ -269,17 +269,17 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-shadow|           | |cube-shadow-link|           | In-hand reorientation of a cube using Shadow hand                           | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
-    |                         | |cube-shadow-ff-link|        |                                                                             | ``ovphysx``                             |
-    |                         |                              |                                                                             |                                         |
-    |                         | |cube-shadow-lstm-link|      |                                                                             |                                         |
+    |                         | |cube-shadow-openai-link|    |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | **presets=** ``openai``, ``randomized`` |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-shadow|           | |cube-shadow-vis-link|       | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
+    |                         | |cube-shadow-cam-link|       |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
     |                         |                              |                                                                             | ``ovphysx``                             |
     |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     |                         |                              |                                                                             | **presets=** ``albedo``, ``depth``,     |
-    |                         |                              |                                                                             | ``full``, ``rgb``,                      |
+    |                         |                              |                                                                             | ``full``, ``randomized``, ``rgb``,      |
+    |                         |                              |                                                                             | ``rgb_depth``,                          |
     |                         |                              |                                                                             | ``semantic_segmentation``,              |
     |                         |                              |                                                                             | ``simple_shading_constant_diffuse``,    |
     |                         |                              |                                                                             | ``simple_shading_diffuse_mdl``,         |
@@ -439,8 +439,8 @@ for the lift-cube environment:
 .. |ka-lift-cam-link| replace:: :isaaclab-source:`Isaac-Lift-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/kuka_allegro/kuka_allegro_camera_env_cfg.py>`
 .. |ka-reorient-cam-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/kuka_allegro/kuka_allegro_camera_env_cfg.py>`
 .. |cube-shadow-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
-.. |cube-shadow-ff-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
-.. |cube-shadow-lstm-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
+.. |cube-shadow-openai-link| replace:: :isaaclab-source:`IsaacContrib-Reorient-Cube-Shadow-OpenAI-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/reorient/config/shadow_hand/shadow_hand_openai_env_cfg.py>`
+.. |cube-shadow-cam-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Camera <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_manager_camera_env_cfg.py>`
 .. |cube-shadow-vis-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Camera-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_camera_env.py>`
 .. |agibot_place_mug-link| replace:: :isaaclab-source:`IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`
 .. |agibot_place_toy-link| replace:: :isaaclab-source:`IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`
@@ -1053,7 +1053,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Ant
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Ant-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1085,7 +1085,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Humanoid
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Humanoid-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1131,7 +1131,7 @@ including disabling runtime perturbations used for training.
     * - Isaac-Open-Drawer-Franka-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+      -
     * - Isaac-Pendulum-Direct
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
@@ -1144,7 +1144,8 @@ including disabling runtime perturbations used for training.
     * - Isaac-Reach-Franka-OSC
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+          | **presets=** ``diffik_abs``
     * - Isaac-Reach-UR10
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1160,33 +1161,25 @@ including disabling runtime perturbations used for training.
     * - Isaac-Reorient-Cube-Shadow
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+          | **presets=** ``openai``
+    * - Isaac-Reorient-Cube-Shadow-Camera
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
+          | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``rgb_depth``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Reorient-Cube-Shadow-Camera-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
-          | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
+          | **presets=** ``albedo``, ``depth``, ``full``, ``randomized``, ``rgb``, ``rgb_depth``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Reorient-Cube-Shadow-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Reorient-Cube-Shadow-OpenAI-FF
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Reorient-Cube-Shadow-OpenAI-LSTM
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+          | **presets=** ``openai``, ``randomized``
     * - Isaac-Reorient-Franka
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1203,6 +1196,10 @@ including disabling runtime perturbations used for training.
       - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
           | **presets=** ``albedo128``, ``albedo256``, ``albedo64``, ``cube``, ``depth128``, ``depth256``, ``depth64``, ``duo_camera``, ``raycaster_depth128``, ``raycaster_depth256``, ``raycaster_depth64``, ``rgb128``, ``rgb256``, ``rgb64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``semantic_segmentation64``, ``shapes``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_constant_diffuse64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``, ``simple_shading_full_mdl64``, ``single_camera``
+    * - Isaac-Shadow-Handover
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Shadow-Handover-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO, IPPO, MAPPO)
@@ -1386,11 +1383,11 @@ including disabling runtime perturbations used for training.
       -
     * - IsaacContrib-Open-Drawer-Franka-IK-Abs
       - Manager Based
-      -
+      - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Open-Drawer-Franka-IK-Rel
       - Manager Based
-      -
+      - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Open-Drawer-OpenArm
       - Manager Based
@@ -1432,6 +1429,14 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
+    * - IsaacContrib-Reorient-Cube-Shadow-OpenAI
+      - Manager Based
+      - **rl_games** (PPO, LSTM), **rsl_rl** (PPO, LSTM), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+    * - IsaacContrib-Reorient-Cube-Shadow-OpenAI-Direct
+      - Direct
+      - **rl_games** (PPO, LSTM), **rsl_rl** (PPO, LSTM), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic
       - Manager Based
       -

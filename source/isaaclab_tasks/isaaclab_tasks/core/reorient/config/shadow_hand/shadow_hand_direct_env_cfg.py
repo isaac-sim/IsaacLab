@@ -10,29 +10,33 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     CUBE_CFG,
     GOAL_OBJECT_CFG,
-    OPENAI_ACTION_NOISE_CFG,
-    OPENAI_OBSERVATION_NOISE_CFG,
     SHADOW_HAND_ROBOT_CFG,
     PhysicsCfg,
     ShadowHandEventCfg,
     ShadowHandRobotCfg,
 )
+from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_ACTUATED_JOINT_NAMES, SHADOW_FINGERTIP_BODY_NAMES
 
+FULL_OBSERVATION_SPACE = 157
+"""Size of the full state observation the actor reads by default."""
+REDUCED_OBSERVATION_SPACE = 42
+"""Size of the actor observation under ``presets=openai``."""
+ASYMMETRIC_STATE_SPACE = 187
+"""Size of the privileged critic observation when :attr:`asymmetric_obs` is set."""
+
 
 @configclass
-class ShadowHandSceneCfg(InteractiveSceneCfg):
-    """Shadow Direct scene defaults."""
+class ShadowHandDomainRandomizationCfg(PresetCfg):
+    """``presets=randomized`` enables the same randomization the manager tasks apply."""
 
-    num_envs = 8192
-    env_spacing = 0.75
-    replicate_physics = True
+    randomized = ShadowHandEventCfg()
+    default = None
 
 
 @configclass
@@ -41,10 +45,14 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     decimation = 2
     episode_length_s = 10.0
     action_space = 20
-    observation_space = 157  # (full)
+    observation_space = FULL_OBSERVATION_SPACE
     state_space = 0
     asymmetric_obs = False
-    obs_type = "full"
+    reduced_obs = False
+    """Narrow the actor to the quantities a physical hand can estimate, leaving the critic unchanged."""
+
+    # ``presets=randomized`` enables domain randomization
+    events: ShadowHandDomainRandomizationCfg = ShadowHandDomainRandomizationCfg()
 
     # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
     sim: SimulationCfg = SimulationCfg(
@@ -64,7 +72,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
     # scene
-    scene: InteractiveSceneCfg = ShadowHandSceneCfg()
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=8192, env_spacing=0.75, replicate_physics=True)
 
     # reset
     reset_position_noise = 0.01  # range of position at reset
@@ -91,43 +99,48 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     act_moving_average = 1.0
     force_torque_obs_scale = 10.0
 
+    def validate_config(self):
+        """Check that the declared observation sizes match the selected observation terms.
+
+        A mismatch otherwise surfaces as a tensor-shape error inside the policy, far from
+        the configuration that caused it.
+        """
+        expected_obs = REDUCED_OBSERVATION_SPACE if self.reduced_obs else FULL_OBSERVATION_SPACE
+        if self.observation_space != expected_obs:
+            raise ValueError(
+                f"'observation_space' is {self.observation_space}, but 'reduced_obs={self.reduced_obs}'"
+                f" produces {expected_obs} values. Select 'presets=openai' rather than setting the"
+                " observation flags individually."
+            )
+        expected_state = ASYMMETRIC_STATE_SPACE if self.asymmetric_obs else 0
+        if self.state_space != expected_state:
+            raise ValueError(
+                f"'state_space' is {self.state_space}, but 'asymmetric_obs={self.asymmetric_obs}'"
+                f" produces {expected_state} values. Select 'presets=openai' rather than setting the"
+                " observation flags individually."
+            )
+
 
 @configclass
-class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
-    # env
-    decimation = 3
-    episode_length_s = 8.0
-    action_space = 20
-    observation_space = 42
-    state_space = 187
-    asymmetric_obs = True
-    obs_type = "openai"
+class ShadowHandOpenAIObsEnvCfg(ShadowHandEnvCfg):
+    """The observation architecture of `Learning Dexterous In-Hand Manipulation`_.
 
-    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
-        render_interval=decimation,
-        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
-        physics=PhysicsCfg(),
-    )
-    # reset
-    reset_position_noise = 0.01  # range of position at reset
-    reset_dof_pos_noise = 0.2  # range of dof pos at reset
-    reset_dof_vel_noise = 0.0  # range of dof vel at reset
-    # reward scales
-    dist_reward_scale = -10.0
-    rot_reward_scale = 1.0
-    rot_eps = 0.1
-    action_penalty_scale = -0.0002
-    reach_goal_bonus = 250.0
-    fall_penalty = -50.0
-    vel_obs_scale = 0.2
-    success_tolerance = 0.4
-    max_consecutive_success = 50
-    av_factor = 0.1
-    act_moving_average = 0.3
-    force_torque_obs_scale = 10.0
-    # domain randomization config
-    events: ShadowHandEventCfg = ShadowHandEventCfg()
-    action_noise_model: NoiseModelWithAdditiveBiasCfg = OPENAI_ACTION_NOISE_CFG
-    observation_noise_model: NoiseModelWithAdditiveBiasCfg = OPENAI_OBSERVATION_NOISE_CFG
+    The actor sees only what a physical hand can measure, while a privileged critic reads
+    the full simulator state. The training regime that paper pairs this with lives in
+    ``IsaacContrib-Reorient-Cube-Shadow-OpenAI``.
+
+    .. _Learning Dexterous In-Hand Manipulation: https://arxiv.org/pdf/1808.00177.pdf
+    """
+
+    observation_space = REDUCED_OBSERVATION_SPACE
+    state_space = ASYMMETRIC_STATE_SPACE
+    asymmetric_obs = True
+    reduced_obs = True
+
+
+@configclass
+class ShadowHandDirectEnvCfg(PresetCfg):
+    """``presets=openai`` swaps in the reduced actor and its privileged critic."""
+
+    openai = ShadowHandOpenAIObsEnvCfg()
+    default = ShadowHandEnvCfg()

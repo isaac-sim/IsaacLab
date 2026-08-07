@@ -13,11 +13,11 @@ __all__ = [
     "fingertip_quat",
     "fingertip_vel",
     "fingertip_wrench",
-    "reorient_last_action",
     "openai_policy_observation",
     "ShadowHandCameraFeatures",
     "shadow_hand_camera_cached_features",
     "shadow_hand_goal_keypoints",
+    "reorient_last_action",
     "goal_quat_diff",
     "success_bonus",
     "track_orientation_inv_l2",
@@ -26,7 +26,6 @@ __all__ = [
     "reorient_reward",
     "max_consecutive_success",
     "object_away_from_goal",
-    "reorient_timeout",
 ]
 
 from .commands import ReorientCommand, ReorientCommandCfg
@@ -54,6 +53,5 @@ from .rewards import (
 from .terminations import (
     max_consecutive_success,
     object_away_from_goal,
-    reorient_timeout,
 )
 from isaaclab.envs.mdp import *

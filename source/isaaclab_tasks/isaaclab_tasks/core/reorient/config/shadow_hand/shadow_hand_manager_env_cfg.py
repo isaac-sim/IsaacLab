@@ -8,12 +8,14 @@
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
@@ -25,11 +27,27 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     GOAL_OBJECT_CFG,
     SHADOW_HAND_ROBOT_CFG,
     PhysicsCfg,
-    ShadowHandManagerEventCfg,
+    ShadowHandEventCfg,
 )
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_ACTUATED_JOINT_NAMES, SHADOW_FINGERTIP_BODY_NAMES
+
+
+@configclass
+class ShadowHandManagerEventCfg(ShadowHandEventCfg):
+    """Randomization plus the state reset the manager tasks apply on every episode."""
+
+    reset_state = EventTerm(
+        func=mdp.reset_reorient_state,
+        mode="reset",
+        params={
+            "position_noise": 0.01,  # [m]
+            "joint_position_noise": 0.2,  # [rad]
+            "joint_velocity_noise": 0.0,  # [rad/s]
+            "action_name": "joint_pos",
+        },
+    )
 
 
 @configclass
@@ -215,3 +233,70 @@ class ShadowHandManagerEnvCfg(ManagerBasedRLEnvCfg):
             self.events.robot_tendon_properties = None
             self.events.robot_physics_material = None
             self.events.object_physics_material = None
+
+
+@configclass
+class ShadowHandOpenAIObsSceneCfg(ShadowHandManagerSceneCfg):
+    """Adds the fingertip joint-wrench sensing the privileged critic reads."""
+
+    joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+
+@configclass
+class ShadowHandOpenAIObservationsCfg:
+    """42-dimensional reduced actor with a 187-dimensional privileged critic."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        openai = ObsTerm(
+            func=mdp.openai_policy_observation,
+            params={
+                "command_name": "object_pose",
+                "action_name": "joint_pos",
+                "robot_cfg": SceneEntityCfg("robot", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False),
+                "object_cfg": SceneEntityCfg("object"),
+            },
+        )
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    @configclass
+    class CriticCfg(FullStateObsCfg):
+        fingertip_wrench = ObsTerm(
+            func=mdp.fingertip_wrench,
+            scale=10.0,
+            params={
+                "sensor_cfg": SceneEntityCfg(
+                    "joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False
+                )
+            },
+        )
+        last_action = ObsTerm(func=mdp.reorient_last_action, params={"action_name": "joint_pos"})
+
+    policy: PolicyCfg = PolicyCfg()
+    critic: CriticCfg = CriticCfg()
+
+
+@configclass
+class ShadowHandOpenAIObsManagerEnvCfg(ShadowHandManagerEnvCfg):
+    """The observation architecture of `Learning Dexterous In-Hand Manipulation`_.
+
+    The actor sees only what a physical hand can measure, while a privileged critic reads
+    the full simulator state. The training regime that paper pairs this with lives in
+    ``IsaacContrib-Reorient-Cube-Shadow-OpenAI``.
+
+    .. _Learning Dexterous In-Hand Manipulation: https://arxiv.org/pdf/1808.00177.pdf
+    """
+
+    scene: ShadowHandOpenAIObsSceneCfg = ShadowHandOpenAIObsSceneCfg()
+    observations: ShadowHandOpenAIObservationsCfg = ShadowHandOpenAIObservationsCfg()
+
+
+@configclass
+class ShadowHandManagerEnvPresetCfg(PresetCfg):
+    """``presets=openai`` swaps in the reduced actor and its privileged critic."""
+
+    openai = ShadowHandOpenAIObsManagerEnvCfg()
+    default = ShadowHandManagerEnvCfg()

@@ -191,12 +191,24 @@ def reorient_last_action(env: ManagerBasedRLEnv, action_name: str) -> torch.Tens
 
 # -- composed observation groups
 class openai_policy_observation(ManagerTermBase):
-    """Apply one stateful noise model to the OpenAI variants' 42-dimensional actor observation."""
+    """Compose the reduced actor observation used by ``presets=openai``.
+
+    Fingertip positions, object position but *not* its orientation, the relative goal
+    orientation, and the last action -- the quantities a physical hand can estimate
+    reliably. Follows Table 2 of `Learning Dexterous In-Hand Manipulation`_. Pass
+    ``noise_model`` to corrupt the result with one stateful model, as that paper does.
+
+    .. _Learning Dexterous In-Hand Manipulation: https://arxiv.org/pdf/1808.00177.pdf
+    """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        noise_model: NoiseModelCfg = cfg.params["noise_model"]
-        self._noise_model = noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
+        noise_model: NoiseModelCfg | None = cfg.params.get("noise_model")
+        self._noise_model = (
+            None
+            if noise_model is None
+            else noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
+        )
         # the manager's shape probe calls reset once; keep it side-effect free
         self._shape_probe_pending = True
 
@@ -209,18 +221,19 @@ class openai_policy_observation(ManagerTermBase):
         if self._shape_probe_pending:
             self._shape_probe_pending = False
             return
-        self._noise_model.reset(env_ids)
+        if self._noise_model is not None:
+            self._noise_model.reset(env_ids)
 
     def __call__(
         self,
         env: ManagerBasedRLEnv,
         command_name: str,
         action_name: str,
-        noise_model: NoiseModelCfg,
         robot_cfg: SceneEntityCfg,
         object_cfg: SceneEntityCfg,
+        noise_model: NoiseModelCfg | None = None,
     ) -> torch.Tensor:
-        """Return the corrupted 42-dimensional actor observation."""
+        """Return the 42-dimensional actor observation."""
         object_asset: RigidObject = env.scene[object_cfg.name]
         object_pos = object_asset.data.root_pos_w.torch - env.scene.env_origins
         command_term: ReorientCommand = env.command_manager.get_term(command_name)
@@ -233,7 +246,7 @@ class openai_policy_observation(ManagerTermBase):
             (fingertips, object_pos, quat_error, reorient_last_action(env, action_name)),
             dim=-1,
         )
-        if self._shape_probe_pending:
+        if self._noise_model is None or self._shape_probe_pending:
             return observation
         return self._noise_model(observation)
 

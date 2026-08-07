@@ -15,16 +15,14 @@ either side fails here rather than silently changing what a manager task trains 
 
 import pytest
 
-from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
-from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_manager_env_cfg import AllegroHandManagerEnvCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import (
-    ShadowHandEnvCfg,
-    ShadowHandOpenAIEnvCfg,
-)
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg import ShadowHandManagerEnvCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_openai_manager_env_cfg import (
+from isaaclab_tasks.contrib.reorient.config.shadow_hand.shadow_hand_openai_env_cfg import ShadowHandOpenAIEnvCfg
+from isaaclab_tasks.contrib.reorient.config.shadow_hand.shadow_hand_openai_manager_env_cfg import (
     ShadowHandOpenAIManagerEnvCfg,
 )
+from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
+from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_manager_env_cfg import AllegroHandManagerEnvCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg import ShadowHandManagerEnvCfg
 
 
 @pytest.mark.parametrize(
@@ -69,3 +67,44 @@ def test_handover_manager_config_matches_direct_values():
     assert manager.rewards.goal_distance.params["distance_scale"] == pytest.approx(direct.dist_reward_scale)
     for action_term in (manager.actions.right_hand, manager.actions.left_hand):
         assert action_term.alpha == pytest.approx(direct.act_moving_average)
+
+
+def _noise_values(noise_model) -> tuple | None:
+    """Flatten a noise model to the scalars that must agree across the two workflows."""
+    if noise_model is None:
+        return None
+    return (
+        noise_model.noise_cfg.mean,
+        noise_model.noise_cfg.std,
+        noise_model.noise_cfg.operation,
+        noise_model.bias_noise_cfg.mean,
+        noise_model.bias_noise_cfg.std,
+        noise_model.bias_noise_cfg.operation,
+    )
+
+
+@pytest.mark.parametrize(
+    "direct_cls, manager_cls",
+    [
+        pytest.param(ShadowHandEnvCfg, ShadowHandManagerEnvCfg, id="shadow"),
+        pytest.param(ShadowHandOpenAIEnvCfg, ShadowHandOpenAIManagerEnvCfg, id="shadow-openai"),
+    ],
+)
+def test_manager_config_matches_direct_noise(direct_cls, manager_cls):
+    """The two workflows spell their noise models separately, so the values must be compared."""
+    direct, manager = direct_cls(), manager_cls()
+
+    # only the noisy action term carries a noise model; the plain EMA term has no such field
+    assert _noise_values(getattr(manager.actions.joint_pos, "noise_model", None)) == _noise_values(
+        getattr(direct, "action_noise_model", None)
+    )
+    actor_terms = list(vars(manager.observations.policy).values())
+    manager_obs_noise = next(
+        (
+            term.params["noise_model"]
+            for term in actor_terms
+            if getattr(term, "params", None) and "noise_model" in term.params
+        ),
+        None,
+    )
+    assert _noise_values(manager_obs_noise) == _noise_values(getattr(direct, "observation_noise_model", None))
