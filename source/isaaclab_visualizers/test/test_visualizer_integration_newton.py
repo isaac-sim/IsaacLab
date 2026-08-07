@@ -11,13 +11,7 @@ from pathlib import Path
 from isaaclab.app import AppLauncher
 
 # launch Kit app
-# Kit 9e5dd32c makes paused DLSS-RR frames temporally unstable (NVBug 6570125).
-# Keep the workaround test-scoped so users retain Kit's responsive-denoising default.
-simulation_app = AppLauncher(
-    headless=True,
-    enable_cameras=True,
-    kit_args="--/rtx/dldenoiser/responsiveDenoising=false",
-).app
+simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import pytest  # noqa: E402
 
