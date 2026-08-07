@@ -5,9 +5,8 @@
 
 """Regression tests for CI compatibility status checks."""
 
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 _WORKFLOW = Path(__file__).with_name("build.yaml")
 _COMPATIBILITY_JOBS = {
@@ -51,5 +50,5 @@ def test_required_compatibility_jobs_accept_intentional_skips() -> None:
     for job_id in _COMPATIBILITY_JOBS:
         block = _job_block(workflow, job_id)
         assert 'if [ "$SHOULD_RUN" != "true" ]; then' in block
-        assert 'exit 0' in block
+        assert "exit 0" in block
         assert 'if [ "$TEST_RESULT" != "success" ]; then' in block
