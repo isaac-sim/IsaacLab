@@ -24,7 +24,12 @@ from utils import UV_Mixin
 
 @pytest.mark.install_path_uv_pip
 class Test_Uv_Pip_Install_Isaaclab_Rl_Tasks_Imports_Rl_Tasks(UV_Mixin):
-    """``uv pip install <wheel>[sb3,skrl,rsl-rl]``: verify RL imports without Isaac Sim."""
+    """``uv pip install <wheel>[sb3,skrl,rsl-rl]``: verify RL imports without Isaac Sim.
+
+    The extras are named individually on purpose. ``test_install_rl_tasks_omits_isaacsim``
+    asserts Isaac Sim is absent, and the aggregate ``all`` extra carries it -- switching to
+    ``[all]`` would make that assertion fail.
+    """
 
     _wheel: str = ""
     _extras: str = "[sb3,skrl,rsl-rl]"

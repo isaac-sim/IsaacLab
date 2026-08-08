@@ -61,11 +61,11 @@ jobs:
         ACCEPT_EULA: Y
         ISAACSIM_ACCEPT_EULA: YES
       run: |
-        uv sync --extra test --extra sb3 --extra skrl --extra rl-games --extra rsl-rl --extra viser --extra rerun --extra rlinf --extra mimic
-        # Install Isaac Sim imperatively after syncing the compatible extras. Read the pinned spec from
-        # pyproject (single source of truth).
-        ISAACSIM_SPEC=$(.venv/bin/python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['optional-dependencies']['isaacsim'][0])")
-        uv pip install "$ISAACSIM_SPEC"
+        # ``all`` covers every backend (Isaac Sim included), RL library, and visualizer.
+        # ``rlinf`` and ``mimic`` are outside ``all``, so name them to keep them scanned.
+        # No extras conflict, so this is a single resolution -- Isaac Sim no longer needs
+        # an imperative install after the sync.
+        uv sync --extra all --extra test --extra rlinf --extra mimic
         uv pip install pip-licenses pipdeptree \
           -r tools/template/requirements.txt
         # Put the venv on PATH for later steps.
