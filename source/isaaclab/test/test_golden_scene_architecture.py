@@ -163,7 +163,7 @@ def test_specialized_rendering_scenes_are_declarative_and_task_free() -> None:
         for stage in ("legacy", "ovstage")
         for physics in ("ovphysx", "newton")
     ]
-    assert tuple(map(len, partitions)) == (10, 10, 7, 0)
+    assert tuple(map(len, partitions)) == (4, 10, 3, 0)
     assert sum(map(len, partitions)) == len(SCENE_PROBE_KITLESS_CASES)
     assert set().union(*partitions) == set(SCENE_PROBE_KITLESS_CASES)
 
@@ -205,7 +205,8 @@ def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
             "camera",
             "robot",
             "table",
-            "cube",
+            "support_neg_y",
+            "support_pos_y",
             "deformable",
         },
         "KukaHeterogeneousRenderingSceneCfg": {
@@ -221,12 +222,25 @@ def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
     }
 
     required_signatures = (
-        "SeattleLabTable/table_instanceable.usd",
+        "FRANKA_PANDA_MENAGERIE_CFG",
         "DexCube/dex_cube_instanceable.usd",
-        "size=(0.3, 0.05, 0.05)",
+        "size=(1.3, 0.9, 1.05)",
+        "pos=(0.5, 0.0, -0.525)",
+        "diffuse_color=(0.8, 0.5, 0.5)",
+        "size=(0.3, 0.04, 0.04)",
+        "edge_refinement=3.0",
+        "diffuse_color=(0.45, 0.45, 0.85)",
         "size=(0.2, 0.2)",
-        "resolution=(12, 12)",
-        "size=(0.03, 0.01, 0.08)",
+        "resolution=(8, 8)",
+        "pos=(0.4, 0.0, 0.102)",
+        "rot=(0.70710678, 0.0, 0.0, 0.70710678)",
+        "size=(0.1, 0.02, 0.15)",
+        "pos=(0.4, -0.02, 0.075)",
+        "pos=(0.4, 0.02, 0.075)",
+        '"panda_finger2_passive": ImplicitActuatorCfg(',
+        "stiffness=350.0",
+        "NewtonCollisionPipelineCfg(enable_rigid_soft_full_surface_contact=True)",
+        "soft_contact_ke=8.0e3, soft_contact_mu=10.0",
         "pos=(-0.55, 0.1, 0.35)",
         'joint_pos={".*": 0.0}',
         "rot=(0.5080, 0.2114, 0.318, 0.7720)",
@@ -236,7 +250,6 @@ def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
         "width=64",
         "random_choice=False",
         "diffuse_color=(0.25, 0.15, 0.15)",
-        'hand_actuator.stiffness = 2000.0 if scene == "franka_cloth" else 1000.0',
         "rot=(0.0, 0.7071, 0.0, 0.7071)",
         'frozenset({"cube"}), None, frozenset({"robot"})',
         "width=120",
@@ -244,6 +257,9 @@ def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
         "clipping_range=(0.1, 20.0)",
         "num_envs=4, env_spacing=2.0",
         "num_envs=4, env_spacing=3.0",
+        "_SOFT_NEWTON_PHYSICS, 2.0",
+        "_CLOTH_NEWTON_PHYSICS",
+        "2.5",
         "(0.0, -0.35, 1.0), (0.0, -0.35, 0.0)",
         "retrieve_file_path(cfg.fill_light.spawn.texture_file)",
         "MeshCuboidCfg",
@@ -254,6 +270,18 @@ def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
     assert not [signature for signature in required_signatures if signature not in source]
 
     rejected_demo_composition = (
+        "from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG\n",
+        "PhysxDeformableBodyPropertiesCfg",
+        "_SOFT_PHYSX",
+        "_CLOTH_PHYSX",
+        "SeattleLabTable/table_instanceable.usd",
+        "_FRANKA_CLOTH_CUBE",
+        "size=(0.3, 0.05, 0.05)",
+        "resolution=(12, 12)",
+        "size=(0.03, 0.01, 0.08)",
+        "_YOUNGS_MODULUS = 8.0e4",
+        "hand_actuator =",
+        "pos=(0.4, 0.0, 0.2)",
         "_SHADOW_HAND_JOINT_POS",
         'prim_path="{ENV_REGEX_NS}/Support"',
         "pos=(-0.7, -0.25, 0.0)",
@@ -262,7 +290,6 @@ def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
         "size=(0.55, 0.55)",
         "resolution=(30, 30)",
         "SHADOW_HAND_NEWTON_CFG.init_state.replace",
-        "rot=(0.70710678, 0.0, 0.0, 0.70710678)",
     )
     assert not [signature for signature in rejected_demo_composition if signature in source]
 

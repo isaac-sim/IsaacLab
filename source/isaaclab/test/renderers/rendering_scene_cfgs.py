@@ -7,19 +7,15 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
     NewtonSurfaceDeformableBodyMaterialCfg,
 )
-from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
-from isaaclab_physx.sim.spawners.materials import (
-    PhysxDeformableBodyMaterialCfg,
-    PhysxSurfaceDeformableBodyMaterialCfg,
-)
 
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -29,37 +25,94 @@ from isaaclab.test.utils.rendering import CAMERA_EYE, CAMERA_TARGET
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
+from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
+from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG, SHADOW_HAND_NEWTON_CFG
 
-_FRANKA_ROBOT = FRANKA_PANDA_CFG.replace(
+_FRANKA_ROBOT = FRANKA_PANDA_MENAGERIE_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
-    spawn=FRANKA_PANDA_CFG.spawn.replace(
-        rigid_props=FRANKA_PANDA_CFG.spawn.rigid_props.replace(disable_gravity=True),
-        semantic_tags=[("class", "robot")],
-    ),
+    spawn=FRANKA_PANDA_MENAGERIE_CFG.spawn.replace(semantic_tags=[("class", "robot")]),
+    actuators={
+        "panda_arm": ImplicitActuatorCfg(
+            joint_names_expr=["panda_joint[1-7]"],
+            effort_limit_sim={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+            velocity_limit_sim={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
+            stiffness={
+                "panda_joint[1-4]": 600.0,
+                "panda_joint5": 250.0,
+                "panda_joint6": 150.0,
+                "panda_joint7": 50.0,
+            },
+            damping={
+                "panda_joint[1-4]": 50.0,
+                "panda_joint5": 30.0,
+                "panda_joint6": 25.0,
+                "panda_joint7": 15.0,
+            },
+            armature={
+                "panda_joint[1-2]": 0.6057,
+                "panda_joint[3-4]": 0.4625,
+                "panda_joint[5-7]": 0.2055,
+            },
+        ),
+        "panda_hand": ImplicitActuatorCfg(
+            joint_names_expr=["panda_finger_joint1"],
+            effort_limit_sim=70.0,
+            velocity_limit=0.2,
+            velocity_limit_sim=2.0,
+            stiffness=350.0,
+            damping=175.0,
+            armature=0.1,
+        ),
+        "panda_finger2_passive": ImplicitActuatorCfg(
+            joint_names_expr=["panda_finger_joint2"],
+            effort_limit_sim=1.0,
+            velocity_limit=0.2,
+            velocity_limit_sim=2.0,
+            stiffness=0.0,
+            damping=0.0,
+            armature=0.1,
+        ),
+    },
 )
-_FRANKA_TABLE = AssetBaseCfg(
+_FRANKA_TABLE_SPAWN = sim_utils.CuboidCfg(
+    size=(1.3, 0.9, 1.05),
+    collision_props=sim_utils.CollisionPropertiesCfg(),
+    # The task's command visualizer initially draws the otherwise-hidden collider in this failure color.
+    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
+    semantic_tags=[("class", "table")],
+)
+_FRANKA_SOFT_TABLE = AssetBaseCfg(
     prim_path="{ENV_REGEX_NS}/Table",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-        semantic_tags=[("class", "table")],
-    ),
-    init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, 0.0), rot=(0.0, 0.0, 0.707, 0.707)),
+    spawn=_FRANKA_TABLE_SPAWN,
+    init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, -0.525)),
 )
-_FRANKA_CLOTH_CUBE = AssetBaseCfg(
-    prim_path="{ENV_REGEX_NS}/Cube",
-    spawn=sim_utils.CuboidCfg(
-        size=(0.03, 0.01, 0.08),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
-        semantic_tags=[("class", "cube")],
+_FRANKA_CLOTH_TABLE = _FRANKA_SOFT_TABLE.replace(
+    spawn=_FRANKA_TABLE_SPAWN.replace(
+        physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1)
     ),
-    init_state=AssetBaseCfg.InitialStateCfg(pos=(0.45, 0.0, 0.04)),
+)
+_FRANKA_CLOTH_SUPPORT = sim_utils.CuboidCfg(
+    size=(0.1, 0.02, 0.15),
+    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
+    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+    collision_props=sim_utils.CollisionPropertiesCfg(),
+    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
+    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
+    semantic_tags=[("class", "support")],
+)
+_FRANKA_CLOTH_SUPPORT_NEG_Y = RigidObjectCfg(
+    prim_path="{ENV_REGEX_NS}/SupportNegY",
+    spawn=_FRANKA_CLOTH_SUPPORT,
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.02, 0.075)),
+)
+_FRANKA_CLOTH_SUPPORT_POS_Y = RigidObjectCfg(
+    prim_path="{ENV_REGEX_NS}/SupportPosY",
+    spawn=_FRANKA_CLOTH_SUPPORT,
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.02, 0.075)),
 )
 _FRANKA_GROUND = AssetBaseCfg(
     prim_path="/World/GroundPlane",
@@ -82,116 +135,119 @@ _FRANKA_CAMERA = CameraCfg(
     height=128,
 )
 
-_YOUNGS_MODULUS = 8.0e4
-_POISSONS_RATIO = 0.25
+_YOUNGS_MODULUS = 2.0e5
+_POISSONS_RATIO = 0.3
 _SOFT_NEWTON = DeformableObjectCfg(
     prim_path="{ENV_REGEX_NS}/Deformable",
     spawn=sim_utils.MeshCuboidCfg(
-        size=(0.3, 0.05, 0.05),
+        size=(0.3, 0.04, 0.04),
+        edge_refinement=3.0,
         deformable_props=NewtonDeformableBodyPropertiesCfg(),
         physics_material=NewtonDeformableBodyMaterialCfg(
-            density=300.0,
+            density=1000.0,
             k_mu=_YOUNGS_MODULUS / (2.0 * (1.0 + _POISSONS_RATIO)),
             k_lambda=_YOUNGS_MODULUS * _POISSONS_RATIO / ((1.0 + _POISSONS_RATIO) * (1.0 - 2.0 * _POISSONS_RATIO)),
-            particle_radius=0.01,
+            particle_radius=0.0025,
         ),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
         semantic_tags=[("class", "soft")],
     ),
     init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
-)
-_SOFT_PHYSX = _SOFT_NEWTON.replace(
-    spawn=_SOFT_NEWTON.spawn.replace(
-        deformable_props=PhysxDeformableBodyPropertiesCfg(),
-        physics_material=PhysxDeformableBodyMaterialCfg(
-            density=300.0,
-            youngs_modulus=_YOUNGS_MODULUS,
-            poissons_ratio=_POISSONS_RATIO,
-            static_friction=10.0,
-            dynamic_friction=5.0,
-        ),
-    )
 )
 _CLOTH_NEWTON = DeformableObjectCfg(
     prim_path="{ENV_REGEX_NS}/Deformable",
     spawn=sim_utils.MeshRectangleCfg(
         size=(0.2, 0.2),
-        # The task uses 30x30; 12x12 preserves its silhouette at 128px without the solver cost.
-        resolution=(12, 12),
+        resolution=(8, 8),
         deformable_props=NewtonDeformableBodyPropertiesCfg(),
         physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
-            density=50.0,
-            particle_radius=0.005,
+            density=10.0,
+            particle_radius=0.002,
             tri_ke=5.0e2,
             tri_ka=5.0e2,
             tri_kd=1.0e-3,
-            edge_ke=2.0,
+            edge_ke=0.5,
             edge_kd=1.0e-3,
         ),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
         semantic_tags=[("class", "cloth")],
     ),
-    init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.2)),
+    init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
 )
-_CLOTH_PHYSX = _CLOTH_NEWTON.replace(
-    spawn=_CLOTH_NEWTON.spawn.replace(
-        deformable_props=PhysxDeformableBodyPropertiesCfg(),
-        physics_material=PhysxSurfaceDeformableBodyMaterialCfg(
-            density=50.0,
-            youngs_modulus=2000.0,
-            poissons_ratio=0.25,
-            surface_thickness=0.005,
-            surface_stretch_stiffness=0.8,
-            surface_shear_stiffness=0.7,
-            surface_bend_stiffness=0.6,
-            elasticity_damping=0.03,
-            bend_damping=0.04,
+_FRANKA_HAND_PROXY_BODIES = [
+    r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
+    r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
+]
+
+
+def _make_franka_newton_physics(
+    rigid_bodies: list[str], proxy_bodies: list[str], contact_buffer_size: int
+) -> NewtonCfg:
+    """Build the shared rigid/VBD task solver with scene-specific ownership."""
+    return NewtonCfg(
+        solver_cfg=CouplerProxyCfg(
+            entries=[
+                CouplerEntryCfg(
+                    name="rigid",
+                    solver_cfg=MJWarpSolverCfg(cone="elliptic", ls_iterations=20, integrator="implicitfast"),
+                    bodies=rigid_bodies,
+                ),
+                CouplerEntryCfg(
+                    name="soft",
+                    solver_cfg=VBDSolverCfg(iterations=10, rigid_body_particle_contact_buffer_size=contact_buffer_size),
+                    all_particles=True,
+                    include_static_shapes=True,
+                ),
+            ],
+            proxies=[
+                CouplerProxyMappingCfg(
+                    source="rigid",
+                    destination="soft",
+                    bodies=proxy_bodies,
+                    collide_interval=1,
+                    collision_pipeline=NewtonCollisionPipelineCfg(enable_rigid_soft_full_surface_contact=True),
+                )
+            ],
+            iterations=1,
+            model_cfg=NewtonModelCfg(soft_contact_ke=8.0e3, soft_contact_mu=10.0),
         ),
+        num_substeps=2,
     )
-)
-_DEFORMABLE_NEWTON_PHYSICS = NewtonCfg(
-    solver_cfg=CouplerProxyCfg(
-        entries=[
-            CouplerEntryCfg(
-                name="rigid",
-                solver_cfg=MJWarpSolverCfg(ls_iterations=10, integrator="implicitfast"),
-                bodies=[r"/World/envs/env_.*/Robot"],
-            ),
-            CouplerEntryCfg(
-                name="soft", solver_cfg=VBDSolverCfg(iterations=5), all_particles=True, include_static_shapes=True
-            ),
-        ],
-        model_cfg=NewtonModelCfg(soft_contact_ke=1.0e3, soft_contact_kd=1.0e-5, soft_contact_mu=0.5),
-    ),
-    num_substeps=2,
-    use_cuda_graph=True,
+
+
+_SOFT_NEWTON_PHYSICS = _make_franka_newton_physics([r"/World/envs/env_.*/Robot"], _FRANKA_HAND_PROXY_BODIES.copy(), 256)
+_CLOTH_NEWTON_PHYSICS = _make_franka_newton_physics(
+    [r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Support(Neg|Pos)Y"],
+    [*_FRANKA_HAND_PROXY_BODIES, r"/World/envs/env_.*/Support(Neg|Pos)Y"],
+    1024,
 )
 
 
 @configclass
 class FrankaSoftRenderingSceneCfg(RenderingSceneCfg):
-    """Task-scale volume deformable beside a default Franka on its Seattle table."""
+    """Task-scale soft beam and default Menagerie Franka on the failure-state table."""
 
     ground = _FRANKA_GROUND.copy()
     key_light = None
     fill_light = _TASK_SKY_LIGHT.copy()
     camera: CameraCfg = _FRANKA_CAMERA.copy()
     robot: ArticulationCfg = _FRANKA_ROBOT.copy()
-    table: AssetBaseCfg = _FRANKA_TABLE.copy()
+    table: AssetBaseCfg = _FRANKA_SOFT_TABLE.copy()
     deformable: DeformableObjectCfg = _SOFT_NEWTON.copy()
 
 
 @configclass
 class FrankaClothRenderingSceneCfg(RenderingSceneCfg):
-    """Task-scale cloth above its tiny table obstacle and default Franka."""
+    """Task-scale cloth and supports beside a default Menagerie Franka."""
 
     ground = _FRANKA_GROUND.copy()
     key_light = None
     fill_light = _TASK_SKY_LIGHT.copy()
     camera: CameraCfg = _FRANKA_CAMERA.copy()
     robot: ArticulationCfg = _FRANKA_ROBOT.copy()
-    table: AssetBaseCfg = _FRANKA_TABLE.copy()
-    cube: AssetBaseCfg = _FRANKA_CLOTH_CUBE.copy()
+    table: AssetBaseCfg = _FRANKA_CLOTH_TABLE.copy()
+    support_neg_y: RigidObjectCfg = _FRANKA_CLOTH_SUPPORT_NEG_Y.copy()
+    support_pos_y: RigidObjectCfg = _FRANKA_CLOTH_SUPPORT_POS_Y.copy()
     deformable: DeformableObjectCfg = _CLOTH_NEWTON.copy()
 
 
@@ -358,18 +414,20 @@ def make_rendering_scene_cfg(
             frozenset(),
         )
     if scene in {"franka_soft", "franka_cloth"}:
-        scene_cfg_type, newton_deformable, physx_deformable = {
-            "franka_soft": (FrankaSoftRenderingSceneCfg, _SOFT_NEWTON, _SOFT_PHYSX),
-            "franka_cloth": (FrankaClothRenderingSceneCfg, _CLOTH_NEWTON, _CLOTH_PHYSX),
+        if physics != "newton":
+            raise ValueError(f"{scene} rendering probes require their shared Newton task composition.")
+        scene_cfg_type, deformable, physics_cfg, env_spacing = {
+            "franka_soft": (FrankaSoftRenderingSceneCfg, _SOFT_NEWTON, _SOFT_NEWTON_PHYSICS, 2.0),
+            "franka_cloth": (
+                FrankaClothRenderingSceneCfg,
+                _CLOTH_NEWTON,
+                _CLOTH_NEWTON_PHYSICS,
+                2.5,
+            ),
         }[scene]
-        cfg = scene_cfg_type(num_envs=4, env_spacing=3.0, lazy_sensor_update=True)
-        cfg.deformable = (newton_deformable if physics == "newton" else physx_deformable).copy()
+        cfg = scene_cfg_type(num_envs=4, env_spacing=env_spacing, lazy_sensor_update=True)
+        cfg.deformable = deformable.copy()
         cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
-        hand_actuator = cfg.robot.actuators["panda_hand"]
-        hand_actuator.effort_limit_sim = 500.0
-        hand_actuator.stiffness = 2000.0 if scene == "franka_cloth" else 1000.0
-        hand_actuator.damping = 100.0
-        physics_cfg = _DEFORMABLE_NEWTON_PHYSICS if physics == "newton" else None
         return cfg, (0.85, -0.55, 0.42), (0.20051, 0.099902, 0.025508), frozenset(), physics_cfg, frozenset()
     if scene == "kuka_heterogeneous":
         cfg = KukaHeterogeneousRenderingSceneCfg(num_envs=4, env_spacing=3.0, lazy_sensor_update=True)

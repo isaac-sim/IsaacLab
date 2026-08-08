@@ -109,8 +109,8 @@ _SCENE_PROBE_KIT_PHYSICS = {
 _SCENE_PROBE_KITLESS_PHYSICS = {
     "shadow_hand": ("ovphysx", "newton"),
     "kuka_heterogeneous": (),
-    "franka_cloth": ("ovphysx", "newton"),
-    "franka_soft": ("ovphysx", "newton"),
+    "franka_cloth": ("newton",),
+    "franka_soft": ("newton",),
 }
 SCENE_PROBE_KIT_CASES = tuple(
     RenderCase(
