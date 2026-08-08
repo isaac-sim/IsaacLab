@@ -426,10 +426,6 @@ override-dependencies = [
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
     # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",
-    # usd-exchange and usd-core each vendor a full ``pxr`` built against a different
-    # USD version, and newton[importers] pulls usd-exchange unmarked. Re-impose the
-    # platform split from [project.dependencies] so only one lands per platform.
-    "usd-exchange>=2.2 ; platform_machine == 'aarch64'",
 ]
 # ``ov`` stays forked: it pulls ovrtx, which is not validated alongside Isaac Sim.
 # ``teleop`` bundles isaacsim, so it inherits that pair.
