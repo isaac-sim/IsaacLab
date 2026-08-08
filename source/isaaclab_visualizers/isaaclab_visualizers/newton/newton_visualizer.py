@@ -376,7 +376,7 @@ class _NewtonViewerUIMixin:
                 imgui.text("WASD - Move camera")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
-                imgui.text("Right Click - Pick objects")
+                imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
                 imgui.text("Shift + Middle Click - Pan")
                 imgui.text("Ctrl + Middle Click - Dolly")
