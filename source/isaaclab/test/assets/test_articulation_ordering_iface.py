@@ -680,7 +680,15 @@ def _set_body_ordering_backend_data(
 
 
 def _set_identity_body_poses(backend: str, art, raw_backend) -> None:
-    """Give the OVPhysX wrench transform deterministic identity rotations."""
+    """Give wrench transforms deterministic identity rotations."""
+    if backend == "newton":
+        poses = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
+        poses[..., 6] = 1.0
+        poses_wp = wp.array(poses[:, None], dtype=wp.transformf, device=art.device)
+        raw_backend.set_mock_link_transforms(poses_wp)
+        art.data._sim_bind_body_link_pose_w.assign(poses_wp[:, 0])
+        art.data._refresh_user_order_body_state()
+        return
     if backend != "ovphysx":
         return
     from isaaclab_ovphysx import tensor_types as TT

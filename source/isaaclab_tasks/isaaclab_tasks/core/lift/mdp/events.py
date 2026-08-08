@@ -31,7 +31,7 @@ from .utils import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from isaaclab.assets import Articulation
+    from isaaclab.assets import Articulation, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
     from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg, SuccessMonitorCfg
@@ -897,3 +897,51 @@ class slab_clearance(ManagerTermBase):
             device=env.device,
         )
         return wp.to_torch(out_min) >= self.cfg.min_clearance
+
+
+def reset_deformable_over_support(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    position_range: dict[str, tuple[float, float]],
+    clear_gap_range: tuple[float, float],
+    support_cfg: tuple[SceneEntityCfg, SceneEntityCfg],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
+) -> None:
+    """Reset a deformable object and move its supports with it.
+
+    Args:
+        env: The environment instance.
+        env_ids: The environment indices to reset.
+        position_range: Deformable displacement bounds [m] keyed by ``x``, ``y``, ``z``. The planar
+            displacement is shared with the supports.
+        clear_gap_range: Clear gap bounds [m] for a support pair.
+        support_cfg: Negative-Y and positive-Y support pair.
+        asset_cfg: Scene entity of the deformable object to reset.
+    """
+    deformable: DeformableObject = env.scene[asset_cfg.name]
+    supports: tuple[RigidObject, RigidObject] = (env.scene[support_cfg[0].name], env.scene[support_cfg[1].name])
+
+    ranges = torch.tensor([position_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z")], device=deformable.device)
+    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=deformable.device)
+
+    nodal_state = deformable.data.default_nodal_state_w.torch[env_ids].clone()
+    nodal_state[..., :3] += offset.unsqueeze(1)
+    deformable.write_nodal_state_to_sim_index(nodal_state, env_ids=env_ids)
+
+    root_poses = [support.data.default_root_pose.torch[env_ids].clone() for support in supports]
+    for root_pose in root_poses:
+        root_pose[:, :3] += env.scene.env_origins[env_ids]
+        root_pose[:, :2] += offset[:, :2]
+
+    gap = sample_uniform(*clear_gap_range, (len(env_ids),), device=supports[0].device)
+    center_y = 0.5 * (root_poses[0][:, 1] + root_poses[1][:, 1])
+    thickness_neg = supports[0].cfg.spawn.size[1]
+    thickness_pos = supports[1].cfg.spawn.size[1]
+    root_poses[0][:, 1] = center_y - 0.5 * (gap + thickness_neg)
+    root_poses[1][:, 1] = center_y + 0.5 * (gap + thickness_pos)
+
+    for support, root_pose in zip(supports, root_poses):
+        support.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+        support.write_root_velocity_to_sim_index(
+            root_velocity=torch.zeros_like(support.data.default_root_vel.torch[env_ids]), env_ids=env_ids
+        )

@@ -12,16 +12,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-import trimesh
-from trimesh.sample import sample_surface
-
-from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 
 if TYPE_CHECKING:
+    import trimesh
+
     from isaaclab.envs import ManagerBasedEnv
 
 # ---- module-scope caches ----
@@ -47,6 +44,11 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
     Returns:
         torch.Tensor: Shape (num_envs, num_points, 3) on `device`.
     """
+    import trimesh
+    from trimesh.sample import sample_surface
+
+    from pxr import UsdGeom
+
     points = torch.zeros((num_envs, num_points, 3), dtype=torch.float32, device=device)
     xform_cache = UsdGeom.XformCache()
     # Obtain stage handle
@@ -186,6 +188,8 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
 
 def _triangulate_faces(prim) -> np.ndarray:
     """Convert a USD Mesh prim into triangulated face indices (N, 3)."""
+    from pxr import UsdGeom
+
     mesh = UsdGeom.Mesh(prim)
     counts = mesh.GetFaceVertexCountsAttr().Get()
     indices = mesh.GetFaceVertexIndicesAttr().Get()
@@ -200,6 +204,10 @@ def _triangulate_faces(prim) -> np.ndarray:
 
 def create_primitive_mesh(prim):
     """Create a trimesh mesh from a USD primitive (Cube, Sphere, Cylinder, etc.)."""
+    import trimesh
+
+    from pxr import UsdGeom
+
     prim_type = prim.GetTypeName()
     if prim_type == "Cube":
         size = UsdGeom.Cube(prim).GetSizeAttr().Get()
@@ -270,6 +278,12 @@ def farthest_point_sampling(
 
 def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, trimesh.Trimesh]:
     """Collect collision meshes under ``root_prim``, grouped in caller-selected frames."""
+    import trimesh
+
+    from pxr import UsdPhysics
+
+    from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
+
     mesh_types = PRIMITIVE_MESH_TYPES + ["Mesh"]
     mesh_prims = sim_utils.get_all_matching_child_prims(
         root_prim.GetPath(),
