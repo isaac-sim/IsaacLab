@@ -77,6 +77,8 @@ _build
 
 # No benchmarks output
 /benchmarks/
+benchmark_*.json
+
 
 # Ruff cache
 **/.ruff_cache/

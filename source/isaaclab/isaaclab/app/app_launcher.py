@@ -33,6 +33,7 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
+from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 from isaaclab.utils._device import set_cuda_device
@@ -407,6 +408,19 @@ class AppLauncher:
         """
         return bool(get_settings_manager().get("/isaaclab/has_gui"))
 
+    @property
+    def has_window(self) -> bool:
+        """Whether a local window exists that can render UI and receive input.
+
+        ``True`` when a windowed visualizer was requested, or when livestreaming, which
+        renders a window and forwards input from the remote client. Use this rather than
+        :meth:`has_gui` to decide whether local UI-driven features such as keyboard
+        bindings are available: livestreaming runs the host headless yet still presents
+        an interactive window, while XR without an explicit windowed visualizer does not
+        open a local window.
+        """
+        return not self._headless or self._livestream >= 1
+
     @staticmethod
     def _fuse_kit_args(argv: list[str]) -> list[str]:
         """Fuse ``["--kit_args", "<option-like value>"]`` pairs into single ``--kit_args=<value>`` tokens.
@@ -657,6 +671,10 @@ class AppLauncher:
     Internal functions.
     """
 
+    # Set by :meth:`_resolve_xr_settings`. Defaulted here so :meth:`_resolve_headless_settings`
+    # stays independent of resolver call order and of whether XR was resolved at all.
+    _xr_auto_start: bool = False
+
     _APPLAUNCHER_CFG_INFO: dict[str, tuple[list[type], Any]] = {
         "headless": ([bool], False),
         "livestream": ([int], -1),
@@ -889,7 +907,15 @@ class AppLauncher:
 
         # Resolve headless from visualizer intent when livestream is disabled.
         if self._livestream == 0:
-            if self._cli_visualizer_explicit:
+            if self._xr_auto_start:
+                # XR without an explicit windowed visualizer: no viewport to start the session from.
+                if not self._headless:
+                    logger.info(
+                        "XR is enabled without an explicit windowed visualizer, so running headless. "
+                        "To also open a local viewport, pass '--viz <names>' (for example '--viz kit')."
+                    )
+                self._headless = True
+            elif self._cli_visualizer_explicit:
                 # Explicit CLI selection controls headless: only Kit implies non-headless.
                 requested_visualizers = set(self._cli_visualizer_types)
                 if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
@@ -1263,7 +1289,9 @@ class AppLauncher:
 
         sys.argv = _sanitize_sys_argv_for_kit(sys.argv)
 
+        report_activity("Starting Isaac Sim")
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+        report_activity(None)
 
         # enable sys stdout and stderr
         sys.stdout = sys.__stdout__

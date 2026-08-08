@@ -8,6 +8,7 @@
    .. autosummary::
 
       AppLauncher
+      LoadingScreen
       Scan
 
    .. rubric:: Functions
@@ -16,6 +17,7 @@
 
       launch_simulation
       make_physics_cfg
+      report_activity
       scan
 
 
