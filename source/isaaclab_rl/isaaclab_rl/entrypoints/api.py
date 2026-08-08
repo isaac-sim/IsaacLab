@@ -14,6 +14,9 @@ from .dispatch import run_play_cli, run_random_agent_cli, run_train_cli, run_zer
 
 BackendName = Literal["rl_games", "rlinf", "rsl_rl", "sb3", "skrl"]
 
+MULTI_GPU_BACKENDS: tuple[BackendName, ...] = ("rl_games", "rsl_rl", "skrl")
+"""Backends the multi-GPU launcher can drive."""
+
 
 @dataclass(frozen=True)
 class TrainingRequest:

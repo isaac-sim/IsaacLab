@@ -1,6 +1,36 @@
 Changelog
 ---------
 
+3.1.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for applying Newton visualizer dragging forces during
+  rigid-body solver substeps.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab_newton.video_recording.recording_hooks`` (dead stub, never
+  wired into the dispatch path). No migration needed.
+
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.video_capture_backend` classmethod
+  (returns ``"newton_gl"``), used by
+  :class:`~isaaclab.envs.utils.VideoRecorder` to select the Newton GL capture backend.
+* Changed the model finalization, solver initialization, and CUDA graph capture timers to name the
+  step they run, so :class:`~isaaclab.app.LoadingScreen` can show it while it happens rather than
+  after it finishes.
+
+Fixed
+^^^^^
+
+* Fixed articulation target bindings to use Newton's canonical joint target attributes.
+* Fixed Newton external wrenches so body-frame forces and torques are rotated
+  into the world frame before simulation.
+
+
 3.0.0 (2026-08-07)
 ~~~~~~~~~~~~~~~~~~
 
