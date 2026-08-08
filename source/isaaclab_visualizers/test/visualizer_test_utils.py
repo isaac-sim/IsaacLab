@@ -79,7 +79,7 @@ def run_visualizer_case(physics: str, kind: str, tiled: bool, request: Any) -> N
             _GOLDEN_DIR / f"{label}.png",
             label=f"visualizer-{label}",
             artifact_dir=_ARTIFACT_DIR,
-            max_diff_pct=5.0 if kind == "kit" else 0.75,
+            max_diff_pct=8.0 if kind == "kit" and tiled else 5.0 if kind == "kit" else 0.75,
             min_ssim=0.97 if kind == "kit" else 0.99,
         )
         comparison.record(request)

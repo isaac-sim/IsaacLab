@@ -996,8 +996,9 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
             env["PYTHONPATH"] = _plugin_dir + os.pathsep + env.get("PYTHONPATH", "")
 
         timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
+        test_key = os.path.relpath(test_file, workspace_root).replace(os.sep, "/")
 
-        # Read the test file once for cold-cache and device-split detection.
+        # Read the test file once for device-split detection.
         try:
             with open(test_file) as fh:
                 test_content = fh.read()
@@ -1006,7 +1007,7 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
 
         # The first camera-enabled test in a fresh container compiles shaders
         # (~600 s).  Give it extra time so that doesn't look like a test timeout.
-        is_cold_cache_test = not cold_cache_applied and "enable_cameras=True" in test_content
+        is_cold_cache_test = not cold_cache_applied and test_key in test_settings.COLD_CACHE_TESTS
         if is_cold_cache_test:
             timeout += COLD_CACHE_BUFFER
             cold_cache_applied = True
@@ -1029,12 +1030,28 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
             pytest_targets=pytest_targets,
         )
 
+        # Native libraries do not reliably release all resources when incompatible scene
+        # families share a process. Explicit partitions retain one test body while
+        # giving each declared family a fresh interpreter and simulation application.
+        process_partitions = test_settings.PROCESS_ISOLATED_TESTS.get(test_key)
+        if process_partitions:
+            assert not is_device_split_file(test_file, source=test_content), (
+                f"{test_key} cannot be both device-split and process-partitioned"
+            )
+            logger.info(f"⚙️  process partitions detected — invoking {file_name} once per partition")
+            exact_targets = [target for target in pytest_targets if "::" in target]
+            passes = [
+                (f"-{name}", " or ".join(selectors))
+                for name, selectors in process_partitions
+                if not exact_targets or any(selector in target for selector in selectors for target in exact_targets)
+            ]
+            assert passes, f"No process partition in {test_key} matches the configured test nodes"
         # On a multi-GPU shard, test_devices() already resolves to this shard's single
         # GPU and mgpu_shard_select drops every other variant, so the device_split
         # CPU/GPU two-pass (which exists to dodge the process-global device lock when
         # CPU and GPU share one container) is unnecessary here — the CPU pass would
         # collect zero tests yet still pay full Kit-startup cost. Run once on a shard.
-        if _inject_shard_select:
+        elif _inject_shard_select:
             passes = [("", None)]
         elif is_device_split_file(test_file, source=test_content):
             logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")

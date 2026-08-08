@@ -105,6 +105,51 @@ def test_removed_task_and_visualizer_harnesses_stay_removed() -> None:
     )
     assert not [name for name in stale_names if name in active_config]
     assert 'filter-pattern: "not isaaclab_"\n        exclude-pattern: "test_rendering_"' not in active_config
+    assert "franka_cloth-ovphysx" not in active_config
+
+
+def test_rendering_native_process_boundaries_are_explicit() -> None:
+    """CI metadata, not duplicated test bodies or source-text accidents, owns native process boundaries."""
+    settings_path = _REPO_ROOT / "tools" / "test_settings.py"
+    settings_tree = ast.parse(settings_path.read_text())
+    assignments = {
+        target.id: ast.literal_eval(node.value)
+        for node in settings_tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name) and target.id in {"COLD_CACHE_TESTS", "PROCESS_ISOLATED_TESTS"}
+    }
+    rendering_entrypoints = {
+        path.relative_to(_REPO_ROOT).as_posix() for path in _RENDERER_TEST_DIR.glob("test_rendering*.py")
+    }
+    rendering_entrypoints.add("source/isaaclab_visualizers/test/test_visualizer_rendering.py")
+    assert rendering_entrypoints <= assignments["COLD_CACHE_TESTS"]
+    implicit_camera_token = "enable_cameras" + "=True"
+    former_implicit_callers = {
+        path.relative_to(_REPO_ROOT).as_posix()
+        for path in (_REPO_ROOT / "source").rglob("test_*.py")
+        if implicit_camera_token in path.read_text()
+    }
+    assert former_implicit_callers <= assignments["COLD_CACHE_TESTS"]
+    assert assignments["PROCESS_ISOLATED_TESTS"] == {
+        "source/isaaclab/test/renderers/test_rendering_scene_probes_kit.py": (
+            ("shadow_hand", ("shadow_hand",)),
+            ("kuka_cloth", ("kuka_heterogeneous", "franka_cloth")),
+            ("franka_soft", ("franka_soft",)),
+        )
+    }
+    partition_selectors = {
+        selector
+        for _, selectors in next(iter(assignments["PROCESS_ISOLATED_TESTS"].values()))
+        for selector in selectors
+    }
+    assert {case.scene for case in SCENE_PROBE_KIT_CASES} <= partition_selectors
+
+    conftest_source = (_REPO_ROOT / "tools" / "conftest.py").read_text()
+    assert f'"{implicit_camera_token}" in test_content' not in conftest_source
+    assert "test_settings.COLD_CACHE_TESTS" in conftest_source
+    assert "test_settings.PROCESS_ISOLATED_TESTS" in conftest_source
+    assert "selector in target for selector in selectors for target in exact_targets" in conftest_source
 
 
 def test_one_scene_configuration_owns_deliberate_composition() -> None:
@@ -416,3 +461,7 @@ def test_golden_inventory_matches_case_matrix() -> None:
     }
     visualizer_dir = _VISUALIZER_TEST_DIR / "golden_images" / "rendering_scene"
     assert {path.name for path in visualizer_dir.glob("*.png")} == visualizer_expected
+
+    runner_source = (_RENDERER_TEST_DIR / "rendering_runner.py").read_text()
+    assert 'artifact_label = f"{case.scene}-{golden_label}"' in runner_source
+    assert "label=artifact_label" in runner_source

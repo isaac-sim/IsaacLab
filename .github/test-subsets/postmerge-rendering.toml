@@ -10,7 +10,7 @@ rendering-correctness = [
   "source/isaaclab/test/test_golden_scene_architecture.py::test_one_scene_configuration_owns_deliberate_composition",
   "source/isaaclab/test/test_golden_scene_architecture.py::test_specialized_rendering_scenes_are_declarative_and_task_free",
   "source/isaaclab/test/test_golden_scene_architecture.py::test_renderer_matrix_bundles_compatible_aovs",
-  "source/isaaclab/test/test_golden_scene_architecture.py::test_reset_manager_is_only_an_adapter",
+  "source/isaaclab/test/test_golden_scene_architecture.py::test_reset_policy_remains_in_mdp",
   "source/isaaclab/test/test_golden_scene_architecture.py::test_golden_inventory_matches_case_matrix",
   "source/isaaclab/test/renderers/test_rendering_kit.py::test_rendering_scene[physx-isaac_rtx-standard]",
   "source/isaaclab/test/renderers/test_rendering_kit.py::test_rendering_scene[newton-isaac_rtx-standard]",
@@ -27,7 +27,7 @@ rendering-correctness-kitless-legacy = [
   "source/isaaclab/test/renderers/test_rendering_kitless_legacy_ovphysx.py::test_rendering_scene_kitless[legacy-ovphysx-newton_warp-standard]",
   "source/isaaclab/test/renderers/test_rendering_kitless_legacy_newton.py::test_rendering_scene_kitless[legacy-newton-newton_warp-standard]",
   "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_ovphysx.py::test_rendering_scene_probes[legacy-shadow_hand-ovphysx-ovrtx-standard-rgb]",
-  "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_ovphysx.py::test_rendering_scene_probes[legacy-franka_cloth-ovphysx-ovrtx-standard-motion_vectors]",
+  "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_ovphysx.py::test_rendering_scene_probes[legacy-shadow_hand-ovphysx-newton_warp-standard]",
   "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_newton.py::test_rendering_scene_probes[legacy-franka_soft-newton-newton_warp-standard-rgb]",
 ]
 
@@ -35,5 +35,5 @@ rendering-correctness-kitless-ovstage = [
   "source/isaaclab/test/renderers/test_rendering_kitless_ovstage_ovphysx.py::test_rendering_scene_kitless[ovstage-ovphysx-ovrtx-standard-rgb]",
   "source/isaaclab/test/renderers/test_rendering_kitless_ovstage_newton.py::test_rendering_scene_kitless[ovstage-newton-ovrtx-standard-rgb]",
   "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_ovstage_ovphysx.py::test_rendering_scene_probes[ovstage-shadow_hand-ovphysx-ovrtx-standard-rgb]",
-  "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_ovstage_ovphysx.py::test_rendering_scene_probes[ovstage-franka_cloth-ovphysx-ovrtx-standard-rgb]",
+  "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_ovstage_ovphysx.py::test_rendering_scene_probes[ovstage-shadow_hand-ovphysx-ovrtx-standard-instance_segmentation]",
 ]

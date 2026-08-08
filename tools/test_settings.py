@@ -16,6 +16,72 @@ DEFAULT_TIMEOUT = 1000
 """The default timeout for each test in seconds."""
 
 
+COLD_CACHE_TESTS = {
+    "source/isaaclab/test/envs/test_color_randomization.py",
+    "source/isaaclab/test/envs/test_env_rendering_logic.py",
+    "source/isaaclab/test/envs/test_manager_based_rl_env_obs_spaces_task_integration.py",
+    "source/isaaclab/test/envs/test_manager_based_rl_env_ui.py",
+    "source/isaaclab/test/envs/test_scale_randomization.py",
+    "source/isaaclab/test/envs/test_texture_randomization.py",
+    "source/isaaclab/test/renderers/test_rendering_kit.py",
+    "source/isaaclab/test/renderers/test_rendering_kitless_legacy_newton.py",
+    "source/isaaclab/test/renderers/test_rendering_kitless_legacy_ovphysx.py",
+    "source/isaaclab/test/renderers/test_rendering_kitless_ovstage_newton.py",
+    "source/isaaclab/test/renderers/test_rendering_kitless_ovstage_ovphysx.py",
+    "source/isaaclab/test/renderers/test_rendering_scene_probes_kit.py",
+    "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_newton.py",
+    "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_ovphysx.py",
+    "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_ovstage_ovphysx.py",
+    "source/isaaclab/test/sensors/test_camera.py",
+    "source/isaaclab/test/sensors/test_camera_ppisp_gaussian.py",
+    "source/isaaclab/test/sensors/test_camera_ppisp_gaussian_newton.py",
+    "source/isaaclab/test/sensors/test_first_frame_textured_rendering.py",
+    "source/isaaclab/test/sensors/test_multi_mesh_ray_caster_camera.py",
+    "source/isaaclab/test/sensors/test_multi_tiled_camera.py",
+    "source/isaaclab/test/sensors/test_outdated_sensor.py",
+    "source/isaaclab/test/sensors/test_ray_caster.py",
+    "source/isaaclab/test/sensors/test_ray_caster_camera.py",
+    "source/isaaclab/test/sensors/test_ray_caster_integration.py",
+    "source/isaaclab/test/sensors/test_tiled_camera.py",
+    "source/isaaclab/test/sensors/test_tiled_camera_env.py",
+    "source/isaaclab/test/sim/test_simulation_stage_in_memory.py",
+    "source/isaaclab/test/sim/test_utils_prims.py",
+    "source/isaaclab/test/sim/test_utils_queries.py",
+    "source/isaaclab/test/sim/test_utils_semantics.py",
+    "source/isaaclab_contrib/test/sensors/test_visuotactile_render.py",
+    "source/isaaclab_contrib/test/sensors/test_visuotactile_sensor.py",
+    "source/isaaclab_newton/test/physics/test_newton_fabric_body_sync.py",
+    "source/isaaclab_physx/test/renderers/test_isaac_rtx_renderer_scene_partitioning.py",
+    "source/isaaclab_physx/test/sensors/test_imu.py",
+    "source/isaaclab_physx/test/sensors/test_pva.py",
+    "source/isaaclab_rl/test/test_rl_games_wrapper.py",
+    "source/isaaclab_rl/test/test_rsl_rl_wrapper.py",
+    "source/isaaclab_rl/test/test_sb3_wrapper.py",
+    "source/isaaclab_rl/test/test_skrl_wrapper.py",
+    "source/isaaclab_tasks/test/benchmarking/test_environments_training.py",
+    "source/isaaclab_tasks/test/contrib/test_cartpole_showcase_environments.py",
+    "source/isaaclab_tasks/test/contrib/test_cartpole_showcase_environments_with_stage_in_memory.py",
+    "source/isaaclab_tasks/test/contrib/test_contrib_environments_smoke.py",
+    "source/isaaclab_tasks/test/contrib/test_environments_automate.py",
+    "source/isaaclab_tasks/test/contrib/test_environments_skillgen.py",
+    "source/isaaclab_tasks/test/contrib/test_factory_environments.py",
+    "source/isaaclab_tasks/test/contrib/test_pickplace_stack_environments.py",
+    "source/isaaclab_tasks/test/contrib/test_teleop_environments.py",
+    "source/isaaclab_tasks/test/contrib/test_teleop_environments_with_stage_in_memory.py",
+    "source/isaaclab_tasks/test/core/test_camera_task_smoke.py",
+    "source/isaaclab_tasks/test/core/test_environments.py",
+    "source/isaaclab_tasks/test/core/test_environments_newton.py",
+    "source/isaaclab_tasks/test/core/test_environments_with_stage_in_memory.py",
+    "source/isaaclab_tasks/test/core/test_multi_agent_environments.py",
+    "source/isaaclab_tasks/test/core/test_record_video.py",
+    "source/isaaclab_tasks/test/core/test_shadow_hand_camera_presets.py",
+    "source/isaaclab_tasks/test/core/test_video_recording.py",
+    "source/isaaclab_teleop/test/test_xr_camera_feed_kit_scene_ui_integration.py",
+    "source/isaaclab_visualizers/test/test_visualizer_rendering.py",
+}
+"""Repository-relative tests eligible for the one-per-job shader cold-cache allowance."""
+
+
 PER_TEST_TIMEOUTS = {
     "test_articulation.py": 3000,
     "test_stage_in_memory.py": 1000,
@@ -80,6 +146,16 @@ PER_TEST_TIMEOUTS = {
 
 Note: Any tests not listed here will use the default timeout.
 """
+
+
+PROCESS_ISOLATED_TESTS = {
+    "source/isaaclab/test/renderers/test_rendering_scene_probes_kit.py": (
+        ("shadow_hand", ("shadow_hand",)),
+        ("kuka_cloth", ("kuka_heterogeneous", "franka_cloth")),
+        ("franka_soft", ("franka_soft",)),
+    ),
+}
+"""Named scene-selector groups that must run in separate native-resource processes."""
 
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
