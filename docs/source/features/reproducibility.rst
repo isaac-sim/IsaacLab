@@ -66,6 +66,13 @@ ordering in its collision pipeline. Deterministic execution can increase
 memory use and reduce simulation performance. MJWarp on the GPU, XPBD, and
 Featherstone are supported; selecting an unsupported solver raises an error.
 
+.. warning::
+
+   Deterministic contact ordering adds sorting work and allocates buffers sized
+   for the configured maximum contact count. Runtime and memory overhead
+   therefore grow with contact capacity. Enable this mode only when its
+   reproducibility guarantee is required.
+
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
 
 .. tip::

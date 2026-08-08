@@ -108,18 +108,16 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
     replicate_builder_mapping,
 )
+from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
+from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
+from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
-
-from .featherstone_manager_cfg import FeatherstoneSolverCfg
-from .mjwarp_manager_cfg import MJWarpSolverCfg
-from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
-from .xpbd_manager_cfg import XPBDSolverCfg
+from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.actuators import NewtonActuatorAdapter
-
-    from .newton_collision_cfg import NewtonCollisionPipelineCfg
+    from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 logger = logging.getLogger(__name__)
 

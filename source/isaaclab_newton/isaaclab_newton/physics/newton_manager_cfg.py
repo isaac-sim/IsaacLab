@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils.configclass import configclass
 
-from .newton_collision_cfg import NewtonCollisionPipelineCfg
+from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
@@ -141,6 +141,13 @@ class NewtonCfg(PhysicsCfg):
     map to the corresponding ``warp.DeterministicMode`` values. Deterministic
     execution increases memory use and can reduce simulation performance.
 
+    .. warning::
+
+       Deterministic contact ordering adds sorting work and allocates buffers
+       sized for the configured maximum contact count. Runtime and memory
+       overhead therefore grow with contact capacity. Enable this mode only
+       when its reproducibility guarantee is required.
+
     MJWarp on the GPU, XPBD, and Featherstone support this setting. Newton
     raises an error during solver initialization for unsupported solvers rather
     than silently running them without the requested guarantee.
@@ -234,7 +241,7 @@ class NewtonCfg(PhysicsCfg):
                 f"got {self.deterministic_mode!r}."
             )
         if self.solver_cfg is None:
-            from .mjwarp_manager_cfg import MJWarpSolverCfg
+            from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
         self.class_type = self.solver_cfg.class_type
