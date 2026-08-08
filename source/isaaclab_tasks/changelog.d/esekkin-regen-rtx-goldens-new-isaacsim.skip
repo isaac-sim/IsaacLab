@@ -1,0 +1,1 @@
+Test-only: refreshed RTX goldens and bypassed the NVBug 6264822 partition path in registered rendering tests.

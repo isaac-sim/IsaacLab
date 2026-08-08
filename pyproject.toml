@@ -179,6 +179,13 @@ rlinf = [
 leapp = [
     "leapp>=0.5.2",
 ]
+# Every feature extra in one flag. No extra is forked in [tool.uv].conflicts, so this
+# resolves into a single environment carrying Isaac Sim, both OV backends, every RL
+# framework, and every visualizer. ``test`` is left out: it is developer test and
+# documentation tooling, not a runtime feature.
+all = [
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,rlinf,mimic,isaacsim,ov,teleop,tetrahedralization,video,leapp]",
+]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
 # install CLI, and CI. TOML cannot interpolate, so the pins in [project.dependencies],
@@ -384,17 +391,17 @@ override-dependencies = [
     "typing-extensions>=4.15.0",
     "websockets>=14.0,<17.0.0",
     "coverage>=7.6.1",
+    # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
+    # stricter than the code needs, so widening lets them resolve together at 26.0.
+    "packaging>=20,<27",
+    # usd-exchange and usd-core each vendor a full ``pxr`` built against a different
+    # USD version, and newton[importers] pulls usd-exchange unmarked. Re-impose the
+    # platform split from [project.dependencies] so only one lands per platform.
+    "usd-exchange>=2.2 ; platform_machine == 'aarch64'",
 ]
-# ovphysx pins packaging>=20,<24 while isaacsim-core pins packaging==26.0: a genuine
-# two-sided incompatibility, so uv forks the resolution instead of failing. ``teleop``
-# bundles isaacsim, so it inherits that pair. Every other historical conflict was an
-# over-strict pin that the overrides above now reconcile.
-conflicts = [
-    [{ extra = "teleop" }, { extra = "ov" }],
-    [{ extra = "teleop" }, { extra = "ovphysx" }],
-    [{ extra = "isaacsim" }, { extra = "ov" }],
-    [{ extra = "isaacsim" }, { extra = "ovphysx" }],
-]
+# No extras are forked. ovphysx reconciles with isaacsim through the packaging override
+# above, and ovrtx declares no Python dependencies at all, so every extra -- including the
+# aggregate ``all`` -- resolves into a single environment.
 python-preference = "only-managed"
 package = false
 

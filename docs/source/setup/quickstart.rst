@@ -49,9 +49,9 @@ Training outputs, including checkpoints, are written under ``logs/``. Use
 
    Extras install capabilities; task selectors choose how to use them. For example,
    ``--extra ovphysx`` makes the OV PhysX integration available, while
-   ``physics=ovphysx`` selects it for the task. See
-   :ref:`installation-optional-extras` for the complete list and incompatible
-   combinations.
+   ``physics=ovphysx`` selects it for the task. Extras can be combined freely, and
+   ``--extra all`` installs every one of them. See
+   :ref:`installation-optional-extras` for the complete list.
 
 
 Choose an RL library

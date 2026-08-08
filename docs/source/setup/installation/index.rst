@@ -222,8 +222,16 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
 ``uv run`` installs the core dependencies automatically. The ``--extra <name>``
 option resolves an optional integration only when that command needs it. Place it
 before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
-backends. Pass a comma-separated list or repeat ``--extra``. See
-:ref:`installation-optional-extras` for the available extras and compatibility.
+backends. Pass a comma-separated list or repeat ``--extra``. No extras conflict, so
+any combination resolves into one environment, and ``--extra all`` installs the
+whole feature set at once:
+
+.. code-block:: bash
+
+   uv run --extra all isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Direct physics=isaacsim_physx
+
+See :ref:`installation-optional-extras` for the available extras.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
@@ -585,11 +593,14 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
      - Mesh tetrahedralization / video recording.
    * - ``leapp``
      - LEAP model export support.
+   * - ``all``
+     - Every extra in this table except ``test``.
    * - ``test``
      - Developer test and documentation tooling.
 
-Do not combine ``isaacsim`` or ``teleop`` with ``ov`` or ``ovphysx``. Choose
-either the Isaac Sim or OV backend stack for a command.
+Extras can be combined freely: none of them conflict, so any set of extras -- including
+the Isaac Sim and OV backend stacks together -- resolves into a single environment.
+Use ``all`` when you want everything, at the cost of a much larger install.
 
 .. isaaclab-uv-wheel-install::
 

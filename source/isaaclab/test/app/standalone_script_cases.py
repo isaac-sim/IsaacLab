@@ -159,12 +159,30 @@ OVERRIDES = {
         readiness_pattern=r"Newton granular MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
+    "scripts/demos/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
+        args=("--max_steps", "2", "--voxel_size", "0.2"),
+        readiness_pattern=r"Newton two-way MPM demo ready",
+        fixed_physics_backend="newton_coupler",
+        visualizers=("newton_gl",),
+        required_modules=("isaaclab_contrib",),
+    ),
     "scripts/demos/mpm/particle_pour.py": ScriptOverride(
         args=("--max-steps", "200"),
         readiness_pattern=r"particle-pour MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
     "scripts/demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
+    "scripts/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        fixed_physics_backend="newton_vbd",
+        visualizers=("newton_gl",),
+        required_modules=("isaaclab_contrib",),
+    ),
+    "scripts/demos/newton_viewer_dominoes.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        fixed_physics_backend="newton_xpbd",
+        visualizers=("newton_gl",),
+    ),
     "scripts/demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
     "scripts/demos/sensors/multi_mesh_raycaster.py": ScriptOverride(
         args=("--flat_ground",),

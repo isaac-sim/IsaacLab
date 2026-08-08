@@ -86,6 +86,26 @@ def test_wheel_builder_includes_isaacsim_extra(tmp_path):
     assert any(dep.startswith("isaacsim[") for dep in optional_dependencies["isaacsim"])
 
 
+def test_wheel_builder_expands_all_extra_into_concrete_requirements(tmp_path):
+    """``isaaclab[all]`` must ship the whole feature set, not a self-reference.
+
+    At the root, ``all`` is the self-reference ``isaaclab-dev[...]``. The generator
+    inlines it, so the published wheel carries the concrete third-party requirements
+    for every feature extra.
+    """
+    generated = _generate_wheel_pyproject(tmp_path)
+    optional_dependencies = generated["project"]["optional-dependencies"]
+    all_extra = optional_dependencies["all"]
+
+    assert not any(dep.lower().startswith("isaaclab") for dep in all_extra)
+    # Sampled across the extras ``all`` aggregates: Isaac Sim, both OV backends, an RL
+    # framework, a visualizer, and the extras that used to be left out of the aggregate.
+    for prefix in ("isaacsim[", "ovphysx", "ovrtx", "stable-baselines3", "viser", "pytetwild", "moviepy", "leapp"):
+        assert any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' missing from the 'all' extra"
+    # Developer tooling stays out.
+    assert not any(dep.startswith("pytest") for dep in all_extra)
+
+
 def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(tmp_path):
     """The bundled wheel metadata must install the RSL-RL version declared at the root."""
     expected_pin = _root_rsl_rl_pin()
@@ -109,8 +129,9 @@ def test_wheel_builder_keeps_tetrahedralization_explicit(tmp_path):
 
     assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
     assert optional_dependencies["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
+    # Only the explicit extra and the aggregate ``all`` carry PyTetWild.
     for name, deps in optional_dependencies.items():
-        if name == "tetrahedralization":
+        if name in ("tetrahedralization", "all"):
             continue
         assert not any(dep.startswith("pytetwild") for dep in deps)
 
