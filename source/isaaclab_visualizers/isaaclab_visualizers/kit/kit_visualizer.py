@@ -694,6 +694,24 @@ class KitVisualizer(BaseVisualizer):
             cameras = self._scene_data_provider.get_camera_sensors()
             self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.streaming_sensor_prim_path, env_ids)
             self._camera_sensor_indices = env_ids
+        elif self.cfg.streaming_cam_target_prim_path is None:
+            # When no target prim is configured, adopt the first scene camera rather than
+            # creating an auto-follow camera with a hardcoded prim path.
+            cameras = self._scene_data_provider.get_camera_sensors()
+            if cameras:
+                first_name, first_cam = next(iter(cameras.items()))
+                logger.debug(
+                    "[KitVisualizer] streaming_cam_target_prim_path is None; adopting scene camera %r.",
+                    first_name,
+                )
+                self._camera_sensor = first_cam
+                self._camera_sensor_indices = env_ids
+            else:
+                logger.debug(
+                    "[KitVisualizer] streaming_cam_target_prim_path is None and no scene cameras found; "
+                    "streaming view will be empty. Add a TiledCamera sensor or set "
+                    "streaming_cam_target_prim_path to enable the streaming panel."
+                )
         else:
             count = max(1, len(env_ids))
             tile_w, tile_h = compute_tile_resolution(self.cfg.window_width, self.cfg.window_height, count)

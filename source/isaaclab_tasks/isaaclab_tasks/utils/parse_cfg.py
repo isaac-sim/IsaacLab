@@ -246,7 +246,8 @@ def get_checkpoint_path(
             run_path = os.path.join(runs[-1], *other_dirs)
         else:
             run_path = runs[-1]
-    except IndexError:
+    # os.scandir raises FileNotFoundError when the directory is absent; same meaning: no runs.
+    except (IndexError, FileNotFoundError):
         raise ValueError(f"No runs present in the directory: '{log_path}' match: '{run_dir}'.")
 
     # prefer ``preferred_checkpoint`` when given and it matches; otherwise fall back to the general
