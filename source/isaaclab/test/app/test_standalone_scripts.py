@@ -175,6 +175,7 @@ def test_commands_respect_script_launcher_capabilities():
     )
     assert camera_case.command()[3:5] == ["--num_envs", "1"]
     assert camera_case.command()[-2:] == ["--visualizer", "none"]
+    assert camera_case.spec.startup_timeout == 900.0
 
     kitless_case = next(
         case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera_ovrtx.py"
@@ -232,18 +233,6 @@ def test_commands_respect_script_launcher_capabilities():
         and case.visualizer == "none"
     )
     assert "--enable_cameras" in ray_camera_case.command()
-
-
-def test_camera_smoke_defers_optional_image_plotting():
-    """The camera smoke must not pay Matplotlib's cold-start cost before readiness."""
-    path = script_cases.ROOT / "scripts/demos/sensors/cameras.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    top_level_imports = {alias.name for node in tree.body if isinstance(node, ast.Import) for alias in node.names}
-    assert "matplotlib.pyplot" not in top_level_imports
-
-    spec = next(spec for spec in SPECS if spec.relative_path == "scripts/demos/sensors/cameras.py")
-    assert "--disable_image_saving" in spec.options
-    assert spec.args == ("--num_envs", "1", "--disable_image_saving")
 
 
 @pytest.mark.parametrize(

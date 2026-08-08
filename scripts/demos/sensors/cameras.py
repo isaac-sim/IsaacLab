@@ -26,7 +26,6 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Example on using the different camera sensor implementations.")
 parser.add_argument("--num_envs", type=int, default=4, help="Number of environments to spawn.")
 parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabric API and use USD instead.")
-parser.add_argument("--disable_image_saving", action="store_true", help="Disable periodic camera image saving.")
 parser.add_argument(
     "--physics",
     default="isaacsim_physx",
@@ -50,6 +49,7 @@ simulation_app = app_launcher.app
 
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
@@ -144,9 +144,6 @@ def save_images_grid(
         title: Title of the grid. Defaults to None, in which case no title is shown.
         filename: Path to save the figure. Defaults to None, in which case the figure is not saved.
     """
-    # Matplotlib's first import may build its font cache, so defer it until an image is actually saved.
-    import matplotlib.pyplot as plt
-
     # show images in a grid
     n_images = len(images)
     ncol = int(np.ceil(n_images / nrow))
@@ -190,8 +187,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     # Create output directory to save images
     output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
-    if not args_cli.disable_image_saving:
-        os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
     # Simulate physics
     while simulation_app.is_running():
@@ -250,7 +246,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
         # save every 10th image (for visualization purposes only)
         # note: saving images will slow down the simulation
-        if not args_cli.disable_image_saving and count % 10 == 0:
+        if count % 10 == 0:
             # compare generated RGB images across different cameras
             rgb_images = [scene["camera"].data.output["rgb"][0, ..., :3], scene["tiled_camera"].data.output["rgb"][0]]
             save_images_grid(

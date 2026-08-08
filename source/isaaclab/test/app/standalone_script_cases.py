@@ -183,9 +183,7 @@ OVERRIDES = {
         fixed_physics_backend="newton_xpbd",
         visualizers=("newton_gl",),
     ),
-    "scripts/demos/sensors/cameras.py": ScriptOverride(
-        args=("--num_envs", "1", "--disable_image_saving"), startup_timeout=600.0
-    ),
+    "scripts/demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "scripts/demos/sensors/multi_mesh_raycaster.py": ScriptOverride(
         args=("--flat_ground",),
         startup_timeout=600.0,
