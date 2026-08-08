@@ -5,11 +5,9 @@
 
 """Manager-based counterpart of the Allegro Hand Direct reorientation task."""
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as mdp
@@ -19,37 +17,38 @@ from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import
     GOAL_OBJECT_CFG,
     PhysicsCfg,
 )
-from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ManagerEnvCfg
+from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ManagerEnvCfg, SceneCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
 @configclass
-class AllegroHandManagerSceneCfg(InteractiveSceneCfg):
-    """Shared reorientation scene with the Allegro hand and a ground plane."""
-
-    num_envs = 8192
-    env_spacing = 0.75
+class AllegroHandManagerSceneCfg(SceneCfg):
+    """The shared scene, holding the Allegro hand and its in-hand cube."""
 
     robot: ArticulationCfg = ALLEGRO_HAND_ROBOT_CFG
     object: RigidObjectCfg = CUBE_CFG
-    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    light = AssetBaseCfg(
-        prim_path="/World/Light",
-        spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
-    )
 
 
 @configclass
 class ResetEventCfg:
     """Only the per-episode state reset, with no domain randomization."""
 
-    reset_state = EventTerm(
-        func=mdp.reset_reorient_state,
+    reset_object = EventTerm(
+        func=mdp.reset_root_state_with_random_orientation,
         mode="reset",
         params={
-            "position_noise": 0.01,  # [m]
+            # the Direct task jitters the drop position and samples a random orientation
+            "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg("object"),
+        },
+    )
+    reset_hand = EventTerm(
+        func=mdp.reset_reorient_hand,
+        mode="reset",
+        params={
             "joint_position_noise": 0.2,  # [rad]
             "joint_velocity_noise": 0.0,  # [rad/s]
         },

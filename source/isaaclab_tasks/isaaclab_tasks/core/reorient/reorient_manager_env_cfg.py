@@ -12,6 +12,8 @@ lists, scales and weights are common.
 
 from dataclasses import MISSING
 
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -19,12 +21,30 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.reorient.mdp as mdp
+from isaaclab_tasks.utils import PresetCfg
+
+
+@configclass
+class SceneCfg(InteractiveSceneCfg):
+    """Shared reorientation scene. A hand supplies its robot and its object."""
+
+    num_envs = 8192
+    env_spacing = 0.75
+
+    robot: PresetCfg | ArticulationCfg = MISSING
+    object: RigidObjectCfg = MISSING
+    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    light = AssetBaseCfg(
+        prim_path="/World/Light",
+        spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
+    )
 
 
 @configclass
@@ -55,17 +75,30 @@ class ActionsCfg:
 
 
 @configclass
-class FullStateObsCfg(ObsGroup):
-    """The full state, before the action terms.
+class RobotObsCfg(ObsGroup):
+    """What the hand can measure about itself.
 
-    The two fingertip terms are the only hand-specific entries; the env cfg fills
-    their ``asset_cfg`` from :attr:`ManagerEnvCfg.fingertip_body_names`.
+    The fingertip terms are the only hand-specific entries; the env cfg fills their
+    ``asset_cfg`` from :attr:`ManagerEnvCfg.fingertip_body_names`.
     """
 
-    # -- robot
     joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("robot")})
     joint_vel = ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("robot")})
-    # -- object
+    fingertip_pose = ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": MISSING})
+    fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": MISSING})
+
+    def __post_init__(self):
+        self.concatenate_terms = True
+
+
+@configclass
+class ObjectObsCfg(ObsGroup):
+    """The object's state and its goal.
+
+    A camera task replaces this half with learned features, so it is kept separate
+    from :class:`RobotObsCfg` rather than nulled out per task.
+    """
+
     object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
     object_quat = ObsTerm(
         func=mdp.root_quat_w,
@@ -73,18 +106,19 @@ class FullStateObsCfg(ObsGroup):
     )
     object_lin_vel = ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
     object_ang_vel = ObsTerm(func=mdp.root_ang_vel_w, scale=0.2, params={"asset_cfg": SceneEntityCfg("object")})
-    # -- command
     goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
     goal_quat_diff = ObsTerm(
         func=mdp.goal_quat_diff,
         params={"asset_cfg": SceneEntityCfg("object"), "command_name": "object_pose", "make_quat_unique": False},
     )
-    # -- robot fingertips
-    fingertip_pose = ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": MISSING})
-    fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": MISSING})
 
     def __post_init__(self):
         self.concatenate_terms = True
+
+
+@configclass
+class FullStateObsCfg(RobotObsCfg, ObjectObsCfg):
+    """The full state, before the action terms."""
 
 
 @configclass

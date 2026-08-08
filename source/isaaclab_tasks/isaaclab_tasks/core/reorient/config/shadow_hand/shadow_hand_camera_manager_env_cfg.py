@@ -21,6 +21,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg
     ShadowHandManagerEnvCfg,
     ShadowHandManagerSceneCfg,
 )
+from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import RobotObsCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_FINGERTIP_BODY_NAMES
 
@@ -32,15 +33,21 @@ class ShadowHandCameraManagerSceneCfg(ShadowHandManagerSceneCfg):
     num_envs = 1225
     env_spacing = 2.0
 
+    # does it not need ground? or is ground needed at all in general?
     ground = None
     tiled_camera: ShadowHandTiledCameraCfg = ShadowHandTiledCameraCfg()
     joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
 @configclass
-class CameraPolicyCfg(FullStateObsCfg):
-    """Direct-compatible 191-dimensional camera actor observation."""
+class CameraPolicyCfg(RobotObsCfg):
+    """Direct-compatible camera actor observation.
 
+    Builds on the robot half only: the object half is inferred from pixels, so the
+    privileged object and goal-difference terms belong to the critic alone.
+    """
+
+    goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
     last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
     camera_features = ObsTerm(
         func=mdp.ShadowHandCameraFeatures,
@@ -53,14 +60,7 @@ class CameraPolicyCfg(FullStateObsCfg):
     goal_keypoints = ObsTerm(func=mdp.shadow_hand_goal_keypoints, params={"command_name": "object_pose"})
 
     def __post_init__(self):
-        super().__post_init__()
-        # Camera actor observations infer object state from pixels. These five
-        # privileged state terms are present only in the critic.
-        self.object_pos = None
-        self.object_quat = None
-        self.object_lin_vel = None
-        self.object_ang_vel = None
-        self.goal_quat_diff = None
+        self.concatenate_terms = True
 
 
 @configclass

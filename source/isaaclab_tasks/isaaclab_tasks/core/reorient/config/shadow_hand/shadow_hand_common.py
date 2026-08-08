@@ -10,7 +10,7 @@ domain-randomization presets, and the sim mixins. No task tunables: reward
 scales and thresholds live inline in the workflow configuration files.
 """
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -119,11 +119,20 @@ class ShadowHandEventCfg:
 class ShadowHandManagerResetEventCfg:
     """Only the per-episode state reset, with no domain randomization."""
 
-    reset_state = EventTerm(
-        func=reorient_mdp.reset_reorient_state,
+    reset_object = EventTerm(
+        func=mdp.reset_root_state_with_random_orientation,
         mode="reset",
         params={
-            "position_noise": 0.01,  # [m]
+            # the Direct task jitters the drop position and samples a random orientation
+            "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg("object"),
+        },
+    )
+    reset_hand = EventTerm(
+        func=reorient_mdp.reset_reorient_hand,
+        mode="reset",
+        params={
             "joint_position_noise": 0.2,  # [rad]
             "joint_velocity_noise": 0.0,  # [rad/s]
         },
@@ -168,7 +177,6 @@ class ShadowHandRobotCfg(PresetCfg):
         ),
     )
     default = newton_mjwarp
-    newton_kamino = newton_mjwarp
 
 
 CUBE_CFG = RigidObjectCfg(
@@ -216,7 +224,6 @@ class PhysicsCfg(PresetCfg):
     ovphysx = OvPhysxCfg()
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=128))
 
 
 GOAL_OBJECT_CFG = VisualizationMarkersCfg(

@@ -286,14 +286,13 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-shadow|           | |cube-shadow-link|           | In-hand reorientation of a cube using Shadow hand                           | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
-    |                         | |cube-shadow-ff-link|        |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
+    |                         | |cube-shadow-ff-link|        |                                                                             |                                         |
     |                         |                              |                                                                             |                                         |
     |                         | |cube-shadow-lstm-link|      |                                                                             |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-shadow|           | |cube-shadow-vis-link|       | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
-    |                         |                              |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     |                         |                              |                                                                             | **presets=** ``albedo``, ``depth``,     |
@@ -1072,45 +1071,45 @@ including disabling runtime perturbations used for training.
       - **Workflow**
       - **RL Library**
       - **Presets**
+    * - Isaac-Ant-Direct
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Ant
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Ant-Direct
+    * - Isaac-Cartpole-Direct
       - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Cartpole
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Cartpole-Camera
-      - Manager Based
-      - **rl_games** (PPO, FEATURE), **rsl_rl** (PPO, FEATURE)
-      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
-          | **presets=** ``albedo``, ``depth``, ``resnet18``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``, ``theia_tiny``
     * - Isaac-Cartpole-Camera-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
           | **presets=** ``albedo``, ``depth``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
-    * - Isaac-Cartpole-Direct
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Cartpole-Camera
+      - Manager Based
+      - **rl_games** (PPO, FEATURE), **rsl_rl** (PPO, FEATURE)
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
+          | **presets=** ``albedo``, ``depth``, ``resnet18``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``, ``theia_tiny``
     * - Isaac-Fourbar-Pole-Swingup
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_kamino``
-    * - Isaac-Humanoid
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Humanoid-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Humanoid
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Lift-Cloth-Franka
       - Manager Based
@@ -1146,12 +1145,12 @@ including disabling runtime perturbations used for training.
       - **rsl_rl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
-    * - Isaac-Open-Drawer-Franka
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
     * - Isaac-Open-Drawer-Franka-Direct
       - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      -
+    * - Isaac-Open-Drawer-Franka
+      - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
     * - Isaac-Pendulum-Direct
@@ -1172,36 +1171,34 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Reorient-Cube-Allegro-Direct
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reorient-Cube-Allegro
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
           | **presets=** ``randomized``
-    * - Isaac-Reorient-Cube-Allegro-Direct
+    * - Isaac-Reorient-Cube-Shadow-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reorient-Cube-Shadow
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
           | **presets=** ``asymmetric``, ``randomized``
-    * - Isaac-Reorient-Cube-Shadow-Camera
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
-          | **presets=** ``albedo``, ``depth``, ``full``, ``randomized``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Reorient-Cube-Shadow-Camera-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
           | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
-    * - Isaac-Reorient-Cube-Shadow-Direct
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Reorient-Cube-Shadow-Camera
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+      -
     * - Isaac-Reorient-Franka
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1450,7 +1447,7 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Reorient-Cube-Shadow-OpenAI-Direct
       - Direct
       - **rl_games** (PPO, LSTM), **rsl_rl** (PPO, LSTM), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic
       - Manager Based
       -
@@ -1562,14 +1559,14 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - IsaacContrib-Velocity-Flat-AnymalC
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Velocity-Flat-AnymalC-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - IsaacContrib-Velocity-Flat-AnymalC
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Velocity-Flat-Digit
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1590,14 +1587,14 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
-    * - IsaacContrib-Velocity-Rough-AnymalC
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Velocity-Rough-AnymalC-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - IsaacContrib-Velocity-Rough-AnymalC
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Velocity-Rough-Digit
       - Manager Based
       - **rsl_rl** (PPO)

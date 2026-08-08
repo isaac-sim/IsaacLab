@@ -10,48 +10,36 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
-
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 
-from isaaclab_tasks.core.reorient.utils import random_xy_rotation, sample_joint_positions_within_limits
+from isaaclab_tasks.core.reorient.utils import sample_joint_positions_within_limits
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def reset_reorient_state(
+def reset_reorient_hand(
     env: ManagerBasedRLEnv,
     env_ids: Sequence[int],
-    position_noise: float,
     joint_position_noise: float,
     joint_velocity_noise: float,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
 ) -> None:
-    """Reset the object and hand with the Direct task's distributions.
+    """Reset the hand's joints and the position targets tracking them.
+
+    Task-local rather than :func:`~isaaclab.envs.mdp.reset_joints_by_offset`: the
+    hand's PD targets must be re-seeded alongside the joint state, and the framework
+    terms write joint state only.
 
     Args:
-        env: Environment containing the robot and object.
+        env: Environment containing the robot.
         env_ids: Environment indices to reset.
-        position_noise: Object-position noise half-width [m].
         joint_position_noise: Scale applied to sampled joint-position deltas.
         joint_velocity_noise: Joint-velocity noise half-width [rad/s].
         robot_cfg: Robot scene entity.
-        object_cfg: Object scene entity.
     """
-
-    object_asset: Articulation | RigidObject = env.scene[object_cfg.name]
-    object_pose = object_asset.data.default_root_pose.torch[env_ids].clone()
-    object_velocity = torch.zeros_like(object_asset.data.default_root_vel.torch[env_ids])
-    position_delta = math_utils.sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=env.device)
-    object_pose[:, :3] += position_noise * position_delta + env.scene.env_origins[env_ids]
-    object_pose[:, 3:7] = random_xy_rotation(len(env_ids), env.device)
-    object_asset.write_root_pose_to_sim_index(root_pose=object_pose, env_ids=env_ids)
-    object_asset.write_root_velocity_to_sim_index(root_velocity=object_velocity, env_ids=env_ids)
-
     robot: Articulation = env.scene[robot_cfg.name]
     default_position = robot.data.default_joint_pos.torch[env_ids]
     limits = robot.data.joint_limits.torch[env_ids]

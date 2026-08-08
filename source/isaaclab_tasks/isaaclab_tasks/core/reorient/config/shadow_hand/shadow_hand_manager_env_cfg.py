@@ -5,12 +5,10 @@
 
 """Manager-based counterpart of the state-based Shadow Hand reorientation task."""
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.utils.configclass import configclass
 
@@ -25,26 +23,23 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
 from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import (
     FullStateObsCfg,
     ManagerEnvCfg,
+    SceneCfg,
 )
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_ACTUATED_JOINT_NAMES, SHADOW_FINGERTIP_BODY_NAMES
 
+##
+# Default: full-state actor.
+##
+
 
 @configclass
-class ShadowHandManagerSceneCfg(InteractiveSceneCfg):
-    """Shared reorientation scene with the Shadow hand and a ground plane."""
-
-    num_envs = 8192
-    env_spacing = 0.75
+class ShadowHandManagerSceneCfg(SceneCfg):
+    """The shared scene, holding the Shadow hand and its in-hand cube."""
 
     robot: PresetCfg = ShadowHandRobotCfg()
     object: RigidObjectCfg = CUBE_CFG
-    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    light = AssetBaseCfg(
-        prim_path="/World/Light",
-        spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
-    )
 
 
 @configclass
@@ -64,6 +59,11 @@ class ShadowHandManagerEnvCfg(ManagerEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.sim.physics = PhysicsCfg()
+
+
+##
+# ``presets=asymmetric``: reduced actor, privileged critic.
+##
 
 
 @configclass
@@ -124,7 +124,3 @@ class ShadowHandManagerEnvPresetCfg(PresetCfg):
 
     asymmetric = ShadowHandAsymmetricEnvCfg()
     default = ShadowHandManagerEnvCfg()
-
-
-# The camera task composes the shared full-state group.
-FullStateObsCfg = FullStateObsCfg
