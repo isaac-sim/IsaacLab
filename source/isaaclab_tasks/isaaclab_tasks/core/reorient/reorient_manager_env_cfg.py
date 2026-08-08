@@ -161,12 +161,13 @@ class ManagerEnvCfg(ManagerBasedRLEnvCfg):
     )
 
     def __post_init__(self):
-        fingertips = SceneEntityCfg("robot", body_names=self.fingertip_body_names)
         for group in vars(self.observations).values():
             for name in ("fingertip_pose", "fingertip_vel"):
                 term = getattr(group, name, None)
                 if term is not None:
-                    term.params["asset_cfg"] = fingertips
+                    # a fresh entity per term: the manager fills in body_ids on the
+                    # instance it resolves, so a shared one goes inconsistent
+                    term.params["asset_cfg"] = SceneEntityCfg("robot", body_names=self.fingertip_body_names)
         self.actions.joint_pos.joint_names = self.actuated_joint_names
         self.commands.object_pose.orientation_success_threshold = self.goal_orientation_threshold
         self.commands.object_pose.goal_pose_visualizer_cfg = self.goal_marker_cfg
