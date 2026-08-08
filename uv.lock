@@ -2596,6 +2596,7 @@ requires-dist = [
     { name = "pytetwild", extras = ["all"], marker = "extra == 'tetrahedralization'", specifier = ">=0.3.0,<0.4" },
     { name = "ray", extras = ["default"], marker = "extra == 'rlinf'", specifier = ">=2.47.0" },
     { name = "rerun-sdk", marker = "extra == 'rerun'", specifier = ">=0.29.0" },
+    { name = "rich" },
     { name = "rich", marker = "extra == 'sb3'" },
     { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=python3.11" },
     { name = "robomimic", marker = "sys_platform == 'linux' and extra == 'mimic'", git = "https://github.com/ARISE-Initiative/robomimic.git?rev=v0.4.0" },
