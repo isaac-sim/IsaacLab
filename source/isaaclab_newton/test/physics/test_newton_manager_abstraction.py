@@ -117,6 +117,14 @@ SOLVER_MATRIX = [
     ),
 ]
 
+RIGID_BODY_FORCE_INPUT_SUPPORT = {
+    NewtonMJWarpManager: True,
+    NewtonXPBDManager: True,
+    NewtonFeatherstoneManager: True,
+    NewtonKaminoManager: True,
+    NewtonMPMManager: False,
+}
+
 
 # ---------------------------------------------------------------------------
 # class_type wiring (no SimulationContext required)
@@ -659,6 +667,49 @@ def test_subclass_of_newton_manager(manager):
     assert manager._create_solver is not NewtonManager._create_solver
 
 
+def test_clear_resets_rigid_body_force_capability(monkeypatch):
+    """Teardown clears the canonical solver capability without subclass shadowing."""
+    monkeypatch.setattr(NewtonManager, "_supports_rigid_body_force_input", True)
+
+    NewtonManager.clear()
+
+    assert NewtonManager._supports_rigid_body_force_input is False
+    for manager in (
+        NewtonMJWarpManager,
+        NewtonXPBDManager,
+        NewtonFeatherstoneManager,
+        NewtonKaminoManager,
+        NewtonMPMManager,
+    ):
+        assert manager._supports_rigid_body_force_input is False
+
+
+def test_initialize_solver_prepares_picking_before_graph_capture(monkeypatch):
+    """Viewer force callbacks are registered after capability publication and before capture."""
+    events: list[str] = []
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.physics_manager.create_builder()
+        body = builder.add_body(mass=1.0)
+        builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        NewtonManager.set_builder(builder)
+        monkeypatch.setattr(sim, "_prepare_newton_visualizer_for_capture", lambda: events.append("prepare"))
+        monkeypatch.setattr(
+            NewtonMJWarpManager,
+            "_capture_or_defer_graph",
+            classmethod(lambda cls: events.append("capture")),
+        )
+
+        sim.reset()
+
+    assert events == ["prepare", "capture"]
+
+
 def test_abstract_build_solver_raises():
     """Calling :meth:`_build_solver` on the abstract base raises."""
     with pytest.raises(NotImplementedError):
@@ -717,16 +768,19 @@ def test_initialize_solver_populates_canonical_state(
        registered on the builder before particle creation.
     2. :class:`SolverMuJoCo` requires at least one joint to convert the model
        to MJCF; a ground-plane-only scene fails MJCF conversion.
-    3. Pre-populating ``NewtonManager._builder`` causes
+    3. Kamino's internal collision detector requires collidable geometry to
+       construct its collision pipeline.
+    4. Pre-populating ``NewtonManager._builder`` causes
        :meth:`NewtonManager.start_simulation` to skip
        :meth:`instantiate_builder_from_stage`, so the test does not depend on
        USD asset packages.
     """
+    solver_cfg = solver_cfg_factory()
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
         device="cuda:0",
         gravity=(0.0, 0.0, -9.81),
-        physics=NewtonCfg(solver_cfg=solver_cfg_factory(), use_cuda_graph=False),
+        physics=NewtonCfg(solver_cfg=solver_cfg, use_cuda_graph=False),
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -759,9 +813,14 @@ def test_initialize_solver_populates_canonical_state(
             # something to work with.
             body = builder.add_body(mass=1.0)
             builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            if isinstance(solver_cfg, KaminoSolverCfg) and solver_cfg.use_collision_detector:
+                builder.add_shape_sphere(body=body, radius=0.05)
+                builder.add_ground_plane()
         NewtonManager.set_builder(builder)
 
         # Force resolution and bring up the solver.
+        expected_supports_force_input = RIGID_BODY_FORCE_INPUT_SUPPORT[expected_manager]
+        NewtonManager._supports_rigid_body_force_input = not expected_supports_force_input
         sim.reset()
 
         # Canonical state lives on the base class.
@@ -769,6 +828,7 @@ def test_initialize_solver_populates_canonical_state(
         assert isinstance(NewtonManager._solver, expected_solver_cls)
         assert NewtonManager._use_single_state is expected_use_single_state
         assert NewtonManager._needs_collision_pipeline is expected_needs_collision_pipeline
+        assert NewtonManager._supports_rigid_body_force_input is expected_supports_force_input
         assert NewtonManager._reset_solver_internals_delegate.__self__ is expected_manager
         assert (
             NewtonManager._reset_solver_internals_delegate.__func__ is expected_manager._reset_solver_internals.__func__
@@ -878,6 +938,58 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
 
         # Expect: 1 (top-of-tick) + expected_mid_loop_collides.
         assert calls["n"] == 1 + expected_mid_loop_collides
+
+
+@pytest.mark.parametrize("use_single_state", [True, False], ids=["single_state", "double_state"])
+def test_state_force_callback_runs_before_every_solver_substep(monkeypatch, use_single_state):
+    """Viewer forces are applied to each current input state before solver stepping."""
+    events = []
+
+    class _State:
+        def __init__(self, name):
+            self.name = name
+
+        def clear_forces(self):
+            pass
+
+    state_0 = _State("state_0")
+    state_1 = _State("state_1")
+
+    monkeypatch.setattr(NewtonManager, "_state_0", state_0)
+    monkeypatch.setattr(NewtonManager, "_state_1", state_1)
+    monkeypatch.setattr(NewtonManager, "_control", object())
+    monkeypatch.setattr(NewtonManager, "_solver_dt", 0.001)
+    monkeypatch.setattr(NewtonManager, "_num_substeps", 2)
+    monkeypatch.setattr(NewtonManager, "_collision_decimation", 0)
+    monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False)
+    monkeypatch.setattr(NewtonManager, "_use_single_state", use_single_state)
+    monkeypatch.setattr(
+        NewtonManager,
+        "_state_force_callbacks",
+        [lambda state: events.append(("force", state.name))],
+    )
+    monkeypatch.setattr(
+        NewtonManager,
+        "_step_solver",
+        staticmethod(lambda state_in, state_out, *_args: events.append(("step", state_in.name, state_out.name))),
+    )
+
+    NewtonManager._run_solver_substeps(contacts=None)
+
+    if use_single_state:
+        assert events == [
+            ("force", "state_0"),
+            ("step", "state_0", "state_0"),
+            ("force", "state_0"),
+            ("step", "state_0", "state_0"),
+        ]
+    else:
+        assert events == [
+            ("force", "state_0"),
+            ("step", "state_0", "state_1"),
+            ("force", "state_1"),
+            ("step", "state_1", "state_0"),
+        ]
 
 
 # ---------------------------------------------------------------------------

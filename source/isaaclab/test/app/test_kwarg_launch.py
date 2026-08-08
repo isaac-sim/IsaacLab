@@ -64,6 +64,64 @@ def test_explicit_experience_requires_isaac_sim_runtime():
     assert _get_kit_runtime_sources(scan, args)
 
 
+_XR_KIT = {"xr": True, "visualizer": ["kit"], "visualizer_explicit": True}
+
+
+@pytest.mark.parametrize(
+    "launcher_args, headless_env, livestream, expected_headless, expected_has_window",
+    [
+        # XR with no CLI visualizer: headless even though the task config asks for a window.
+        ({"xr": True}, 0, 0, True, False),
+        # An explicit '--viz kit' is the only way to get a viewport alongside XR.
+        (_XR_KIT, 0, 0, False, True),
+        ({"xr": True, "visualizer": ["none"], "visualizer_explicit": True}, 0, 0, True, False),
+        # ...but an explicit '--viz kit' cannot override HEADLESS=1.
+        (_XR_KIT, 1, 0, True, False),
+        # Livestreaming forces headless yet still presents a window to the remote client.
+        (_XR_KIT, 0, 1, True, True),
+        ({}, 0, 1, True, True),
+        # Without XR or livestream the task config still decides.
+        ({}, 0, 0, False, True),
+    ],
+)
+def test_xr_without_explicit_windowed_visualizer_forces_headless(
+    launcher_args: dict,
+    headless_env: int,
+    livestream: int,
+    expected_headless: bool,
+    expected_has_window: bool,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Test that enabling XR runs headless unless a windowed visualizer is explicitly requested.
+
+    A task config declaring a windowed visualizer must not leave ``--xr`` opening a window nobody
+    asked for, and ``HEADLESS=1`` / livestreaming must keep forcing headless even when one was
+    explicitly requested. Resolution is exercised directly to avoid launching Isaac Sim; what the
+    resolved state then publishes is asserted by
+    :func:`test_load_extensions_publishes_has_gui_setting`.
+
+    ``has_window`` is asserted alongside because it is deliberately *not* the negation of
+    headless: livestreaming is headless but windowed.
+    """
+    monkeypatch.setenv("HEADLESS", str(headless_env))
+    # XR is read from the environment too, and is routinely exported by people working on this
+    # feature -- pin it so the parametrization is what decides.
+    monkeypatch.delenv("XR", raising=False)
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._livestream = livestream
+    args = {
+        "visualizer_intent": {"has_any_visualizers": True, "has_kit_visualizer": True},
+        **launcher_args,
+    }
+
+    launcher._resolve_visualizer_settings(args)
+    launcher._resolve_xr_settings(args)
+    launcher._resolve_headless_settings(args, livestream_arg=-1, livestream_env=0)
+
+    assert launcher._headless is expected_headless
+    assert launcher.has_window is expected_has_window
+
+
 def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.MonkeyPatch):
     close_args = {}
 
@@ -150,6 +208,20 @@ def test_deferred_cuda_device_synchronizes_torch_and_warp(monkeypatch: pytest.Mo
     assert devices == [2]
 
 
+def test_limit_cpu_threads_forwarded_to_simulation_app(monkeypatch: pytest.MonkeyPatch):
+    """A SimulationApp thread limit must survive AppLauncher config resolution."""
+    monkeypatch.setenv("HEADLESS", "0")
+    monkeypatch.setenv("LIVESTREAM", "0")
+    monkeypatch.setenv("XR", "0")
+
+    launcher = AppLauncher.__new__(AppLauncher)
+    monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
+
+    launcher._config_resolution({"headless": True, "device": "cpu", "limit_cpu_threads": 1})
+
+    assert launcher._sim_app_config["limit_cpu_threads"] == 1
+
+
 class _DummySettings:
     def __init__(self):
         self.values = {}
@@ -189,18 +261,31 @@ def test_load_extensions_publishes_deterministic_setting(monkeypatch: pytest.Mon
 
 
 @pytest.mark.parametrize(
-    ("headless", "livestream", "xr", "expected_has_gui"),
+    ("headless", "livestream", "xr", "expected_has_gui", "expected_xr_auto_start"),
     [
-        pytest.param(False, 0, False, True, id="local-window"),
-        pytest.param(True, 0, False, False, id="headless"),
-        pytest.param(True, 1, False, True, id="livestream"),
-        pytest.param(True, 0, True, True, id="xr"),
+        pytest.param(False, 0, False, True, False, id="local-window"),
+        pytest.param(True, 0, False, False, False, id="headless"),
+        pytest.param(True, 1, False, True, False, id="livestream"),
+        pytest.param(True, 0, True, True, True, id="xr"),
+        # XR with a window: the operator starts the session, so it must not auto-start.
+        pytest.param(False, 0, True, True, False, id="xr-windowed"),
+        # ...but a windowless XR run must, however that windowless state was reached.
+        pytest.param(True, 1, True, True, True, id="xr-livestream"),
     ],
 )
 def test_load_extensions_publishes_has_gui_setting(
-    monkeypatch: pytest.MonkeyPatch, headless: bool, livestream: int, xr: bool, expected_has_gui: bool
+    monkeypatch: pytest.MonkeyPatch,
+    headless: bool,
+    livestream: int,
+    xr: bool,
+    expected_has_gui: bool,
+    expected_xr_auto_start: bool,
 ):
-    """Publish the GUI state consumed by SimulationContext and RTX rendering."""
+    """Publish the GUI and XR auto-start state consumed by SimulationContext and the teleop stack.
+
+    Asserted at the publication site rather than by recomputing the expression, so that changing
+    what is published fails here instead of silently agreeing with a restated formula.
+    """
     launcher = AppLauncher.__new__(AppLauncher)
     launcher._deterministic_rendering = False
     launcher._python_logging_level = logging.ERROR
@@ -220,6 +305,7 @@ def test_load_extensions_publishes_has_gui_setting(
     launcher._load_extensions()
 
     assert settings.values["/isaaclab/has_gui"] is expected_has_gui
+    assert settings.values["/isaaclab/xr/auto_start"] is expected_xr_auto_start
 
 
 def test_set_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
@@ -336,15 +422,14 @@ def test_matrix_no_cli_with_cfg_kit_newton_non_headless(monkeypatch: pytest.Monk
     assert launcher._cli_visualizer_explicit is False
 
 
-def test_matrix_converter_default_dict_resolves_headless(monkeypatch: pytest.MonkeyPatch):
-    # pins the converter CLI contract: ConverterCli.parse_args launches AppLauncher({})
-    # for conversion without preview, which must stay headless
+def test_matrix_empty_dict_resolves_headless(monkeypatch: pytest.MonkeyPatch):
+    # tools that launch Kit only to reach an extension API pass no visualizer, and must stay headless
     headless, _ = _resolve_headless_for_case(monkeypatch, {})
     assert headless is True
 
 
-def test_matrix_converter_viz_kit_dict_resolves_windowed(monkeypatch: pytest.MonkeyPatch):
-    # pins the converter CLI contract: AppLauncher({"visualizer": ["kit"]}) must open a window
+def test_matrix_viz_kit_dict_resolves_windowed(monkeypatch: pytest.MonkeyPatch):
+    # a Kit viewport only exists when the launcher is told to create it
     headless, launcher = _resolve_headless_for_case(monkeypatch, {"visualizer": ["kit"]})
     assert headless is False
     assert launcher._cli_visualizer_types == ["kit"]

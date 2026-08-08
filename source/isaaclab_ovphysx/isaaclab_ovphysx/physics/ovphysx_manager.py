@@ -143,6 +143,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                 row_count = int(pose_binding.shape[0])
                 if row_count == 0:
                     logger.debug("Pattern %s matched 0 rigid bodies; skipping.", pattern)
+                    view.close()
                     continue
                 pose_buf = wp.zeros(pose_binding.shape, dtype=wp.float32, device=device)
                 # Zero-copy reinterpret of the (N, 7) float32 staging buffer as (N,) wp.transformf.
@@ -456,6 +457,8 @@ class OvPhysxManager(PhysicsManager):
             return
         registry = Plug.Registry()
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
+        # The wheel documents ``<module>/resources`` as its stable layout and its
+        # bundled plugin names match those module directory names case-insensitively.
         schema_paths = [
             str(path) for path in ovphysx.codeless_schema_paths() if path.parent.name.casefold() not in registered_names
         ]
@@ -621,7 +624,7 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _prepare_physx_for_stage_reuse(cls) -> None:
-        """Drain stage-bound handles after :meth:`reset` has dispatched STOP."""
+        """Drain stage-bound handles before reusing the active runtime for another stage."""
         physx = cls._physx
         if physx is None:
             return
@@ -927,7 +930,10 @@ class OvPhysxManager(PhysicsManager):
             return
         try:
             sim = PhysicsManager._sim
-            if sim is not None and sim.physics_manager is cls:
+            is_active_manager = sim is not None and (
+                sim.physics_manager is cls or sim.physics_manager == f"{cls.__module__}:{cls.__qualname__}"
+            )
+            if is_active_manager:
                 cls.close()
             else:
                 # Do not clear another backend's shared callbacks or simulation

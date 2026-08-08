@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -17,55 +16,6 @@ from newton import GeoType, ModelBuilder, ShapeFlags, solvers
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-
-# USD ``physics:approximation`` token (lower case) -> Newton remeshing method.
-# Mirrors Newton's own importer mapping; ``none`` keeps the raw trimesh.
-_APPROXIMATION_TO_REMESHING_METHOD = {
-    "convexdecomposition": "coacd",
-    "convexhull": "convex_hull",
-    "boundingsphere": "bounding_sphere",
-    "boundingcube": "bounding_box",
-    "meshsimplification": "quadratic",
-}
-
-
-def _authored_collision_approximations(stage: Usd.Stage) -> dict[str, str]:
-    """Prim path -> authored ``physics:approximation`` token (lower case).
-
-    SDF collision prims are excluded: the attribute has no meaning on a shape with
-    ``NewtonSDFCollisionAPI`` applied (matching Newton's importer semantics).
-    """
-    authored: dict[str, str] = {}
-    for prim in stage.Traverse():
-        attr = UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr()
-        if attr and attr.HasAuthoredValue() and "NewtonSDFCollisionAPI" not in prim.GetAppliedSchemas():
-            authored[prim.GetPath().pathString] = str(attr.Get()).lower()
-    return authored
-
-
-def _apply_authored_approximations(builder: ModelBuilder, path_shape_map: dict, authored: dict[str, str]) -> set[int]:
-    """Remesh authored collision shapes (visual shapes preserved); return their indices."""
-    authored_shape_indices: set[int] = set()
-    for path, mode in authored.items():
-        index = path_shape_map.get(path)
-        if index is None:
-            continue
-        authored_shape_indices.add(index)
-        method = _APPROXIMATION_TO_REMESHING_METHOD.get(mode)
-        if method is not None:
-            builder.approximate_meshes(method, shape_indices=[index], keep_visual_shapes=True)
-    return authored_shape_indices
-
-
-def _unauthored_collision_mesh_shapes(builder: ModelBuilder, authored_shape_indices: set[int]) -> list[int]:
-    """Colliding mesh shapes not covered by an authored ``physics:approximation``."""
-    return [
-        index
-        for index, shape_type in enumerate(builder.shape_type)
-        if shape_type == GeoType.MESH
-        and (builder.shape_flags[index] & ShapeFlags.COLLIDE_SHAPES)
-        and index not in authored_shape_indices
-    ]
 
 
 def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
@@ -145,16 +95,14 @@ def build_source_builders(
     schema_resolvers: Sequence[Any],
     *,
     ignore_paths: Sequence[str] | None = None,
-    simplify_meshes: bool = True,
     load_visual_shapes: bool = True,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
-    USD-authored ``physics:approximation`` modes are honored (applied after import so
-    visual shapes are preserved for visualization/rendering). Exception: when the
-    honored modes leave multiple sources with differing shape-type sequences (e.g.
-    heterogeneous asset variants), every mesh falls back to the uniform convex-hull
-    treatment, because :class:`SolverMuJoCo` requires homogeneous worlds.
+    The cloner approximates nothing. Collision geometry is whatever the asset authored:
+    Newton's importer applies each shape's ``physics:approximation`` while importing, and
+    USD defaults that token to ``none``, meaning "use the mesh as-is". Change it where it
+    is authored -- the mesh-collision schema fragments on the spawner -- not here.
 
     Args:
         stage: USD stage containing the source prims.
@@ -162,43 +110,14 @@ def build_source_builders(
         create_builder: Factory returning a fresh :class:`ModelBuilder`.
         schema_resolvers: Schema resolvers forwarded to Newton's USD importer.
         ignore_paths: Prim paths skipped during import.
-        simplify_meshes: Whether to run convex-hull mesh approximation.
         load_visual_shapes: Whether to import visual-only geometry. Importing it costs
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
     """
-    authored = _authored_collision_approximations(stage)
-    builders = {
-        source: _build_source_builder(
-            stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, authored, load_visual_shapes
-        )
+    return {
+        source: _build_source_builder(stage, source, create_builder, schema_resolvers, ignore_paths, load_visual_shapes)
         for source in sources
     }
-
-    if authored and len(builders) > 1:
-        shape_sequences = {tuple(int(t) for t in b.shape_type) for b in builders.values()}
-        if len(shape_sequences) > 1:
-            warnings.warn(
-                "Clone sources have differing collision shape sequences after honoring authored"
-                " physics:approximation modes, which SolverMuJoCo's homogeneous-worlds requirement"
-                " does not support. Falling back to uniform convex-hull approximation for all"
-                " collision meshes.",
-                stacklevel=2,
-            )
-            builders = {
-                source: _build_source_builder(
-                    stage,
-                    source,
-                    create_builder,
-                    schema_resolvers,
-                    ignore_paths,
-                    simplify_meshes,
-                    {},
-                    load_visual_shapes,
-                )
-                for source in sources
-            }
-    return builders
 
 
 def _build_source_builder(
@@ -207,11 +126,9 @@ def _build_source_builder(
     create_builder: Callable[[], ModelBuilder],
     schema_resolvers: Sequence[Any],
     ignore_paths: Sequence[str] | None,
-    simplify_meshes: bool,
-    authored: dict[str, str],
     load_visual_shapes: bool = True,
 ) -> ModelBuilder:
-    """Build one source builder; an empty ``authored`` map restores hull-everything."""
+    """Build one source builder."""
     builder = create_builder()
     solvers.SolverMuJoCo.register_custom_attributes(builder)
     solvers.SolverKamino.register_custom_attributes(builder)
@@ -220,23 +137,13 @@ def _build_source_builder(
         root_path=source,
         load_visual_shapes=load_visual_shapes,
         hide_collision_shapes=True,
-        skip_mesh_approximation=True,
+        skip_mesh_approximation=False,
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
     )
     _restore_visible_colliders_without_visual_shapes(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
     )
-    if authored:
-        authored_shape_indices = _apply_authored_approximations(builder, import_result["path_shape_map"], authored)
-        if simplify_meshes:
-            builder.approximate_meshes(
-                "convex_hull",
-                shape_indices=_unauthored_collision_mesh_shapes(builder, authored_shape_indices),
-                keep_visual_shapes=True,
-            )
-    elif simplify_meshes:
-        builder.approximate_meshes("convex_hull", keep_visual_shapes=True)
     replace_newton_builder_shape_colors(builder, stage)
     return builder
 
@@ -287,7 +194,6 @@ def replicate_builder_mapping(
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, list[float], list[float]], None]] = (),
-    post_replicate_hooks: Sequence[Callable[[ModelBuilder], None]] = (),
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
     """Replicate source builders into per-env Newton worlds."""
     source_site_indices = source_site_indices or {}
@@ -332,8 +238,6 @@ def replicate_builder_mapping(
                 [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
             ]
 
-        for hook in post_replicate_hooks:
-            hook(builder)
         return local_site_map, world_xforms
 
     source_world_indices = mapping.to(dtype=torch.int64).argmax(dim=1).tolist()
@@ -384,8 +288,6 @@ def replicate_builder_mapping(
             hook(builder, col, xform_rows[col][:3], xform_rows[col][3:])
         builder.end_world()
 
-    for hook in post_replicate_hooks:
-        hook(builder)
     return local_site_map, world_xforms
 
 

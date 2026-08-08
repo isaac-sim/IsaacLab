@@ -1,9 +1,14 @@
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab.physics.PhysicsManager.close` to report stored STOP
+  listener failures after all listeners run and shared state is cleared. Callers
+  that intentionally ignore teardown failures should catch ``RuntimeError``.
+
 Fixed
 ^^^^^
 
-* Fixed physics-manager shutdown to notify all STOP listeners and clear shared
-  state even when one listener fails.
 * Fixed dead weakly referenced listeners to become no-ops instead of raising
   during lifecycle event dispatch.
-* Fixed simulation-context teardown to use the resolved physics-manager class
-  and finish cleanup before reporting STOP-listener failures.
+* Fixed :meth:`~isaaclab.sim.SimulationContext.clear_instance` to finish cleanup
+  before reporting STOP-listener failures.

@@ -95,7 +95,15 @@ def run(argv: list[str]) -> BenchmarkResult:
     import gymnasium as gym
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark import (
+        BaseIsaacLabBenchmark,
+        BenchmarkMonitor,
+        BenchmarkResult,
+        builders,
+        capture,
+        console,
+        stepping,
+    )
     from isaaclab.benchmark.schema import StartupTime
 
     # Importing the task packages registers their gym environments so the
@@ -226,6 +234,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             output_paths = benchmark.finalize()
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
+            console.print_runtime_report(bundle, output_paths)
 
     return result
 

@@ -475,6 +475,8 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     elif file_status == 2:
         import omni.client  # noqa: PLC0415
 
+        from isaaclab.app.loading_screen import report_activity
+
         # resolve download directory
         if download_dir is None:
             download_dir = tempfile.gettempdir()
@@ -489,6 +491,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         visited = set()
         local_root = None
 
+        report_activity("Loading assets")
         while to_visit:
             cur_url = to_visit.pop()
             if cur_url in visited:
@@ -531,6 +534,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                 if ref_url and ref_url not in visited:
                     to_visit.append(ref_url)
 
+        report_activity(None)
         return os.path.abspath(local_root)
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")

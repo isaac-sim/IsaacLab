@@ -1,6 +1,335 @@
 Changelog
 ---------
 
+15.5.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.sim.views.BaseFrameView.close` to release backend state
+  authored by a frame view. Backends also release best-effort on garbage
+  collection, but only an explicit close is deterministic.
+* Added ``newton_gl`` and ``newton_rtx`` as canonical ``--viz`` / ``--visualizer`` CLI values,
+  replacing the old ``newton`` alias (which now emits a deprecation warning and resolves to
+  ``newton_gl``).
+* Added :class:`~isaaclab.visualizers.VisualizerCfg` streaming camera fields
+  (``streaming_view``, ``streaming_gt_types``, ``streaming_envs``,
+  ``streaming_cam_target_prim_path``, ``streaming_cam_eye``, ``streaming_cam_renderer``,
+  ``streaming_sensor_prim_path``, ``streaming_depth_min``, ``streaming_depth_max``)
+  replacing the removed ``tiled_cam_*`` fields.
+* Added :mod:`~isaaclab.envs.utils.camera_colorizer` with
+  :class:`~isaaclab.envs.utils.camera_colorizer.CameraFrameColorizer` for converting raw
+  depth, segmentation, and normals tensors into displayable RGB frames.
+* Added :func:`~isaaclab.envs.utils.camera_view.camera_gt_batch`,
+  :func:`~isaaclab.envs.utils.camera_view.compose_streaming_grid`,
+  :func:`~isaaclab.envs.utils.camera_view.resolve_streaming_envs`, and
+  :func:`~isaaclab.envs.utils.camera_view.create_visualizer_camera` to
+  :mod:`~isaaclab.envs.utils.camera_view`.
+* Added console summaries printed at the end of the startup, runtime, and training benchmark
+  workflows: per-phase wall clock (including the timers that ran during environment creation)
+  for startup, and throughput, resources, and learning curves for runtime and training. The
+  full result remains in the JSON output.
+* Added :class:`~isaaclab.app.LoadingScreen`, a greeting, run summary panel, and percentage progress
+  bar that replaces the startup log wall on an interactive console. Each stage owns an equal slice of
+  the bar and the steps reported within it advance through that slice. Startup output is spooled
+  while the screen is open and replayed only when startup fails; pass ``--info`` or ``--verbose`` to
+  see it on a successful run. The summary wraps at 50 columns, logos adapt to the available width,
+  and the display reflows when the terminal is resized.
+* Added :func:`~isaaclab.app.report_activity`, which names the startup step currently running so the
+  loading screen can show it while it happens. Reports nest, so a long step keeps its label while
+  its sub-steps come and go.
+* Added XPBD domino, VBD block-and-tackle, and coupled rigid-box/MPM demos for Newton viewer dragging.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder` ``source`` field now accepts
+  ``"visualizer:newton"`` as an alias for ``"visualizer:newton_gl"`` to ease migration.
+* :func:`~isaaclab.envs.utils.camera_view.compose_streaming_grid` now prioritises balanced
+  grid rows (minimal empty cells in the last row) over aspect-ratio optimisation, preventing
+  ragged layouts such as 3+1 for 4 environments.
+* :meth:`~isaaclab.sim.SimulationContext._apply_default_visualizer_cfg` now only propagates
+  fields that were explicitly set in ``default_visualizer_cfg`` (i.e. differ from the base
+  :class:`~isaaclab.visualizers.VisualizerCfg` defaults), preventing base-class defaults such
+  as ``streaming_view=False`` from overriding backend-specific defaults like
+  :attr:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg.streaming_view` ``= True``.
+* **Breaking:** Removed :class:`~isaaclab.envs.common.ViewerCfg` and the ``viewer`` field from
+  :class:`~isaaclab.envs.ManagerBasedEnvCfg`, :class:`~isaaclab.envs.DirectRLEnvCfg`, and
+  :class:`~isaaclab.envs.DirectMARLEnvCfg`. Configure the viewport camera via
+  :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` on ``cfg.sim.visualizer_cfgs`` instead.
+  Migration guide:
+
+  * ``eye`` / ``lookat`` → same fields on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`.
+  * ``env_index`` → ``origin_env_index``.
+  * ``origin_type="world"`` / ``"env"`` → same values on ``KitVisualizerCfg``.
+  * ``origin_type="asset_root"``, ``asset_name="robot"`` → ``origin_type="asset"``,
+    ``origin_track_path="robot"``.
+  * ``origin_type="asset_body"``, ``asset_name="robot"``, ``body_name="hand"`` →
+    ``origin_type="asset"``, ``origin_track_path="robot/hand"``.
+
+* **Breaking:** Removed :class:`~isaaclab.envs.ui.ViewportCameraController`. Camera tracking is
+  now handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer` via
+  ``origin_type`` and ``origin_track_path`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`.
+
+* **Breaking:** Removed ``isaaclab.envs.utils.recording_hooks`` module. Physics-backend recording
+  hooks are now registered via :meth:`~isaaclab.sim.SimulationContext.add_render_callback`.
+
+* Added :meth:`~isaaclab.sim.SimulationContext.add_render_callback` and
+  :meth:`~isaaclab.sim.SimulationContext.remove_render_callback` to register ordered callbacks
+  that fire after every :meth:`~isaaclab.sim.SimulationContext.render` step.
+
+* Removed ``eye`` and ``lookat`` fields from
+  :class:`~isaaclab.envs.utils.VideoRecorderCfg`. The recorder is now passive: it records
+  whatever the active visualizer or physics backend renders without repositioning the camera.
+
+* When Newton is the active physics backend, ``source="visualizer:kit"`` logs an error and
+  captures no frames — Kit Replicator cannot read Newton Fabric scene transforms.
+  Use ``source="visualizer:newton"`` instead.  Kit recording continues to work with PhysX.
+* Changed the benchmark entrypoints to disable Warp adjoint code generation
+  (``warp.config.enable_backward``), matching the training and play scripts. This reduces
+  cold-start kernel build time.
+* Changed the startup benchmark output filename prefix from ``startup_<task>`` to
+  ``benchmark_startup_<task>``, matching the runtime, training, and play workflows. Update
+  any tooling that globs ``startup_*.json`` to use ``benchmark_startup_*.json``.
+* Changed the pinned Newton revision, Warp version, and Newton USD schemas floor. Run ``uv sync``
+  to update existing environments.
+* Changed :class:`~isaaclab.utils.timer.Timer` to accept an ``activity`` description, reported to the
+  loading screen for the duration of the timed block.
+* Widened the ``packaging`` override to ``>=20,<27`` and removed the ``ovphysx``
+  conflicts with ``isaacsim`` and ``teleop``, so those extras now resolve into a
+  single environment.
+
+Deprecated
+^^^^^^^^^^
+
+* ``--viz newton`` is deprecated; use ``--viz newton_gl`` instead.
+* :class:`~isaaclab.envs.common.ViewerCfg` is deprecated; configure visualizers via
+  :class:`~isaaclab.visualizers.VisualizerCfg` in ``SimulationCfg.visualizer_cfgs`` instead.
+* ``tiled_cam_*`` fields on :class:`~isaaclab.visualizers.VisualizerCfg` are deprecated;
+  they now emit :class:`DeprecationWarning` and forward to the equivalent ``streaming_*``
+  field for one release before removal.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.scene_data.SceneDataProvider` transform mapping stalling
+  at high rigid-body counts, which delayed setup by minutes in scenes with
+  thousands of environments.
+* Fixed the startup profiling whitelist in ``scripts/benchmarks/startup_whitelist.yaml``,
+  whose patterns were written with an ``isaaclab.`` package prefix that profile labels do
+  not carry. Every listed pattern silently reported zero time; patterns are now matched
+  against the labels the profiler emits.
+* Fixed :attr:`~isaaclab.app.AppLauncher.has_window` being accidentally removed in
+  `#6658 <https://github.com/isaac-sim/IsaacLab/pull/6658>`_, which caused an
+  ``AttributeError`` in ``teleop_se3_agent.py`` and ``record_demos.py`` on every
+  IsaacTeleop run.
+* Fixed XR sessions without an explicit windowed visualizer no longer forcing headless
+  mode, caused by the same PR renaming ``_xr_implies_headless`` to ``_xr_auto_start``
+  without updating the enforcement block in ``_resolve_headless_settings``.
+* Fixed intermittent ``pxr`` import failures by overriding ``usd-exchange`` to
+  aarch64 only. It and ``usd-core`` each vendor a complete ``pxr`` runtime, and
+  ``newton[importers]`` pulled usd-exchange onto x86_64 unmarked.
+
+
+15.4.0 (2026-08-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sim.schemas.CollisionBaseCfg.mesh_collision_property` so a
+  spawner config can author the collision approximation of a file-spawned USD asset,
+  which otherwise exposes no approximation knob.
+* Added the ``isaaclab teleop`` CLI command, which groups the teleoperation workflows as
+  subcommands: ``isaaclab teleop run`` for a live session
+  (``scripts/environments/teleoperation/teleop_se3_agent.py``), ``isaaclab teleop record``
+  for demonstration capture (``scripts/tools/record_demos.py``), and
+  ``isaaclab teleop replay`` for playback (``scripts/tools/replay_demos.py``). This mirrors
+  the existing ``isaaclab benchmark`` subcommand grouping, so teleoperation and
+  imitation-learning workflows follow the same paradigm as reinforcement learning.
+
+Changed
+^^^^^^^
+
+* Changed the ``teleop`` install extra to bundle Isaac Sim, so ``uv run --extra teleop``
+  installs everything the XR teleoperation workflow needs in one flag. Previously the extra
+  carried only the Isaac Teleop stack and could not be combined with ``isaacsim`` at all.
+  Because it now pulls Isaac Sim in, ``teleop`` conflicts with ``ov`` and ``ovphysx``;
+  install those runtimes separately.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.mdp.randomize_rigid_body_material` rejecting articulation body
+  subsets with the OvPhysX backend.
+* Fixed kitless sensor cloning to avoid implicit USD replication contexts while preserving explicit
+  :attr:`~isaaclab.sensors.SensorBaseCfg.cloning_contexts` overrides.
+* Fixed the ``uv`` resolution conflict that made Isaac Sim and Isaac Teleop impossible to
+  install together. Isaac Sim 6.0 pins ``websockets``, ``coverage``, and
+  ``typing-extensions`` exactly, so ``[tool.uv].override-dependencies`` relaxes all three
+  and ``isaacteleop[cloudxr]``, the ``test`` extra, and the Newton viewer stack co-resolve
+  with Isaac Sim. Isaac Sim 6.1 declares them as ranges, so the overrides can be dropped
+  once it is published.
+* Fixed ``--extra test`` being unusable with Isaac Sim, so
+  ``uv run --extra teleop --extra test`` can run the teleop test suite.
+* Fixed the imitation-learning training scripts being unrunnable under ``uv``. The
+  ``isaacsim``/``mimic``, ``teleop``/``mimic``, ``teleop``/``all``, and ``isaacsim``/``all``
+  conflicts were all stale -- ``robomimic`` no longer constrains ``lxml``, so those extras
+  co-resolve and only the genuine ``packaging`` split with the OV runtimes remains. ``scripts/imitation_learning/robomimic/train.py``, ``play.py``,
+  and ``robust_eval.py`` need both ``robomimic`` and the Kit runtime, and now run via
+  ``uv run --extra isaacsim --extra mimic``.
+* Fixed ``ModuleNotFoundError: No module named 'isaaclab_mimic'`` when recording
+  demonstrations from a teleop-only environment. ``scripts/tools/record_demos.py`` imports
+  ``isaaclab_mimic`` at module level, so the ``teleop`` extra now installs the
+  ``isaaclab-mimic`` package. ``robomimic`` stays in the ``mimic`` extra, since its
+  ``lxml<5.0.0`` pin is what clashes with ``dex-retargeting``.
+* Fixed :attr:`~isaaclab.sensors.SensorBaseCfg.cloning_contexts` not requesting
+  :class:`~isaaclab.cloner.UsdReplicateContext`, which left sensor prims in ``env_0`` only on
+  kitless backends.
+
+
+15.3.0 (2026-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.renderers.BaseRenderer.close` and
+  :meth:`~isaaclab.renderers.RenderContext.close` to release the resources a renderer owns itself,
+  which are shared by every camera that resolves to it and so cannot be released from
+  :meth:`~isaaclab.renderers.BaseRenderer.cleanup`. Renderers are now closed when the simulation is
+  torn down, while the stage is still alive, instead of at garbage collection. The default
+  :meth:`~isaaclab.renderers.BaseRenderer.close` is a no-op, so backends that keep no state of
+  their own need no change.
+* Added :attr:`~isaaclab.app.AppLauncher.has_window` so scripts can query whether a window
+  exists to render UI and receive input, replacing reads of the ``--headless`` CLI flag removed
+  in 3.0. Unlike the headless state it is ``True`` when livestreaming, which runs the host
+  headless but still presents an interactive window.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed :class:`~isaaclab.envs.common.ViewerCfg` and the ``viewer`` field from
+  :class:`~isaaclab.envs.ManagerBasedEnvCfg`, :class:`~isaaclab.envs.DirectRLEnvCfg`, and
+  :class:`~isaaclab.envs.DirectMARLEnvCfg`. Configure the viewport camera via
+  :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` on ``cfg.sim.visualizer_cfgs`` instead.
+  Migration guide:
+
+  * ``eye`` / ``lookat`` → same fields on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`.
+  * ``env_index`` → ``origin_env_index``.
+  * ``origin_type="world"`` / ``"env"`` → same values on ``KitVisualizerCfg``.
+  * ``origin_type="asset_root"``, ``asset_name="robot"`` → ``origin_type="asset"``,
+    ``origin_track_path="robot"``.
+  * ``origin_type="asset_body"``, ``asset_name="robot"``, ``body_name="hand"`` →
+    ``origin_type="asset"``, ``origin_track_path="robot/hand"``.
+
+* **Breaking:** Removed :class:`~isaaclab.envs.ui.ViewportCameraController`. Camera tracking is
+  now handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer` via
+  ``origin_type`` and ``origin_track_path`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`.
+
+* **Breaking:** Removed ``isaaclab.envs.utils.recording_hooks`` module. Physics-backend recording
+  hooks are now registered via :meth:`~isaaclab.sim.SimulationContext.add_render_callback`.
+
+* Added :meth:`~isaaclab.sim.SimulationContext.add_render_callback` and
+  :meth:`~isaaclab.sim.SimulationContext.remove_render_callback` to register ordered callbacks
+  that fire after every :meth:`~isaaclab.sim.SimulationContext.render` step.
+
+* Removed ``eye`` and ``lookat`` fields from
+  :class:`~isaaclab.envs.utils.VideoRecorderCfg`. The recorder is now passive: it records
+  whatever the active visualizer or physics backend renders without repositioning the camera.
+
+* When Newton is the active physics backend, ``source="visualizer:kit"`` logs an error and
+  captures no frames — Kit Replicator cannot read Newton Fabric scene transforms.
+  Use ``source="visualizer:newton"`` instead.  Kit recording continues to work with PhysX.
+* Changed ``train_multigpu`` to restrict console output to local rank 0 on each node by default, since
+  every rank otherwise repeats the same startup, warning, and model-summary output once per GPU. Pass
+  ``--log_all_ranks`` to restore output from every rank, or ``--tee 3 --log_dir <dir>`` to keep
+  per-rank logs on disk while the console stays clean. Does not apply to skrl with
+  ``--ml_framework jax``, whose launcher does not support rank filtering.
+
+Fixed
+^^^^^
+
+* Fixed ``PhysicsEvent.STOP`` never being dispatched. A physics config may declare its manager
+  lazily as a ``"module:Class"`` string, which proxies attribute access but is a ``str``, so the
+  active-manager identity check in :meth:`~isaaclab.physics.PhysicsManager.close` never matched
+  and every sensor and asset was left unnotified at shutdown. The check now accepts the lazily
+  declared form as well as the class. With the Newton MJWarp backend this had left camera render
+  products registered at stage teardown, crashing the process with ``SIGSEGV`` after a camera
+  task finished training.
+* Fixed distributed training failures on non-zero ranks being reported as a bare exit code with no
+  traceback. The training entry point now records the failing rank's traceback so ``torchrun``
+  reports it as the root cause.
+* Fixed wheel installation overrides to resolve the configured Newton and MuJoCo versions.
+* Fixed XR teleoperation aborting at startup with ``Exiting app because of dependency solver
+  failure`` wherever the Kit extension registry was unreachable. The XR experience depended on
+  the ``omni.kit.xr.bundle.generic`` meta-extension, which Isaac Sim does not ship, so it
+  resolved only by downloading from the registry. It now depends on the XR extensions shipped
+  on disk, and starts with no registry access.
+* Fixed ``--xr`` running non-headless when the task configuration declared a windowed
+  visualizer. Enabling XR without explicitly requesting one now always runs headless and
+  auto-starts the XR session, since there is no viewport to start it from.
+* Fixed ``AttributeError: 'Namespace' object has no attribute 'headless'`` in the teleoperation
+  and demo recording scripts, which still read the ``--headless`` flag removed in 3.0.
+* Fixed the RSL-RL benchmark runner to honor the configured
+  ``init_at_random_ep_len`` value.
+* Fixed ``[INFO]: Created new renderer for simulation`` and ``[INFO]: Using renderer`` log lines
+  being silenced when running with kitless physics backends (Newton, OvPhysX).
+
+
+15.2.0 (2026-08-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``require_kit`` launcher argument, read by :func:`~isaaclab.app.launch_simulation`
+  alongside ``physics``, so a tool can declare that it needs Kit for a reason its config cannot
+  express, such as reaching a Kit-only extension API. The override is additive: it can turn a
+  kitless launch into a Kit one, never the reverse.
+* Added :class:`~isaaclab.assets.CableObject`, :class:`~isaaclab.sim.CableCfg`, and
+  :class:`~isaaclab.sim.CableMaterialCfg` for managing, authoring, and restoring cable asset state.
+* Added the ``Using Cables`` guide to the Newton backend documentation covering authoring, materials,
+  collision, runtime state, and USD import.
+* Added :attr:`~isaaclab.sim.CableMaterialCfg.shear_stiffness` and
+  :attr:`~isaaclab.sim.CableMaterialCfg.twist_stiffness` so cable shear and torsion can be tuned
+  independently of stretch and bend.
+
+Changed
+^^^^^^^
+
+* Changed ``scripts/tools/convert_urdf.py`` and ``scripts/tools/convert_mjcf.py`` to bootstrap
+  through :func:`~isaaclab.app.add_launcher_args` and :func:`~isaaclab.app.launch_simulation`, like
+  the other tool and demo scripts. Both scripts accept the full launcher argument set again,
+  including ``--device``, ``--livestream``, ``--experience``, and the comma-separated
+  ``--viz kit,newton`` spelling.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.app.AppLauncher.add_app_launcher_args` taking the parser down when the
+  script declares required positional arguments and is invoked with ``--help``. The launcher
+  arguments now appear in the help output of ``scripts/tools/convert_mesh.py``,
+  ``convert_urdf.py``, and ``convert_mjcf.py`` instead of an "arguments are required" error.
+* Changed the URDF and MJCF converters to prefer the standalone ``isaacsim-asset-isolated``
+  importer wheel whenever it is installed, rather than always launching Kit when Isaac Sim is
+  present. Kit is now launched only when the wheel is absent or a Kit preview is requested.
+* **Breaking:** Removed the converter-local ``--viz`` flag in favor of the launcher's
+  ``--visualizer`` / ``--viz`` argument that every other script already uses. ``--viz auto`` and a
+  bare ``--viz`` are no longer accepted; name the backend explicitly, for example ``--viz kit`` or
+  ``--viz newton``.
+* Forwarded the ``limit_cpu_threads`` option from :class:`isaaclab.app.AppLauncher` to
+  :class:`isaacsim.simulation_app.SimulationApp`.
+* Fixed PhysX lifecycle conflicts with newer Isaac Sim versions by disabling
+  their default simulation manager callbacks before extension startup.
+* Fixed visualizer runtime errors to recommend valid uv-managed commands.
+* Fixed demonstration replay stepping once after all episodes completed.
+* Fixed :meth:`~isaaclab.controllers.DifferentialIKController.set_command` handling of
+  unnormalizable absolute-pose quaternions, which produced a NaN target orientation. Such
+  commands now hold the current end-effector orientation, or identity when none is provided.
+
+
 15.1.1 (2026-08-03)
 ~~~~~~~~~~~~~~~~~~~
 

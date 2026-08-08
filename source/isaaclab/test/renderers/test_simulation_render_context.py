@@ -32,7 +32,14 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 class _FakeBackend(BaseRenderer):
     """Test double for :class:`BaseRenderer`; does not load PhysX/Newton/OV renderer classes."""
 
-    __slots__ = ("_prepare_hits", "_update_transforms_hits", "_update_geometries_hits", "_event_log")
+    __slots__ = (
+        "_prepare_hits",
+        "_update_transforms_hits",
+        "_update_geometries_hits",
+        "_event_log",
+        "_close_hits",
+        "_close_raises",
+    )
 
     def __init__(
         self,
@@ -41,12 +48,16 @@ class _FakeBackend(BaseRenderer):
         update_transforms_hits: list[int] | None = None,
         update_geometries_hits: list[int] | None = None,
         event_log: list[str] | None = None,
+        close_hits: list[Any] | None = None,
+        close_raises: bool = False,
     ) -> None:
         super().__init__()
         self._prepare_hits = prepare_hits
         self._update_transforms_hits = update_transforms_hits
         self._update_geometries_hits = update_geometries_hits
         self._event_log = event_log
+        self._close_hits = close_hits
+        self._close_raises = close_raises
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         return {}
@@ -86,6 +97,12 @@ class _FakeBackend(BaseRenderer):
 
     def cleanup(self, render_data: Any) -> None:
         pass
+
+    def close(self) -> None:
+        if self._close_hits is not None:
+            self._close_hits.append(self)
+        if self._close_raises:
+            raise RuntimeError("backend failed to close")
 
 
 def _set_entries(ctx: RenderContext, *cfg_backend_pairs: tuple[RendererCfg, BaseRenderer]) -> None:
@@ -217,3 +234,44 @@ def test_reset_scene_state_cadence_allows_repeat_update_scene_state_same_step():
     ctx.reset_scene_state_cadence()
     ctx.update_scene_state(1)
     assert len(hits) == 2
+
+
+def test_close_closes_every_backend_once_and_drops_them():
+    """``close`` closes each registered backend exactly once and empties the context."""
+    ctx = RenderContext()
+    closed: list[Any] = []
+    first = _FakeBackend(close_hits=closed)
+    second = _FakeBackend(close_hits=closed)
+    _set_entries(ctx, (IsaacRtxRendererCfg(), first), (NewtonWarpRendererCfg(), second))
+
+    ctx.close()
+    assert closed == [first, second]
+
+    ctx.close()
+    assert closed == [first, second]
+
+
+def test_close_raises_only_after_every_backend_is_closed():
+    """A failing backend must not strand the others, and its failure must not go unreported."""
+    ctx = RenderContext()
+    closed: list[Any] = []
+    failing = _FakeBackend(close_hits=closed, close_raises=True)
+    healthy = _FakeBackend(close_hits=closed)
+    _set_entries(ctx, (IsaacRtxRendererCfg(), failing), (NewtonWarpRendererCfg(), healthy))
+
+    with pytest.raises(RuntimeError, match="1 renderer\\(s\\) failed to close"):
+        ctx.close()
+
+    assert closed == [failing, healthy]
+
+
+def test_close_resets_stage_and_step_bookkeeping():
+    """After ``close`` the context holds no backend, so a later ``ensure_prepare_stage`` is an error."""
+    ctx = RenderContext()
+    _set_entries(ctx, (IsaacRtxRendererCfg(), _FakeBackend()))
+    ctx.ensure_prepare_stage(None, 4)
+
+    ctx.close()
+
+    with pytest.raises(RuntimeError, match="get_renderer must be called"):
+        ctx.ensure_prepare_stage(None, 4)

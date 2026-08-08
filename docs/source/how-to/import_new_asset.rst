@@ -27,7 +27,7 @@ these importers by default. They can also be enabled manually in Omniverse Kit.
 Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
 Isaac Sim when the full runtime is installed. In kit-less environments, install
 the standalone importer wheel as described in
-:ref:`Standalone URDF/MJCF importers <installation-standalone-importers>`.
+:ref:`installation-standalone-importers` below.
 The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
 
 
@@ -36,6 +36,37 @@ are in `instanceable`_ format. This allows the asset to be efficiently loaded
 into memory and used multiple times in a scene. Otherwise, the asset will be
 loaded into memory multiple times, which can cause performance issues.
 For more details on instanceable assets, please check the Isaac Sim `documentation`_.
+
+
+.. _installation-standalone-importers:
+
+Standalone URDF/MJCF importers
+------------------------------
+
+The URDF and MJCF converter scripts can run without Isaac Sim when the standalone
+``isaacsim-asset-isolated`` wheel is installed in the active environment. The wheel is not
+published on PyPI, so replace ``PACKAGE_INDEX_URL`` with the package index that hosts it:
+
+.. code-block:: bash
+
+   uv pip install "isaacsim-asset-isolated>=6.0,<6.1" \
+     --extra-index-url "PACKAGE_INDEX_URL"
+
+After installing the wheel, run conversion in the kit-less environment. Optionally pass
+``--viz newton`` (or ``rerun`` / ``viser``) to preview the converted asset in a kit-less
+Isaac Lab visualizer:
+
+.. code-block:: bash
+
+   python scripts/tools/convert_urdf.py \
+     path/to/robot.urdf path/to/output_dir --merge_joints
+
+   python scripts/tools/convert_mjcf.py \
+     path/to/model.xml path/to/output.usd --merge_mesh
+
+If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim importer
+extensions first. The standalone wheel is used only when the full Isaac Sim runtime is not
+available.
 
 
 Using URDF Importer
@@ -202,10 +233,9 @@ is derived automatically from the robot name in the URDF):
    want them to accumulate on disk.
 
 The examples above pass ``--viz kit`` to open the converted asset in the Isaac Sim viewport, which
-requires a full Isaac Sim installation. Pass ``--viz`` on its own to let the converter pick the
-backend that fits the runtime: the Kit viewport with Isaac Sim installed, otherwise the kitless
-Newton viewer (``rerun`` and ``viser`` can be named explicitly). Omit ``--viz`` to exit after the
-conversion completes.
+requires a full Isaac Sim installation. Name a kitless backend instead -- ``--viz newton``,
+``--viz rerun``, or ``--viz viser`` -- to preview the asset without Kit. Omit ``--viz`` to exit
+after the conversion completes.
 
 In Isaac Sim, you can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.
 
@@ -352,10 +382,9 @@ Executing the above script will create the USD file inside the
    want them to accumulate on disk.
 
 The examples above pass ``--viz kit`` to open the converted asset in the Isaac Sim viewport, which
-requires a full Isaac Sim installation. Pass ``--viz`` on its own to let the converter pick the
-backend that fits the runtime: the Kit viewport with Isaac Sim installed, otherwise the kitless
-Newton viewer (``rerun`` and ``viser`` can be named explicitly). Omit ``--viz`` to exit after the
-conversion completes.
+requires a full Isaac Sim installation. Name a kitless backend instead -- ``--viz newton``,
+``--viz rerun``, or ``--viz viser`` -- to preview the asset without Kit. Omit ``--viz`` to exit
+after the conversion completes.
 
 .. figure:: ../_static/tutorials/tutorial_convert_mjcf.jpg
     :align: center

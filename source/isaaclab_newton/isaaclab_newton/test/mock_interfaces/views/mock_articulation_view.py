@@ -297,8 +297,8 @@ class MockNewtonArticulationView:
             "body_f": None,
             "joint_f": None,
             "joint_act": None,
-            "joint_target_pos": None,
-            "joint_target_vel": None,
+            "joint_target_q": None,
+            "joint_target_qd": None,
             "joint_limit_ke": None,
             "joint_limit_kd": None,
         }
@@ -448,8 +448,8 @@ class MockNewtonArticulationView:
             "joint_effort_limit",
             "joint_f",
             "joint_act",
-            "joint_target_pos",
-            "joint_target_vel",
+            "joint_target_q",
+            "joint_target_qd",
             "joint_limit_ke",
             "joint_limit_kd",
         ):
@@ -752,8 +752,8 @@ class MockNewtonArticulationView:
             "joint_effort_limit",
             "joint_f",
             "joint_act",
-            "joint_target_pos",
-            "joint_target_vel",
+            "joint_target_q",
+            "joint_target_qd",
             "joint_limit_ke",
             "joint_limit_kd",
         ):

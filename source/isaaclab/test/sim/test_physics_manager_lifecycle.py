@@ -154,8 +154,13 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             assert caught_exceptions == []
             events.append("services")
 
+    class RenderContext:
+        def close(self):
+            events.append("renderers")
+
     context = SimpleNamespace(
         physics_manager=FailingManager,
+        _render_context=RenderContext(),
         _visualizers=[
             Visualizer("visualizer_failed", ValueError("visualizer failed")),
             Visualizer("visualizer_last"),
@@ -175,13 +180,22 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
         "RuntimeError: STOP failed; ValueError: visualizer failed"
     )
     assert str(exc_info.value.__cause__) == "STOP failed"
-    assert events == ["physics", "visualizer_failed", "visualizer_last", "services", "stage", "cache", "gc"]
+    assert events == [
+        "physics",
+        "renderers",
+        "visualizer_failed",
+        "visualizer_last",
+        "services",
+        "stage",
+        "cache",
+        "gc",
+    ]
     assert context._visualizers == []
     assert SimulationContext.instance() is None
 
 
-def test_clear_instance_releases_context_before_garbage_collection(monkeypatch):
-    """Native resource owners become unreachable before the garbage-collection phase."""
+def test_clear_instance_drops_owned_context_references_before_garbage_collection(monkeypatch):
+    """The singleton and method-local context references are gone before garbage collection."""
     import isaaclab.sim.simulation_context as context_module
     from isaaclab.sim import SimulationContext
 
@@ -194,11 +208,16 @@ def test_clear_instance_releases_context_before_garbage_collection(monkeypatch):
         def close_all(self, caught_exceptions):
             assert caught_exceptions == []
 
+    class RenderContext:
+        def close(self):
+            pass
+
     class Context:
         pass
 
     context = Context()
     context.physics_manager = Manager
+    context._render_context = RenderContext()
     context._visualizers = []
     context._services = Services()
     context_ref = weakref.ref(context)

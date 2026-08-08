@@ -72,6 +72,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         NewtonManager._use_single_state = False
         NewtonManager._supports_contact_sensors = False
         NewtonManager._needs_collision_pipeline = True
+        NewtonManager._supports_rigid_body_force_input = True
 
     @classmethod
     def _step_solver(

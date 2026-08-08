@@ -200,13 +200,13 @@ def test_commands_respect_script_launcher_capabilities():
         case
         for case in build_cases(SPECS)
         if case.spec.relative_path == "scripts/demos/bin_packing.py"
-        and case.physics_backend == "newton_mjwarp"
+        and case.physics_backend == "isaacsim_physx"
         and case.visualizer == "none"
     )
     assert "--num_envs" in physics_case.command()
     num_envs_index = physics_case.command().index("--num_envs")
     assert physics_case.command()[num_envs_index + 1] == "2"
-    assert physics_case.command()[-4:] == ["--physics", "newton_mjwarp", "--visualizer", "none"]
+    assert physics_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "none"]
 
     multi_asset_case = next(
         case
@@ -253,20 +253,29 @@ def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path)
     assert spec.physics_backends == (("--physics", "isaacsim_physx"),)
 
 
-def test_multi_mesh_raycaster_opens_requested_rerun_viewer():
-    """The interactive raycaster demo must open Rerun when the user explicitly requests it."""
+def test_cable_demo_accepts_explicit_newton_vbd_selector():
+    """The Newton-only cable demo must accept its documented backend explicitly."""
+    spec = next(spec for spec in SPECS if spec.relative_path == "scripts/demos/cables.py")
+    assert spec.physics_backends == (("--physics", "newton_vbd"),)
+
+
+def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
+    """The interactive raycaster demo must let CLI requests create default visualizer configs."""
     path = script_cases.ROOT / "scripts/demos/sensors/multi_mesh_raycaster.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    rerun_cfg_calls = [
+    simulation_cfg_calls = [
         node
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "RerunVisualizerCfg"
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "SimulationCfg"
     ]
-    assert any(
-        keyword.arg == "open_browser" and isinstance(keyword.value, ast.Constant) and keyword.value.value is True
-        for call in rerun_cfg_calls
-        for keyword in call.keywords
-    )
+    assert len(simulation_cfg_calls) == 1
+
+    visualizer_cfg_values = [
+        keyword.value for keyword in simulation_cfg_calls[0].keywords if keyword.arg == "visualizer_cfgs"
+    ]
+    assert len(visualizer_cfg_values) == 1
+    assert isinstance(visualizer_cfg_values[0], ast.Constant)
+    assert visualizer_cfg_values[0].value is None
 
 
 def test_h1_locomotion_uses_published_legacy_checkpoint_and_rejects_missing_policy():

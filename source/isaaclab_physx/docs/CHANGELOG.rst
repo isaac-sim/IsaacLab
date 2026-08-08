@@ -1,6 +1,67 @@
 Changelog
 ---------
 
+4.2.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`close` to the PhysX Fabric frame view, removing its per-view Fabric
+  index attributes so that views recreated over the same prims no longer accumulate
+  attributes. Views dropped without closing are cleaned up on garbage collection,
+  with a warning.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``eye`` and ``lookat`` fields from the Kit perspective video recorder
+  config.  The Kit perspective recorder no longer repositions the viewport camera; camera
+  placement is the sole responsibility of :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.video_capture_backend` classmethod
+  (returns ``"kit"``). The headless video pump is now registered via
+  :meth:`~isaaclab.sim.SimulationContext.add_render_callback` in
+  :meth:`~isaaclab_physx.physics.PhysxManager.initialize` instead of the
+  deleted ``recording_hooks`` module.
+
+Fixed
+^^^^^
+
+* Fixed camera world-pose resolution stalling at high environment counts under the
+  PhysX backend, which caused multi-second pauses between rendered frames and
+  benchmark timeouts.
+* Fixed Newton actuator target forwarding on the PhysX backend.
+
+
+4.1.0 (2026-08-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``eye`` and ``lookat`` fields from the Kit perspective video recorder
+  config.  The Kit perspective recorder no longer repositions the viewport camera; camera
+  placement is the sole responsibility of :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.video_capture_backend` classmethod
+  (returns ``"kit"``). The headless video pump is now registered via
+  :meth:`~isaaclab.sim.SimulationContext.add_render_callback` in
+  :meth:`~isaaclab_physx.physics.PhysxManager.initialize` instead of the
+  deleted ``recording_hooks`` module.
+
+
+4.0.1 (2026-08-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed PhysX lifecycle ownership to preserve Isaac Sim's simulation manager
+  when its default callbacks can be disabled at startup while retaining the
+  compatibility takeover for older versions.
+
+
 4.0.0 (2026-08-02)
 ~~~~~~~~~~~~~~~~~~
 

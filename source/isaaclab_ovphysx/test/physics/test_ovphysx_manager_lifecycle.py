@@ -200,16 +200,21 @@ def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, mana
     from isaaclab.physics import PhysicsManager
 
     manager = manager_module.OvPhysxManager
+    events = []
     monkeypatch.setattr(manager, "_physx", object())
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    lazy_manager = f"{manager.__module__}:{manager.__qualname__}"
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=lazy_manager))
 
     def fail_close(cls):
+        events.append("close")
         raise RuntimeError("failure")
 
     monkeypatch.setattr(manager, "close", classmethod(fail_close))
+    monkeypatch.setattr(manager, "_release_physx", classmethod(lambda cls: events.append("release")))
 
     manager._close_at_exit()
 
+    assert events == ["close"]
     assert "Failed to close OVPhysX during process exit." in caplog.text
 
 
@@ -265,7 +270,7 @@ def _retained_binding_script() -> str:
         from isaaclab_ovphysx.sim.views import OvPhysxView
 
         sim = SimulationContext(SimulationCfg(physics=OvPhysxCfg(), device="cpu", dt=1.0 / 60.0))
-        assert sim.physics_manager is OvPhysxManager
+        assert sim.physics_manager == f"{OvPhysxManager.__module__}:{OvPhysxManager.__qualname__}"
         OvPhysxManager.register_callback(
             lambda _payload: print("OVPHYSX_STOP", flush=True),
             PhysicsEvent.STOP,
@@ -273,8 +278,8 @@ def _retained_binding_script() -> str:
         )
         cube_cfg = sim_utils.CuboidCfg(
             size=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.RigidBodyBaseCfg(),
+            collision_props=sim_utils.CollisionBaseCfg(),
         )
         cube_cfg.func("/World/Cube", cube_cfg, translation=(0.0, 0.0, 1.0))
         sim.reset()

@@ -12,15 +12,24 @@ __all__ = [
     "move_to_target_bonus",
     "power_consumption",
     "progress_reward",
+    "survival_success_rate",
+    "terminated_penalty",
     "upright_posture_bonus",
 ]
 
-from .observations import base_angle_to_target, base_heading_proj, base_up_proj, base_yaw_roll
-from .rewards import (
+from isaaclab_tasks.core.locomotion.mdp.observations import (
+    base_angle_to_target,
+    base_heading_proj,
+    base_up_proj,
+    base_yaw_roll,
+)
+from isaaclab_tasks.core.locomotion.mdp.rewards import (
     joint_pos_limits_penalty_ratio,
     move_to_target_bonus,
     power_consumption,
     progress_reward,
+    survival_success_rate,
+    terminated_penalty,
     upright_posture_bonus,
 )
 from isaaclab.envs.mdp import *

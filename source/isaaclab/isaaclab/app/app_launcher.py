@@ -33,6 +33,7 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
+from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 from isaaclab.utils._device import set_cuda_device
@@ -155,16 +156,17 @@ class AppLauncher:
     @staticmethod
     def _parse_visualizer_csv(value: str) -> list[str] | None:
         """Parse visualizer list from a single comma-delimited CLI token."""
-        valid = {"kit", "newton", "rerun", "viser", "none"}
+        _deprecated_aliases = {"newton": "newton_gl"}
+        valid = {"kit", "newton_gl", "newton_rtx", "rerun", "viser", "none"} | set(_deprecated_aliases)
         token = (value or "").strip()
         if not token:
             raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton."
+                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton_gl."
             )
         if " " in token:
             raise argparse.ArgumentTypeError(
                 "Invalid --visualizer value: spaces are not allowed. "
-                "Use a comma-separated list without spaces, e.g. --viz kit,newton,rerun,viser."
+                "Use a comma-separated list without spaces, e.g. --viz kit,newton_gl,rerun,viser."
             )
 
         names = [item.strip().lower() for item in token.split(",")]
@@ -176,16 +178,32 @@ class AppLauncher:
         invalid = [name for name in names if name not in valid]
         if invalid:
             raise argparse.ArgumentTypeError(
-                f"Invalid --visualizer value(s): {', '.join(invalid)}. Valid options: {', '.join(sorted(valid))}."
+                f"Invalid --visualizer value(s): {', '.join(invalid)}. "
+                f"Valid options: {', '.join(sorted(valid - set(_deprecated_aliases)))}."
             )
-        if "none" in names:
-            if len(names) > 1:
+        # Resolve deprecated aliases with a warning.
+        resolved = []
+        for name in names:
+            if name in _deprecated_aliases:
+                canonical = _deprecated_aliases[name]
+                import warnings
+
+                warnings.warn(
+                    f"--viz '{name}' is deprecated. Use '--viz {canonical}' instead.",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
+                resolved.append(canonical)
+            else:
+                resolved.append(name)
+        if "none" in resolved:
+            if len(resolved) > 1:
                 raise argparse.ArgumentTypeError(
                     "Invalid --visualizer value: 'none' cannot be combined with other visualizer types."
                 )
             return None
         # De-duplicate while preserving order.
-        return list(dict.fromkeys(names))
+        return list(dict.fromkeys(resolved))
 
     @staticmethod
     def _normalize_visualizer_intent(intent: Any) -> tuple[bool, bool]:
@@ -390,6 +408,19 @@ class AppLauncher:
         """
         return bool(get_settings_manager().get("/isaaclab/has_gui"))
 
+    @property
+    def has_window(self) -> bool:
+        """Whether a local window exists that can render UI and receive input.
+
+        ``True`` when a windowed visualizer was requested, or when livestreaming, which
+        renders a window and forwards input from the remote client. Use this rather than
+        :meth:`has_gui` to decide whether local UI-driven features such as keyboard
+        bindings are available: livestreaming runs the host headless yet still presents
+        an interactive window, while XR without an explicit windowed visualizer does not
+        open a local window.
+        """
+        return not self._headless or self._livestream >= 1
+
     @staticmethod
     def _fuse_kit_args(argv: list[str]) -> list[str]:
         """Fuse ``["--kit_args", "<option-like value>"]`` pairs into single ``--kit_args=<value>`` tokens.
@@ -471,12 +502,15 @@ class AppLauncher:
           Valid options are:
 
           - ``rerun``: Use Rerun visualizer.
-          - ``newton``: Use Newton visualizer.
+          - ``newton_gl``: Use Newton GL visualizer.
+          - ``newton_rtx``: Use Newton RTX path-tracer visualizer (experimental).
           - ``viser``: Use Viser visualizer.
           - ``kit``: Use Omniverse Kit visualizer.
           - ``none``: Disable all visualizers explicitly.
           - Multiple visualizers can be specified as a comma-delimited list:
-            ``--viz rerun,newton,viser``.
+            ``--viz rerun,newton_gl,viser``.
+
+          .. deprecated:: Use ``newton_gl`` instead of ``newton``.
 
         * ``max_visible_envs`` (int | None): Optional global override for partial visualization by capping
           how many environments are shown in the visualizers.
@@ -507,11 +541,12 @@ class AppLauncher:
             parser._option_string_actions.pop("-h")
             parser._option_string_actions.pop("--help")
 
-        # Parse known args for potential name collisions/type mismatches
-        # between the config fields SimulationApp expects and the ArgParse
-        # arguments that the user passed.
-        known, _ = parser.parse_known_args()
-        config = vars(known)
+        # Collect the declared arguments for potential name collisions/type mismatches between the
+        # config fields SimulationApp expects and the ArgParse arguments that the user added. Read
+        # from the parser rather than by parsing the command line: parsing exits the process when a
+        # required argument is missing, which is the case for any script with required positionals
+        # invoked with '--help', and the launcher arguments would never reach the help output.
+        config = {action.dest: action.default for action in parser._actions if action.dest != argparse.SUPPRESS}
         if len(config) == 0:
             logger.warning(
                 "[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object."
@@ -636,6 +671,10 @@ class AppLauncher:
     Internal functions.
     """
 
+    # Set by :meth:`_resolve_xr_settings`. Defaulted here so :meth:`_resolve_headless_settings`
+    # stays independent of resolver call order and of whether XR was resolved at all.
+    _xr_auto_start: bool = False
+
     _APPLAUNCHER_CFG_INFO: dict[str, tuple[list[type], Any]] = {
         "headless": ([bool], False),
         "livestream": ([int], -1),
@@ -680,6 +719,7 @@ class AppLauncher:
         "open_usd": [str, type(None)],
         "livesync_usd": [str, type(None)],
         "fast_shutdown": [bool],
+        "limit_cpu_threads": [int],
         "experience": [str],
     }
     """A dictionary containing the type of arguments passed to SimulationApp.
@@ -867,7 +907,15 @@ class AppLauncher:
 
         # Resolve headless from visualizer intent when livestream is disabled.
         if self._livestream == 0:
-            if self._cli_visualizer_explicit:
+            if self._xr_auto_start:
+                # XR without an explicit windowed visualizer: no viewport to start the session from.
+                if not self._headless:
+                    logger.info(
+                        "XR is enabled without an explicit windowed visualizer, so running headless. "
+                        "To also open a local viewport, pass '--viz <names>' (for example '--viz kit')."
+                    )
+                self._headless = True
+            elif self._cli_visualizer_explicit:
                 # Explicit CLI selection controls headless: only Kit implies non-headless.
                 requested_visualizers = set(self._cli_visualizer_types)
                 if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
@@ -920,14 +968,33 @@ class AppLauncher:
         if visualizer_explicit and "none" in visualizer_types and len(visualizer_types) > 1:
             raise ValueError("Invalid '--visualizer' value: 'none' cannot be combined with other visualizer types.")
 
-        valid_visualizer_types = {"kit", "newton", "rerun", "viser", "none"}
+        _deprecated_viz_aliases = {"newton": "newton_gl"}
+        valid_visualizer_types = {"kit", "newton_gl", "newton_rtx", "rerun", "viser", "none"} | set(
+            _deprecated_viz_aliases
+        )
         # Secondary validation for the list path (kwargs); the string path is already validated by
         invalid_visualizers = [v for v in visualizer_types if v not in valid_visualizer_types]
         if invalid_visualizers:
             raise ValueError(
                 f"Invalid value(s) for '--visualizer': {invalid_visualizers}. "
-                "Expected one or more of: ['kit', 'newton', 'rerun', 'viser', 'none']."
+                "Expected one or more of: ['kit', 'newton_gl', 'newton_rtx', 'rerun', 'viser', 'none']."
             )
+        # Resolve deprecated aliases, emitting a DeprecationWarning for each one found.
+        resolved = []
+        for v in visualizer_types:
+            if v in _deprecated_viz_aliases:
+                canonical = _deprecated_viz_aliases[v]
+                import warnings
+
+                warnings.warn(
+                    f"--viz '{v}' is deprecated. Use '--viz {canonical}' instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                resolved.append(canonical)
+            else:
+                resolved.append(v)
+        visualizer_types = resolved
 
         self._cli_visualizer_explicit = visualizer_explicit
         self._cli_visualizer_disable_all = visualizer_explicit and (
@@ -1195,6 +1262,11 @@ class AppLauncher:
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
                 self._kit_args.append(argument)
 
+        argument = "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false"
+        setting = argument.partition("=")[0]
+        if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+            self._kit_args.append(argument)
+
         sys.argv += self._kit_args
 
     def _create_app(self):
@@ -1217,7 +1289,9 @@ class AppLauncher:
 
         sys.argv = _sanitize_sys_argv_for_kit(sys.argv)
 
+        report_activity("Starting Isaac Sim")
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+        report_activity(None)
 
         # enable sys stdout and stderr
         sys.stdout = sys.__stdout__
