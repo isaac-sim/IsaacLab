@@ -279,6 +279,9 @@ displays or streams the result.
        (e.g. ``"/World/envs/*/Camera"``). Takes priority over the auto-created camera.
    * - ``streaming_cam_target_prim_path``, ``streaming_cam_eye``, ``streaming_cam_renderer``
      - Settings for the **auto-created** camera (ignored when ``streaming_sensor_prim_path`` is set).
+       ``streaming_cam_target_prim_path`` defaults to ``None``: the visualizer first adopts the
+       first scene camera it discovers at init time; only set this explicitly (e.g.
+       ``"/World/envs/*/Robot"``) when you need a specific follow-prim and no scene camera exists.
        ``streaming_cam_renderer`` accepts ``"newton_warp"``, ``"ovrtx"``, ``"isaac_rtx"``, or
        ``None`` (let each backend choose its default).
 
@@ -514,9 +517,9 @@ Newton Visualizer
         streaming_envs=16,                        # Number of env tiles to show (or explicit list of env ids)
         streaming_sensor_prim_path=None,          # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
         streaming_cam_eye=(4.0, -4.0, 3.0),       # Eye offset for generated streaming cameras
-        streaming_cam_target_prim_path=(          # Prim that generated cameras follow/look at
-            "/World/envs/*/Robot"                 # This is the default; different environments
-        ),                                        # may require a different path.
+        streaming_cam_target_prim_path=None,      # None (default): adopt first scene camera found
+                                                  # at init. Set explicitly (e.g. "/World/envs/*/Robot")
+                                                  # only when a specific follow-prim is needed.
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
