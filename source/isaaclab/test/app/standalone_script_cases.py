@@ -413,12 +413,19 @@ def run_until_ready(
         if len(output) > MAX_OUTPUT_BYTES:
             del output[:-MAX_OUTPUT_BYTES]
 
+    def read_available_output(timeout: float) -> bool:
+        """Read one available chunk per ready stream and report whether any bytes were read."""
+        read_output = False
+        for key, _ in selector.select(timeout=timeout):
+            chunk = os.read(key.fileobj.fileno(), 65536)
+            if chunk:
+                record_output(chunk)
+                read_output = True
+        return read_output
+
     try:
         while True:
-            for key, _ in selector.select(timeout=0.1):
-                chunk = os.read(key.fileobj.fileno(), 65536)
-                if chunk:
-                    record_output(chunk)
+            read_available_output(timeout=0.1)
             decoded = output.decode(errors="replace")
             if ready_at is None and re.search(readiness_pattern, decoded):
                 ready_at = time.monotonic()
@@ -437,6 +444,9 @@ def run_until_ready(
                 screenshot_captured = True
             if ready_at is not None and now - ready_at >= soak_time:
                 stopped_after_soak = True
+                # Classify every byte already waiting in the pipe before crossing the teardown boundary.
+                while read_available_output(timeout=0.0):
+                    pass
                 # Preserve shutdown logs without treating errors caused by intentional teardown as runtime failures.
                 monitor_fatal_patterns = False
                 _terminate_process_group(process)
