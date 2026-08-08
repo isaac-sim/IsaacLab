@@ -229,7 +229,7 @@ def test_all_camera_presets_present(shadow_hand_camera_presets):
 
 _RENDERER_PRESETS = [
     # preset_name, expected_class
-    ("default", IsaacRtxRendererCfg),
+    ("default", NewtonWarpRendererCfg),
     ("isaacsim_rtx", IsaacRtxRendererCfg),
     ("newton_renderer", NewtonWarpRendererCfg),
     pytest.param("ovrtx", OVRTXRendererCfg, marks=pytest.mark.skip(reason="OVRTX testing disabled")),

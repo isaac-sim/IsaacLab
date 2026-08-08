@@ -21,7 +21,14 @@ import torch
 import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_tasks.utils.hydra import resolve_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+# Physics preset pinned for every task below. Bit-wise determinism is a property of the physics
+# backend, so the backend is selected explicitly instead of following whichever one the task
+# currently defaults to. Newton MJWarp is not yet run-to-run deterministic on CUDA for the
+# locomotion tasks, so a default flip must not silently turn this suite into a Newton test.
+_PINNED_PHYSICS_PRESET = "isaacsim_physx"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -94,8 +101,11 @@ def _obtain_transition_tuples(task_name: str, num_envs: int, device: str, num_st
     # create a new stage
     sim_utils.create_new_stage()
     try:
-        # parse configuration
-        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        # parse configuration with the physics backend pinned
+        env_cfg = load_cfg_from_registry(task_name.split(":")[-1], "env_cfg_entry_point")
+        env_cfg = resolve_presets(env_cfg, {_PINNED_PHYSICS_PRESET})
+        env_cfg.sim.device = device
+        env_cfg.scene.num_envs = num_envs
         # set seed
         env_cfg.seed = 42
         # create environment
