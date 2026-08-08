@@ -82,31 +82,34 @@ def test_uv_run_exposes_centralized_feature_extras():
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
-def test_all_extra_aggregates_every_feature_extra():
-    """``all`` is the single flag that installs every feature extra at once.
+def test_all_extra_aggregates_backends_rl_libraries_and_visualizers():
+    """``all`` is the single flag for every backend, RL library, and visualizer.
 
-    Nothing is forked in ``[tool.uv].conflicts`` any more, so the aggregate can carry the
-    whole feature set -- Isaac Sim, both OV backends, every RL framework, and every
-    visualizer -- into one environment. ``test`` stays out: it is developer test and
-    documentation tooling, not a runtime feature.
+    Nothing is forked in ``[tool.uv].conflicts`` any more, so Isaac Sim and both OV
+    backends fit in one environment alongside every RL library and visualizer. The
+    specialized workflows stay opt-in by name -- they are large, narrowly used, or both.
     """
     optional = _root_pyproject()["project"]["optional-dependencies"]
 
     # ``all`` is a single self-reference listing the extras it aggregates.
     assert len(optional["all"]) == 1
     aggregated = set(re.fullmatch(r"isaaclab-dev\[(.+)\]", optional["all"][0]).group(1).split(","))
+    assert aggregated == {"isaacsim", "ov", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun"}
 
-    # Every extra is reachable from ``all``, either directly or through one it names.
-    # ``ov`` covers ovphysx/ovrtx, and ``teleop`` covers isaacsim.
-    reachable = set(aggregated)
-    for extra in aggregated:
-        for dep in optional[extra]:
-            nested = re.fullmatch(r"isaaclab-dev\[(.+)\]", dep)
-            if nested is not None:
-                reachable.update(nested.group(1).split(","))
-    reachable.update({"ovphysx", "ovrtx"} if "ov" in reachable else set())
+    # ``ov`` pulls both OV backends, so naming it covers ``ovphysx`` and ``ovrtx`` too.
+    reachable = aggregated | {"ovphysx", "ovrtx"}
 
-    assert set(optional) - reachable == {"all", "test"}
+    # Everything else is requested by name. A newly added extra lands in this diff and
+    # has to be classified deliberately -- into ``all`` or into this list.
+    assert set(optional) - reachable - {"all"} == {
+        "rlinf",
+        "mimic",
+        "teleop",
+        "tetrahedralization",
+        "video",
+        "leapp",
+        "test",
+    }
 
 
 def test_tetrahedralization_is_explicit_extra_only():
@@ -116,10 +119,9 @@ def test_tetrahedralization_is_explicit_extra_only():
 
     assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
     assert optional["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
-    # No other extra pulls PyTetWild in transitively -- except the aggregate ``all``,
-    # which deliberately names every feature extra.
+    # No other extra pulls PyTetWild in transitively, including the aggregate ``all``.
     for name, deps in optional.items():
-        if name in ("tetrahedralization", "all"):
+        if name == "tetrahedralization":
             continue
         assert not any("tetrahedralization" in dep or dep.startswith("pytetwild") for dep in deps)
 

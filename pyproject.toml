@@ -179,12 +179,12 @@ rlinf = [
 leapp = [
     "leapp>=0.5.2",
 ]
-# Every feature extra in one flag. No extra is forked in [tool.uv].conflicts, so this
-# resolves into a single environment carrying Isaac Sim, both OV backends, every RL
-# framework, and every visualizer. ``test`` is left out: it is developer test and
-# documentation tooling, not a runtime feature.
+# Every backend, RL library, and visualizer in one flag. No extra is forked in
+# [tool.uv].conflicts, so Isaac Sim and both OV backends resolve into a single
+# environment. The specialized extras (rlinf, mimic, teleop, tetrahedralization,
+# video, leapp) and the developer ``test`` tooling stay opt-in by name.
 all = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,rlinf,mimic,isaacsim,ov,teleop,tetrahedralization,video,leapp]",
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,isaacsim,ov]",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
@@ -399,9 +399,6 @@ override-dependencies = [
     # platform split from [project.dependencies] so only one lands per platform.
     "usd-exchange>=2.2 ; platform_machine == 'aarch64'",
 ]
-# No extras are forked. ovphysx reconciles with isaacsim through the packaging override
-# above, and ovrtx declares no Python dependencies at all, so every extra -- including the
-# aggregate ``all`` -- resolves into a single environment.
 python-preference = "only-managed"
 package = false
 

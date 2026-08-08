@@ -223,8 +223,8 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
 option resolves an optional integration only when that command needs it. Place it
 before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
 backends. Pass a comma-separated list or repeat ``--extra``. No extras conflict, so
-any combination resolves into one environment, and ``--extra all`` installs the
-whole feature set at once:
+any combination resolves into one environment, and ``--extra all`` installs every
+backend, RL library, and visualizer at once:
 
 .. code-block:: bash
 
@@ -594,13 +594,17 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
    * - ``leapp``
      - LEAP model export support.
    * - ``all``
-     - Every extra in this table except ``test``.
+     - Every backend, RL library, and visualizer: ``isaacsim``, ``ov``, ``rl-games``,
+       ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``.
    * - ``test``
      - Developer test and documentation tooling.
 
 Extras can be combined freely: none of them conflict, so any set of extras -- including
 the Isaac Sim and OV backend stacks together -- resolves into a single environment.
-Use ``all`` when you want everything, at the cost of a much larger install.
+Use ``all`` to get every backend, RL library, and visualizer in one flag. The
+specialized extras (``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``,
+``leapp``) and the developer ``test`` tooling are not part of ``all``; request them by
+name.
 
 .. isaaclab-uv-wheel-install::
 
