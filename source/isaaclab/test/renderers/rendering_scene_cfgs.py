@@ -25,6 +25,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.test.integration_scene_cfgs import RenderingSceneCfg, RenderingTestSceneCfg
 from isaaclab.test.utils.rendering import CAMERA_EYE, CAMERA_TARGET
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
@@ -40,46 +41,55 @@ _FRANKA_ROBOT = FRANKA_PANDA_CFG.replace(
         rigid_props=FRANKA_PANDA_CFG.spawn.rigid_props.replace(disable_gravity=True),
         semantic_tags=[("class", "robot")],
     ),
-    init_state=FRANKA_PANDA_CFG.init_state.replace(pos=(-0.7, -0.25, 0.0)),
 )
 _FRANKA_TABLE = AssetBaseCfg(
     prim_path="{ENV_REGEX_NS}/Table",
-    spawn=sim_utils.CuboidCfg(
-        size=(1.0, 0.8, 0.12),
-        collision_props=sim_utils.CollisionBaseCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.22, 0.08), roughness=0.55),
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
         semantic_tags=[("class", "table")],
     ),
-    init_state=AssetBaseCfg.InitialStateCfg(pos=(0.45, 0.1, 0.4)),
+    init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, 0.0), rot=(0.0, 0.0, 0.707, 0.707)),
 )
-_SUPPORT = AssetBaseCfg(
-    prim_path="{ENV_REGEX_NS}/Support",
+_FRANKA_CLOTH_CUBE = AssetBaseCfg(
+    prim_path="{ENV_REGEX_NS}/Cube",
     spawn=sim_utils.CuboidCfg(
-        size=(0.28, 0.28, 0.25),
-        collision_props=sim_utils.CollisionBaseCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.22, 0.24, 0.3), roughness=0.7),
-        semantic_tags=[("class", "support")],
+        size=(0.03, 0.01, 0.08),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
+        semantic_tags=[("class", "cube")],
     ),
-    init_state=AssetBaseCfg.InitialStateCfg(pos=(0.45, 0.1, 0.585)),
+    init_state=AssetBaseCfg.InitialStateCfg(pos=(0.45, 0.0, 0.04)),
+)
+_FRANKA_GROUND = AssetBaseCfg(
+    prim_path="/World/GroundPlane",
+    spawn=sim_utils.GroundPlaneCfg(semantic_tags=[("class", "ground")]),
+    init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
+)
+_TASK_SKY_LIGHT = AssetBaseCfg(
+    prim_path="/World/skyLight",
+    spawn=sim_utils.DomeLightCfg(
+        intensity=750.0,
+        texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
+    ),
 )
 
 _YOUNGS_MODULUS = 8.0e4
 _POISSONS_RATIO = 0.25
 _SOFT_NEWTON = DeformableObjectCfg(
-    prim_path="{ENV_REGEX_NS}/Soft",
+    prim_path="{ENV_REGEX_NS}/Deformable",
     spawn=sim_utils.MeshCuboidCfg(
-        size=(0.32, 0.18, 0.16),
+        size=(0.3, 0.05, 0.05),
         deformable_props=NewtonDeformableBodyPropertiesCfg(),
         physics_material=NewtonDeformableBodyMaterialCfg(
             density=300.0,
             k_mu=_YOUNGS_MODULUS / (2.0 * (1.0 + _POISSONS_RATIO)),
             k_lambda=_YOUNGS_MODULUS * _POISSONS_RATIO / ((1.0 + _POISSONS_RATIO) * (1.0 - 2.0 * _POISSONS_RATIO)),
-            particle_radius=0.015,
+            particle_radius=0.01,
         ),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.35, 0.62), roughness=0.3),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
         semantic_tags=[("class", "soft")],
     ),
-    init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.45, 0.1, 0.88)),
+    init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
 )
 _SOFT_PHYSX = _SOFT_NEWTON.replace(
     spawn=_SOFT_NEWTON.spawn.replace(
@@ -88,30 +98,31 @@ _SOFT_PHYSX = _SOFT_NEWTON.replace(
             density=300.0,
             youngs_modulus=_YOUNGS_MODULUS,
             poissons_ratio=_POISSONS_RATIO,
-            static_friction=1.0,
-            dynamic_friction=0.8,
+            static_friction=10.0,
+            dynamic_friction=5.0,
         ),
     )
 )
 _CLOTH_NEWTON = DeformableObjectCfg(
-    prim_path="{ENV_REGEX_NS}/Cloth",
+    prim_path="{ENV_REGEX_NS}/Deformable",
     spawn=sim_utils.MeshRectangleCfg(
-        size=(0.55, 0.55),
+        size=(0.2, 0.2),
+        # The task uses 30x30; 12x12 preserves its silhouette at 128px without the solver cost.
         resolution=(12, 12),
         deformable_props=NewtonDeformableBodyPropertiesCfg(),
         physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
             density=50.0,
-            particle_radius=0.012,
+            particle_radius=0.005,
             tri_ke=5.0e2,
             tri_ka=5.0e2,
             tri_kd=1.0e-3,
             edge_ke=2.0,
             edge_kd=1.0e-3,
         ),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.78, 0.08), roughness=0.5),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
         semantic_tags=[("class", "cloth")],
     ),
-    init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.45, 0.1, 0.9)),
+    init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.2)),
 )
 _CLOTH_PHYSX = _CLOTH_NEWTON.replace(
     spawn=_CLOTH_NEWTON.spawn.replace(
@@ -150,127 +161,149 @@ _DEFORMABLE_NEWTON_PHYSICS = NewtonCfg(
 
 @configclass
 class FrankaSoftRenderingSceneCfg(RenderingSceneCfg):
-    """Franka and one volume deformable, deliberately separated in frame."""
+    """Task-scale volume deformable beside a default Franka on its Seattle table."""
 
+    ground = _FRANKA_GROUND.copy()
+    key_light = None
+    fill_light = _TASK_SKY_LIGHT.copy()
     robot: ArticulationCfg = _FRANKA_ROBOT.copy()
     table: AssetBaseCfg = _FRANKA_TABLE.copy()
-    soft: DeformableObjectCfg = _SOFT_NEWTON.copy()
+    deformable: DeformableObjectCfg = _SOFT_NEWTON.copy()
 
 
 @configclass
 class FrankaClothRenderingSceneCfg(RenderingSceneCfg):
-    """Franka and one low-resolution cloth over a visible support."""
+    """Task-scale cloth above its tiny table obstacle and default Franka."""
 
+    ground = _FRANKA_GROUND.copy()
+    key_light = None
+    fill_light = _TASK_SKY_LIGHT.copy()
     robot: ArticulationCfg = _FRANKA_ROBOT.copy()
     table: AssetBaseCfg = _FRANKA_TABLE.copy()
-    support: AssetBaseCfg = _SUPPORT.copy()
-    cloth: DeformableObjectCfg = _CLOTH_NEWTON.copy()
+    cube: AssetBaseCfg = _FRANKA_CLOTH_CUBE.copy()
+    deformable: DeformableObjectCfg = _CLOTH_NEWTON.copy()
 
 
 _KUKA_ROBOT = KUKA_ALLEGRO_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
-    spawn=KUKA_ALLEGRO_CFG.spawn.replace(
-        rigid_props=KUKA_ALLEGRO_CFG.spawn.rigid_props.replace(disable_gravity=True),
-        semantic_tags=[("class", "robot")],
-    ),
-    init_state=KUKA_ALLEGRO_CFG.init_state.replace(pos=(-0.65, -0.2, 0.0)),
+    spawn=KUKA_ALLEGRO_CFG.spawn.replace(semantic_tags=[("class", "robot")]),
 )
+_KUKA_SHAPE_PHYSICS = {
+    "physics_material": sim_utils.RigidBodyMaterialCfg(static_friction=0.5),
+    "collision_props": sim_utils.CollisionPropertiesCfg(contact_offset=0.002),
+}
 _KUKA_OBJECT = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/Object",
     spawn=sim_utils.MultiAssetSpawnerCfg(
+        # One exact member of each topology in the task's larger shape family.
         assets_cfg=[
-            sim_utils.CuboidCfg(
-                size=(0.28, 0.22, 0.22),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.5, 0.95)),
-                semantic_tags=[("class", "cube")],
+            sim_utils.MeshCuboidCfg(size=(0.05, 0.1, 0.1), semantic_tags=[("class", "cube")], **_KUKA_SHAPE_PHYSICS),
+            sim_utils.MeshSphereCfg(radius=0.05, semantic_tags=[("class", "sphere")], **_KUKA_SHAPE_PHYSICS),
+            sim_utils.MeshCapsuleCfg(
+                radius=0.04, height=0.1, semantic_tags=[("class", "capsule")], **_KUKA_SHAPE_PHYSICS
             ),
-            sim_utils.SphereCfg(
-                radius=0.16,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.25, 0.2)),
-                semantic_tags=[("class", "sphere")],
-            ),
-            sim_utils.CapsuleCfg(
-                radius=0.11,
-                height=0.34,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.8, 0.35)),
-                semantic_tags=[("class", "capsule")],
-            ),
+            sim_utils.MeshConeCfg(radius=0.05, height=0.1, semantic_tags=[("class", "cone")], **_KUKA_SHAPE_PHYSICS),
         ],
         random_choice=False,
-        rigid_props=sim_utils.RigidBodyBaseCfg(disable_gravity=True),
-        collision_props=sim_utils.CollisionBaseCfg(),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(
+            mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
+        ),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
     ),
-    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.52, 0.1, 0.68)),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.35)),
 )
-_KUKA_TABLE = AssetBaseCfg(
-    prim_path="{ENV_REGEX_NS}/Table",
+# The task colors this footprint through a command visualizer; the direct probe keeps it neutrally visible.
+_KUKA_TABLE = RigidObjectCfg(
+    prim_path="{ENV_REGEX_NS}/table",
     spawn=sim_utils.CuboidCfg(
-        size=(0.9, 0.9, 0.12),
-        collision_props=sim_utils.CollisionBaseCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.42, 0.22, 0.09), roughness=0.6),
+        size=(0.8, 1.5, 0.04),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.25, 0.25)),
         semantic_tags=[("class", "table")],
     ),
-    init_state=AssetBaseCfg.InitialStateCfg(pos=(0.52, 0.1, 0.46)),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235)),
+)
+_KUKA_GROUND = AssetBaseCfg(
+    prim_path="/World/GroundPlane",
+    spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0), semantic_tags=[("class", "ground")]),
+    collision_group=-1,
 )
 
 
 @configclass
 class KukaHeterogeneousRenderingSceneCfg(RenderingSceneCfg):
-    """Three deterministic clone variants around a configured Kuka Allegro."""
+    """Four deterministic clones drawn from the task's heterogeneous object family."""
 
+    ground = _KUKA_GROUND.copy()
+    key_light = None
+    fill_light = _TASK_SKY_LIGHT.copy()
     robot: ArticulationCfg = _KUKA_ROBOT.copy()
     object: RigidObjectCfg = _KUKA_OBJECT.copy()
-    table: AssetBaseCfg = _KUKA_TABLE.copy()
+    table: RigidObjectCfg = _KUKA_TABLE.copy()
 
 
-_SHADOW_HAND_JOINT_POS = {
-    "robot0_WR.*": 0.0,
-    "robot0_(FF|MF|RF)J3": 0.2,
-    "robot0_(FF|MF|RF)J(2|1)": 0.55,
-    "robot0_LFJ(4|3)": 0.2,
-    "robot0_LFJ(2|1)": 0.5,
-    "robot0_THJ(4|3)": 0.35,
-    "robot0_THJ2": 0.15,
-    "robot0_THJ1": 0.2,
-    "robot0_THJ0": 0.0,
-}
 _SHADOW_HAND_PHYSX = SHADOW_HAND_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=SHADOW_HAND_CFG.spawn.replace(semantic_tags=[("class", "robot")]),
-    init_state=SHADOW_HAND_CFG.init_state.replace(pos=(-0.15, 0.05, 0.47), joint_pos=_SHADOW_HAND_JOINT_POS),
+    init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={".*": 0.0}),
 )
 _SHADOW_HAND_OVPHYSX = _SHADOW_HAND_PHYSX.replace(spawn=_SHADOW_HAND_PHYSX.spawn.replace(fixed_tendons_props=None))
 _SHADOW_HAND_NEWTON = SHADOW_HAND_NEWTON_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(semantic_tags=[("class", "robot")]),
-    init_state=SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=(-0.15, 0.05, 0.47), joint_pos=_SHADOW_HAND_JOINT_POS),
+    # Align the Newton USD's z-up visual root with the task's palm-to-cube layout.
+    init_state=SHADOW_HAND_NEWTON_CFG.init_state.replace(rot=(0.70710678, 0.0, 0.0, 0.70710678)),
+)
+_SHADOW_OBJECT_PHYSX = RigidObjectCfg(
+    prim_path="{ENV_REGEX_NS}/object",
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            kinematic_enabled=False,
+            disable_gravity=False,
+            enable_gyroscopic_forces=True,
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=0,
+            sleep_threshold=0.005,
+            stabilization_threshold=0.0025,
+            max_depenetration_velocity=1000.0,
+        ),
+        mass_props=sim_utils.MassPropertiesCfg(density=567.0),
+        semantic_tags=[("class", "cube")],
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6)),
+)
+_SHADOW_OBJECT_NEWTON = ArticulationCfg(
+    prim_path="{ENV_REGEX_NS}/object",
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+        mass_props=sim_utils.MassPropertiesCfg(density=400.0),
+        semantic_tags=[("class", "cube")],
+        scale=(0.9, 0.9, 0.9),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, -0.36, 0.535), joint_pos={}, joint_vel={}),
+    actuators={},
+    articulation_root_prim_path="",
+)
+_SHADOW_LIGHT = AssetBaseCfg(
+    prim_path="/World/Light",
+    spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
 )
 
 
 @configclass
 class ShadowHandRenderingSceneCfg(RenderingSceneCfg):
-    """Configured high-DOF hand with a labeled, visibly offset cube."""
+    """Open default Shadow Hand holding the task's labeled DexCube."""
 
+    ground = None
+    key_light = None
+    fill_light = _SHADOW_LIGHT.copy()
     robot: ArticulationCfg = _SHADOW_HAND_NEWTON.copy()
-    cube = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.58, 0.22, 0.88), roughness=0.25),
-            semantic_tags=[("class", "cube")],
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.2, 0.1, 0.55), rot=(0.0, 0.0, 0.258819, 0.965926)),
-    )
-    support = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Support",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.85, 0.75, 0.12),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.18, 0.21, 0.27), roughness=0.75),
-            semantic_tags=[("class", "support")],
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.02, -0.18, 0.38)),
-    )
+    object: ArticulationCfg | RigidObjectCfg = _SHADOW_OBJECT_NEWTON.copy()
 
 
 def make_rendering_scene_cfg(
@@ -292,22 +325,23 @@ def make_rendering_scene_cfg(
             None,
         )
     if scene == "franka_soft":
-        cfg = FrankaSoftRenderingSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=True)
-        cfg.soft = (_SOFT_NEWTON if physics == "newton" else _SOFT_PHYSX).copy()
+        cfg = FrankaSoftRenderingSceneCfg(num_envs=1, env_spacing=2.5, lazy_sensor_update=True)
+        cfg.deformable = (_SOFT_NEWTON if physics == "newton" else _SOFT_PHYSX).copy()
         physics_cfg = _DEFORMABLE_NEWTON_PHYSICS if physics == "newton" else None
-        return cfg, (2.7, -3.2, 2.25), (0.05, 0.0, 0.72), frozenset(), physics_cfg
+        return cfg, (0.85, -0.55, 0.42), (0.20051, 0.099902, 0.025508), frozenset(), physics_cfg
     if scene == "franka_cloth":
-        cfg = FrankaClothRenderingSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=True)
-        cfg.cloth = (_CLOTH_NEWTON if physics == "newton" else _CLOTH_PHYSX).copy()
+        cfg = FrankaClothRenderingSceneCfg(num_envs=1, env_spacing=2.5, lazy_sensor_update=True)
+        cfg.deformable = (_CLOTH_NEWTON if physics == "newton" else _CLOTH_PHYSX).copy()
         physics_cfg = _DEFORMABLE_NEWTON_PHYSICS if physics == "newton" else None
-        return cfg, (2.7, -3.2, 2.25), (0.05, 0.0, 0.72), frozenset(), physics_cfg
+        return cfg, (0.85, -0.55, 0.42), (0.20051, 0.099902, 0.025508), frozenset(), physics_cfg
     if scene == "kuka_heterogeneous":
-        cfg = KukaHeterogeneousRenderingSceneCfg(num_envs=3, env_spacing=4.25, lazy_sensor_update=True)
-        return cfg, (2.8, -4.0, 2.65), (0.0, 0.0, 0.82), frozenset(), None
+        cfg = KukaHeterogeneousRenderingSceneCfg(num_envs=4, env_spacing=3.0, lazy_sensor_update=True)
+        return cfg, (0.57, -0.8, 0.5), (-0.296179, -0.299998, 0.500133), frozenset(), None
     if scene == "shadow_hand":
-        cfg = ShadowHandRenderingSceneCfg(num_envs=1, env_spacing=3.0, lazy_sensor_update=True)
+        cfg = ShadowHandRenderingSceneCfg(num_envs=1, env_spacing=0.75, lazy_sensor_update=True)
         cfg.robot = {"physx": _SHADOW_HAND_PHYSX, "ovphysx": _SHADOW_HAND_OVPHYSX, "newton": _SHADOW_HAND_NEWTON}[
             physics
         ].copy()
-        return cfg, (-1.15, -1.1, 1.05), (-0.05, 0.0, 0.62), frozenset({"cube"}), None
+        cfg.object = (_SHADOW_OBJECT_NEWTON if physics == "newton" else _SHADOW_OBJECT_PHYSX).copy()
+        return cfg, (0.0, -0.35, 1.0), (0.0, -0.35, 0.0), frozenset({"cube"}), None
     raise ValueError(f"Unknown rendering scene: {scene!r}")

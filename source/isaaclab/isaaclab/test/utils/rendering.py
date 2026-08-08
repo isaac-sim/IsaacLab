@@ -36,7 +36,7 @@ SEMANTIC_COLORS = {
     "class:capsule": (20, 184, 166, 255),
     "class:cloth": (250, 204, 21, 255),
     "class:soft": (244, 114, 182, 255),
-    "class:support": (120, 113, 108, 255),
+    "class:cone": (255, 145, 48, 255),
 }
 
 

@@ -168,6 +168,79 @@ def test_specialized_rendering_scenes_are_declarative_and_task_free() -> None:
     assert set().union(*partitions) == set(SCENE_PROBE_KITLESS_CASES)
 
 
+def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
+    """Direct probes retain recognizable task assets and layouts without task ownership."""
+    source = (_RENDERER_TEST_DIR / "rendering_scene_cfgs.py").read_text()
+    classes = {
+        node.name: node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.ClassDef) and node.name.endswith("RenderingSceneCfg")
+    }
+    fields = {}
+    for name, node in classes.items():
+        fields[name] = set()
+        for statement in node.body:
+            if isinstance(statement, ast.AnnAssign):
+                targets = (statement.target,)
+            elif isinstance(statement, ast.Assign):
+                targets = statement.targets
+            else:
+                continue
+            fields[name].update(target.id for target in targets if isinstance(target, ast.Name))
+
+    assert fields == {
+        "FrankaSoftRenderingSceneCfg": {"ground", "key_light", "fill_light", "robot", "table", "deformable"},
+        "FrankaClothRenderingSceneCfg": {
+            "ground",
+            "key_light",
+            "fill_light",
+            "robot",
+            "table",
+            "cube",
+            "deformable",
+        },
+        "KukaHeterogeneousRenderingSceneCfg": {
+            "ground",
+            "key_light",
+            "fill_light",
+            "robot",
+            "object",
+            "table",
+        },
+        "ShadowHandRenderingSceneCfg": {"ground", "key_light", "fill_light", "robot", "object"},
+    }
+
+    required_signatures = (
+        "SeattleLabTable/table_instanceable.usd",
+        "DexCube/dex_cube_instanceable.usd",
+        "size=(0.3, 0.05, 0.05)",
+        "size=(0.2, 0.2)",
+        "resolution=(12, 12)",
+        "size=(0.03, 0.01, 0.08)",
+        "pos=(-0.55, 0.1, 0.35)",
+        'joint_pos={".*": 0.0}',
+        "rot=(0.70710678, 0.0, 0.0, 0.70710678)",
+        "num_envs=4, env_spacing=3.0",
+        "(0.0, -0.35, 1.0), (0.0, -0.35, 0.0)",
+        "MeshCuboidCfg",
+        "MeshSphereCfg",
+        "MeshCapsuleCfg",
+        "MeshConeCfg",
+    )
+    assert not [signature for signature in required_signatures if signature not in source]
+
+    rejected_demo_composition = (
+        "_SHADOW_HAND_JOINT_POS",
+        'prim_path="{ENV_REGEX_NS}/Support"',
+        "pos=(-0.7, -0.25, 0.0)",
+        "pos=(-0.65, -0.2, 0.0)",
+        "size=(0.32, 0.18, 0.16)",
+        "size=(0.55, 0.55)",
+        "resolution=(30, 30)",
+    )
+    assert not [signature for signature in rejected_demo_composition if signature in source]
+
+
 def test_renderer_matrix_bundles_compatible_aovs() -> None:
     """The matrix bundles compatible AOVs and isolates mutually exclusive profiles."""
     assert len(KIT_CASES) == 8
