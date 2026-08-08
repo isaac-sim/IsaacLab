@@ -89,6 +89,14 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     vel_yaw_success_threshold: float = 0.4
     """Threshold on the per-episode mean yaw velocity error [rad/s]."""
 
+    marker_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.5)
+    """Offset [m] applied to the robot root position when placing velocity visualization markers.
+
+    The default of ``(0.0, 0.0, 0.5)`` works well for quadrupeds. For taller robots such as
+    humanoids, increase the Z component (e.g. ``(0.0, 0.0, 1.8)``) so the arrows appear above
+    the robot's head rather than clipping through the torso.
+    """
+
     goal_vel_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
         prim_path="/Visuals/Command/velocity_goal"
     )
