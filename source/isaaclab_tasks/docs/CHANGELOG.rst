@@ -1,6 +1,41 @@
 Changelog
 ---------
 
+14.0.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added recorded ``robot_pov_cam`` policy observations to the GR1T2 pick-place and G1
+  locomanipulation tasks for XR camera feedback.
+
+Changed
+^^^^^^^
+
+* Removed ``viewer: ViewerCfg = ViewerCfg(...)`` from task environment configs following the
+  removal of :class:`~isaaclab.envs.common.ViewerCfg`. Custom camera positions can be set via
+  ``cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=..., lookat=...)]``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``newton_kamino`` physics preset from
+  :class:`~isaaclab_tasks.core.reach.reach_env_cfg.ReachPhysicsCfg`, so ``Isaac-Reach-Franka``,
+  ``Isaac-Reach-Franka-OSC`` and ``Isaac-Reach-UR10`` no longer accept ``physics=newton_kamino``.
+  Use ``physics=newton_mjwarp`` (the default) instead, or redeclare a task-local
+  ``newton_kamino`` preset if the Kamino solver is needed.
+
+Fixed
+^^^^^
+
+* Fixed the ExhaustPipe ``robot_pov_cam`` rotation after the WXYZ-to-XYZW quaternion migration.
+* Fixed the GR1T2 and G1 XR cameras to follow their robot attachment points and restored
+  the calibrated G1 camera view with viewer-start panel placement.
+* Fixed Newton MJWarp locomotion training instability by tuning contact capacity and parameters, adjusting the
+  ANYmal-D initial height, and terminating excessively fast bodies.
+
+
 13.0.0 (2026-08-07)
 ~~~~~~~~~~~~~~~~~~~
 

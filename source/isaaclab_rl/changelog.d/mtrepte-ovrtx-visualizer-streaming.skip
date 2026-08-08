@@ -1,1 +1,0 @@
-Internal: updated apply_video_recording fallback to use NewtonGLVisualizerCfg. No user-facing isaaclab_rl API change.

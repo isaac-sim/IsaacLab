@@ -188,9 +188,11 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
 
     # isaacsim is forked away from extras whose pins cannot be safely overridden.
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    for extra in ("ov", "ovphysx"):
-        assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
+    assert {"isaacsim", "ov"} in conflict_groups, "isaacsim must declare a conflict with 'ov'"
     assert {"isaacsim", "all"} not in conflict_groups
+    # ovphysx no longer clashes: the packaging override reconciles it.
+    assert {"isaacsim", "ovphysx"} not in conflict_groups
+    assert "packaging>=20,<27" in pyproject["tool"]["uv"]["override-dependencies"]
     # ``test`` is no longer forked away: the coverage override reconciles it with Isaac Sim.
     assert {"isaacsim", "test"} not in conflict_groups
     # ``mimic`` is no longer forked away either: robomimic dropped its lxml constraint, so
@@ -239,10 +241,8 @@ def test_uv_run_teleop_extra_bundles_isaacsim():
     assert not any(dep.startswith("robomimic") for dep in teleop)
 
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
-    # Only the packaging split is real; the overrides reconcile everything else.
-    for extra in ("ov", "ovphysx"):
-        assert {"teleop", extra} in conflict_groups, f"teleop must declare a conflict with '{extra}'"
-    for extra in ("mimic", "all", "viser", "test"):
+    assert {"teleop", "ov"} in conflict_groups, "teleop must declare a conflict with 'ov'"
+    for extra in ("mimic", "all", "viser", "test", "ovphysx"):
         assert {"teleop", extra} not in conflict_groups
     # ``--extra teleop --extra test`` must keep working so the teleop suite stays runnable.
     assert {"teleop", "test"} not in conflict_groups
