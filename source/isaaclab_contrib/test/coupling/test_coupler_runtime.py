@@ -38,6 +38,7 @@ def isolated_newton_manager(monkeypatch: pytest.MonkeyPatch):
         "_collision_cfg": None,
         "_needs_collision_pipeline": False,
         "_supports_contact_sensors": True,
+        "_supports_rigid_body_force_input": False,
         "_report_contacts": False,
     }
     for name, value in clean_values.items():

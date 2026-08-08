@@ -463,6 +463,7 @@ Newton Visualizer
 
 - Lightweight OpenGL rendering with low overhead
 - Simulation and rendering pause controls
+- Right-click rigid-body dragging with Newton rigid-body solvers
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 - Visualization markers (joints, contacts, springs, COM, debug markers)
@@ -483,6 +484,8 @@ Newton Visualizer
      - Down / Up
    * - **Left Click + Drag**
      - Look around
+   * - **Right Click + Drag**
+     - Apply an interactive force to a dynamic Newton rigid body
    * - **Mouse Scroll**
      - Zoom in/out
    * - **H**
@@ -523,6 +526,7 @@ Newton Visualizer
         show_contacts=False,                      # Show contact points and normals
         show_springs=False,                       # Show spring constraints
         show_com=False,                           # Show center of mass markers
+        enable_picking=True,                      # Enable Newton rigid-body dragging
 
         # Rendering options
         enable_shadows=True,                      # Enable shadow rendering
@@ -534,6 +538,14 @@ Newton Visualizer
         sky_lower_color=(0.18, 0.20, 0.25),      # Lower sky / ground color (RGB [0,1])
         light_color=(1.0, 1.0, 1.0),             # Directional light color (RGB [0,1])
     )
+
+.. note::
+
+   Object dragging requires an interactive Newton visualizer with a Newton
+   rigid-body solver (MJWarp, XPBD, VBD, Featherstone, or Kamino), either standalone
+   or in a supported coupled solver with a rigid-body entry. Static and
+   kinematic bodies and MPM particles are not moved. Picking is disabled
+   automatically for headless viewers, standalone MPM, and non-Newton physics.
 
 
 Rerun Visualizer

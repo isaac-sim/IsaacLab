@@ -85,6 +85,8 @@ CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
 
 if TYPE_CHECKING:
+    from newton import State
+
     from isaaclab.scene_data import SceneDataProvider
 
 
@@ -127,6 +129,10 @@ class _NewtonViewerUIMixin:
     mixin to share panel-patching helpers and training-controls widgets without
     duplicating code.
     """
+
+    def _register_isaaclab_ui_callbacks(self) -> None:
+        """Register model-dependent Isaac Lab viewer controls."""
+        self.register_ui_callback(self._render_training_controls, position="side")
 
     def _patch_scalar_plot_width(self) -> None:
         """Set up ImPlot and suppress Newton's built-in floating Plots window.
@@ -370,7 +376,7 @@ class _NewtonViewerUIMixin:
                 imgui.text("WASD - Move camera")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
-                imgui.text("Right Click - Pick objects")
+                imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
                 imgui.text("Shift + Middle Click - Pan")
                 imgui.text("Ctrl + Middle Click - Dolly")
@@ -807,6 +813,45 @@ class NewtonVisualizer(BaseVisualizer):
     :class:`NewtonRTXVisualizer`.
     """
 
+    class _ViewerPickingBinding:
+        """Stable Newton-manager callback for viewer picking.
+
+        CUDA graphs record picking arrays by address, so closing the window
+        neutralizes and retains them until the captured graph is gone.
+        """
+
+        def __init__(self) -> None:
+            self._viewer: NewtonViewerGL | NewtonViewerRTX | None = None
+            self._retained_picking = None
+
+        def bind(self, viewer: NewtonViewerGL | NewtonViewerRTX) -> None:
+            """Bind picking to the current viewer model."""
+            self._viewer = viewer
+            self._retained_picking = None
+
+        def apply(self, state: State) -> None:
+            """Apply picking while the viewer is active."""
+            if self._viewer is None:
+                # Host callbacks do not run during graph replay, so reaching
+                # this branch means captured inputs are no longer needed.
+                self._retained_picking = None
+                return
+            self._viewer.apply_forces(state)
+
+        def deactivate(self) -> None:
+            """Make captured picking inert while preserving its inputs."""
+            viewer = self._viewer
+            if viewer is None:
+                return
+
+            picking = getattr(viewer, "picking", None)
+            if picking is not None:
+                viewer.picking_enabled = False
+                picking.release()
+
+            self._retained_picking = picking
+            self._viewer = None
+
     def __init__(self, cfg: NewtonVisualizerCfg):
         """Initialize shared Newton visualizer state.
 
@@ -830,6 +875,8 @@ class NewtonVisualizer(BaseVisualizer):
         self._camera_env_indices: list[int] = []
         self._camera_is_owned = False
         self._generated_camera_prim_paths: list[str] = []
+        self._viewer_picking_binding = self._ViewerPickingBinding()
+        self._picking_enabled = False
         self._streaming_camera_key: tuple | None = None
         self._live_plots_manager_visible: dict[str, bool] = {}
         self._last_streaming_composite: np.ndarray | None = None
@@ -850,17 +897,26 @@ class NewtonVisualizer(BaseVisualizer):
         """
         from isaaclab_newton.physics import NewtonManager
 
+        from isaaclab.sim import SimulationContext
+
         if self._is_initialized:
             logger.debug("[%s] initialize() called while already initialized.", type(self).__name__)
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        newton_backend_active = self.physics_backend == "newton"
+        physics_manager = SimulationContext.instance().physics_manager
+        picking_supported = newton_backend_active and bool(
+            getattr(physics_manager, "_supports_rigid_body_force_input", False)
+        )
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state(self._scene_data_provider)
+        self._state = (
+            NewtonManager.get_state_0() if newton_backend_active else NewtonManager.get_state(self._scene_data_provider)
+        )
 
         runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
@@ -887,10 +943,14 @@ class NewtonVisualizer(BaseVisualizer):
 
             pyglet.options["headless"] = True
 
+        self._picking_enabled = self.cfg.enable_picking and picking_supported and not runtime_headless
         self._viewer = self._create_viewer(runtime_headless, metadata)
 
         if self._viewer is not None:
             self._viewer.set_model(self._model)
+            if self._picking_enabled:
+                # Keep Newton's public force path scoped to picking for this integration.
+                self._viewer.wind = None
             self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_camera_focal_length()
@@ -898,13 +958,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._apply_camera_pose(initial_pose)
             self._viewer._paused = False
 
-            self._viewer.show_joints = self.cfg.show_joints
-            self._viewer.show_contacts = self.cfg.show_contacts
-            self._viewer.show_collision = self.cfg.show_collision
-            self._viewer.show_springs = self.cfg.show_springs
-            self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
-            self._viewer.show_com = self.cfg.show_com
-            self._viewer.show_particles = self.cfg.show_particles
+            self._apply_model_visualization_options()
+            self._viewer.picking_enabled = self._picking_enabled
 
             self._apply_viewer_post_init()
 
@@ -929,9 +984,30 @@ class NewtonVisualizer(BaseVisualizer):
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
                 ("show_particles", self.cfg.show_particles),
+                ("enable_picking", self._picking_enabled),
             ],
         )
+        if self._viewer is not None and self._picking_enabled:
+            self._viewer_picking_binding.bind(self._viewer)
+            NewtonManager.register_state_force_callback(self._viewer_picking_binding.apply)
+        if self._viewer is not None and self.cfg.enable_picking and not picking_supported:
+            logger.info(
+                "[NewtonVisualizer] Object dragging is disabled because the active physics solver does not support"
+                " rigid-body force input."
+            )
         self._is_initialized = True
+
+    def _apply_model_visualization_options(self) -> None:
+        """Apply configured options reset by Newton model changes."""
+        if self._viewer is None:
+            return
+        self._viewer.show_joints = self.cfg.show_joints
+        self._viewer.show_contacts = self.cfg.show_contacts
+        self._viewer.show_collision = self.cfg.show_collision
+        self._viewer.show_springs = self.cfg.show_springs
+        self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
+        self._viewer.show_com = self.cfg.show_com
+        self._viewer.show_particles = self.cfg.show_particles
 
     def step(self, dt: float) -> None:
         """Advance visualization by one simulation step.
@@ -989,8 +1065,12 @@ class NewtonVisualizer(BaseVisualizer):
                         self._render_live_plots()
                 finally:
                     self._viewer.end_frame()
+                    if not self._viewer.is_running():
+                        self._viewer_picking_binding.deactivate()
             else:
                 self._pump_paused()
+                if not self._viewer.is_running():
+                    self._viewer_picking_binding.deactivate()
         except Exception:
             logger.exception("[%s] Viewer update failed.", type(self).__name__)
             # Subclasses that cannot recover from a viewer failure (e.g. RTX when OVRTX is
@@ -1015,10 +1095,38 @@ class NewtonVisualizer(BaseVisualizer):
             return self._viewer.consume_reset_request()
         return False
 
+    def reset(self, soft: bool = False) -> None:
+        """Rebind viewer resources after a hard Newton model reset."""
+        if soft or not self._picking_enabled or not self._is_initialized or self._is_closed:
+            return
+
+        from isaaclab_newton.physics import NewtonManager
+
+        model = NewtonManager.get_model()
+        if model is self._model:
+            return
+        self._model = model
+        self._state = NewtonManager.get_state_0()
+        if self._viewer is not None:
+            self._viewer.set_model(self._model)
+            if self._picking_enabled:
+                self._viewer.wind = None
+            self._viewer._register_isaaclab_ui_callbacks()
+            self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+            self._viewer.set_world_offsets(self.cfg.world_spacing)
+            self._apply_model_visualization_options()
+            self._viewer.picking_enabled = self._picking_enabled
+            if self._picking_enabled:
+                self._viewer_picking_binding.bind(self._viewer)
+
     def close(self) -> None:
         """Release viewer resources."""
         if self._is_closed:
             return
+        if self._picking_enabled:
+            # Keep the stable callback registered: captured graphs replay its
+            # now-neutral device inputs without retaining the viewer.
+            self._viewer_picking_binding.deactivate()
         if self._viewer is not None:
             self._viewer = None
         if self._camera_sensor is not None and self._camera_is_owned:

@@ -200,6 +200,42 @@ def test_update_visualizers_handles_training_pause_loop():
     assert viz.step_calls == [0.0, 0.2]
 
 
+def test_newton_visualizer_is_initialized_and_rebound_before_capture():
+    created = []
+    reset_calls = []
+
+    class _Cfg:
+        def __init__(self, visualizer_type, enable_picking=False):
+            self.visualizer_type = visualizer_type
+            self.enable_picking = enable_picking
+            self.headless = False
+
+        def create_visualizer(self):
+            viz = _FakeVisualizer()
+            viz.cfg = self
+            viz.initialize = lambda _provider: created.append(self.visualizer_type)
+            viz.reset = lambda soft: reset_calls.append((self.visualizer_type, soft))
+            return viz
+
+    ctx = _make_context_with_settings(
+        {}, visualizer_cfgs=[_Cfg("newton_gl", True), _Cfg("newton_rtx", True), _Cfg("rerun")]
+    )
+    ctx._prepare_newton_visualizer_for_capture()
+    assert created == ["newton_gl", "newton_rtx"]
+
+    ctx.initialize_visualizers()
+    ctx._prepare_newton_visualizer_for_capture()
+
+    assert created == ["newton_gl", "newton_rtx", "rerun"]
+    assert len(ctx._visualizers) == 3
+    assert reset_calls == [
+        ("newton_gl", False),
+        ("newton_rtx", False),
+        ("newton_gl", False),
+        ("newton_rtx", False),
+    ]
+
+
 def test_reset_initializes_visualizers_before_playing_timeline():
     """Initial visualizers must see the PhysX views created by reset before play() pumps timeline events."""
     events: list[str] = []
@@ -694,6 +730,7 @@ def _make_context_with_settings(
     ctx._pending_camera_view = None
     ctx._render_generation = 0
     ctx._visualizers = []
+    ctx._pending_visualizer_cfgs = None
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
     ctx._clone_plan = None
