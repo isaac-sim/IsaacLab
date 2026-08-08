@@ -41,6 +41,7 @@ class PushParticleResetState:
 
     position_e: torch.Tensor
     focused_source_mask: torch.Tensor
+    source_group_masks: torch.Tensor
 
 
 def build_reset_pose_curriculum_levels(
@@ -62,9 +63,12 @@ def build_reset_pose_source_pile_indices(
     """Return the source pile targeted by each deterministic reset-pose row."""
     levels = build_reset_pose_curriculum_levels(cfg, device="cpu").numpy()
     indices = np.zeros(cfg.reset_pose_count, dtype=np.int64)
-    for level, pile_count in enumerate(cfg.curriculum_source_pile_count):
+    for level, (pile_count, post_first_sweep) in enumerate(
+        zip(cfg.curriculum_source_pile_count, cfg.curriculum_post_first_sweep, strict=True)
+    ):
         level_rows = np.flatnonzero(levels == level)
-        indices[level_rows] = np.arange(level_rows.size) % pile_count
+        side_count = 2 if post_first_sweep else pile_count
+        indices[level_rows] = np.arange(level_rows.size) % side_count
     return torch.as_tensor(indices, dtype=torch.long, device=device)
 
 
@@ -89,23 +93,44 @@ def build_reset_paddle_targets(
     for level in range(len(cfg.curriculum_pile_center_x)):
         level_rows = np.flatnonzero(levels == level)
         level_scale = np.float32(cfg.curriculum_randomization_scale[level])
-        positions[level_rows, 0] += np.float32(cfg.curriculum_pile_center_x[level] - cfg.pile_nominal_center[0])
         pile_count = cfg.curriculum_source_pile_count[level]
+        post_first_sweep = cfg.curriculum_post_first_sweep[level]
         lateral_offset = np.float32(cfg.curriculum_source_lateral_offset[level])
+        if post_first_sweep:
+            positions[level_rows, 0] = np.float32(cfg.post_first_sweep_paddle_center_x)
+            positions[level_rows, 1] = np.where(
+                source_pile_indices[level_rows] == 0,
+                -lateral_offset,
+                lateral_offset,
+            )
+        else:
+            positions[level_rows, 0] += np.float32(cfg.curriculum_pile_center_x[level] - cfg.pile_nominal_center[0])
+            if pile_count == 2:
+                positions[level_rows, 1] += np.where(
+                    source_pile_indices[level_rows] == 0,
+                    -lateral_offset,
+                    lateral_offset,
+                )
         paddle_lateral_range = np.float32(
-            cfg.reset_paddle_split_max_lateral_offset if pile_count == 2 else cfg.reset_paddle_max_lateral_offset
+            cfg.post_first_sweep_paddle_max_lateral_offset
+            if post_first_sweep
+            else (cfg.reset_paddle_split_max_lateral_offset if pile_count == 2 else cfg.reset_paddle_max_lateral_offset)
         )
-        if pile_count == 2:
-            positions[level_rows, 1] += np.where(source_pile_indices[level_rows] == 0, -lateral_offset, lateral_offset)
         # Keep one exact pose for every focus side and randomize the remaining rows locally.
-        for pile_index in range(pile_count):
+        side_count = 2 if post_first_sweep else pile_count
+        for pile_index in range(side_count):
             pile_rows = level_rows[source_pile_indices[level_rows] == pile_index]
             randomized_rows = pile_rows[1:]
             if randomized_rows.size == 0:
                 continue
+            longitudinal_range = (
+                cfg.post_first_sweep_paddle_longitudinal_offset_range
+                if post_first_sweep
+                else cfg.reset_paddle_longitudinal_offset_range
+            )
             positions[randomized_rows, 0] += rng.uniform(
-                cfg.reset_paddle_longitudinal_offset_range[0] * level_scale,
-                cfg.reset_paddle_longitudinal_offset_range[1] * level_scale,
+                longitudinal_range[0] * level_scale,
+                longitudinal_range[1] * level_scale,
                 randomized_rows.size,
             ).astype(np.float32)
             positions[randomized_rows, 1] += rng.uniform(
@@ -285,6 +310,10 @@ def build_staged_particle_reset(
     source_group_index = source_rank.remainder(source_pile_count[:, None])
     source_group_rank = torch.div(source_rank, source_pile_count[:, None], rounding_mode="floor")
     focused_source_mask = source_mask & (source_group_index == focused_source_pile_index[:, None])
+    source_group_masks = torch.stack(
+        tuple(source_mask & (source_group_index == pile_index) for pile_index in range(2)),
+        dim=1,
+    )
 
     spawn = cfg.scene.media.spawn
     extent = template_position_e.new_tensor(
@@ -383,4 +412,5 @@ def build_staged_particle_reset(
     return PushParticleResetState(
         position_e=position_e,
         focused_source_mask=focused_source_mask,
+        source_group_masks=source_group_masks,
     )

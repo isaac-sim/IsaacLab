@@ -410,7 +410,7 @@ for the lift-cube environment:
 .. |lift-cube| image:: ../_static/tasks/manipulation/franka_lift.jpg
 .. |lift-soft-franka| image:: ../_static/newton/franka-mjwarp-vbd-coupling.png
 .. |lift-cloth-franka| image:: ../_static/tasks/manipulation/franka_lift_cloth.jpg
-.. |franka-pour| image:: ../_static/tasks/manipulation/franka_pour.png
+.. |franka-pour| image:: ../_static/tasks/manipulation/franka_pour.jpg
 .. |ur10-particle-push| image:: ../_static/tasks/manipulation/ur10_particle_push.png
 .. |cabi-franka| image:: ../_static/tasks/manipulation/franka_open_drawer.jpg
 .. |cube-allegro| image:: ../_static/tasks/manipulation/allegro_cube.jpg

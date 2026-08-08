@@ -7,6 +7,7 @@ __all__ = [
     "BinProgressReward",
     "ClampedRelativeJointPositionAction",
     "ClampedRelativeJointPositionActionCfg",
+    "PaddleReachProgressReward",
     "PushCurriculum",
     "TransportProgressReward",
     "action_magnitude",
@@ -15,6 +16,7 @@ __all__ = [
     "compute_capped_bin_goal_progress",
     "compute_masked_particle_mean",
     "compute_paddle_reach_potential",
+    "compute_particle_bin_mask",
     "compute_particle_metrics",
     "compute_transport_progress",
     "critic_observation",
@@ -41,6 +43,7 @@ from .events import reset_push_scene
 from .observations import build_bin_goal_mask, critic_observation, heightmap_observation, policy_observation
 from .rewards import (
     BinProgressReward,
+    PaddleReachProgressReward,
     TransportProgressReward,
     action_magnitude,
     action_rate,
@@ -54,6 +57,7 @@ from .rewards import (
     success_event,
 )
 from .terminations import (
+    compute_particle_bin_mask,
     compute_particle_metrics,
     escaped_workspace,
     excessive_spill,

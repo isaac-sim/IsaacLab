@@ -188,6 +188,18 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             dtype=torch.bool,
             device=self.device,
         )
+        self._particle_source_group_masks = torch.zeros(
+            (self.num_envs, 2, self._media.particles_per_object),
+            dtype=torch.bool,
+            device=self.device,
+        )
+        self._initial_source_index = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        self._split_source_episode = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._post_first_sweep_reset = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._first_sweep_complete = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._second_pile_reached = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._second_push_started = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._paddle_reach_target_revision = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._bin_fraction = torch.zeros(self.num_envs, device=self.device)
         self._spill_fraction = torch.zeros_like(self._bin_fraction)
         self._success_streak = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -236,6 +248,11 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             self.cfg.curriculum_source_lateral_offset,
             device=self.device,
             dtype=torch.float32,
+        )
+        self._curriculum_post_first_sweep = torch.tensor(
+            self.cfg.curriculum_post_first_sweep,
+            device=self.device,
+            dtype=torch.bool,
         )
         if self.cfg.curriculum_level_override is not None:
             initial_level = self.cfg.curriculum_level_override
@@ -585,6 +602,36 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         return self._paddle_reach_potential
 
     @property
+    def paddle_reach_target_revision(self) -> torch.Tensor:
+        """Monotonic revision of the active source-pile target."""
+        return self._paddle_reach_target_revision
+
+    @property
+    def first_sweep_complete(self) -> torch.Tensor:
+        """Whether the initially focused pile was substantially delivered."""
+        return self._first_sweep_complete
+
+    @property
+    def second_pile_reached(self) -> torch.Tensor:
+        """Whether the paddle reached the remaining pile after the first sweep."""
+        return self._second_pile_reached
+
+    @property
+    def second_push_started(self) -> torch.Tensor:
+        """Whether the remaining pile began entering the bin."""
+        return self._second_push_started
+
+    @property
+    def post_first_sweep_reset(self) -> torch.Tensor:
+        """Whether the episode began from a post-first-sweep reset."""
+        return self._post_first_sweep_reset
+
+    @property
+    def split_source_episode(self) -> torch.Tensor:
+        """Whether the episode began with two source piles."""
+        return self._split_source_episode
+
+    @property
     def invalid_state(self) -> torch.Tensor:
         return self._invalid_state
 
@@ -660,6 +707,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         particle_speed = torch.linalg.vector_norm(safe_velocity_e, dim=-1)
         self._rms_particle_speed = torch.sqrt(torch.square(particle_speed).mean(dim=1))
 
+        particle_bin_mask = mdp.compute_particle_bin_mask(safe_position_e, self.cfg)
         self._bin_fraction, self._spill_fraction = mdp.compute_particle_metrics(safe_position_e, self.cfg)
         self._excessive_spill = self._spill_fraction > self.cfg.failure_max_spill_fraction
         self._transport_progress = mdp.compute_transport_progress(
@@ -681,6 +729,30 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         ) - self.scene.env_origins
         paddle_normal_e = quat_apply(safe_ee_pose_w[:, 3:7], self._paddle_local_normal)
         paddle_vertical_e = quat_apply(safe_ee_pose_w[:, 3:7], self._paddle_local_vertical)
+        source_group_count = self._particle_source_group_masks.sum(dim=2).clamp_min(1)
+        source_group_delivered = (self._particle_source_group_masks & particle_bin_mask[:, None, :]).sum(dim=2)
+        source_group_delivery_fraction = source_group_delivered / source_group_count
+        initial_source_delivery = source_group_delivery_fraction.gather(
+            1,
+            self._initial_source_index[:, None],
+        ).squeeze(1)
+        first_sweep_completed_now = (
+            self._split_source_episode
+            & ~self._first_sweep_complete
+            & (initial_source_delivery >= self.cfg.multi_push_first_sweep_delivery_fraction)
+        )
+        self._first_sweep_complete |= first_sweep_completed_now
+        self._paddle_reach_target_revision += first_sweep_completed_now.long()
+        active_source_index = torch.where(
+            self._split_source_episode & self._first_sweep_complete,
+            1 - self._initial_source_index,
+            self._initial_source_index,
+        )
+        active_source_mask = self._particle_source_group_masks.gather(
+            1,
+            active_source_index[:, None, None].expand(-1, 1, self._media.particles_per_object),
+        ).squeeze(1)
+        self._particle_focused_source_mask.copy_(active_source_mask)
         self._paddle_reach_potential = mdp.compute_paddle_reach_potential(
             safe_position_e,
             paddle_position_e,
@@ -688,6 +760,14 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             paddle_vertical_e,
             self.cfg,
             self._particle_focused_source_mask,
+        )
+        multi_push_phase = self._first_sweep_complete & (self._split_source_episode | self._post_first_sweep_reset)
+        self._second_pile_reached |= multi_push_phase & (
+            self._paddle_reach_potential >= self.cfg.multi_push_reach_threshold
+        )
+        active_source_delivery = source_group_delivery_fraction.gather(1, active_source_index[:, None]).squeeze(1)
+        self._second_push_started |= multi_push_phase & (
+            active_source_delivery >= self.cfg.multi_push_second_delivery_fraction
         )
         joint_limits = self._robot.data.soft_joint_pos_limits.torch[:, self._joint_ids]
         joint_position_in_bounds = (
@@ -855,7 +935,8 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         source_pile_index = self._reset_pose_bank.source_pile_index[pose_ids]
         source_pile_count = self._curriculum_source_pile_count[episode_level]
         source_lateral_offset = self._curriculum_source_lateral_offset[episode_level]
-        nominal_paddle_xy = torch.stack(
+        post_first_sweep = self._curriculum_post_first_sweep[episode_level]
+        approach_paddle_xy = torch.stack(
             (
                 self.cfg.paddle_reset_center[0]
                 + self._curriculum_pile_center_x[episode_level]
@@ -864,10 +945,18 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             ),
             dim=1,
         )
+        post_sweep_paddle_xy = torch.stack(
+            (
+                torch.full_like(source_lateral_offset, self.cfg.post_first_sweep_paddle_center_x),
+                torch.where(source_pile_index == 0, -source_lateral_offset, source_lateral_offset),
+            ),
+            dim=1,
+        )
+        nominal_paddle_xy = torch.where(post_first_sweep[:, None], post_sweep_paddle_xy, approach_paddle_xy)
         # Correlate the absolute paddle and source transforms so each reset keeps a short approach
         # to its selected pile. A smaller residual supplies particle-only deployment variation.
         particle_lateral_range = torch.where(
-            source_pile_count == 2,
+            (source_pile_count == 2) | post_first_sweep,
             self.cfg.reset_particle_split_max_lateral_offset,
             self.cfg.reset_particle_max_lateral_offset,
         )
@@ -921,13 +1010,23 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             )
             - 1.0
         ) * self.cfg.reset_particle_jitter
+        reset_source_lateral_offset = torch.where(
+            post_first_sweep & (source_pile_index == 0),
+            -source_lateral_offset,
+            source_lateral_offset,
+        )
+        focused_source_pile_index = torch.where(
+            post_first_sweep,
+            torch.zeros_like(source_pile_index),
+            source_pile_index,
+        )
         particle_reset = build_staged_particle_reset(
             self._particle_reset_template_e[env_ids],
             self._curriculum_pile_center_x[episode_level],
             source_pile_count,
-            source_lateral_offset,
+            reset_source_lateral_offset,
             self._curriculum_initial_bin_fraction[episode_level],
-            source_pile_index,
+            focused_source_pile_index,
             translation_xy,
             yaw,
             particle_jitter,
@@ -967,6 +1066,14 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             particle_reset.focused_source_mask,
         )
         self._particle_focused_source_mask[env_ids] = particle_reset.focused_source_mask
+        self._particle_source_group_masks[env_ids] = particle_reset.source_group_masks
+        self._initial_source_index[env_ids] = focused_source_pile_index
+        self._split_source_episode[env_ids] = (source_pile_count == 2) & ~post_first_sweep
+        self._post_first_sweep_reset[env_ids] = post_first_sweep
+        self._first_sweep_complete[env_ids] = post_first_sweep
+        self._second_pile_reached[env_ids] = False
+        self._second_push_started[env_ids] = False
+        self._paddle_reach_target_revision[env_ids] += 1
         self._bin_fraction[env_ids] = bin_fraction
         self._spill_fraction[env_ids] = spill_fraction
         self._episode_start_centroid_x[env_ids] = start_centroid_x

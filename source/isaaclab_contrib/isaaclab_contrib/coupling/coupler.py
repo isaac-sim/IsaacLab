@@ -210,6 +210,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         if cls._contacts is not None and hasattr(NewtonManager._solver, "prepare_contacts"):
             NewtonManager._solver.prepare_contacts(cls._contacts)
 
+    @classmethod
     def _check_solver_status(cls) -> None:
         """Raise asynchronous failures from nested implicit-MPM solvers."""
         NewtonMPMManager._check_solver_status()

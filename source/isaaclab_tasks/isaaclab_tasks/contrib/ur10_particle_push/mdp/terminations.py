@@ -31,13 +31,13 @@ def update_success_streak(
     return next_streak, next_streak >= dwell_steps
 
 
-def compute_particle_metrics(
+def compute_particle_bin_mask(
     particle_position_e: torch.Tensor,
     cfg: UR10ParticlePushEnvCfg,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Compute terminal delivery and irreversible-spill fractions from particle positions."""
+) -> torch.Tensor:
+    """Return particles delivered below the bin rim."""
     x, y, z = particle_position_e.unbind(dim=-1)
-    delivered_below_rim = (
+    return (
         (x >= cfg.bin_inner_x_bounds[0])
         & (x <= cfg.bin_inner_x_bounds[1])
         & (y >= cfg.bin_inner_y_bounds[0])
@@ -45,6 +45,15 @@ def compute_particle_metrics(
         & (z >= cfg.bin_inner_z_bounds[0])
         & (z <= cfg.bin_inner_z_bounds[1])
     )
+
+
+def compute_particle_metrics(
+    particle_position_e: torch.Tensor,
+    cfg: UR10ParticlePushEnvCfg,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute terminal delivery and irreversible-spill fractions from particle positions."""
+    x, y, z = particle_position_e.unbind(dim=-1)
+    delivered_below_rim = compute_particle_bin_mask(particle_position_e, cfg)
     bin_fraction = delivered_below_rim.float().mean(dim=1)
 
     in_physical_bin = (

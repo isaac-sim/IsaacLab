@@ -112,6 +112,29 @@ class PushCurriculum(ManagerTermBase):
                 promotion_rate=float(promoted.float().mean()),
                 demotion_rate=float(demoted.float().mean()),
             )
+            split_episode = env.split_source_episode[completed_ids]
+            transition_episode = split_episode | env.post_first_sweep_reset[completed_ids]
+            if bool(split_episode.any()):
+                metrics["first_sweep_rate"] = float(
+                    env.first_sweep_complete[completed_ids][split_episode].float().mean()
+                )
+            if bool(transition_episode.any()):
+                metrics["second_pile_reach_rate"] = float(
+                    env.second_pile_reached[completed_ids][transition_episode].float().mean()
+                )
+                metrics["second_push_rate"] = float(
+                    env.second_push_started[completed_ids][transition_episode].float().mean()
+                )
+            post_first_sweep = env.post_first_sweep_reset[completed_ids]
+            if bool(post_first_sweep.any()):
+                metrics["post_first_sweep_success_rate"] = float(
+                    env.episode_success[completed_ids][post_first_sweep].float().mean()
+                )
+            for level in completed_level.unique(sorted=True).tolist():
+                level_mask = completed_level == level
+                metrics[f"level_{level}_success_rate"] = float(
+                    env.episode_success[completed_ids][level_mask].float().mean()
+                )
         return metrics
 
     @staticmethod

@@ -86,9 +86,8 @@ BIN_INNER_Y_BOUNDS = (
     BIN_FLOOR_POSITION[1] - 0.5 * BIN_FLOOR_SIZE[1],
     BIN_FLOOR_POSITION[1] + 0.5 * BIN_FLOOR_SIZE[1],
 )
-# A compact square blade cannot cover the nominal 0.40 m-wide pile in one pass, so deployment
-# requires lateral correction while the blade still spans every randomized pile height.
-PADDLE_SIZE = (0.24, 0.24, 0.04)
+# A narrow blade requires lateral correction to cover the nominal 0.40 m-wide pile.
+PADDLE_SIZE = (0.34, 0.24, 0.04)
 PADDLE_OFFSET = (0.5 * PADDLE_SIZE[0] + 0.02, 0.0, 0.0)
 PADDLE_MASS = 1.0
 PADDLE_CONTACT_MARGIN = 0.4 * MPM_VOXEL_SIZE
@@ -579,7 +578,7 @@ class RewardsCfg:
     success = RewTerm(func=mdp.success_event, weight=2.0)
     bin_progress = RewTerm(func=mdp.BinProgressReward, weight=1.50)
     transport_progress = RewTerm(func=mdp.TransportProgressReward, weight=0.15)
-    paddle_reach = RewTerm(func=mdp.paddle_reach, weight=0.005)
+    paddle_reach = RewTerm(func=mdp.PaddleReachProgressReward, weight=0.25)
     spill = RewTerm(func=mdp.spill_fraction, weight=-0.20)
     failure = RewTerm(func=mdp.failure_event, weight=-2.0)
     action_magnitude = RewTerm(func=mdp.action_magnitude, weight=-0.10)
@@ -683,19 +682,26 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     reset_paddle_split_max_lateral_offset: float = 0.09
     reset_paddle_max_yaw: float = 0.35
     reset_particle_paddle_residual_half_range: tuple[float, float] = (0.06, 0.05)
+    # Post-first-sweep resets start the paddle near the bin on the completed pile's side, forcing
+    # the policy to withdraw and cross to the remaining pile before it can make progress.
+    post_first_sweep_paddle_center_x: float = BIN_INNER_X_BOUNDS[0] - 0.08
+    post_first_sweep_paddle_longitudinal_offset_range: tuple[float, float] = (-0.04, 0.02)
+    post_first_sweep_paddle_max_lateral_offset: float = 0.04
     reset_ik_seeds: int = 64
     reset_ik_iterations: int = 96
     reset_ik_noise_std: float = 0.25
     reset_ik_max_cost: float = 1.0e-3
 
     # Reverse curriculum with one invariant 80% terminal objective. Early resets place a settled
-    # fraction in the bin and expose only a small residual pile. Middle stages split the residual
-    # into left/right piles and alternate the paddle focus, teaching recovery after the first
-    # sweep. The last stage exactly restores the single broad deployment pile.
+    # fraction in the bin and expose only a small residual pile. Levels three through five initialize
+    # the post-first-sweep transition: one side is already delivered, the opposite pile remains,
+    # and the paddle starts beside the bin on the completed side. Later levels restore the full
+    # two-pile sequence before the final single broad deployment pile.
     curriculum_pile_center_x: tuple[float, ...] = (0.80, 0.77, 0.77, 0.74, 0.71, 0.68, 0.65, 0.63, 0.605, 0.60)
-    curriculum_initial_bin_fraction: tuple[float, ...] = (0.72, 0.68, 0.64, 0.56, 0.44, 0.32, 0.20, 0.10, 0.0, 0.0)
-    curriculum_source_pile_count: tuple[int, ...] = (1, 1, 2, 2, 2, 2, 2, 2, 2, 1)
+    curriculum_initial_bin_fraction: tuple[float, ...] = (0.79, 0.76, 0.72, 0.77, 0.71, 0.64, 0.54, 0.42, 0.16, 0.0)
+    curriculum_source_pile_count: tuple[int, ...] = (1, 1, 2, 1, 1, 1, 2, 2, 2, 1)
     curriculum_source_lateral_offset: tuple[float, ...] = (0.0, 0.0, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.0)
+    curriculum_post_first_sweep: tuple[bool, ...] = (False, False, False, True, True, True, False, False, False, False)
     curriculum_randomization_scale: tuple[float, ...] = (0.40, 0.48, 0.56, 0.64, 0.72, 0.79, 0.85, 0.91, 0.96, 1.00)
     curriculum_successes_to_promote: int = 2
     curriculum_failures_to_demote: int = 3
@@ -749,6 +755,9 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     paddle_reach_contact_depth: float = 0.04
     paddle_lateral_alignment_distance: float = 0.25
     paddle_vertical_alignment_distance: float = 0.08
+    multi_push_first_sweep_delivery_fraction: float = 0.90
+    multi_push_second_delivery_fraction: float = 0.05
+    multi_push_reach_threshold: float = 0.80
     # Active sparse-grid capacity follows occupied solver cells, not the raw 6,144-particle count.
     # The 3,072-cell reservation retains measured PIC27 spread headroom without using a dense grid.
     mpm_active_cell_count_per_world: int = 3072
@@ -850,6 +859,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                 self.curriculum_initial_bin_fraction,
                 self.curriculum_source_pile_count,
                 self.curriculum_source_lateral_offset,
+                self.curriculum_post_first_sweep,
                 self.curriculum_randomization_scale,
             )
         ):
@@ -863,16 +873,24 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         if not all(0.0 < value <= 1.0 for value in self.curriculum_randomization_scale):
             raise ValueError("Curriculum randomization scales must lie in (0, 1].")
         rows_per_level = self.reset_pose_count // level_count
-        for level, (pile_count, lateral_offset) in enumerate(
-            zip(self.curriculum_source_pile_count, self.curriculum_source_lateral_offset, strict=True)
+        for level, (pile_count, lateral_offset, post_first_sweep) in enumerate(
+            zip(
+                self.curriculum_source_pile_count,
+                self.curriculum_source_lateral_offset,
+                self.curriculum_post_first_sweep,
+                strict=True,
+            )
         ):
             if pile_count not in (1, 2):
                 raise ValueError(f"Curriculum level {level} must contain one or two source piles.")
-            if rows_per_level % pile_count != 0:
-                raise ValueError(f"Reset-pose rows at curriculum level {level} must divide across its source piles.")
-            if not lateral_offset >= 0.0 or (pile_count == 1) != math.isclose(lateral_offset, 0.0):
+            side_count = 2 if post_first_sweep else pile_count
+            if rows_per_level % side_count != 0:
+                raise ValueError(f"Reset-pose rows at curriculum level {level} must divide across its reset sides.")
+            expected_lateral_offset = pile_count == 2 or post_first_sweep
+            if not lateral_offset >= 0.0 or expected_lateral_offset == math.isclose(lateral_offset, 0.0):
                 raise ValueError(
-                    "Single source piles require zero lateral offset; split piles require a positive offset."
+                    "Single-pile approach resets require zero lateral offset; split and post-sweep resets require a "
+                    "positive offset."
                 )
         if min(self.curriculum_successes_to_promote, self.curriculum_failures_to_demote) < 1:
             raise ValueError("Curriculum promotion and demotion streaks must be positive.")
@@ -887,6 +905,17 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                 raise ValueError(f"reset_curriculum_level_cycle entries must lie in [0, {level_count - 1}].")
         if not self.reset_bin_clearance >= 0.0:
             raise ValueError("reset_bin_clearance must be non-negative.")
+        if not self.post_first_sweep_paddle_center_x < self.bin_inner_x_bounds[0]:
+            raise ValueError("The post-first-sweep paddle must start behind the bin mouth.")
+        if any(
+            not 0.0 < value <= 1.0
+            for value in (
+                self.multi_push_first_sweep_delivery_fraction,
+                self.multi_push_second_delivery_fraction,
+                self.multi_push_reach_threshold,
+            )
+        ):
+            raise ValueError("Multi-push phase thresholds must lie in (0, 1].")
         self._validate_particle_reset_envelopes()
 
     def _validate_particle_reset_envelopes(self) -> None:
@@ -898,12 +927,13 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         safe_front_x = BIN_FRONT_POSITION[0] - 0.5 * BIN_FRONT_SIZE[0] - MPM_COLLIDER_MARGIN - self.reset_bin_clearance
         safe_table_min_x = WORK_SURFACE_POSITION[0] - 0.5 * WORK_SURFACE_SIZE[0] + MPM_COLLIDER_MARGIN
         safe_table_half_width = 0.5 * WORK_SURFACE_SIZE[1] - MPM_COLLIDER_MARGIN
-        for level, (center_x, delivered_fraction, pile_count, lateral_offset, scale) in enumerate(
+        for level, (center_x, delivered_fraction, pile_count, lateral_offset, post_first_sweep, scale) in enumerate(
             zip(
                 self.curriculum_pile_center_x,
                 self.curriculum_initial_bin_fraction,
                 self.curriculum_source_pile_count,
                 self.curriculum_source_lateral_offset,
+                self.curriculum_post_first_sweep,
                 self.curriculum_randomization_scale,
                 strict=True,
             )
@@ -937,7 +967,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                 )
             lateral_range = (
                 self.reset_particle_split_max_lateral_offset
-                if pile_count == 2
+                if pile_count == 2 or post_first_sweep
                 else self.reset_particle_max_lateral_offset
             )
             lateral_reach = lateral_offset + lateral_range * scale + maximum_half_y
@@ -1072,6 +1102,11 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         )
         if not all(math.isfinite(value) for value in reward_values):
             raise ValueError("Every reward and penalty coefficient must be finite.")
+        maximum_positive_shaping = (
+            self.rewards.bin_progress.weight + self.rewards.transport_progress.weight + self.rewards.paddle_reach.weight
+        )
+        if self.rewards.success.weight <= maximum_positive_shaping:
+            raise ValueError("The success reward must exceed the maximum positive potential shaping.")
 
     def __post_init__(self) -> None:
         from isaaclab_visualizers.kit import KitVisualizerCfg

@@ -86,21 +86,33 @@ def compute_paddle_reach_potential(
 class _ProgressReward(ManagerTermBase):
     """Base class for signed, reset-aware potential differences."""
 
-    def __init__(self, cfg: RewardTermCfg, env: UR10ParticlePushEnv, potential: Literal["bin", "transport"]):
+    def __init__(
+        self,
+        cfg: RewardTermCfg,
+        env: UR10ParticlePushEnv,
+        potential: Literal["bin", "transport", "paddle_reach"],
+    ):
         super().__init__(cfg, env)
         self._potential = potential
         env.update_task_state()
         self._previous = self._value(env).clone()
+        self._target_revision = env.paddle_reach_target_revision.clone() if potential == "paddle_reach" else None
 
     def _value(self, env: UR10ParticlePushEnv) -> torch.Tensor:
         if self._potential == "bin":
             return compute_capped_bin_goal_progress(env.bin_fraction, env.episode_success_fraction)
-        return env.transport_progress
+        if self._potential == "transport":
+            return env.transport_progress
+        return env.paddle_reach_potential
 
     def __call__(self, env: UR10ParticlePushEnv) -> torch.Tensor:
         env.update_task_state()
         value = self._value(env)
         delta = value - self._previous
+        if self._target_revision is not None:
+            target_changed = self._target_revision != env.paddle_reach_target_revision
+            delta = torch.where(target_changed, torch.zeros_like(delta), delta)
+            self._target_revision.copy_(env.paddle_reach_target_revision)
         self._previous.copy_(value)
         # RewardManager integrates rates over ``step_dt``; dividing here preserves a potential delta.
         return delta / env.step_dt
@@ -108,6 +120,8 @@ class _ProgressReward(ManagerTermBase):
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
         selected = slice(None) if env_ids is None else env_ids
         self._previous[selected] = self._value(self._env)[selected]
+        if self._target_revision is not None:
+            self._target_revision[selected] = self._env.paddle_reach_target_revision[selected]
 
 
 class BinProgressReward(_ProgressReward):
@@ -122,6 +136,13 @@ class TransportProgressReward(_ProgressReward):
 
     def __init__(self, cfg: RewardTermCfg, env: UR10ParticlePushEnv):
         super().__init__(cfg, env, potential="transport")
+
+
+class PaddleReachProgressReward(_ProgressReward):
+    """Reward signed progress toward aligned paddle contact with the focused source pile."""
+
+    def __init__(self, cfg: RewardTermCfg, env: UR10ParticlePushEnv):
+        super().__init__(cfg, env, potential="paddle_reach")
 
 
 def success_event(env: UR10ParticlePushEnv) -> torch.Tensor:
