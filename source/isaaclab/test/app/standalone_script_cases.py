@@ -402,12 +402,14 @@ def run_until_ready(
     stopped_after_soak = False
     screenshot_captured = False
     fatal_patterns = set()
+    monitor_fatal_patterns = True
 
     def record_output(chunk: bytes) -> None:
         """Record bounded output while retaining fatal-pattern state."""
         output.extend(chunk)
         decoded_output = output.decode(errors="replace")
-        fatal_patterns.update(pattern for pattern in _FATAL_PATTERNS if pattern in decoded_output)
+        if monitor_fatal_patterns:
+            fatal_patterns.update(pattern for pattern in _FATAL_PATTERNS if pattern in decoded_output)
         if len(output) > MAX_OUTPUT_BYTES:
             del output[:-MAX_OUTPUT_BYTES]
 
@@ -435,6 +437,8 @@ def run_until_ready(
                 screenshot_captured = True
             if ready_at is not None and now - ready_at >= soak_time:
                 stopped_after_soak = True
+                # Preserve shutdown logs without treating errors caused by intentional teardown as runtime failures.
+                monitor_fatal_patterns = False
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break
