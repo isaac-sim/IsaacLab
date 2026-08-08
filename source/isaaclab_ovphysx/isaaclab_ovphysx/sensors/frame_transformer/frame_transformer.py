@@ -611,7 +611,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         Args:
             prim_path: An env-0 prim path (e.g. ``"/World/envs/env_0/Robot/LF_FOOT"``) or an
-                IsaacLab regex form (e.g. ``"/World/envs/env_[^/]*/Robot/LF_FOOT"`` or
+                IsaacLab regex form (e.g. ``"{ENV_REGEX_NS}/Robot/LF_FOOT"`` or
                 ``"{ENV_REGEX_NS}/Robot/LF_FOOT"``).
 
         Returns:

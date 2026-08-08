@@ -16,6 +16,7 @@ from pxr import UsdPhysics
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.operational_space import OperationalSpaceController
 from isaaclab.managers.action_manager import ActionTerm
@@ -355,7 +356,9 @@ class OperationalSpaceControllerAction(ActionTerm):
             if not rigid_matches:
                 raise ValueError(f"No descendant rigid body found under the expression: '{self._asset.cfg.prim_path}'.")
             _, root_rigidbody_path = rigid_matches[0]
-            task_frame_transformer_path = "/World/envs/env_[^/]*/" + self.cfg.task_frame_rel_path
+            # this cfg is built and initialized here rather than by the scene, so the namespace
+            # macro would never be expanded -- name the namespace directly.
+            task_frame_transformer_path = DEFAULT_ENV_TEMPLATE.format("[^/]+") + "/" + self.cfg.task_frame_rel_path
             task_frame_transformer_cfg = FrameTransformerCfg(
                 prim_path=root_rigidbody_path,
                 target_frames=[

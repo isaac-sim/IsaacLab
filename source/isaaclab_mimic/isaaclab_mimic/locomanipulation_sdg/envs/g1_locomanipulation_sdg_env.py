@@ -40,7 +40,7 @@ NUM_BOXES = 0
 @configclass
 class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     packing_table_2 = AssetBaseCfg(
-        prim_path="/World/envs/env_[^/]*/PackingTable2",
+        prim_path="{ENV_REGEX_NS}/PackingTable2",
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=[-2, -3.55, -0.3],
             # rot=[0, 0, 0, 1]),
@@ -54,7 +54,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
 
     def add_robot_pov_cam(self, height, width):
         robot_pov_cam = CameraCfg(
-            prim_path="/World/envs/env_[^/]*/Robot/torso_link/d435_link/camera",
+            prim_path="{ENV_REGEX_NS}/Robot/torso_link/d435_link/camera",
             update_period=0.0,
             height=height,
             width=width,
@@ -66,7 +66,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
 
     def add_background_asset(self, background_usd_path: str):
         background = AssetBaseCfg(
-            prim_path="/World/envs/env_[^/]*/Background",
+            prim_path="{ENV_REGEX_NS}/Background",
             init_state=AssetBaseCfg.InitialStateCfg(
                 pos=[0, 0, 0],
                 rot=[0.0, 0.0, 0.0, 1.0],

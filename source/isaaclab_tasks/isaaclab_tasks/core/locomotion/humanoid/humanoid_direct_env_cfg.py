@@ -78,7 +78,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     )
 
     # robot
-    robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="/World/envs/env_[^/]*/Robot")
+    robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # effort scale per joint, keyed by joint name expression
     joint_gears: dict[str, float] = {

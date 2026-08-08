@@ -28,7 +28,7 @@ from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 @configclass
 class ObjectCfg(PresetCfg):
     physx = RigidObjectCfg(
-        prim_path="/World/envs/env_[^/]*/object",
+        prim_path="{ENV_REGEX_NS}/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -47,7 +47,7 @@ class ObjectCfg(PresetCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
     )
     newton_mjwarp = ArticulationCfg(
-        prim_path="/World/envs/env_[^/]*/object",
+        prim_path="{ENV_REGEX_NS}/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             mass_props=sim_utils.MassPropertiesCfg(density=400.0),
@@ -60,7 +60,7 @@ class ObjectCfg(PresetCfg):
         articulation_root_prim_path="",
     )
     ovphysx = RigidObjectCfg(
-        prim_path="/World/envs/env_[^/]*/object",
+        prim_path="{ENV_REGEX_NS}/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -104,7 +104,7 @@ class PhysicsCfg(PresetCfg):
 
 
 # Scene pieces shared verbatim by the manager-based variant.
-ROBOT_CFG = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_[^/]*/Robot")
+ROBOT_CFG = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 OBJECT_CFG = ObjectCfg()
 GOAL_OBJECT_CFG = VisualizationMarkersCfg(
     prim_path="/Visuals/goal_marker",

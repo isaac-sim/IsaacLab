@@ -9,6 +9,11 @@ Added
 * Added :func:`~isaaclab.sim.utils.path_expr_to_glob` and
   :func:`~isaaclab.sim.utils.split_path_expr`, for converting a prim path expression to the glob
   the physics engines accept and for splitting one without cutting a character class in half.
+* Added :func:`~isaaclab.cloner.expand_env_regex_ns`, and applied it when an asset or a sensor is
+  constructed. ``{ENV_REGEX_NS}`` previously only resolved for assets a
+  :class:`~isaaclab.scene.InteractiveScene` collected, so a direct environment -- which builds its
+  own -- had to spell the namespace out. Either kind may now use the macro, and no configuration
+  has to name the wildcard that selects one environment.
 
 Changed
 ^^^^^^^
