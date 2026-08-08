@@ -336,10 +336,15 @@ class OvPhysxFrameView(BaseFrameView):
         return OvPhysxManager.get_physx_instance()
 
     def _on_physics_ready(self, _event) -> None:
-        """Callback invoked when the OVPhysX ``PhysX`` instance becomes available."""
+        """Replace any prior root view when the OVPhysX ``PhysX`` instance becomes ready."""
         physx = self._try_get_physx()
         if physx is None:
             raise RuntimeError("OvPhysxFrameView: PHYSICS_READY fired but OvPhysxManager has no PhysX instance.")
+        previous_root_view = getattr(self, "_root_view", None)
+        if previous_root_view is not None:
+            previous_root_view.close()
+            self._root_view = None
+            self._pose_binding = None
         self._initialize_impl(physx)
 
     def _initialize_impl(self, physx: Any) -> None:
