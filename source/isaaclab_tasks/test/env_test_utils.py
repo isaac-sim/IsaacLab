@@ -5,6 +5,7 @@
 
 """Shared test utilities for Isaac Lab environments."""
 
+import gc
 import importlib
 import os
 import sys
@@ -520,6 +521,12 @@ def _check_random_actions(
         # Always ensure cleanup happens, regardless of success or failure
         if env is not None:
             env.close()
+
+        # Drop unreachable environment objects while the device is still alive. Warp arrays
+        # free their device memory from a finalizer, so any array left for a later collection
+        # runs ``wp_free_device_async`` against streams that the teardown below has already
+        # destroyed, which segfaults the interpreter mid-run.
+        gc.collect()
 
         # Clear the simulation context singleton (also closes the USD context stage)
         SimulationContext.clear_instance()
