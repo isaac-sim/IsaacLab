@@ -7,7 +7,7 @@
 Setup:
     - (wheel supplied by runner: tools/run_install_ci.py --build-wheel or --wheel <path>)
     - ./isaaclab.sh -u
-    - uv pip install <wheel>[all,isaacsim] --overrides uv_pip/uv-overrides.txt
+    - uv pip install <wheel>[all] --overrides uv_pip/uv-overrides.txt
         --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
     - uv pip install --reinstall-package torch --reinstall-package torchvision
         torch==<pinned> torchvision==<pinned> --index-url <cu128|cu130>
@@ -31,8 +31,8 @@ from utils import UV_Mixin, aarch64_isaacsim_env, cuda_torch_index_url, pinned_t
 
 
 @pytest.mark.install_path_uv_pip
-class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
-    """Build the wheel, ``uv pip install <wheel>[all,isaacsim]``, verify cartpole training."""
+class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
+    """Build the wheel, ``uv pip install <wheel>[all]``, verify cartpole training."""
 
     @classmethod
     def setup_class(cls):
@@ -45,15 +45,17 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(4800)
-    def test_uv_pip_install_isaaclab_all_isaacsim_trains_cartpole(
+    def test_uv_pip_install_isaaclab_all_trains_cartpole(
         self, isaaclab_root, wheel, uv_overrides, cartpole_smoke_script
     ):
-        """Install the runner-supplied wheel with ``[all,isaacsim]`` via ``uv pip``, run cartpole training."""
+        """Install the runner-supplied wheel with ``[all]`` via ``uv pip``, then train."""
         try:
-            # 1. Create the uv env and install the wheel with [all,isaacsim] extras.
+            # 1. Create the uv env and install the wheel with the aggregate [all] extra, which
+            #    carries Isaac Sim, both OV backends, every RL library, and every visualizer.
+            #    This mirrors the documented wheel install (isaaclab-uv-wheel-install directive).
             self.create_uv_env(isaaclab_root)
 
-            # uv pip install "isaaclab[all,isaacsim]" --extra-index-url https://pypi.nvidia.com
+            # uv pip install "isaaclab[all]" --extra-index-url https://pypi.nvidia.com
             #   --index-strategy unsafe-best-match --prerelease=allow
             # NOTE: --index-strategy unsafe-best-match re-resolves torch from PyPI (CPU build),
             #       overriding any pre-installed CUDA torch. So install isaaclab FIRST, then
@@ -63,7 +65,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
                     "uv",
                     "pip",
                     "install",
-                    f"{wheel}[all,isaacsim]",
+                    f"{wheel}[all]",
                     "--overrides",
                     str(uv_overrides),
                     "--extra-index-url",
@@ -75,9 +77,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
                 cwd=isaaclab_root,
                 timeout=1800,
             )
-            assert result.returncode == 0, (
-                f"uv pip install {wheel}[all,isaacsim] failed:\n{result.stdout}\n{result.stderr}"
-            )
+            assert result.returncode == 0, f"uv pip install {wheel}[all] failed:\n{result.stdout}\n{result.stderr}"
 
             # 2. uv pip install --reinstall-package torch --reinstall-package torchvision
             #    torch==<pinned> torchvision==<pinned> --index-url <cu128|cu130>

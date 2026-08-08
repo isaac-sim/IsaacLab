@@ -320,11 +320,12 @@ The container defaults to ``FastRTPS``, but ``CylconeDDS`` is also supported. Ea
 .. rubric:: Using the Kit-less Container
 
 The kit-less container uses Ubuntu 24.04 and Python 3.12 instead of the Isaac Sim base image. It contains
-Newton physics, OVRTX rendering, and the four core RL frameworks: RL Games, RSL-RL, Stable-Baselines3, and SKRL.
-It does not select a visualizer, so training runs headless.
+Newton physics, OVPhysX physics, OVRTX rendering, and the four core RL frameworks: RL Games, RSL-RL,
+Stable-Baselines3, and SKRL. It also carries every Newton viewer -- ``newton``, ``viser``, and ``rerun`` --
+so any of them can be requested with ``--viz``. No visualizer is selected by default, so training runs
+headless unless you ask for one.
 
-The OVPhysX source integration is present, but its external runtime is not included. Use Newton physics in
-this image.
+The ``kit`` visualizer is the exception: it is provided by Omniverse Kit, which this image does not contain.
 
 To build, start, and enter the image through the same ``container.py`` interface as the Isaac Sim images, run:
 
