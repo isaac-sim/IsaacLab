@@ -12,10 +12,12 @@ import os
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import torch
 
+from isaaclab.envs.mdp.events import reset_scene_to_default
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -67,7 +69,10 @@ class RenderingScene:
         """Initialize backends, restore configured defaults, and synchronize without stepping."""
         self.sim.reset()
         self.scene.reset()
-        self.scene.reset_to_default(
+        env_ids = torch.arange(self.scene.num_envs, device=self.scene.device)
+        reset_scene_to_default(
+            SimpleNamespace(scene=self.scene),
+            env_ids,
             reset_joint_targets=True,
             preserve_fixed_articulation_roots=self.preserve_fixed_articulation_roots,
         )

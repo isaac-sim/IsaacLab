@@ -1,11 +1,6 @@
 Added
 ^^^^^
 
-* Added :meth:`~isaaclab.scene.InteractiveScene.reset_to_default` so direct scene users can
-  restore configured rigid, articulation, cable, and deformable state without an environment
-  manager; callers may name fixed-base roots whose authored transforms must remain untouched
-  while their joints reset.
-
 * Added :meth:`~isaaclab.scene.InteractiveScene.close` so direct scene owners can release
   entity callbacks before tearing down a simulation context.
 
@@ -14,6 +9,9 @@ Changed
 
 * Reworked rendering correctness tests around direct task-free scenes that locally preserve task
   assets, cameras, layouts, and default state while sharing one runner and bundled camera outputs.
+
+* Extended :func:`isaaclab.envs.mdp.reset_scene_to_default` with an optional fixed-root
+  preservation list and reused that MDP policy from direct rendering scenes.
 
 * Rendering probes resolve task HDR skies locally and reset RTX temporal accumulation between
   scenes, avoiding asynchronous texture uploads and cross-test renderer history.

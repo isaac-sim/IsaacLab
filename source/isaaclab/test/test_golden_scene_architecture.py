@@ -40,7 +40,7 @@ def test_golden_ownership_has_no_task_or_environment_dependencies() -> None:
         _CORE_PACKAGE / "test" / "utils" / "golden_image.py",
         _CORE_PACKAGE / "test" / "utils" / "rendering.py",
     ]
-    forbidden = ("isaaclab_tasks", "gymnasium", "isaaclab.envs", "ManagerBasedEnv", "DirectRLEnv", "hydra")
+    forbidden = ("isaaclab_tasks", "gymnasium", "ManagerBasedEnv", "DirectRLEnv", "hydra")
     violations = {
         str(path.relative_to(_REPO_ROOT)): [token for token in forbidden if token in path.read_text()]
         for path in files
@@ -320,7 +320,7 @@ def test_rendering_scene_closes_scene_before_simulation_teardown() -> None:
 
 
 def test_rendering_reset_preserves_scene_owned_fixed_roots() -> None:
-    """The shared runner resets joints without rewriting scene-authored fixed roots."""
+    """The shared runner delegates configured-state restoration to the MDP event."""
     module = ast.parse((_CORE_PACKAGE / "test" / "utils" / "rendering.py").read_text())
     rendering_scene = next(
         node for node in module.body if isinstance(node, ast.ClassDef) and node.name == "RenderingScene"
@@ -329,19 +329,19 @@ def test_rendering_reset_preserves_scene_owned_fixed_roots() -> None:
     call = next(
         node
         for node in ast.walk(reset)
-        if isinstance(node, ast.Call) and ast.unparse(node.func) == "self.scene.reset_to_default"
+        if isinstance(node, ast.Call) and ast.unparse(node.func) == "reset_scene_to_default"
     )
-    assert not call.args
+    assert [ast.unparse(arg) for arg in call.args] == ["SimpleNamespace(scene=self.scene)", "env_ids"]
     assert {keyword.arg: ast.unparse(keyword.value) for keyword in call.keywords} == {
         "reset_joint_targets": "True",
         "preserve_fixed_articulation_roots": "self.preserve_fixed_articulation_roots",
     }
 
 
-def test_reset_manager_is_only_an_adapter() -> None:
-    """Default-state ownership remains on InteractiveScene, not in manager events."""
+def test_reset_policy_remains_in_mdp() -> None:
+    """InteractiveScene must not own the MDP policy for restoring configured state."""
     scene_source = (_CORE_PACKAGE / "scene" / "interactive_scene.py").read_text()
-    assert scene_source.count("def reset_to_default(") == 1
+    assert "def reset_to_default(" not in scene_source
 
     events_path = _CORE_PACKAGE / "envs" / "mdp" / "events.py"
     function = next(
@@ -349,15 +349,20 @@ def test_reset_manager_is_only_an_adapter() -> None:
         for node in ast.parse(events_path.read_text()).body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "reset_scene_to_default"
     )
-    statements = function.body[1:] if ast.get_docstring(function) else function.body
-    assert len(statements) == 1 and isinstance(statements[0], ast.Expr)
-    call = statements[0].value
-    assert isinstance(call, ast.Call) and ast.unparse(call.func) == "env.scene.reset_to_default"
-    assert not call.args
-    assert {keyword.arg: ast.unparse(keyword.value) for keyword in call.keywords} == {
-        "env_ids": "env_ids",
-        "reset_joint_targets": "reset_joint_targets",
-    }
+    loops = [node for node in function.body if isinstance(node, ast.For)]
+    assert [ast.unparse(loop.iter) for loop in loops] == [
+        "env.scene.rigid_objects.values()",
+        "env.scene.articulations.items()",
+        "env.scene.cable_objects.values()",
+        "env.scene.deformable_objects.values()",
+    ]
+    calls = {ast.unparse(node.func) for node in ast.walk(function) if isinstance(node, ast.Call)}
+    assert {
+        "rigid_object.write_root_pose_to_sim_index",
+        "articulation_asset.write_joint_position_to_sim_index",
+        "cable_object.write_segment_pose_to_sim_index",
+        "deformable_object.write_nodal_state_to_sim",
+    } <= calls
 
 
 def test_golden_inventory_matches_case_matrix() -> None:
