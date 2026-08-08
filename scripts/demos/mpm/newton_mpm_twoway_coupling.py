@@ -13,13 +13,14 @@ impulses back into the rigid-body solver.
 
     uv run python scripts/demos/mpm/newton_mpm_twoway_coupling.py
 
-Right-click and drag a sphere to apply an interactive force. Use ``Space`` to
-pause or resume the simulation and ``.`` to advance one step while paused.
+The spheres roll through three V-shaped chutes into the bath. Right-click and
+drag any sphere to apply an interactive force.
 """
 
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from functools import partial
 
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
@@ -45,8 +46,8 @@ PARTICLE_COLOR = (0.7, 0.6, 0.4)
 SPHERE_BODY_PATTERN = r"/World/envs/env_.*/Sphere_[0-9]+"
 SPHERE_RADIUS = 0.30
 SPHERE_MASS = 450.0
-SPHERE_POSITIONS = ((-0.90, 0.25, 1.10), (0.0, -0.30, 1.10), (0.90, 0.30, 1.10))
 SPHERE_COLORS = ((0.20, 0.45, 0.85), (0.85, 0.25, 0.20), (0.25, 0.70, 0.30))
+SPHERE_POSITIONS = ((-3.392, 0.0, 2.167), (0.0, 2.872, 2.167), (3.392, 0.0, 2.167))
 
 BATH_INTERIOR_SIZE = (3.6, 2.6)
 BATH_WALL_HEIGHT = 1.2
@@ -54,18 +55,31 @@ BATH_WALL_THICKNESS = 0.15
 SAND_LOWER = (-1.65, -1.15, 0.05)
 SAND_UPPER = (1.65, 1.15, 0.72)
 
+CHUTE_PANEL_SIZE = (2.4, 0.62, 0.08)
+CHUTE_COLOR = (0.25, 0.28, 0.32)
+# Paired poses form the left, back, and right V-shaped chutes.
+CHUTE_PANEL_POSES = (
+    ((-2.933, -0.274, 1.771), (-0.23957, 0.13504, 0.03367, 0.96085)),
+    ((-2.933, 0.274, 1.771), (0.23957, 0.13504, -0.03367, 0.96085)),
+    ((-0.274, 2.413, 1.771), (-0.07391, 0.26489, -0.65562, 0.70323)),
+    ((0.274, 2.413, 1.771), (0.26489, -0.07391, -0.70323, 0.65562)),
+    ((2.933, 0.274, 1.771), (0.13504, 0.23957, -0.96085, 0.03367)),
+    ((2.933, -0.274, 1.771), (-0.13504, 0.23957, 0.96085, 0.03367)),
+)
+
 
 @sim_utils.clone
-def _spawn_colored_sphere(
+def _spawn_colored_shape(
     prim_path: str,
-    cfg: sim_utils.SphereCfg,
+    cfg: sim_utils.SpawnerCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     *,
+    spawn_func: Callable[..., Usd.Prim],
     color: tuple[float, float, float],
 ) -> Usd.Prim:
-    """Spawn a sphere with a display color understood by the Newton viewer."""
-    prim = sim_utils.spawn_sphere(prim_path, cfg, translation, orientation)
+    """Spawn a shape with a display color understood by the Newton viewer."""
+    prim = spawn_func(prim_path, cfg, translation, orientation)
     mesh = UsdGeom.Gprim(prim.GetStage().GetPrimAtPath(f"{prim_path}/geometry/mesh"))
     mesh.CreateDisplayColorAttr().Set([Gf.Vec3f(*color)])
     return prim
@@ -146,11 +160,20 @@ def create_scene_cfg():
     from isaaclab.utils.configclass import configclass
 
     def bath_collider(
-        prim_path: str, size: tuple[float, float, float], position: tuple[float, float, float]
+        prim_path: str,
+        size: tuple[float, float, float],
+        position: tuple[float, float, float],
+        orientation: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
+        color: tuple[float, float, float] | None = None,
     ) -> AssetBaseCfg:
         return AssetBaseCfg(
             prim_path=prim_path,
             spawn=sim_utils.CuboidCfg(
+                func=(
+                    partial(_spawn_colored_shape, spawn_func=sim_utils.spawn_cuboid, color=color)
+                    if color is not None
+                    else sim_utils.spawn_cuboid
+                ),
                 size=size,
                 collision_props=sim_utils.NewtonCollisionPropertiesCfg(contact_margin=0.04),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
@@ -158,7 +181,7 @@ def create_scene_cfg():
                     dynamic_friction=0.6,
                 ),
             ),
-            init_state=AssetBaseCfg.InitialStateCfg(pos=position),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=position, rot=orientation),
         )
 
     rigid_objects = {}
@@ -166,7 +189,11 @@ def create_scene_cfg():
         rigid_objects[f"sphere_{index}"] = RigidObjectCfg(
             prim_path=f"{{ENV_REGEX_NS}}/Sphere_{index}",
             spawn=sim_utils.SphereCfg(
-                func=partial(_spawn_colored_sphere, color=SPHERE_COLORS[index]),
+                func=partial(
+                    _spawn_colored_shape,
+                    spawn_func=sim_utils.spawn_sphere,
+                    color=SPHERE_COLORS[index],
+                ),
                 radius=SPHERE_RADIUS,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(),
                 mass_props=sim_utils.MassPropertiesCfg(mass=SPHERE_MASS),
@@ -182,6 +209,16 @@ def create_scene_cfg():
     bath_x, bath_y = BATH_INTERIOR_SIZE
     wall_t = BATH_WALL_THICKNESS
     wall_z = 0.5 * BATH_WALL_HEIGHT
+    chute_panels = tuple(
+        bath_collider(
+            f"/World/Chutes/Panel_{index}",
+            CHUTE_PANEL_SIZE,
+            position,
+            orientation,
+            CHUTE_COLOR,
+        )
+        for index, (position, orientation) in enumerate(CHUTE_PANEL_POSES)
+    )
 
     @configclass
     class CoupledSceneCfg(InteractiveSceneCfg):
@@ -212,6 +249,8 @@ def create_scene_cfg():
             (bath_x + 2.0 * wall_t, wall_t, BATH_WALL_HEIGHT),
             (0.0, 0.5 * (bath_y + wall_t), wall_z),
         )
+
+        chute_left_a, chute_left_b, chute_back_a, chute_back_b, chute_right_a, chute_right_b = chute_panels
 
         spheres = RigidObjectCollectionCfg(rigid_objects=rigid_objects)
 
@@ -250,7 +289,7 @@ def main() -> None:
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        sim.set_camera_view(eye=(4.5, -5.5, 3.5), target=(0.0, 0.0, 0.65))
+        sim.set_camera_view(eye=(6.0, -7.0, 5.0), target=(0.0, 0.4, 1.3))
         scene = InteractiveScene(create_scene_cfg())
         sim.reset()
         sand = scene["sand"]
@@ -259,7 +298,7 @@ def main() -> None:
             f"[INFO]: Isaac Lab Newton two-way MPM demo ready. Spawned {particle_count} particles.",
             flush=True,
         )
-        print("[INFO]: Right-click and drag a sphere in the Newton viewer.", flush=True)
+        print("[INFO]: Right-click and drag any sphere in the Newton viewer.", flush=True)
         run_simulator(sim, scene)
 
 
