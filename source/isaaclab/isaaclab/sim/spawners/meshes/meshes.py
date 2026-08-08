@@ -105,9 +105,17 @@ def spawn_mesh_cuboid(
 
     Raises:
         ValueError: If a prim already exists at the given path.
+        ValueError: If :attr:`~isaaclab.sim.MeshCuboidCfg.edge_refinement` is less than ``1.0``.
     """
+    if cfg.edge_refinement < 1.0:
+        raise ValueError(f"Cuboid mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
+
     # create a trimesh box
     box = trimesh.creation.box(cfg.size)
+    if cfg.edge_refinement > 1.0:
+        max_edge = float(np.linalg.norm(box.bounding_box.extents)) / cfg.edge_refinement
+        vertices, faces = trimesh.remesh.subdivide_to_size(box.vertices, box.faces, max_edge=max_edge)
+        box = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # obtain stage handle
     stage = get_current_stage()

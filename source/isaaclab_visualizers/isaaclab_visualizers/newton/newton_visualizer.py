@@ -1288,6 +1288,28 @@ class NewtonVisualizer(BaseVisualizer):
             self._camera_sensor_indices = env_ids
             return
 
+        # When streaming_cam_target_prim_path is None, try to adopt the first scene camera
+        # rather than creating a new one with a hardcoded prim path.
+        if self.cfg.streaming_cam_target_prim_path is None:
+            cameras = self._scene_data_provider.get_camera_sensors()
+            if cameras:
+                first_name, first_cam = next(iter(cameras.items()))
+                logger.debug(
+                    "[%s] streaming_cam_target_prim_path is None; adopting scene camera %r.",
+                    type(self).__name__,
+                    first_name,
+                )
+                self._camera_sensor = first_cam
+                self._camera_sensor_indices = env_ids
+                return
+            logger.debug(
+                "[%s] streaming_cam_target_prim_path is None and no scene cameras found; "
+                "streaming view will be empty. Add a TiledCamera sensor or set "
+                "streaming_cam_target_prim_path to enable the streaming panel.",
+                type(self).__name__,
+            )
+            return
+
         renderer_cfg = self._resolve_streaming_renderer_cfg()
         count = max(1, len(env_ids))
         tile_w, tile_h = compute_tile_resolution(
