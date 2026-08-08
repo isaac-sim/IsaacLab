@@ -224,7 +224,7 @@ Notes:
 Snake-style `Test_<Filename_Stem_TitleCase>`, mirroring the filename. Each underscore-separated segment is TitleCase. Common acronyms stay uppercase when separate segments. **Do not** use CamelCase here; snake-style is the deliberate convention for these long compound names.
 
 - ✅ `Test_Cli_Install_Core_In_Uvenv_Correctness`
-- ✅ `Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole`
+- ✅ `Test_Uv_Pip_Install_Isaaclab_Isaacsim_Rl_Trains_Cartpole`
 - ❌ `TestCliInstallCoreInUvenvCorrectness`
 
 #### Method naming (strict)

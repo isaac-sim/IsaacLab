@@ -61,13 +61,14 @@ def test_uv_run_exposes_centralized_feature_extras():
         "teleop",
         "rlinf",
         "tetrahedralization",
-        "all",
     }
     assert expected_extras <= set(optional_dependencies)
 
     # The Newton viewer GUI is part of the base install, so there is no ``newton`` extra.
     assert "newton" not in optional_dependencies
     assert "rtx" not in optional_dependencies
+    # Each extra is requested by name; there is no aggregate ``all`` extra.
+    assert "all" not in optional_dependencies
 
     # Concrete third-party deps live in the extras (not subpackage self-references).
     # ``ov`` installs both Omniverse backends; ``ovphysx`` / ``ovrtx`` select one.
@@ -82,14 +83,18 @@ def test_uv_run_exposes_centralized_feature_extras():
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
-def test_tetrahedralization_is_explicit_and_excluded_from_all():
+def test_tetrahedralization_is_explicit_extra_only():
     """TetWild and its visualization stack are installed only when requested."""
     project = _root_pyproject()["project"]
     optional = project["optional-dependencies"]
 
     assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
     assert optional["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
-    assert not any("tetrahedralization" in dep or dep.startswith("pytetwild") for dep in optional["all"])
+    # No other extra pulls PyTetWild in transitively.
+    for name, deps in optional.items():
+        if name == "tetrahedralization":
+            continue
+        assert not any("tetrahedralization" in dep or dep.startswith("pytetwild") for dep in deps)
 
 
 def test_version_single_source_matches_literal_pins():
@@ -190,7 +195,6 @@ def test_uv_run_isaacsim_extra_handles_dependency_conflicts():
     conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
     for extra in ("ov", "ovphysx"):
         assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
-    assert {"isaacsim", "all"} not in conflict_groups
     # ``test`` is no longer forked away: the coverage override reconciles it with Isaac Sim.
     assert {"isaacsim", "test"} not in conflict_groups
     # ``mimic`` is no longer forked away either: robomimic dropped its lxml constraint, so
@@ -217,7 +221,6 @@ def test_uv_run_teleop_co_resolves_with_isaacsim():
     # The historical lxml split is gone: robomimic no longer constrains lxml, so the teleop
     # and imitation-learning stacks co-resolve.
     assert {"teleop", "mimic"} not in conflict_groups
-    assert {"teleop", "all"} not in conflict_groups
 
 
 def test_uv_run_teleop_extra_bundles_isaacsim():
@@ -242,7 +245,7 @@ def test_uv_run_teleop_extra_bundles_isaacsim():
     # Only the packaging split is real; the overrides reconcile everything else.
     for extra in ("ov", "ovphysx"):
         assert {"teleop", extra} in conflict_groups, f"teleop must declare a conflict with '{extra}'"
-    for extra in ("mimic", "all", "viser", "test"):
+    for extra in ("mimic", "viser", "test"):
         assert {"teleop", extra} not in conflict_groups
     # ``--extra teleop --extra test`` must keep working so the teleop suite stays runnable.
     assert {"teleop", "test"} not in conflict_groups

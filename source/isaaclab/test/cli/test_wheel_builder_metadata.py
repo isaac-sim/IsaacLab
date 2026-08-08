@@ -96,10 +96,9 @@ def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(tmp_path):
     assert core_pins == [expected_pin]
 
     optional_dependencies = generated["project"]["optional-dependencies"]
-    # RSL-RL ships in its own ``rsl-rl`` extra and in the aggregate ``all`` extra.
-    for extra_name in ("rsl-rl", "all"):
-        rsl_rl_pins = [dep for dep in optional_dependencies[extra_name] if dep.startswith("rsl-rl-lib==")]
-        assert rsl_rl_pins == [expected_pin]
+    # RSL-RL is also exposed through its own ``rsl-rl`` extra.
+    rsl_rl_pins = [dep for dep in optional_dependencies["rsl-rl"] if dep.startswith("rsl-rl-lib==")]
+    assert rsl_rl_pins == [expected_pin]
 
 
 def test_wheel_builder_keeps_tetrahedralization_explicit(tmp_path):
@@ -110,7 +109,10 @@ def test_wheel_builder_keeps_tetrahedralization_explicit(tmp_path):
 
     assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
     assert optional_dependencies["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
-    assert not any(dep.startswith("pytetwild") for dep in optional_dependencies["all"])
+    for name, deps in optional_dependencies.items():
+        if name == "tetrahedralization":
+            continue
+        assert not any(dep.startswith("pytetwild") for dep in deps)
 
 
 def test_wheel_builder_uv_overrides_match_root_pyproject(tmp_path):
