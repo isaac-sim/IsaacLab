@@ -78,7 +78,7 @@ def test_newton_locomotion_env_determinism():
     """Check deterministic stepping for a contact-rich Newton environment."""
     # One CUDA-only case at half the default steps exercises contacts without duplicating the broad PhysX matrix.
     _test_environment_determinism(
-        "Isaac-Velocity-Rough-AnymalD",
+        "Isaac-Velocity-Flat-AnymalD",
         "cuda",
         num_steps=50,
         physics_preset_name="newton_mjwarp",
