@@ -74,6 +74,24 @@ def setup_scene(request):
     # Note: cleanup is handled by build_simulation_context's finally block
 
 
+def test_close_releases_all_callback_owning_entities():
+    scene = InteractiveScene.__new__(InteractiveScene)
+    families = (
+        "_articulations",
+        "_cable_objects",
+        "_deformable_objects",
+        "_rigid_objects",
+        "_rigid_object_collections",
+        "_sensors",
+        "_surface_grippers",
+    )
+    closed = []
+    for family in families:
+        setattr(scene, family, {"entity": SimpleNamespace(close=lambda family=family: closed.append(family))})
+    scene.close()
+    assert closed == list(families)
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_relative_flag(device, setup_scene):
     make_scene, sim = setup_scene
@@ -230,6 +248,36 @@ def test_reset_to_default_restores_configured_state_and_joint_targets(device, se
         rtol=0.0,
         atol=0.0,
     )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_reset_to_default_preserves_authored_fixed_articulation_root(device, setup_scene, monkeypatch):
+    make_scene, sim = setup_scene
+    scene = InteractiveScene(make_scene(num_envs=4))
+    sim.reset()
+
+    robot = scene["robot"]
+    assert robot.is_fixed_base
+    robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch + 1.0)
+    robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch + 1.0)
+    robot.set_joint_position_target_index(target=robot.data.default_joint_pos.torch + 2.0)
+    robot.set_joint_velocity_target_index(target=robot.data.default_joint_vel.torch + 2.0)
+
+    def fail_root_write(**_):
+        pytest.fail("The authored fixed-base root was rewritten.")
+
+    monkeypatch.setattr(robot, "write_root_pose_to_sim_index", fail_root_write)
+    monkeypatch.setattr(robot, "write_root_velocity_to_sim_index", fail_root_write)
+    scene.reset_to_default(reset_joint_targets=True, preserve_fixed_articulation_roots=("robot",))
+    scene.update(0.0)
+
+    for actual, expected in (
+        (robot.data.joint_pos.torch, robot.data.default_joint_pos.torch),
+        (robot.data.joint_vel.torch, robot.data.default_joint_vel.torch),
+        (robot.data.joint_pos_target.torch, robot.data.default_joint_pos.torch),
+        (robot.data.joint_vel_target.torch, robot.data.default_joint_vel.torch),
+    ):
+        torch.testing.assert_close(actual, expected, rtol=0.0, atol=0.0)
 
 
 def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):

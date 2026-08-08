@@ -35,15 +35,26 @@ _NO_SSIM = {
     "instance_id_segmentation_fast",
     "motion_vectors",
 }
-_MAX_DIFF_PCT = {"shadow_hand": 5.0, "kuka_heterogeneous": 8.0, "franka_cloth": 8.0, "franka_soft": 8.0}
+_MAX_DIFF_PCT = {
+    "shadow_hand": 5.0,
+    "kuka_heterogeneous": 8.0,
+    "franka_cloth": 8.0,
+    # The 2x2 task layout quadruples RTX-antialiased table/object edges; SSIM still gates structure.
+    "franka_soft": 12.0,
+}
 
 
 def run_rendering_case(case: RenderCase, request: Any, *, stage_variant: str = "kit") -> None:
     """Build once, capture all compatible AOVs, and step physics once only for motion."""
     configure_seed(42, torch_deterministic=True)
-    scene_cfg, camera_eye, camera_target, required_labels, physics_cfg = make_rendering_scene_cfg(
-        case.scene, case.physics
-    )
+    (
+        scene_cfg,
+        camera_eye,
+        camera_target,
+        required_labels,
+        physics_cfg,
+        preserve_fixed_articulation_roots,
+    ) = make_rendering_scene_cfg(case.scene, case.physics)
     with build_rendering_scene(
         scene_cfg,
         case.physics,
@@ -53,6 +64,7 @@ def run_rendering_case(case: RenderCase, request: Any, *, stage_variant: str = "
         camera_eye=camera_eye,
         camera_target=camera_target,
         physics_cfg=physics_cfg,
+        preserve_fixed_articulation_roots=preserve_fixed_articulation_roots,
     ) as runtime:
         runtime.stabilize_camera()
         outputs, info = runtime.camera_outputs()

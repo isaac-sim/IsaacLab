@@ -48,6 +48,9 @@ class RenderingScene:
     scene: InteractiveScene
     camera_eye: tuple[float, float, float]
     camera_target: tuple[float, float, float]
+    position_camera_from_view: bool
+
+    preserve_fixed_articulation_roots: frozenset[str]
 
     @property
     def dt(self) -> float:
@@ -64,10 +67,13 @@ class RenderingScene:
         """Initialize backends, restore configured defaults, and synchronize without stepping."""
         self.sim.reset()
         self.scene.reset()
-        self.scene.reset_to_default(reset_joint_targets=True)
+        self.scene.reset_to_default(
+            reset_joint_targets=True,
+            preserve_fixed_articulation_roots=self.preserve_fixed_articulation_roots,
+        )
         self.scene.write_data_to_sim()
         self.sim.forward()
-        if "camera" in self.scene.sensors:
+        if "camera" in self.scene.sensors and self.position_camera_from_view:
             origins = self.scene.env_origins
             eye = origins + torch.tensor(self.camera_eye, device=origins.device)
             target = origins + torch.tensor(self.camera_target, device=origins.device)
@@ -96,6 +102,10 @@ class RenderingScene:
 
     def stabilize_camera(self, render_updates: int = 5) -> None:
         """Prime renderer history and asynchronous assets without advancing physics."""
+        if getattr(self.camera.cfg.renderer_cfg, "renderer_type", None) == "isaac_rtx":
+            import omni.usd
+
+            omni.usd.get_context().reset_renderer_accumulation()
         for _ in range(render_updates):
             self.render_camera()
 
@@ -112,18 +122,27 @@ def build_rendering_scene(
     camera_eye: tuple[float, float, float] = CAMERA_EYE,
     camera_target: tuple[float, float, float] = CAMERA_TARGET,
     physics_cfg: PhysicsCfg | None = None,
+    preserve_fixed_articulation_roots: Sequence[str] = (),
     device: str = "cuda:0",
 ) -> Iterator[RenderingScene]:
     """Build a caller-owned rendering scene without an RL/task environment."""
     scene_cfg = scene_cfg.copy()
+    position_camera_from_view = scene_cfg.camera is None
     if renderer is not None:
-        scene_cfg.camera = make_camera_cfg(
-            renderer,
-            data_types,
-            background_color=background_color,
-            camera_eye=camera_eye,
-            camera_target=camera_target,
-        )
+        if position_camera_from_view:
+            scene_cfg.camera = make_camera_cfg(
+                renderer,
+                data_types,
+                background_color=background_color,
+                camera_eye=camera_eye,
+                camera_target=camera_target,
+            )
+        else:
+            scene_cfg.camera = scene_cfg.camera.replace(
+                data_types=list(data_types),
+                background_color=background_color,
+                renderer_cfg=make_renderer_cfg(renderer),
+            )
     sim_cfg = SimulationCfg(
         dt=1.0 / 60.0,
         device=device,
@@ -133,10 +152,20 @@ def build_rendering_scene(
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         if renderer is not None:
             sim.set_setting("/isaaclab/render/rtx_sensors", True)
-        runtime = RenderingScene(sim, InteractiveScene(scene_cfg), camera_eye, camera_target)
+        runtime = RenderingScene(
+            sim,
+            InteractiveScene(scene_cfg),
+            camera_eye,
+            camera_target,
+            position_camera_from_view,
+            frozenset(preserve_fixed_articulation_roots),
+        )
         sim.register_interactive_scene(runtime.scene)
-        runtime.reset()
-        yield runtime
+        try:
+            runtime.reset()
+            yield runtime
+        finally:
+            runtime.scene.close()
 
 
 def make_camera_cfg(

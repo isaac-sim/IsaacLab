@@ -189,11 +189,20 @@ def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
             fields[name].update(target.id for target in targets if isinstance(target, ast.Name))
 
     assert fields == {
-        "FrankaSoftRenderingSceneCfg": {"ground", "key_light", "fill_light", "robot", "table", "deformable"},
+        "FrankaSoftRenderingSceneCfg": {
+            "ground",
+            "key_light",
+            "fill_light",
+            "camera",
+            "robot",
+            "table",
+            "deformable",
+        },
         "FrankaClothRenderingSceneCfg": {
             "ground",
             "key_light",
             "fill_light",
+            "camera",
             "robot",
             "table",
             "cube",
@@ -203,11 +212,12 @@ def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
             "ground",
             "key_light",
             "fill_light",
+            "camera",
             "robot",
             "object",
             "table",
         },
-        "ShadowHandRenderingSceneCfg": {"ground", "key_light", "fill_light", "robot", "object"},
+        "ShadowHandRenderingSceneCfg": {"ground", "key_light", "fill_light", "camera", "robot", "object"},
     }
 
     required_signatures = (
@@ -219,9 +229,23 @@ def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
         "size=(0.03, 0.01, 0.08)",
         "pos=(-0.55, 0.1, 0.35)",
         'joint_pos={".*": 0.0}',
-        "rot=(0.70710678, 0.0, 0.0, 0.70710678)",
+        "rot=(0.5080, 0.2114, 0.318, 0.7720)",
+        "clipping_range=(0.01, 3.0)",
+        "rot=(0.6124, 0.3536, 0.3536, 0.6124)",
+        "clipping_range=(0.01, 2.5)",
+        "width=64",
+        "random_choice=False",
+        "diffuse_color=(0.25, 0.15, 0.15)",
+        'hand_actuator.stiffness = 2000.0 if scene == "franka_cloth" else 1000.0',
+        "rot=(0.0, 0.7071, 0.0, 0.7071)",
+        'frozenset({"cube"}), None, frozenset({"robot"})',
+        "width=120",
+        "height=120",
+        "clipping_range=(0.1, 20.0)",
+        "num_envs=4, env_spacing=2.0",
         "num_envs=4, env_spacing=3.0",
         "(0.0, -0.35, 1.0), (0.0, -0.35, 0.0)",
+        "retrieve_file_path(cfg.fill_light.spawn.texture_file)",
         "MeshCuboidCfg",
         "MeshSphereCfg",
         "MeshCapsuleCfg",
@@ -237,6 +261,8 @@ def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
         "size=(0.32, 0.18, 0.16)",
         "size=(0.55, 0.55)",
         "resolution=(30, 30)",
+        "SHADOW_HAND_NEWTON_CFG.init_state.replace",
+        "rot=(0.70710678, 0.0, 0.0, 0.70710678)",
     )
     assert not [signature for signature in rejected_demo_composition if signature in source]
 
@@ -272,6 +298,44 @@ def test_renderer_matrix_bundles_compatible_aovs() -> None:
         assert len(set(case.aovs) & simple_aovs) <= 1
         if case.profile in simple_aovs:
             assert case.aovs == (case.profile,)
+
+
+def test_rendering_scene_closes_scene_before_simulation_teardown() -> None:
+    """The direct composition root isolates RTX history and closes entities before the sim."""
+    module = ast.parse((_CORE_PACKAGE / "test" / "utils" / "rendering.py").read_text())
+    rendering_scene = next(
+        node for node in module.body if isinstance(node, ast.ClassDef) and node.name == "RenderingScene"
+    )
+    stabilize = next(
+        node for node in rendering_scene.body if isinstance(node, ast.FunctionDef) and node.name == "stabilize_camera"
+    )
+    calls = {ast.unparse(node) for node in ast.walk(stabilize) if isinstance(node, ast.Call)}
+    assert "omni.usd.get_context().reset_renderer_accumulation()" in calls
+
+    build = next(
+        node for node in module.body if isinstance(node, ast.FunctionDef) and node.name == "build_rendering_scene"
+    )
+    cleanup = next(node for node in ast.walk(build) if isinstance(node, ast.Try))
+    assert [ast.unparse(node) for node in cleanup.finalbody] == ["runtime.scene.close()"]
+
+
+def test_rendering_reset_preserves_scene_owned_fixed_roots() -> None:
+    """The shared runner resets joints without rewriting scene-authored fixed roots."""
+    module = ast.parse((_CORE_PACKAGE / "test" / "utils" / "rendering.py").read_text())
+    rendering_scene = next(
+        node for node in module.body if isinstance(node, ast.ClassDef) and node.name == "RenderingScene"
+    )
+    reset = next(node for node in rendering_scene.body if isinstance(node, ast.FunctionDef) and node.name == "reset")
+    call = next(
+        node
+        for node in ast.walk(reset)
+        if isinstance(node, ast.Call) and ast.unparse(node.func) == "self.scene.reset_to_default"
+    )
+    assert not call.args
+    assert {keyword.arg: ast.unparse(keyword.value) for keyword in call.keywords} == {
+        "reset_joint_targets": "True",
+        "preserve_fixed_articulation_roots": "self.preserve_fixed_articulation_roots",
+    }
 
 
 def test_reset_manager_is_only_an_adapter() -> None:

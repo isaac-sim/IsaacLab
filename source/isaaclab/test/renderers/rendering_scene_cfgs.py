@@ -23,9 +23,10 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.test.integration_scene_cfgs import RenderingSceneCfg, RenderingTestSceneCfg
 from isaaclab.test.utils.rendering import CAMERA_EYE, CAMERA_TARGET
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
@@ -71,6 +72,14 @@ _TASK_SKY_LIGHT = AssetBaseCfg(
         intensity=750.0,
         texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
     ),
+)
+_FRANKA_CAMERA = CameraCfg(
+    prim_path="{ENV_REGEX_NS}/Camera",
+    offset=CameraCfg.OffsetCfg(pos=(0.85, -0.55, 0.42), rot=(0.5080, 0.2114, 0.318, 0.7720), convention="opengl"),
+    data_types=["rgb"],
+    spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
+    width=128,
+    height=128,
 )
 
 _YOUNGS_MODULUS = 8.0e4
@@ -166,6 +175,7 @@ class FrankaSoftRenderingSceneCfg(RenderingSceneCfg):
     ground = _FRANKA_GROUND.copy()
     key_light = None
     fill_light = _TASK_SKY_LIGHT.copy()
+    camera: CameraCfg = _FRANKA_CAMERA.copy()
     robot: ArticulationCfg = _FRANKA_ROBOT.copy()
     table: AssetBaseCfg = _FRANKA_TABLE.copy()
     deformable: DeformableObjectCfg = _SOFT_NEWTON.copy()
@@ -178,6 +188,7 @@ class FrankaClothRenderingSceneCfg(RenderingSceneCfg):
     ground = _FRANKA_GROUND.copy()
     key_light = None
     fill_light = _TASK_SKY_LIGHT.copy()
+    camera: CameraCfg = _FRANKA_CAMERA.copy()
     robot: ArticulationCfg = _FRANKA_ROBOT.copy()
     table: AssetBaseCfg = _FRANKA_TABLE.copy()
     cube: AssetBaseCfg = _FRANKA_CLOTH_CUBE.copy()
@@ -215,14 +226,14 @@ _KUKA_OBJECT = RigidObjectCfg(
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.35)),
 )
-# The task colors this footprint through a command visualizer; the direct probe keeps it neutrally visible.
+# The task colors this footprint through success/failure markers; author its default failure state directly.
 _KUKA_TABLE = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/table",
     spawn=sim_utils.CuboidCfg(
         size=(0.8, 1.5, 0.04),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.25, 0.25)),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)),
         semantic_tags=[("class", "table")],
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235)),
@@ -231,6 +242,14 @@ _KUKA_GROUND = AssetBaseCfg(
     prim_path="/World/GroundPlane",
     spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0), semantic_tags=[("class", "ground")]),
     collision_group=-1,
+)
+_KUKA_CAMERA = CameraCfg(
+    prim_path="{ENV_REGEX_NS}/Camera",
+    offset=CameraCfg.OffsetCfg(pos=(0.57, -0.8, 0.5), rot=(0.6124, 0.3536, 0.3536, 0.6124), convention="opengl"),
+    data_types=["rgb"],
+    spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
+    width=64,
+    height=64,
 )
 
 
@@ -241,6 +260,7 @@ class KukaHeterogeneousRenderingSceneCfg(RenderingSceneCfg):
     ground = _KUKA_GROUND.copy()
     key_light = None
     fill_light = _TASK_SKY_LIGHT.copy()
+    camera: CameraCfg = _KUKA_CAMERA.copy()
     robot: ArticulationCfg = _KUKA_ROBOT.copy()
     object: RigidObjectCfg = _KUKA_OBJECT.copy()
     table: RigidObjectCfg = _KUKA_TABLE.copy()
@@ -255,8 +275,6 @@ _SHADOW_HAND_OVPHYSX = _SHADOW_HAND_PHYSX.replace(spawn=_SHADOW_HAND_PHYSX.spawn
 _SHADOW_HAND_NEWTON = SHADOW_HAND_NEWTON_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(semantic_tags=[("class", "robot")]),
-    # Align the Newton USD's z-up visual root with the task's palm-to-cube layout.
-    init_state=SHADOW_HAND_NEWTON_CFG.init_state.replace(rot=(0.70710678, 0.0, 0.0, 0.70710678)),
 )
 _SHADOW_OBJECT_PHYSX = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/object",
@@ -293,15 +311,28 @@ _SHADOW_LIGHT = AssetBaseCfg(
     prim_path="/World/Light",
     spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
 )
+_SHADOW_CAMERA = CameraCfg(
+    prim_path="{ENV_REGEX_NS}/Camera",
+    offset=CameraCfg.OffsetCfg(pos=(0.0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"),
+    width=120,
+    height=120,
+    update_period=0.0,
+    update_latest_camera_pose=True,
+    data_types=["rgb"],
+    spawn=sim_utils.PinholeCameraCfg(
+        focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+    ),
+)
 
 
 @configclass
 class ShadowHandRenderingSceneCfg(RenderingSceneCfg):
-    """Open default Shadow Hand holding the task's labeled DexCube."""
+    """Open default Shadow Hand beside the task's labeled DexCube."""
 
     ground = None
     key_light = None
     fill_light = _SHADOW_LIGHT.copy()
+    camera: CameraCfg = _SHADOW_CAMERA.copy()
     robot: ArticulationCfg = _SHADOW_HAND_NEWTON.copy()
     object: ArticulationCfg | RigidObjectCfg = _SHADOW_OBJECT_NEWTON.copy()
 
@@ -314,6 +345,7 @@ def make_rendering_scene_cfg(
     tuple[float, float, float],
     frozenset[str],
     PhysicsCfg | None,
+    frozenset[str],
 ]:
     """Resolve scene-owned configuration while leaving lifecycle behavior to the runner."""
     if scene == "rendering_scene":
@@ -323,25 +355,31 @@ def make_rendering_scene_cfg(
             CAMERA_TARGET,
             frozenset({"robot"}),
             None,
+            frozenset(),
         )
-    if scene == "franka_soft":
-        cfg = FrankaSoftRenderingSceneCfg(num_envs=1, env_spacing=2.5, lazy_sensor_update=True)
-        cfg.deformable = (_SOFT_NEWTON if physics == "newton" else _SOFT_PHYSX).copy()
+    if scene in {"franka_soft", "franka_cloth"}:
+        scene_cfg_type, newton_deformable, physx_deformable = {
+            "franka_soft": (FrankaSoftRenderingSceneCfg, _SOFT_NEWTON, _SOFT_PHYSX),
+            "franka_cloth": (FrankaClothRenderingSceneCfg, _CLOTH_NEWTON, _CLOTH_PHYSX),
+        }[scene]
+        cfg = scene_cfg_type(num_envs=4, env_spacing=3.0, lazy_sensor_update=True)
+        cfg.deformable = (newton_deformable if physics == "newton" else physx_deformable).copy()
+        cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
+        hand_actuator = cfg.robot.actuators["panda_hand"]
+        hand_actuator.effort_limit_sim = 500.0
+        hand_actuator.stiffness = 2000.0 if scene == "franka_cloth" else 1000.0
+        hand_actuator.damping = 100.0
         physics_cfg = _DEFORMABLE_NEWTON_PHYSICS if physics == "newton" else None
-        return cfg, (0.85, -0.55, 0.42), (0.20051, 0.099902, 0.025508), frozenset(), physics_cfg
-    if scene == "franka_cloth":
-        cfg = FrankaClothRenderingSceneCfg(num_envs=1, env_spacing=2.5, lazy_sensor_update=True)
-        cfg.deformable = (_CLOTH_NEWTON if physics == "newton" else _CLOTH_PHYSX).copy()
-        physics_cfg = _DEFORMABLE_NEWTON_PHYSICS if physics == "newton" else None
-        return cfg, (0.85, -0.55, 0.42), (0.20051, 0.099902, 0.025508), frozenset(), physics_cfg
+        return cfg, (0.85, -0.55, 0.42), (0.20051, 0.099902, 0.025508), frozenset(), physics_cfg, frozenset()
     if scene == "kuka_heterogeneous":
         cfg = KukaHeterogeneousRenderingSceneCfg(num_envs=4, env_spacing=3.0, lazy_sensor_update=True)
-        return cfg, (0.57, -0.8, 0.5), (-0.296179, -0.299998, 0.500133), frozenset(), None
+        cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
+        return cfg, (0.57, -0.8, 0.5), (-0.296179, -0.299998, 0.500133), frozenset(), None, frozenset()
     if scene == "shadow_hand":
-        cfg = ShadowHandRenderingSceneCfg(num_envs=1, env_spacing=0.75, lazy_sensor_update=True)
+        cfg = ShadowHandRenderingSceneCfg(num_envs=4, env_spacing=2.0, lazy_sensor_update=True)
         cfg.robot = {"physx": _SHADOW_HAND_PHYSX, "ovphysx": _SHADOW_HAND_OVPHYSX, "newton": _SHADOW_HAND_NEWTON}[
             physics
         ].copy()
         cfg.object = (_SHADOW_OBJECT_NEWTON if physics == "newton" else _SHADOW_OBJECT_PHYSX).copy()
-        return cfg, (0.0, -0.35, 1.0), (0.0, -0.35, 0.0), frozenset({"cube"}), None
+        return cfg, (0.0, -0.35, 1.0), (0.0, -0.35, 0.0), frozenset({"cube"}), None, frozenset({"robot"})
     raise ValueError(f"Unknown rendering scene: {scene!r}")

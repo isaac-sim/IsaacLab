@@ -496,6 +496,21 @@ class InteractiveScene:
     Operations.
     """
 
+    def close(self) -> None:
+        """Release callbacks owned by scene entities before simulation teardown."""
+        families = (
+            self._articulations,
+            self._cable_objects,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._rigid_object_collections,
+            self._sensors,
+            self._surface_grippers,
+        )
+        for family in families:
+            for entity in family.values():
+                entity.close()
+
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the scene entities.
 
@@ -520,12 +535,20 @@ class InteractiveScene:
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
 
-    def reset_to_default(self, env_ids: Sequence[int] | None = None, reset_joint_targets: bool = False) -> None:
+    def reset_to_default(
+        self,
+        env_ids: Sequence[int] | None = None,
+        reset_joint_targets: bool = False,
+        preserve_fixed_articulation_roots: Sequence[str] = (),
+    ) -> None:
         """Restore asset state configured by each entity's initial-state configuration.
 
         Args:
             env_ids: The indices of the environments to reset. Defaults to all environments.
             reset_joint_targets: Whether to also restore articulation position and velocity targets.
+            preserve_fixed_articulation_roots: Names of fixed-base articulations whose authored root
+                transforms should remain untouched. Their joint state is still restored. Use this for
+                assets whose fixed-joint import already composes the configured spawn transform.
         """
         if env_ids is None:
             env_ids = self._ALL_INDICES
@@ -537,12 +560,13 @@ class InteractiveScene:
             rigid_object.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
             rigid_object.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
-        for articulation in self._articulations.values():
-            root_pose = articulation.data.default_root_pose.torch[env_ids].clone()
-            root_velocity = articulation.data.default_root_vel.torch[env_ids].clone()
-            root_pose[:, :3] += self.env_origins[env_ids]
-            articulation.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
-            articulation.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+        for articulation_name, articulation in self._articulations.items():
+            if articulation_name not in preserve_fixed_articulation_roots or not articulation.is_fixed_base:
+                root_pose = articulation.data.default_root_pose.torch[env_ids].clone()
+                root_velocity = articulation.data.default_root_vel.torch[env_ids].clone()
+                root_pose[:, :3] += self.env_origins[env_ids]
+                articulation.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+                articulation.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
             joint_position = articulation.data.default_joint_pos.torch[env_ids].clone()
             joint_velocity = articulation.data.default_joint_vel.torch[env_ids].clone()
             articulation.write_joint_position_to_sim_index(position=joint_position, env_ids=env_ids)
