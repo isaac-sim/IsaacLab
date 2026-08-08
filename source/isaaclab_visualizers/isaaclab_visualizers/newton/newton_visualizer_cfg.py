@@ -76,6 +76,14 @@ class NewtonVisualizerCfg(VisualizerCfg):
     particle_color: tuple[float, float, float] | None = None
     """Optional particle color RGB [0, 1]. Uses Newton viewer defaults when ``None``."""
 
+    enable_picking: bool = True
+    """Enable right-click dragging with Newton rigid-body solvers.
+
+    Supported coupled solvers may expose dragging through a rigid-body entry.
+    Disabled automatically for headless viewers, standalone MPM, and non-Newton
+    physics. MPM particles are not pickable.
+    """
+
     enable_shadows: bool = True
     """Enable shadow rendering."""
 
