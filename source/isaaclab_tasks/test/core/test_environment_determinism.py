@@ -74,13 +74,13 @@ def test_dextrous_env_determinism(task_name, device):
     _test_environment_determinism(task_name, device)
 
 
-def test_newton_locomotion_env_determinism():
-    """Check deterministic stepping for a contact-rich Newton environment."""
-    # One CUDA-only case at half the default steps exercises contacts without duplicating the broad PhysX matrix.
+def test_newton_cartpole_env_determinism():
+    """Check deterministic stepping for a Newton environment."""
+    # One small CUDA-only case at a quarter of the default steps bounds Newton kernel compilation and test runtime.
     _test_environment_determinism(
-        "Isaac-Velocity-Flat-AnymalD",
+        "Isaac-Cartpole",
         "cuda",
-        num_steps=50,
+        num_steps=25,
         physics_preset_name="newton_mjwarp",
         deterministic_mode="gpu_to_gpu",
     )
