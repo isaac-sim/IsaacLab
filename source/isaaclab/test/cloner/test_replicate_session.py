@@ -16,10 +16,10 @@ from isaaclab.sensors import SensorBaseCfg
 from isaaclab.sim import SimulationContext
 
 
-def test_sensor_default_does_not_request_a_cloning_context():
-    """Sensors rely on automatic Kit replication unless a user explicitly overrides it."""
+def test_sensor_default_requests_usd_replication():
+    """Sensors request USD cloning explicitly so kitless runs author per-env prims."""
 
-    assert SensorBaseCfg().cloning_contexts == ()
+    assert SensorBaseCfg().cloning_contexts == ("isaaclab.cloner:UsdReplicateContext",)
 
 
 @pytest.mark.parametrize(

@@ -31,11 +31,18 @@ def test_create_visualizer_raises_for_base_cfg():
         cfg.create_visualizer()
 
 
-def test_visualizer_cfg_tiled_camera_view_is_opt_in():
+def test_visualizer_cfg_streaming_view_is_opt_in():
     cfg = VisualizerCfg()
     assert cfg.focal_length == 12.0
-    assert cfg.tiled_cam_view is False
-    assert cfg.tiled_cam_num == 16
+    assert cfg.streaming_view is False
+    assert cfg.streaming_envs == 32
+
+
+def test_streaming_cfg_fields_on_visualizer_cfg():
+    """streaming_view is opt-in (False) and streaming_cam_renderer defaults to None."""
+    cfg = VisualizerCfg()
+    assert cfg.streaming_view is False
+    assert cfg.streaming_cam_renderer is None
 
 
 def test_create_visualizer_raises_for_unknown_type():
@@ -46,7 +53,7 @@ def test_create_visualizer_raises_for_unknown_type():
 
 def test_create_visualizer_raises_import_error_when_backend_unavailable(monkeypatch):
     monkeypatch.setattr(Visualizer, "_get_module_name", classmethod(lambda cls, backend: "does.not.exist"))
-    cfg = VisualizerCfg(visualizer_type="newton")
+    cfg = VisualizerCfg(visualizer_type="newton_gl")
     with pytest.raises(ImportError, match="isaaclab_visualizers"):
         cfg.create_visualizer()
 

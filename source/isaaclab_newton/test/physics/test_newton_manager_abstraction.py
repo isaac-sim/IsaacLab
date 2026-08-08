@@ -514,57 +514,6 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
             assert calls["n"] == 0
 
 
-@pytest.mark.parametrize(
-    ("grid_type", "max_active_cell_count", "expected"),
-    [
-        pytest.param("fixed", -1, True, id="fixed"),
-        pytest.param("sparse", 1024, True, id="bounded_sparse"),
-        pytest.param("sparse", -1, False, id="unbounded_sparse"),
-        pytest.param("dense", -1, False, id="dense"),
-    ],
-)
-def test_mpm_cuda_graph_capture_supports_static_topology(monkeypatch, grid_type, max_active_cell_count, expected):
-    """Only fixed and capacity-bounded rebuildable sparse grids support outer capture."""
-    solver = SimpleNamespace(
-        grid_type=grid_type,
-        max_active_cell_count=max_active_cell_count,
-        grid_padding=0,
-        velocity_basis="Q1",
-        strain_basis="P0",
-        collider_basis="S2",
-    )
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-
-    assert NewtonMPMManager._supports_cuda_graph_capture() is expected
-
-
-def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
-    """An unbounded sparse grid should retain the eager-execution fallback."""
-    solver = SimpleNamespace(
-        grid_type="sparse",
-        max_active_cell_count=-1,
-        grid_padding=0,
-        velocity_basis="Q1",
-        strain_basis="P0",
-        collider_basis="S2",
-    )
-    monkeypatch.setattr(
-        PhysicsManager,
-        "_cfg",
-        NewtonCfg(solver_cfg=MPMSolverCfg(grid_type="sparse"), use_cuda_graph=True),
-        raising=False,
-    )
-    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True, raising=False)
-
-    NewtonMPMManager._capture_or_defer_graph()
-
-    assert NewtonManager._graph is None
-    assert NewtonManager._graph_capture_pending is False
-
-
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     """CUDA graph capture should use the simulation device instead of Warp's default device."""
 

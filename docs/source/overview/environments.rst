@@ -209,6 +209,23 @@ for the lift-cube environment:
 * |lift-cube-ik-abs-link|: Franka arm with absolute IK control
 * |lift-cube-ik-rel-link|: Franka arm with relative IK control
 
+.. note::
+
+   The ``Isaac-Lift-Soft-Franka`` task and its camera variant require automatic tetrahedralization.
+   The ``Isaac-Lift-Cloth-Franka`` task and its camera variant use surface deformables and do not
+   require these dependencies.
+   Install the optional dependencies before running the soft-body tasks from a source checkout:
+
+   .. code-block:: bash
+
+      uv sync --inexact --extra tetrahedralization
+
+   With the legacy installer:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 .. table::
     :widths: 25 30 25 20
 
@@ -216,15 +233,13 @@ for the lift-cube environment:
     | World                   | Environment ID               | Description                                                                 | Presets                                 |
     +=========================+==============================+=============================================================================+=========================================+
     | |reach-franka|          | |reach-franka-link|          | Move the end-effector to a sampled target pose with the Franka robot        | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
-    |                         |                              |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     |                         |                              |                                                                             | **presets=** ``diffik``,                |
     |                         |                              |                                                                             | ``diffik_abs``, ``joint_pos``,          |
     |                         |                              |                                                                             | ``newton_ik``                           |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |reach-ur10|            | |reach-ur10-link|            | Move the end-effector to a sampled target pose with the UR10 robot          | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
-    |                         |                              |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |deploy-reach-ur10e|    | |deploy-reach-ur10e-link|    | Move the end-effector to a sampled target pose with the UR10e robot         |                                         |
     |                         |                              | This policy has been deployed to a real robot                               |                                         |
@@ -263,13 +278,15 @@ for the lift-cube environment:
     |                         |                              | with the UR10 arm and long surface gripper                                  | ``newton_mjwarp``                       |
     |                         | |short-suction-link|         | or short surface gripper (cpu only).                                        |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
-    |                         | |franka-direct-link|         |                                                                             |                                         |
+    | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
+    | |cabi-franka|           | |franka-direct-link|         | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
-    |                         | |allegro-direct-link|        |                                                                             |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |cube-allegro|          | |allegro-direct-link|        | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-shadow|           | |cube-shadow-link|           | In-hand reorientation of a cube using Shadow hand                           | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
@@ -613,14 +630,17 @@ Environments based on legged locomotion tasks.
     | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot             | **physics=**                 |
     |                              |                                              |                                                                              | ``isaacsim_physx``,          |
     |                              |                                              |                                                                              | ``newton_kamino``,           |
-    |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              | ``newton_mjwarp``,           |
+    |                              |                                              |                                                                              | ``newton_mjwarp``,           |
     |                              |                                              |                                                                              | ``ovphysx``                  |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
+    | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-direct-link|         | Track a velocity command on flat terrain with the Anymal C robot             |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            | **physics=**                 |
     |                              |                                              |                                                                              | ``isaacsim_physx``,          |
     |                              |                                              |                                                                              | ``newton_mjwarp``,           |
     |                              |                                              |                                                                              | ``ovphysx``                  |
-    |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |                              |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
+    | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-direct-link|        | Track a velocity command on rough terrain with the Anymal C robot            |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot             | **physics=**                 |
     |                              |                                              |                                                                              | ``isaacsim_physx``,          |
@@ -1147,16 +1167,16 @@ including disabling runtime perturbations used for training.
     * - Isaac-Reach-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
           | **presets=** ``diffik``, ``diffik_abs``, ``joint_pos``, ``newton_ik``
     * - Isaac-Reach-Franka-OSC
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reach-UR10
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reorient-Cube-Allegro
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)

@@ -81,6 +81,7 @@ dependencies = [
     "hydra-core",
     "h5py>=3.15.0",
     "packaging",
+    "rich",
     "tqdm>=4.67.1",
     "rsl-rl-lib==5.4.1",  # default RL framework
     "onnxscript>=0.5",
@@ -90,7 +91,7 @@ dependencies = [
     # The importers extra carries the mesh-processing deps (coacd, fast-simplification,
     # ...) that honoring USD-authored ``physics:approximation`` requires.
     "newton[sim,importers]>=1.2.0",
-    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.0.
+    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.1.
     "newton-usd-schemas>=0.2.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
@@ -389,7 +390,7 @@ override-dependencies = [
     "mujoco-warp~=3.11.0",
     "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@1b097f2f29a6f51ce144738422b4d7f36c89fcfb",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
-    "newton-usd-schemas>=0.4.0",
+    "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",

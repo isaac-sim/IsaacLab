@@ -506,32 +506,6 @@ def test_mpm_entry_does_not_request_external_contacts():
     assert NewtonCouplerManager._requires_external_contacts(MPMSolverCfg()) is False
 
 
-@pytest.mark.parametrize(
-    ("max_active_cell_count", "expected"),
-    [
-        pytest.param(1024, True, id="bounded_sparse"),
-        pytest.param(-1, False, id="unbounded_sparse"),
-    ],
-)
-def test_mpm_grid_controls_coupled_cuda_graph_support(monkeypatch, max_active_cell_count, expected):
-    """A coupled solver must inherit every nested MPM grid's capture capability."""
-    solver = SimpleNamespace(
-        grid_type="sparse",
-        max_active_cell_count=max_active_cell_count,
-        grid_padding=0,
-        velocity_basis="Q1",
-        strain_basis="P0",
-        collider_basis="S2",
-    )
-    monkeypatch.setattr(
-        coupler.NewtonMPMManager,
-        "_implicit_mpm_solvers",
-        classmethod(lambda cls: (solver,)),
-    )
-
-    assert NewtonCouplerManager._supports_cuda_graph_capture() is expected
-
-
 def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
     """Coupled MPM entries register attributes and normalize kinematic colliders."""
     events: list[tuple[str, object]] = []
@@ -575,29 +549,25 @@ def test_contact_initialization_prepares_coupled_solver_buffers(monkeypatch):
     assert events == [("initialize", None), ("prepare", contacts)]
 
 
-def test_single_world_mpm_reset_resets_both_manager_states(monkeypatch):
-    """A promoted full reset must not leave the inactive parent state stale."""
+@pytest.mark.parametrize(("mask_values", "should_reset"), [([True, False], True), ([False, False], False)])
+def test_single_world_mpm_reset_promotes_local_mask(monkeypatch, mask_values, should_reset):
+    """The only selected local MPM world uses the full-grid reset path."""
     state_0 = object()
-    state_1 = object()
     calls: list[tuple[object, object | None, int | None]] = []
     solver = SimpleNamespace(
         reset=lambda state, world_mask=None, flags=None: calls.append((state, world_mask, flags)),
     )
-    mask = _FakeArray(np.asarray([True, False], dtype=np.bool_))
+    mask = _FakeArray(np.asarray(mask_values, dtype=np.bool_))
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
 
+    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
     monkeypatch.setattr(coupler.NewtonManager, "_model", SimpleNamespace(world_count=1))
     monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
     monkeypatch.setattr(coupler.NewtonManager, "_state_0", state_0)
-    monkeypatch.setattr(coupler.NewtonManager, "_state_1", state_1)
-    monkeypatch.setattr(
-        coupler.NewtonMPMManager,
-        "_implicit_mpm_solvers",
-        classmethod(lambda cls: (object(),)),
-    )
 
     NewtonCouplerManager._reset_solver_internals(mask)
 
-    assert calls == [(state_1, None, 0), (state_0, None, 0)]
+    assert calls == ([(state_0, None, 0)] if should_reset else [])
 
 
 def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
@@ -613,14 +583,31 @@ def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
             raise AssertionError("non-MPM reset unexpectedly copied its mask to the host")
 
     mask = _DeviceMask()
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg())])
+    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
     monkeypatch.setattr(coupler.NewtonManager, "_model", SimpleNamespace(world_count=1))
     monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
     monkeypatch.setattr(coupler.NewtonManager, "_state_0", state)
-    monkeypatch.setattr(
-        coupler.NewtonMPMManager,
-        "_implicit_mpm_solvers",
-        classmethod(lambda cls: ()),
+
+    NewtonCouplerManager._reset_solver_internals(mask)
+
+    assert calls == [(state, mask, 0)]
+
+
+def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
+    """A partial multi-world MPM reset must not clear every world's grid."""
+    state = object()
+    calls: list[tuple[object, object, int]] = []
+    solver = SimpleNamespace(
+        reset=lambda reset_state, world_mask=None, flags=0: calls.append((reset_state, world_mask, flags)),
     )
+    mask = _FakeArray(np.asarray([True, False, False], dtype=np.bool_))
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
+
+    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
+    monkeypatch.setattr(coupler.NewtonManager, "_model", SimpleNamespace(world_count=2))
+    monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
+    monkeypatch.setattr(coupler.NewtonManager, "_state_0", state)
 
     NewtonCouplerManager._reset_solver_internals(mask)
 

@@ -133,43 +133,6 @@ class NewtonMPMManager(NewtonManager):
         cls._project_outside_colliders = solver_cfg.project_outside_colliders
 
     @classmethod
-    def _supports_cuda_graph_capture(cls) -> bool:
-        """Return whether the active MPM grid has capture-stable storage."""
-        return cls._solver_supports_cuda_graph_capture(cls._solver)
-
-    @staticmethod
-    def _solver_supports_cuda_graph_capture(solver: SolverImplicitMPM) -> bool:
-        """Return whether an implicit-MPM solver satisfies Newton's capture contract."""
-        if solver.grid_type == "fixed":
-            return True
-        if solver.grid_type != "sparse":
-            return False
-
-        strain_rebuild_safe = solver.strain_basis.startswith("pic") or solver.strain_basis in (
-            "P0",
-            "P1d",
-            "Q1d",
-            "Q1",
-        )
-        collider_rebuild_safe = solver.collider_basis.startswith("pic") or solver.collider_basis in (
-            "Q1",
-            "S2",
-            "S3",
-        )
-        return (
-            solver.max_active_cell_count > 0
-            and solver.grid_padding == 0
-            and solver.velocity_basis == "Q1"
-            and strain_rebuild_safe
-            and collider_rebuild_safe
-        )
-
-    @classmethod
-    def _defer_standard_graph_capture(cls) -> bool:
-        """Defer capture until reset-dependent sparse topology has been initialized."""
-        return cls._solver.grid_type == "sparse"
-
-    @classmethod
     def _check_solver_status(cls) -> None:
         """Raise asynchronous sparse-grid rebuild failures after graph replay."""
         if NewtonManager._graph is None:

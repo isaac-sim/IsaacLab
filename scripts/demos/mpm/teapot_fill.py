@@ -110,7 +110,7 @@ parser.add_argument(
     help="USD asset used as the pouring container (rigid collider).",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton"])
+parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 
 
@@ -168,13 +168,13 @@ CAMERA_TARGET = (-0.01, 0.0, 0.38)
 
 def create_visualizer_cfgs():
     """Create demo-specific visualizer configs for requested backends."""
-    if "newton" not in (args_cli.visualizer or []):
+    if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
         return []
 
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     return [
-        NewtonVisualizerCfg(
+        NewtonGLVisualizerCfg(
             show_particles=True,
             particle_color=WATER_COLOR,
         )

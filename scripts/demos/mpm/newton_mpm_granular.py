@@ -41,7 +41,7 @@ parser.add_argument(
 )
 parser.add_argument("--substeps", type=int, default=1, help="Solver substeps per frame.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton"])
+parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 
 
@@ -73,13 +73,13 @@ Y_ROT_NEG_45_DEG = (0.0, -math.sin(math.pi / 8.0), 0.0, math.cos(math.pi / 8.0))
 
 def create_visualizer_cfgs():
     """Create demo-specific visualizer configs for the requested backends."""
-    if "newton" not in (args_cli.visualizer or []):
+    if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
         return []
 
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     return [
-        NewtonVisualizerCfg(
+        NewtonGLVisualizerCfg(
             show_particles=True,
             particle_color=PARTICLE_COLOR,
         )
