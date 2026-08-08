@@ -81,6 +81,7 @@ dependencies = [
     "hydra-core",
     "h5py>=3.15.0",
     "packaging",
+    "rich",
     "tqdm>=4.67.1",
     "rsl-rl-lib==5.4.1",  # default RL framework
     "onnxscript>=0.5",
@@ -397,18 +398,19 @@ override-dependencies = [
     "typing-extensions>=4.15.0",
     "websockets>=14.0,<17.0.0",
     "coverage>=7.6.1",
-    # Over-strict cap in ovphysx; see the note below. Floor matches Isaac Sim's ==26.0.
-    "packaging>=26.0",
+    # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
+    # stricter than the code needs, so widening lets them resolve together at 26.0.
+    "packaging>=20,<27",
+    # usd-exchange and usd-core each vendor a full ``pxr`` built against a different
+    # USD version, and newton[importers] pulls usd-exchange unmarked. Re-impose the
+    # platform split from [project.dependencies] so only one lands per platform.
+    "usd-exchange>=2.2 ; platform_machine == 'aarch64'",
 ]
-# ovphysx caps packaging <24, colliding with ray (>=24.2, via rl[all]) and isaacsim-core
-# (==26.0). The cap is over-strict -- one ``packaging.version.Version`` import -- so the
-# override above reconciles it. The pairs below stay: the isaacsim/teleop combinations have
-# not been re-validated against the override.
+# ``ov`` stays forked: it pulls ovrtx, which is not validated alongside Isaac Sim.
+# ``teleop`` bundles isaacsim, so it inherits that pair.
 conflicts = [
     [{ extra = "teleop" }, { extra = "ov" }],
-    [{ extra = "teleop" }, { extra = "ovphysx" }],
     [{ extra = "isaacsim" }, { extra = "ov" }],
-    [{ extra = "isaacsim" }, { extra = "ovphysx" }],
 ]
 python-preference = "only-managed"
 package = false
