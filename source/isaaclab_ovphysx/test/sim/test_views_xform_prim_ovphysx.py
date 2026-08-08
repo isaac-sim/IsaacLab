@@ -82,8 +82,39 @@ def test_world_attached_source_prim_expands_from_clone_plan():
         assert {prim.GetPath().pathString for prim in view.prims} == {"/World/envs/env_0/WorldCamera"}
         assert view.prim_paths == [f"/World/envs/env_{i}/WorldCamera" for i in range(scene.num_envs)]
         positions, _ = view.get_world_poses()
-        expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
-        torch.testing.assert_close(positions.torch, expected_positions)
+    expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
+    torch.testing.assert_close(positions.torch, expected_positions)
+
+
+def test_reinitialization_closes_previous_root_view(monkeypatch):
+    """A repeated PHYSICS_READY event closes the FrameView's previous root binding."""
+    from isaaclab_ovphysx.sim.views import OvPhysxFrameView
+
+    events = []
+    frame_view = object.__new__(OvPhysxFrameView)
+    physx = object()
+    replacement = object()
+
+    class PreviousRootView:
+        def close(self):
+            events.append("close")
+
+    frame_view._root_view = PreviousRootView()
+    frame_view._pose_binding = object()
+    monkeypatch.setattr(frame_view, "_try_get_physx", lambda: physx)
+
+    def initialize(value):
+        assert frame_view._root_view is None
+        assert frame_view._pose_binding is None
+        events.append(("initialize", value))
+        frame_view._root_view = replacement
+
+    monkeypatch.setattr(frame_view, "_initialize_impl", initialize)
+
+    frame_view._on_physics_ready(None)
+
+    assert events == ["close", ("initialize", physx)]
+    assert frame_view._root_view is replacement
 
 
 # Note: an earlier test ``test_view_errors_when_newton_model_not_required`` was
