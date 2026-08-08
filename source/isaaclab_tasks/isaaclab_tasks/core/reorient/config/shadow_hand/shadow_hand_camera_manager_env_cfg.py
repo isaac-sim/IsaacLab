@@ -41,7 +41,7 @@ class ShadowHandCameraManagerSceneCfg(ShadowHandManagerSceneCfg):
 class CameraPolicyCfg(FullStateObsCfg):
     """Direct-compatible 191-dimensional camera actor observation."""
 
-    last_action = ObsTerm(func=mdp.reorient_last_action, params={"action_name": "joint_pos"})
+    last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
     camera_features = ObsTerm(
         func=mdp.ShadowHandCameraFeatures,
         params={
@@ -68,13 +68,13 @@ class CameraCriticCfg(FullStateObsCfg):
     """Direct-compatible 214-dimensional asymmetric camera critic state."""
 
     fingertip_wrench = ObsTerm(
-        func=mdp.fingertip_wrench,
+        func=mdp.body_incoming_wrench,
         scale=10.0,
         params={
             "sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False)
         },
     )
-    last_action = ObsTerm(func=mdp.reorient_last_action, params={"action_name": "joint_pos"})
+    last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
     camera_features = ObsTerm(func=mdp.shadow_hand_camera_cached_features)
 
 

@@ -10,6 +10,9 @@ __all__ = [
     "fingertip_pos",
     "fingertip_vel",
     "goal_quat_diff",
+    "ShadowHandCameraFeatures",
+    "shadow_hand_goal_keypoints",
+    "shadow_hand_camera_cached_features",
     "success_bonus",
     "track_orientation_inv_l2",
     "track_pos_l2",
@@ -22,6 +25,9 @@ from .observations import (
     fingertip_pos,
     fingertip_vel,
     goal_quat_diff,
+    ShadowHandCameraFeatures,
+    shadow_hand_camera_cached_features,
+    shadow_hand_goal_keypoints,
 )
 from .rewards import (
     success_bonus,
