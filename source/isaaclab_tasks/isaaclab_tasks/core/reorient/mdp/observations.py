@@ -25,6 +25,7 @@ CUBE_HALF_SIZE: tuple[float, float, float] = (0.03, 0.03, 0.03)
 """Half side lengths [m] of the reorientation cube."""
 
 
+# -- cube keypoint helpers, shared by the camera and state observation terms
 def _cube_corner_offsets(
     size: tuple[float, float, float], num_keypoints: int, device: torch.device | str
 ) -> torch.Tensor:
@@ -97,22 +98,41 @@ def cube_keypoints_from_quat(
     return rotated.reshape(num_envs, num_keypoints * 3)
 
 
+# -- command terms
 def goal_quat_diff(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, command_name: str, make_quat_unique: bool
 ) -> torch.Tensor:
     """Goal orientation relative to the asset's root frame.
 
-    The quaternion is represented as (w, x, y, z). The real part is always positive.
+    The real part is always positive when ``make_quat_unique`` is set.
+
+    Args:
+        env: The environment object.
+        asset_cfg: The scene entity whose root orientation is compared.
+        command_name: The command term to be used for extracting the goal.
+        make_quat_unique: Whether to keep the quaternion real part non-negative.
+
+    Returns:
+        Per-environment quaternion error ``asset * conjugate(goal)`` in ``(x, y, z, w)`` order.
     """
-    # extract useful elements
     asset: RigidObject = env.scene[asset_cfg.name]
     command_term: ReorientCommand = env.command_manager.get_term(command_name)
+    quat_error = math_utils.quat_mul(
+        asset.data.root_quat_w.torch, math_utils.quat_conjugate(command_term.quat_command_w)
+    )
+    return math_utils.quat_unique(quat_error) if make_quat_unique else quat_error
 
-    # obtain the orientations
-    goal_quat_w = command_term.command[:, 3:7]
-    asset_quat_w = asset.data.root_quat_w.torch
 
-    # compute quaternion difference
-    quat = math_utils.quat_mul(asset_quat_w, math_utils.quat_conjugate(goal_quat_w))
-    # make sure the quaternion real-part is always positive
-    return math_utils.quat_unique(quat) if make_quat_unique else quat
+# -- fingertip terms
+# Task-local because the framework provides body_pose_w but no body_pos_w or body_vel_w.
+def fingertip_pos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Flattened fingertip positions in the environment frame [m], shape ``(num_envs, num_fingertips * 3)``."""
+    asset = env.scene[asset_cfg.name]
+    positions = asset.data.body_pos_w.torch[:, asset_cfg.body_ids] - env.scene.env_origins.unsqueeze(1)
+    return positions.reshape(env.num_envs, -1)
+
+
+def fingertip_vel(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Flattened fingertip spatial velocities [m/s, rad/s], shape ``(num_envs, num_fingertips * 6)``."""
+    asset = env.scene[asset_cfg.name]
+    return asset.data.body_vel_w.torch[:, asset_cfg.body_ids].reshape(env.num_envs, -1)

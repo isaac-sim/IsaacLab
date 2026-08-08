@@ -101,27 +101,6 @@ def track_orientation_inv_l2(
 
 
 @torch.jit.script
-def evaluate_reorient_success(
-    object_quat: torch.Tensor, target_quat: torch.Tensor, success_tolerance: float
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Evaluate reorientation success while exposing its physical error.
-
-    This is the single per-step success evaluation: callers reuse the returned
-    flags and errors for the reward, the episode bookkeeping, and the
-    episode-minimum error tracking instead of recomputing the quaternion math.
-
-    Args:
-        object_quat: Object ``(x, y, z, w)`` orientations.
-        target_quat: Target ``(x, y, z, w)`` orientations.
-        success_tolerance: Maximum successful orientation error [rad].
-
-    Returns:
-        Per-environment success flags and orientation errors [rad].
-    """
-    orientation_error = math_utils.quat_error_magnitude(object_quat, target_quat)
-    return orientation_error <= success_tolerance, orientation_error
-
-
 @torch.jit.script
 def reorient_reward(
     reset_buf: torch.Tensor,
@@ -145,7 +124,7 @@ def reorient_reward(
     """Compute the Direct reorientation reward and success state transition.
 
     The success evaluation is not recomputed here: callers pass the flags and
-    orientation errors from :func:`evaluate_reorient_success`, computed once
+    orientation errors computed once
     per step.
 
     Args:

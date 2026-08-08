@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared utilities for core learning tasks."""
+"""Helpers shared by the reorientation and hand-over tasks."""
 
 from collections.abc import Sequence
 
@@ -123,15 +123,24 @@ def random_xy_rotation(count: int, device: str | torch.device) -> torch.Tensor:
     random_values = math_utils.sample_uniform(-1.0, 1.0, (count, 2), device=device)
     x_unit = torch.tensor([1.0, 0.0, 0.0], device=device).repeat(count, 1)
     y_unit = torch.tensor([0.0, 1.0, 0.0], device=device).repeat(count, 1)
-    return math_utils.quat_mul(
-        math_utils.quat_from_angle_axis(random_values[:, 0] * torch.pi, x_unit),
-        math_utils.quat_from_angle_axis(random_values[:, 1] * torch.pi, y_unit),
-    )
+    return randomize_rotation(random_values[:, 0], random_values[:, 1], x_unit, y_unit)
 
 
 @torch.jit.script
-def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):
-    """Compose ``[-pi, pi]``-scaled random X- and Y-axis rotations into ``(x, y, z, w)`` quaternions."""
+def randomize_rotation(
+    rand0: torch.Tensor, rand1: torch.Tensor, x_unit_tensor: torch.Tensor, y_unit_tensor: torch.Tensor
+) -> torch.Tensor:
+    """Compose ``[-pi, pi]``-scaled random X- and Y-axis rotations into ``(x, y, z, w)`` quaternions.
+
+    Args:
+        rand0: Rotation amounts about the X axis in ``[-1, 1]``, scaled to ``[-pi, pi]`` [rad].
+        rand1: Rotation amounts about the Y axis in ``[-1, 1]``, scaled to ``[-pi, pi]`` [rad].
+        x_unit_tensor: Per-sample X axis, shape ``(count, 3)``.
+        y_unit_tensor: Per-sample Y axis, shape ``(count, 3)``.
+
+    Returns:
+        Composed ``(x, y, z, w)`` unit quaternions, shape ``(count, 4)``.
+    """
     return quat_mul(
         quat_from_angle_axis(rand0 * np.pi, x_unit_tensor), quat_from_angle_axis(rand1 * np.pi, y_unit_tensor)
     )
