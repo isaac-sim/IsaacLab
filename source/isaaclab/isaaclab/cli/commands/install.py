@@ -1111,7 +1111,7 @@ def _requested_root_extras(
 
     Tokens are not extras: ``ov[ovrtx]`` installs ``ovrtx``, not ``ov``.
     """
-    extras = set(optional_submodules)
+    extras = {e for s in optional_submodules for e in OPTIONAL_SUBMODULE_ROOT_EXTRAS.get(s, (s,))}
     if install_isaacsim:
         extras.add("isaacsim")
     for feature, selector in extra_features:

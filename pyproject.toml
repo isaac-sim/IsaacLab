@@ -367,7 +367,7 @@ markers = [
     "benchmark: test covers the Isaac Lab benchmark framework and infrastructure",
     "rendering: test exercises the rendering / camera / visualizer pipeline",
     "smoke: tests for core installation, task, and RL functionality",
-    "importers: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
+    "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.
@@ -435,6 +435,8 @@ conflicts = [
     [{ extra = "isaacsim" }, { extra = "ovphysx" }],
     # both supply the ``isaacsim.asset`` importers; together the wheel shadows the Kit extension
     [{ extra = "isaacsim" }, { extra = "importers" }],
+    # teleop carries isaacsim itself, so it inherits the same incompatibility
+    [{ extra = "teleop" }, { extra = "importers" }],
 ]
 python-preference = "only-managed"
 package = false

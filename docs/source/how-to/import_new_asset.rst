@@ -69,9 +69,10 @@ Run conversion in the kit-less environment. Optionally pass ``--viz newton`` (or
    python scripts/tools/convert_mjcf.py \
      path/to/model.xml path/to/output.usd --merge_mesh
 
-If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim importer
-extensions first. The standalone wheel is used only when the full Isaac Sim runtime is not
-available.
+The two cannot share an environment: both provide ``isaacsim.asset``, and the wheel displaces
+the Kit extension, so conversion fails with ``No module named 'isaacsim.asset'``. ``uv`` refuses
+the combination, but plain ``pip`` does not enforce it -- install ``importers`` only where Isaac
+Sim is absent.
 
 
 Using URDF Importer
