@@ -189,6 +189,7 @@ def test_solver_kwargs_include_newton_deterministic_mode(monkeypatch: pytest.Mon
         pytest.param(KaminoSolverCfg(), id="kamino"),
         pytest.param(MPMSolverCfg(), id="implicit_mpm"),
         pytest.param(MJWarpSolverCfg(use_mujoco_cpu=True), id="mujoco_cpu"),
+        pytest.param(MJWarpSolverCfg(), id="mujoco_warp_sensors"),
     ],
 )
 def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
@@ -197,14 +198,23 @@ def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
         NewtonManager._validate_deterministic_solver_cfg(solver_cfg, wp.DeterministicMode.GPU_TO_GPU)
 
 
-@pytest.mark.parametrize("solver_cfg_cls", [FeatherstoneSolverCfg, MJWarpSolverCfg, XPBDSolverCfg])
-def test_deterministic_mode_accepts_supported_solver_cfg_subclasses(solver_cfg_cls) -> None:
+@pytest.mark.parametrize(
+    "solver_cfg_cls, solver_cfg_kwargs",
+    [
+        pytest.param(FeatherstoneSolverCfg, {}, id="featherstone"),
+        pytest.param(MJWarpSolverCfg, {"disable_sensors": True}, id="mujoco_warp"),
+        pytest.param(XPBDSolverCfg, {}, id="xpbd"),
+    ],
+)
+def test_deterministic_mode_accepts_supported_solver_cfg_subclasses(solver_cfg_cls, solver_cfg_kwargs) -> None:
     """Custom subclasses of supported solver configs should retain deterministic support."""
 
     class CustomSolverCfg(solver_cfg_cls):
         pass
 
-    NewtonManager._validate_deterministic_solver_cfg(CustomSolverCfg(), wp.DeterministicMode.GPU_TO_GPU)
+    NewtonManager._validate_deterministic_solver_cfg(
+        CustomSolverCfg(**solver_cfg_kwargs), wp.DeterministicMode.GPU_TO_GPU
+    )
 
 
 def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(

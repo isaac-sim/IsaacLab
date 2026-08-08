@@ -17,7 +17,7 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import pytest
 import torch
-from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
 
@@ -147,6 +147,10 @@ def _obtain_transition_tuples(
         if deterministic_mode is not None:
             assert isinstance(env_cfg.sim.physics, NewtonCfg)
             env_cfg.sim.physics.deterministic_mode = deterministic_mode
+            if isinstance(env_cfg.sim.physics.solver_cfg, MJWarpSolverCfg):
+                # MJWarp's internal tactile sensor kernel mixes atomic reduction families, which Warp's
+                # deterministic code generation does not support. Isaac Lab sensors do not use this data.
+                env_cfg.sim.physics.solver_cfg.disable_sensors = True
         # set seed
         env_cfg.seed = 42
         # create environment

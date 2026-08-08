@@ -1967,6 +1967,12 @@ class NewtonManager(PhysicsManager):
                 f"Newton deterministic mode {deterministic_mode.name} is not supported by the MuJoCo CPU backend. "
                 "Set MJWarpSolverCfg.use_mujoco_cpu=False or disable deterministic mode."
             )
+        if isinstance(solver_cfg, MJWarpSolverCfg) and not solver_cfg.disable_sensors:
+            raise ValueError(
+                f"Newton deterministic mode {deterministic_mode.name} is not supported while MuJoCo Warp's "
+                "internal sensor computation is enabled. Set MJWarpSolverCfg.disable_sensors=True or disable "
+                "deterministic mode."
+            )
 
     @staticmethod
     def _resolve_deterministic_mode(deterministic_mode: str) -> wp.DeterministicMode:
