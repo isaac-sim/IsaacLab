@@ -1123,6 +1123,44 @@ def _requested_root_extras(
     return extras
 
 
+def _reject_conflicts_with_environment(requested: set[str]) -> None:
+    """Reject an extra that conflicts with what this environment already has.
+
+    :func:`_reject_conflicting_extras` only sees one invocation. Installing the two sides in
+    separate passes, or into a checkout carrying a local Isaac Sim, reaches the same broken state.
+
+    Args:
+        requested: Names of the extras this install would apply.
+
+    Raises:
+        SystemExit: When the environment already holds the other side of a conflict.
+    """
+    if "importers" in requested:
+        isaacsim_path = extract_isaacsim_path(required=False)
+        if isaacsim_path is not None and isaacsim_path.exists():
+            raise SystemExit(
+                f"error: 'importers' cannot be installed here; Isaac Sim is already present at"
+                f" {isaacsim_path}. It provides the same importers, and the wheel would displace it."
+            )
+        if _is_installed("isaacsim"):
+            raise SystemExit(
+                "error: 'importers' cannot be installed here; the isaacsim package is already"
+                " installed. It provides the same importers, and the wheel would displace it."
+            )
+    if "isaacsim" in requested and _is_installed("isaacsim-asset-isolated"):
+        raise SystemExit(
+            "error: 'isaacsim' cannot be installed here; the standalone importers are already"
+            " installed and would displace the Isaac Sim ones. Uninstall isaacsim-asset-isolated first."
+        )
+
+
+def _is_installed(distribution: str) -> bool:
+    """Whether ``distribution`` is installed in the target environment."""
+    probe = f"from importlib.metadata import version; version({distribution!r})"
+    result = run_command([extract_python_exe(), "-c", probe], check=False, capture_output=True, text=True)
+    return result.returncode == 0
+
+
 def _reject_conflicting_extras(requested: set[str]) -> None:
     """Reject extras that ``[tool.uv].conflicts`` declares incompatible.
 
@@ -1244,7 +1282,9 @@ def command_install(install_type: str = "all") -> None:
                 valid = sorted(OPTIONAL_ISAACLAB_SUBMODULES) + sorted(VALID_EXTRA_FEATURES) + ["isaacsim"]
                 print_warning(f"Unknown install token '{name}'. Valid values: {', '.join(valid)}. Skipping.")
 
-    _reject_conflicting_extras(_requested_root_extras(install_isaacsim, requested_optional_submodules, extra_features))
+    requested_extras = _requested_root_extras(install_isaacsim, requested_optional_submodules, extra_features)
+    _reject_conflicting_extras(requested_extras)
+    _reject_conflicts_with_environment(requested_extras)
 
     # Configure extra package indexes for NVIDIA and MuJoCo wheels.
     os.environ.setdefault("UV_EXTRA_INDEX_URL", "https://pypi.nvidia.com")

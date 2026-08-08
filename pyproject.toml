@@ -48,7 +48,7 @@ dependencies = [
     "protobuf>=4.25.8,!=5.26.0",
     "hidapi>=0.14.0",
     "gymnasium>=1.2.0",
-    "trimesh",
+    "trimesh>=4.6.8",  # lower bound inherited from newton[importers]
     "pyglet>=2.1.6,<3",
     "transformers==4.57.6",
     "einops",

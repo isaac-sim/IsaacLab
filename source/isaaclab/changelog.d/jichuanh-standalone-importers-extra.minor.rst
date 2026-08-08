@@ -27,5 +27,8 @@ Changed
 
 * Changed :func:`~isaaclab.sim.utils.select_usd_variants` to raise for a variant set in
   :obj:`~isaaclab.sim.utils.REQUIRED_VARIANT_SETS` that is absent or lacks the requested variant.
+  Request one of the variants the asset offers; the error lists them.
 
-* Changed ``./isaaclab.sh --install`` to reject extras that ``pyproject.toml`` declares conflicting.
+* Changed ``./isaaclab.sh --install`` to reject extras that ``pyproject.toml`` declares conflicting,
+  and to reject one that conflicts with what the environment already has. Drop one of the tokens, or
+  install into a fresh environment.
