@@ -280,7 +280,8 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
-    |                         |                              |                                                                             | **presets=** ``randomized``             |
+    |                         |                              |                                                                             | **presets=** ``randomized``,            |
+    |                         |                              |                                                                             | ``reset_only``                          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-allegro|          | |allegro-direct-link|        | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
@@ -457,8 +458,8 @@ for the lift-cube environment:
 .. |ka-lift-cam-link| replace:: :isaaclab-source:`Isaac-Lift-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/kuka_allegro/kuka_allegro_camera_env_cfg.py>`
 .. |ka-reorient-cam-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/kuka_allegro/kuka_allegro_camera_env_cfg.py>`
 .. |cube-shadow-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
-.. |cube-shadow-ff-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
-.. |cube-shadow-lstm-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
+.. |cube-shadow-ff-link| replace:: :isaaclab-source:`IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/reorient/config/shadow_hand/shadow_hand_openai_env_cfg.py>`
+.. |cube-shadow-lstm-link| replace:: :isaaclab-source:`IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/reorient/config/shadow_hand/shadow_hand_openai_env_cfg.py>`
 .. |cube-shadow-vis-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Camera-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_camera_env.py>`
 .. |agibot_place_mug-link| replace:: :isaaclab-source:`IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`
 .. |agibot_place_toy-link| replace:: :isaaclab-source:`IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`
@@ -1183,7 +1184,7 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
-          | **presets=** ``randomized``
+          | **presets=** ``randomized``, ``reset_only``
     * - Isaac-Reorient-Cube-Shadow-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1450,9 +1451,13 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
-    * - IsaacContrib-Reorient-Cube-Shadow-OpenAI-Direct
+    * - IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct
       - Direct
-      - **rl_games** (PPO, LSTM), **rsl_rl** (PPO, LSTM), **skrl** (PPO)
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+    * - IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic
       - Manager Based
