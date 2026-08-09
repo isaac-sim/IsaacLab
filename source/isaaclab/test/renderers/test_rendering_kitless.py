@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Ovstage specialized-scene OVRTX/OVPhysX probes in one native process."""
+"""All golden scenes rendered through Kit-less renderer/backend pairs."""
 
 import pytest
 from kitless_rendering_runner import make_kitless_test
 
-pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci, pytest.mark.cold_cache]
 
-test_rendering_scene_probes = make_kitless_test("ovstage", "ovphysx", scene_probes=True)
+test_rendering = make_kitless_test()

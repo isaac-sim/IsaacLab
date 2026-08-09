@@ -23,7 +23,7 @@ from isaaclab.test.utils import resolve_test_sim_device
 # Local imports
 import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
-from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
+from _device_split import DEVICE_SPLIT_PASSES, has_pytestmark, is_device_split_file  # isort: skip
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -967,6 +967,7 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
     failed_tests = []
     test_status = {}
     xml_reports = []
+    cold_cache_applied = False
     test_node_ids_by_file = test_node_ids_by_file or {}
     global_k_expr = os.environ.get("TEST_K_EXPR", "").strip() or None
     if global_k_expr is not None:
@@ -1004,11 +1005,14 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
         except OSError:
             test_content = ""
 
-        # Each test file runs in a fresh interpreter and may compile native renderer
-        # shaders (~600 s), so every explicitly camera-enabled root owns the allowance.
-        is_cold_cache_test = test_key in test_settings.COLD_CACHE_TESTS
+        # Explicitly marked renderer roots always own the allowance because each process
+        # partition can compile shaders. Preserve the first direct camera caller fallback.
+        is_cold_cache_test = has_pytestmark(test_file, "cold_cache", test_content) or (
+            not cold_cache_applied and "enable_cameras=True" in test_content
+        )
         if is_cold_cache_test:
             timeout += COLD_CACHE_BUFFER
+            cold_cache_applied = True
             logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
 
         extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
@@ -1038,10 +1042,18 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
             )
             logger.info(f"⚙️  process partitions detected — invoking {file_name} once per partition")
             exact_targets = [target for target in pytest_targets if "::" in target]
+            simple_global_selector = (
+                global_k_expr
+                if global_k_expr is not None
+                and global_k_expr.isidentifier()
+                and any(global_k_expr in selector for _, selectors in process_partitions for selector in selectors)
+                else None
+            )
             passes = [
                 (f"-{name}", " or ".join(selectors))
                 for name, selectors in process_partitions
                 if not exact_targets or any(selector in target for selector in selectors for target in exact_targets)
+                if simple_global_selector is None or any(simple_global_selector in selector for selector in selectors)
             ]
             assert passes, f"No process partition in {test_key} matches the configured test nodes"
         # On a multi-GPU shard, test_devices() already resolves to this shard's single

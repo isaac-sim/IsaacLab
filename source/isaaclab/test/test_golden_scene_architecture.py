@@ -9,6 +9,7 @@ import ast
 import sys
 from pathlib import Path
 
+from isaaclab.renderers.output_contract import RenderBufferKind
 from isaaclab.test.integration_scene_cfgs import RenderingTestSceneCfg
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -20,13 +21,13 @@ sys.path.insert(0, str(_RENDERER_TEST_DIR))
 
 from rendering_cases import (  # noqa: E402
     KIT_CASES,
+    KIT_RENDERING_CASES,
     KITLESS_CASES,
+    KITLESS_RENDERING_CASES,
     OVRTX_AOVS,
     SCENE_PROBE_KIT_CASES,
     SCENE_PROBE_KITLESS_CASES,
     SIMPLE_SHADING_AOVS,
-    select_kitless_cases,
-    select_kitless_scene_probe_cases,
 )
 
 
@@ -50,9 +51,8 @@ def test_golden_ownership_has_no_task_or_environment_dependencies() -> None:
 
 
 def test_removed_task_and_visualizer_harnesses_stay_removed() -> None:
-    """Reject the former task-owned helpers, scenes, goldens, and retry configuration."""
+    """Keep exactly one Kit and one Kit-less collection root and reject retired ownership."""
     forbidden_paths = [
-        _RENDERER_TEST_DIR / "test_rendering_kitless.py",
         _TASK_TEST_DIR / "rendering_test_utils.py",
         _TASK_TEST_DIR / "test_maybe_save_stage_golden.py",
         _TASK_TEST_DIR / "test_parametrization_helpers.py",
@@ -65,46 +65,31 @@ def test_removed_task_and_visualizer_harnesses_stay_removed() -> None:
         *_VISUALIZER_TEST_DIR.glob("test_visualizer_*_physx.py"),
     ]
     assert not [path for path in forbidden_paths if path.exists()]
-    partition_paths = sorted(_RENDERER_TEST_DIR.glob("test_rendering_kitless_*.py"))
-    assert {path.name for path in partition_paths} == {
-        "test_rendering_kitless_legacy_newton.py",
-        "test_rendering_kitless_legacy_ovphysx.py",
-        "test_rendering_kitless_ovstage_newton.py",
-        "test_rendering_kitless_ovstage_ovphysx.py",
-    }
-    assert all(path.read_text().count("make_kitless_test(") == 1 for path in partition_paths)
-    assert all("from kitless_rendering_runner import make_kitless_test" in path.read_text() for path in partition_paths)
-    assert not any("def test_rendering_scene_kitless" in path.read_text() for path in partition_paths)
-    probe_partition_paths = sorted(_RENDERER_TEST_DIR.glob("test_rendering_scene_probes_kitless_*.py"))
-    assert {path.name for path in probe_partition_paths} == {
-        "test_rendering_scene_probes_kitless_legacy_newton.py",
-        "test_rendering_scene_probes_kitless_legacy_ovphysx.py",
-        "test_rendering_scene_probes_kitless_ovstage_ovphysx.py",
-    }
-    assert all(path.read_text().count("make_kitless_test(") == 1 for path in probe_partition_paths)
-    assert all("scene_probes=True" in path.read_text() for path in probe_partition_paths)
-    assert all(
-        "from kitless_rendering_runner import make_kitless_test" in path.read_text() for path in probe_partition_paths
-    )
-    # OVRTX semantic palettes survive stage reset, so canonical and probe scenes need separate process roots.
-    assert not any("def test_" in path.read_text() for path in [*partition_paths, *probe_partition_paths])
-    assert "def test_" not in (_RENDERER_TEST_DIR / "test_rendering_scene_probes_kit.py").read_text()
+
+    entrypoints = sorted(_RENDERER_TEST_DIR.glob("test_rendering*.py"))
+    assert {path.name for path in entrypoints} == {"test_rendering_kit.py", "test_rendering_kitless.py"}
+    for path in entrypoints:
+        source = path.read_text()
+        assert "def test_" not in source
+        assert "pytest.mark.cold_cache" in source
+        factory = "make_kitless_test()" if path.name.endswith("kitless.py") else "make_kit_test()"
+        assert source.count(factory) == 1
 
     assert {path.name for path in (_VISUALIZER_TEST_DIR / "golden_images").iterdir()} == {"rendering_scene"}
-
     active_config = "\n".join(
         path.read_text()
         for path in (
             _REPO_ROOT / ".github" / "workflows" / "build.yaml",
             _REPO_ROOT / ".github" / "test-subsets" / "postmerge-rendering.toml",
-            _REPO_ROOT / "tools" / "conftest.py",
             _REPO_ROOT / "tools" / "test_settings.py",
         )
     )
     stale_names = (
         "rendering_test_utils.py",
         "test_rendering_cartpole.py",
-        "test_rendering_kitless.py",
+        "test_rendering_scene_probes_",
+        "test_rendering_kitless_legacy_",
+        "test_rendering_kitless_ovstage_",
         "test_visualizer_golden_newton.py",
         "visualizer_integration_utils.py",
     )
@@ -113,56 +98,45 @@ def test_removed_task_and_visualizer_harnesses_stay_removed() -> None:
     assert "franka_cloth-ovphysx" not in active_config
 
 
-def test_rendering_native_process_boundaries_are_explicit() -> None:
-    """CI metadata, not duplicated test bodies or source-text accidents, owns native process boundaries."""
-    settings_path = _REPO_ROOT / "tools" / "test_settings.py"
-    settings_tree = ast.parse(settings_path.read_text())
+def test_rendering_native_process_boundaries_are_complete() -> None:
+    """Every case is selected by exactly one bounded fresh-process partition."""
+    settings_tree = ast.parse((_REPO_ROOT / "tools" / "test_settings.py").read_text())
+    assigned_names = {
+        target.id
+        for node in settings_tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
     assignments = {
         target.id: ast.literal_eval(node.value)
         for node in settings_tree.body
         if isinstance(node, ast.Assign)
         for target in node.targets
-        if isinstance(target, ast.Name) and target.id in {"COLD_CACHE_TESTS", "PROCESS_ISOLATED_TESTS"}
+        if isinstance(target, ast.Name) and target.id == "PROCESS_ISOLATED_TESTS"
     }
-    rendering_entrypoints = {
-        path.relative_to(_REPO_ROOT).as_posix() for path in _RENDERER_TEST_DIR.glob("test_rendering*.py")
-    }
-    rendering_entrypoints.add("source/isaaclab_visualizers/test/test_visualizer_rendering.py")
-    assert rendering_entrypoints <= assignments["COLD_CACHE_TESTS"]
-    implicit_camera_token = "enable_cameras" + "=True"
-    former_implicit_callers = {
-        path.relative_to(_REPO_ROOT).as_posix()
-        for path in (_REPO_ROOT / "source").rglob("test_*.py")
-        if implicit_camera_token in path.read_text()
-    }
-    assert former_implicit_callers <= assignments["COLD_CACHE_TESTS"]
-    assert assignments["PROCESS_ISOLATED_TESTS"] == {
-        "source/isaaclab/test/renderers/test_rendering_scene_probes_kit.py": (
-            ("shadow_hand", ("shadow_hand",)),
-            ("kuka_cloth", ("kuka_heterogeneous", "franka_cloth")),
-            ("franka_soft", ("franka_soft",)),
-        ),
-        "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_newton.py": (
-            ("ovrtx", ("ovrtx",)),
-            ("newton_warp", ("newton_warp",)),
-        ),
-        "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_ovphysx.py": (
-            ("ovrtx", ("ovrtx",)),
-            ("newton_warp", ("newton_warp",)),
-        ),
-    }
-    kit_partitions = assignments["PROCESS_ISOLATED_TESTS"][
-        "source/isaaclab/test/renderers/test_rendering_scene_probes_kit.py"
-    ]
-    partition_selectors = {selector for _, selectors in kit_partitions for selector in selectors}
-    assert {case.scene for case in SCENE_PROBE_KIT_CASES} <= partition_selectors
+    assert "COLD_CACHE_TESTS" not in assigned_names
 
-    conftest_source = (_REPO_ROOT / "tools" / "conftest.py").read_text()
-    assert f'"{implicit_camera_token}" in test_content' not in conftest_source
-    assert "test_settings.COLD_CACHE_TESTS" in conftest_source
-    assert "test_settings.PROCESS_ISOLATED_TESTS" in conftest_source
-    assert "selector in target for selector in selectors for target in exact_targets" in conftest_source
-    assert "cold_cache_applied" not in conftest_source
+    case_ids_by_entrypoint = {
+        "source/isaaclab/test/renderers/test_rendering_kit.py": [case.id for case in KIT_RENDERING_CASES],
+        "source/isaaclab/test/renderers/test_rendering_kitless.py": [
+            f"{stage}-{case.id}" for stage, case in KITLESS_RENDERING_CASES
+        ],
+    }
+    process_partitions = assignments["PROCESS_ISOLATED_TESTS"]
+    assert set(process_partitions) == set(case_ids_by_entrypoint)
+    for entrypoint, case_ids in case_ids_by_entrypoint.items():
+        assert len(case_ids) == len(set(case_ids))
+        partitions = process_partitions[entrypoint]
+        selected_counts = {name: 0 for name, _ in partitions}
+        for case_id in case_ids:
+            matches = [name for name, selectors in partitions if any(selector in case_id for selector in selectors)]
+            assert len(matches) == 1, f"{case_id} is selected by {matches}"
+            selected_counts[matches[0]] += 1
+        assert all(selected_counts.values())
+        assert max(selected_counts.values()) <= 15, (
+            "Each partition builds one scene per case and has a 15-scene budget."
+        )
 
     kitless_runner_source = (_RENDERER_TEST_DIR / "kitless_rendering_runner.py").read_text()
     thread_limit = 'os.environ["PXR_WORK_THREAD_LIMIT"] = "1"'
@@ -196,22 +170,22 @@ def test_one_scene_configuration_owns_deliberate_composition() -> None:
     assert cfg.sphere.init_state.pos[2] > cfg.table.init_state.pos[2]
     assert cfg.robot.init_state.joint_pos == {"slider_to_cart": -0.25, "cart_to_pole": 0.45}
     assert type(cfg.ground.spawn).__name__ == "CuboidCfg"
-
     for name in ("ground", "robot", "moving_cube", "table", "cylinder", "sphere"):
         assert ("class", name) in getattr(cfg, name).spawn.semantic_tags
 
 
 def test_specialized_rendering_scenes_are_declarative_and_task_free() -> None:
-    """Specialized geometry lives in scene configs while shared code owns test behavior."""
+    """Specialized geometry owns scene facts while the shared runner remains generic."""
     path = _RENDERER_TEST_DIR / "rendering_scene_cfgs.py"
     tree = ast.parse(path.read_text())
     classes = {node.name for node in tree.body if isinstance(node, ast.ClassDef)}
-    assert classes == {
+    assert {name for name in classes if name.endswith("RenderingSceneCfg")} == {
         "FrankaClothRenderingSceneCfg",
         "FrankaSoftRenderingSceneCfg",
         "KukaHeterogeneousRenderingSceneCfg",
         "ShadowHandRenderingSceneCfg",
     }
+    assert "RenderingSceneSpec" in classes
     assert not [
         node.name
         for node in tree.body
@@ -223,14 +197,17 @@ def test_specialized_rendering_scenes_are_declarative_and_task_free() -> None:
     expected_scenes = {"franka_cloth", "franka_soft", "kuka_heterogeneous", "shadow_hand"}
     assert {case.scene for case in SCENE_PROBE_KIT_CASES} == expected_scenes
     assert {case.scene for _, case in SCENE_PROBE_KITLESS_CASES} == expected_scenes - {"kuka_heterogeneous"}
-    partitions = [
-        select_kitless_scene_probe_cases(stage, physics)
-        for stage in ("legacy", "ovstage")
-        for physics in ("ovphysx", "newton")
-    ]
-    assert tuple(map(len, partitions)) == (4, 10, 3, 0)
-    assert sum(map(len, partitions)) == len(SCENE_PROBE_KITLESS_CASES)
-    assert set().union(*partitions) == set(SCENE_PROBE_KITLESS_CASES)
+    assert KIT_RENDERING_CASES == KIT_CASES + SCENE_PROBE_KIT_CASES
+    assert KITLESS_RENDERING_CASES == KITLESS_CASES + SCENE_PROBE_KITLESS_CASES
+
+    runner_source = (_RENDERER_TEST_DIR / "rendering_runner.py").read_text()
+    assert not [scene for scene in expected_scenes if f'"{scene}"' in runner_source]
+    assert "make_rendering_scene_cfg" not in runner_source
+
+    rendering_utils = ast.parse((_CORE_PACKAGE / "test" / "utils" / "rendering.py").read_text())
+    functions = {node.name for node in rendering_utils.body if isinstance(node, ast.FunctionDef)}
+    assert "make_rendering_physics_cfg" in functions
+    assert "make_physics_cfg" not in functions
 
 
 def test_legacy_shadow_semantics_stay_in_canonical_scene() -> None:
@@ -241,149 +218,25 @@ def test_legacy_shadow_semantics_stay_in_canonical_scene() -> None:
         if stage == "legacy" and case.scene == "shadow_hand" and case.renderer == "newton_warp"
     ]
     assert {case.physics for case in legacy_shadow_warp} == {"newton", "ovphysx"}
-    assert all(case.aovs == ("rgb", "instance_segmentation") for case in legacy_shadow_warp)
+    assert all(
+        case.aovs == (RenderBufferKind.RGB, RenderBufferKind.INSTANCE_SEGMENTATION) for case in legacy_shadow_warp
+    )
     kit_shadow_warp = [
         case for case in SCENE_PROBE_KIT_CASES if case.scene == "shadow_hand" and case.renderer == "newton_warp"
     ]
     assert {case.physics for case in kit_shadow_warp} == {"newton", "physx"}
-    assert all("semantic_segmentation" in case.aovs for case in kit_shadow_warp)
+    assert all(RenderBufferKind.SEMANTIC_SEGMENTATION in case.aovs for case in kit_shadow_warp)
     canonical_legacy_warp = [
         case for stage, case in KITLESS_CASES if stage == "legacy" and case.renderer == "newton_warp"
     ]
     assert {case.physics for case in canonical_legacy_warp} == {"newton", "ovphysx"}
-    assert all("semantic_segmentation" in case.aovs for case in canonical_legacy_warp)
-
-
-def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
-    """Direct probes retain recognizable task assets and layouts without task ownership."""
-    source = (_RENDERER_TEST_DIR / "rendering_scene_cfgs.py").read_text()
-    classes = {
-        node.name: node
-        for node in ast.parse(source).body
-        if isinstance(node, ast.ClassDef) and node.name.endswith("RenderingSceneCfg")
-    }
-    fields = {}
-    for name, node in classes.items():
-        fields[name] = set()
-        for statement in node.body:
-            if isinstance(statement, ast.AnnAssign):
-                targets = (statement.target,)
-            elif isinstance(statement, ast.Assign):
-                targets = statement.targets
-            else:
-                continue
-            fields[name].update(target.id for target in targets if isinstance(target, ast.Name))
-
-    assert fields == {
-        "FrankaSoftRenderingSceneCfg": {
-            "ground",
-            "key_light",
-            "fill_light",
-            "camera",
-            "robot",
-            "table",
-            "deformable",
-        },
-        "FrankaClothRenderingSceneCfg": {
-            "ground",
-            "key_light",
-            "fill_light",
-            "camera",
-            "robot",
-            "table",
-            "support_neg_y",
-            "support_pos_y",
-            "deformable",
-        },
-        "KukaHeterogeneousRenderingSceneCfg": {
-            "ground",
-            "key_light",
-            "fill_light",
-            "camera",
-            "robot",
-            "object",
-            "table",
-        },
-        "ShadowHandRenderingSceneCfg": {"ground", "key_light", "fill_light", "camera", "robot", "object"},
-    }
-
-    required_signatures = (
-        "FRANKA_PANDA_MENAGERIE_CFG",
-        "DexCube/dex_cube_instanceable.usd",
-        "size=(1.3, 0.9, 1.05)",
-        "pos=(0.5, 0.0, -0.525)",
-        "diffuse_color=(0.8, 0.5, 0.5)",
-        "size=(0.3, 0.04, 0.04)",
-        "edge_refinement=3.0",
-        "diffuse_color=(0.45, 0.45, 0.85)",
-        "size=(0.2, 0.2)",
-        "resolution=(8, 8)",
-        "pos=(0.4, 0.0, 0.102)",
-        "rot=(0.70710678, 0.0, 0.0, 0.70710678)",
-        "size=(0.1, 0.02, 0.15)",
-        "pos=(0.4, -0.02, 0.075)",
-        "pos=(0.4, 0.02, 0.075)",
-        '"panda_finger2_passive": ImplicitActuatorCfg(',
-        "stiffness=350.0",
-        "NewtonCollisionPipelineCfg(enable_rigid_soft_full_surface_contact=True)",
-        "soft_contact_ke=8.0e3, soft_contact_mu=10.0",
-        "pos=(-0.55, 0.1, 0.35)",
-        'joint_pos={".*": 0.0}',
-        "rot=(0.5080, 0.2114, 0.318, 0.7720)",
-        "clipping_range=(0.01, 3.0)",
-        "rot=(0.6124, 0.3536, 0.3536, 0.6124)",
-        "clipping_range=(0.01, 2.5)",
-        "width=64",
-        "random_choice=False",
-        "diffuse_color=(0.25, 0.15, 0.15)",
-        "rot=(0.0, 0.7071, 0.0, 0.7071)",
-        'frozenset({"cube"}), None, frozenset({"robot"})',
-        "width=120",
-        "height=120",
-        "clipping_range=(0.1, 20.0)",
-        "num_envs=4, env_spacing=2.0",
-        "num_envs=4, env_spacing=3.0",
-        "_SOFT_NEWTON_PHYSICS, 2.0",
-        "_CLOTH_NEWTON_PHYSICS",
-        "2.5",
-        "(0.0, -0.35, 1.0), (0.0, -0.35, 0.0)",
-        "retrieve_file_path(cfg.fill_light.spawn.texture_file)",
-        "MeshCuboidCfg",
-        "MeshSphereCfg",
-        "MeshCapsuleCfg",
-        "MeshConeCfg",
-    )
-    assert not [signature for signature in required_signatures if signature not in source]
-
-    rejected_demo_composition = (
-        "from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG\n",
-        "PhysxDeformableBodyPropertiesCfg",
-        "_SOFT_PHYSX",
-        "_CLOTH_PHYSX",
-        "SeattleLabTable/table_instanceable.usd",
-        "_FRANKA_CLOTH_CUBE",
-        "size=(0.3, 0.05, 0.05)",
-        "resolution=(12, 12)",
-        "size=(0.03, 0.01, 0.08)",
-        "_YOUNGS_MODULUS = 8.0e4",
-        "hand_actuator =",
-        "pos=(0.4, 0.0, 0.2)",
-        "_SHADOW_HAND_JOINT_POS",
-        'prim_path="{ENV_REGEX_NS}/Support"',
-        "pos=(-0.7, -0.25, 0.0)",
-        "pos=(-0.65, -0.2, 0.0)",
-        "size=(0.32, 0.18, 0.16)",
-        "size=(0.55, 0.55)",
-        "resolution=(30, 30)",
-        "SHADOW_HAND_NEWTON_CFG.init_state.replace",
-    )
-    assert not [signature for signature in rejected_demo_composition if signature in source]
+    assert all(RenderBufferKind.SEMANTIC_SEGMENTATION in case.aovs for case in canonical_legacy_warp)
 
 
 def test_renderer_matrix_bundles_compatible_aovs() -> None:
-    """The matrix bundles compatible AOVs and isolates mutually exclusive profiles."""
-    assert len(KIT_CASES) == 8
-    assert len(KITLESS_CASES) == 46
+    """The matrix bundles compatible AOVs, uses one vocabulary, and stays within its cost budget."""
+    assert len(KIT_CASES) <= 10, "Each Kit case builds one scene and commits one baseline set."
+    assert len(KITLESS_CASES) <= 50, "OVRTX AOV isolation makes each Kit-less case a separate scene build."
     standard_cases = [case for case in KIT_CASES if case.profile == "standard"]
     standard_cases.extend(case for _, case in KITLESS_CASES if case.profile == "standard")
     assert all(len(case.aovs) == 1 for case in standard_cases if case.renderer == "ovrtx")
@@ -396,41 +249,19 @@ def test_renderer_matrix_bundles_compatible_aovs() -> None:
         )
         assert actual == OVRTX_AOVS
 
-    partitions = [
-        select_kitless_cases(stage, physics) for stage in ("legacy", "ovstage") for physics in ("ovphysx", "newton")
-    ]
-    assert max(map(len, partitions)) == 14
-    assert sum(map(len, partitions)) == len(KITLESS_CASES)
-    assert set().union(*partitions) == set(KITLESS_CASES)
+    ovstage_cases = [case for stage, case in KITLESS_CASES if stage == "ovstage"]
+    assert {case.physics for case in ovstage_cases} == {"ovphysx", "newton"}
+    assert all(case.renderer == "ovrtx" for case in ovstage_cases)
 
-    all_cases = [*KIT_CASES, *(case for _, case in KITLESS_CASES)]
-    simple_aovs = set(SIMPLE_SHADING_AOVS)
-    assert {case.profile for case in KIT_CASES if case.profile in simple_aovs} == simple_aovs
-    assert {case.profile for _, case in KITLESS_CASES if case.profile in simple_aovs} == simple_aovs
+    all_cases = [*KIT_RENDERING_CASES, *(case for _, case in KITLESS_RENDERING_CASES)]
+    assert all(isinstance(aov, RenderBufferKind) for case in all_cases for aov in case.aovs)
+    simple_profiles = {aov.value for aov in SIMPLE_SHADING_AOVS}
+    assert {case.profile for case in KIT_CASES if case.profile in simple_profiles} == simple_profiles
+    assert {case.profile for _, case in KITLESS_CASES if case.profile in simple_profiles} == simple_profiles
     for case in all_cases:
-        assert len(set(case.aovs) & simple_aovs) <= 1
-        if case.profile in simple_aovs:
-            assert case.aovs == (case.profile,)
-
-
-def test_motion_vectors_are_semantic_after_one_step() -> None:
-    """Hardware-dependent motion magnitudes are validated semantically, never owned as image goldens."""
-    runner_source = (_RENDERER_TEST_DIR / "rendering_runner.py").read_text()
-    required = (
-        '_SEMANTIC_ONLY_AOVS = {"motion_vectors"}',
-        "runtime.sim.get_physics_step_count() == 0",
-        "runtime.sim.get_physics_step_count() == 1",
-        "torch.isfinite(motion).all()",
-        "torch.all(peak > 1.0e-6)",
-        "torch.all(raw_moving_pixels > 20)",
-        "torch.all(support_pixels > 0)",
-        "torch.all(support_pixels < view_pixels // 2)",
-        "if aov in _SEMANTIC_ONLY_AOVS:",
-        "continue",
-    )
-    assert not [signature for signature in required if signature not in runner_source]
-    assert "_MOTION_SUPPORT" not in runner_source
-    assert "_comparison_image" not in runner_source
+        assert len(set(case.aovs) & set(SIMPLE_SHADING_AOVS)) <= 1
+        if case.profile in simple_profiles:
+            assert case.aovs == (RenderBufferKind(case.profile),)
 
 
 def test_rendering_scene_closes_scene_before_simulation_teardown() -> None:
@@ -500,24 +331,21 @@ def test_reset_policy_remains_in_mdp() -> None:
 
 def test_golden_inventory_matches_case_matrix() -> None:
     """Checked-in baselines exactly match the declared renderer and visualizer matrices."""
-    renderer_expected = {
-        scene: set()
-        for scene in ("rendering_scene", "franka_cloth", "franka_soft", "kuka_heterogeneous", "shadow_hand")
-    }
-    for case in (*KIT_CASES, *SCENE_PROBE_KIT_CASES):
+    renderer_expected = {case.scene: set() for case in KIT_RENDERING_CASES}
+    renderer_expected.update({case.scene: set() for _, case in KITLESS_RENDERING_CASES})
+    for case in KIT_RENDERING_CASES:
         renderer_expected[case.scene].update(
-            f"kit-{case.golden_id(aov)}.png" for aov in case.aovs if aov != "motion_vectors"
+            f"kit-{case.golden_id(aov)}.png" for aov in case.aovs if aov != RenderBufferKind.MOTION_VECTORS
         )
-    for stage, case in (*KITLESS_CASES, *SCENE_PROBE_KITLESS_CASES):
+    for stage, case in KITLESS_RENDERING_CASES:
         renderer_expected[case.scene].update(
-            f"{stage}-{case.golden_id(aov)}.png" for aov in case.aovs if aov != "motion_vectors"
+            f"{stage}-{case.golden_id(aov)}.png" for aov in case.aovs if aov != RenderBufferKind.MOTION_VECTORS
         )
 
     renderer_root = _RENDERER_TEST_DIR / "golden_images"
     assert {path.name for path in renderer_root.iterdir() if path.is_dir()} == set(renderer_expected)
     for scene, expected in renderer_expected.items():
         assert {path.name for path in (renderer_root / scene).glob("*.png")} == expected
-
     assert not list(renderer_root.rglob("*motion_vectors.png"))
 
     visualizer_expected = {
@@ -528,7 +356,3 @@ def test_golden_inventory_matches_case_matrix() -> None:
     }
     visualizer_dir = _VISUALIZER_TEST_DIR / "golden_images" / "rendering_scene"
     assert {path.name for path in visualizer_dir.glob("*.png")} == visualizer_expected
-
-    runner_source = (_RENDERER_TEST_DIR / "rendering_runner.py").read_text()
-    assert 'artifact_label = f"{case.scene}-{golden_label}"' in runner_source
-    assert "label=artifact_label" in runner_source

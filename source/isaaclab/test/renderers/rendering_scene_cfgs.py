@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
@@ -18,6 +20,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
 from isaaclab.physics import PhysicsCfg
+from isaaclab.renderers.output_contract import RenderBufferKind
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.test.integration_scene_cfgs import RenderingSceneCfg, RenderingTestSceneCfg
@@ -393,51 +396,79 @@ class ShadowHandRenderingSceneCfg(RenderingSceneCfg):
     object: ArticulationCfg | RigidObjectCfg = _SHADOW_OBJECT_NEWTON.copy()
 
 
-def make_rendering_scene_cfg(
-    scene: str, physics: str
-) -> tuple[
-    InteractiveSceneCfg,
-    tuple[float, float, float],
-    tuple[float, float, float],
-    frozenset[str],
-    PhysicsCfg | None,
-    frozenset[str],
-]:
+@dataclass(frozen=True)
+class RenderingSceneSpec:
+    """Scene-owned inputs and golden-image tolerances consumed by the shared runner."""
+
+    cfg: InteractiveSceneCfg
+    camera_eye: tuple[float, float, float]
+    camera_target: tuple[float, float, float]
+    required_labels: frozenset[str] = frozenset()
+    physics_cfg: PhysicsCfg | None = None
+    preserve_fixed_articulation_roots: frozenset[str] = frozenset()
+    image_max_diff_pct: float = 3.0
+    min_ssim: float = 0.98
+    image_tolerance_overrides: dict[tuple[str, RenderBufferKind], tuple[float, float]] = field(default_factory=dict)
+
+    def image_tolerance(self, renderer: str, aov: RenderBufferKind) -> tuple[float, float]:
+        return self.image_tolerance_overrides.get((renderer, aov), (self.image_max_diff_pct, self.min_ssim))
+
+
+def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
     """Resolve scene-owned configuration while leaving lifecycle behavior to the runner."""
     if scene == "rendering_scene":
-        return (
-            RenderingTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=True),
-            CAMERA_EYE,
-            CAMERA_TARGET,
-            frozenset({"robot"}),
-            None,
-            frozenset(),
+        return RenderingSceneSpec(
+            cfg=RenderingTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=True),
+            camera_eye=CAMERA_EYE,
+            camera_target=CAMERA_TARGET,
+            required_labels=frozenset({"robot"}),
+            image_tolerance_overrides={("isaac_rtx", RenderBufferKind.RGB): (8.0, 0.975)},
         )
     if scene in {"franka_soft", "franka_cloth"}:
         if physics != "newton":
             raise ValueError(f"{scene} rendering probes require their shared Newton task composition.")
-        scene_cfg_type, deformable, physics_cfg, env_spacing = {
-            "franka_soft": (FrankaSoftRenderingSceneCfg, _SOFT_NEWTON, _SOFT_NEWTON_PHYSICS, 2.0),
+        scene_cfg_type, deformable, physics_cfg, env_spacing, max_diff_pct = {
+            "franka_soft": (FrankaSoftRenderingSceneCfg, _SOFT_NEWTON, _SOFT_NEWTON_PHYSICS, 2.0, 12.0),
             "franka_cloth": (
                 FrankaClothRenderingSceneCfg,
                 _CLOTH_NEWTON,
                 _CLOTH_NEWTON_PHYSICS,
                 2.5,
+                8.0,
             ),
         }[scene]
         cfg = scene_cfg_type(num_envs=4, env_spacing=env_spacing, lazy_sensor_update=True)
         cfg.deformable = deformable.copy()
         cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
-        return cfg, (0.85, -0.55, 0.42), (0.20051, 0.099902, 0.025508), frozenset(), physics_cfg, frozenset()
+        return RenderingSceneSpec(
+            cfg=cfg,
+            camera_eye=(0.85, -0.55, 0.42),
+            camera_target=(0.20051, 0.099902, 0.025508),
+            physics_cfg=physics_cfg,
+            image_max_diff_pct=max_diff_pct,
+        )
     if scene == "kuka_heterogeneous":
         cfg = KukaHeterogeneousRenderingSceneCfg(num_envs=4, env_spacing=3.0, lazy_sensor_update=True)
         cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
-        return cfg, (0.57, -0.8, 0.5), (-0.296179, -0.299998, 0.500133), frozenset(), None, frozenset()
+        return RenderingSceneSpec(
+            cfg=cfg,
+            camera_eye=(0.57, -0.8, 0.5),
+            camera_target=(-0.296179, -0.299998, 0.500133),
+            image_max_diff_pct=15.0,
+            min_ssim=0.95,
+        )
     if scene == "shadow_hand":
         cfg = ShadowHandRenderingSceneCfg(num_envs=4, env_spacing=2.0, lazy_sensor_update=True)
         cfg.robot = {"physx": _SHADOW_HAND_PHYSX, "ovphysx": _SHADOW_HAND_OVPHYSX, "newton": _SHADOW_HAND_NEWTON}[
             physics
         ].copy()
         cfg.object = (_SHADOW_OBJECT_NEWTON if physics == "newton" else _SHADOW_OBJECT_PHYSX).copy()
-        return cfg, (0.0, -0.35, 1.0), (0.0, -0.35, 0.0), frozenset({"cube"}), None, frozenset({"robot"})
+        return RenderingSceneSpec(
+            cfg=cfg,
+            camera_eye=(0.0, -0.35, 1.0),
+            camera_target=(0.0, -0.35, 0.0),
+            required_labels=frozenset({"cube"}),
+            preserve_fixed_articulation_roots=frozenset({"robot"}),
+            image_max_diff_pct=10.0,
+        )
     raise ValueError(f"Unknown rendering scene: {scene!r}")

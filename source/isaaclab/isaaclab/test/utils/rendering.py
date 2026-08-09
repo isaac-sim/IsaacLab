@@ -151,7 +151,7 @@ def build_rendering_scene(
     sim_cfg = SimulationCfg(
         dt=1.0 / 60.0,
         device=device,
-        physics=make_physics_cfg(physics_backend) if physics_cfg is None else copy.deepcopy(physics_cfg),
+        physics=make_rendering_physics_cfg(physics_backend) if physics_cfg is None else copy.deepcopy(physics_cfg),
         visualizer_cfgs=[] if visualizer_cfgs is None else visualizer_cfgs,
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -227,7 +227,7 @@ def make_renderer_cfg(renderer: str) -> RendererCfg:
     return cfg
 
 
-def make_physics_cfg(physics_backend: str) -> PhysicsCfg:
+def make_rendering_physics_cfg(physics_backend: str) -> PhysicsCfg:
     """Resolve a physics backend label without task or Hydra presets."""
     if physics_backend == "physx":
         from isaaclab_physx.physics import PhysxCfg
