@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "DeformableUniformPoseCommandCfg",
     "ObjectUniformPoseCommandCfg",
 ]
 
-from .pose_commands_cfg import ObjectUniformPoseCommandCfg
+from .pose_commands_cfg import DeformableUniformPoseCommandCfg, ObjectUniformPoseCommandCfg
