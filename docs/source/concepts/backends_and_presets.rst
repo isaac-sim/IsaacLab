@@ -203,7 +203,7 @@ For a multi-backend task, the preset wrapper belongs in
    from isaaclab.sim import SimulationCfg
    from isaaclab.utils.configclass import configclass
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-   from isaaclab_ovphysx.physics import OvPhysxCfg
+   from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 

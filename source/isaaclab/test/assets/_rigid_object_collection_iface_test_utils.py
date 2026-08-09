@@ -57,13 +57,13 @@ else:
 try:
     import ovphysx  # noqa: F401
 
-    from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection import (
+    from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as OvPhysxRigidObjectCollection,
     )
-    from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection_data import (
+    from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection_data import (
         RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
     )
-    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
+    from isaaclab_ov.test.mock_interfaces.views import MockOvPhysxBindingSet
 except ImportError:
     pass
 else:

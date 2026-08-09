@@ -48,9 +48,9 @@ else:
 try:
     import ovphysx  # noqa: F401
 
-    from isaaclab_ovphysx.assets.articulation.articulation import Articulation as OvPhysxArticulation
-    from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
-    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
+    from isaaclab_ov.assets.articulation.articulation import Articulation as OvPhysxArticulation
+    from isaaclab_ov.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
+    from isaaclab_ov.test.mock_interfaces.views import MockOvPhysxBindingSet
 except ImportError as error:
     BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
 else:
@@ -304,7 +304,7 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
 
-    from isaaclab_ovphysx import tensor_types as TT
+    from isaaclab_ov import tensor_types as TT
 
     object.__setattr__(articulation, "_can_write_effort", articulation._get_binding(TT.DOF_ACTUATION_FORCE) is not None)
     object.__setattr__(articulation, "_can_write_pos_target", articulation._get_binding(TT.DOF_POSITION_TARGET) is not None)
