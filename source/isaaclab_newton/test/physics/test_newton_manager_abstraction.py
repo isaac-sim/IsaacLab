@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 import warp as wp
@@ -179,6 +180,82 @@ def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimat
     assert warned is should_warn
     # Cfg field round-trips regardless of warning.
     assert cfg.collision_decimation == collision_decimation
+
+
+def test_solver_kwargs_include_newton_deterministic_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Solver construction should receive the mode configured on the outer Newton config."""
+    monkeypatch.setattr(NewtonManager, "_deterministic_mode", wp.DeterministicMode.GPU_TO_GPU)
+
+    kwargs = NewtonManager._filter_solver_kwargs(SolverXPBD, XPBDSolverCfg())
+
+    assert kwargs["deterministic"] == wp.DeterministicMode.GPU_TO_GPU
+
+
+@pytest.mark.parametrize(
+    "solver_cfg",
+    [
+        pytest.param(KaminoSolverCfg(), id="kamino"),
+        pytest.param(MPMSolverCfg(), id="implicit_mpm"),
+        pytest.param(MJWarpSolverCfg(use_mujoco_cpu=True), id="mujoco_cpu"),
+        pytest.param(MJWarpSolverCfg(), id="mujoco_warp_sensors"),
+    ],
+)
+def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
+    """Unsupported solvers should not silently ignore a determinism guarantee."""
+    with pytest.raises(ValueError, match="not supported"):
+        NewtonManager._validate_deterministic_solver_cfg(solver_cfg, wp.DeterministicMode.GPU_TO_GPU)
+
+
+@pytest.mark.parametrize(
+    "solver_cfg_cls, solver_cfg_kwargs",
+    [
+        pytest.param(FeatherstoneSolverCfg, {}, id="featherstone"),
+        pytest.param(MJWarpSolverCfg, {"disable_sensors": True}, id="mujoco_warp"),
+        pytest.param(XPBDSolverCfg, {}, id="xpbd"),
+    ],
+)
+def test_deterministic_mode_accepts_supported_solver_cfg_subclasses(solver_cfg_cls, solver_cfg_kwargs) -> None:
+    """Custom subclasses of supported solver configs should retain deterministic support."""
+
+    class CustomSolverCfg(solver_cfg_cls):
+        pass
+
+    NewtonManager._validate_deterministic_solver_cfg(
+        CustomSolverCfg(**solver_cfg_kwargs), wp.DeterministicMode.GPU_TO_GPU
+    )
+
+
+def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deterministic sorting buffers should grow with the solver contact buffer."""
+    pipeline_calls: list[dict] = []
+
+    class FakeCollisionPipeline:
+        def __init__(self, _model, **kwargs):
+            pipeline_calls.append(kwargs)
+            self._rigid_contact_max = kwargs.get("rigid_contact_max", 1)
+
+        def contacts(self):
+            return SimpleNamespace(rigid_contact_max=self._rigid_contact_max)
+
+    solver = SimpleNamespace(get_max_contact_count=lambda: 2)
+    monkeypatch.setattr(newton_manager_module, "CollisionPipeline", FakeCollisionPipeline)
+    monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", True)
+    monkeypatch.setattr(NewtonManager, "_collision_pipeline", None)
+    monkeypatch.setattr(NewtonManager, "_collision_cfg", None)
+    monkeypatch.setattr(NewtonManager, "_contacts", None)
+    monkeypatch.setattr(NewtonManager, "_solver", solver)
+    monkeypatch.setattr(NewtonManager, "_model", SimpleNamespace())
+    monkeypatch.setattr(NewtonManager, "_deterministic_mode", wp.DeterministicMode.GPU_TO_GPU)
+
+    NewtonManager._initialize_contacts()
+
+    assert pipeline_calls == [
+        {"broad_phase": "explicit", "deterministic": True},
+        {"broad_phase": "explicit", "deterministic": True, "rigid_contact_max": 2},
+    ]
+    assert NewtonManager._contacts.rigid_contact_max == 2
 
 
 def test_refit_sensor_bvh_rejects_missing_sensor_state(monkeypatch):
