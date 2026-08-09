@@ -152,7 +152,7 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # add cube for scale randomization
     cube1: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube1",
+        prim_path="/World/envs/env_[^/]*/cube1",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
@@ -165,7 +165,7 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # add cube for static scale values
     cube2: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube2",
+        prim_path="/World/envs/env_[^/]*/cube2",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),

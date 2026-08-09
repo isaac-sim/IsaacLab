@@ -36,7 +36,7 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # articulation
     robot = ArticulationCfg(
-        prim_path="/World/envs/env_[^/]*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
         ),
@@ -46,7 +46,7 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     # rigid object
     rigid_obj = RigidObjectCfg(
-        prim_path="/World/envs/env_[^/]*/RigidObj",
+        prim_path="{ENV_REGEX_NS}/RigidObj",
         spawn=sim_utils.CuboidCfg(
             size=(0.5, 0.5, 0.5),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -227,11 +227,11 @@ def test_cfg_cloning_contexts_override_backend_default(monkeypatch: pytest.Monke
             InteractiveScene(scene_cfg)
             queued_by_path = {cfg.prim_path: cfg for cfg in REPLICATION_QUEUE}
             # the override rides the queued cfg; resolution happens at replicate()
-            assert queued_by_path["/World/envs/env_[^/]*/RigidObj"].cloning_contexts == (
+            assert queued_by_path["/World/envs/env_[^/]+/RigidObj"].cloning_contexts == (
                 "isaaclab.cloner:UsdReplicateContext",
             )
             # untouched asset resolves to the backend default stack at replicate()
-            assert queued_by_path["/World/envs/env_[^/]*/Robot"].cloning_contexts is None
+            assert queued_by_path["/World/envs/env_[^/]+/Robot"].cloning_contexts is None
         finally:
             REPLICATION_QUEUE.clear()
 

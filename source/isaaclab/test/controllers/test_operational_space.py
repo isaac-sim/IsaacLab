@@ -94,7 +94,7 @@ def sim():
     # clone the env xform
     cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
-    robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_[^/]*/Robot")
+    robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
     robot_cfg.actuators["panda_shoulder"].damping = 0.0
     robot_cfg.actuators["panda_forearm"].stiffness = 0.0
@@ -587,7 +587,7 @@ def test_franka_wrench_abs_open_loop(sim):
         orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_[^/]*/obstacle[^/]*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=50,
         debug_vis=False,
@@ -668,7 +668,7 @@ def test_franka_wrench_abs_closed_loop(sim):
         orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_[^/]*/obstacle[^/]*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=2,
         debug_vis=False,
@@ -745,7 +745,7 @@ def test_franka_hybrid_decoupled_motion(sim):
         orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_[^/]*/obstacle[^/]*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=2,
         debug_vis=False,
@@ -822,7 +822,7 @@ def test_franka_hybrid_variable_kp_impedance(sim):
         orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_[^/]*/obstacle[^/]*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=2,
         debug_vis=False,
@@ -1002,7 +1002,7 @@ def test_franka_taskframe_hybrid(sim):
         orientation=(0.0, -0.3826834324, 0.0, 0.9238795325),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_[^/]*/obstacle[^/]*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=2,
         debug_vis=False,
@@ -1234,7 +1234,7 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
         orientation=(0.0, -0.3826834324, 0.0, 0.9238795325),
     )
     contact_forces_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_[^/]*/obstacle[^/]*",
+        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
         update_period=0.0,
         history_length=2,
         debug_vis=False,

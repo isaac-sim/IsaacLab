@@ -721,7 +721,7 @@ def test_actuator_cfg_matches_clone_plan_root_glob(sim, device, articulation_typ
     """Match builder labels when clone-plan root resolution returns a glob."""
     articulation = Articulation(
         ArticulationCfg(
-            prim_path="/World/envs/env_[^/]*/Robot",
+            prim_path="{ENV_REGEX_NS}/Robot",
             actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
         )
     )
