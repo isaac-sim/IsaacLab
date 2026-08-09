@@ -22,7 +22,7 @@ import torch
 import warp as wp
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
-from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
+from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonGLVisualizerCfg
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
@@ -90,7 +90,7 @@ def test_instantiation(sim):
         (True, [], ["kit"]),
         (False, [], []),
         (False, [KitVisualizer(KitVisualizerCfg())], ["kit"]),
-        (False, [newton_visualizer.NewtonVisualizer(NewtonVisualizerCfg())], ["newton"]),
+        (False, [newton_visualizer.NewtonVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
         (False, [rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())], ["newton"]),
         (False, [viser_visualizer.ViserVisualizer(ViserVisualizerCfg())], ["newton"]),
     ],
@@ -281,6 +281,9 @@ def test_newton_visualizer_step_renders_markers(monkeypatch: pytest.MonkeyPatch)
         def is_paused(self):
             return False
 
+        def is_running(self):
+            return True
+
         def begin_frame(self, sim_time):
             self.calls.append(("begin_frame", sim_time))
 
@@ -316,7 +319,7 @@ def test_newton_visualizer_step_renders_markers(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(newton_visualizer, "render_newton_visualization_markers", _fake_render_markers)
 
     viewer = _FakeViewer()
-    visualizer = newton_visualizer.NewtonVisualizer(NewtonVisualizerCfg(enable_markers=True))
+    visualizer = newton_visualizer.NewtonVisualizer(NewtonGLVisualizerCfg(enable_markers=True))
     visualizer._is_initialized = True
     visualizer._is_closed = False
     visualizer._viewer = viewer

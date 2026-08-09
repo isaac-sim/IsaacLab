@@ -9,7 +9,8 @@ Preset Selectors
 
 All training and play commands accept ``physics=NAME``, ``renderer=NAME``, and
 ``presets=NAME[,NAME,...]`` tokens appended directly to the command (no leading dashes).
-See :doc:`/source/features/hydra` for all available names and how the selectors work.
+See :doc:`/source/concepts/backends_and_presets` for preset discovery, common backend
+names, and how the selectors work.
 
 .. tab-set::
 

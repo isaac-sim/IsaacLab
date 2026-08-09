@@ -148,7 +148,7 @@ class NewtonActuatorAdapter:
                 Newton ``State`` on the Newton backend,
                 :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
                 on the PhysX backend.
-            sim_control: Object with ``joint_f``, ``joint_target_pos``, etc.
+            sim_control: Object with ``joint_f``, ``joint_target_q``, etc.
                 Newton ``Control`` on the Newton backend,
                 :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
                 on the PhysX backend.

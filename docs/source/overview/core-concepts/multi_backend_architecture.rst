@@ -169,9 +169,9 @@ instantiations automatically use the selected backend.
 Multi-Backend Environments with Presets
 ---------------------------------------
 
-Environments can support multiple backends simultaneously using the :doc:`preset system
-</source/features/hydra>`. Each backend gets its own configuration variant. The example
-below shows only the physics-related fields:
+Environments can support multiple backends simultaneously using :doc:`backend and preset
+selectors </source/concepts/backends_and_presets>`. Each backend gets its own configuration
+variant. The example below shows only the physics-related fields:
 
 .. code-block:: python
 
@@ -307,6 +307,12 @@ that all backends must provide. Current backend implementations use ``wp.array``
 
 Data classes follow the same pattern with their own factories (e.g.,
 ``ArticulationData(FactoryBase, BaseArticulationData)``).
+
+These base interfaces define the portable contract. Advanced code can also use
+each engine's native low-level data API, but those APIs deliberately retain
+different ownership and synchronization semantics. See
+:doc:`physical-backends/direct-api-access/index` for PhysX typed views, Newton
+live model/state arrays and generic selections, and OvPhysX tensor bindings.
 
 Adding a New Physics Backend
 ----------------------------
@@ -464,7 +470,8 @@ See Also
 
 - :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide from Isaac Lab 2.x to the
   multi-backend architecture
-- :doc:`/source/features/hydra` — preset system for multi-backend environment configurations
+- :doc:`/source/concepts/backends_and_presets` — user guide to backend and preset selection
+- :doc:`/source/features/hydra` — advanced configuration and preset authoring
 - :doc:`physical-backends/index` — feature matrix and per-backend guides (PhysX, Newton, OvPhysX)
 - :doc:`physical-backends/newton/index` — Newton backend guide
 - :doc:`physical-backends/newton/newton-manager-abstraction` — adding Newton solver managers and

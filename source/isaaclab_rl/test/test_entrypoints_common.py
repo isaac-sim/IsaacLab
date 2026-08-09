@@ -336,3 +336,23 @@ def test_resolve_play_task_name_keeps_registered_and_unknown_tasks() -> None:
     assert resolve_play_task_name("Isaac-DoesNotExist-Play") == "Isaac-DoesNotExist-Play"
     assert resolve_play_task_name("Isaac-Something") == "Isaac-Something"
     assert resolve_play_task_name(None) is None
+
+
+@pytest.mark.parametrize(
+    "argv, expected",
+    [
+        ([], "none"),
+        (["presets=cube"], "cube"),
+        (["presets=newton_mjwarp,cube,tiled"], "cube, tiled"),
+        (["physics=newton_mjwarp", "presets=cube"], "cube"),
+        (["renderer=rtx"], "none"),
+        # duplicates collapse, and non-preset overrides are ignored
+        (["presets=cube", "physics=cube", "env.scene.num_envs=64"], "cube"),
+    ],
+)
+def test_additional_preset_names_lists_presets_without_a_row_of_their_own(
+    argv: list[str], expected: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The presets row names the chosen presets that physics and renderer do not already report."""
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"] + argv)
+    assert _rl_common._additional_preset_names({"newton_mjwarp", "rtx"}) == expected

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 
+import warp as wp
 from isaaclab_newton.physics import (
     KaminoSolverCfg,
     MJWarpSolverCfg,
@@ -112,6 +113,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         NewtonManager._use_single_state = False
         NewtonManager._supports_contact_sensors = False
         NewtonManager._needs_collision_pipeline = needs_collision_pipeline
+        NewtonManager._supports_rigid_body_force_input = True
 
     @classmethod
     def _validate_config(cls, solver_cfg: CouplerCfg) -> None:
@@ -217,6 +219,21 @@ class NewtonCouplerManager(NewtonVBDManager):
             not isinstance(entry.solver_cfg, MPMSolverCfg) or entry.solver_cfg.grid_type == "fixed"
             for entry in getattr(solver_cfg, "entries", ())
         )
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Promote a selected single MPM world to the solver's full-reset path."""
+        model = NewtonManager._model
+        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+        has_mpm_entry = any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ()))
+        if world_mask is not None and model is not None and model.world_count == 1 and has_mpm_entry:
+            selected = world_mask.numpy()
+            if not selected.any():
+                return
+            if selected[0] and not selected[-1]:
+                NewtonManager._solver.reset(NewtonManager._state_0, world_mask=None, flags=0)
+                return
+        super()._reset_solver_internals(world_mask)
 
     @classmethod
     def _resolve_entry(

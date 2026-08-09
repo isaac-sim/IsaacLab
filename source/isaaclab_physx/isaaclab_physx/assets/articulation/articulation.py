@@ -4474,6 +4474,8 @@ class Articulation(BaseArticulation):
                 w = self._physx_actuator_wrapper
                 w.joint_q = self._data.joint_pos.warp.reshape(-1)
                 w.joint_qd = self._data.joint_vel.warp.reshape(-1)
+                w.joint_target_q = self._data.joint_pos_target.warp.reshape(-1)
+                w.joint_target_qd = self._data.joint_vel_target.warp.reshape(-1)
                 w.joint_target_pos = self._data.joint_pos_target.warp.reshape(-1)
                 w.joint_target_vel = self._data.joint_vel_target.warp.reshape(-1)
                 w.joint_act = self._data.joint_effort_target.warp.reshape(-1)
