@@ -6,7 +6,7 @@
 """Ovstage specialized-scene OVRTX/OVPhysX probes in one native process."""
 
 import pytest
-from rendering_runner import make_kitless_test
+from kitless_rendering_runner import make_kitless_test
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 

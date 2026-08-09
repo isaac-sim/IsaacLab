@@ -12,13 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from rendering_cases import (
-    KIT_CASES,
-    SCENE_PROBE_KIT_CASES,
-    RenderCase,
-    select_kitless_cases,
-    select_kitless_scene_probe_cases,
-)
+from rendering_cases import KIT_CASES, SCENE_PROBE_KIT_CASES, RenderCase
 from rendering_scene_cfgs import make_rendering_scene_cfg
 
 from isaaclab.test.utils.golden_image import camera_output_image, compare_to_golden
@@ -121,27 +115,6 @@ def run_rendering_case(case: RenderCase, request: Any, *, stage_variant: str = "
         assert not failures, "\n".join([f"{case.id} failed:", *failures])
 
 
-def run_kitless_rendering_case(stage_variant: str, case: RenderCase, request: Any, monkeypatch: Any) -> None:
-    """Configure one kitless runtime variant and delegate to the shared scene runner."""
-    monkeypatch.setenv("PXR_WORK_THREAD_LIMIT", "1")
-    if stage_variant == "ovstage":
-        monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    else:
-        monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
-    if case.renderer == "ovrtx":
-        monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "0")
-        try:
-            __import__("ovrtx")
-        except ImportError as exc:
-            raise AssertionError(f"OVRTX rendering requires the ovrtx extra: {exc}") from exc
-    if case.physics == "ovphysx":
-        try:
-            __import__("ovphysx")
-        except ImportError as exc:
-            raise AssertionError(f"OVPhysX rendering requires the ovphysx extra: {exc}") from exc
-    run_rendering_case(case, request, stage_variant=stage_variant)
-
-
 def make_kit_test(*, scene_probes: bool = False) -> Any:
     """Create one Kit test function from the centrally owned case matrix."""
     import pytest
@@ -151,25 +124,6 @@ def make_kit_test(*, scene_probes: bool = False) -> Any:
     @pytest.mark.parametrize("case", cases, ids=[case.id for case in cases])
     def test_rendering_scene(case: RenderCase, request: pytest.FixtureRequest) -> None:
         run_rendering_case(case, request)
-
-    return test_rendering_scene
-
-
-def make_kitless_test(stage: str, physics: str, *, scene_probes: bool = False) -> Any:
-    """Create one process-isolated native-renderer test from the central matrix."""
-    import pytest
-
-    selector = select_kitless_scene_probe_cases if scene_probes else select_kitless_cases
-    cases = selector(stage, physics)
-
-    @pytest.mark.parametrize("stage_variant,case", cases, ids=[f"{case_stage}-{case.id}" for case_stage, case in cases])
-    def test_rendering_scene(
-        stage_variant: str,
-        case: RenderCase,
-        request: pytest.FixtureRequest,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        run_kitless_rendering_case(stage_variant, case, request, monkeypatch)
 
     return test_rendering_scene
 

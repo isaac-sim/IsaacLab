@@ -73,6 +73,7 @@ def test_removed_task_and_visualizer_harnesses_stay_removed() -> None:
         "test_rendering_kitless_ovstage_ovphysx.py",
     }
     assert all(path.read_text().count("make_kitless_test(") == 1 for path in partition_paths)
+    assert all("from kitless_rendering_runner import make_kitless_test" in path.read_text() for path in partition_paths)
     assert not any("def test_rendering_scene_kitless" in path.read_text() for path in partition_paths)
     probe_partition_paths = sorted(_RENDERER_TEST_DIR.glob("test_rendering_scene_probes_kitless_*.py"))
     assert {path.name for path in probe_partition_paths} == {
@@ -82,6 +83,10 @@ def test_removed_task_and_visualizer_harnesses_stay_removed() -> None:
     }
     assert all(path.read_text().count("make_kitless_test(") == 1 for path in probe_partition_paths)
     assert all("scene_probes=True" in path.read_text() for path in probe_partition_paths)
+    assert all(
+        "from kitless_rendering_runner import make_kitless_test" in path.read_text()
+        for path in probe_partition_paths
+    )
     # OVRTX semantic palettes survive stage reset, so canonical and probe scenes need separate process roots.
     assert not any("def test_" in path.read_text() for path in [*partition_paths, *probe_partition_paths])
     assert "def test_" not in (_RENDERER_TEST_DIR / "test_rendering_scene_probes_kit.py").read_text()
@@ -159,6 +164,13 @@ def test_rendering_native_process_boundaries_are_explicit() -> None:
     assert "test_settings.PROCESS_ISOLATED_TESTS" in conftest_source
     assert "selector in target for selector in selectors for target in exact_targets" in conftest_source
     assert "cold_cache_applied" not in conftest_source
+
+    kitless_runner_source = (_RENDERER_TEST_DIR / "kitless_rendering_runner.py").read_text()
+    thread_limit = 'os.environ["PXR_WORK_THREAD_LIMIT"] = "1"'
+    for rendering_import in ("from rendering_cases import", "from rendering_runner import"):
+        assert kitless_runner_source.index(thread_limit) < kitless_runner_source.index(rendering_import)
+    assert thread_limit not in (_RENDERER_TEST_DIR / "rendering_runner.py").read_text()
+    assert 'monkeypatch.setenv("PXR_WORK_THREAD_LIMIT"' not in kitless_runner_source
 
 
 def test_one_scene_configuration_owns_deliberate_composition() -> None:

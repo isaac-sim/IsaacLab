@@ -6,7 +6,7 @@
 """Ovstage OVRTX/Newton rendering in a bounded native-resource process."""
 
 import pytest
-from rendering_runner import make_kitless_test
+from kitless_rendering_runner import make_kitless_test
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
