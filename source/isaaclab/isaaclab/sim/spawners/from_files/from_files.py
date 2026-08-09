@@ -26,6 +26,7 @@ from isaaclab.sim.utils import (
     get_current_stage,
     get_first_matching_child_prim,
     has_deformable_body_api,
+    make_uninstanceable,
     select_usd_variants,
     set_prim_visibility,
 )
@@ -343,6 +344,10 @@ def _spawn_from_usd_file(
     if hasattr(cfg, "variants") and cfg.variants is not None:
         select_usd_variants(prim_path, cfg.variants)
 
+    # make instance proxies editable before any override tries to author properties on them
+    if getattr(cfg, "make_uninstanceable", False):
+        make_uninstanceable(prim_path, stage=stage)
+
     # modify rigid body properties
     if cfg.rigid_props is not None:
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
@@ -503,10 +508,11 @@ def _spawn_from_usd_file(
 
     # apply physics material
     if cfg.physics_material is not None:
-        if not cfg.physics_material_path.startswith("/"):
-            material_path = f"{prim_path}/{cfg.physics_material_path}"
-        else:
-            material_path = cfg.physics_material_path
+        material_path = (
+            cfg.physics_material_path
+            if cfg.physics_material_path.startswith("/")
+            else f"{prim_path}/{cfg.physics_material_path}"
+        )
         # create material (accepts a legacy material cfg or rigid-body fragment(s))
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         # apply material
