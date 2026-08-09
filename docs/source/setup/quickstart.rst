@@ -176,8 +176,8 @@ Add task-specific options with ``presets=<name>``; for example:
       --task Isaac-Cartpole-Camera-Direct \
       physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
-See :doc:`/source/features/hydra` for configuration overrides and
-``presets=`` in more detail.
+See :doc:`/source/concepts/backends_and_presets` for backend and preset selection,
+and :doc:`/source/features/hydra` for arbitrary configuration overrides.
 
 
 Visualize a task
@@ -259,6 +259,7 @@ Next steps
 ----------
 
 - Browse all registered environments: :doc:`/source/overview/environments`
-- Learn how task configuration works: :doc:`/source/features/hydra`
+- Learn how backends and presets fit together: :doc:`/source/concepts/backends_and_presets`
+- Learn how to override task configuration: :doc:`/source/features/hydra`
 - Follow a guided environment-building tutorial: :doc:`/source/tutorials/index`
 - Read the installation options and troubleshooting guide: :ref:`isaaclab-installation-root`

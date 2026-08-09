@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.2.1 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton 1.5 actuator target bindings on the PhysX backend.
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` when ``CameraCfg.isp_cfg`` is set.
+  It pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
 4.2.0 (2026-08-08)
 ~~~~~~~~~~~~~~~~~~
 

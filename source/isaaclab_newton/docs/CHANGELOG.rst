@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+3.2.0 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg.enable_rigid_soft_full_surface_contact`
+  to generate edge and triangle-interior soft contacts against full-surface-capable rigid colliders.
+  Analytic shapes work directly; mesh and convex colliders require a volume SDF.
+* Added :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` to apply
+  one determinism setting to supported Newton solvers and collision handling.
+* Added :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` so
+  deterministic MJWarp simulations can skip unsupported internal sensor kernels.
+
+Fixed
+^^^^^
+
+* Fixed articulation target bindings for the Newton 1.5 control API.
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` when ``CameraCfg.isp_cfg`` is
+  set. It pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+* Fixed shadow deformable visualization for clone-planned PhysX environments.
+
+
 3.1.0 (2026-08-08)
 ~~~~~~~~~~~~~~~~~~
 
