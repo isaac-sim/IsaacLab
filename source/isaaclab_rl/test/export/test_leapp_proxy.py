@@ -12,6 +12,7 @@ import warp as wp
 
 pytest.importorskip("leapp")
 
+from isaaclab.assets.articulation import BaseArticulationData
 from isaaclab.envs import mdp
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.leapp import utils as leapp_utils
@@ -27,7 +28,30 @@ class _TestScene(dict):
     sensors = {}
 
 
-def _make_articulation_data() -> tuple[SimpleNamespace, torch.Tensor]:
+class _ArticulationDataSemantics:
+    """Production semantic properties used by the minimal test data object."""
+
+    projected_gravity_b = BaseArticulationData.projected_gravity_b
+    root_quat_w = BaseArticulationData.root_quat_w
+
+
+class _ArticulationData(_ArticulationDataSemantics):
+    """Minimal articulation data required by LEAPP proxy tests."""
+
+    def __init__(self, root_quat_w: ProxyArray, projected_gravity_b: ProxyArray):
+        self._root_quat_w = root_quat_w
+        self._projected_gravity_b = projected_gravity_b
+
+    @property
+    def root_quat_w(self) -> ProxyArray:
+        return self._root_quat_w
+
+    @property
+    def projected_gravity_b(self) -> ProxyArray:
+        return self._projected_gravity_b
+
+
+def _make_articulation_data() -> tuple[_ArticulationData, torch.Tensor]:
     """Create the minimal articulation data required by LEAPP proxy tests."""
 
     root_pose_w = torch.zeros(2, 7, dtype=torch.float32)
@@ -35,7 +59,7 @@ def _make_articulation_data() -> tuple[SimpleNamespace, torch.Tensor]:
     root_pose_w[1, 3] = math.sin(math.pi / 4.0)
     root_pose_w[1, 6] = math.cos(math.pi / 4.0)
     gravity_w = torch.tensor([[0.0, 0.0, -1.0]], dtype=torch.float32).expand(2, 3)
-    data = SimpleNamespace(
+    data = _ArticulationData(
         root_quat_w=ProxyArray(wp.from_torch(root_pose_w[:, 3:7])),
         projected_gravity_b=ProxyArray(wp.from_torch(math_utils.quat_apply_inverse(root_pose_w[:, 3:7], gravity_w))),
     )
