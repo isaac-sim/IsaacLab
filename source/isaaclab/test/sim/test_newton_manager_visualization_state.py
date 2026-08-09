@@ -806,9 +806,9 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
     fake_builder = _FakeShadowBuilder(body_count=1, cloth_delta=3, track_usd=True)
     clone_plan = SimpleNamespace(
         sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_0", "/World/envs/env_1"),
+        destinations=("/World/envs/env_{}",),
         env_ids=torch.tensor([0, 1], dtype=torch.int32),
-        clone_mask=torch.tensor([0, 0], dtype=torch.int32),
+        clone_mask=torch.tensor([[False, False]], dtype=torch.bool),
     )
     monkeypatch.setattr(vb, "ModelBuilder", lambda up_axis="Z": fake_builder)
     monkeypatch.setattr(vb, "_restore_visible_colliders_without_visual_shapes", lambda *args, **kwargs: None)
