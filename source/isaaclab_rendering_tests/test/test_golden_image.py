@@ -8,9 +8,8 @@
 from pathlib import Path
 
 import pytest
+from golden_image import compare_to_golden
 from PIL import Image
-
-from isaaclab.test.utils.golden_image import compare_to_golden
 
 
 def _image(color: tuple[int, int, int]) -> Image.Image:

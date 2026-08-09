@@ -12,15 +12,14 @@ from typing import Any
 
 import numpy as np
 import torch
+from golden_image import camera_output_image, compare_to_golden, frame_image
 from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 from PIL import Image
+from rendering_runtime import CAMERA_EYE, CAMERA_TARGET, RenderingScene, build_rendering_scene
+from rendering_scene_cfgs import RenderingTestSceneCfg
 
-from isaaclab.test.integration_scene_cfgs import RenderingTestSceneCfg
-from isaaclab.test.utils.golden_image import camera_output_image, compare_to_golden, frame_image
-from isaaclab.test.utils.rendering import CAMERA_EYE, CAMERA_TARGET, RenderingScene, build_rendering_scene
-
-_GOLDEN_DIR = Path(__file__).parent / "golden_images" / "rendering_scene"
+_GOLDEN_DIR = Path(__file__).parent / "golden_images" / "visualizers"
 _ARTIFACT_DIR = Path.cwd() / "tests" / "comparison-images" / "images"
 _WINDOW_SIZE = (320, 240)
 

@@ -306,7 +306,6 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
-        exclude-pattern: "test/renderers/test_rendering_"
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
@@ -331,7 +330,6 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
-        exclude-pattern: "test/renderers/test_rendering_"
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
@@ -356,7 +354,6 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
-        exclude-pattern: "test/renderers/test_rendering_"
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
@@ -817,11 +814,12 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "not isaaclab_"
+        filter-pattern: "isaaclab_rendering_tests"
         extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_kit.py,
-          test_golden_scene_architecture.py
+          test_rendering_architecture.py,
+          test_visualizer_rendering.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         container-name: isaac-lab-rendering-correctness-test
@@ -854,7 +852,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "not isaaclab_"
+        filter-pattern: "isaaclab_rendering_tests"
         extra-pip-packages: >-
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"

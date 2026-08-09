@@ -12,15 +12,15 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from golden_image import camera_output_image, compare_to_golden
 from rendering_cases import KIT_RENDERING_CASES, RenderCase
+from rendering_runtime import SEMANTIC_COLORS, build_rendering_scene
 from rendering_scene_cfgs import make_rendering_scene_spec
 
 from isaaclab.renderers.output_contract import RenderBufferKind
-from isaaclab.test.utils.golden_image import camera_output_image, compare_to_golden
-from isaaclab.test.utils.rendering import SEMANTIC_COLORS, build_rendering_scene
 from isaaclab.utils.seed import configure_seed
 
-_GOLDEN_ROOT = Path(__file__).parent / "golden_images"
+_GOLDEN_ROOT = Path(__file__).parent / "golden_images" / "renderers"
 _ARTIFACT_DIR = Path.cwd() / "tests" / "comparison-images" / "images"
 _NO_SSIM = {
     RenderBufferKind.DEPTH,

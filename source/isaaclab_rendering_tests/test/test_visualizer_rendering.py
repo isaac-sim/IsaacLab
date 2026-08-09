@@ -18,9 +18,9 @@ _TEST_DIR = Path(__file__).resolve().parent
 if str(_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(_TEST_DIR))
 
-from visualizer_test_utils import run_visualizer_case  # noqa: E402
+from visualizer_runner import run_visualizer_case  # noqa: E402
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.cold_cache]
 
 _CASES = [
     pytest.param(physics, visualizer, tiled, id=f"{physics}-{visualizer}-{'tiled' if tiled else 'viewport'}")

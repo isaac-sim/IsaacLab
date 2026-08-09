@@ -1,0 +1,48 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[build-system]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab-rendering-tests"
+version = "0.1.0"
+description = "Internal rendering correctness tests for Isaac Lab."
+license = {text = "BSD-3-Clause"}
+authors = [{name = "Isaac Lab Project Developers"}]
+maintainers = [{name = "Isaac Lab Project Developers"}]
+requires-python = ">=3.12"
+# This project is the downstream composition root for renderer integration tests.
+# Only interpackage dependencies should go here.
+dependencies = [
+    "isaaclab",
+    "isaaclab-assets",
+    "isaaclab-contrib",
+    "isaaclab-newton",
+    "isaaclab-ov",
+    "isaaclab-ovphysx",
+    "isaaclab-physx",
+    "isaaclab-visualizers",
+]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
+"isaaclab-assets" = { path = "../isaaclab_assets", editable = true }
+"isaaclab-contrib" = { path = "../isaaclab_contrib", editable = true }
+"isaaclab-newton" = { path = "../isaaclab_newton", editable = true }
+"isaaclab-ov" = { path = "../isaaclab_ov", editable = true }
+"isaaclab-ovphysx" = { path = "../isaaclab_ovphysx", editable = true }
+"isaaclab-physx" = { path = "../isaaclab_physx", editable = true }
+"isaaclab-visualizers" = { path = "../isaaclab_visualizers", editable = true }
+
+[project.urls]
+Homepage = "https://github.com/isaac-sim/IsaacLab"
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+# Test helpers are checkout-local implementation, not a public Python package.
+[tool.setuptools]
+packages = []
+py-modules = []
