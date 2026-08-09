@@ -219,22 +219,6 @@ def sample_joint_positions_within_limits(
     return torch.clamp(joint_position, min=limits[..., 0], max=limits[..., 1])
 
 
-def random_xy_rotation(count: int, device: str | torch.device) -> torch.Tensor:
-    """Sample the Direct tasks' sequential random X/Y rotation.
-
-    Args:
-        count: Number of rotations to sample.
-        device: Device on which to sample.
-
-    Returns:
-        Sampled ``(x, y, z, w)`` unit quaternions, shape ``(count, 4)``.
-    """
-    random_values = math_utils.sample_uniform(-1.0, 1.0, (count, 2), device=device)
-    x_unit = torch.tensor([1.0, 0.0, 0.0], device=device).repeat(count, 1)
-    y_unit = torch.tensor([0.0, 1.0, 0.0], device=device).repeat(count, 1)
-    return randomize_rotation(random_values[:, 0], random_values[:, 1], x_unit, y_unit)
-
-
 @torch.jit.script
 def randomize_rotation(
     rand0: torch.Tensor, rand1: torch.Tensor, x_unit_tensor: torch.Tensor, y_unit_tensor: torch.Tensor

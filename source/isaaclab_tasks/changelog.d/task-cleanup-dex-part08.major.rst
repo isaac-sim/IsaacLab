@@ -73,6 +73,10 @@ Removed
 * Removed ``evaluate_reorient_success`` and ``reorient_reward`` from the reorientation
   ``mdp`` namespace. Neither is a manager MDP term; import them from
   ``isaaclab_tasks.core.reorient.mdp.rewards`` instead.
+* Removed ``random_xy_rotation``. The manager reset uses the framework's
+  :func:`~isaaclab.envs.mdp.reset_root_state_with_random_orientation`, leaving the helper
+  without callers; the Direct and hand-over tasks compose their rotations with
+  ``randomize_rotation`` directly.
 * Removed the ``clone_in_fabric`` settings from the reorientation scenes. The flag no
   longer reaches the replicator, so the value had no effect.
 
