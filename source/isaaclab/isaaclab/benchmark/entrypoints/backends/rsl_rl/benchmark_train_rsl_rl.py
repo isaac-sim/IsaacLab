@@ -124,7 +124,15 @@ def run(argv: list[str]) -> BenchmarkResult:
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark import (
+        BaseIsaacLabBenchmark,
+        BenchmarkMonitor,
+        BenchmarkResult,
+        builders,
+        capture,
+        console,
+        stepping,
+    )
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
@@ -341,6 +349,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             output_paths = benchmark.finalize()
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
+            console.print_training_report(bundle, output_paths)
 
     return result
 

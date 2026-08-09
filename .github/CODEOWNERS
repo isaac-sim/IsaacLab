@@ -19,10 +19,10 @@
 
 
 # App experience files
-/apps/ @kellyguo11 @hujc @matthewtrepte @StafaH
+/apps/ @kellyguo11 @hujc7 @matthewtrepte @StafaH
 
 # Core framework
-/source/isaaclab/ @ooctipus @AntoineRichard @kellyguo11 @StafaH @pbarejko
+/source/isaaclab/ @ooctipus @AntoineRichard @kellyguo11 @StafaH @pbarejko @fatimaanes
 /source/isaaclab/isaaclab/envs/mimic_* @peterd-NV @kellyguo11
 /source/isaaclab/isaaclab/envs/manager_based_rl_mimic_env.py @peterd-NV @kellyguo11
 /source/isaaclab/isaaclab/envs/leapp_deployment_env.py @frlai @StafaH @kellyguo11
@@ -35,10 +35,10 @@
 /source/isaaclab_assets/isaaclab_assets/robots/dr_legs.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
 
 /source/isaaclab_contrib/ @ooctipus @StafaH @kellyguo11
-/source/isaaclab_experimental/ @hujc @AntoineRichard @kellyguo11
+/source/isaaclab_experimental/ @hujc7 @AntoineRichard @kellyguo11
 /source/isaaclab_mimic/ @kellyguo11 @peterd-NV
 
-/source/isaaclab_newton/ @AntoineRichard @StafaH @hujc @kellyguo11
+/source/isaaclab_newton/ @AntoineRichard @StafaH @hujc7 @kellyguo11
 /source/isaaclab_newton/isaaclab_newton/physics/kamino_manager.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
 
 /source/isaaclab_ov/ @huidongc @rilei-nvidia @pbarejko @kellyguo11
@@ -54,21 +54,21 @@
 /source/isaaclab_rl/ @ooctipus @StafaH @ClemensSchwarke @kellyguo11
 /source/isaaclab_rl/test/export/ @frlai @StafaH @kellyguo11
 
-/source/isaaclab_tasks/ @ooctipus @StafaH @kellyguo11 @hujc
+/source/isaaclab_tasks/ @ooctipus @StafaH @kellyguo11 @hujc7
 /source/isaaclab_tasks/isaaclab_tasks/contrib/dr_legs/ @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
 
 # Standalone scripts
 /scripts/ @StafaH @kellyguo11 @ooctipus
-/scripts/benchmarks/ @AntoineRichard @StafaH @kellyguo11 @r-schmitt @fanes
+/scripts/benchmarks/ @AntoineRichard @StafaH @kellyguo11 @r-schmitt @fatimaanes
 /scripts/imitation_learning/ @peterd-NV @rwiltz @kellyguo11
 /scripts/imitation_learning/locomanipulation_sdg/ @jaybdub @peterd-NV @kellyguo11
 /scripts/reinforcement_learning/leapp/ @frlai @StafaH @kellyguo11
 
 # GitHub Actions and infrastructure
 /uv.lock @StafaH @kellyguo11
-/.github/ @kellyguo11 @myurasov-nv @hujc
-/.vscode/ @kellyguo11 @hujc @myurasov-nv @Toni-SM
-/docker/ @myurasov-nv @kellyguo11 @hujc
+/.github/ @kellyguo11 @myurasov-nv @hujc7
+/.vscode/ @kellyguo11 @hujc7 @myurasov-nv @Toni-SM
+/docker/ @myurasov-nv @kellyguo11 @hujc7
 /docs/ @AntoineRichard @kellyguo11 @StafaH @ooctipus
 /tools/ @AntoineRichard @kellyguo11 @StafaH @ooctipus
 
@@ -76,8 +76,8 @@
 /source/*/changelog.d/
 
 # RLiNF
-/source/isaaclab_contrib/isaaclab_contrib/rl/rlinf/ @mingxueg @kellyguo11
-/source/isaaclab_contrib/test/rl/test_rlinf_extension.py @mingxueg @kellyguo11
-/source/isaaclab_rl/isaaclab_rl/entrypoints/backends/*rlinf.py @mingxueg @kellyguo11
-/docs/source/experimental-features/rlinf_vla_posttraining.rst @mingxueg @kellyguo11
-/docs/source/api/lab_contrib/isaaclab_contrib.rl.rst @mingxueg @kellyguo11
+/source/isaaclab_contrib/isaaclab_contrib/rl/rlinf/ @mingxueg-nv @kellyguo11
+/source/isaaclab_contrib/test/rl/test_rlinf_extension.py @mingxueg-nv @kellyguo11
+/source/isaaclab_rl/isaaclab_rl/entrypoints/backends/*rlinf.py @mingxueg-nv @kellyguo11
+/docs/source/experimental-features/rlinf_vla_posttraining.rst @mingxueg-nv @kellyguo11
+/docs/source/api/lab_contrib/isaaclab_contrib.rl.rst @mingxueg-nv @kellyguo11

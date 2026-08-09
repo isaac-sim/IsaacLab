@@ -116,7 +116,7 @@ _RTX_MINIMAL_MODES = {
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
+    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
     "isaaclab-ppisp extension from the Isaac Lab source checkout."
 )
 _READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"

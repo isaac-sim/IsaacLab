@@ -8,10 +8,13 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    uv run python scripts/demos/deformables.py
+    uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py
 
     # Usage with Newton VBD backend and default kit visualizer.
-    uv run python scripts/demos/deformables.py --physics newton_vbd
+    uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py --physics newton_vbd
+
+    # Install the optional dependencies for the legacy launcher.
+    ./isaaclab.sh -i tetrahedralization
 
     # Usage with OvPhysX backend without a visualizer.
     ./isaaclab.sh -p scripts/demos/deformables.py --physics ovphysx
