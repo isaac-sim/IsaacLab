@@ -94,7 +94,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     }
 
     # sensors
-    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="/World/envs/env_.*/Robot")
+    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
     feet_body_names: list[str] = ["left_foot", "right_foot"]
 
     # walk target, relative to the environment origin
