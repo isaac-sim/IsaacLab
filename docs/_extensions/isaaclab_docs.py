@@ -216,7 +216,7 @@ class IsaacLabUvWheelInstall(SphinxDirective):
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[isaacsim,all]" \\
+   uv pip install "isaaclab[all]" \\
      --overrides "{overrides_url}" \\
      --extra-index-url https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match --prerelease=allow
