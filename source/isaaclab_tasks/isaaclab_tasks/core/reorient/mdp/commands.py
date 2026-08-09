@@ -21,6 +21,8 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 
+from isaaclab_tasks.core.reorient.utils import SuccessTracker
+
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
@@ -77,10 +79,7 @@ class ReorientCommand(CommandTerm):
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["consecutive_success"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["success_rate"] = torch.zeros(self.num_envs, device=self.device)
-        # -- goals reached this episode; each success-driven resample completes one.
-        self._completed_attempts = torch.zeros(self.num_envs, device=self.device)
-        # an auto-reset lands just before compute(); skip success handling until a step has run
-        self._skip_success_update = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._success = SuccessTracker(self.num_envs, self.device)
         self._fixed_marker_pos_w: torch.Tensor | None = None
 
         # adds (optional) cmd kind and element names for leapp export
@@ -121,26 +120,25 @@ class ReorientCommand(CommandTerm):
         self.metrics["consecutive_success"] += successes.float()
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
-        # snapshot the success bit before the base class logs and zeros the metrics
+        # snapshot the goal count before the base class logs and zeros the metrics
         if env_ids is None:
             env_ids = slice(None)
-        completed = self._completed_attempts[env_ids]
-        self.metrics["success_rate"][env_ids] = (completed >= self.cfg.success_count_threshold).float()
+        # Reaching a goal draws a replacement, so exactly one goal is outstanding when
+        # the episode ends: the episode presented ``goals + 1`` and completed ``goals``.
+        goals = self._success.snapshot(env_ids)
+        self.metrics["success_rate"][env_ids] = goals / (goals + 1.0)
         extras = super().reset(env_ids)
-        # super().reset() invoked _resample_command for the new initial goal, which
-        # incremented _completed_attempts; zero it back out so the new episode starts clean.
-        self._completed_attempts[env_ids] = 0.0
+        # only an auto-reset lands mid-step, with the new goal evaluated before any
+        # physics runs against it; an explicit reset is followed by a full step
+        self._success.clear(env_ids, skip_next_update=self._env.reset_buf[env_ids])
         # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
         # card across tasks); pop it from the returned dict so CommandManager does not
         # additionally log it under ``Metrics/<term_name>/success_rate``.
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
-        self._skip_success_update[env_ids] = self._env.reset_buf[env_ids]
         return extras
 
     def _resample_command(self, env_ids: Sequence[int]):
-        # Each call corresponds to a success-driven (or initial) resample; count it as a
-        # completed attempt. The post-reset increment is cleared by ``reset()`` afterwards.
-        self._completed_attempts[env_ids] += 1.0
+        self._success.record_goal_reached(env_ids)
         # sample new orientation targets
         rand_floats = 2.0 * torch.rand((len(env_ids), 2), device=self.device) - 1.0
         # rotate randomly about x-axis and then y-axis
@@ -152,12 +150,11 @@ class ReorientCommand(CommandTerm):
         self.quat_command_w[env_ids] = math_utils.quat_unique(quat) if self.cfg.make_quat_unique else quat
 
     def _update_command(self):
-        if self.cfg.update_goal_on_success:
-            goal_resets = (
-                self.metrics["orientation_error"] < self.cfg.orientation_success_threshold
-            ) & ~self._skip_success_update
-            self._resample(goal_resets.nonzero(as_tuple=False).squeeze(-1))
-        self._skip_success_update[:] = False
+        if not self.cfg.update_goal_on_success:
+            return
+        reached = self.metrics["orientation_error"] < self.cfg.orientation_success_threshold
+        goal_resets = self._success.earned(reached)
+        self._resample(goal_resets.nonzero(as_tuple=False).squeeze(-1))
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
@@ -223,13 +220,6 @@ class ReorientCommandCfg(CommandTermCfg):
 
     update_goal_on_success: bool = MISSING
     """Whether to update the goal orientation when the goal orientation is reached."""
-
-    success_count_threshold: int = 1
-    """Goals an episode must reach to count as successful in ``Metrics/success_rate``.
-
-    Mirrors the Direct environment's configuration field of the same name, so both workflows
-    draw the episode-success bit at the same goal count.
-    """
 
     marker_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Position offset of the marker from the object's desired position.

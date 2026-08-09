@@ -154,7 +154,6 @@ class ReorientDirectEnv(DirectRLEnv):
         self.reset_goal_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.consecutive_successes = torch.zeros(1, dtype=torch.float, device=self.device)
-        self._last_episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
         # -- per-step evaluation state and diagnostics --
         # written once per step in :meth:`_get_dones`; the reward and metrics reuse them
@@ -330,10 +329,12 @@ class ReorientDirectEnv(DirectRLEnv):
         return out_of_reach, time_out
 
     def _reset_idx(self, env_ids: Sequence[int]):
-        # Episode counts as successful when goals reached >= cfg.success_count_threshold.
-        self._last_episode_success[env_ids] = self.successes[env_ids] >= self.cfg.success_count_threshold
+        # Per-attempt success rate, matching the manager workflow's metric of the same
+        # name: reaching a goal draws a replacement, so exactly one goal is outstanding
+        # when the episode ends and it presented ``successes + 1``.
         # 0-dim device tensor: avoids a host sync here; consumers read it at logging cadence
-        self.extras.setdefault("log", {})["Metrics/success_rate"] = self._last_episode_success[env_ids].float().mean()
+        goals = self.successes[env_ids]
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = (goals / (goals + 1.0)).mean()
         for statistic, value in self._orientation_error.reset(env_ids).items():
             self.extras["log"][f"Diagnostics/episode_min_orientation_error_{statistic}"] = value
 
