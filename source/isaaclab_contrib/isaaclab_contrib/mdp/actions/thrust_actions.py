@@ -247,68 +247,34 @@ class ThrustAction(ActionTerm):
 
 
 class NavigationAction(ThrustAction):
-    """Navigation action term that converts high-level navigation commands to thrust commands
-    using a geometric tracking controller.
+    """Convert high-level navigation commands to thrust commands.
 
-    This action term extends `ThrustAction` by adding a controller layer that computes wrench
-    (force and torque) commands from navigation setpoints, then allocates those wrenches to
-    individual thruster commands using the multirotor's allocation matrix.
+    This action term extends :class:`ThrustAction` with a geometric tracking
+    controller. The controller computes force and torque commands from navigation
+    setpoints and allocates the resulting wrench to individual thrusters through
+    the multirotor allocation matrix.
 
-    The controller type is automatically determined based on the `controller_cfg` type:
-        - LeeVelControllerCfg: Velocity tracking controller
-        - LeePosControllerCfg: Position tracking controller
-        - LeeAccControllerCfg: Acceleration tracking controller
+    The three-dimensional action contains forward magnitude, pitch angle [rad],
+    and yaw command. Translational command units depend on the configured Lee
+    controller: position [m], velocity [m/s], or acceleration [m/s^2]. The yaw
+    command is a yaw rate [rad/s] for velocity and acceleration control or a
+    relative yaw angle [rad] for position control.
 
-    The control pipeline:
-        1. Process raw actions (scale, offset, clip) using parent `ThrustAction`
-        2. Transform processed actions into setpoints constrained within camera FOV
-        3. Compute 6-DOF wrench command using the selected Lee controller
-        4. Solve thrust allocation: thrust_cmd = pinv(allocation_matrix) @ wrench_cmd
-        5. Apply thrust commands to thrusters
-
-    Attributes:
-        cfg: Configuration for the navigation action term, including controller config.
-        _lc: Lee controller instance (LeeVelController, LeePosController, or LeeAccController).
-
-    Action Space:
-        The action dimension is always 3D: (forward_magnitude, pitch_angle, yaw_rate)
-
-        Actions are clipped in range [-1, 1] and are transformed to controller commands:
-        - Forward position/velocity/acceleration:
-            [0, max_magnitude] via (action[0] + 1) * cos(pitch) * max_magnitude / 2
-        - Lateral position/velocity/acceleration:
-            Always 0.0 (constrained to camera FOV)
-        - Vertical position/velocity/acceleration:
-            [0, max_magnitude] via (action[0] + 1) * sin(pitch) * max_magnitude / 2
-        - Yaw command: [-max_yaw_command, max_yaw_command] via action[2] * max_yaw_command (yaw command is yawrate
-          [rad/s] for velocity and acceleration control and relative yaw change [rad] for position control)
-
-        Where:
-        - pitch angle is computed as: action[1] * max_inclination_angle
-
-    Parameters (from cfg):
-        max_magnitude: Maximum translational magnitude for position/velocity/acceleration commands.
-        max_yaw_command: Maximum yaw command in rad/s for velocity and acceleration
-                         control and relative yaw change [rad] for position control.
-        max_inclination_angle: Maximum pitch angle in rad.
-
-    Notes:
-        - The controller's internal states (e.g., integral terms) are reset when `reset()` is called.
-        - Lateral term is constrained to 0.0 to keep commands within camera FOV.
-        - The x and z components are derived from magnitude and inclination angle.
-        - Requires the multirotor asset to have a valid `allocation_matrix` attribute.
+    The action term constrains lateral motion to keep commands inside the camera
+    field of view. It resets controller state, including integral terms, when
+    :meth:`reset` is called.
 
     Example:
-        ```python
-        cfg = NavigationActionCfg(
-            controller_cfg=LeeVelControllerCfg(...),
-            asset_name="robot",
-            max_magnitude=2.0,
-            max_yaw_command=1.047,
-            max_inclination_angle=0.785,  # pi/4
-        )
-        nav_action = NavigationAction(cfg, env)
-        ```
+        .. code-block:: python
+
+           cfg = NavigationActionCfg(
+               controller_cfg=LeeVelControllerCfg(...),
+               asset_name="robot",
+               max_magnitude=2.0,
+               max_yaw_command=1.047,
+               max_inclination_angle=0.785,
+           )
+           nav_action = NavigationAction(cfg, env)
     """
 
     cfg: thrust_actions_cfg.NavigationActionCfg

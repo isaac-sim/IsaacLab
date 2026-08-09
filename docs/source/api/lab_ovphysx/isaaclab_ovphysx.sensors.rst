@@ -1,14 +1,14 @@
-﻿isaaclab\_physx.sensors
-=======================
+isaaclab_ovphysx.sensors
+========================
 
-.. automodule:: isaaclab_physx.sensors
+.. automodule:: isaaclab_ovphysx.sensors
 
-Additional Public Classes
--------------------------
+Classes
+-------
 
-The following classes are part of the public :mod:`isaaclab_physx.sensors` API.
+The following classes are part of the public :mod:`isaaclab_ovphysx.sensors` API.
 
-.. currentmodule:: isaaclab_physx.sensors
+.. currentmodule:: isaaclab_ovphysx.sensors
 
 .. autosummary::
    :nosignatures:
@@ -22,12 +22,8 @@ The following classes are part of the public :mod:`isaaclab_physx.sensors` API.
    ImuData
    JointWrenchSensor
    JointWrenchSensorData
-   MultiMeshRayCaster
-   MultiMeshRayCasterCamera
    Pva
    PvaData
-   RayCaster
-   RayCasterCamera
 
 .. autoclass:: ContactSensor
    :show-inheritance:
@@ -56,20 +52,8 @@ The following classes are part of the public :mod:`isaaclab_physx.sensors` API.
 .. autoclass:: JointWrenchSensorData
    :show-inheritance:
 
-.. autoclass:: MultiMeshRayCaster
-   :show-inheritance:
-
-.. autoclass:: MultiMeshRayCasterCamera
-   :show-inheritance:
-
 .. autoclass:: Pva
    :show-inheritance:
 
 .. autoclass:: PvaData
-   :show-inheritance:
-
-.. autoclass:: RayCaster
-   :show-inheritance:
-
-.. autoclass:: RayCasterCamera
    :show-inheritance:
