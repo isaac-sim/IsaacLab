@@ -8,16 +8,17 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 pytest.importorskip("leapp")
 
 from isaaclab.envs import mdp
-from isaaclab.test.mock_interfaces.assets.mock_articulation import MockArticulationData
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.leapp import utils as leapp_utils
 from isaaclab.utils.leapp.export_annotator import ExportPatcher
 from isaaclab.utils.leapp.leapp_semantics import InputKindEnum
 from isaaclab.utils.leapp.proxy import _DataProxy, _EnvProxy
+from isaaclab.utils.warp import ProxyArray
 
 
 class _TestScene(dict):
@@ -26,14 +27,18 @@ class _TestScene(dict):
     sensors = {}
 
 
-def _make_articulation_data() -> tuple[MockArticulationData, torch.Tensor]:
-    """Create mock articulation data with a non-identity root orientation."""
-    data = MockArticulationData(num_instances=2, num_joints=0, num_bodies=1, device="cpu")
+def _make_articulation_data() -> tuple[SimpleNamespace, torch.Tensor]:
+    """Create the minimal articulation data required by LEAPP proxy tests."""
+
     root_pose_w = torch.zeros(2, 7, dtype=torch.float32)
     root_pose_w[:, 6] = 1.0
     root_pose_w[1, 3] = math.sin(math.pi / 4.0)
     root_pose_w[1, 6] = math.cos(math.pi / 4.0)
-    data.set_root_link_pose_w(root_pose_w)
+    gravity_w = torch.tensor([[0.0, 0.0, -1.0]], dtype=torch.float32).expand(2, 3)
+    data = SimpleNamespace(
+        root_quat_w=ProxyArray(wp.from_torch(root_pose_w[:, 3:7])),
+        projected_gravity_b=ProxyArray(wp.from_torch(math_utils.quat_apply_inverse(root_pose_w[:, 3:7], gravity_w))),
+    )
     return data, root_pose_w
 
 
