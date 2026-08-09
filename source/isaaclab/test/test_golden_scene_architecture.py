@@ -82,6 +82,7 @@ def test_removed_task_and_visualizer_harnesses_stay_removed() -> None:
     }
     assert all(path.read_text().count("make_kitless_test(") == 1 for path in probe_partition_paths)
     assert all("scene_probes=True" in path.read_text() for path in probe_partition_paths)
+    # OVRTX semantic palettes survive stage reset, so canonical and probe scenes need separate process roots.
     assert not any("def test_" in path.read_text() for path in [*partition_paths, *probe_partition_paths])
     assert "def test_" not in (_RENDERER_TEST_DIR / "test_rendering_scene_probes_kit.py").read_text()
 

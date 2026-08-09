@@ -132,7 +132,8 @@ PER_TEST_TIMEOUTS = {
     "test_environments_newton.py": 5000,
     "test_surface_gripper.py": 3000,
     "test_rendering_kit.py": 600,
-    "test_rendering_kitless_legacy_newton.py": 600,
+    # The legacy Newton OVRTX matrix compiles each AOV separately and exceeded 1300 s on a cold CI worker.
+    "test_rendering_kitless_legacy_newton.py": 1200,
     "test_rendering_kitless_legacy_ovphysx.py": 600,
     "test_rendering_kitless_ovstage_newton.py": 600,
     "test_rendering_kitless_ovstage_ovphysx.py": 600,
