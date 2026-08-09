@@ -79,7 +79,7 @@ COLD_CACHE_TESTS = {
     "source/isaaclab_teleop/test/test_xr_camera_feed_kit_scene_ui_integration.py",
     "source/isaaclab_visualizers/test/test_visualizer_rendering.py",
 }
-"""Repository-relative tests eligible for the one-per-job shader cold-cache allowance."""
+"""Repository-relative process roots eligible for the native-renderer cold-cache allowance."""
 
 
 PER_TEST_TIMEOUTS = {
@@ -153,6 +153,14 @@ PROCESS_ISOLATED_TESTS = {
         ("shadow_hand", ("shadow_hand",)),
         ("kuka_cloth", ("kuka_heterogeneous", "franka_cloth")),
         ("franka_soft", ("franka_soft",)),
+    ),
+    "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_newton.py": (
+        ("ovrtx", ("ovrtx",)),
+        ("newton_warp", ("newton_warp",)),
+    ),
+    "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_ovphysx.py": (
+        ("ovrtx", ("ovrtx",)),
+        ("newton_warp", ("newton_warp",)),
     ),
 }
 """Named scene-selector groups that must run in separate native-resource processes."""

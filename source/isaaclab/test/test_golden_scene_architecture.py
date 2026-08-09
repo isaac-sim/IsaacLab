@@ -136,13 +136,20 @@ def test_rendering_native_process_boundaries_are_explicit() -> None:
             ("shadow_hand", ("shadow_hand",)),
             ("kuka_cloth", ("kuka_heterogeneous", "franka_cloth")),
             ("franka_soft", ("franka_soft",)),
-        )
+        ),
+        "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_newton.py": (
+            ("ovrtx", ("ovrtx",)),
+            ("newton_warp", ("newton_warp",)),
+        ),
+        "source/isaaclab/test/renderers/test_rendering_scene_probes_kitless_legacy_ovphysx.py": (
+            ("ovrtx", ("ovrtx",)),
+            ("newton_warp", ("newton_warp",)),
+        ),
     }
-    partition_selectors = {
-        selector
-        for _, selectors in next(iter(assignments["PROCESS_ISOLATED_TESTS"].values()))
-        for selector in selectors
-    }
+    kit_partitions = assignments["PROCESS_ISOLATED_TESTS"][
+        "source/isaaclab/test/renderers/test_rendering_scene_probes_kit.py"
+    ]
+    partition_selectors = {selector for _, selectors in kit_partitions for selector in selectors}
     assert {case.scene for case in SCENE_PROBE_KIT_CASES} <= partition_selectors
 
     conftest_source = (_REPO_ROOT / "tools" / "conftest.py").read_text()
@@ -150,6 +157,7 @@ def test_rendering_native_process_boundaries_are_explicit() -> None:
     assert "test_settings.COLD_CACHE_TESTS" in conftest_source
     assert "test_settings.PROCESS_ISOLATED_TESTS" in conftest_source
     assert "selector in target for selector in selectors for target in exact_targets" in conftest_source
+    assert "cold_cache_applied" not in conftest_source
 
 
 def test_one_scene_configuration_owns_deliberate_composition() -> None:
@@ -372,6 +380,26 @@ def test_renderer_matrix_bundles_compatible_aovs() -> None:
             assert case.aovs == (case.profile,)
 
 
+def test_motion_vectors_are_semantic_after_one_step() -> None:
+    """Hardware-dependent motion magnitudes are validated semantically, never owned as image goldens."""
+    runner_source = (_RENDERER_TEST_DIR / "rendering_runner.py").read_text()
+    required = (
+        '_SEMANTIC_ONLY_AOVS = {"motion_vectors"}',
+        "runtime.sim.get_physics_step_count() == 0",
+        "runtime.sim.get_physics_step_count() == 1",
+        "torch.isfinite(motion).all()",
+        "torch.all(peak > 1.0e-6)",
+        "torch.all(raw_moving_pixels > 20)",
+        "torch.all(support_pixels > 0)",
+        "torch.all(support_pixels < view_pixels // 2)",
+        "if aov in _SEMANTIC_ONLY_AOVS:",
+        "continue",
+    )
+    assert not [signature for signature in required if signature not in runner_source]
+    assert "_MOTION_SUPPORT" not in runner_source
+    assert "_comparison_image" not in runner_source
+
+
 def test_rendering_scene_closes_scene_before_simulation_teardown() -> None:
     """The direct composition root isolates RTX history and closes entities before the sim."""
     module = ast.parse((_CORE_PACKAGE / "test" / "utils" / "rendering.py").read_text())
@@ -444,14 +472,20 @@ def test_golden_inventory_matches_case_matrix() -> None:
         for scene in ("rendering_scene", "franka_cloth", "franka_soft", "kuka_heterogeneous", "shadow_hand")
     }
     for case in (*KIT_CASES, *SCENE_PROBE_KIT_CASES):
-        renderer_expected[case.scene].update(f"kit-{case.golden_id(aov)}.png" for aov in case.aovs)
+        renderer_expected[case.scene].update(
+            f"kit-{case.golden_id(aov)}.png" for aov in case.aovs if aov != "motion_vectors"
+        )
     for stage, case in (*KITLESS_CASES, *SCENE_PROBE_KITLESS_CASES):
-        renderer_expected[case.scene].update(f"{stage}-{case.golden_id(aov)}.png" for aov in case.aovs)
+        renderer_expected[case.scene].update(
+            f"{stage}-{case.golden_id(aov)}.png" for aov in case.aovs if aov != "motion_vectors"
+        )
 
     renderer_root = _RENDERER_TEST_DIR / "golden_images"
     assert {path.name for path in renderer_root.iterdir() if path.is_dir()} == set(renderer_expected)
     for scene, expected in renderer_expected.items():
         assert {path.name for path in (renderer_root / scene).glob("*.png")} == expected
+
+    assert not list(renderer_root.rglob("*motion_vectors.png"))
 
     visualizer_expected = {
         f"{physics}-{visualizer}-{mode}.png"

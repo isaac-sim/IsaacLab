@@ -967,7 +967,6 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
     failed_tests = []
     test_status = {}
     xml_reports = []
-    cold_cache_applied = False
     test_node_ids_by_file = test_node_ids_by_file or {}
     global_k_expr = os.environ.get("TEST_K_EXPR", "").strip() or None
     if global_k_expr is not None:
@@ -1005,12 +1004,11 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
         except OSError:
             test_content = ""
 
-        # The first camera-enabled test in a fresh container compiles shaders
-        # (~600 s).  Give it extra time so that doesn't look like a test timeout.
-        is_cold_cache_test = not cold_cache_applied and test_key in test_settings.COLD_CACHE_TESTS
+        # Each test file runs in a fresh interpreter and may compile native renderer
+        # shaders (~600 s), so every explicitly camera-enabled root owns the allowance.
+        is_cold_cache_test = test_key in test_settings.COLD_CACHE_TESTS
         if is_cold_cache_test:
             timeout += COLD_CACHE_BUFFER
-            cold_cache_applied = True
             logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
 
         extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0

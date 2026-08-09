@@ -33,19 +33,16 @@ _NO_SSIM = {
     "distance_to_image_plane",
     "instance_segmentation",
     "instance_id_segmentation_fast",
-    "motion_vectors",
 }
+_SEMANTIC_ONLY_AOVS = {"motion_vectors"}
 _MAX_DIFF_PCT = {
-    "shadow_hand": 5.0,
+    # RTX edges vary by 8.43% between L40S and RTX 5090 while retaining SSIM 0.993.
+    "shadow_hand": 10.0,
     # Four textured task views vary by 13.82% between L40S and RTX 5090 while retaining SSIM 0.985.
     "kuka_heterogeneous": 15.0,
     "franka_cloth": 8.0,
     # The 2x2 task layout quadruples RTX-antialiased table/object edges; SSIM still gates structure.
     "franka_soft": 12.0,
-}
-_MAX_DIFF_PCT_BY_OUTPUT = {
-    # Motion magnitude varies across RTX hardware; semantic assertions below still require moving cloth pixels.
-    ("franka_cloth", "motion_vectors"): 45.0,
 }
 
 
@@ -80,20 +77,27 @@ def run_rendering_case(case: RenderCase, request: Any, *, stage_variant: str = "
             motion_outputs, _ = runtime.camera_outputs()
             assert runtime.sim.get_physics_step_count() == 1
             motion = motion_outputs["motion_vectors"]
+            motion = motion if torch.is_tensor(motion) else motion.torch
             assert torch.isfinite(motion).all(), "Motion vectors contain non-finite values."
-            moving_pixels = torch.count_nonzero(motion[..., :2].abs().amax(dim=-1) > 1.0e-6).item()
-            assert moving_pixels > 20, f"Only {moving_pixels} pixels moved after one physics step."
-            outputs["motion_vectors"] = motion
+            magnitude = motion[..., :2].abs().amax(dim=-1)
+            peak = magnitude.amax(dim=(1, 2))
+            raw_moving_pixels = (magnitude > 1.0e-6).flatten(1).sum(dim=1)
+            support_pixels = (magnitude >= peak[:, None, None] * 0.99).flatten(1).sum(dim=1)
+            view_pixels = magnitude.shape[1] * magnitude.shape[2]
+            assert torch.all(peak > 1.0e-6), f"Motion-vector peaks stayed zero after one step: {peak.tolist()}"
+            assert torch.all(raw_moving_pixels > 20), f"Too few moving pixels: {raw_moving_pixels.tolist()}"
+            assert torch.all(support_pixels > 0), f"No high-confidence motion: {support_pixels.tolist()}"
+            assert torch.all(support_pixels < view_pixels // 2), f"Motion is not localized: {support_pixels.tolist()}"
 
         _validate_segmentation(outputs, info, required_labels)
         failures = []
         for aov in case.aovs:
+            if aov in _SEMANTIC_ONLY_AOVS:
+                continue
             golden_label = f"{stage_variant}-{case.golden_id(aov)}"
             artifact_label = f"{case.scene}-{golden_label}"
             canonical_rtx_rgb = case.scene == "rendering_scene" and case.renderer == "isaac_rtx" and aov == "rgb"
-            rtx_max_diff = _MAX_DIFF_PCT_BY_OUTPUT.get(
-                (case.scene, aov), 8.0 if canonical_rtx_rgb else _MAX_DIFF_PCT.get(case.scene, 3.0)
-            )
+            rtx_max_diff = 8.0 if canonical_rtx_rgb else _MAX_DIFF_PCT.get(case.scene, 3.0)
             comparison = compare_to_golden(
                 camera_output_image(outputs[aov], aov),
                 _GOLDEN_ROOT / case.scene / f"{golden_label}.png",
