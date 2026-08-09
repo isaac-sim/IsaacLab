@@ -129,7 +129,19 @@ SCENE_PROBE_KITLESS_CASES = tuple(
     for physics in _SCENE_PROBE_KITLESS_PHYSICS[scene]
     for case in (
         *(RenderCase(physics, "ovrtx", (aov,), scene=scene) for aov in aovs),
-        RenderCase(physics, "newton_warp", tuple(aov for aov in aovs if aov in NEWTON_WARP_AOVS), scene=scene),
+        RenderCase(
+            physics,
+            "newton_warp",
+            tuple(
+                aov
+                for aov in aovs
+                if aov in NEWTON_WARP_AOVS
+                # Legacy USD cloning exposes either env_0 or its clones in semantic color depending on GPU.
+                # Canonical legacy and specialized Kit cases retain stable Newton-Warp semantic coverage.
+                and not (scene == "shadow_hand" and aov == "semantic_segmentation")
+            ),
+            scene=scene,
+        ),
     )
     for stage in (("legacy", "ovstage") if case.renderer == "ovrtx" and physics == "ovphysx" else ("legacy",))
 )

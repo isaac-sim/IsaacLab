@@ -221,6 +221,27 @@ def test_specialized_rendering_scenes_are_declarative_and_task_free() -> None:
     assert set().union(*partitions) == set(SCENE_PROBE_KITLESS_CASES)
 
 
+def test_legacy_shadow_semantics_stay_in_canonical_scene() -> None:
+    """Do not golden-test the GPU-dependent source/clone split in the specialized legacy scene."""
+    legacy_shadow_warp = [
+        case
+        for stage, case in SCENE_PROBE_KITLESS_CASES
+        if stage == "legacy" and case.scene == "shadow_hand" and case.renderer == "newton_warp"
+    ]
+    assert {case.physics for case in legacy_shadow_warp} == {"newton", "ovphysx"}
+    assert all(case.aovs == ("rgb", "instance_segmentation") for case in legacy_shadow_warp)
+    kit_shadow_warp = [
+        case for case in SCENE_PROBE_KIT_CASES if case.scene == "shadow_hand" and case.renderer == "newton_warp"
+    ]
+    assert {case.physics for case in kit_shadow_warp} == {"newton", "physx"}
+    assert all("semantic_segmentation" in case.aovs for case in kit_shadow_warp)
+    canonical_legacy_warp = [
+        case for stage, case in KITLESS_CASES if stage == "legacy" and case.renderer == "newton_warp"
+    ]
+    assert {case.physics for case in canonical_legacy_warp} == {"newton", "ovphysx"}
+    assert all("semantic_segmentation" in case.aovs for case in canonical_legacy_warp)
+
+
 def test_specialized_rendering_scenes_preserve_task_signatures() -> None:
     """Direct probes retain recognizable task assets and layouts without task ownership."""
     source = (_RENDERER_TEST_DIR / "rendering_scene_cfgs.py").read_text()
