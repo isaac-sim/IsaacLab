@@ -44,9 +44,9 @@ def test_select_physics_variants_uses_concrete_isaac_sim_physx() -> None:
     """The normalized PhysX job must not resolve through the automatic selector."""
     variants = ["physx", "isaacsim_physx", "ovphysx", "newton_mjwarp"]
 
-    selections = _select_physics_variants("Isaac-Test", variants, "physx", ["physx", "newton"])
+    selections = _select_physics_variants("Isaac-Test", variants, "physx", ["physx", "newtonmjwarp"])
 
-    assert selections == [("physx", "isaacsim_physx"), ("newton", "newton_mjwarp")]
+    assert selections == [("physx", "isaacsim_physx"), ("newtonmjwarp", "newton_mjwarp")]
 
 
 def test_select_physics_variants_does_not_fall_back_to_automatic_physx() -> None:
@@ -80,10 +80,10 @@ def test_publish_uses_collected_checkpoint_without_training_logs(
     job = CheckpointJob(
         workflow="rsl_rl",
         task_name="Isaac-Test",
-        physics_backend="newton",
+        physics_backend="newtonmjwarp",
         render_backend="none",
     )
-    collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newton_none.pt"
+    collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newtonmjwarp_none.pt"
     collected_path.parent.mkdir()
     collected_path.touch()
     args = Namespace(
@@ -95,6 +95,6 @@ def test_publish_uses_collected_checkpoint_without_training_logs(
 
     assert publish_pretrained_checkpoint(job, args)
     assert (
-        f"Publishing {collected_path} -> omniverse://checkpoints/rsl_rl/Isaac-Test_newton_none.pt"
+        f"Publishing {collected_path} -> omniverse://checkpoints/rsl_rl/Isaac-Test_newtonmjwarp_none.pt"
         in capsys.readouterr().out
     )

@@ -8,7 +8,7 @@
 from pathlib import Path
 
 import pytest
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
@@ -40,11 +40,11 @@ def test_get_pretrained_checkpoint_filename_includes_backends():
     filename = pretrained_checkpoint.get_pretrained_checkpoint_filename(
         "rsl_rl",
         "Isaac-Cartpole",
-        "newton",
+        "newtonmjwarp",
         "rtx",
     )
 
-    assert filename == "Isaac-Cartpole_newton_rtx.pt"
+    assert filename == "Isaac-Cartpole_newtonmjwarp_rtx.pt"
 
 
 def test_get_pretrained_checkpoint_filename_preserves_legacy_layout():
@@ -67,7 +67,7 @@ def test_get_pretrained_checkpoint_filename_requires_both_backends():
         pretrained_checkpoint.get_pretrained_checkpoint_filename(
             "rsl_rl",
             "Isaac-Cartpole",
-            physics_backend="newton",
+            physics_backend="newtonmjwarp",
         )
 
 
@@ -85,7 +85,15 @@ def test_get_pretrained_checkpoint_backend_names_identifies_newton_renderer():
         camera=_CameraCfg(renderer_cfg=NewtonWarpRendererCfg()),
     )
 
-    assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == ("newton", "newton")
+    assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == ("newtonmjwarp", "newton")
+
+
+def test_get_pretrained_checkpoint_backend_names_rejects_other_newton_solvers():
+    """Test that a non-MJWarp Newton solver is not mislabeled as MJWarp."""
+    env_cfg = _EnvCfg(sim=SimulationCfg(physics=NewtonCfg(solver_cfg=KaminoSolverCfg())))
+
+    with pytest.raises(ValueError, match="Unsupported Newton solver"):
+        pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg)
 
 
 def test_get_pretrained_checkpoint_backend_names_identifies_rtx_renderer():
@@ -109,11 +117,11 @@ def test_get_published_pretrained_checkpoint_path_uses_flat_workflow_directory(m
     path = pretrained_checkpoint.get_published_pretrained_checkpoint_path(
         "skrl",
         "Isaac-Shadow-Handover-Direct",
-        "newton",
+        "newtonmjwarp",
         "none",
     )
 
-    assert path == "omniverse://IsaacLab/PretrainedCheckpoints/skrl/Isaac-Shadow-Handover-Direct_newton_none.pt"
+    assert path == "omniverse://IsaacLab/PretrainedCheckpoints/skrl/Isaac-Shadow-Handover-Direct_newtonmjwarp_none.pt"
 
 
 def test_get_pretrained_checkpoint_publish_path_uses_flat_workflow_directory(monkeypatch: pytest.MonkeyPatch):

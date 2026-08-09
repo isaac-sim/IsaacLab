@@ -179,10 +179,12 @@ following filename:
 
    <task_name>_<physics_backend>_<render_backend>.<extension>
 
-For example, ``Isaac-Cartpole_newton_none.pt`` is the RSL-RL policy for
-state-based Cartpole on Newton, while
-``Isaac-Cartpole-Camera_newton_rtx.pt`` is the camera policy using Newton
-physics and RTX rendering. State-only tasks use ``none`` for the render backend.
+The physics token is ``physx`` for Isaac Sim PhysX and ``newtonmjwarp`` for
+Newton using the MJWarp solver. For example,
+``Isaac-Cartpole_newtonmjwarp_none.pt`` is the RSL-RL policy for state-based
+Cartpole on Newton MJWarp, while
+``Isaac-Cartpole-Camera_newtonmjwarp_rtx.pt`` is the camera policy using Newton
+MJWarp physics and RTX rendering. State-only tasks use ``none`` for the render backend.
 Pass the same physics, renderer, and domain selectors used during training so
 the checkpoint and policy network agree:
 

@@ -180,8 +180,8 @@ def _create_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--physics_backends",
-        default="physx,newton",
-        help="Comma-separated normalized physics backends for --core (default: physx,newton).",
+        default="physx,newtonmjwarp",
+        help="Comma-separated normalized physics backends for --core (default: physx,newtonmjwarp).",
     )
     parser.add_argument(
         "--render_backends",
@@ -264,7 +264,7 @@ def _select_physics_variants(
         if variants:
             if backend == "physx" and "isaacsim_physx" in variants:
                 selector = "isaacsim_physx"
-            elif backend == "newton":
+            elif backend == "newtonmjwarp":
                 selector = next(
                     (candidate for candidate in ("newton_mjwarp", "newton_mjwarp_vbd") if candidate in variants),
                     None,
@@ -305,7 +305,7 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
     """Build the supported preferred-workflow matrix for core tasks."""
     physics_backends = _parse_backend_list(
         args.physics_backends,
-        {"newton", "physx"},
+        {"newtonmjwarp", "physx"},
         "--physics_backends",
     )
     render_backends = _parse_backend_list(

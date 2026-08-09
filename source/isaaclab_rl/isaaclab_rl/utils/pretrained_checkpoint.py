@@ -82,7 +82,8 @@ def get_pretrained_checkpoint_filename(
     Args:
         workflow: RL workflow name.
         task_name: Registered task name.
-        physics_backend: Physics backend name, such as ``"physx"`` or ``"newton"``.
+        physics_backend: Physics backend name, such as ``"physx"`` or
+            ``"newtonmjwarp"``.
         render_backend: Render backend name, such as ``"rtx"``, ``"newton"``, or ``"none"``.
 
     Returns:
@@ -97,7 +98,7 @@ def get_pretrained_checkpoint_filename(
         return WORKFLOW_PRETRAINED_CHECKPOINT_FILENAMES[workflow]
     if physics_backend is None or render_backend is None:
         raise ValueError("physics_backend and render_backend must be provided together")
-    if physics_backend not in {"newton", "physx"}:
+    if physics_backend not in {"newtonmjwarp", "physx"}:
         raise ValueError(f"Unsupported physics backend: {physics_backend!r}")
     if render_backend not in {"newton", "none", "rtx"}:
         raise ValueError(f"Unsupported render backend: {render_backend!r}")
@@ -313,7 +314,11 @@ def _get_physics_backend_name(physics_cfg: PhysicsCfg | None) -> str:
         return "physx"
     type_path = f"{type(physics_cfg).__module__}.{type(physics_cfg).__name__}".lower()
     if "newton" in type_path:
-        return "newton"
+        solver_cfg = getattr(physics_cfg, "solver_cfg", None)
+        solver_type_path = f"{type(solver_cfg).__module__}.{type(solver_cfg).__name__}".lower()
+        if "mjwarp" in solver_type_path:
+            return "newtonmjwarp"
+        raise ValueError(f"Unsupported Newton solver for pretrained checkpoints: {type(solver_cfg).__name__}")
     if "physx" in type_path:
         return "physx"
     raise ValueError(f"Unable to identify physics backend from {type(physics_cfg).__name__}")
