@@ -16,6 +16,7 @@ import argparse
 import os
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class DistributedContext:
     """Rank metadata of one benchmark worker process.
@@ -163,8 +164,7 @@ def add_distributed_arg(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         default=False,
         help=(
-            "Run as one rank of a distributed launch. Set automatically by"
-            " `isaaclab benchmark <workflow>-multigpu`."
+            "Run as one rank of a distributed launch. Set automatically by `isaaclab benchmark <workflow>-multigpu`."
         ),
     )
 
