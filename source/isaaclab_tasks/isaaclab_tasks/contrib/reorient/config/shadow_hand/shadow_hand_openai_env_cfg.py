@@ -13,16 +13,6 @@ from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import PhysicsCfg, ShadowHandEventCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 
-# Per-step gaussian noise + reset-sampled bias, as in the paper.
-OPENAI_ACTION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
-    noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),
-    bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.015, operation="abs"),
-)
-OPENAI_OBSERVATION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
-    noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
-    bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
-)
-
 
 @configclass
 class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
@@ -61,5 +51,12 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     force_torque_obs_scale = 10.0
     # domain randomization config
     events: ShadowHandEventCfg = ShadowHandEventCfg()
-    action_noise_model: NoiseModelWithAdditiveBiasCfg = OPENAI_ACTION_NOISE_CFG
-    observation_noise_model: NoiseModelWithAdditiveBiasCfg = OPENAI_OBSERVATION_NOISE_CFG
+    # per-step gaussian noise + reset-sampled bias, as in the paper
+    action_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
+        noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),
+        bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.015, operation="abs"),
+    )
+    observation_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
+        noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
+        bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
+    )

@@ -18,19 +18,21 @@ Changed
 ^^^^^^^
 
 * **Breaking:** Moved the OpenAI Shadow Hand reorientation variants to the contributed
-  tasks as ``IsaacContrib-Reorient-Cube-Shadow-OpenAI-Direct``.
-  ``Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct`` and
-  ``Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct`` are removed; use the contributed task,
-  selecting the recurrent policy with ``--agent rsl_rl_lstm_cfg_entry_point``. The paper's
+  tasks. Replace ``Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct`` with
+  ``IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct`` and
+  ``Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct`` with
+  ``IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct``. The paper's
   training regime -- 20 Hz control, action and observation noise, and an episode budget
   spent per goal -- does not generalize, so it no longer ships in the core task.
 * **Breaking:** Moved the Shadow Hand camera benchmark task to the contributed tasks as
   ``IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct``. The released
   ``Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct`` identifier no longer resolves.
-* **Breaking:** Changed ``Metrics/success_rate`` on the manager-based reorientation tasks
-  to a per-episode success bit drawn at ``ReorientCommandCfg.success_count_threshold``,
-  matching the Direct environments, instead of a per-attempt ratio. Curves from earlier
-  runs are not comparable.
+* **Breaking:** Changed ``Metrics/success_rate`` on the Direct reorientation tasks to the
+  per-attempt success rate the manager-based tasks already report, ``goals reached /
+  goals presented``. The Direct tasks previously reported a per-episode success bit, so the
+  same metric name meant different things in the two workflows and their curves could not
+  be compared. Direct curves from earlier runs are not comparable. Removed the
+  ``success_count_threshold`` configuration field, which no longer has an effect.
 * **Breaking:** Changed domain randomization to be opt-in through ``presets=randomized``
   on the Allegro and Shadow manager tasks, matching each task's Direct counterpart.
 * **Breaking:** Changed the manager-based Allegro environment to match the Direct

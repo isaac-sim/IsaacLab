@@ -83,7 +83,7 @@ class EventCfg(ResetEventCfg):
         func=mdp.randomize_actuator_gains,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "asset_cfg": SceneEntityCfg("robot"),
             "stiffness_distribution_params": (0.3, 3.0),  # default: 3.0
             "damping_distribution_params": (0.75, 1.5),  # default: 0.1
             "operation": "scale",
@@ -119,7 +119,8 @@ class EventPresetCfg(PresetCfg):
     """``presets=randomized`` adds the domain-randomization terms to the episode reset."""
 
     randomized = EventCfg()
-    default = ResetEventCfg()
+    reset_only = ResetEventCfg()
+    default = reset_only
 
 
 @configclass

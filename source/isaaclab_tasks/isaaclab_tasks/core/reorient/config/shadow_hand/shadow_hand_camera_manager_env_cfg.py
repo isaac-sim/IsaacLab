@@ -70,9 +70,7 @@ class CameraCriticCfg(FullStateObsCfg):
     fingertip_wrench = ObsTerm(
         func=mdp.body_incoming_wrench,
         scale=10.0,
-        params={
-            "sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False)
-        },
+        params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES)},
     )
     last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
     camera_features = ObsTerm(func=mdp.shadow_hand_camera_cached_features)

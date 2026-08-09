@@ -10,7 +10,7 @@ import gymnasium as gym
 from isaaclab_tasks.core.reorient.config.allegro_hand import agents
 
 ##
-# Register Gym environments -- manager-based workflow.
+# Register Gym environments -- direct workflow.
 ##
 
 gym.register(
@@ -24,6 +24,11 @@ gym.register(
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
+
+##
+# Register Gym environments -- manager-based workflow.
+##
+
 gym.register(
     id="Isaac-Reorient-Cube-Allegro",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",

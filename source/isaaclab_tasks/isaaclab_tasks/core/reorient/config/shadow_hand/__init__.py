@@ -40,6 +40,11 @@ gym.register(
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
+
+# -------
+# Vision
+# -------
+
 gym.register(
     id="Isaac-Reorient-Cube-Shadow-Camera-Direct",
     entry_point=f"{__name__}.shadow_hand_direct_camera_env:ShadowHandCameraEnv",
