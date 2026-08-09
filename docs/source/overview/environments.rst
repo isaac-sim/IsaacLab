@@ -116,8 +116,8 @@ preset names grouped by selector type at the command line, or run
 ``uv run python scripts/environments/list_envs.py --show_presets``
 to list presets for every registered environment.
 
-See the :doc:`Hydra preset system documentation </source/features/hydra>`
-for all available backend names and how the typed selectors work.
+See :doc:`/source/concepts/backends_and_presets` for a guided introduction to
+backend names, preset discovery, and typed selectors.
 
 .. note::
 

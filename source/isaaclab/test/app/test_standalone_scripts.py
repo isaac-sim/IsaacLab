@@ -175,6 +175,7 @@ def test_commands_respect_script_launcher_capabilities():
     )
     assert camera_case.command()[3:5] == ["--num_envs", "1"]
     assert camera_case.command()[-2:] == ["--visualizer", "none"]
+    assert camera_case.spec.startup_timeout == 900.0
 
     kitless_case = next(
         case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera_ovrtx.py"
@@ -332,6 +333,98 @@ def test_subprocess_supervisor_soaks_then_stops_process_group():
     assert result.ready
     assert result.stopped_after_soak
     assert result.elapsed < 2.0
+
+
+def test_subprocess_supervisor_ignores_fatal_output_after_intentional_teardown(monkeypatch):
+    """Fatal-looking output caused by intentional teardown must not fail a healthy launch."""
+
+    class FakeStdout:
+        def fileno(self):
+            return 1
+
+    class FakeProcess:
+        stdout = FakeStdout()
+        returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def communicate(self, timeout):
+            return b"Traceback (most recent call last):\n", None
+
+    class FakeSelector:
+        selections = 0
+
+        def register(self, fileobj, events):
+            self.fileobj = fileobj
+
+        def select(self, timeout):
+            self.selections += 1
+            if self.selections > 1:
+                return []
+            key = type("Key", (), {"fileobj": self.fileobj})()
+            return [(key, script_cases.selectors.EVENT_READ)]
+
+        def close(self):
+            pass
+
+    process = FakeProcess()
+    monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", FakeSelector)
+    monkeypatch.setattr(script_cases.os, "read", lambda *args: b"READY\n")
+    monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
+
+    result = run_until_ready(["demo.py"], r"READY", startup_timeout=2.0, soak_time=0.0)
+    assert result.ready
+    assert result.stopped_after_soak
+    assert "Traceback (most recent call last):" in result.output
+    assert not result.fatal_patterns
+
+
+def test_subprocess_supervisor_classifies_buffered_fatal_output_before_intentional_teardown(monkeypatch):
+    """Fatal output already buffered at the soak deadline must remain test-failing."""
+
+    class FakeStdout:
+        def fileno(self):
+            return 1
+
+    class FakeProcess:
+        stdout = FakeStdout()
+        returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def communicate(self, timeout):
+            return b"post-teardown output\n", None
+
+    class FakeSelector:
+        selections = 0
+
+        def register(self, fileobj, events):
+            self.fileobj = fileobj
+
+        def select(self, timeout):
+            self.selections += 1
+            if self.selections > 2:
+                return []
+            key = type("Key", (), {"fileobj": self.fileobj})()
+            return [(key, script_cases.selectors.EVENT_READ)]
+
+        def close(self):
+            pass
+
+    process = FakeProcess()
+    chunks = iter((b"READY\n", b"Traceback (most recent call last):\n"))
+    monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", FakeSelector)
+    monkeypatch.setattr(script_cases.os, "read", lambda *args: next(chunks))
+    monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
+
+    result = run_until_ready(["demo.py"], r"READY", startup_timeout=2.0, soak_time=0.0)
+    assert result.ready
+    assert result.stopped_after_soak
+    assert "Traceback (most recent call last):" in result.fatal_patterns
 
 
 def test_subprocess_supervisor_accepts_clean_exit_after_readiness():

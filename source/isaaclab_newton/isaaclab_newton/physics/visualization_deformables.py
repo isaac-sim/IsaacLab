@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import warp as wp
@@ -17,6 +17,7 @@ from newton import ModelBuilder
 
 from pxr import Usd
 
+from isaaclab.cloner import ClonePlan
 from isaaclab.scene_data.deformable_discovery import (
     DeformableStageEntry,
     discover_deformables_on_stage,
@@ -115,6 +116,55 @@ def _build_volume_vis_remap(entry: DeformableStageEntry, device: str) -> VolumeV
     return remap
 
 
+def _expand_clone_plan_deformable_entries(
+    entries: Sequence[DeformableStageEntry],
+    clone_plan: ClonePlan | None,
+) -> list[DeformableStageEntry]:
+    """Expand prototype deformables into every destination selected by a clone plan.
+
+    Kit-less replication may retain only a source deformable on the USD stage. The
+    shadow builder nevertheless needs one deformable particle block and one visual
+    mesh binding for every cloned environment.
+    """
+    if clone_plan is None:
+        return list(entries)
+
+    env_ids = clone_plan.env_ids
+    if env_ids is None:
+        env_ids = range(clone_plan.clone_mask.shape[1])
+    else:
+        env_ids = env_ids.detach().cpu().tolist()
+
+    expanded: dict[str, DeformableStageEntry] = {entry.root_path: entry for entry in entries}
+    for entry in entries:
+        for source_idx, (source, destination) in enumerate(
+            zip(clone_plan.sources, clone_plan.destinations, strict=True)
+        ):
+            source = source.rstrip("/")
+            if entry.root_path != source and not entry.root_path.startswith(f"{source}/"):
+                continue
+
+            selected_env_ids = clone_plan.clone_mask[source_idx].detach().cpu().tolist()
+            for env_id, selected in zip(env_ids, selected_env_ids, strict=True):
+                if not selected:
+                    continue
+                target = destination.format(int(env_id)).rstrip("/")
+
+                def replace_source(path: str) -> str:
+                    return f"{target}{path[len(source) :]}"
+
+                cloned_entry = replace(
+                    entry,
+                    root_path=replace_source(entry.root_path),
+                    sim_mesh_path=replace_source(entry.sim_mesh_path),
+                    vis_mesh_path=replace_source(entry.vis_mesh_path),
+                )
+                expanded.setdefault(cloned_entry.root_path, cloned_entry)
+            break
+
+    return list(expanded.values())
+
+
 def add_shadow_deformables_to_builder(
     builder: ModelBuilder,
     stage: Usd.Stage,
@@ -122,6 +172,7 @@ def add_shadow_deformables_to_builder(
     *,
     device: str = "cpu",
     entries: Sequence[DeformableStageEntry] | None = None,
+    clone_plan: ClonePlan | None = None,
 ) -> tuple[list[ShadowDeformableEntity], list[ShadowDeformableRegistryGroup]]:
     """Add PhysX/OVPhysX deformable meshes to a shadow Newton builder.
 
@@ -134,6 +185,8 @@ def add_shadow_deformables_to_builder(
         stage: Current USD stage.
         env_paths: Sorted ``(env_id, env_prim_path)`` pairs.
         device: Warp device for barycentric remap tables uploaded during shadow build.
+        clone_plan: Optional replication layout used to expand prototype-only stage
+            entries into all destination environments.
 
     Returns:
         Flat entity list for geometry mapping and grouped registry metadata for
@@ -143,6 +196,7 @@ def add_shadow_deformables_to_builder(
         entries = discover_deformables_on_stage(stage)
     if not entries:
         return [], []
+    entries = _expand_clone_plan_deformable_entries(entries, clone_plan)
 
     env_path_by_id = dict(env_paths)
     wildcard_groups: dict[tuple[str, str, str], list[DeformableStageEntry]] = {}

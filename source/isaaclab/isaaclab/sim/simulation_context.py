@@ -974,42 +974,57 @@ class SimulationContext:
     @classmethod
     def clear_instance(cls) -> None:
         """Clean up resources and clear the singleton instance."""
-        if cls._instance is not None:
-            # Close physics manager FIRST to detach PhysX from the stage
-            # This must happen before clearing USD prims to avoid PhysX cleanup errors
-            cls._instance.physics_manager.close()
+        instance = cls._instance
+        if instance is not None:
+            teardown_errors: list[Exception] = []
 
-            # Close the camera renderers. Ordered after the physics manager so PhysicsEvent.STOP has
-            # already invalidated the cameras that hold render data, and before close_stage() so the
-            # backends release their stage-bound resources while the stage still exists.
-            cls._instance._render_context.close()
+            def run_cleanup(callback: Callable[[], Any]) -> None:
+                try:
+                    callback()
+                except Exception as exc:
+                    teardown_errors.append(exc)
 
-            # Close all visualizers
-            for viz in cls._instance._visualizers:
-                viz.close()
-            cls._instance._visualizers.clear()
+            try:
+                # Close physics manager FIRST to detach PhysX from the stage.
+                run_cleanup(instance.physics_manager.close)
 
-            # Close and drop all registered singleton services
-            service_errors: list[Exception] = []
-            cls._instance._services.close_all(caught_exceptions=service_errors)
+                # Close camera renderers after STOP invalidates camera-owned render data and
+                # before the stage is closed so stage-bound renderer resources remain valid.
+                run_cleanup(instance._render_context.close)
 
-            # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
-            # close_stage() + app shutdown destroy the entire stage at once.
-            stage_utils.close_stage()
+                # Give every visualizer a chance to release its resources.
+                for viz in list(instance._visualizers):
+                    run_cleanup(viz.close)
+                instance._visualizers.clear()
 
-            # Discard cached name-resolution data from destroyed assets
-            clear_resolve_matching_names_cache()
+                # Close and drop all registered singleton services.
+                service_errors: list[Exception] = []
+                run_cleanup(lambda: instance._services.close_all(caught_exceptions=service_errors))
+                teardown_errors.extend(service_errors)
 
-            # Clear instance
-            cls._instance = None
+                # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
+                # close_stage() + app shutdown destroy the entire stage at once.
+                run_cleanup(stage_utils.close_stage)
 
-            gc.collect()
+                # Discard cached name-resolution data from destroyed assets.
+                run_cleanup(clear_resolve_matching_names_cache)
+            finally:
+                cls._instance = None
+                del instance
+
+            run_cleanup(gc.collect)
+
             logger.info("SimulationContext cleared")
 
-            if service_errors:
-                msg = f"SimulationContext.clear_instance(): {len(service_errors)} service(s) failed to close"
-                # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
-                raise RuntimeError(msg) from service_errors[0]
+            if len(teardown_errors) == 1:
+                raise teardown_errors[0]
+            if teardown_errors:
+                details = "; ".join(f"{type(error).__name__}: {error}" for error in teardown_errors)
+                msg = (
+                    f"SimulationContext.clear_instance(): {len(teardown_errors)} error(s) occurred during teardown:"
+                    f" {details}"
+                )
+                raise RuntimeError(msg) from teardown_errors[0]
 
     @classmethod
     def clear_stage(cls) -> None:
