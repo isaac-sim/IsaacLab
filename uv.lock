@@ -2014,8 +2014,8 @@ requires-dist = [
     { name = "isaaclab-tasks-experimental", editable = "source/isaaclab_tasks_experimental" },
     { name = "isaaclab-teleop", marker = "extra == 'teleop'", editable = "source/isaaclab_teleop" },
     { name = "isaaclab-visualizers", editable = "source/isaaclab_visualizers" },
-    { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'isaacsim'", specifier = "==6.0.1.0" },
-    { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'teleop'", specifier = "==6.0.1.0" },
+    { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'isaacsim'", specifier = "==6.1.0rc3+release.45488.8127a152.gl" },
+    { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'teleop'", specifier = "==6.1.0rc3+release.45488.8127a152.gl" },
     { name = "isaacteleop", extras = ["retargeters", "ui", "cloudxr"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.4.0" },
     { name = "junitparser", marker = "extra == 'test'" },
     { name = "lazy-loader", specifier = ">=0.4" },
@@ -2264,15 +2264,15 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaacsim"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-kernel", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim/isaacsim-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:bfb100300201953e92bcd82c01590ce888dfd8a77bdd139023465660ee39f790" },
-    { url = "https://pypi.nvidia.com/isaacsim/isaacsim-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:d3fea3b40b513482e85c62e552bfdfb73a3ac950662a843c7375cfa8c97941c2" },
-    { url = "https://pypi.nvidia.com/isaacsim/isaacsim-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:a978f1ffb72bcba89fe1ee3bcc4fd204f8401938c369d6a3db8fc5c2753e6223" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim/6.1.0rc3+release.45488.8127a152.gl/isaacsim-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:ca813f7bc70d213388107e16ad78f2b9e2bf1d46e27f2cb923396f24a5cc6a65" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim/6.1.0rc3+release.45488.8127a152.gl/isaacsim-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:e52ecbd434297055fa91544d39bd264e562f13c46769f3222da821441f6fef46" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim/6.1.0rc3+release.45488.8127a152.gl/isaacsim-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:94000b13538d3efd57384f9713dfcc0e7ff7a66aad2d50d0495701d77fa90bef" },
 ]
 
 [package.optional-dependencies]
@@ -2306,61 +2306,61 @@ extscache = [
 
 [[package]]
 name = "isaacsim-app"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-kernel", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-app/isaacsim_app-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:4435f54a93c685f19ba0e3c9aa9beef256321d427968a835eae7740441f6fe2e" },
-    { url = "https://pypi.nvidia.com/isaacsim-app/isaacsim_app-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:108bd30ac91cf8bdafd520b7c22f1eac81907174998b614ded104cf126792fd4" },
-    { url = "https://pypi.nvidia.com/isaacsim-app/isaacsim_app-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:0512a8ad76520f136df663195b9cb916ab3b3c4c57636d918ced83b84b80aba6" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-app/6.1.0rc3+release.45488.8127a152.gl/isaacsim_app-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:a780076ff574ab4855b2f1070e66c4c42d4f759a83c628a08f4bf357266a3b69" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-app/6.1.0rc3+release.45488.8127a152.gl/isaacsim_app-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:5024f4adddd39ec0e670883158054ab8b81863e9b812c6c67ff9abea5ddf778e" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-app/6.1.0rc3+release.45488.8127a152.gl/isaacsim_app-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:a9b2e37d7b43e66f9b7ee8cf32f46a1d1e24f5b2f715186b5e5913c8ca47ce63" },
 ]
 
 [[package]]
 name = "isaacsim-asset"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-storage", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaacsim-utils", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-asset/isaacsim_asset-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:bf29c65b469411ff5ae9e84cb2f10898fd5d7845744b367fa711c82145228d9a" },
-    { url = "https://pypi.nvidia.com/isaacsim-asset/isaacsim_asset-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:fc62712adb1641ce53aad11c257331f5c4fccba59255ba8d2514a745cb0efbe4" },
-    { url = "https://pypi.nvidia.com/isaacsim-asset/isaacsim_asset-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:fcca96376a4151fca0be2f8596d7c644cae71ba8ac56d735d3643052e0369596" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-asset/6.1.0rc3+release.45488.8127a152.gl/isaacsim_asset-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:9e171ca5c81a14d4838e6fcb70d9660c4f794b25c7a77c4d38144f3718ba04a7" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-asset/6.1.0rc3+release.45488.8127a152.gl/isaacsim_asset-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:f0e7df98d31dcea6e673ad9d71ed8c1f7b399764940c0301b086355ae5fbac91" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-asset/6.1.0rc3+release.45488.8127a152.gl/isaacsim_asset-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:9496d43f25a43e5948ac561ee7aa4e7ae91006593352a7b03bd46444cc177532" },
 ]
 
 [[package]]
 name = "isaacsim-benchmark"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-robot", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-benchmark/isaacsim_benchmark-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:9ee2db71331feff15415aad803482dec7a4a4df1de27b2d7d559ce905f8b6cdd" },
-    { url = "https://pypi.nvidia.com/isaacsim-benchmark/isaacsim_benchmark-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:89917f3e36113ccb032e99b89ca9d5c6c4d7cc030f325baf5a808731b6ba5b52" },
-    { url = "https://pypi.nvidia.com/isaacsim-benchmark/isaacsim_benchmark-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:ffa69b10006e3916fb8a723d80734d20163f4a3e7a3fb8a7d113a2b95e44de24" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-benchmark/6.1.0rc3+release.45488.8127a152.gl/isaacsim_benchmark-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:2ef5a459ddd1f080bde03e7d7812f49ce02aeb9305efc9da009923527d1ea4ff" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-benchmark/6.1.0rc3+release.45488.8127a152.gl/isaacsim_benchmark-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:1ef4a2fa55d4f8bc1f2d6ed126ae4162eb527c0f498f96a3c4c8713b94ebbe84" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-benchmark/6.1.0rc3+release.45488.8127a152.gl/isaacsim_benchmark-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:bf9e547e14c93ec1e6e67ade6fbecf8d2e6f30606899fdc78b181b7ab0b37026" },
 ]
 
 [[package]]
 name = "isaacsim-code-editor"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-kernel", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-code-editor/isaacsim_code_editor-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:51aa6401d8b95e302a35144e410116e3c1a3a4d9435d0720a2d3e7a35c46133d" },
-    { url = "https://pypi.nvidia.com/isaacsim-code-editor/isaacsim_code_editor-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:adbf216dcb34471c7e67a0683bb9f746a7773040b91cf42432f1a21dee95a665" },
-    { url = "https://pypi.nvidia.com/isaacsim-code-editor/isaacsim_code_editor-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:83e596316f6ac28483d08bcd0dab7d9ecda23919b52fe3b39831a89cd39b0755" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-code-editor/6.1.0rc3+release.45488.8127a152.gl/isaacsim_code_editor-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:99f3554258750d20774646040659a6e8625d7b729a6d1ce0099edb386c9db57c" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-code-editor/6.1.0rc3+release.45488.8127a152.gl/isaacsim_code_editor-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:083e239fc0eddb64a485dae1451f46607ddfcb962fa59c784e60dcdf5c6a5f4e" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-code-editor/6.1.0rc3+release.45488.8127a152.gl/isaacsim_code_editor-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:f15e07c996e5a9afeb94a67d75fe16f72ee19be2e2c777462ffff96a62fa331b" },
 ]
 
 [[package]]
 name = "isaacsim-core"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "absl-py", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "aioboto3", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2397,7 +2397,6 @@ dependencies = [
     { name = "nest-asyncio", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "networkx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "newton", extra = ["importers", "sim"], marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "newton-actuators", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "newton-usd-schemas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "numpy-stl", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "oauthlib", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2430,85 +2429,85 @@ dependencies = [
     { name = "urdf-usd-converter", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-core/isaacsim_core-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:db4db05fc2fad7e1497840e3ed604ca8a7e8d9b9bebc83f1aa3bcaee5852fdbc" },
-    { url = "https://pypi.nvidia.com/isaacsim-core/isaacsim_core-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:aadb3c5dffd433d5caec5cf0c4c7a314d30b222997bb8496385baae67dd3367c" },
-    { url = "https://pypi.nvidia.com/isaacsim-core/isaacsim_core-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:c4e34b73a9a8bf45e00848da7c629bfd52f18154ddb08ef6e5e21d854b83b7b8" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-core/6.1.0rc3+release.45488.8127a152.gl/isaacsim_core-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:8b07778a4733f55fb962f019a0978340404bf00a0a33938210edd61a801ba887" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-core/6.1.0rc3+release.45488.8127a152.gl/isaacsim_core-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:7bb8c74e82c4e6ae87720cceed276936798883edd421c937c0f524a3a517189e" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-core/6.1.0rc3+release.45488.8127a152.gl/isaacsim_core-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:68d913ac3717a6d61f2986f64ca70dc381cea25e54f8fd568ed24ab3b900b049" },
 ]
 
 [[package]]
 name = "isaacsim-cortex"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-robot", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaacsim-ros1", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-cortex/isaacsim_cortex-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:ff272737ddc27996ab83ab0bc41b3a11a6fb4bb3b43d11624aa223084d25bbd7" },
-    { url = "https://pypi.nvidia.com/isaacsim-cortex/isaacsim_cortex-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:71e455b2ea5fae001fb841ba11115bdbc1e738bfa98fcaf9aebbde4d5694db8a" },
-    { url = "https://pypi.nvidia.com/isaacsim-cortex/isaacsim_cortex-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:be9c831051afcb7a0d16e309cf0f3dd5992d940af1f3e75d1fbe0fd9a3157e2d" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-cortex/6.1.0rc3+release.45488.8127a152.gl/isaacsim_cortex-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:f152c9fb2c58cdf2c6426b1191aba62467a8c6988fa2b6a32f7ffef670129955" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-cortex/6.1.0rc3+release.45488.8127a152.gl/isaacsim_cortex-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:b6761a9ad7ae9c161627fbfe99e644bc21ab4764956d7070035184514d7df519" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-cortex/6.1.0rc3+release.45488.8127a152.gl/isaacsim_cortex-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:f50efb39fac81a46369901b677aa4715a5ca33f07d498580c37022e74aa34caf" },
 ]
 
 [[package]]
 name = "isaacsim-example"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-cortex", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-example/isaacsim_example-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:339b1600c33811fba5ee34861b0d247691dbded741de10b675d0d754819d697e" },
-    { url = "https://pypi.nvidia.com/isaacsim-example/isaacsim_example-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:4c22448a337a2bbf0b99934cb6d5c84ebde4692b088846acefba04e8b949f588" },
-    { url = "https://pypi.nvidia.com/isaacsim-example/isaacsim_example-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:93ec10e41965bdada028f6b57a9f8f2e6d4f82a83d1e4435134955311aef0a4b" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-example/6.1.0rc3+release.45488.8127a152.gl/isaacsim_example-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:fbf4d5708d89869b88bc0a28638c9519f29be4a37854fd7019e69306f37fb4e3" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-example/6.1.0rc3+release.45488.8127a152.gl/isaacsim_example-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:d1c90770f1540c6eab573e4e4737e2deb3e1bc2111813cb8f529008347365b2f" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-example/6.1.0rc3+release.45488.8127a152.gl/isaacsim_example-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:8e0ce07c858d3f65572370f4c850296156205c42c05eaeccd114244e5b789e3c" },
 ]
 
 [[package]]
 name = "isaacsim-extscache-kit"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-extscache-kit/isaacsim_extscache_kit-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:be33ccda8aeb326420463ac51388cf72b88e7db096b1804feb3841954983f39d" },
-    { url = "https://pypi.nvidia.com/isaacsim-extscache-kit/isaacsim_extscache_kit-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:35b64cf35ce3d31875ef43025f243c8bd03e29cb28fe844b0cd06b76ba535714" },
-    { url = "https://pypi.nvidia.com/isaacsim-extscache-kit/isaacsim_extscache_kit-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:c27b2557f3d02a2f880d6f759d05263e353c34be55b6dccf8a960049208607d9" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-extscache-kit/6.1.0rc3+release.45488.8127a152.gl/isaacsim_extscache_kit-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:1dce08df19962ead959540f43f5aa2bf89186e2320df16e76f54c6bc05e8b0aa" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-extscache-kit/6.1.0rc3+release.45488.8127a152.gl/isaacsim_extscache_kit-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:729ed5123eb4734eec8e3483add8c3c3e9b7603f9ba77d6efbd393508a56ad62" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-extscache-kit/6.1.0rc3+release.45488.8127a152.gl/isaacsim_extscache_kit-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:4e44e8d0c30b8fafa30630f5522c4a74a28784d04023caa5cfcae8ebb921b4ca" },
 ]
 
 [[package]]
 name = "isaacsim-extscache-kit-sdk"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-extscache-kit-sdk/isaacsim_extscache_kit_sdk-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:b0a2d45749fe4a19cf7326c11a33267b16a7bb63223e4842e468f5065b1269bd" },
-    { url = "https://pypi.nvidia.com/isaacsim-extscache-kit-sdk/isaacsim_extscache_kit_sdk-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:a39c7a71f7a859e9db4ce6f81382f63a480d7e1938c6f3653702c9e6dd609c5e" },
-    { url = "https://pypi.nvidia.com/isaacsim-extscache-kit-sdk/isaacsim_extscache_kit_sdk-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:02e3d383db1fdf993ef08d3873e8e89e09bcbbe4939b6af440e816836166667a" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-extscache-kit-sdk/6.1.0rc3+release.45488.8127a152.gl/isaacsim_extscache_kit_sdk-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:6e4468018bd9a4f926dc7737f5fc902dc3c89cd692af4a08753d2f27c11c7879" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-extscache-kit-sdk/6.1.0rc3+release.45488.8127a152.gl/isaacsim_extscache_kit_sdk-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:e4010437d40ca7df24cc4ffcc657537c3291230e83dc9682e8cd05b159bb9281" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-extscache-kit-sdk/6.1.0rc3+release.45488.8127a152.gl/isaacsim_extscache_kit_sdk-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:c33dcbd83d63ce91ddf3d82f1b371e8540ecc4f59e600e07b6512a7026227740" },
 ]
 
 [[package]]
 name = "isaacsim-extscache-physics"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-extscache-physics/isaacsim_extscache_physics-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:a88d45968f5c9976c81c06b96a0432498807113981e7ba607b0527fb18f19e14" },
-    { url = "https://pypi.nvidia.com/isaacsim-extscache-physics/isaacsim_extscache_physics-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:e666e4985f99752df68c3aee25daf8d8771d17a5546d76dde26c038985f60127" },
-    { url = "https://pypi.nvidia.com/isaacsim-extscache-physics/isaacsim_extscache_physics-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:367be0033e33e55865eb0cba62f2c14aed0305b9399c8ff373853da13be98aa1" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-extscache-physics/6.1.0rc3+release.45488.8127a152.gl/isaacsim_extscache_physics-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:911f6e549ba2cdf175e2f6753e282b1705db80f33770da3448174ef2933d3b6b" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-extscache-physics/6.1.0rc3+release.45488.8127a152.gl/isaacsim_extscache_physics-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:456f05ce51023fca35fe7d6693cad00d52ef86cc9888b4bc690ec5a7722a88bd" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-extscache-physics/6.1.0rc3+release.45488.8127a152.gl/isaacsim_extscache_physics-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:096e07fb5f803567ee6ec7cb0531e7d382d2fe8f2bff4f803e72a875267a5f71" },
 ]
 
 [[package]]
 name = "isaacsim-gui"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-core", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-gui/isaacsim_gui-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:410449c9f78ba21be22931f67e6d4902dd4c61d5b07630a812d66dd36f2fa161" },
-    { url = "https://pypi.nvidia.com/isaacsim-gui/isaacsim_gui-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:92568f2553dc3f9bc9a5e411b5035a48b12b65544b43d3029ef9cbe31b4f0983" },
-    { url = "https://pypi.nvidia.com/isaacsim-gui/isaacsim_gui-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:d5da64f2320c8d2c01b145ea9e02c3f7768637ca360c0267a197e2bb1090b743" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-gui/6.1.0rc3+release.45488.8127a152.gl/isaacsim_gui-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:5a3cc8a31ff067ab57425c890e1d929ddd61c6123242413ebb0c699a24cadcee" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-gui/6.1.0rc3+release.45488.8127a152.gl/isaacsim_gui-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:8c2bffb260fcd883cf391866dce1bdebb45e4f2c18fb86c7bb538138e17a0dcd" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-gui/6.1.0rc3+release.45488.8127a152.gl/isaacsim_gui-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:447973187f7d54eb3adb23045bd48c7920ea74facdc3b8a58474012776d7fab6" },
 ]
 
 [[package]]
 name = "isaacsim-kernel"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "aiobotocore", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "aiodns", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2551,171 +2550,177 @@ dependencies = [
     { name = "yarl", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-kernel/isaacsim_kernel-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:831740bdb45221eedb8c2bca5daced96a58be69e599913a5eb84e481d5239477" },
-    { url = "https://pypi.nvidia.com/isaacsim-kernel/isaacsim_kernel-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:618fd6fb09d7d67ca5102251b999bf1a851a8918dadbeea0789e7d4f2a24bbb1" },
-    { url = "https://pypi.nvidia.com/isaacsim-kernel/isaacsim_kernel-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:892afb902abdc9f6571cb6e793271303d075eb5c9998e9cc779db812911a9ed9" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-kernel/6.1.0rc3+release.45488.8127a152.gl/isaacsim_kernel-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:e6676556362fcdb86aad5fc87b3f15d5ce495ecca521af8bd65b8403f1217fb2" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-kernel/6.1.0rc3+release.45488.8127a152.gl/isaacsim_kernel-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:dcff8708c7d82bb746ee449f19187d8ab1c82d53546c945d71e52a3d2d111267" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-kernel/6.1.0rc3+release.45488.8127a152.gl/isaacsim_kernel-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:81b6e09e7a6b9a5515a3387e4186a058af949b03654d7fb10fd9c3218dc61df7" },
 ]
 
 [[package]]
 name = "isaacsim-replicator"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-core", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaacsim-storage", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-replicator/isaacsim_replicator-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:fa8eed36447551d8385c7821bc8a8859d5accb1472d54fdddd3013e97c035814" },
-    { url = "https://pypi.nvidia.com/isaacsim-replicator/isaacsim_replicator-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:01485414698e1052ce04d5c61942aca8284fe69cbc969bca129f7950736f3445" },
-    { url = "https://pypi.nvidia.com/isaacsim-replicator/isaacsim_replicator-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:e3c4068c12a4c008efb1e4d8e644b072cdda5d05beaeae9292979bb3ebcf6e88" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-replicator/6.1.0rc3+release.45488.8127a152.gl/isaacsim_replicator-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:1dd2bc236c0034a163371382b960d02d99ff9cdb6d535a671350a9888052f1ac" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-replicator/6.1.0rc3+release.45488.8127a152.gl/isaacsim_replicator-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:698fa0f23650dd33707c9c9891dc9195b11f2cd05295b6919d9d930a930df33a" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-replicator/6.1.0rc3+release.45488.8127a152.gl/isaacsim_replicator-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:0119376c35c739c15a40add0b8486fd3dcd4d14139241034f0d22b26dddaa5b6" },
 ]
 
 [[package]]
 name = "isaacsim-rl"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-benchmark", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaacsim-robot", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-rl/isaacsim_rl-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:b506d19579c4f0a7cd7f79e8caf72595e029647ee32a34405b446d8fc5b51651" },
-    { url = "https://pypi.nvidia.com/isaacsim-rl/isaacsim_rl-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:fda0f6f9a200dacc7bb76e363ed66f8b9bce3ebdb9d254e00533a5789e121d73" },
-    { url = "https://pypi.nvidia.com/isaacsim-rl/isaacsim_rl-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:02595ff26cb2822602e1f25c5f9c3ccaf5a5abc3b227e69e140f4db599836a7d" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-rl/6.1.0rc3+release.45488.8127a152.gl/isaacsim_rl-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:fabe2ddab7e6172d74c3920539756a2c90ca643e1575e324c29287b024b803bf" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-rl/6.1.0rc3+release.45488.8127a152.gl/isaacsim_rl-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:571eea228a279f53cf33e8e9b5675bbb86486fffccba1cf7bcfd8a4ad29e2a5e" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-rl/6.1.0rc3+release.45488.8127a152.gl/isaacsim_rl-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:35369937039f4af1a1141a6bbfbdc72cfb96ecca27da62a5f14bb7b21ab20b50" },
 ]
 
 [[package]]
 name = "isaacsim-robot"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-robot-motion", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaacsim-sensor", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "onnxruntime", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "py-trees", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "pydot", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "pyparsing", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "six", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "transitions", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-robot/isaacsim_robot-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:b516ea2b1eaa25dadf1b9b9234b3479b13c91d14f78f92ba2267990e600a3eff" },
-    { url = "https://pypi.nvidia.com/isaacsim-robot/isaacsim_robot-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:2b5e23d06e80b5ba538803c3e63b2ccd909a8bc10516e75ee7693ad49e3407b5" },
-    { url = "https://pypi.nvidia.com/isaacsim-robot/isaacsim_robot-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:2df7350dbbdf2a9442d671416d5039e809bdb65a6303f2bfbd3a19eb1118fdc6" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-robot/6.1.0rc3+release.45488.8127a152.gl/isaacsim_robot-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:1ec002734600c2e28a56c249fd148168229e4bf49922cd088e8d28c5913bb9cd" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-robot/6.1.0rc3+release.45488.8127a152.gl/isaacsim_robot-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:28942bbb85799a13ba5b916ccf58faf55ee13b71dd177d2fb07c6d3da76e1f56" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-robot/6.1.0rc3+release.45488.8127a152.gl/isaacsim_robot-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:1e9cfcf6fdbe5a9bf653a2228775ba42a2d8327250325deb86794b0ea6ebfa97" },
 ]
 
 [[package]]
 name = "isaacsim-robot-motion"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-gui", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-robot-motion/isaacsim_robot_motion-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:d22f8329e9077d4f3b4f98e4a2359db71ed2f7b4029025bfc0fc2768cf27bd38" },
-    { url = "https://pypi.nvidia.com/isaacsim-robot-motion/isaacsim_robot_motion-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:2a6af11d616efbde551813d40ac22cd2ce992a862fbe8395a3f83ca5d4a937de" },
-    { url = "https://pypi.nvidia.com/isaacsim-robot-motion/isaacsim_robot_motion-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:4ce18b32cbcca44fc2163346076fd99d2ea1b6b19fff9e9a11cb69c134e0c16f" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-robot-motion/6.1.0rc3+release.45488.8127a152.gl/isaacsim_robot_motion-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:85da02446cdcc111f4678f2f46603dae152aa9c31ec231f5dfd40bc9aa2c5b5f" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-robot-motion/6.1.0rc3+release.45488.8127a152.gl/isaacsim_robot_motion-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:0981b403f3a91da7ef22f28c18118b6f7668097330dd66a376c082a6329ebf4a" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-robot-motion/6.1.0rc3+release.45488.8127a152.gl/isaacsim_robot_motion-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:e220c5822afea804593f9da40340d223af56b16f29830522c0ca2020cdbcd8c7" },
 ]
 
 [[package]]
 name = "isaacsim-robot-setup"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-robot-motion", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-robot-setup/isaacsim_robot_setup-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:44964c6f3aec367b170afd9a96877c09d7b4ed9e0da3f075eada4a48e56d1298" },
-    { url = "https://pypi.nvidia.com/isaacsim-robot-setup/isaacsim_robot_setup-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:b199045e8f8d9ca9806e5d7eb8a119654746cff8bc33a2ef254494502d832ea2" },
-    { url = "https://pypi.nvidia.com/isaacsim-robot-setup/isaacsim_robot_setup-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:e57993e7a658a90300967969965b2d9e05210752b9cb41b645d57b69764b7efc" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-robot-setup/6.1.0rc3+release.45488.8127a152.gl/isaacsim_robot_setup-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:31cc326378dfca1150e8c0ea94ccaecc047a1bd17f030fd28b718948cea59401" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-robot-setup/6.1.0rc3+release.45488.8127a152.gl/isaacsim_robot_setup-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:b1900c6b76e7df24fd6e78bcd8e6b93b9c1ab8da78a49a97a8c8f5c48de37aa9" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-robot-setup/6.1.0rc3+release.45488.8127a152.gl/isaacsim_robot_setup-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:57e330fc905965abe2c33d828e6eef6ceb2f740fc8e2dcd157e1bdf16b269e9e" },
 ]
 
 [[package]]
 name = "isaacsim-ros1"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-sensor", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-ros1/isaacsim_ros1-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:b8b37ebea3e070d4f1e6eb212351a6cfb646b3b2d619606eb6a664279677740c" },
-    { url = "https://pypi.nvidia.com/isaacsim-ros1/isaacsim_ros1-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:3ce21fa59dc5c717452f3c038064fc294b139200a2d35a35b92032117f20db41" },
-    { url = "https://pypi.nvidia.com/isaacsim-ros1/isaacsim_ros1-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:918e26f5f5cbb88847850fcbcd96cf4773b4c06b0f364233f320bb76c16d7d85" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-ros1/6.1.0rc3+release.45488.8127a152.gl/isaacsim_ros1-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:60b05da4945d9a16f8f8879ac324483b9bbe34257d0130bec696ed04a7eb1767" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-ros1/6.1.0rc3+release.45488.8127a152.gl/isaacsim_ros1-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:569d91342f88fb071c4324326f582bedacaf0b736a21f14789d250682f313301" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-ros1/6.1.0rc3+release.45488.8127a152.gl/isaacsim_ros1-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:8f919b75829992f1f33d6f5ff6587cc2495b2079b18650d6b04b5d4ae9adb09e" },
 ]
 
 [[package]]
 name = "isaacsim-ros2"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-sensor", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-ros2/isaacsim_ros2-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:6af2ee7fd199929fe922aa82db22c20853a941413b0f177249eb89d19bf68972" },
-    { url = "https://pypi.nvidia.com/isaacsim-ros2/isaacsim_ros2-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:3bbfc86ecf12a67858bbb4a226a2acbbcc3b754f504da1a78ba4bf80dde8fae7" },
-    { url = "https://pypi.nvidia.com/isaacsim-ros2/isaacsim_ros2-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:74e76fe2e6e101e47b1c01374d0f00fab2e9a55911d30ca3501d2f4f48e20687" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-ros2/6.1.0rc3+release.45488.8127a152.gl/isaacsim_ros2-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:805686400303e591178c27c2cf5dd4a07a3de604c7eca7928749cf458e70ea71" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-ros2/6.1.0rc3+release.45488.8127a152.gl/isaacsim_ros2-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:571b29a155ecc6c2c19256d44d3275fd8cee403680483077723b275190e7fc88" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-ros2/6.1.0rc3+release.45488.8127a152.gl/isaacsim_ros2-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:72b0988d3a7d5a349f26d1267896e5bc9365593e772214359d12458e06b25d48" },
 ]
 
 [[package]]
 name = "isaacsim-sensor"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-gui", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaacsim-storage", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaacsim-utils", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-sensor/isaacsim_sensor-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:8da6503842e36bd6a171bef986365058c523428777e22aa347b7b1a40aedf5c7" },
-    { url = "https://pypi.nvidia.com/isaacsim-sensor/isaacsim_sensor-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:d4fbcda65fb9ea5c1c8a097d015130dabd6ea0416a878068d4a92fa7ef2f9594" },
-    { url = "https://pypi.nvidia.com/isaacsim-sensor/isaacsim_sensor-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:2f027b1605627b3eba69f89bc893e3b5be345bcffae215e90e329151e40b2851" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-sensor/6.1.0rc3+release.45488.8127a152.gl/isaacsim_sensor-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:fbaf5b361a6076a72b484cd3b63572042d0129a58a8930f8e9f5812328ee246a" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-sensor/6.1.0rc3+release.45488.8127a152.gl/isaacsim_sensor-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:99734f8c9f5e439283f91d54e09dbcfe4d0b166c554863ae028fa06dc9cfe763" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-sensor/6.1.0rc3+release.45488.8127a152.gl/isaacsim_sensor-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:e5ff73d1eac286c02f63388075890b4cc6d7a6978619bd214b116fdeb19abe80" },
 ]
 
 [[package]]
 name = "isaacsim-storage"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-kernel", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-storage/isaacsim_storage-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:f5725168ec6d188b35667b9b65c9414b525d809a9ee7b51a571976a8b406aa03" },
-    { url = "https://pypi.nvidia.com/isaacsim-storage/isaacsim_storage-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:66b5734f9104066395a97ae9dcecb5855a1a4201eb9dea3c01e012b39a1968fe" },
-    { url = "https://pypi.nvidia.com/isaacsim-storage/isaacsim_storage-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:fc0f50818c0d1d12424464e61bf95c679ed8748925b3eca1108789d40d830bcc" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-storage/6.1.0rc3+release.45488.8127a152.gl/isaacsim_storage-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:062b7a797d0e783f2f1bcc911d46fbcf21014ea12b9bd1ddefb95d0cfb6bb01e" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-storage/6.1.0rc3+release.45488.8127a152.gl/isaacsim_storage-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:4197f88af25f9cdd8e73925ee1ef97ea5c6b65e43124afd81892102268a5e149" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-storage/6.1.0rc3+release.45488.8127a152.gl/isaacsim_storage-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:e5296a538eef5ee8392e4b62d286fcf3f965cf096504b612a34d2263cb442269" },
 ]
 
 [[package]]
 name = "isaacsim-template"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-gui", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaacsim-storage", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-template/isaacsim_template-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:aea5a8f6d5da836680b69d74a37dd0ab2860e2ee39d7cad48b155eb4b5cc7ec5" },
-    { url = "https://pypi.nvidia.com/isaacsim-template/isaacsim_template-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:5b5c8697847002a49cfd342ba3aeb313c5c574e0da7fc56cd1e3861ebd654a27" },
-    { url = "https://pypi.nvidia.com/isaacsim-template/isaacsim_template-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:4634bf5da8e09a9bc30a28610f315f7003d3915e27de78e9fd951cb360fb62b8" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-template/6.1.0rc3+release.45488.8127a152.gl/isaacsim_template-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:33d0de3446d4d269054d2e7328655cca5381d37ecb4578d592a92fdd7d96401f" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-template/6.1.0rc3+release.45488.8127a152.gl/isaacsim_template-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:e42bf304cc36f7ddccc4477f1e16d24222d0397aa2a972aaf58d9be05b89140f" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-template/6.1.0rc3+release.45488.8127a152.gl/isaacsim_template-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:e12b3bb4693ce7ff94593609dc328ec40f758ecec47068bdca955f4ccda25383" },
 ]
 
 [[package]]
 name = "isaacsim-test"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-robot", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-test/isaacsim_test-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:cd4ff4114aa5af9d720f2a071d5af50053d9a9a24aefda59985876b2e5b6a953" },
-    { url = "https://pypi.nvidia.com/isaacsim-test/isaacsim_test-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:90b7b58d7bed986c0e523f88411706394c5fd9c24911016b6c38b713c4b9aa66" },
-    { url = "https://pypi.nvidia.com/isaacsim-test/isaacsim_test-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:d3a6d1ae818c73230b18b86c102aa67c38ee38b966d86f9178149da83fecdb4d" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-test/6.1.0rc3+release.45488.8127a152.gl/isaacsim_test-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:fc842ea4a1c0e42f79f98e24e16c536797925459af6ca2ee806554723cd4fd0d" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-test/6.1.0rc3+release.45488.8127a152.gl/isaacsim_test-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:f891dff4f1cbca2e24ce563c16054b668606a609c02b82dafbe8b171353c4882" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-test/6.1.0rc3+release.45488.8127a152.gl/isaacsim_test-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:0a8cc73554ec7d008d4aacd539df314e721ac6361f553fecc957316ae326283e" },
 ]
 
 [[package]]
 name = "isaacsim-utils"
-version = "6.0.1.0"
-source = { registry = "https://pypi.nvidia.com/" }
+version = "6.1.0rc3+release.45488.8127a152.gl"
+source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple" }
 dependencies = [
     { name = "isaacsim-gui", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-utils/isaacsim_utils-6.0.1.0-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:1d5c051e8ffe086cab88905f31593c45658604ca044e74550f422579790a0668" },
-    { url = "https://pypi.nvidia.com/isaacsim-utils/isaacsim_utils-6.0.1.0-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:588a32a81e430c8f9759c8769f41bd76e6ca5c39351bd0bdb8f9fb5888715b53" },
-    { url = "https://pypi.nvidia.com/isaacsim-utils/isaacsim_utils-6.0.1.0-cp312-none-win_amd64.whl", hash = "sha256:ddd00712bb7c8d8f3b36a0938424f90f426e246dadfac8efa36d11358e1c43af" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-utils/6.1.0rc3+release.45488.8127a152.gl/isaacsim_utils-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_aarch64.whl", hash = "sha256:12aee4f3313da8baa26611742e07a80cbe302a674d78980681d2477abc1888f3" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-utils/6.1.0rc3+release.45488.8127a152.gl/isaacsim_utils-6.1.0rc3+release.45488.8127a152.gl-cp312-none-manylinux_2_35_x86_64.whl", hash = "sha256:506a119311c00a852cffdaa1684c475a0d1d0837680059f7f23ca85786bbbf79" },
+    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/packages/isaacsim-utils/6.1.0rc3+release.45488.8127a152.gl/isaacsim_utils-6.1.0rc3+release.45488.8127a152.gl-cp312-none-win_amd64.whl", hash = "sha256:d2adea80b33537953b5798d0c1c958b7bf3a1a26fc8749e88f1ac826a958bd52" },
 ]
 
 [[package]]
@@ -3208,7 +3213,7 @@ wheels = [
 
 [[package]]
 name = "mujoco-usd-converter"
-version = "0.2.0"
+version = "0.4.0rc1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mujoco", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -3217,9 +3222,9 @@ dependencies = [
     { name = "tinyobjloader", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "usd-exchange", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/71/33/fc9c68f45aa6a6bc4d7012cfc5568b583577628d9c4f011c2816f2e3b0d2/mujoco_usd_converter-0.2.0.tar.gz", hash = "sha256:7aebb06590573583d642616fbaa7523cf098a7b31621023ef48d50538eef3e8a", size = 301687, upload-time = "2026-04-29T23:02:32.558Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/75/f2/491dfd2b0b2c74dbaeef6caa2797068292eb0d42dbfa92f6db822dae4514/mujoco_usd_converter-0.4.0rc1.tar.gz", hash = "sha256:59e76cfb985b80693914ff7b0f8b18161b4af62ee4c9b4822dd43e90e391fbee", size = 306027, upload-time = "2026-07-11T01:16:35.949Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/59/b91b7e63876f534dd9f77d7aca3102c4a3beb9d505fa4942412e82825d60/mujoco_usd_converter-0.2.0-py3-none-any.whl", hash = "sha256:2c8e3e1b607cb48990106a99ad7eb7438e56e8d93dd934e4951b6ae8d0e4cced", size = 52586, upload-time = "2026-04-29T23:02:31.24Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/2c/46784e3b1a94e87b0dcdb5a67623fcfaa19dcacc81b97605dd7e68744703/mujoco_usd_converter-0.4.0rc1-py3-none-any.whl", hash = "sha256:32573b4e5b7e2f013abb9371b9b3f15f697c597ba1fb983386cd9816ade48edc", size = 53567, upload-time = "2026-07-11T01:16:34.345Z" },
 ]
 
 [[package]]
@@ -3341,17 +3346,6 @@ importers = [
 sim = [
     { name = "mujoco", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "mujoco-warp", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-]
-
-[[package]]
-name = "newton-actuators"
-version = "0.1.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "warp-lang", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/53/ee/3119604cad4ca894fb80ef8ccd06b6bbd0b485b38ddc152ca753c67e0e76/newton_actuators-0.1.0-py3-none-any.whl", hash = "sha256:ba08923d12faaed6ef2b36d06948321425aee11d2f67c43cbd74d88a2649acce", size = 25990, upload-time = "2026-01-28T10:17:14.975Z" },
 ]
 
 [[package]]
@@ -3765,7 +3759,7 @@ wheels = [
 
 [[package]]
 name = "onnxruntime"
-version = "1.28.0"
+version = "1.26.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "flatbuffers", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -3774,9 +3768,9 @@ dependencies = [
     { name = "protobuf", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/28/5b/1d77e62097fdbe07e2dc827f389b1c4c0c275f6fab0369a8f46d2461af27/onnxruntime-1.28.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:4e81a23df16e7acb9d51b06d30cc098e49315ef9180f97bc2221d167b4b04d9c", size = 17050628, upload-time = "2026-07-25T01:21:40.481Z" },
-    { url = "https://files.pythonhosted.org/packages/95/df/5486ab03e9be288d5268867054c8b04bebcf95bfd12e801c05cc67703dab/onnxruntime-1.28.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0a83bdb70d143cede762b677789bf2a7acca54b3fb82565601d5c30695aa933c", size = 19214257, upload-time = "2026-07-25T01:22:01.695Z" },
-    { url = "https://files.pythonhosted.org/packages/3e/3b/986ca67c274932ba9ac5332fb10de56f643dfd433c74e33f8ae8f847cf24/onnxruntime-1.28.0-cp312-cp312-win_amd64.whl", hash = "sha256:c35064f9b3c43c81c5d5d282091401d0f1ff22796d93ccade4ea2ece5e137ab8", size = 13755036, upload-time = "2026-07-25T01:22:26.89Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/a0/3f9d896a0385a36bd04345d6d0b802821a5782adde562e7e135f6bb71c73/onnxruntime-1.26.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:91f2bb870a4b9224eba0a6728c1fa7a9e552b8e59e1083c51fbbc3d013f2b5c0", size = 16052692, upload-time = "2026-05-08T19:07:13.829Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/43/2a4e04f8dbeffad19bbcced4bcd4289bf478921518437404d6b92bdf213b/onnxruntime-1.26.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9b6dd70599005bd1bf29779f04a91978b92b5e719c11a20068a8f8e535f725b6", size = 18185439, upload-time = "2026-05-08T19:07:36.299Z" },
+    { url = "https://files.pythonhosted.org/packages/44/fc/026d0a7162b9c2153dac292baea9e027c42304dc1d9dc6f8ff5b4cfbaedd/onnxruntime-1.26.0-cp312-cp312-win_amd64.whl", hash = "sha256:a26374dc7fbcaae593601086b242120e13f2310558df0991da6dd8b8fac00414", size = 13026427, upload-time = "2026-05-08T19:08:03.503Z" },
 ]
 
 [[package]]
@@ -4287,6 +4281,18 @@ wheels = [
 ]
 
 [[package]]
+name = "py-trees"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydot", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/79/9c/b8c39a86ce887e3547b415e6bd61b70e1004af0a8ba1b44e75233a4406a2/py_trees-2.4.0.tar.gz", hash = "sha256:cd8738a80e7422aec2b133270b6aa92e3e83926ded2ba9b3614028dba99cdb41", size = 85359, upload-time = "2025-11-13T22:46:01.41Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7d/0a/2e0c30342586dabb0b4b7946393a7aeb725fca7b4549fb02e128a1a0fe87/py_trees-2.4.0-py3-none-any.whl", hash = "sha256:c26a2d23f70871ce093abd5f8425998529bfe7b97cc563316e9c3c9cec20c312", size = 114099, upload-time = "2025-11-13T22:45:58.884Z" },
+]
+
+[[package]]
 name = "pyarrow"
 version = "22.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4434,6 +4440,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ae/8e/add936feaaa9dade7d5b87c6852566d85e518b38ad32224dea32ef958984/pydata_sphinx_theme-0.20.0.tar.gz", hash = "sha256:0da172d41e19a66de875f4002f7054b385372ec65763852193791e658d50bb4a", size = 5004756, upload-time = "2026-07-09T09:09:14.693Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/80/08/28e2194ed1c3c3a3e86e0600e2dcc7f21dcd670bd31f3efab2e3e2cf0cbd/pydata_sphinx_theme-0.20.0-py3-none-any.whl", hash = "sha256:56744483c9d72c783e075de716ab95d486108b69605df7528078090b73f11f69", size = 6201166, upload-time = "2026-07-09T09:09:12.899Z" },
+]
+
+[[package]]
+name = "pydot"
+version = "4.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyparsing", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/50/35/b17cb89ff865484c6a20ef46bf9d95a5f07328292578de0b295f4a6beec2/pydot-4.0.1.tar.gz", hash = "sha256:c2148f681c4a33e08bf0e26a9e5f8e4099a82e0e2a068098f32ce86577364ad5", size = 162594, upload-time = "2025-06-17T20:09:56.454Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/32/a7125fb28c4261a627f999d5fb4afff25b523800faed2c30979949d6facd/pydot-4.0.1-py3-none-any.whl", hash = "sha256:869c0efadd2708c0be1f916eb669f3d664ca684bc57ffb7ecc08e70d5e93fee6", size = 37087, upload-time = "2025-06-17T20:09:55.25Z" },
 ]
 
 [[package]]
@@ -5759,6 +5777,18 @@ wheels = [
 ]
 
 [[package]]
+name = "transitions"
+version = "0.9.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4f/83/9e90f3494057d73c9e6bd8de8488af7c9fa714666ccc2db30fe07d147818/transitions-0.9.3.tar.gz", hash = "sha256:881fb75bb1654ed55d86060bb067f2c716f8e155f57bb73fd444e53713aafec8", size = 1191029, upload-time = "2025-07-02T10:49:03.153Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/05/fea3020e90aa378941ff10de8860fb3b1288313c27efd10fa0c476498f7e/transitions-0.9.3-py2.py3-none-any.whl", hash = "sha256:02463248f2b668d86f66636b1e3c9e8de84d93e22915247f4e1aa9ee1cae28aa", size = 112792, upload-time = "2025-07-02T10:49:01.415Z" },
+]
+
+[[package]]
 name = "trimesh"
 version = "4.11.1"
 source = { registry = "https://pypi.org/simple" }
@@ -5811,7 +5841,7 @@ wheels = [
 
 [[package]]
 name = "urdf-usd-converter"
-version = "0.1.3"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "newton-usd-schemas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -5820,9 +5850,9 @@ dependencies = [
     { name = "tinyobjloader", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "usd-exchange", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/73/de/1ba6cd4d985e617024cd7a50d9e269690c39ab9a4e08d3ba5023e63ab0ec/urdf_usd_converter-0.1.3.tar.gz", hash = "sha256:954f15a5c7f5a772b2df6eb206749a1af712de840cafb8e8a5d92349b9d32c86", size = 213029, upload-time = "2026-05-22T20:11:07.017Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/4b/c6388dc1138a1ee3ad517698e75500a1d0de051c6ae4a54ec9fc60b31cd6/urdf_usd_converter-0.3.0.tar.gz", hash = "sha256:b3b86433fea1248b5d5599e563c5e19dcde7654c4bb9568b9ad901daf1c81303", size = 215848, upload-time = "2026-07-09T18:48:25.689Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0d/05/49564250b895976fd75dfddcccffb92283c1422a17aa7bf54d5b5adb0646/urdf_usd_converter-0.1.3-py3-none-any.whl", hash = "sha256:0db78b712ac99eed1b9180ce3d1d293020713476b818a31c56d2eee1c3f85fb6", size = 62288, upload-time = "2026-05-22T20:11:04.83Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/3f/08f16256e37eaece3e2bf9b1603259beaa1d736053fde32e5d81d5f15257/urdf_usd_converter-0.3.0-py3-none-any.whl", hash = "sha256:eab45e1e7a836d1128a601b7e56b1d6ca89ae8921793f988aed68c47de1aa419", size = 62907, upload-time = "2026-07-09T18:48:24.561Z" },
 ]
 
 [[package]]
