@@ -134,14 +134,14 @@ class OpenarmCubeStackVisuomotorEnvCfg(stack_ik_abs_env_cfg.OpenarmCubeStackEnvC
             ),
         )
 
-        # ── Body camera (attached to openarm_body_link, front of torso at shoulder height) ─
+        # ── Body camera (attached to openarm_body_link0, front of torso at shoulder height) ─
         # Positioned at the front face of the central body pillar, ~65 cm above the base,
         # matching the real OpenArm robot's chest-mounted camera location.
-        # pos=(0.12, 0, 0.65) relative to openarm_body_link; looks toward workspace center.
+        # pos=(0.12, 0, 0.65) relative to openarm_body_link0; looks toward workspace center.
         # Rotation: camera looks forward (+X world) and 60° downward toward the workspace.
         # To retune: adjust pos/rot manually in Isaac Sim, then copy values here.
         self.scene.body_cam = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/openarm_body_link/body_cam",
+            prim_path="{ENV_REGEX_NS}/Robot/openarm_body_link0/body_cam",
             update_period=0.0,
             height=480,
             width=640,

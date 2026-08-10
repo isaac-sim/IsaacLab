@@ -14,13 +14,13 @@
     <visual name="openarm_body_link0_visual">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/body/visual/body_link0.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/body/visual/body_link0.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_body_link0_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/body/collision/body_link0_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/body/collision/body_link0_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -39,13 +39,13 @@
     <visual name="openarm_left_link0_visual">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link0.dae" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link0.dae" scale="0.001 -0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_left_link0_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link0_symp.stl" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link0_symp.stl" scale="0.001 -0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -59,13 +59,13 @@
     <visual name="openarm_left_link1_visual">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 0.0 -0.0625"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link1.dae" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link1.dae" scale="0.001 -0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_left_link1_collision">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 0.0 -0.0625"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link1_symp.stl" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link1_symp.stl" scale="0.001 -0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -86,13 +86,13 @@
     <visual name="openarm_left_link2_visual">
       <origin rpy="0.0 0.0 0.0" xyz="0.0301 0.0 -0.1225"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link2.dae" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link2.dae" scale="0.001 -0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_left_link2_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0301 0.0 -0.1225"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link2_symp.stl" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link2_symp.stl" scale="0.001 -0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -113,13 +113,13 @@
     <visual name="openarm_left_link3_visual">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 -0.0 -0.18875"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link3.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link3.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_left_link3_collision">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 -0.0 -0.18875"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link3_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link3_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -140,13 +140,13 @@
     <visual name="openarm_left_link4_visual">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.0315 -0.3425"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link4.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link4.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_left_link4_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.0315 -0.3425"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link4_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link4_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -167,13 +167,13 @@
     <visual name="openarm_left_link5_visual">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 -0.0 -0.438"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link5.dae" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link5.dae" scale="0.001 -0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_left_link5_collision">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 -0.0 -0.438"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link5_symp.stl" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link5_symp.stl" scale="0.001 -0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -194,13 +194,13 @@
     <visual name="openarm_left_link6_visual">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0375 -0.0 -0.5585"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link6.dae" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link6.dae" scale="0.001 -0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_left_link6_collision">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0375 -0.0 -0.5585"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link6_symp.stl" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link6_symp.stl" scale="0.001 -0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -221,13 +221,13 @@
     <visual name="openarm_left_link7_visual">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.0 -0.5585"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link7.dae" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link7.dae" scale="0.001 -0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_left_link7_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.0 -0.5585"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link7_symp.stl" scale="0.001 -0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link7_symp.stl" scale="0.001 -0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -253,13 +253,13 @@
     <visual name="openarm_right_link0_visual">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link0.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link0.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_right_link0_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link0_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link0_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -273,13 +273,13 @@
     <visual name="openarm_right_link1_visual">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 0.0 -0.0625"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link1.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link1.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_right_link1_collision">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 0.0 -0.0625"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link1_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link1_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -300,13 +300,13 @@
     <visual name="openarm_right_link2_visual">
       <origin rpy="0.0 0.0 0.0" xyz="0.0301 0.0 -0.1225"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link2.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link2.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_right_link2_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0301 0.0 -0.1225"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link2_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link2_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -327,13 +327,13 @@
     <visual name="openarm_right_link3_visual">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 -0.0 -0.18875"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link3.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link3.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_right_link3_collision">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 -0.0 -0.18875"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link3_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link3_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -354,13 +354,13 @@
     <visual name="openarm_right_link4_visual">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.0315 -0.3425"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link4.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link4.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_right_link4_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.0315 -0.3425"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link4_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link4_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -381,13 +381,13 @@
     <visual name="openarm_right_link5_visual">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 -0.0 -0.438"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link5.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link5.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_right_link5_collision">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0 -0.0 -0.438"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link5_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link5_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -408,13 +408,13 @@
     <visual name="openarm_right_link6_visual">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0375 -0.0 -0.5585"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link6.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link6.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_right_link6_collision">
       <origin rpy="0.0 0.0 0.0" xyz="-0.0375 -0.0 -0.5585"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link6_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link6_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -435,13 +435,13 @@
     <visual name="openarm_right_link7_visual">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.0 -0.5585"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/visual/link7.dae" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/link7.dae" scale="0.001 0.001 0.001"/>
       </geometry>
     </visual>
     <collision name="openarm_right_link7_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 -0.0 -0.5585"/>
       <geometry>
-        <mesh filename="package://openarm_description/assets/robot/openarm_v1.0/mesh/arm/collision/link7_symp.stl" scale="0.001 0.001 0.001"/>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/collision/link7_symp.stl" scale="0.001 0.001 0.001"/>
         <!-- <mesh filename="package://openarm_description/meshes/arm/${arm_type}/collision/${name}.stl" scale="0.001 0.001 0.001" /> -->
       </geometry>
     </collision>
@@ -458,11 +458,11 @@
     <axis xyz="0 1 0"/>
     <limit effort="7" lower="-1.570796" upper="1.570796" velocity="20.943946"/>
   </joint>
-  <link name="openarm_left_hand_tcp"/>
-  <joint name="openarm_left_hand_tcp_joint" type="fixed">
+  <link name="openarm_left_ee_tcp"/>
+  <joint name="openarm_left_ee_tcp_joint" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0"/>
     <parent link="openarm_left_link7"/>
-    <child link="openarm_left_hand_tcp"/>
+    <child link="openarm_left_ee_tcp"/>
   </joint>
   <link name="openarm_left_left_finger">
     <visual name="openarm_left_left_finger_visual">
@@ -531,11 +531,11 @@
       <limit effort="333" lower="0.0" upper="0.044" velocity="10.0" />
       <mimic joint="${ee_prefix}finger_joint1" />
     </joint> -->
-  <link name="openarm_right_hand_tcp"/>
-  <joint name="openarm_right_hand_tcp_joint" type="fixed">
+  <link name="openarm_right_ee_tcp"/>
+  <joint name="openarm_right_ee_tcp_joint" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0"/>
     <parent link="openarm_right_link7"/>
-    <child link="openarm_right_hand_tcp"/>
+    <child link="openarm_right_ee_tcp"/>
   </joint>
   <link name="openarm_right_left_finger">
     <visual name="openarm_right_left_finger_visual">
@@ -605,6 +605,12 @@
       <mimic joint="${ee_prefix}finger_joint1" />
     </joint> -->
   <link name="openarm_left_camera_link">
+    <visual name="openarm_left_camera_visual">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/cam.dae" scale="0.001 -0.001 0.001"/>
+      </geometry>
+    </visual>
     <collision name="openarm_left_camera_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
       <geometry>
@@ -615,9 +621,15 @@
   <joint name="openarm_left_camera_joint" type="fixed">
     <parent link="openarm_left_link7"/>
     <child link="openarm_left_camera_link"/>
-    <origin rpy="0 0 0" xyz="0.04 0.0 0.0"/>
+    <origin rpy="0 0 0" xyz="0.0 0.0 0.06"/>
   </joint>
   <link name="openarm_right_camera_link">
+    <visual name="openarm_right_camera_visual">
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://v1_camera_isaac/mesh/arm/visual/cam.dae" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </visual>
     <collision name="openarm_right_camera_collision">
       <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
       <geometry>
@@ -628,6 +640,6 @@
   <joint name="openarm_right_camera_joint" type="fixed">
     <parent link="openarm_right_link7"/>
     <child link="openarm_right_camera_link"/>
-    <origin rpy="0 0 0" xyz="0.04 0.0 0.0"/>
+    <origin rpy="0 0 0" xyz="0.0 0.0 0.06"/>
   </joint>
 </robot>

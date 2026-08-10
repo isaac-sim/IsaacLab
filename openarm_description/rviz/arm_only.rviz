@@ -6,7 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
       Splitter Ratio: 0.5
-    Tree Height: 139
+    Tree Height: 758
   - Class: rviz_common/Views
     Expanded:
       - /Current View1
@@ -51,141 +51,69 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
-        openarm_left_hand:
+        openarm_hand:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_left_hand_tcp:
+        openarm_ee_tcp:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        openarm_left_left_finger:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        openarm_left_link0:
+        openarm_left_finger:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_left_link1:
+        openarm_link0:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_left_link2:
+        openarm_link1:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_left_link3:
+        openarm_link2:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_left_link4:
+        openarm_link3:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_left_link5:
+        openarm_link4:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_left_link6:
+        openarm_link5:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_left_link7:
+        openarm_link6:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_left_link8:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        openarm_left_right_finger:
+        openarm_link7:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_right_hand:
+        openarm_link8:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        openarm_right_finger:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        openarm_right_hand_tcp:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        openarm_right_left_finger:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        openarm_right_link0:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        openarm_right_link1:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        openarm_right_link2:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        openarm_right_link3:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        openarm_right_link4:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        openarm_right_link5:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        openarm_right_link6:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        openarm_right_link7:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        openarm_right_link8:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        openarm_right_right_finger:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        v10_body_link0:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        world:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
       Mass Properties:
         Inertia: false
         Mass: false
@@ -223,7 +151,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 5
+      Distance: 2.424237012863159
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -246,12 +174,12 @@ Visualization Manager:
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 826
+  Height: 1922
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000100000000000001da000002a8fc0200000002fb000000100044006900730070006c0061007900730100000069000001790000017800fffffffb0000000a0056006900650077007301000001ee000001230000012300ffffff000002ca000002a800000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000100000000000001da000006f0fc0200000002fb000000100044006900730070006c0061007900730100000069000003e40000017800fffffffb0000000a005600690065007700730100000459000003000000012300ffffff00000afa000006f000000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
     collapsed: false
-  Width: 1200
-  X: 42
+  Width: 3296
+  X: 0
   Y: 64
