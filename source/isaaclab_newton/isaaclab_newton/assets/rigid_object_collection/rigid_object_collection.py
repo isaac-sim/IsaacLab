@@ -205,6 +205,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 inputs=[
                     composer.out_force_b,
                     composer.out_torque_b,
+                    self._data.body_link_pose_w.warp,
                     self._wrench_buffer,
                     self._ALL_ENV_MASK,
                     self._ALL_BODY_MASK,

@@ -10,9 +10,8 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
-from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
@@ -370,15 +369,17 @@ class orientation_command_progress(_ProgressReward):
         return self._progress(quat_distance, gate, min_improvement, command)
 
 
-def deformable_lifted(
+def deformable_lifting(
     env: ManagerBasedRLEnv,
+    std: float,
     minimal_height: float,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
 ) -> torch.Tensor:
-    """Reward if the deformable COM is above a minimum height."""
+    """Reward lifting the deformable COM above ``minimal_height`` [m] with a tanh kernel (``std`` [m])."""
     asset: DeformableObject = env.scene[asset_cfg.name]
-    com_z = wp.to_torch(asset.data.root_pos_w)[:, 2]
-    return torch.where(com_z > minimal_height, 1.0, 0.0)
+    com_z = asset.data.root_pos_w.torch[:, 2]
+    height = (com_z - minimal_height).clamp(min=0.0)
+    return torch.tanh(height / std)
 
 
 def deformable_ee_distance(
@@ -387,33 +388,85 @@ def deformable_ee_distance(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
     ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
 ) -> torch.Tensor:
-    """Reward reaching the deformable's nearest nodal point with the end-effector."""
+    """Reward end-effector proximity to the nearest deformable node with a tanh kernel (``std`` [m])."""
     asset: DeformableObject = env.scene[asset_cfg.name]
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
-    nodal_pos_w = wp.to_torch(asset.data.nodal_pos_w)
-    ee_w = wp.to_torch(ee_frame.data.target_pos_w)[..., 0, :]
+    nodal_pos_w = asset.data.nodal_pos_w.torch
+    ee_w = ee_frame.data.target_pos_w.torch[..., 0, :]
     distance = torch.linalg.norm(nodal_pos_w - ee_w.unsqueeze(1), dim=2).min(dim=1).values
     return 1.0 - torch.tanh(distance / std)
 
 
-def deformable_com_goal_distance(
+def deformable_com_ee_distance(
     env: ManagerBasedRLEnv,
     std: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Reward end-effector proximity to the deformable COM with a tanh kernel (``std`` [m])."""
+    asset: DeformableObject = env.scene[asset_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+    com_w = asset.data.root_pos_w.torch
+    ee_w = ee_frame.data.target_pos_w.torch[..., 0, :]
+    distance = torch.linalg.norm(com_w - ee_w, dim=1)
+    return 1.0 - torch.tanh(distance / std)
+
+
+def _deformable_com_goal_metrics(
+    env: ManagerBasedRLEnv,
     minimal_height: float,
     command_name: str,
-    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
-) -> torch.Tensor:
-    """Reward tracking of the goal position by the deformable's COM."""
+    robot_cfg: SceneEntityCfg,
+    asset_cfg: SceneEntityCfg,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute deformable COM goal distance and lifted state."""
     robot: Articulation = env.scene[robot_cfg.name]
     asset: DeformableObject = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
-    des_pos_w, _ = combine_frame_transforms(
-        wp.to_torch(robot.data.root_pos_w), wp.to_torch(robot.data.root_quat_w), command[:, :3]
-    )
-    com_w = wp.to_torch(asset.data.root_pos_w)
-    distance = torch.linalg.norm(des_pos_w - com_w, dim=1)
-    return (com_w[:, 2] > minimal_height) * (1.0 - torch.tanh(distance / std))
+    des_pos_w, _ = combine_frame_transforms(robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, command[:, :3])
+    com_w = asset.data.root_pos_w.torch
+    return torch.linalg.norm(des_pos_w - com_w, dim=1), com_w[:, 2] > minimal_height
+
+
+class DeformableComGoalDistance(ManagerTermBase):
+    """Reward deformable COM goal tracking and log episode success."""
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self._succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        if env_ids is None:
+            env_ids = slice(None)
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean().item()
+        self._succeeded[env_ids] = False
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        std: float,
+        minimal_height: float,
+        command_name: str,
+        success_threshold: float,
+        robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
+    ) -> torch.Tensor:
+        distance, is_lifted = _deformable_com_goal_metrics(env, minimal_height, command_name, robot_cfg, asset_cfg)
+        self._succeeded |= is_lifted & (distance < success_threshold)
+        return is_lifted.float() * (1.0 - torch.tanh(distance / std))
+
+
+def deformable_com_goal_reached(
+    env: ManagerBasedRLEnv,
+    minimal_height: float,
+    command_name: str,
+    success_threshold: float,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("deformable"),
+) -> torch.Tensor:
+    """Reward the deformable COM for reaching the lifted goal."""
+    distance, is_lifted = _deformable_com_goal_metrics(env, minimal_height, command_name, robot_cfg, asset_cfg)
+    return (is_lifted & (distance < success_threshold)).float()
 
 
 def gripper_close_action(env: ManagerBasedRLEnv, action_name: str = "gripper_action") -> torch.Tensor:
