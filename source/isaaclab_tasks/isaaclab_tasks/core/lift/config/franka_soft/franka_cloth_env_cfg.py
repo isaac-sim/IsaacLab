@@ -260,6 +260,8 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         super().__post_init__()
         # override the soft-beam physics with the cloth presets
         self.sim.physics = PhysicsCfg()
+        # Fully close the gripper on the thin cloth; the shared beam default only closes to 0.01 m.
+        self.actions.ik.gripper_action.close_command_expr = {"panda_finger_joint1": 0.0}
 
 
 @configclass

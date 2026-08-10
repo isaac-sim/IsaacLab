@@ -366,7 +366,7 @@ class _IkActionsCfg:
         asset_name="robot",
         joint_names=["panda_finger_joint1"],
         open_command_expr={"panda_finger_joint1": 0.04},
-        close_command_expr={"panda_finger_joint1": 0.015},
+        close_command_expr={"panda_finger_joint1": 0.01},
     )
 
 
