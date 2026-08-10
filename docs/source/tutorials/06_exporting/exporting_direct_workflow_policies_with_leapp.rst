@@ -117,6 +117,13 @@ points to the trained RSL-RL checkpoint to export. The optional
 ``--export_save_path`` argument selects the output directory for the exported
 artifacts. If you omit it, the export is written next to the checkpoint.
 
+.. note::
+
+   Unlike with managed environments, ``export_method`` is not a command-line option.
+   Set the export backend in the output annotation itself, for example
+   ``annotate.output_tensors(..., export_with="onnx-dynamo")``. See the following
+   output annotation example for guidance.
+
 .. warning::
 
    This tutorial covers exporting direct rl policies only. direct rl

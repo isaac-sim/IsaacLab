@@ -15,9 +15,11 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 
 import omni.kit.app
+from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
@@ -52,6 +54,44 @@ def test_spawn_usd(sim):
     assert prim.IsValid()
     assert sim.stage.GetPrimAtPath("/World/Franka").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_usd_make_uninstanceable_applies_material_to_instance_colliders(sim, tmp_path):
+    """Test applying a physics material to colliders inside an instanceable USD asset."""
+    geometry_path = tmp_path / "geometry.usda"
+    geometry_stage = Usd.Stage.CreateNew(str(geometry_path))
+    geometry_root = UsdGeom.Xform.Define(geometry_stage, "/Geometry").GetPrim()
+    geometry_stage.SetDefaultPrim(geometry_root)
+    collider = UsdGeom.Cube.Define(geometry_stage, "/Geometry/Collider").GetPrim()
+    UsdPhysics.CollisionAPI.Apply(collider)
+    geometry_stage.GetRootLayer().Save()
+
+    asset_path = tmp_path / "asset.usda"
+    asset_stage = Usd.Stage.CreateNew(str(asset_path))
+    asset_root = UsdGeom.Xform.Define(asset_stage, "/Asset").GetPrim()
+    asset_stage.SetDefaultPrim(asset_root)
+    instance = UsdGeom.Xform.Define(asset_stage, "/Asset/collisions").GetPrim()
+    instance.GetReferences().AddReference(str(geometry_path), "/Geometry")
+    instance.SetInstanceable(True)
+    asset_stage.GetRootLayer().Save()
+
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=str(asset_path),
+        make_uninstanceable=True,
+        physics_material=[UsdPhysicsRigidBodyMaterialCfg(static_friction=0.73)],
+    )
+    prim = cfg.func("/World/Asset", cfg)
+
+    assert prim.IsValid()
+    instance = sim.stage.GetPrimAtPath("/World/Asset/collisions")
+    collider = sim.stage.GetPrimAtPath("/World/Asset/collisions/Collider")
+    assert not instance.IsInstance()
+    assert not collider.IsInstanceProxy()
+    material = sim.stage.GetPrimAtPath("/World/Asset/material")
+    bound_material, _ = UsdShade.MaterialBindingAPI(collider).ComputeBoundMaterial(materialPurpose="physics")
+    assert bound_material.GetPath() == material.GetPath()
+    assert material.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.73)
 
 
 @pytest.mark.isaacsim_ci

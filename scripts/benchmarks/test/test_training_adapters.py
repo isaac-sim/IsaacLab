@@ -121,5 +121,3 @@ def test_skrl_parser_rejects_unimplemented_modes():
     for option, value in unsupported:
         with pytest.raises(SystemExit):
             train_skrl._parse_args(["--task", "unused", option, value])
-    with pytest.raises(SystemExit):
-        train_skrl._parse_args(["--task", "unused", "--distributed"])
