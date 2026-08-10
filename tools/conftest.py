@@ -22,6 +22,7 @@ from isaaclab.test.utils import resolve_test_sim_device
 
 # Local imports
 import test_settings as test_settings  # isort: skip
+from _crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
 from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -250,6 +251,52 @@ def _create_error_report(prefix, file_name, message, details):
     report = JUnitXml()
     report.add_testsuite(suite)
     return report
+
+
+def _make_crash_pass_result(
+    journal_file,
+    prefix,
+    pass_file_label,
+    message,
+    details,
+    report_file,
+    result,
+    wall_time,
+    fallback_time_elapsed=0.0,
+):
+    """Persist and return the pass result for a run that produced no JUnit report.
+
+    Prefers a report rebuilt from the crash journal so the real per-test verdicts survive, and
+    falls back to the single-entry :func:`_create_error_report` only when the run died before
+    journaling anything (a true startup hang, or an old image without the journaling conftest).
+    """
+    rebuilt = create_crash_report(journal_file, os.path.splitext(pass_file_label)[0], message, details)
+    if rebuilt is None:
+        report = _create_error_report(prefix, pass_file_label, message, details)
+        counters = {"errors": 1, "failures": 0, "skipped": 0, "tests": 1, "time_elapsed": fallback_time_elapsed}
+        logger.warning(f"🔎 {pass_file_label}: no crash journal, reporting a single {prefix} entry")
+    else:
+        report, counters, culprit = rebuilt
+        logger.info(
+            f"🔎 {pass_file_label}: recovered {counters['tests']} test result(s) from the crash journal"
+            f" ({counters['failures']} failed, {counters['skipped']} not run);"
+            f" blamed {culprit or 'session shutdown (all tests completed teardown)'}"
+        )
+
+    report.write(report_file)
+    return (
+        report,
+        {
+            "errors": counters["errors"],
+            "failures": counters["failures"],
+            "skipped": counters["skipped"],
+            "tests": counters["tests"],
+            "result": result,
+            "time_elapsed": counters["time_elapsed"],
+            "wall_time": wall_time,
+        },
+        True,
+    )
 
 
 def _get_diagnostics(pre_kill_diag=""):
@@ -641,6 +688,10 @@ def _run_one_pass(
     # shutdown_hang detections in sibling shards via the report-file existence check.
     report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")
     report_file = f"tests/test-reports-{report_slug}{suffix}.xml"
+    # Crash-durable progress log. pytest writes its JUnit XML only at session end, so this is
+    # the only record of what passed, failed, and was in flight when a run dies before that.
+    journal_file = f"tests/test-journal-{report_slug}{suffix}.jsonl"
+    pass_env = {**ctx.env, JOURNAL_ENV_VAR: journal_file}
 
     cmd = [
         sys.executable,
@@ -672,9 +723,11 @@ def _run_one_pass(
     while True:
         with contextlib.suppress(FileNotFoundError):
             os.remove(report_file)
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(journal_file)
 
         returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
-            cmd, ctx.timeout, ctx.env, startup_deadline=ctx.startup_deadline, report_file=report_file
+            cmd, ctx.timeout, pass_env, startup_deadline=ctx.startup_deadline, report_file=report_file
         )
 
         has_report = os.path.exists(report_file)
@@ -733,20 +786,15 @@ def _run_one_pass(
             details += "=== STDOUT (last 2000 chars) ===\n"
             details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
 
-        error_report = _create_error_report("startup_hang", pass_file_label, msg, details)
-        error_report.write(report_file)
-        return (
-            error_report,
-            {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "STARTUP_HANG",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            },
-            True,
+        return _make_crash_pass_result(
+            journal_file,
+            "startup_hang",
+            pass_file_label,
+            msg,
+            details,
+            report_file,
+            "STARTUP_HANG",
+            wall_time,
         )
 
     if kill_reason == "timeout" and not has_report:
@@ -763,20 +811,16 @@ def _run_one_pass(
             details += "=== STDERR (last 5000 chars) ===\n"
             details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
 
-        error_report = _create_error_report("timeout", pass_file_label, msg, details)
-        error_report.write(report_file)
-        return (
-            error_report,
-            {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "TIMEOUT",
-                "time_elapsed": ctx.timeout,
-                "wall_time": wall_time,
-            },
-            True,
+        return _make_crash_pass_result(
+            journal_file,
+            "timeout",
+            pass_file_label,
+            msg,
+            details,
+            report_file,
+            "TIMEOUT",
+            wall_time,
+            fallback_time_elapsed=ctx.timeout,
         )
 
     if not has_report:
@@ -797,20 +841,15 @@ def _run_one_pass(
             details += "=== STDERR (last 2000 chars) ===\n"
             details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
 
-        error_report = _create_error_report("crash", pass_file_label, reason, details)
-        error_report.write(report_file)
-        return (
-            error_report,
-            {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "CRASHED",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            },
-            True,
+        return _make_crash_pass_result(
+            journal_file,
+            "crash",
+            pass_file_label,
+            reason,
+            details,
+            report_file,
+            "CRASHED",
+            wall_time,
         )
 
     # -- Report file exists: parse actual test results -----------------
