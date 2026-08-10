@@ -113,9 +113,7 @@ def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) ->
         # peak magnitude to map into [-1, 1], remap to [0, 1], and pack the two channels into an RGB image
         # (u -> R, v -> G, unused B -> 0) so the result can be composed into a grid and saved as an image.
         uv = normalized[..., :2]
-        max_mag = uv.abs().max()
-        if max_mag > 0:
-            uv = uv / max_mag
+        uv = uv * 1000
         uv = (uv + 1.0) * 0.5
         blue = torch.zeros_like(uv[..., :1])
         normalized = torch.cat([uv, blue], dim=-1)
