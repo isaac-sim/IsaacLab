@@ -59,11 +59,13 @@ jobs:
           ^source/isaaclab_newton/isaaclab_newton/test/mock_interfaces/ :: Mock-interface implementation
           ^source/isaaclab_newton/test/test_mock_interfaces/ :: Kit-less pytest subset
           ^\.github/workflows/kitless-docker\.yml$ :: This workflow file
+          ^\.github/workflows/license-exceptions\.json$ :: Reviewed dependency licenses
           ^\.github/actions/detect-changes/ :: Change-detection action
           ^\.github/actions/_lib/compute-deps-hash/ :: Dependency-cache identity
           ^\.github/actions/docker-build/ :: Docker build action
           ^\.github/actions/ecr-build-push-pull/ :: ECR build-cache action
           ^\.github/actions/validate-kitless-image/ :: Kit-less image validation action
+          ^tools/license/check_docker_licenses\.sh$ :: Docker license policy
 
     - name: Set up uv
       if: steps.detect.outputs.should_run == 'true'
@@ -158,6 +160,90 @@ jobs:
       uses: ./.github/actions/validate-kitless-image
       with:
         image-tag: ${{ steps.tag.outputs.image_tag }}
+
+    - name: Pull Ubuntu base image
+      shell: bash
+      run: docker pull ubuntu:24.04
+
+    - name: Scan Ubuntu base dependency licenses
+      uses: aquasecurity/trivy-action@v0.36.0
+      env:
+        TRIVY_PKG_TYPES: os,library
+        TRIVY_SKIP_VERSION_CHECK: true
+      with:
+        scan-type: image
+        image-ref: ubuntu:24.04
+        scanners: license
+        format: json
+        output: trivy-ubuntu-licenses.json
+        exit-code: '0'
+        severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+        timeout: 30m
+
+    - name: Scan kit-less dependency licenses
+      uses: aquasecurity/trivy-action@v0.36.0
+      env:
+        TRIVY_PKG_TYPES: os,library
+        TRIVY_SKIP_VERSION_CHECK: true
+      with:
+        scan-type: image
+        image-ref: ${{ steps.tag.outputs.image_tag }}
+        scanners: license
+        format: json
+        output: trivy-kitless-licenses.json
+        exit-code: '0'
+        severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+        timeout: 30m
+        skip-setup-trivy: true
+
+    - name: Verify standalone FFmpeg is not distributed
+      shell: bash
+      run: |
+        set -euo pipefail
+        image_tag="${{ steps.tag.outputs.image_tag }}"
+        docker run --rm "$image_tag" bash -lc '
+          set -euo pipefail
+          system_ffmpeg="$(command -v ffmpeg || true)"
+          if [[ -n "$system_ffmpeg" ]]; then
+            echo "Standalone system FFmpeg must not be distributed: $system_ffmpeg" >&2
+            "$system_ffmpeg" -version >&2 || true
+            exit 1
+          fi
+
+          imageio_ffmpeg_state="$(python -c \
+            "import importlib.util; print(\"present\" if importlib.util.find_spec(\"imageio_ffmpeg\") else \"absent\")")"
+          if [[ "$imageio_ffmpeg_state" == "present" ]]; then
+            echo "imageio-ffmpeg and its standalone FFmpeg binary must remain opt-in" >&2
+            exit 1
+          fi
+          echo "No standalone system or imageio-ffmpeg executable is distributed"
+        ' | tee kitless-bundled-ffmpeg-inspection.txt
+        : > kitless-bundled-components.tsv
+
+    - name: Check licenses against policy and exceptions
+      shell: bash
+      run: |
+        tools/license/check_docker_licenses.sh \
+          trivy-kitless-licenses.json \
+          trivy-ubuntu-licenses.json \
+          kitless-bundled-components.tsv \
+          kitless-docker-license-summary.md \
+          "Kit-less Docker dependency license check" \
+          "Ubuntu base image"
+
+    - name: Upload kit-less license reports
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: kitless-docker-license-reports
+        path: |
+          trivy-ubuntu-licenses.json
+          trivy-kitless-licenses.json
+          kitless-bundled-components.tsv
+          kitless-bundled-ffmpeg-inspection.txt
+          kitless-docker-license-summary.md
+        if-no-files-found: warn
+        retention-days: 14
 
     # Keep the self-hosted runner's disk lean: drop the local tags after the
     # run; the layers stay cached in ECR for the next build.
