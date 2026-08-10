@@ -24,7 +24,7 @@ def _initialize_mock_asset(asset) -> None:
 
 def _load_runtime_symbols() -> None:
     global Articulation, ArticulationCfg, ArticulationData, MockArticulationViewWarp
-    global MockRigidBodyViewWarp, MockWrenchComposer, PhysxManager, RigidObject, RigidObjectCfg
+    global MockRigidBodyViewWarp, WrenchComposer, PhysxManager, RigidObject, RigidObjectCfg
     global RigidObjectCollection, RigidObjectCollectionCfg, RigidObjectCollectionData, RigidObjectData
     global np, torch, wp
 
@@ -53,7 +53,7 @@ def _load_runtime_symbols() -> None:
         from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
         from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
         from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
-        from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
+        from isaaclab.utils.wrench_composer import WrenchComposer
 
         from isaaclab_physx.assets.articulation.articulation import Articulation
         from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
@@ -62,7 +62,7 @@ def _load_runtime_symbols() -> None:
         from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import RigidObjectCollection
         from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
         from isaaclab_physx.physics import PhysxManager
-        from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp, MockRigidBodyViewWarp
+        from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp, MockRigidBodyViewWarp
     finally:
         for name, module in previous_modules.items():
             if module is missing:
@@ -118,8 +118,8 @@ def create_test_articulation(
     object.__setattr__(articulation, "_data", data)
 
     # Create mock wrench composers (pass articulation which has num_instances, num_bodies, device properties)
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation)
+    mock_perm_wrench = WrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 

@@ -18,6 +18,8 @@ that adopt this view as ``root_view``; it is not (and is not meant to be) re-cov
 
 from __future__ import annotations
 
+import gc
+import weakref
 from dataclasses import dataclass
 
 import numpy as np
@@ -118,6 +120,7 @@ class _FakeBinding:
         self.last_read: tuple | None = None
         self.last_read_obj = None  # the actual array object handed to read (for cache-warmth checks)
         self.write_calls: list[tuple] = []
+        self.destroy_calls = 0
 
     def read(self, dst) -> None:
         self.read_calls += 1
@@ -126,6 +129,9 @@ class _FakeBinding:
 
     def write(self, tensor, indices=None, mask=None) -> None:
         self.write_calls.append((tensor.dtype, tuple(tensor.shape), indices, mask))
+
+    def destroy(self) -> None:
+        self.destroy_calls += 1
 
 
 class _FakePhysX:
@@ -136,16 +142,26 @@ class _FakePhysX:
         self._unavailable = unavailable or set()
         self._all_unavailable = all_unavailable
         self.created: list[tuple] = []
+        self.bindings: list[_FakeBinding] = []
 
     def create_tensor_binding(self, *, tensor_type, pattern=None, prim_paths=None):
         self.created.append((tensor_type, pattern, prim_paths))
-        if self._all_unavailable or tensor_type in self._unavailable:
-            return _FakeBinding(tensor_type, 0)  # wheel returns a 0-count binding on no match
-        return _FakeBinding(tensor_type, self.n)
+        count = 0 if self._all_unavailable or tensor_type in self._unavailable else self.n
+        binding = _FakeBinding(tensor_type, count)
+        self.bindings.append(binding)
+        return binding
 
 
 def _make_view(n: int = 3, unavailable: set | None = None, device: str = "cpu") -> OvPhysxView:
     return OvPhysxView(_FakePhysX(n=n, unavailable=unavailable), pattern="/World/env_*/body", device=device)
+
+
+@pytest.fixture(autouse=True)
+def _close_live_views():
+    existing_views = set(OvPhysxView._live_views)
+    yield
+    for view in tuple(OvPhysxView._live_views - existing_views):
+        view.close()
 
 
 # -----------------------------------------------------------------------------
@@ -542,6 +558,71 @@ def test_metadata_passthrough_from_sample_binding():
     assert view.body_names == ["body"]
     assert view.is_fixed_base is True
     assert view.joint_count == 0 and view.fixed_tendon_count == 0
+
+
+# -----------------------------------------------------------------------------
+# lifecycle
+# -----------------------------------------------------------------------------
+
+
+def test_close_destroys_bindings_and_clears_caches():
+    view = _make_view(n=3)
+    bindings = [
+        view.binding_for("rigid_body_pose"),
+        view.binding_for("rigid_body_velocity"),
+    ]
+    view._read_views[17] = object()
+
+    view.close()
+    view.close()
+
+    assert [binding.destroy_calls for binding in bindings] == [1, 1]
+    assert view._bindings == {}
+    assert view._read_views == {}
+    assert view._physx is None
+    with pytest.raises(OvPhysxViewError, match="closed"):
+        view.binding_for("rigid_body_pose")
+
+
+def test_close_all_for_only_closes_views_from_matching_runtime():
+    first_physx = _FakePhysX()
+    second_physx = _FakePhysX()
+    first_view = OvPhysxView(first_physx, pattern="/first", device="cpu")
+    second_view = OvPhysxView(second_physx, pattern="/second", device="cpu")
+    first_binding = first_view.binding_for("rigid_body_pose")
+    second_binding = second_view.binding_for("rigid_body_pose")
+
+    OvPhysxView._close_all_for(first_physx)
+
+    assert first_binding.destroy_calls == 1
+    assert second_binding.destroy_calls == 0
+    assert second_view.binding_for("rigid_body_pose") is second_binding
+
+
+def test_raw_binding_keeps_owning_view_registered_until_runtime_close():
+    physx = _FakePhysX()
+    view = OvPhysxView(physx, pattern="/body", device="cpu")
+    binding = view.binding_for("rigid_body_pose")
+    view_ref = weakref.ref(view)
+
+    del view
+    gc.collect()
+
+    assert view_ref() is not None
+    OvPhysxView._close_all_for(physx)
+    assert binding.destroy_calls == 1
+
+    gc.collect()
+    assert view_ref() is None
+
+
+def test_unavailable_binding_is_destroyed():
+    view = _make_view(n=3, unavailable={TensorType.RIGID_BODY_POSE})
+
+    with pytest.raises(OvPhysxView.AttributeUnavailable):
+        view.binding_for("rigid_body_pose")
+
+    assert view._physx.bindings[0].destroy_calls == 1
 
 
 # -----------------------------------------------------------------------------
