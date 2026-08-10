@@ -153,6 +153,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
 
    assets
    cloner
+   ik
    physics
    renderers
    sensors

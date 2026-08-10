@@ -9,14 +9,22 @@ __all__ = [
     "NewtonIKObjective",
     "NewtonIKPoseObjective",
     "NewtonIKJointLimitObjective",
+    "NewtonIKJointPostureObjective",
     "NewtonIKObjectiveCfg",
     "NewtonIKPoseObjectiveCfg",
     "NewtonIKJointLimitObjectiveCfg",
+    "NewtonIKJointPostureObjectiveCfg",
 ]
 
-from .newton_ik_objectives import NewtonIKJointLimitObjective, NewtonIKObjective, NewtonIKPoseObjective
+from .newton_ik_objectives import (
+    NewtonIKJointLimitObjective,
+    NewtonIKJointPostureObjective,
+    NewtonIKObjective,
+    NewtonIKPoseObjective,
+)
 from .newton_ik_objectives_cfg import (
     NewtonIKJointLimitObjectiveCfg,
+    NewtonIKJointPostureObjectiveCfg,
     NewtonIKObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
 )

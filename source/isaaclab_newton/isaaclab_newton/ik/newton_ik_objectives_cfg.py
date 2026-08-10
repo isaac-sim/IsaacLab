@@ -101,3 +101,33 @@ class NewtonIKJointLimitObjectiveCfg(NewtonIKObjectiveCfg):
 
     weight: float = 0.1
     """Residual weight [unitless] applied to limit violations."""
+
+
+@configclass
+class NewtonIKJointPostureObjectiveCfg(NewtonIKObjectiveCfg):
+    """Soft reference-posture objective for selected scalar joints.
+
+    This constraint-only objective adds one weighted residual per selected
+    joint and contributes no action dimensions. At a low weight it acts as a
+    secondary posture preference that resolves redundant IK solutions without
+    materially competing with end-effector objectives.
+
+    Only one-coordinate/one-DoF joints are supported. Quaternion-valued ball
+    and free joints require a manifold-aware orientation residual and are
+    rejected rather than treated as ordinary scalar coordinates.
+    """
+
+    class_type: type | str = "isaaclab_newton.ik.newton_ik_objectives:NewtonIKJointPostureObjective"
+
+    joint_names: list[str] = MISSING  # type: ignore[assignment]
+    """Exact names of scalar joints included in the posture objective."""
+
+    target_positions: tuple[float, ...] | None = None
+    """Reference positions [m or rad], in :attr:`joint_names` order.
+
+    When ``None``, the corresponding positions from the finalized Newton
+    prototype model are used.
+    """
+
+    weight: float | tuple[float, ...] = 0.01
+    """Residual weight, either shared by all joints or one value per joint."""
