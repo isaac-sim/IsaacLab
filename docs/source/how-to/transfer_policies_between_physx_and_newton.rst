@@ -583,6 +583,29 @@ independently.
              env.scene.robot.body_ordering=mjwarp
 
 
+Transfer demonstrations
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Each video shows a PhysX-trained policy deployed in Newton MJWarp without retraining.
+The two backends are rendered side by side for direct comparison.
+
+**ANYmal-D rough-terrain locomotion** (``Isaac-Velocity-Rough-AnymalD``)
+
+.. raw:: html
+
+   <video controls style="width:100%; max-width:960px; margin-bottom:1.5em;">
+     <source src="../../_static/how-to/sim2sim_anymal_d_transfer.mp4" type="video/mp4">
+   </video>
+
+**Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro``)
+
+.. raw:: html
+
+   <video controls style="width:100%; max-width:960px; margin-bottom:1.5em;">
+     <source src="../../_static/how-to/sim2sim_allegro_transfer.mp4" type="video/mp4">
+   </video>
+
+
 See also
 --------
 
