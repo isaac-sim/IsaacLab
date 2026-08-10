@@ -40,6 +40,7 @@ concurrency:
 
 env:
   CONFIG_PATH: .github/workflows/config.yaml
+  SOURCE_IMAGE: nvcr.io/0947644777160149/internal/isaac-sim
   SOURCE_TAG: latest-develop
   TARGET_BRANCH: develop
   UPDATE_BRANCH: ci/nightly-isaacsim-image-update
@@ -89,8 +90,18 @@ jobs:
             echo "::error::$CONFIG_PATH must define isaacsim_image_name and isaacsim_image_tag."
             exit 1
           fi
+          if [ "$image" != "$SOURCE_IMAGE" ]; then
+            echo "::error::$CONFIG_PATH must pin the expected Isaac Sim image: $SOURCE_IMAGE."
+            exit 1
+          fi
 
-          digest=$(docker buildx imagetools inspect "$image:$SOURCE_TAG" --format '{{.Manifest.Digest}}')
+          current_digest=${current#"$SOURCE_TAG@"}
+          if [ "$current_digest" = "$current" ] || ! [[ "$current_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::$CONFIG_PATH must pin $SOURCE_TAG with a sha256 digest; found '$current'."
+            exit 1
+          fi
+
+          digest=$(docker buildx imagetools inspect "$SOURCE_IMAGE:$SOURCE_TAG" --format '{{.Manifest.Digest}}')
           digest=$(echo "$digest" | tr -d '[:space:]')
           if ! [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "::error::Registry returned an invalid manifest digest: '$digest'."
@@ -107,7 +118,10 @@ jobs:
               echo "::error::$CONFIG_PATH must contain exactly one isaacsim_image_tag key."
               exit 1
             fi
-            sed -i -E "s|^isaacsim_image_tag:.*$|isaacsim_image_tag: $candidate|" "$CONFIG_PATH"
+            digest_value=${digest#sha256:}
+            sed -i -E \
+              "s|^(isaacsim_image_tag: $SOURCE_TAG@sha256:)[0-9a-f]{64}$|\\1$digest_value|" \
+              "$CONFIG_PATH"
             changed=true
             branch_changed=true
             echo "Updating Isaac Sim from $current to $candidate."
