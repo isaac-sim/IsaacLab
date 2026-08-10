@@ -73,13 +73,13 @@ assert all(not any(backend.lower() == "physx" for backend in module.BACKENDS) fo
 
 
 @pytest.mark.parametrize("backend", ["physx", "newton"])
-def test_iface_utilities_agree_on_backend_availability(backend: str) -> None:
-    """Fail when one utility drops a backend that its siblings kept.
+def test_no_iface_utility_silently_drops_a_backend(backend: str) -> None:
+    """Fail when a backend disappears from one utility's test matrix.
 
-    All three utilities gate ``physx`` and ``newton`` on the same backend package being
-    importable, so a backend registered by some and not others means that utility's own imports
-    are broken rather than the backend being unavailable. ``ovphysx`` is excluded because the
-    collection utility additionally gates it on ``_create_buffers``.
+    Detected by cross-checking the three utilities: they gate ``physx`` and ``newton`` on the
+    same backend package being importable, so a backend registered by some and not others is a
+    broken import in that utility rather than an unavailable backend. ``ovphysx`` is excluded
+    because the collection utility additionally gates it on ``_create_buffers``.
     """
     script = f"""
 import importlib
