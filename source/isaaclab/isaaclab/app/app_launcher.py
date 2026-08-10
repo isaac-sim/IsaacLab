@@ -580,7 +580,10 @@ class AppLauncher:
             type=str,
             action=ExplicitAction,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
-            help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
+            help=(
+                'The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID.'
+                " When --xr is set and this flag is omitted, the simulation falls back to CPU physics."
+            ),
         )
         arg_group.add_argument(
             "--visualizer",
@@ -1077,6 +1080,17 @@ class AppLauncher:
 
             # Overwrite for downstream consumers
             launcher_args["device"] = "cpu"
+
+            # This fallback is otherwise silent, and it overrides the "cuda:0" default that applies
+            # outside XR. Whether CPU physics is the faster choice is scene-dependent, so surface the
+            # switch and the way to opt out of it.
+            logger.warning(
+                "XR mode is enabled and no device was specified explicitly: running physics on the CPU."
+                " Outside XR the default is '%s'. CPU physics can reduce latency for single-environment"
+                " teleoperation, but is typically slower for larger or contact-rich scenes. Pass --device"
+                " explicitly (for example '--device cuda:0') to override this fallback.",
+                AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
+            )
 
         if "cuda" not in device and "cpu" not in device:
             raise ValueError(
