@@ -96,7 +96,7 @@ def reset_sampling_probabilities(
     source_side_ids: torch.Tensor,
     attempts: torch.Tensor,
     successes: torch.Tensor,
-    deployment_probability: float,
+    deployment_probability: float | torch.Tensor,
     epsilon: float,
 ) -> torch.Tensor:
     """Mix guaranteed deployment starts with adaptive intermediate rows."""
@@ -109,7 +109,15 @@ def reset_sampling_probabilities(
         == successes.shape
     ):
         raise ValueError("Reset row metadata and outcomes must have matching shapes.")
-    if not 0.0 < deployment_probability < 1.0:
+    deployment_probability = torch.as_tensor(
+        deployment_probability,
+        dtype=torch.float32,
+        device=attempts.device,
+    )
+    if deployment_probability.numel() != 1:
+        raise ValueError("deployment_probability must be a scalar.")
+    deployment_probability = deployment_probability.reshape(())
+    if bool((deployment_probability <= 0.0) | (deployment_probability >= 1.0)):
         raise ValueError("deployment_probability must lie strictly between zero and one.")
     if epsilon <= 0.0:
         raise ValueError("epsilon must be positive.")
@@ -141,6 +149,34 @@ def reset_sampling_probabilities(
     deployment = deployment_rows.to(dtype=adaptive.dtype)
     deployment *= deployment_probability / deployment.sum()
     return adaptive + deployment
+
+
+def deployment_probability_from_progress(
+    progress_rate: torch.Tensor,
+    row_coverage: torch.Tensor,
+    initial_probability: float = 0.35,
+    final_probability: float = 0.90,
+    progress_start: float = 0.45,
+    progress_end: float = 0.80,
+    coverage_target: float = 0.50,
+) -> torch.Tensor:
+    """Interpolate deployment sampling from rolling competence and row coverage."""
+    if progress_rate.numel() != 1 or row_coverage.numel() != 1:
+        raise ValueError("progress_rate and row_coverage must be scalar tensors.")
+    if not 0.0 < initial_probability <= final_probability < 1.0:
+        raise ValueError("Deployment probabilities must be ordered strictly inside (0, 1).")
+    if not 0.0 <= progress_start < progress_end <= 1.0:
+        raise ValueError("Deployment progress thresholds must be ordered inside [0, 1].")
+    if not 0.0 < coverage_target <= 1.0:
+        raise ValueError("coverage_target must lie inside (0, 1].")
+    if bool((progress_rate < 0.0) | (progress_rate > 1.0) | (row_coverage < 0.0) | (row_coverage > 1.0)):
+        raise ValueError("Rolling progress and row coverage must lie inside [0, 1].")
+
+    progress_fraction = ((progress_rate - progress_start) / (progress_end - progress_start)).clamp(0.0, 1.0)
+    coverage_fraction = (row_coverage / coverage_target).clamp(0.0, 1.0)
+    readiness = progress_fraction * coverage_fraction
+    readiness = readiness.square() * (3.0 - 2.0 * readiness)
+    return initial_probability + (final_probability - initial_probability) * readiness
 
 
 class ConveyorResetCurriculum(ManagerTermBase):
@@ -179,10 +215,15 @@ class ConveyorResetCurriculum(ManagerTermBase):
         env: ManagerBasedRLEnv,
         env_ids: Sequence[int],
         progress_context_name: str = "learning_progress_context",
-        final_success_termination_name: str = "success",
-        deployment_probability: float = 0.35,
+        final_success_context_name: str = "transfer_success_context",
+        deployment_probability_initial: float = 0.35,
+        deployment_probability_final: float = 0.90,
+        deployment_progress_start: float = 0.45,
+        deployment_progress_end: float = 0.80,
+        deployment_coverage_target: float = 0.50,
         epsilon: float = 0.05,
         monitored_history_len: int = 50,
+        fixed_source_side_id: int | None = None,
     ) -> dict[str, torch.Tensor]:
         """Update adaptive evidence, sample rows, and expose diagnostics."""
         del monitored_history_len
@@ -194,7 +235,7 @@ class ConveyorResetCurriculum(ManagerTermBase):
         completed_ids = ids[completed]
         if completed_ids.numel():
             progress_context = env.termination_manager.get_term_cfg(progress_context_name).func
-            final_success = env.termination_manager.get_term_cfg(final_success_termination_name).func
+            final_success = env.termination_manager.get_term_cfg(final_success_context_name).func
             progressed = progress_context.ever_success[completed_ids]
             succeeded = final_success.ever_success[completed_ids]
             rows = state.row_ids[completed_ids]
@@ -213,6 +254,18 @@ class ConveyorResetCurriculum(ManagerTermBase):
             batch_progress = progressed.float().mean()
             batch_success = succeeded.float().mean()
 
+        attempted_rows = self._history_size > 0
+        row_coverage = attempted_rows.float().mean()
+        total_progress = self._history_success_count.sum().float() / self._history_size.sum().clamp_min(1)
+        deployment_probability = deployment_probability_from_progress(
+            total_progress,
+            row_coverage,
+            initial_probability=deployment_probability_initial,
+            final_probability=deployment_probability_final,
+            progress_start=deployment_progress_start,
+            progress_end=deployment_progress_end,
+            coverage_target=deployment_coverage_target,
+        )
         probabilities = reset_sampling_probabilities(
             self._reset_term.recipe_ids,
             self._reset_term.variant_ids,
@@ -223,11 +276,14 @@ class ConveyorResetCurriculum(ManagerTermBase):
             deployment_probability,
             epsilon,
         )
+        if fixed_source_side_id is not None:
+            if fixed_source_side_id not in (0, 1):
+                raise ValueError("fixed_source_side_id must be 0 (left) or 1 (right).")
+            probabilities *= self._reset_term.source_side_ids == fixed_source_side_id
+            probabilities /= probabilities.sum()
         if ids.numel():
             state.row_ids[ids] = torch.multinomial(probabilities, ids.numel(), replacement=True)
 
-        attempted_rows = self._attempts > 0
-        total_progress = self._history_success_count.sum().float() / self._history_size.sum().clamp_min(1)
         cumulative_progress = self._progress_successes.sum().float() / self._attempts.sum().clamp_min(1)
         total_success = self._final_successes.sum().float() / self._attempts.sum().clamp_min(1)
         entropy = -(probabilities * probabilities.clamp_min(torch.finfo(probabilities.dtype).tiny).log()).sum()
@@ -235,7 +291,23 @@ class ConveyorResetCurriculum(ManagerTermBase):
         metrics: dict[str, torch.Tensor] = {
             "batch_progress_rate": batch_progress,
             "batch_success_rate": batch_success,
-            "row_coverage": attempted_rows.float().mean(),
+            "batch_transfer_count": (
+                state.transfer_counts[completed_ids].float().mean()
+                if completed_ids.numel()
+                else torch.zeros((), dtype=torch.float32, device=env.device)
+            ),
+            "batch_left_to_right_transfers": (
+                state.direction_transfer_counts[completed_ids, 0].float().mean()
+                if completed_ids.numel()
+                else torch.zeros((), dtype=torch.float32, device=env.device)
+            ),
+            "batch_right_to_left_transfers": (
+                state.direction_transfer_counts[completed_ids, 1].float().mean()
+                if completed_ids.numel()
+                else torch.zeros((), dtype=torch.float32, device=env.device)
+            ),
+            "deployment_probability": deployment_probability,
+            "row_coverage": row_coverage,
             "overall_progress_rate": total_progress,
             "cumulative_progress_rate": cumulative_progress,
             "overall_success_rate": total_success,
@@ -252,6 +324,17 @@ class ConveyorResetCurriculum(ManagerTermBase):
             metrics[f"recipe_{recipe.name.lower()}_success_rate"] = self._final_successes[
                 mask
             ].sum().float() / recipe_attempts.clamp_min(1)
+        for side_id, side_name in ((0, "left_to_right"), (1, "right_to_left")):
+            mask = self._reset_term.source_side_ids == side_id
+            attempts = self._attempts[mask].sum()
+            history_size = self._history_size[mask].sum()
+            metrics[f"direction_{side_name}_probability"] = probabilities[mask].sum()
+            metrics[f"direction_{side_name}_progress_rate"] = self._history_success_count[
+                mask
+            ].sum().float() / history_size.clamp_min(1)
+            metrics[f"direction_{side_name}_success_rate"] = self._final_successes[
+                mask
+            ].sum().float() / attempts.clamp_min(1)
         for recipe_name, variant_id, mask in self._diagnostic_variant_rows:
             attempts = self._attempts[mask].sum()
             history_size = self._history_size[mask].sum()

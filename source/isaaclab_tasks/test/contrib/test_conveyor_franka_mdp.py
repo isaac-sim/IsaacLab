@@ -6,16 +6,19 @@
 """Unit tests for conveyor-transfer state, curriculum, and success geometry."""
 
 from collections import Counter
+from types import SimpleNamespace
 
 import torch
 from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonMaterialPropertiesCfg
 
 from isaaclab_tasks.contrib.conveyor_franka.agents.rsl_rl_ppo_cfg import (
+    ConveyorFrankaPPORunnerCfg,
     ConveyorGaussianBernoulliDistribution,
 )
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
 from isaaclab_tasks.contrib.conveyor_franka.mdp.curriculums import (
     _ring_append_bool_count_rate,
+    deployment_probability_from_progress,
     reset_sampling_probabilities,
 )
 from isaaclab_tasks.contrib.conveyor_franka.mdp.observations import classify_cube_conveyors
@@ -26,15 +29,20 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     build_reset_rows,
     franka_tool_position,
     reset_variant_counts,
+    select_next_transfer_cube,
 )
 from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import transfer_potential
-from isaaclab_tasks.contrib.conveyor_franka.mdp.terminations import transfer_success_mask
+from isaaclab_tasks.contrib.conveyor_franka.mdp.terminations import (
+    subgoal_time_out,
+    transfer_sequence_time_out,
+    transfer_success_mask,
+)
 
 
 def test_contact_and_drive_cfg_preserve_transport_and_grasp_friction():
     """Belt contact precedence must not weaken the cube's grasp material."""
     cfg = ConveyorFrankaEnvCfg()
-    belt_collision = cfg.scene.conveyor_left_belt.spawn.collision_props
+    belt_collision = cfg.scene.conveyor_left_top_straight_collision.spawn.collision_props
     belt_mujoco = next(fragment for fragment in belt_collision if isinstance(fragment, MujocoCollisionCfg))
     cube_material = cfg.scene.cube_0.spawn.physics_material
     hand_actuator = cfg.scene.robot.actuators["panda_hand"]
@@ -42,12 +50,12 @@ def test_contact_and_drive_cfg_preserve_transport_and_grasp_friction():
     assert belt_mujoco.priority == 1
     assert isinstance(cube_material, NewtonMaterialPropertiesCfg)
     assert cube_material.dynamic_friction == 0.6
-    assert cube_material.contact_stiffness == 1.0e4
-    assert cube_material.contact_damping == 200.0
+    assert cube_material.contact_stiffness == 2.5e3
+    assert cube_material.contact_damping == 100.0
     assert hand_actuator.stiffness == 350.0
     assert hand_actuator.damping == 10.0
     assert cfg.actions.arm_action.gravity_compensation
-    assert cfg.sim.physics.collision_decimation == 1
+    assert cfg.sim.physics.collision_decimation == 0
 
 
 def test_reset_rows_cover_every_cube_direction_and_phase_once():
@@ -62,13 +70,24 @@ def test_reset_rows_cover_every_cube_direction_and_phase_once():
         for cube_id in range(CUBE_COUNT)
         for side_id in range(2)
     )
-    held_recipes = {
-        ConveyorResetRecipe.GRASP,
-        ConveyorResetRecipe.LIFT,
-        ConveyorResetRecipe.CARRY,
-        ConveyorResetRecipe.PLACE,
-    }
-    assert all(row.held == (row.recipe in held_recipes) for row in rows)
+    for row in rows:
+        expected_held = row.recipe in {
+            ConveyorResetRecipe.LIFT,
+            ConveyorResetRecipe.CARRY,
+            ConveyorResetRecipe.PLACE,
+        } or (
+            row.recipe == ConveyorResetRecipe.GRASP
+            and row.variant_id == reset_variant_counts()[int(ConveyorResetRecipe.GRASP)] - 1
+        )
+        assert row.held == expected_held
+
+    grasp_rows = [
+        row
+        for row in rows
+        if row.recipe == ConveyorResetRecipe.GRASP and row.target_cube_id == 0 and row.source_side_id == 0
+    ]
+    assert all(first.finger_position > second.finger_position for first, second in zip(grasp_rows, grasp_rows[1:]))
+    assert grasp_rows[-1].held
 
 
 def test_reset_arm_anchors_reach_expected_transfer_waypoints():
@@ -205,6 +224,9 @@ def test_reset_sampling_guarantees_deployment_mass_and_tracks_frontier():
     attempts[place_ids[1]] = 100
     successes[place_ids[1]] = 50
 
+    deployment_rows = (recipe_ids == int(ConveyorResetRecipe.BELT)) & (
+        variant_ids == reset_variant_counts()[int(ConveyorResetRecipe.BELT)] - 1
+    )
     probabilities = reset_sampling_probabilities(
         recipe_ids,
         variant_ids,
@@ -215,9 +237,6 @@ def test_reset_sampling_guarantees_deployment_mass_and_tracks_frontier():
         deployment_probability=0.35,
         epsilon=0.05,
     )
-    deployment_rows = (recipe_ids == int(ConveyorResetRecipe.BELT)) & (
-        variant_ids == reset_variant_counts()[int(ConveyorResetRecipe.BELT)] - 1
-    )
 
     torch.testing.assert_close(probabilities.sum(), torch.tensor(1.0))
     torch.testing.assert_close(probabilities[deployment_rows].sum(), torch.tensor(0.35))
@@ -225,21 +244,71 @@ def test_reset_sampling_guarantees_deployment_mass_and_tracks_frontier():
     assert probabilities[place_ids[0]] < probabilities[place_ids[1]]
     for recipe in ConveyorResetRecipe:
         for cube_id in range(CUBE_COUNT):
-            for source_side_id in range(2):
-                stratum_rows = (
-                    (recipe_ids == int(recipe)) & (target_cube_ids == cube_id) & (source_side_ids == source_side_id)
-                )
+            for side_id in range(2):
+                stratum_rows = (recipe_ids == int(recipe)) & (target_cube_ids == cube_id) & (source_side_ids == side_id)
                 torch.testing.assert_close(
                     probabilities[stratum_rows & ~deployment_rows].sum(),
-                    torch.tensor(0.65 / (len(ConveyorResetRecipe) * 2 * CUBE_COUNT)),
+                    torch.tensor(0.65 / (len(ConveyorResetRecipe) * CUBE_COUNT * 2)),
                 )
-    for cube_id in range(CUBE_COUNT):
-        for source_side_id in range(2):
-            command_rows = (target_cube_ids == cube_id) & (source_side_ids == source_side_id)
-            torch.testing.assert_close(
-                probabilities[command_rows & deployment_rows].sum(),
-                torch.tensor(0.35 / (2 * CUBE_COUNT)),
-            )
+    torch.testing.assert_close(
+        probabilities[deployment_rows & (source_side_ids == 0)].sum(),
+        torch.tensor(0.35 / 2),
+    )
+    torch.testing.assert_close(
+        probabilities[deployment_rows & (source_side_ids == 1)].sum(),
+        torch.tensor(0.35 / 2),
+    )
+
+
+def test_deployment_probability_increases_with_rolling_readiness():
+    """Mastered, well-covered reset rows shift sampling toward deployment starts."""
+    kwargs = {
+        "initial_probability": 0.35,
+        "final_probability": 0.90,
+        "progress_start": 0.45,
+        "progress_end": 0.80,
+        "coverage_target": 0.50,
+    }
+
+    initial = deployment_probability_from_progress(torch.tensor(0.30), torch.tensor(1.0), **kwargs)
+    middle = deployment_probability_from_progress(torch.tensor(0.625), torch.tensor(0.50), **kwargs)
+    final = deployment_probability_from_progress(torch.tensor(0.90), torch.tensor(1.0), **kwargs)
+
+    torch.testing.assert_close(initial, torch.tensor(0.35))
+    torch.testing.assert_close(middle, torch.tensor(0.625))
+    torch.testing.assert_close(final, torch.tensor(0.90))
+
+
+def test_next_transfer_cube_is_random_among_eligible_alternatives():
+    """Continuing commands use the one-hot target instead of a cyclic identity shortcut."""
+    count = 4096
+    positions = torch.zeros((count, CUBE_COUNT, 3))
+    positions[:, :, 1] = torch.tensor((-0.27, -0.27, -0.27, 0.27))
+    current_cube_ids = torch.zeros(count, dtype=torch.long)
+    source_side_ids = torch.ones(count, dtype=torch.long)
+    torch.manual_seed(7)
+
+    selected = select_next_transfer_cube(positions, current_cube_ids, source_side_ids)
+
+    assert set(selected.tolist()) == {1, 2}
+    frequencies = torch.bincount(selected, minlength=CUBE_COUNT).float() / count
+    assert torch.all(torch.abs(frequencies[1:3] - 0.5) < 0.05)
+
+
+def test_continuing_training_truncates_only_stalled_or_long_sequences():
+    """Subgoal and sequence limits bound training without ending successful transfers."""
+    assert not ConveyorFrankaPPORunnerCfg().init_at_random_ep_len
+    env = SimpleNamespace(
+        step_dt=0.1,
+        episode_length_buf=torch.tensor((199, 200, 450)),
+        conveyor_transfer_state=SimpleNamespace(
+            subgoal_start_steps=torch.tensor((0, 0, 300)),
+            transfer_counts=torch.tensor((0, 7, 8)),
+        ),
+    )
+
+    assert subgoal_time_out(env, timeout_s=20.0).tolist() == [False, True, False]
+    assert transfer_sequence_time_out(env, maximum_transfers=8).tolist() == [False, False, True]
 
 
 def test_rolling_progress_monitor_forgets_stale_outcomes_in_order():

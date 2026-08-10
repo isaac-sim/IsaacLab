@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Validated reset-state table for conveyor-to-conveyor transfer."""
+"""Reset-state and continuing-goal events for conveyor transfer."""
 
 from __future__ import annotations
 
@@ -32,6 +32,9 @@ TRANSFER_X = 0.52
 LEFT_SIDE = 0
 RIGHT_SIDE = 1
 _BELT_CURRICULUM_FRACTIONS = (0.0, 0.15, 0.30, 0.45, 0.60, 0.80, 1.0)
+_GRASP_CLOSURE_FRACTIONS = (0.25, 0.50, 0.75, 0.90, 1.0)
+_OPEN_FINGER_POSITION = 0.040
+_CLOSED_FINGER_POSITION = 0.019
 BELT_DEPLOYMENT_VARIANT = len(_BELT_CURRICULUM_FRACTIONS) - 1
 
 
@@ -56,6 +59,7 @@ class ConveyorResetRow:
     target_cube_id: int
     source_side_id: int
     arm_positions: tuple[float, ...]
+    finger_position: float
     held: bool
     belt_range_fraction: float
 
@@ -121,12 +125,30 @@ def _arm_position_variants(
     if recipe == ConveyorResetRecipe.LIFT:
         return _interpolate_arm(source_grasp, source_lift, (0.25, 0.50, 0.75, 1.0))
     if recipe == ConveyorResetRecipe.GRASP:
-        return (source_grasp,)
+        return (source_grasp,) * len(_GRASP_CLOSURE_FRACTIONS)
     if recipe == ConveyorResetRecipe.PREGRASP:
-        return _interpolate_arm(source_pregrasp, source_grasp, (0.0, 0.30, 0.55, 0.75, 0.88))
+        # Include the exact open-gripper acquisition pose. The previous last
+        # row stopped at 88% of the approach, leaving an approximately 1 cm
+        # gap between reset-driven approach learning and the already-held
+        # GRASP row. Dense near-contact rows make the physical close-and-lift
+        # transition learnable from the same sparse delivery objective.
+        return _interpolate_arm(source_pregrasp, source_grasp, (0.0, 0.50, 0.75, 0.92, 1.0))
     if recipe == ConveyorResetRecipe.BELT:
         return _interpolate_arm(source_pregrasp, _HOME_ARM, _BELT_CURRICULUM_FRACTIONS)
     raise ValueError(f"Unsupported reset recipe: {recipe}.")
+
+
+def _finger_position_variants(recipe: ConveyorResetRecipe) -> tuple[float, ...]:
+    """Return finger positions paired with a recipe's arm variants [m]."""
+    variant_count = len(_arm_position_variants(recipe, LEFT_SIDE))
+    if recipe == ConveyorResetRecipe.GRASP:
+        return tuple(
+            _OPEN_FINGER_POSITION + fraction * (_CLOSED_FINGER_POSITION - _OPEN_FINGER_POSITION)
+            for fraction in _GRASP_CLOSURE_FRACTIONS
+        )
+    if recipe in (ConveyorResetRecipe.LIFT, ConveyorResetRecipe.CARRY, ConveyorResetRecipe.PLACE):
+        return (_CLOSED_FINGER_POSITION,) * variant_count
+    return (_OPEN_FINGER_POSITION,) * variant_count
 
 
 def reset_variant_counts() -> tuple[int, ...]:
@@ -143,19 +165,19 @@ def build_reset_rows() -> tuple[ConveyorResetRow, ...]:
             target_cube_id=cube_id,
             source_side_id=source_side,
             arm_positions=arm_positions,
-            held=recipe
-            in (
-                ConveyorResetRecipe.GRASP,
-                ConveyorResetRecipe.LIFT,
-                ConveyorResetRecipe.CARRY,
-                ConveyorResetRecipe.PLACE,
+            finger_position=finger_position,
+            held=(
+                recipe in (ConveyorResetRecipe.LIFT, ConveyorResetRecipe.CARRY, ConveyorResetRecipe.PLACE)
+                or (recipe == ConveyorResetRecipe.GRASP and variant_id == len(_GRASP_CLOSURE_FRACTIONS) - 1)
             ),
             belt_range_fraction=_BELT_CURRICULUM_FRACTIONS[variant_id] if recipe == ConveyorResetRecipe.BELT else 0.0,
         )
         for recipe in ConveyorResetRecipe
         for cube_id in range(CUBE_COUNT)
         for source_side in (LEFT_SIDE, RIGHT_SIDE)
-        for variant_id, arm_positions in enumerate(_arm_position_variants(recipe, source_side))
+        for variant_id, (arm_positions, finger_position) in enumerate(
+            zip(_arm_position_variants(recipe, source_side), _finger_position_variants(recipe), strict=True)
+        )
     )
 
 
@@ -273,6 +295,9 @@ class ConveyorResetStateTable(ManagerTermBase):
         self._arm_positions = torch.tensor(
             [row.arm_positions for row in self._rows], dtype=torch.float32, device=env.device
         )
+        self._finger_positions = torch.tensor(
+            [row.finger_position for row in self._rows], dtype=torch.float32, device=env.device
+        )
         self._held_rows = torch.tensor([row.held for row in self._rows], dtype=torch.bool, device=env.device)
         self._belt_range_fractions = torch.tensor(
             [row.belt_range_fraction for row in self._rows], dtype=torch.float32, device=env.device
@@ -369,18 +394,23 @@ class ConveyorResetStateTable(ManagerTermBase):
         self._state.target_cube_ids[env_ids] = target_cube_ids
         self._state.source_side_ids[env_ids] = source_side_ids
         self._state.held_cube_ids[env_ids] = torch.where(held_rows, target_cube_ids, -1)
+        self._state.goal_ids[env_ids] = 0
+        self._state.subgoal_start_steps[env_ids] = 0
+        self._state.transfer_counts[env_ids] = 0
+        self._state.direction_transfer_counts[env_ids] = 0
         self._state.initialized[env_ids] = True
 
         arm_positions = self._arm_positions[row_ids].clone()
         if arm_joint_noise > 0.0:
             noise = (2.0 * torch.rand_like(arm_positions) - 1.0) * arm_joint_noise
-            noise[held_rows] = 0.0
+            # Preserve the exact approach, closure, and held-object manifold.
+            # Only deployment-like BELT starts receive robot randomization.
+            noise[recipes != int(ConveyorResetRecipe.BELT)] = 0.0
             arm_positions += noise
         joint_positions = self._robot.data.default_joint_pos.torch[env_ids].clone()
         joint_velocities = torch.zeros_like(joint_positions)
         joint_positions[:, self._arm_joint_ids] = arm_positions
-        finger_positions = torch.full((env_ids.numel(), 2), 0.04, dtype=joint_positions.dtype, device=self.device)
-        finger_positions[held_rows] = 0.019
+        finger_positions = self._finger_positions[row_ids].to(dtype=joint_positions.dtype).unsqueeze(1).expand(-1, 2)
         joint_positions[:, self._finger_joint_ids] = finger_positions
         self._robot.set_joint_position_target_index(target=joint_positions, env_ids=env_ids)
         self._robot.set_joint_velocity_target_index(target=joint_velocities, env_ids=env_ids)
@@ -442,3 +472,82 @@ class ConveyorResetStateTable(ManagerTermBase):
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Keep the immutable reset table across environment resets."""
+
+
+def select_next_transfer_cube(
+    cube_positions: torch.Tensor,
+    current_cube_ids: torch.Tensor,
+    source_side_ids: torch.Tensor,
+    transit_half_width: float = 0.14,
+) -> torch.Tensor:
+    """Sample the next numbered cube already located on each source belt.
+
+    A different eligible cube is sampled uniformly. The just-placed cube is
+    the fallback, so a valid goal remains available even when it is temporarily
+    the only parcel on that conveyor.
+    """
+    if cube_positions.ndim != 3 or cube_positions.shape[1:] != (CUBE_COUNT, 3):
+        raise ValueError(f"cube_positions must have shape (N, {CUBE_COUNT}, 3).")
+    count = cube_positions.shape[0]
+    if current_cube_ids.shape != (count,) or source_side_ids.shape != (count,):
+        raise ValueError("Current cube and source-side ids must match the position batch.")
+    if transit_half_width <= 0.0:
+        raise ValueError("transit_half_width must be positive.")
+
+    cube_ids = torch.arange(CUBE_COUNT, device=cube_positions.device).expand(count, -1)
+    on_left = cube_positions[:, :, 1] > transit_half_width
+    on_right = cube_positions[:, :, 1] < -transit_half_width
+    candidates = torch.where(source_side_ids.unsqueeze(1) == LEFT_SIDE, on_left, on_right)
+    alternatives = candidates & (cube_ids != current_cube_ids.unsqueeze(1))
+    candidates = torch.where(torch.any(alternatives, dim=1, keepdim=True), alternatives, candidates)
+
+    has_candidates = torch.any(candidates, dim=1)
+    fallback = torch.zeros_like(candidates)
+    fallback.scatter_(1, current_cube_ids.unsqueeze(1), True)
+    candidates = torch.where(has_candidates.unsqueeze(1), candidates, fallback)
+    return torch.multinomial(candidates.float(), 1).squeeze(1)
+
+
+def advance_conveyor_transfer_goal(
+    env: ManagerBasedRLEnv,
+    env_ids: torch.Tensor,
+    success_context_name: str = "transfer_success_context",
+    transit_half_width: float = 0.14,
+) -> None:
+    """Consume completed transfers and command another cube in the reverse direction."""
+    if env_ids is None:
+        env_ids = torch.arange(env.num_envs, device=env.device)
+    else:
+        env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
+    if env_ids.numel() == 0:
+        return
+
+    context = env.termination_manager.get_term_cfg(success_context_name).func
+    if not hasattr(context, "pending_success") or not hasattr(context, "consume_success"):
+        raise RuntimeError("Continuing conveyor goals require a stable transfer-success context.")
+    completed_ids = env_ids[context.pending_success[env_ids]]
+    if completed_ids.numel() == 0:
+        return
+
+    state = env.conveyor_transfer_state
+    cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
+    positions = torch.stack(tuple(cube.data.root_pos_w.torch[completed_ids] for cube in cubes), dim=1)
+    positions -= env.scene.env_origins[completed_ids].unsqueeze(1)
+    previous_cube_ids = state.target_cube_ids[completed_ids].clone()
+    previous_source_side_ids = state.source_side_ids[completed_ids].clone()
+    next_source_side_ids = 1 - previous_source_side_ids
+    next_cube_ids = select_next_transfer_cube(
+        positions,
+        previous_cube_ids,
+        next_source_side_ids,
+        transit_half_width=transit_half_width,
+    )
+
+    state.direction_transfer_counts[completed_ids, previous_source_side_ids] += 1
+    state.transfer_counts[completed_ids] += 1
+    state.goal_ids[completed_ids] += 1
+    state.subgoal_start_steps[completed_ids] = env.episode_length_buf[completed_ids]
+    state.target_cube_ids[completed_ids] = next_cube_ids
+    state.source_side_ids[completed_ids] = next_source_side_ids
+    state.held_cube_ids[completed_ids] = -1
+    context.consume_success(completed_ids)

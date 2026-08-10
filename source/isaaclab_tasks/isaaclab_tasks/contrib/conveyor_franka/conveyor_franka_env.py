@@ -9,13 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-import torch
-
 from isaaclab.envs import ManagerBasedRLEnv
-from isaaclab.envs.common import VecEnvStepReturn
 
 from .conveyor_force_driver import ConveyorForceDriver
 from .conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
+from .conveyor_geometry import belt_collision_section_specs
 
 
 class ConveyorFrankaEnv(ManagerBasedRLEnv):
@@ -27,17 +25,16 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
         super().__init__(cfg, render_mode=render_mode, **kwargs)
         self._conveyor_driver = ConveyorForceDriver(
             num_envs=self.num_envs,
+            surface_specs=tuple(
+                section for side in ("Left", "Right") for section in belt_collision_section_specs(side)
+            ),
             speed=cfg.conveyor_force.speed,
             friction=cfg.conveyor_force.friction,
             normal_threshold=cfg.conveyor_force.normal_threshold,
+            startup_duration_s=cfg.conveyor_force.startup_duration_s,
+            transported_body_pattern=cfg.conveyor_force.transported_body_pattern,
+            transported_body_count_per_env=cfg.conveyor_force.transported_body_count_per_env,
         )
-
-    def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        """Step the manager-based environment and prepare traction for the next step."""
-        result = super().step(action)
-        # The contact sensor has now asked Newton to publish per-contact forces.
-        self._conveyor_driver.update()
-        return result
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset selected environments and discard stale conveyor forces."""
@@ -45,4 +42,12 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
 
         conveyor_driver = getattr(self, "_conveyor_driver", None)
         if conveyor_driver is not None:
-            conveyor_driver.clear()
+            conveyor_driver.reset(env_ids)
+
+    def close(self):
+        """Release the conveyor callbacks before the Newton scene is destroyed."""
+        conveyor_driver = getattr(self, "_conveyor_driver", None)
+        if conveyor_driver is not None:
+            conveyor_driver.close()
+            self._conveyor_driver = None
+        super().close()

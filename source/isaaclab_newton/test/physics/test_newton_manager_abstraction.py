@@ -258,6 +258,43 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
     assert NewtonManager._contacts.rigid_contact_max == 2
 
 
+def test_in_graph_callback_registration_has_symmetric_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Scene-owned callbacks can deregister safely before Newton manager teardown."""
+
+    def actuator_callback():
+        pass
+
+    def state_force_callback(_state):
+        pass
+
+    def substep_callback(_solver, _contacts, _state, _dt):
+        pass
+
+    monkeypatch.setattr(NewtonManager, "_post_actuator_callbacks", [])
+    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [])
+    monkeypatch.setattr(NewtonManager, "_post_solver_substep_callbacks", [])
+
+    NewtonManager.register_post_actuator_callback(actuator_callback)
+    NewtonManager.register_state_force_callback(state_force_callback)
+    NewtonManager.register_post_solver_substep_callback(substep_callback)
+
+    assert NewtonManager._post_actuator_callbacks == [actuator_callback]
+    assert NewtonManager._state_force_callbacks == [state_force_callback]
+    assert NewtonManager._post_solver_substep_callbacks == [substep_callback]
+
+    NewtonManager.unregister_post_actuator_callback(actuator_callback)
+    NewtonManager.unregister_state_force_callback(state_force_callback)
+    NewtonManager.unregister_post_solver_substep_callback(substep_callback)
+    # Repeated cleanup is intentionally a safe no-op.
+    NewtonManager.unregister_post_actuator_callback(actuator_callback)
+    NewtonManager.unregister_state_force_callback(state_force_callback)
+    NewtonManager.unregister_post_solver_substep_callback(substep_callback)
+
+    assert NewtonManager._post_actuator_callbacks == []
+    assert NewtonManager._state_force_callbacks == []
+    assert NewtonManager._post_solver_substep_callbacks == []
+
+
 def test_refit_sensor_bvh_rejects_missing_sensor_state(monkeypatch):
     """BVH refitting raises when a particle BVH exists without an initialized sensor state."""
     model = SimpleNamespace(shape_count=0, particle_count=1, bvh_particles=object())

@@ -18,13 +18,17 @@ if TYPE_CHECKING:
 
 @dataclass
 class ConveyorTransferState:
-    """Episode-local transfer command and reset metadata."""
+    """Episode-local transfer command, reset metadata, and subgoal progress."""
 
     row_ids: torch.Tensor
     recipe_ids: torch.Tensor
     target_cube_ids: torch.Tensor
     source_side_ids: torch.Tensor
     held_cube_ids: torch.Tensor
+    goal_ids: torch.Tensor
+    subgoal_start_steps: torch.Tensor
+    transfer_counts: torch.Tensor
+    direction_transfer_counts: torch.Tensor
     initialized: torch.Tensor
 
 
@@ -36,6 +40,10 @@ def create_transfer_state(env: ManagerBasedRLEnv, row_count: int) -> ConveyorTra
         target_cube_ids=torch.zeros(env.num_envs, dtype=torch.long, device=env.device),
         source_side_ids=torch.zeros(env.num_envs, dtype=torch.long, device=env.device),
         held_cube_ids=torch.full((env.num_envs,), -1, dtype=torch.long, device=env.device),
+        goal_ids=torch.zeros(env.num_envs, dtype=torch.long, device=env.device),
+        subgoal_start_steps=torch.zeros(env.num_envs, dtype=torch.long, device=env.device),
+        transfer_counts=torch.zeros(env.num_envs, dtype=torch.long, device=env.device),
+        direction_transfer_counts=torch.zeros((env.num_envs, 2), dtype=torch.long, device=env.device),
         initialized=torch.zeros(env.num_envs, dtype=torch.bool, device=env.device),
     )
     env.conveyor_transfer_state = state

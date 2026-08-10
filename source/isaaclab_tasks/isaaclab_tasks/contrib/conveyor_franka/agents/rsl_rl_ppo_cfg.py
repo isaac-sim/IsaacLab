@@ -145,6 +145,9 @@ class ConveyorFrankaPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO configuration for four-cube commanded transfer."""
 
     num_steps_per_env = 32
+    # RSL-RL's usual randomized episode counters would desynchronize the
+    # per-subgoal timeout clock before the first policy step.
+    init_at_random_ep_len = False
     max_iterations = 4000
     save_interval = 50
     experiment_name = "conveyor_franka_transfer"

@@ -406,6 +406,9 @@ class NewtonManager(PhysicsManager):
     _post_actuator_callbacks: list[Callable[[], None]] = []
     # In-graph hooks invoked immediately before every solver substep.
     _state_force_callbacks: list[Callable[[State], None]] = []
+    # In-graph hooks invoked after every solver substep, before the post-step
+    # state is swapped into the active buffer and its external forces cleared.
+    _post_solver_substep_callbacks: list[Callable[[SolverBase, Contacts | None, State, float], None]] = []
     # In-graph hooks invoked after the last solver substep and before sensors,
     # in registration order. Articulations with non-identity ordering register
     # their backend-to-user state republish kernels here so the reorders are
@@ -1058,6 +1061,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._adapter = None
         NewtonManager._post_actuator_callbacks = []
         NewtonManager._state_force_callbacks = []
+        NewtonManager._post_solver_substep_callbacks = []
         NewtonManager._post_step_callbacks = []
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
@@ -2307,6 +2311,8 @@ class NewtonManager(PhysicsManager):
                 for callback in cls._state_force_callbacks:
                     callback(cls._state_0)
                 cls._step_solver(cls._state_0, cls._state_0, cls._control, contacts, cls._solver_dt)
+                for cb in cls._post_solver_substep_callbacks:
+                    cb(cls._solver, contacts, cls._state_0, cls._solver_dt)
                 cls._state_0.clear_forces()
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
                     cls._collision_pipeline.collide(cls._state_0, contacts)
@@ -2317,6 +2323,8 @@ class NewtonManager(PhysicsManager):
                 for callback in cls._state_force_callbacks:
                     callback(cls._state_0)
                 cls._step_solver(cls._state_0, cls._state_1, cls._control, contacts, cls._solver_dt)
+                for cb in cls._post_solver_substep_callbacks:
+                    cb(cls._solver, contacts, cls._state_1, cls._solver_dt)
                 if need_copy_on_last and i == cls._num_substeps - 1:
                     cls._state_0.assign(cls._state_1)
                 else:
@@ -3130,6 +3138,64 @@ class NewtonManager(PhysicsManager):
         if callback in NewtonManager._state_force_callbacks:
             return
         NewtonManager._state_force_callbacks.append(callback)
+
+    @classmethod
+    def unregister_state_force_callback(cls, callback: Callable[[State], None]) -> None:
+        """Remove a previously registered state-force callback.
+
+        Removing a callback that was never registered or was already removed is
+        a safe no-op. This lets scene-owned systems release bound-method
+        references before the global Newton manager is cleared.
+
+        Args:
+            callback: Previously registered callback.
+        """
+        with contextlib.suppress(ValueError):
+            NewtonManager._state_force_callbacks.remove(callback)
+
+    @classmethod
+    def unregister_post_actuator_callback(cls, callback: Callable[[], None]) -> None:
+        """Remove a previously registered post-actuator callback.
+
+        Removing a callback that was never registered or was already removed is
+        a safe no-op. This lets scene-owned systems release bound-method
+        references before the global Newton manager is cleared.
+
+        Args:
+            callback: Previously registered callback.
+        """
+        with contextlib.suppress(ValueError):
+            cls._post_actuator_callbacks.remove(callback)
+
+    @classmethod
+    def register_post_solver_substep_callback(
+        cls, callback: Callable[[SolverBase, Contacts | None, State, float], None]
+    ) -> None:
+        """Append a hook invoked immediately after every solver substep.
+
+        The callback receives the active solver, contacts, post-substep state,
+        and solver timestep [s]. It runs before double-buffered state swapping
+        and before external forces are cleared, matching Newton's native
+        per-substep force-feedback loop. Callbacks must be graph-safe.
+
+        Args:
+            callback: Function called after each solver substep.
+        """
+        if callback in NewtonManager._post_solver_substep_callbacks:
+            return
+        cls._post_solver_substep_callbacks.append(callback)
+
+    @classmethod
+    def unregister_post_solver_substep_callback(
+        cls, callback: Callable[[SolverBase, Contacts | None, State, float], None]
+    ) -> None:
+        """Remove a previously registered post-solver-substep callback.
+
+        Args:
+            callback: Previously registered callback.
+        """
+        with contextlib.suppress(ValueError):
+            cls._post_solver_substep_callbacks.remove(callback)
 
     @classmethod
     def register_post_step_callback(cls, callback: Callable[[], None]) -> None:

@@ -92,21 +92,54 @@ class ConveyorTransferProgressReward(ManagerTermBase):
             self._previous[env_ids] = current[env_ids]
 
 
-def transfer_success_reward(env: ManagerBasedRLEnv, termination_name: str = "success") -> torch.Tensor:
-    """Return one on the transfer-completion transition."""
-    return env.termination_manager.get_term(termination_name).float()
+def transfer_success_reward(
+    env: ManagerBasedRLEnv,
+    context_term_name: str = "transfer_success_context",
+) -> torch.Tensor:
+    """Return one on each stable transfer-completion transition."""
+    context = env.termination_manager.get_term_cfg(context_term_name).func
+    return context.new_success.float()
 
 
-def terminal_failure(env: ManagerBasedRLEnv, success_termination_name: str = "success") -> torch.Tensor:
+def terminal_failure(
+    env: ManagerBasedRLEnv,
+    success_context_name: str = "transfer_success_context",
+) -> torch.Tensor:
     """Return one for non-timeout terminal failures."""
-    succeeded = env.termination_manager.get_term(success_termination_name)
-    return (env.reset_terminated & ~succeeded).float()
+    success_context = env.termination_manager.get_term_cfg(success_context_name).func
+    return (env.reset_terminated & ~success_context.pending_success).float()
 
 
 def action_term_l2(env: ManagerBasedRLEnv, action_name: str) -> torch.Tensor:
     """Penalize one named raw action term."""
     action = env.action_manager.get_term(action_name).raw_actions
     return torch.sum(torch.square(action), dim=1)
+
+
+def physical_cube_acquisition_mask(
+    env: ManagerBasedRLEnv,
+    minimum_lift: float = 0.025,
+    maximum_tool_distance: float = 0.075,
+    maximum_finger_position: float = 0.030,
+) -> torch.Tensor:
+    """Return physically closed, lifted, tool-local commanded-cube grasps."""
+    if minimum_lift <= 0.0 or maximum_tool_distance <= 0.0 or maximum_finger_position <= 0.0:
+        raise ValueError("Physical acquisition thresholds must be positive.")
+    state = env.conveyor_transfer_state
+    cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
+    positions = torch.stack(tuple(cube.data.root_pos_w.torch for cube in cubes), dim=1)
+    index = state.target_cube_ids.view(env.num_envs, 1, 1).expand(-1, 1, 3)
+    active_position = torch.gather(positions, 1, index).squeeze(1)
+    tool_position, _ = end_effector_pose(env)
+    robot: Articulation = env.scene["robot"]
+    finger_ids, _ = robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)
+    finger_positions = robot.data.joint_pos.torch[:, finger_ids]
+    local_cube_z = active_position[:, 2] - env.scene.env_origins[:, 2]
+    return (
+        (local_cube_z >= CUBE_REST_Z + minimum_lift)
+        & (torch.linalg.vector_norm(active_position - tool_position, dim=1) <= maximum_tool_distance)
+        & (torch.amax(finger_positions, dim=1) <= maximum_finger_position)
+    )
 
 
 def finite_joint_velocity_l2(
