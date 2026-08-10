@@ -10,6 +10,10 @@ Added
 Fixed
 ^^^^^
 
+* Fixed ``scripts/tools/convert_urdf.py`` and ``scripts/tools/convert_mjcf.py`` crashing when the
+  converted asset was previewed with a kitless visualizer (``--viz newton``, ``--viz rerun``, or
+  ``--viz viser``), by selecting the physics backend that matches the runtime.
+
 * Fixed URDF and MJCF conversion producing assets with no joints, articulation roots, or mass
   properties.
 
