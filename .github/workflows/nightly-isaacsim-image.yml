@@ -55,7 +55,7 @@ jobs:
       # Reuse the isaaclab-bot App already used by nightly-changelog.yml.
       # Requesting the permissions explicitly makes a missing App permission
       # fail here with a focused error instead of later at push or PR creation.
-      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3  # v3.1.1
+      - uses: actions/create-github-app-token@v3
         id: app-token
         with:
           client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
@@ -63,7 +63,7 @@ jobs:
           permission-contents: write
           permission-pull-requests: write
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.TARGET_BRANCH }}
           token: ${{ steps.app-token.outputs.token }}
