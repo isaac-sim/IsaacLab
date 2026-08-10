@@ -914,16 +914,19 @@ jobs:
           -e ISAAC_SIM_HEADLESS=1 \
           -v "$PWD/benchmark-output:/benchmark-output" \
           --entrypoint bash "$CI_IMAGE_TAG" -lc \
-          "./isaaclab.sh benchmark runtime \
+          "set -euo pipefail
+          mkdir -p /tmp/benchmark-output
+          ./isaaclab.sh benchmark runtime \
             --task '$BENCHMARK_TASK' \
             --num_envs '$NUM_ENVS' \
             --num_steps 200 \
             --warmup_steps 100 \
             --seed 42 \
             --benchmark_formatter schema \
-            --output_path /benchmark-output \
+            --output_path /tmp/benchmark-output \
             --visualizer none \
-            $BENCHMARK_ARGS"
+            $BENCHMARK_ARGS
+          cp /tmp/benchmark-output/*.json /benchmark-output/"
     - name: Download authoritative baseline
       if: vars.PERF_BASELINE_S3_URI != ''
       env:
