@@ -908,11 +908,12 @@ jobs:
       run: |
         set -euo pipefail
         install -d -m 0777 benchmark-output
-        docker run --rm --gpus all --network=host --ipc=host \
+        container_name="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.name }}"
+        trap 'docker rm -f "$container_name" >/dev/null 2>&1 || true' EXIT
+        docker run --name "$container_name" --gpus all --network=host --ipc=host \
           -e OMNI_KIT_ACCEPT_EULA=yes \
           -e ACCEPT_EULA=Y \
           -e ISAAC_SIM_HEADLESS=1 \
-          -v "$PWD/benchmark-output:/benchmark-output" \
           --entrypoint bash "$CI_IMAGE_TAG" -lc \
           "set -euo pipefail
           mkdir -p /tmp/benchmark-output
@@ -925,8 +926,8 @@ jobs:
             --benchmark_formatter schema \
             --output_path /tmp/benchmark-output \
             --visualizer none \
-            $BENCHMARK_ARGS
-          cp /tmp/benchmark-output/*.json /benchmark-output/"
+            $BENCHMARK_ARGS"
+        docker cp "$container_name:/tmp/benchmark-output/." benchmark-output/
     - name: Download authoritative baseline
       if: vars.PERF_BASELINE_S3_URI != ''
       env:
