@@ -36,7 +36,7 @@ from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.physics import NewtonManager
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import resolve_clone_plan_source
+from isaaclab.cloner import query as cloner_query
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils import math as math_utils
 
@@ -773,7 +773,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     def _build_randomized_reset_bank(self) -> None:
         """Build a small Newton-IK bank for collision-safe randomized pre-grasp resets."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        resolved = resolve_clone_plan_source(self._robot.cfg.prim_path, plan) if plan is not None else None
+        resolved = cloner_query.path_to_source(plan, self._robot.cfg.prim_path) if plan is not None else None
         if resolved is None:
             raise RuntimeError(f"Could not resolve clone-plan source for {self._robot.cfg.prim_path!r}.")
         source_path = resolved[0]

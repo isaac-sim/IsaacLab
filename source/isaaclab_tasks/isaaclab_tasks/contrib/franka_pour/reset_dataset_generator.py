@@ -418,11 +418,11 @@ def _derive_tabletop_support_bounds(
     from pxr import Usd, UsdGeom
 
     import isaaclab.sim as sim_utils
-    from isaaclab.cloner import resolve_clone_plan_source
+    from isaaclab.cloner import query as cloner_query
 
     if source_env_path is None:
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        resolved = resolve_clone_plan_source(env._robot.cfg.prim_path, plan) if plan is not None else None
+        resolved = cloner_query.path_to_source(plan, env._robot.cfg.prim_path) if plan is not None else None
         if resolved is None:
             raise RuntimeError(f"Could not resolve clone-plan source for {env._robot.cfg.prim_path!r}.")
         source_env_path = resolved[0]
@@ -1157,10 +1157,10 @@ class FrankaPourResetDatasetGenerator:
         from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 
         import isaaclab.sim as sim_utils
-        from isaaclab.cloner import resolve_clone_plan_source
+        from isaaclab.cloner import query as cloner_query
 
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        resolved = resolve_clone_plan_source(self.env._robot.cfg.prim_path, plan) if plan is not None else None
+        resolved = cloner_query.path_to_source(plan, self.env._robot.cfg.prim_path) if plan is not None else None
         if resolved is None:
             raise RuntimeError(f"Could not resolve clone-plan source for {self.env._robot.cfg.prim_path!r}.")
         source_builder = copy_newton_source_builder(resolved[0])
@@ -1172,7 +1172,7 @@ class FrankaPourResetDatasetGenerator:
             "/Table/" in str(label) or str(label).endswith("/Table") for label in self._prototype_builder.shape_label
         ):
             table_prim_path = self.env.scene["table"].cfg.prim_path
-            table_resolved = resolve_clone_plan_source(table_prim_path, plan)
+            table_resolved = cloner_query.path_to_source(plan, table_prim_path) if plan is not None else None
             if table_resolved is None:
                 raise RuntimeError(f"Could not resolve clone-plan source for {table_prim_path!r}.")
             table_builder = copy_newton_source_builder(table_resolved[0])
