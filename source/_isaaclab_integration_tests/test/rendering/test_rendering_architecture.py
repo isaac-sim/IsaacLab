@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Architecture gates for the downstream rendering-correctness project."""
+"""Architecture gates for rendering in the downstream integration-test project."""
 
 from __future__ import annotations
 
@@ -16,13 +16,14 @@ from packaging.requirements import Requirement
 
 from isaaclab.renderers.output_contract import RenderBufferKind
 
-_TEST_DIR = Path(__file__).resolve().parent
-_PROJECT_ROOT = _TEST_DIR.parent
+_SUITE_DIR = Path(__file__).resolve().parent
+_TEST_ROOT = _SUITE_DIR.parent
+_PROJECT_ROOT = _TEST_ROOT.parent
 _REPO_ROOT = _PROJECT_ROOT.parents[1]
 _CORE_ROOT = _REPO_ROOT / "source" / "isaaclab"
 _TASK_ROOT = _REPO_ROOT / "source" / "isaaclab_tasks"
 _VISUALIZER_ROOT = _REPO_ROOT / "source" / "isaaclab_visualizers"
-sys.path.insert(0, str(_TEST_DIR))
+sys.path.insert(0, str(_SUITE_DIR))
 
 from rendering_cases import (  # noqa: E402
     KIT_CASES,
@@ -51,8 +52,13 @@ def _defined_classes(path: Path) -> set[str]:
     return {node.name for node in ast.parse(path.read_text()).body if isinstance(node, ast.ClassDef)}
 
 
-def test_downstream_project_owns_rendering_correctness() -> None:
-    """The test project is a dependency sink with no public Python package."""
+def test_integration_project_owns_rendering_suite() -> None:
+    """The private project is a dependency sink whose rendering code stays in one suite."""
+    assert _PROJECT_ROOT.name == "_isaaclab_integration_tests"
+    assert _SUITE_DIR == _TEST_ROOT / "rendering"
+    assert not list(_TEST_ROOT.glob("*.py"))
+    assert not (_REPO_ROOT / "source/isaaclab_rendering_tests").exists()
+
     with (_PROJECT_ROOT / "pyproject.toml").open("rb") as file:
         manifest = tomllib.load(file)
     dependencies = {Requirement(requirement).name for requirement in manifest["project"]["dependencies"]}
@@ -66,9 +72,9 @@ def test_downstream_project_owns_rendering_correctness() -> None:
         "isaaclab-physx",
         "isaaclab-visualizers",
     } <= dependencies
+    assert manifest["project"]["name"] == "isaaclab-integration-tests"
     assert manifest["tool"]["setuptools"]["packages"] == []
     assert manifest["tool"]["setuptools"]["py-modules"] == []
-    assert not (_PROJECT_ROOT / "isaaclab_rendering_tests").exists()
 
     old_owners = (
         _CORE_ROOT / "isaaclab/test/utils/golden_image.py",
@@ -96,11 +102,12 @@ def test_downstream_project_owns_rendering_correctness() -> None:
     )
     assert not [path.relative_to(_REPO_ROOT) for path in old_owners if path.exists()]
 
+    project_names = ("isaaclab_rendering_tests", "_isaaclab_integration_tests", "isaaclab-integration-tests")
     reverse_references = [
         path.relative_to(_REPO_ROOT)
         for root in (_CORE_ROOT, _TASK_ROOT, _VISUALIZER_ROOT)
         for path in root.rglob("*")
-        if path.suffix in {".py", ".toml"} and "isaaclab_rendering_tests" in path.read_text()
+        if path.suffix in {".py", ".toml"} and any(name in path.read_text() for name in project_names)
     ]
     assert not reverse_references
 
@@ -108,17 +115,17 @@ def test_downstream_project_owns_rendering_correctness() -> None:
 def test_executable_roots_are_compact_and_task_free() -> None:
     """Keep two renderer roots, one visualizer root, and no environment imports."""
     renderer_roots = {
-        path.name for path in _TEST_DIR.glob("test_rendering_*.py") if path.name != "test_rendering_architecture.py"
+        path.name for path in _SUITE_DIR.glob("test_rendering_*.py") if path.name != "test_rendering_architecture.py"
     }
     assert renderer_roots == {"test_rendering_kit.py", "test_rendering_kitless.py"}
-    assert (_TEST_DIR / "test_visualizer_rendering.py").is_file()
+    assert (_SUITE_DIR / "test_visualizer_rendering.py").is_file()
     for name in renderer_roots:
-        assert "pytest.mark.cold_cache" in (_TEST_DIR / name).read_text()
+        assert "pytest.mark.cold_cache" in (_SUITE_DIR / name).read_text()
 
     forbidden = ("isaaclab_tasks", "gymnasium", "ManagerBasedEnv", "DirectRLEnv", "hydra")
     violations = {
         path.name: [token for token in forbidden if token in path.read_text()]
-        for path in _TEST_DIR.glob("*.py")
+        for path in _SUITE_DIR.glob("*.py")
         if path != Path(__file__)
         if any(token in path.read_text() for token in forbidden)
     }
@@ -136,8 +143,10 @@ def test_process_partitions_cover_every_rendering_case_once() -> None:
     )
 
     cases_by_root = {
-        "source/isaaclab_rendering_tests/test/test_rendering_kit.py": [case.id for case in KIT_RENDERING_CASES],
-        "source/isaaclab_rendering_tests/test/test_rendering_kitless.py": [
+        "source/_isaaclab_integration_tests/test/rendering/test_rendering_kit.py": [
+            case.id for case in KIT_RENDERING_CASES
+        ],
+        "source/_isaaclab_integration_tests/test/rendering/test_rendering_kitless.py": [
             f"{stage}-{case.id}" for stage, case in KITLESS_RENDERING_CASES
         ],
     }
@@ -155,7 +164,7 @@ def test_process_partitions_cover_every_rendering_case_once() -> None:
         assert all(counts.values())
         assert max(counts.values()) <= 15, "Each process has a 15-scene compilation budget."
 
-    kitless_source = (_TEST_DIR / "kitless_rendering_runner.py").read_text()
+    kitless_source = (_SUITE_DIR / "kitless_rendering_runner.py").read_text()
     thread_limit = 'os.environ["PXR_WORK_THREAD_LIMIT"] = "1"'
     assert all(
         kitless_source.index(thread_limit) < kitless_source.index(statement)
@@ -170,7 +179,7 @@ def test_scene_composition_has_one_downstream_owner() -> None:
         for path in (_REPO_ROOT / "source").rglob("*.py")
         if "RenderingTestSceneCfg" in _defined_classes(path)
     ]
-    assert owners == [Path("source/isaaclab_rendering_tests/test/rendering_scene_cfgs.py")]
+    assert owners == [Path("source/_isaaclab_integration_tests/test/rendering/rendering_scene_cfgs.py")]
 
     from rendering_scene_cfgs import RenderingTestSceneCfg
 
@@ -190,7 +199,7 @@ def test_scene_composition_has_one_downstream_owner() -> None:
 
 def test_specialized_scenes_own_facts_and_runner_stays_generic() -> None:
     """Scene-specific geometry and tolerances do not leak into the runner."""
-    scene_path = _TEST_DIR / "rendering_scene_cfgs.py"
+    scene_path = _SUITE_DIR / "rendering_scene_cfgs.py"
     classes = _defined_classes(scene_path)
     expected_scenes = {"franka_cloth", "franka_soft", "kuka_heterogeneous", "shadow_hand"}
     assert {
@@ -205,11 +214,11 @@ def test_specialized_scenes_own_facts_and_runner_stays_generic() -> None:
     assert KIT_RENDERING_CASES == KIT_CASES + SPECIALIZED_KIT_CASES
     assert KITLESS_RENDERING_CASES == KITLESS_CASES + SPECIALIZED_KITLESS_CASES
 
-    runner_source = (_TEST_DIR / "rendering_runner.py").read_text()
+    runner_source = (_SUITE_DIR / "rendering_runner.py").read_text()
     assert not [scene for scene in expected_scenes if f'"{scene}"' in runner_source]
     runtime_functions = {
         node.name
-        for node in ast.parse((_TEST_DIR / "rendering_runtime.py").read_text()).body
+        for node in ast.parse((_SUITE_DIR / "rendering_runtime.py").read_text()).body
         if isinstance(node, ast.FunctionDef)
     }
     assert "make_rendering_physics_cfg" in runtime_functions
@@ -218,7 +227,7 @@ def test_specialized_scenes_own_facts_and_runner_stays_generic() -> None:
 
 def test_reset_and_teardown_policies_keep_their_owners() -> None:
     """Rendering delegates reset policy to MDP and owns only its lifecycle."""
-    runtime_tree = ast.parse((_TEST_DIR / "rendering_runtime.py").read_text())
+    runtime_tree = ast.parse((_SUITE_DIR / "rendering_runtime.py").read_text())
     rendering_scene = next(
         node for node in runtime_tree.body if isinstance(node, ast.ClassDef) and node.name == "RenderingScene"
     )
@@ -305,7 +314,7 @@ def test_golden_inventory_is_derived_from_the_case_matrix() -> None:
     for _, case in KITLESS_RENDERING_CASES:
         expected[case.scene].update(case.golden_filename(aov) for aov in case.golden_aovs)
 
-    renderer_root = _TEST_DIR / "golden_images/renderers"
+    renderer_root = _SUITE_DIR / "golden_images/renderers"
     assert {path.name for path in renderer_root.iterdir() if path.is_dir()} == set(expected)
     for scene, filenames in expected.items():
         assert {path.name for path in (renderer_root / scene).glob("*.png")} == filenames
@@ -318,4 +327,4 @@ def test_golden_inventory_is_derived_from_the_case_matrix() -> None:
         for visualizer in ("kit", "newton")
         for mode in ("viewport", "tiled")
     }
-    assert {path.name for path in (_TEST_DIR / "golden_images/visualizers").glob("*.png")} == visualizer_expected
+    assert {path.name for path in (_SUITE_DIR / "golden_images/visualizers").glob("*.png")} == visualizer_expected
