@@ -91,10 +91,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
     )
 
-    isaacsim_physx: PhysxCfg = PhysxCfg(
-        friction_offset_threshold=0.005,
-        friction_correlation_distance=0.01,
-    )
+    isaacsim_physx: PhysxCfg = PhysxCfg()
 
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
@@ -106,7 +103,7 @@ SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
     rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
     collision_props=sim_utils.CollisionPropertiesCfg(),
-    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
+    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.01, dynamic_friction=0.01),
     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
 )
 
@@ -142,18 +139,18 @@ class DeformableCfg(PresetCfg):
             size=(0.2, 0.2),
             resolution=(8, 8),
             deformable_props=PhysxDeformableBodyPropertiesCfg(),
-            collision_props=[PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01)],
+            collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=PhysxSurfaceDeformableBodyMaterialCfg(
-                density=10.0,
-                youngs_modulus=2000.0,
-                poissons_ratio=0.25,
-                surface_thickness=0.005,
-                surface_stretch_stiffness=0.8,
-                surface_shear_stiffness=0.7,
-                surface_bend_stiffness=0.6,
-                elasticity_damping=0.03,
-                bend_damping=0.04,
+                density=5000.0,
+                surface_thickness=0.002,
+                surface_stretch_stiffness=1e3,
+                surface_shear_stiffness=1e3,
+                surface_bend_stiffness=1e6,
+                elasticity_damping=1.0,
+                bend_damping=1.0,
+                static_friction=10.0,
+                dynamic_friction=10.0,
             ),
         ),
     )
@@ -167,17 +164,6 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
     """Scene for the Franka surface deformable environment."""
 
     deformable: DeformableCfg = DeformableCfg()
-
-    # Low-friction table so the cloth slides freely instead of sticking. Effective cloth-table
-    # friction is sqrt(soft_contact_mu * shape_mu); this sets shape_mu without touching the global
-    # soft_contact_mu that governs the gripper's hold on the cloth.
-    table: AssetBaseCfg = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
-        spawn=TABLE_SPAWN_CFG.replace(
-            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
-        ),
-    )
 
     support_neg_y: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/SupportNegY",
@@ -234,7 +220,7 @@ class FrankaClothEventCfg(FrankaSoftEventCfg):
         mode="reset",
         params={
             "position_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
-            "clear_gap_range": (0.008, 0.03),
+            "clear_gap_range": (0.01, 0.03),
             "asset_cfg": SceneEntityCfg("deformable"),
             "support_cfg": (SceneEntityCfg("support_neg_y"), SceneEntityCfg("support_pos_y")),
         },

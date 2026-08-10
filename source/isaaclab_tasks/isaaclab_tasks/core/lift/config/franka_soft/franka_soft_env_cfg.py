@@ -182,10 +182,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
     )
 
-    isaacsim_physx: PhysxCfg = PhysxCfg(
-        friction_offset_threshold=0.005,
-        friction_correlation_distance=0.01,
-    )
+    isaacsim_physx: PhysxCfg = PhysxCfg()
 
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
