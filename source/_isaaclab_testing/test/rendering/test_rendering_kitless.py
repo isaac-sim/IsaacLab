@@ -6,8 +6,8 @@
 """All golden scenes rendered through Kit-less renderer/backend pairs."""
 
 import pytest
-from kitless_rendering_runner import make_kitless_test
+from kitless_rendering_runner import generate_kitless_test_cases
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci, pytest.mark.cold_cache]
 
-test_rendering = make_kitless_test()
+test_rendering = generate_kitless_test_cases()

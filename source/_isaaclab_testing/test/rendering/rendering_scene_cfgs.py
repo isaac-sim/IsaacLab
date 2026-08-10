@@ -522,7 +522,7 @@ class RenderingSceneSpec:
     cfg: InteractiveSceneCfg
     camera_eye: tuple[float, float, float]
     camera_target: tuple[float, float, float]
-    required_labels: frozenset[str] = frozenset()
+    expected_instances: dict[str, str] = field(default_factory=dict)
     physics_cfg: PhysicsCfg | None = None
     preserve_fixed_articulation_roots: frozenset[str] = frozenset()
     image_max_diff_pct: float = 3.0
@@ -540,7 +540,14 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
             cfg=RenderingTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=True),
             camera_eye=CAMERA_EYE,
             camera_target=CAMERA_TARGET,
-            required_labels=frozenset({"robot"}),
+            expected_instances={
+                "/World/Ground": "ground",
+                "/World/envs/env_0/Robot": "robot",
+                "/World/envs/env_0/MovingCube": "moving_cube",
+                "/World/envs/env_0/Table": "table",
+                "/World/envs/env_0/Cylinder": "cylinder",
+                "/World/envs/env_0/Sphere": "sphere",
+            },
             image_tolerance_overrides={("isaac_rtx", RenderBufferKind.RGB): (8.0, 0.975)},
         )
     if scene in {"franka_soft", "franka_cloth"}:
@@ -573,6 +580,15 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
             cfg=cfg,
             camera_eye=(0.57, -0.8, 0.5),
             camera_target=(-0.296179, -0.299998, 0.500133),
+            expected_instances={
+                "/World/GroundPlane": "ground",
+                **{f"/World/envs/env_{env_id}/Robot": "robot" for env_id in range(4)},
+                **{f"/World/envs/env_{env_id}/table": "table" for env_id in range(4)},
+                **{
+                    f"/World/envs/env_{env_id}/Object": label
+                    for env_id, label in enumerate(("cube", "sphere", "capsule", "cone"))
+                },
+            },
             image_max_diff_pct=15.0,
             min_ssim=0.95,
         )
@@ -586,7 +602,11 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
             cfg=cfg,
             camera_eye=(0.0, -0.35, 1.0),
             camera_target=(0.0, -0.35, 0.0),
-            required_labels=frozenset({"cube"}),
+            expected_instances={
+                f"/World/envs/env_{env_id}/{prim}": label
+                for env_id in range(4)
+                for prim, label in (("Robot", "robot"), ("object", "cube"))
+            },
             preserve_fixed_articulation_roots=frozenset({"robot"}),
             image_max_diff_pct=10.0,
         )

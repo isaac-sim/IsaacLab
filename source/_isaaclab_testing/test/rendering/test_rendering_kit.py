@@ -10,8 +10,8 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import pytest  # noqa: E402
-from rendering_runner import make_kit_test  # noqa: E402
+from rendering_runner import generate_kit_test_cases  # noqa: E402
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.cold_cache]
 
-test_rendering = make_kit_test()
+test_rendering = generate_kit_test_cases()

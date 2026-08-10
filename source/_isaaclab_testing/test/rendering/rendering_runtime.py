@@ -233,11 +233,11 @@ def make_rendering_physics_cfg(physics_backend: str) -> PhysicsCfg:
         from isaaclab_physx.physics import PhysxCfg
 
         return PhysxCfg(enable_enhanced_determinism=True, enable_external_forces_every_iteration=True)
-    if physics_backend == "ovphysx":
+    elif physics_backend == "ovphysx":
         from isaaclab_ovphysx.physics import OvPhysxCfg
 
         return OvPhysxCfg(enable_enhanced_determinism=True, enable_external_forces_every_iteration=True)
-    if physics_backend == "newton":
+    elif physics_backend == "newton":
         from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
         return NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1, debug_mode=False, use_cuda_graph=True)

@@ -38,8 +38,8 @@ def run_kitless_rendering_case(stage_variant: str, case: RenderCase, request: An
     run_rendering_case(case, request, golden_namespace=None, artifact_namespace=stage_variant)
 
 
-def make_kitless_test() -> Any:
-    """Create the Kit-less test function from the centrally owned case matrix."""
+def generate_kitless_test_cases() -> Any:
+    """Generate the parametrized Kit-less test cases from the centrally owned matrix."""
     import pytest
 
     @pytest.mark.parametrize(

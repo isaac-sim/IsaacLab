@@ -3,13 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for renderer-independent golden-image comparison."""
+"""Tests for renderer-independent golden-image and segmentation validation."""
 
+import copy
 from pathlib import Path
 
 import pytest
+import torch
 from golden_image import compare_to_golden
 from PIL import Image
+from rendering_runner import _validate_segmentation
+
+from isaaclab.renderers.output_contract import RenderBufferKind
 
 
 def _image(color: tuple[int, int, int]) -> Image.Image:
@@ -75,3 +80,39 @@ def test_update_mode_overwrites_and_passes(tmp_path: Path, monkeypatch: pytest.M
 
     assert comparison.passed
     assert Image.open(golden).getpixel((0, 0)) == (0, 255, 0)
+
+
+def _instance_segmentation_data():
+    background, unlabelled, robot = (0, 0, 0, 0), (0, 0, 0, 255), (12, 34, 56, 255)
+    kind = RenderBufferKind.INSTANCE_SEGMENTATION
+    outputs = {kind: torch.tensor([background, robot], dtype=torch.uint8).reshape(1, 1, 2, 4)}
+    info = {
+        kind: {
+            "idToLabels": {background: "BACKGROUND", unlabelled: "UNLABELLED", robot: "/World/Robot"},
+            "idToSemantics": {
+                background: {"class": "BACKGROUND"},
+                unlabelled: {"class": "UNLABELLED"},
+                robot: {"class": "robot"},
+            },
+        }
+    }
+    return outputs, info, {"/World/Robot": "robot"}
+
+
+def test_instance_segmentation_metadata_matches_pixels_and_scene() -> None:
+    outputs, info, expected = _instance_segmentation_data()
+
+    _validate_segmentation(outputs, info, expected)
+
+    invalid_info = copy.deepcopy(info)
+    invalid_info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToSemantics"][(12, 34, 56, 255)] = {"class": "cube"}
+    with pytest.raises(AssertionError, match="metadata mismatch"):
+        _validate_segmentation(outputs, invalid_info, expected)
+
+
+def test_instance_segmentation_rejects_metadata_colors_absent_from_pixels() -> None:
+    outputs, info, expected = _instance_segmentation_data()
+    info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToLabels"][(99, 88, 77, 255)] = "/World/Extra"
+
+    with pytest.raises(AssertionError, match="rendered colors"):
+        _validate_segmentation(outputs, info, expected)

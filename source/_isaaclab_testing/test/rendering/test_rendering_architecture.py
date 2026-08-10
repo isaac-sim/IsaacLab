@@ -132,6 +132,18 @@ def test_executable_roots_are_compact_and_task_free() -> None:
     }
     assert not violations
 
+    factories = {
+        "rendering_runner.py": ("generate_kit_test_cases", "make_kit_test"),
+        "kitless_rendering_runner.py": ("generate_kitless_test_cases", "make_kitless_test"),
+    }
+    for filename, (expected, rejected) in factories.items():
+        functions = {
+            node.name
+            for node in ast.parse((_SUITE_DIR / filename).read_text()).body
+            if isinstance(node, ast.FunctionDef)
+        }
+        assert expected in functions and rejected not in functions
+
 
 def test_process_partitions_cover_every_rendering_case_once() -> None:
     """Each native scene family runs in exactly one fresh-process partition."""

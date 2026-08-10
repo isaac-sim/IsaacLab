@@ -76,7 +76,7 @@ def run_rendering_case(
             assert torch.all(support_pixels < view_pixels // 2), f"Motion is not localized: {support_pixels.tolist()}"
             outputs[RenderBufferKind.MOTION_VECTORS] = motion
 
-        _validate_segmentation(outputs, info, scene.required_labels)
+        _validate_segmentation(outputs, info, scene.expected_instances)
         failures = []
         for aov in case.golden_aovs:
             image_max_diff_pct, min_ssim = scene.image_tolerance(case.renderer, aov)
@@ -101,8 +101,8 @@ def run_rendering_case(
         assert not failures, "\n".join([f"{case.id} failed:", *failures])
 
 
-def make_kit_test() -> Any:
-    """Create one Kit test function from the centrally owned case matrix."""
+def generate_kit_test_cases() -> Any:
+    """Generate the parametrized Kit test cases from the centrally owned matrix."""
     import pytest
 
     @pytest.mark.parametrize("case", KIT_RENDERING_CASES, ids=[case.id for case in KIT_RENDERING_CASES])
@@ -113,32 +113,79 @@ def make_kit_test() -> Any:
 
 
 def _validate_segmentation(
-    outputs: dict[str, torch.Tensor], info: dict[str, Any] | None, required_labels: frozenset[str]
+    outputs: dict[str, torch.Tensor], info: dict[str, Any] | None, expected_instances: dict[str, str]
 ) -> None:
+    required_labels = frozenset(expected_instances.values())
     semantic = outputs.get(RenderBufferKind.SEMANTIC_SEGMENTATION)
-    if semantic is None:
-        return
-    assert info is not None and RenderBufferKind.SEMANTIC_SEGMENTATION in info
-    metadata = info[RenderBufferKind.SEMANTIC_SEGMENTATION]
-    assert metadata is not None and "idToLabels" in metadata
-    id_to_labels = metadata["idToLabels"]
-    channels = min(semantic.shape[-1], 4)
-    for label in required_labels:
-        colors = [key for key, entry in id_to_labels.items() if isinstance(entry, dict) and entry.get("class") == label]
-        assert colors, f"The semantic metadata does not contain required label {label!r}."
-        rendered = False
-        for value in colors:
-            value = ast.literal_eval(value) if isinstance(value, str) else value
-            color = torch.tensor(value[:channels], device=semantic.device, dtype=semantic.dtype)
-            if semantic.is_floating_point() and semantic.max().item() <= 1.0:
-                color = color / 255.0
-            rendered |= bool(torch.any(torch.all(semantic[..., :channels] == color, dim=-1)).item())
-        assert rendered, f"The semantic output does not contain required label {label!r}."
+    if semantic is not None:
+        assert info is not None and RenderBufferKind.SEMANTIC_SEGMENTATION in info
+        metadata = info[RenderBufferKind.SEMANTIC_SEGMENTATION]
+        assert metadata is not None and "idToLabels" in metadata
+        id_to_labels = metadata["idToLabels"]
+        channels = min(semantic.shape[-1], 4)
+        for label in required_labels:
+            colors = [
+                key for key, entry in id_to_labels.items() if isinstance(entry, dict) and entry.get("class") == label
+            ]
+            assert colors, f"The semantic metadata does not contain required label {label!r}."
+            rendered = False
+            for value in colors:
+                value = ast.literal_eval(value) if isinstance(value, str) else value
+                color = torch.tensor(value[:channels], device=semantic.device, dtype=semantic.dtype)
+                if semantic.is_floating_point() and semantic.max().item() <= 1.0:
+                    color = color / 255.0
+                rendered |= bool(torch.any(torch.all(semantic[..., :channels] == color, dim=-1)).item())
+            assert rendered, f"The semantic output does not contain required label {label!r}."
 
-    labels = {
-        entry["class"]
-        for entry in id_to_labels.values()
-        if isinstance(entry, dict) and "class" in entry and entry["class"] not in {"BACKGROUND", "UNLABELLED"}
+        labels = {
+            entry["class"]
+            for entry in id_to_labels.values()
+            if isinstance(entry, dict) and "class" in entry and entry["class"] not in {"BACKGROUND", "UNLABELLED"}
+        }
+        known_labels = {name.split(":", 1)[1] for name in SEMANTIC_COLORS}
+        assert labels <= known_labels, f"Unexpected semantic labels: {sorted(labels - known_labels)}."
+
+    instance = outputs.get(RenderBufferKind.INSTANCE_SEGMENTATION)
+    if instance is None:
+        return
+    assert expected_instances, "Scenes requesting instance segmentation must declare their expected instances."
+    assert instance.shape[-1] == 4, f"Expected colorized instance segmentation, got shape {instance.shape}."
+    assert info is not None and RenderBufferKind.INSTANCE_SEGMENTATION in info
+    metadata = info[RenderBufferKind.INSTANCE_SEGMENTATION]
+    assert metadata is not None and {"idToLabels", "idToSemantics"} <= set(metadata)
+
+    def normalize(mapping: dict[Any, Any]) -> dict[tuple[int, ...], Any]:
+        normalized = {
+            tuple(int(channel) for channel in (ast.literal_eval(key) if isinstance(key, str) else key)): value
+            for key, value in mapping.items()
+        }
+        assert len(normalized) == len(mapping), "Instance-segmentation metadata contains duplicate color keys."
+        return normalized
+
+    id_to_labels = normalize(metadata["idToLabels"])
+    id_to_semantics = normalize(metadata["idToSemantics"])
+    reserved = {
+        (0, 0, 0, 0): ("BACKGROUND", {"class": "BACKGROUND"}),
+        (0, 0, 0, 255): ("UNLABELLED", {"class": "UNLABELLED"}),
     }
-    expected = {name.split(":", 1)[1] for name in SEMANTIC_COLORS}
-    assert labels <= expected, f"Unexpected semantic labels: {sorted(labels - expected)}."
+    image_colors = {
+        tuple(int(channel) for channel in color)
+        for color in torch.unique(instance.reshape(-1, instance.shape[-1]), dim=0).cpu().tolist()
+    }
+    expected_colors = image_colors | set(reserved)
+    assert set(id_to_labels) == expected_colors, "Instance idToLabels keys do not match rendered colors."
+    assert set(id_to_semantics) == expected_colors, "Instance idToSemantics keys do not match rendered colors."
+    for color, (label, semantics) in reserved.items():
+        assert id_to_labels[color] == label
+        assert id_to_semantics[color] == semantics
+
+    actual_instances = {}
+    for color in set(id_to_labels) - set(reserved):
+        path = id_to_labels[color]
+        semantics = id_to_semantics[color]
+        assert isinstance(path, str) and path not in actual_instances
+        assert isinstance(semantics, dict) and set(semantics) == {"class"}
+        actual_instances[path] = semantics["class"]
+    assert actual_instances == expected_instances, (
+        f"Instance-segmentation metadata mismatch.\n  expected: {expected_instances}\n  actual: {actual_instances}"
+    )
