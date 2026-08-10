@@ -7,7 +7,7 @@
 Setup:
     - bash tools/wheel_builder/build.sh
     - ./isaaclab.sh -u
-    - uv pip install <wheel>[all]
+    - uv pip install <wheel>[sb3,skrl,rsl-rl]
 Tests:
     - import isaaclab -> verify importable
     - from isaaclab import __version__ -> verify version matches wheel filename
@@ -19,7 +19,7 @@ Tests:
     - python -m isaaclab --help -> verify CLI functional
     - import pinocchio -> verify importable
     - python -c "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)"
-        -> verify the all extra omits tetrahedralization dependencies
+        -> verify the RL extras omit tetrahedralization dependencies
 """
 
 from __future__ import annotations
@@ -33,9 +33,15 @@ from utils import UV_Mixin, run_cmd
 
 @pytest.mark.smoke
 class Test_Wheel_Builder_Smoke(UV_Mixin):
-    """Test building the isaaclab wheel and installing it in a uv environment."""
+    """Test building the isaaclab wheel and installing it in a uv environment.
+
+    The extras are named individually rather than using the aggregate ``all``: this is a
+    fast smoke test of the built wheel, and ``all`` would pull Isaac Sim and both OV
+    backends in. ``test_uv_pip_install_isaaclab_all_trains_cartpole`` covers ``[all]``.
+    """
 
     _wheel: str = ""
+    _extras: str = "[sb3,skrl,rsl-rl]"
 
     @classmethod
     def setup_class(cls):
@@ -67,7 +73,7 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         cls.env_path = self.env_path
         cls.python = self.python
         cls.cli_script = self.cli_script
-        result = self.run_in_uv_env(["uv", "pip", "install", cls._wheel + "[all]"])
+        result = self.run_in_uv_env(["uv", "pip", "install", cls._wheel + cls._extras])
         assert result.returncode == 0, f"uv pip install wheel failed:\n{result.stdout}\n{result.stderr}"
 
         yield
@@ -134,8 +140,8 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         result = self.run_in_uv_env(["python", "-c", "import pinocchio as pin; print(pin.__version__)"])
         assert result.returncode == 0, f"import pinocchio failed:\n{result.stdout}\n{result.stderr}"
 
-    def test_install_all_omits_tetrahedralization_dependencies(self):
-        """Verify the wheel's all extra does not install pytetwild."""
+    def test_install_rl_extras_omits_tetrahedralization_dependencies(self):
+        """Verify the wheel's RL extras do not install pytetwild."""
         result = self.run_in_uv_env(
             [
                 "python",
@@ -143,4 +149,6 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
                 "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)",
             ]
         )
-        assert result.returncode == 0, f"pytetwild should not be installed by [all]:\n{result.stdout}\n{result.stderr}"
+        assert result.returncode == 0, (
+            f"pytetwild should not be installed by {self._extras}:\n{result.stdout}\n{result.stderr}"
+        )

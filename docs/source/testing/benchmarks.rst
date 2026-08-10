@@ -4,9 +4,9 @@ Benchmarking Isaac Lab
 ======================
 
 Isaac Lab provides supported benchmark workflows for environment stepping,
-trained-policy playback, reinforcement-learning training, and startup profiling.
-This guide explains which workflow to use, how to run it, and how to interpret
-its results.
+trained-policy playback, reinforcement-learning training, and startup profiling,
+each of which can also be run across several GPUs. This guide explains which
+workflow to use, how to run it, and how to interpret its results.
 
 .. seealso::
 
@@ -31,6 +31,8 @@ Choose A Workflow
      - ``training``
    * - Launch, import, configuration, scene creation, or first-step latency
      - ``startup``
+   * - Any of the above across several GPUs
+     - ``<workflow>-multigpu``
    * - One asset or sensor operation
      - :ref:`testing_micro_benchmarks`
 
@@ -89,6 +91,9 @@ step supplies that diagnostic without being removed from the measured window.
 Read The Result
 ~~~~~~~~~~~~~~~
 
+A throughput and resource summary is printed to the console when the run
+finishes. The JSON output holds the full result.
+
 Read ``runtime.environment_step_timing.environment_step_fps`` for the aggregate
 environment-step rate. Runtime samples random actions before starting the
 ``env.step()`` timer, so random-action generation is outside this timing. For a
@@ -116,7 +121,7 @@ same random-action stepping workload.
    .. code-block:: json
 
       {
-        "schema_version": "1.3",
+        "schema_version": "1.4",
         "run": {
           "config": {"physics_backend": "physx", "rendering_backend": "none", "presets": ["physx"]},
           "task": "Isaac-Cartpole-Direct", "seed": 42, "status": "completed", "num_envs": 4096
@@ -151,7 +156,7 @@ same random-action stepping workload.
    .. code-block:: json
 
       {
-        "schema_version": "1.3",
+        "schema_version": "1.4",
         "run": {
           "config": {
             "physics_backend": "physx", "rendering_backend": "isaacsim_rtx",
@@ -312,6 +317,9 @@ time.
 Read The Result
 ~~~~~~~~~~~~~~~
 
+A throughput, resource, and learning summary is printed to the console when the
+run finishes. The JSON output holds the full result.
+
 Use ``runtime.collection_fps`` for rollout collection without policy update,
 ``runtime.total_fps`` for collection plus update, and
 ``runtime.environment_step_timing.environment_step_fps`` for environment-only
@@ -329,6 +337,96 @@ Do Not Infer
 Do not treat a faster environment-step rate as proof of faster end-to-end
 training or equivalent learning. Do not compare short training curves as if
 they established final policy quality.
+
+.. _testing_benchmarks_multigpu:
+
+Multi-GPU
+---------
+
+Use It When
+~~~~~~~~~~~
+
+Append ``-multigpu`` to ``startup``, ``runtime``, or ``training`` to run the same
+workflow with one rank per GPU. Use it to measure synchronized multi-GPU training
+throughput, or to measure how much a workflow slows down when every GPU on the
+node is busy.
+
+Command
+~~~~~~~
+
+.. code-block:: bash
+
+   ./isaaclab.sh benchmark training-multigpu \
+       --rl_library rsl_rl \
+       --num_gpus 2 \
+       --task Isaac-Cartpole-Direct \
+       --num_envs 4096 \
+       --max_iterations 100 \
+       --seed 42 \
+       --visualizer none \
+       --output_path ./benchmark_results/multigpu \
+       physics=isaacsim_physx
+
+The launcher accepts ``--num_gpus``, ``--nnodes``, ``--node_rank``, and the
+``torchrun`` rendezvous options, exactly like :ref:`train-multigpu-command`. Every
+other argument is forwarded to the single-GPU workflow unchanged. Add ``--dry_run``
+to print the ``torchrun`` command without running it, and ``--log_all_ranks`` to
+show console output from every rank instead of local rank 0 only.
+
+For a multi-node run, issue the same command on every node with a distinct
+``--node_rank``:
+
+.. code-block:: bash
+
+   ./isaaclab.sh benchmark training-multigpu \
+       --rl_library rsl_rl --nnodes 2 --node_rank 0 --num_gpus 8 \
+       --rdzv_backend c10d --rdzv_endpoint host0:29400 --rdzv_id bench \
+       --task Isaac-Cartpole-Direct
+
+``training-multigpu`` supports ``rsl_rl``, ``rl_games``, and ``skrl`` with Torch. It
+does not support skrl JAX or SB3, and it rejects ``--video``,
+``--capture_env_sensors``, and ``--check_success``, none of which are meaningful
+across ranks. Use :ref:`train-multigpu-command` for general distributed training.
+
+Read The Result
+~~~~~~~~~~~~~~~
+
+``--num_envs`` is the number of environments **per rank**, and each rank creates its
+own Isaac Lab instance on its own GPU. Only global rank 0 writes a bundle. What that
+bundle covers depends on the workflow, and ``extra`` records it:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - ``extra`` field
+     - Meaning
+   * - ``world_size``, ``local_world_size``, ``num_nodes``
+     - Rank layout of the job.
+   * - ``num_envs_per_rank``
+     - Environments hosted by each rank.
+   * - ``workload_scope``
+     - ``global`` for ``training-multigpu``: ranks train in lockstep, so ``run.num_envs``,
+       ``runtime.steps_per_iteration``, and every FPS field cover all ranks.
+       ``rank0`` for ``startup-multigpu`` and ``runtime-multigpu``: those ranks run
+       independent workloads, so the reported values are rank 0's own, measured while
+       the other ranks contend for the same host.
+   * - ``measurement_scope``
+     - ``rank0_process`` — timings, learning curves, CPU, and RAM come from rank 0 alone.
+   * - ``gpu_measurement_scope``
+     - ``rank0_node`` — ``resources.devices`` reports every GPU visible to rank 0, so a
+       single-node run shows all ranks. ``resources.gpu_util_pct`` and
+       ``resources.gpu_mem_gb`` remain scoped to rank 0's own device.
+
+Do Not Infer
+~~~~~~~~~~~~
+
+Do not compare a multi-GPU result against a single-GPU result at the same
+``--num_envs``: the multi-GPU run has ``world_size`` times as many environments. To
+measure scaling, compare the global throughput of an ``N``-GPU run against ``N``
+times the throughput of a single-GPU run at the same per-rank environment count. Do
+not read ``startup-multigpu`` or ``runtime-multigpu`` throughput as a global rate;
+their ``workload_scope`` is ``rank0``, and the other ranks were not measured.
 
 Startup Profiling
 -----------------
@@ -371,12 +469,21 @@ fresh process and control cache state and execution order when comparing runs.
 Read The Result
 ~~~~~~~~~~~~~~~
 
+A per-phase wall-time summary is printed to the console when the run finishes,
+including the timers that ran during ``env_creation``. The JSON output holds the
+full profile.
+
 Read the wall time and attributed functions under each entry in ``phases``.
 Pass ``--whitelist_config scripts/benchmarks/startup_whitelist.yaml`` to select
 stable ``fnmatch`` patterns for specific phases. Whitelist mode ignores
 ``--top_n`` for listed phases. A pattern that matches no profiled function is
 still emitted with zero own time, cumulative time, and calls, which preserves
-stable dashboard keys.
+stable dashboard keys, and logs a warning naming the pattern.
+
+Patterns match profile labels, which are built relative to each installed
+package root: in-repo functions carry no package prefix
+(``utils.assets:_find_asset_dependencies``), while external packages keep their
+full dotted path (``warp._src.context:launch``).
 
 The typed result replaces runtime throughput fields with startup-specific
 ``config`` and ``phases`` mappings. Each phase reports wall time and selected
@@ -455,7 +562,7 @@ typed schema paths:
 
    jq '.run, .runtime.collection_fps, .runtime.total_fps' benchmark_*_schema.json
    jq '.runtime.environment_step_timing' benchmark_*_schema.json
-   jq '.phases' startup_*_schema.json
+   jq '.phases' benchmark_startup_*_schema.json
 
 With multiple formatters, the ``_schema`` suffix identifies the typed bundle.
 
