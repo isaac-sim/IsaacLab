@@ -10,7 +10,7 @@ visualizers are meant for fast, interactive feedback.
 Most visualizers can be combined with any physics engine or rendering backend.
 The exception is the Kit visualizer with kit-less OV backends:
 ``--visualizer kit`` cannot be used with ``presets=ovphysx`` or
-``ovrtx`` in the same process. Use ``--visualizer newton``,
+``ovrtx`` in the same process. Use ``--visualizer newton_gl``,
 ``--visualizer rerun``, ``--visualizer viser``, or omit ``--visualizer``
 for headless execution.
 
@@ -30,9 +30,12 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
    * - **Omniverse**
      - High-fidelity, Isaac Sim integration
      - USD, visualization markers, live plots, tiled camera panel
-   * - **Newton**
+   * - **Newton GL**
      - Fast iteration
-     - Low overhead, visualization markers, tiled camera panel
+     - Low overhead, visualization markers, streaming camera panel
+   * - **Newton RTX** *(experimental)*
+     - OVRTX path-tracing
+     - Photorealistic rendering, studio lighting *(visualization markers, live plots, and streaming camera panel not yet supported)*
    * - **Rerun**
      - Remote viewing, replay
      - Webviewer, time scrubbing, recording export, visualization markers
@@ -74,10 +77,13 @@ Launch visualizers from the command line with ``--visualizer`` (or ``--viz`` ali
       .. code-block:: bash
 
           # Launch all visualizers (comma-delimited list, no spaces)
-          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton,rerun
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton_gl,rerun
 
-          # Launch only the Newton visualizer
-          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+          # Launch only the Newton GL visualizer
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_gl
+
+          # Launch the Newton RTX path-tracer visualizer (requires OVRTX)
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole presets=newton_mjwarp --viz newton_rtx
 
           # Launch the Viser web-based visualizer
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
@@ -88,10 +94,13 @@ Launch visualizers from the command line with ``--visualizer`` (or ``--viz`` ali
       .. code-block:: bash
 
           # Launch all visualizers (comma-delimited list, no spaces)
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton,rerun
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz kit,newton_gl,rerun
 
-          # Launch only the Newton visualizer
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+          # Launch only the Newton GL visualizer
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_gl
+
+          # Launch the Newton RTX path-tracer visualizer (requires OVRTX)
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole presets=newton_mjwarp --viz newton_rtx
 
           # Launch the Viser web-based visualizer
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
@@ -126,7 +135,7 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
 
     from isaaclab.sim import SimulationCfg
     from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
     from isaaclab_visualizers.rerun import RerunVisualizerCfg
     from isaaclab_visualizers.viser import ViserVisualizerCfg
 
@@ -138,7 +147,7 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
                 eye=(0.0, 0.0, 20.0), # high top down view
                 lookat=(0.0, 0.0, 0.0),
             ),
-            NewtonVisualizerCfg(
+            NewtonGLVisualizerCfg(
                 eye=(5.0, 5.0, 5.0), # closer quarter view
                 lookat=(0.0, 0.0, 0.0),
                 show_joints=True,
@@ -162,7 +171,7 @@ Resolution Rules (CLI + Config)
 
 The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visualizer_cfgs``:
 
-- ``--viz`` (alias: ``--visualizer``) uses comma-separated values (for example ``--viz kit,newton``).
+- ``--viz`` (alias: ``--visualizer``) uses comma-separated values (for example ``--viz kit,newton_gl``).
 - If ``--viz`` is omitted, Isaac Lab falls back to ``SimulationCfg.visualizer_cfgs`` (see :ref:`visualization-configuration`).
 - ``--viz none`` explicitly disables all visualizers.
 
@@ -185,14 +194,14 @@ There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments f
 Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
 
 Newton environments can share simulated coordinates, for example when ``scene.env_spacing=0``.
-Use :attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.world_spacing` to arrange selected
+Use :attr:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg.world_spacing` to arrange selected
 worlds visually without changing their simulated poses:
 
 .. code-block:: python
 
 
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
-    NewtonVisualizerCfg(
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    NewtonGLVisualizerCfg(
         visible_env_indices=[0, 1, 2, 3],
         world_spacing=(2.0, 2.0, 0.0),
     )
@@ -212,66 +221,148 @@ selection and visual offsets. This includes point-cloud and task-geometry marker
    * - no ``--viz``
      - ``[]``
      - Run headless.
-   * - ``--viz kit,newton``
+   * - ``--viz kit,newton_gl``
      - ``[]``
      - Launch default Kit and default Newton visualizers.
-   * - ``--viz kit,newton``
-     - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
+   * - ``--viz kit,newton_gl``
+     - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - Launch default Kit and custom Newton; Rerun is not launched.
    * - no ``--viz``
-     - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
+     - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - Launch custom Newton and custom Rerun visualizers from config.
    * - ``--viz none``
-     - ``[NewtonVisualizerCfg(...), RerunVisualizerCfg(...)]``
+     - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - Run headless with all visualizers disabled.
 
 Camera Modes
 ~~~~~~~~~~~~
 
-To configure camera modes, including launching a tiled camera view, edit the fields described below in the
-``VisualizerCfg`` config class.
-
-For runnable Kit and Newton examples that use generated and existing tiled cameras,
-see :doc:`/source/how-to/visualizer_tiled_camera`.
-
 The default visualizer camera mode is interactive, with ``eye`` and ``lookat`` specifying the initial pose.
-Kit and Newton visualizers can also run additional tiled camera image panels.
+All visualizer backends also support a **streaming camera view** that composites per-environment
+ground-truth frames into a single image panel updated every step.
 
-If ``tiled_cam_view=True`` is set, another window is launched in the visualizer which shows
-a non-interactive tiled camera image view. Number of tiles is capped at 100.
+.. note::
 
-Kit tiled camera views work without an additional camera option.
+   The legacy ``tiled_cam_*`` fields (``tiled_cam_view``, ``tiled_cam_prim_path``, etc.) have been
+   replaced by the ``streaming_*`` fields described in the :ref:`streaming-camera-view` section below.
 
-.. list-table:: Camera Modes
+
+.. _streaming-camera-view:
+
+Streaming Camera View
+~~~~~~~~~~~~~~~~~~~~~
+
+The streaming view replaces the legacy ``tiled_cam_*`` fields with a unified API that works across
+all four visualizer backends. When ``streaming_view=True``, the visualizer captures pixels from a
+camera sensor each step, composites them into a single image tiled by environment and GT type, and
+displays or streams the result.
+
+**Configuration fields** (all defined on :class:`~isaaclab.visualizers.VisualizerCfg`):
+
+.. list-table::
    :header-rows: 1
-   :widths: 24 30 46
+   :widths: 30 70
 
-   * - Mode
-     - Key fields
-     - Behavior
-   * - **Default interactive**
-     - ``tiled_cam_view=False``, ``eye=(4, -4, 3)``, ``lookat=(0, 0, 0)``
-     - Interactive visualizer camera starts at ``eye`` and looks at the fixed ``lookat`` coordinate.
-   * - Generated tiled camera
-     - ``tiled_cam_view=True``, ``tiled_cam_prim_path=None``, ``tiled_cam_target_prim_path="/World/envs/*/Robot"``
-     - The visualizer creates per-env cameras. Each camera looks at the matched target prim, with ``tiled_cam_eye`` as an offset from that target.
-       Note that the ``tiled_cam_target_prim_path`` has a default value, but different environments may require different paths.
-   * - Existing tiled camera sensors
-     - ``tiled_cam_view=True``, ``tiled_cam_prim_path="/World/envs/*/Camera"``
-     - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and
-       ``tiled_cam_target_prim_path`` are ignored. Note that the ``tiled_cam_prim_path`` has a default value, but different
-       environments may require different paths. This mode requires an environment that registers Isaac Lab ``Camera`` sensors
-       in ``scene.sensors``. For Cartpole, use a camera task such as ``Isaac-Cartpole-Camera``. The plain ``Isaac-Cartpole``
-       task has no ``/World/envs/*/Camera`` sensor, so leave ``tiled_cam_prim_path=None`` to use generated visualizer cameras.
+   * - Field
+     - Description
+   * - ``streaming_view``
+     - Enable the streaming camera panel (default ``False``).
+   * - ``streaming_gt_types``
+     - List of ground-truth types shown left-to-right per env row.
+       Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``.
+   * - ``streaming_envs``
+     - ``int`` to randomly sample that many envs, or ``list[int]`` for fixed env indices.
+   * - ``streaming_depth_min`` / ``streaming_depth_max``
+     - Near/far clip [m] for the turbo depth colormap.
+   * - ``streaming_sensor_prim_path``
+     - Prim path of an **existing** ``TiledCamera`` sensor to read from
+       (e.g. ``"/World/envs/*/Camera"``). Takes priority over the auto-created camera.
+   * - ``streaming_cam_target_prim_path``, ``streaming_cam_eye``, ``streaming_cam_renderer``
+     - Settings for the **auto-created** camera (ignored when ``streaming_sensor_prim_path`` is set).
+       ``streaming_cam_target_prim_path`` defaults to ``None``: the visualizer first adopts the
+       first scene camera it discovers at init time; only set this explicitly (e.g.
+       ``"/World/envs/*/Robot"``) when you need a specific follow-prim and no scene camera exists.
+       ``streaming_cam_renderer`` accepts ``"newton_warp"``, ``"ovrtx"``, ``"isaac_rtx"``, or
+       ``None`` (let each backend choose its default).
 
-**How to Access the Tiled Camera View in the UI**
+**Example** — stream RGB and depth from an existing sensor for two specific envs:
 
-- **Kit Visualizer:**
-  To display the tiled camera panel, select the "Visualizer Tiled Camera" viewport from the viewport selection menu.
+.. code-block:: python
 
-- **Newton Visualizer:**
-  To enable or disable the tiled camera panel, use the "Visualizer Tiled Camera" option found in the Tiled Camera View dropdown menu on the left sidebar.
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
+    visualizer_cfg = NewtonGLVisualizerCfg(
+        streaming_view=True,
+        streaming_sensor_prim_path="/World/envs/*/Camera",
+        streaming_envs=[0, 1],
+        streaming_gt_types=["rgb", "depth"],
+        streaming_depth_max=5.0,
+    )
+
+**Colorization** is handled by :class:`~isaaclab.envs.utils.camera_colorizer.CameraFrameColorizer`
+in ``isaaclab.envs.utils.camera_colorizer``. Depth uses the turbo colormap; segmentation uses a
+golden-ratio hue palette to assign each class ID a distinct color.
+
+**Per-backend behavior:**
+
+- **Newton GL** — shows an image panel in the HUD sidebar ("Streaming Camera View" dropdown).
+- **Kit (Omniverse)** — shows an image panel in the Isaac Lab omni.ui window.
+- **Rerun** — pushes the composited frame to a 2D image view as the primary camera display each step.
+- **Viser** — streams the frame as a background image updated each step.
+
+.. note::
+
+   The Newton RTX visualizer is experimental. Visualization markers, live plots, and the
+   HUD streaming camera panel are not supported in this release. However, TiledCamera-based
+   frame capture for streaming is supported independently of the ViewerRTX display path.
+   When using the OVRTX renderer for the streaming camera (``streaming_cam_renderer="ovrtx"``),
+   the ``patchelf`` SONAME fix must be applied first — see the installation notes for
+   ``presets=ovrtx``.
+
+.. note::
+
+   **OVRTX streaming camera — per-backend support:**
+
+   - **Kit, Rerun, Viser** (``streaming_cam_renderer="ovrtx"``): Supported. The ``ovstage``
+     native library (``libosdCPU.so.3.6.0``) is pre-loaded automatically so ``ovrtx.Renderer``
+     can initialize without a manual ``LD_LIBRARY_PATH`` change.
+   - **Newton GL** (``streaming_cam_renderer="ovrtx"``): Supported when
+     ``streaming_sensor_prim_path`` points at an existing scene camera (see note below on
+     auto-create mode). Use ``streaming_cam_renderer="newton_warp"`` (the default) for the
+     auto-create camera path.
+   - **Newton RTX**: The viewer itself renders via OVRTX. The streaming camera panel is
+     not available on the RTX backend in this release.
+
+.. note::
+
+   **Auto-create streaming camera and Newton MJWarp (``replicate_physics=True``)**
+
+   When ``streaming_sensor_prim_path`` is ``None`` (auto-create mode), the visualizer
+   spawns a new camera prim after ``scene.initialize_renderers()`` has already finalised
+   Newton's clone plan.  With ``replicate_physics=True`` — which Newton MJWarp requires for
+   its high-performance sparse world replication — only ``env_0`` exists as a USD prim after
+   physics init; ``env_1..N`` are handled internally by Newton without USD prims.  The
+   spawned cameras at ``env_1..N`` are silently dropped, ``FrameView`` resolves only one
+   prim, and initialisation raises::
+
+       RuntimeError: Number of camera prims in the view (1) does not match
+       the number of environments (N).
+
+   **Workaround**: set ``streaming_sensor_prim_path`` to an existing scene camera that was
+   declared in the scene config and therefore included in Newton's clone plan before physics
+   init.  For tasks that already have a ``TiledCamera`` (e.g. vision-based manipulation
+   tasks), point the streaming view at it directly::
+
+       NewtonGLVisualizerCfg(
+           streaming_view=True,
+           streaming_sensor_prim_path="/World/envs/env_.*/Camera",
+           streaming_envs=12,
+       )
+
+   **Planned fix**: add a ``pre_physics_init`` hook to :class:`NewtonVisualizer` that
+   registers the streaming camera prim at ``env_0`` *before* Newton finalises its clone plan.
+   Newton then replicates the camera to all worlds automatically, restoring the full
+   auto-create experience (eye, lookat, follow target) on ``newton_mjwarp`` tasks.
 
 Live Plots
 ~~~~~~~~~~
@@ -301,9 +392,9 @@ explicitly (e.g. to reduce overhead during profiling):
 
 .. code-block:: python
 
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
-    visualizer_cfg = NewtonVisualizerCfg(
+    visualizer_cfg = NewtonGLVisualizerCfg(
         enable_live_plots=False,
     )
 
@@ -325,91 +416,12 @@ explicitly (e.g. to reduce overhead during profiling):
 Video Recording
 ---------------
 
-Video recording is enabled with the ``--video`` flag. When combined with ``--visualizer``,
-the visualizer selection also determines which backend captures the video frames:
+Video recording is configured on ``env_cfg.video_recorders`` and driven internally by
+``env.step()`` — no gym wrapper required. The source string selects whether to capture from
+a visualizer viewport (``"visualizer:kit"``, ``"visualizer:newton_gl"``) or a named scene sensor
+(``"sensor:tiled_camera"``), and each entry produces an independent ``mp4`` clip stream.
 
-- ``--visualizer kit`` enables ``--video`` capture through the Isaac RTX renderer (Omniverse Replicator).
-- ``--visualizer newton`` enables ``--video`` capture through the Newton OpenGL renderer.
-- ``--visualizer rerun`` does not produce ``--video`` clips; it records Rerun ``.rrd`` data for replay
-  through the Rerun visualizer.
-- ``--visualizer viser`` does not currently provide a ``--video`` recording backend.
-
-When both Kit and Newton visualizers are active, Isaac Lab records a single ``--video`` stream and
-Kit takes precedence. To record from the renderer/physics stack instead of the active visualizer,
-set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
-
-.. list-table:: ``--video`` compatibility: visualizer × renderer preset
-   :header-rows: 1
-   :widths: 28 36 36
-
-   * - Renderer preset
-     - ``--visualizer kit --video``
-     - ``--visualizer newton --video``
-   * - ``isaacsim_rtx``
-     - ✅ Kit RTX captures video *(default, no change)*
-     - ✅ Newton GL captures video *(overrides RTX backend)*
-   * - ``newton_renderer``
-     - ✅ Kit RTX captures video *(overrides Newton backend)*
-     - ✅ Newton GL captures video *(default, no change)*
-   * - ``ovrtx``
-     - ❌ **Raises an error** — see note below
-     - ✅ Newton GL captures video; ovrtx provides camera sensor data
-
-.. note::
-
-   ``--visualizer kit`` combined with ``ovrtx`` raises a ``ValueError`` at startup.
-   Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries compiled against
-   different USD namespaces (``pxrInternal_v0_25_11`` vs ``ovInternal_v0_25_11``), which
-   causes a dynamic-linker crash when loaded into the same process.
-   Use ``--visualizer newton`` instead — it is compatible with all renderer presets.
-
-**Record video with the ovrtx renderer preset**
-
-.. code-block:: bash
-
-   uv run --extra video isaaclab benchmark training \
-     --rl_library rsl_rl \
-     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --visualizer newton \
-     --video \
-     --video_length=300 \
-     --video_interval=2000 \
-     --max_iterations=5 \
-     --num_envs=1024 \
-     --benchmark_formatter=summary \
-     physics=newton_mjwarp renderer=ovrtx presets=rgb
-
-**Record video with the Isaac RTX renderer preset using the Newton video backend**
-
-.. code-block:: bash
-
-   uv run --extra video isaaclab benchmark training \
-     --rl_library rsl_rl \
-     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --visualizer newton \
-     --video \
-     --video_length=300 \
-     --video_interval=2000 \
-     --max_iterations=5 \
-     --num_envs=1024 \
-     --benchmark_formatter=summary \
-     physics=physx renderer=isaacsim_rtx presets=rgb
-
-**Record video with the Isaac RTX renderer preset using the Kit video backend**
-
-.. code-block:: bash
-
-   uv run --extra video isaaclab benchmark training \
-     --rl_library rsl_rl \
-     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
-     --visualizer kit \
-     --video \
-     --video_length=300 \
-     --video_interval=2000 \
-     --max_iterations=5 \
-     --num_envs=1024 \
-     --benchmark_formatter=summary \
-     physics=physx renderer=isaacsim_rtx presets=rgb
+See :doc:`/source/how-to/record_video` for a full guide with examples.
 
 
 Visualizer Backends
@@ -454,6 +466,7 @@ Newton Visualizer
 
 - Lightweight OpenGL rendering with low overhead
 - Simulation and rendering pause controls
+- Right-click rigid-body dragging with Newton rigid-body solvers
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 - Visualization markers (joints, contacts, springs, COM, debug markers)
@@ -474,6 +487,8 @@ Newton Visualizer
      - Down / Up
    * - **Left Click + Drag**
      - Look around
+   * - **Right Click + Drag**
+     - Apply an interactive force to a dynamic Newton rigid body
    * - **Mouse Scroll**
      - Zoom in/out
    * - **H**
@@ -485,9 +500,9 @@ Newton Visualizer
 
 .. code-block:: python
 
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
-    visualizer_cfg = NewtonVisualizerCfg(
+    visualizer_cfg = NewtonGLVisualizerCfg(
         # Window settings
         window_width=1920,                        # Window width in pixels
         window_height=1080,                       # Window height in pixels
@@ -497,15 +512,14 @@ Newton Visualizer
         lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
         focal_length=12.0,                        # Camera focal length in millimeters
 
-        # Tiled camera view settings
-        tiled_cam_view=True,                      # Enable non-interactive tiled camera image view
-        tiled_cam_num=16,                         # Number of generated camera tiles to display
-        tiled_cam_env_indices=None,               # Optional explicit env ids to show in the tiled view
-        tiled_cam_prim_path=None,                 # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
-        tiled_cam_eye=(4.0, -4.0, 3.0),           # Eye offset for generated tiled cameras
-        tiled_cam_target_prim_path=(              # Prim that generated cameras follow/look at
-            "/World/envs/*/Robot"                 # This is the default value, but different environments
-        ),                                        # may require a different paths.
+        # Streaming camera view settings
+        streaming_view=True,                      # Enable non-interactive streaming camera image view
+        streaming_envs=16,                        # Number of env tiles to show (or explicit list of env ids)
+        streaming_sensor_prim_path=None,          # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
+        streaming_cam_eye=(4.0, -4.0, 3.0),       # Eye offset for generated streaming cameras
+        streaming_cam_target_prim_path=None,      # None (default): adopt first scene camera found
+                                                  # at init. Set explicitly (e.g. "/World/envs/*/Robot")
+                                                  # only when a specific follow-prim is needed.
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
@@ -515,6 +529,7 @@ Newton Visualizer
         show_contacts=False,                      # Show contact points and normals
         show_springs=False,                       # Show spring constraints
         show_com=False,                           # Show center of mass markers
+        enable_picking=True,                      # Enable Newton rigid-body dragging
 
         # Rendering options
         enable_shadows=True,                      # Enable shadow rendering
@@ -522,10 +537,18 @@ Newton Visualizer
         enable_wireframe=False,                   # Enable wireframe mode
 
         # Color customization
-        background_color=(0.53, 0.81, 0.92),     # Sky/background color (RGB [0,1])
-        ground_color=(0.18, 0.20, 0.25),         # Ground plane color (RGB [0,1])
+        sky_upper_color=(0.53, 0.81, 0.92),       # Upper sky color (RGB [0,1])
+        sky_lower_color=(0.18, 0.20, 0.25),      # Lower sky / ground color (RGB [0,1])
         light_color=(1.0, 1.0, 1.0),             # Directional light color (RGB [0,1])
     )
+
+.. note::
+
+   Object dragging requires an interactive Newton visualizer with a Newton
+   rigid-body solver (MJWarp, XPBD, VBD, Featherstone, or Kamino), either standalone
+   or in a supported coupled solver with a rigid-body entry. Static and
+   kinematic bodies and MPM particles are not moved. Picking is disabled
+   automatically for headless viewers, standalone MPM, and non-Newton physics.
 
 
 Rerun Visualizer
@@ -545,6 +568,16 @@ Rerun Visualizer
    Rerun's ImGui overlay is embedded in the Newton viewer process. Custom interactive controls
    are limited to what ImGui exposes within that context; simulation pause is not supported from
    Rerun. Use the Viser visualizer for full interactive controls.
+
+.. note::
+
+   **Video recording** (``--video``) is not supported with the Rerun visualizer. Rerun is a
+   remote streaming tool and does not expose a local frame-capture API. To record video while
+   running Rerun, add a headless :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` or
+   :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` to ``sim.visualizer_cfgs``
+   and use it as the recording source. Frames can also be captured directly from a scene
+   camera sensor using ``VideoRecorderCfg(source="sensor:<name>")``.
+   See :doc:`/source/how-to/record_video` for details.
 
 .. important::
 
@@ -615,6 +648,16 @@ server, allowing you to view and interact with the scene from any browser.
   from the **Isaac Lab → Visualization Markers** sidebar panel)
 - Interactive sidebar controls: **Pause Rendering** (freezes the 3D view without stopping physics),
   **Pause Simulation** (pauses the training/rollout loop), and **Reset Episode**
+
+.. note::
+
+   **Video recording** (``--video``) is not supported with the Viser visualizer. Viser is a
+   browser-streaming tool and does not expose a local frame-capture API. To record video while
+   running Viser, add a headless :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` or
+   :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` to ``sim.visualizer_cfgs``
+   and use it as the recording source. Frames can also be captured directly from a scene
+   camera sensor using ``VideoRecorderCfg(source="sensor:<name>")``.
+   See :doc:`/source/how-to/record_video` for details.
 
 .. important::
 
@@ -746,7 +789,7 @@ Linux display session. This usually means the process is running in a
 non-interactive/service session, through a remote desktop path without GPU
 OpenGL acceleration, or with a software/basic OpenGL provider instead of the
 NVIDIA driver. Run from a GPU-backed interactive display session, or omit
-``--visualizer newton`` for headless inference.
+``--visualizer newton_gl`` for headless inference.
 
 
 **Newton Visualizer on Spark with Conda**
@@ -764,6 +807,26 @@ instead:
 .. code-block:: bash
 
     conda remove --force xorg-libx11 libxcb
+
+
+**Newton RTX Visualizer (Experimental)**
+
+The Newton RTX visualizer (``--viz newton_rtx`` / :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg`)
+is currently experimental. The following features are **not yet supported** and will be added in a future release:
+
+* **Visualization markers** — debug-draw geometry (:class:`~isaaclab.markers.VisualizationMarkers`) is skipped.
+* **Live plots** — per-step scalar streaming (reward, episode length, manager terms) is disabled.
+* **Streaming camera panel** — the ``streaming_view`` option has no display sink in the RTX viewer;
+  use :class:`~isaaclab_visualizers.rerun.RerunVisualizerCfg` or
+  :class:`~isaaclab_visualizers.viser.ViserVisualizerCfg` alongside Newton RTX for streaming output.
+* **``render_rgb_array()`` / video recording** — framebuffer readback requires
+  ``ViewerRTX.get_frame()`` support from the Newton team; the method currently returns ``None``.
+  As a result, ``--video`` with ``source="visualizer:newton_rtx"`` produces no frames.
+  Use ``source="visualizer:newton_gl"`` or a sensor source (``source="sensor:<name>"``) instead.
+* **Pause rendering** — the path-tracer runs at full cost every tick even while paused (unlike GL's
+  lightweight update).
+
+All of the above features are available in the other three visualizer backends (Newton GL, Rerun, Viser).
 
 
 See Also

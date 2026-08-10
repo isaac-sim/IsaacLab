@@ -4,28 +4,21 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "ee_pos",
-    "ee_quat",
-    "fingertips_pos",
-    "rel_ee_drawer_distance",
-    "rel_ee_object_distance",
     "align_ee_handle",
     "align_grasp_around_handle",
     "approach_ee_handle",
     "approach_gripper_handle",
+    "ee_pos",
+    "ee_quat",
+    "fingertips_pos",
     "grasp_handle",
     "multi_stage_open_drawer",
     "open_drawer_bonus",
+    "rel_ee_drawer_distance",
 ]
 
-from .observations import (
-    ee_pos,
-    ee_quat,
-    fingertips_pos,
-    rel_ee_drawer_distance,
-    rel_ee_object_distance,
-)
-from .rewards import (
+from isaaclab_tasks.core.cabinet.mdp.observations import ee_pos, ee_quat, fingertips_pos, rel_ee_drawer_distance
+from isaaclab_tasks.core.cabinet.mdp.rewards import (
     align_ee_handle,
     align_grasp_around_handle,
     approach_ee_handle,

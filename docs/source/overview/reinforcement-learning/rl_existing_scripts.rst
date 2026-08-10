@@ -9,7 +9,8 @@ Preset Selectors
 
 All training and play commands accept ``physics=NAME``, ``renderer=NAME``, and
 ``presets=NAME[,NAME,...]`` tokens appended directly to the command (no leading dashes).
-See :doc:`/source/features/hydra` for all available names and how the selectors work.
+See :doc:`/source/concepts/backends_and_presets` for preset discovery, common backend
+names, and how the selectors work.
 
 .. tab-set::
 
@@ -343,6 +344,15 @@ RSL-RL
 SKRL
 ----
 
+The SKRL integration is optional. Add ``--extra skrl`` to every ``uv run``
+command that selects ``--rl_library skrl``. Combine it with other extras in a
+comma-separated list when needed. For example:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim,skrl isaaclab train --rl_library skrl \
+      --task Isaac-Cartpole-Camera-Direct renderer=rtx physics=newton_mjwarp
+
 -  Training an agent with
    `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka``:
 
@@ -369,7 +379,7 @@ SKRL
                            # run command for playing with 32 environments
                            uv run --extra skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
                            # run command for recording video of a trained agent
-                           uv run --extra skrl --extra video isaaclab play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
+                           uv run --extra video,skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
 
                      .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -488,7 +498,7 @@ SKRL
                   # run command for playing with 32 environments
                   uv run --extra skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
                   # run command for recording video of a trained agent
-                  uv run --extra skrl --extra video isaaclab play --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax --video --video_length 200
+                  uv run --extra video,skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 

@@ -1,6 +1,120 @@
 Changelog
 ---------
 
+3.2.1 (2026-08-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the default of
+  :attr:`~isaaclab_newton.renderers.NewtonWarpRendererCfg.enable_backface_culling`
+  from ``True`` to ``False`` so double-sided surfaces remain visible by default.
+  Set ``enable_backface_culling=True`` to restore the previous culling behavior.
+
+Fixed
+^^^^^
+
+* Fixed intermittent segmentation faults after a CUDA graph capture by restoring the full
+  collection that runs when the capture window ends. Scoping it to generation 0 left cycles
+  that were promoted before the window but became unreachable during it -- a previous
+  ``wp.Graph``/``State`` released on a hard reset, for instance -- to the periodic collector,
+  which freed their Warp arrays long after the capture stream was destroyed.
+
+
+3.2.0 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg.enable_rigid_soft_full_surface_contact`
+  to generate edge and triangle-interior soft contacts against full-surface-capable rigid colliders.
+  Analytic shapes work directly; mesh and convex colliders require a volume SDF.
+* Added :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` to apply
+  one determinism setting to supported Newton solvers and collision handling.
+* Added :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` so
+  deterministic MJWarp simulations can skip unsupported internal sensor kernels.
+
+Fixed
+^^^^^
+
+* Fixed articulation target bindings for the Newton 1.5 control API.
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` when ``CameraCfg.isp_cfg`` is
+  set. It pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+* Fixed shadow deformable visualization for clone-planned PhysX environments.
+
+
+3.1.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for applying Newton visualizer dragging forces during
+  rigid-body solver substeps.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab_newton.video_recording.recording_hooks`` (dead stub, never
+  wired into the dispatch path). No migration needed.
+
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.video_capture_backend` classmethod
+  (returns ``"newton_gl"``), used by
+  :class:`~isaaclab.envs.utils.VideoRecorder` to select the Newton GL capture backend.
+* Changed the model finalization, solver initialization, and CUDA graph capture timers to name the
+  step they run, so :class:`~isaaclab.app.LoadingScreen` can show it while it happens rather than
+  after it finishes.
+
+Fixed
+^^^^^
+
+* Fixed articulation target bindings to use Newton's canonical joint target attributes.
+* Fixed Newton external wrenches so body-frame forces and torques are rotated
+  into the world frame before simulation.
+
+
+3.0.0 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``NewtonCfg.simplify_meshes``. Newton replication no longer
+  approximates mesh colliders, so a USD-authored collision approximation survives
+  cloning. Author the approximation on the asset instead, via
+  :attr:`~isaaclab.sim.schemas.CollisionBaseCfg.mesh_collision_property` on the
+  spawner config.
+
+
+2.6.0 (2026-08-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_newton.cloner.newton_builder_world_hook` for scoped
+  extensions to replicated Newton worlds.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab_newton.video_recording.recording_hooks`` (dead stub, never
+  wired into the dispatch path). No migration needed.
+
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.video_capture_backend` classmethod
+  (returns ``"newton_gl"``), used by
+  :class:`~isaaclab.envs.utils.VideoRecorder` to select the Newton GL capture backend.
+
+Fixed
+^^^^^
+
+* Fixed Newton gravity views and reset masks to handle the global-world entry separately from local environments.
+
+
 2.5.0 (2026-08-04)
 ~~~~~~~~~~~~~~~~~~
 

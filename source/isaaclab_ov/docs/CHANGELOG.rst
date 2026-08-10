@@ -1,6 +1,40 @@
 Changelog
 ---------
 
+0.10.5 (2026-08-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` when ``CameraCfg.isp_cfg`` is set. It
+  pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
+0.10.4 (2026-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX installations to use the OVStage release compatible with the pinned OV runtime stack.
+
+
+0.10.3 (2026-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cameras using the OVRTX renderer losing their MDL materials after an environment is torn
+  down, which left surfaces such as the ground plane unshaded in the ``simple_shading_diffuse_mdl``
+  and ``simple_shading_full_mdl`` outputs. Per-camera cleanup no longer releases the stage queries,
+  tensor bindings and render products shared by every camera on the backend; those are released by
+  :meth:`~isaaclab.renderers.BaseRenderer.close` when the simulation is torn down.
+
+
 0.10.2 (2026-08-04)
 ~~~~~~~~~~~~~~~~~~~
 

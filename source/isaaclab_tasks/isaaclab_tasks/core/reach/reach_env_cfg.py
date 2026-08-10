@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -25,6 +25,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -51,9 +52,6 @@ class ReachPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
         use_cuda_graph=True,
-    )
-    newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
     )
     default: NewtonCfg = newton_mjwarp
 
@@ -242,7 +240,7 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4
         self.sim.render_interval = self.decimation
         self.episode_length_s = 12.0
-        self.viewer.eye = (3.5, 3.5, 3.5)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(3.5, 3.5, 3.5))
         # simulation settings
         self.sim.dt = 1.0 / 120.0
         self.sim.physics = ReachPhysicsCfg()

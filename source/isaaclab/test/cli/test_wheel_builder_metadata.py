@@ -86,6 +86,27 @@ def test_wheel_builder_includes_isaacsim_extra(tmp_path):
     assert any(dep.startswith("isaacsim[") for dep in optional_dependencies["isaacsim"])
 
 
+def test_wheel_builder_expands_all_extra_into_concrete_requirements(tmp_path):
+    """``isaaclab[all]`` must ship the aggregated requirements, not a self-reference.
+
+    At the root, ``all`` is the self-reference ``isaaclab-dev[...]``. The generator
+    inlines it, so the published wheel carries the concrete third-party requirements
+    for every backend, RL library, and visualizer.
+    """
+    generated = _generate_wheel_pyproject(tmp_path)
+    optional_dependencies = generated["project"]["optional-dependencies"]
+    all_extra = optional_dependencies["all"]
+
+    assert not any(dep.lower().startswith("isaaclab") for dep in all_extra)
+    # Sampled across what ``all`` aggregates: Isaac Sim, both OV backends, the RL
+    # libraries, and the visualizers.
+    for prefix in ("isaacsim[", "ovphysx", "ovrtx", "ovstage", "stable-baselines3", "skrl", "viser", "rerun-sdk"):
+        assert any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' missing from the 'all' extra"
+    # The specialized extras and the developer tooling stay opt-in by name.
+    for prefix in ("ray", "robomimic", "isaacteleop", "pytetwild", "moviepy", "leapp", "pytest"):
+        assert not any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' must not be in the 'all' extra"
+
+
 def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(tmp_path):
     """The bundled wheel metadata must install the RSL-RL version declared at the root."""
     expected_pin = _root_rsl_rl_pin()
@@ -96,10 +117,9 @@ def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(tmp_path):
     assert core_pins == [expected_pin]
 
     optional_dependencies = generated["project"]["optional-dependencies"]
-    # RSL-RL ships in its own ``rsl-rl`` extra and in the aggregate ``all`` extra.
-    for extra_name in ("rsl-rl", "all"):
-        rsl_rl_pins = [dep for dep in optional_dependencies[extra_name] if dep.startswith("rsl-rl-lib==")]
-        assert rsl_rl_pins == [expected_pin]
+    # RSL-RL is also exposed through its own ``rsl-rl`` extra.
+    rsl_rl_pins = [dep for dep in optional_dependencies["rsl-rl"] if dep.startswith("rsl-rl-lib==")]
+    assert rsl_rl_pins == [expected_pin]
 
 
 def test_wheel_builder_keeps_tetrahedralization_explicit(tmp_path):
@@ -110,7 +130,10 @@ def test_wheel_builder_keeps_tetrahedralization_explicit(tmp_path):
 
     assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
     assert optional_dependencies["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
-    assert not any(dep.startswith("pytetwild") for dep in optional_dependencies["all"])
+    for name, deps in optional_dependencies.items():
+        if name == "tetrahedralization":
+            continue
+        assert not any(dep.startswith("pytetwild") for dep in deps)
 
 
 def test_wheel_builder_uv_overrides_match_root_pyproject(tmp_path):
@@ -133,8 +156,9 @@ def test_wheel_builder_uv_overrides_match_root_pyproject(tmp_path):
     assert install_ci_overrides == generated_overrides
 
 
-def test_wheel_builder_uv_overrides_force_typing_extensions(tmp_path):
-    """The wheel resolver must override Isaac Sim's stale exact typing-extensions pin."""
+def test_wheel_builder_uv_overrides_relax_isaacsim_exact_pins(tmp_path):
+    """The wheel resolver must relax Isaac Sim 6.0's exact pins so the extras co-resolve."""
     overrides = _generate_uv_overrides(tmp_path)
 
-    assert "typing-extensions>=4.15.0" in overrides
+    for spec in ("typing-extensions>=4.15.0", "websockets>=14.0,<17.0.0", "coverage>=7.6.1"):
+        assert spec in overrides

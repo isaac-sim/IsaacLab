@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import TYPE_CHECKING, TypeAlias
 
 import torch
@@ -34,6 +35,36 @@ else:
     _MappingBatch = tuple
 
 
+@contextlib.contextmanager
+def newton_builder_world_hook(
+    hook: Callable[[ModelBuilder, int, list[float], list[float]], None],
+) -> Iterator[None]:
+    """Temporarily extend every world built by Newton replication.
+
+    The callback must not already be registered. On exit, the context removes
+    only its callback and preserves hooks owned by other callers.
+
+    Args:
+        hook: Callback receiving the builder, world index, world position [m],
+            and world orientation quaternion in xyzw order during replication.
+
+    Yields:
+        Control while the callback is registered.
+
+    Raises:
+        RuntimeError: If the callback is already registered.
+    """
+    hooks = NewtonManager._per_world_builder_hooks
+    if hook in hooks:
+        raise RuntimeError("Newton world-builder hook is already registered.")
+    hooks.append(hook)
+    try:
+        yield
+    finally:
+        if hook in hooks:
+            hooks.remove(hook)
+
+
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: Sequence[str],
@@ -43,7 +74,6 @@ def _build_newton_builder_from_mapping(
     positions: torch.Tensor | None = None,
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
-    simplify_meshes: bool = True,
     load_visual_shapes: bool = True,
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder]]:
     """Build a Newton model builder from clone mapping inputs.
@@ -94,7 +124,6 @@ def _build_newton_builder_from_mapping(
         lambda: manager_cls.create_builder(up_axis=up_axis),
         schema_resolvers,
         ignore_paths=deformable_ignore_paths or None,
-        simplify_meshes=simplify_meshes,
         load_visual_shapes=load_visual_shapes,
     )
 
@@ -138,7 +167,6 @@ class NewtonReplicateContext:
         *,
         device: str = "cpu",
         up_axis: str = "Z",
-        simplify_meshes: bool | None = None,
         load_visual_shapes: bool | None = None,
         commit_to_manager: bool = True,
     ):
@@ -148,8 +176,6 @@ class NewtonReplicateContext:
             stage: USD stage containing source assets.
             device: Device used by the finalized Newton model builder.
             up_axis: Up axis for the Newton model builder.
-            simplify_meshes: Whether to run convex-hull mesh approximation. If
-                ``None``, read from the active :class:`NewtonCfg`.
             load_visual_shapes: Whether to import visual-only geometry. If ``None``,
                 read from the active :class:`NewtonCfg`, which itself defaults to
                 importing them only when a renderer or visualizer is active.
@@ -159,16 +185,11 @@ class NewtonReplicateContext:
         self.stage = stage
         self.device = device
         self.up_axis = up_axis
-        if simplify_meshes is None or load_visual_shapes is None:
+        if load_visual_shapes is None:
             from isaaclab_newton.physics import NewtonCfg
 
             cfg = PhysicsManager._cfg
-            is_newton_cfg = isinstance(cfg, NewtonCfg)
-            if simplify_meshes is None:
-                simplify_meshes = cfg.simplify_meshes if is_newton_cfg else True
-            if load_visual_shapes is None:
-                load_visual_shapes = cfg.load_visual_shapes if is_newton_cfg else None
-        self.simplify_meshes = simplify_meshes
+            load_visual_shapes = cfg.load_visual_shapes if isinstance(cfg, NewtonCfg) else None
         self.load_visual_shapes = _renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes
         self.commit_to_manager = commit_to_manager
         self._queue: list[_MappingBatch] = []
@@ -254,7 +275,6 @@ class NewtonReplicateContext:
             positions=positions,
             quaternions=quaternions,
             up_axis=self.up_axis,
-            simplify_meshes=self.simplify_meshes,
             load_visual_shapes=self.load_visual_shapes,
         )
         fabric_body_bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping)
@@ -284,7 +304,6 @@ def newton_physics_replicate(
     quaternions: torch.Tensor | None = None,
     device: str = "cpu",
     up_axis: str = "Z",
-    simplify_meshes: bool = True,
 ):
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping.
 
@@ -298,14 +317,11 @@ def newton_physics_replicate(
         quaternions: Optional per-environment orientations in xyzw order.
         device: Device used by the finalized Newton model builder.
         up_axis: Up axis for the Newton model builder.
-        simplify_meshes: Whether to run convex-hull mesh approximation.
 
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
-    ctx = NewtonReplicateContext(
-        stage, device=device, up_axis=up_axis, simplify_meshes=simplify_meshes, commit_to_manager=True
-    )
+    ctx = NewtonReplicateContext(stage, device=device, up_axis=up_axis, commit_to_manager=True)
     ctx.queue_mapping(sources, destinations, env_ids, mapping, positions=positions, quaternions=quaternions)
     builder, stage_info, _site_index_map = ctx.replicate()
     return builder, stage_info

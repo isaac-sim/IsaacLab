@@ -22,7 +22,8 @@ teleoperation session. For additional details see the `Isaac Teleop Quick Start
 Prerequisites
 -------------
 
-* **Isaac Lab** installed and working (see :ref:`isaaclab-installation-root`).
+* **Isaac Lab** installed with the ``teleop`` extra (see :ref:`install-isaac-teleop` below).
+  That section also covers the system libraries the CloudXR runtime needs.
 
 * **Isaac Lab workstation**
 
@@ -116,13 +117,35 @@ To use the check on its own -- for example to qualify a machine before setting u
 
 .. code-block:: bash
 
-   uv run python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
+   uv run --extra teleop python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
 
 
 .. _install-isaac-teleop:
 
 Install Isaac Teleop
 --------------------
+
+Use this path to teleoperate robots from an XR headset and to record demonstrations for
+imitation learning. It uses the ``teleop`` extra, which carries `Isaac Teleop
+<https://github.com/NVIDIA/IsaacTeleop>`__ with its CloudXR streaming runtime, and Isaac Sim
+itself for the Kit XR runtime that renders the stereo view. One flag covers the whole
+workflow.
+
+XR teleoperation is supported on **Linux x86_64 only**. The ``teleop`` extra gates
+``isaacteleop`` and ``dex-retargeting`` behind platform markers, so on Windows or aarch64 the
+extra resolves but installs nothing usable. It is also not supported on DGX Spark.
+
+``isaaclab teleop`` groups the three workflow scripts: ``run`` for a live session, ``record``
+to capture demonstrations, and ``replay`` to play a dataset back. :ref:`The next section
+<run-isaac-lab-with-the-cloudxr-runtime>` walks through a session once setup is complete.
+
+.. note::
+
+   ``teleop`` cannot be combined with ``ov`` or ``ovphysx`` in a single ``uv run``: the
+   bundled Isaac Sim pins ``packaging==26.0`` while those runtimes require ``<24``. Install
+   the OV runtimes separately when you need them.
+
+Complete these steps first:
 
 #. Install the system libraries required by the CloudXR runtime:
 
@@ -161,9 +184,11 @@ Install Isaac Teleop
       The :ref:`teleop-workstation-capability-check` reports the governor at session start, so a
       machine that has reverted to ``powersave`` is flagged before you notice the frame rate.
 
-#. ``isaacteleop`` is installed automatically as a dependency of ``isaaclab_teleop``.
-   No separate pip install step is required. For building from source or plugin
-   development, see the `Isaac Teleop GitHub <https://github.com/NVIDIA/IsaacTeleop>`_.
+#. ``isaacteleop`` ships as part of the ``teleop`` extra, so no separate pip install step is
+   required — but note that it comes from the extra rather than from the ``isaaclab_teleop``
+   package metadata, so installing ``isaaclab_teleop`` on its own does **not** pull it in.
+   For building from source or plugin development, see the `Isaac Teleop GitHub
+   <https://github.com/NVIDIA/IsaacTeleop>`_.
 
 #. Configure the firewall to allow CloudXR traffic. The required ports depend on the
    client type.
@@ -205,7 +230,7 @@ Run Isaac Lab with CloudXR
 --------------------------
 
 The CloudXR runtime launches automatically when a teleop script is started. No separate
-terminal or ``source`` step is needed. Launch a teleoperation script directly:
+terminal or ``source`` step is needed. Launch a teleoperation session directly:
 
 .. tab-set::
 
@@ -213,8 +238,8 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
 
       .. code-block:: bash
 
-         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+         uv run --extra teleop isaaclab teleop run \
+             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
 
@@ -223,7 +248,7 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
       .. code-block:: bash
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
 
@@ -251,14 +276,17 @@ hand joints and RGB axes at tracked controller aim poses. See
 
 .. tip::
 
-   The ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` task above uses **hand tracking** as its
-   input mode. Make sure your XR device has hand tracking enabled (optical hand tracking on
-   Quest 3, or the built-in hand tracking on Apple Vision Pro). Different tasks require
-   different input modes (motion controllers vs hand tracking) -- see the
-   :ref:`isaac-teleop-control-schemes` table for the full list.
+   The ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` task above uses **motion
+   controllers** as its input mode: the controller grip poses drive the arms, the trigger and
+   squeeze buttons close the TriHand fingers, and the thumbsticks drive locomotion and hip
+   height. Hold a controller in each hand rather than relying on optical hand tracking. Other
+   tasks expect hand tracking instead -- see the :ref:`isaac-teleop-control-schemes` table for
+   the full list.
 
 To switch the CloudXR device profile at launch time (e.g. from Quest to Apple Vision Pro),
-use the ``--cloudxr_env`` flag:
+use the ``--cloudxr_env`` flag. Apple Vision Pro tracks hands rather than motion controllers,
+so pair it with a hand-tracking task such as
+``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``:
 
 .. tab-set::
 
@@ -266,7 +294,7 @@ use the ``--cloudxr_env`` flag:
 
       .. code-block:: bash
 
-         uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+         uv run --extra teleop isaaclab teleop run \
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit \
              --xr \
@@ -413,7 +441,7 @@ choose the tab that matches your hardware.
 
                .. code-block:: bash
 
-                  uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+                  uv run --extra teleop isaaclab teleop run \
                       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
@@ -540,7 +568,9 @@ Manus Gloves
 ------------
 
 Manus gloves provide high-fidelity finger tracking via the Manus SDK. This is useful when optical
-hand tracking from the headset is occluded or when higher-precision finger data is needed.
+hand tracking from the headset is occluded or when higher-precision finger data is needed. Because
+the gloves feed the hand-tracking pipeline, pair them with a hand-tracking task such as
+``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` rather than a controller-driven one.
 
 .. important::
 
@@ -556,10 +586,11 @@ hand tracking from the headset is occluded or when higher-precision finger data 
          .. code-block:: bash
 
             # Copy a shipped profile and enable push devices
-            cp $(uv run python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            cp $(uv run --extra teleop python -c \
+                "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
-            uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+            uv run --extra teleop isaaclab teleop run \
                 --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
@@ -637,17 +668,11 @@ runtime command is needed.
 
       [Error] [carb.scripting-python.plugin] PermissionError: [Errno 13] Permission denied: '/root/.local/share/ov/data/exts'
 
-   followed by a cascade of extension-registry errors that abort the app *before* the XR
-   session can start::
+   followed by a cascade of extension-registry errors::
 
       [Error] [omni.ext.plugin] Syncing with extension registry unavailable.
-      [Error] [omni.ext.plugin] Failed to resolve extension dependencies. Failure hints:
-        * No versions of omni.kit.xr.bundle.generic that satisfies: isaaclab.python.xr.openxr-3.0.0 ...
-      [Error] [omni.kit.app.plugin] Exiting app because of dependency solver failure...
 
-   The XR bundle is not actually missing -- the registry never synced because its cache
-   directory could not be created. To fix it, make the persistent storage writable by
-   uid/gid 1000 before relaunching:
+   To fix it, make the persistent storage writable by uid/gid 1000 before relaunching:
 
    * **Docker Compose:** recreate the named volumes, e.g.
 
@@ -662,6 +687,41 @@ runtime command is needed.
      ``sudo chown -R 1000:1000`` them before launching, so the non-root user can write to
      them.
 
+Because the Isaac Lab container runs with ``network_mode: host``, the container's ports are
+exposed directly on the host network stack. The host firewall therefore governs whether XR
+devices can reach Isaac Lab. Apply the same ``ufw`` rules from :ref:`install-isaac-teleop`
+**on the host machine** before starting the container:
+
+.. tab-set::
+
+   .. tab-item:: Meta Quest 3 / Pico 4 Ultra (web client)
+
+      .. code-block:: bash
+
+         sudo ufw allow 49100/tcp   # Signaling (WebRTC)
+         sudo ufw allow 47998/udp   # Media stream
+         sudo ufw allow 48322/tcp   # WSS proxy — required for cert acceptance and streaming
+
+   .. tab-item:: Apple Vision Pro (native client)
+
+      .. code-block:: bash
+
+         sudo ufw allow 48010/tcp   # Standard mode signaling
+         sudo ufw allow 48322/tcp   # Secure mode signaling
+         sudo ufw allow 47998/udp
+         sudo ufw allow 48005/udp
+         sudo ufw allow 48008/udp
+         sudo ufw allow 48012/udp
+         sudo ufw allow 47999/udp
+         sudo ufw allow 48000/udp
+         sudo ufw allow 48002/udp
+
+.. note::
+
+   If port 48322 is not open, the headset browser will show **"This site can't be reached"**
+   when navigating to the certificate-acceptance page — the TCP connection fails before any
+   certificate exchange occurs.
+
 Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
 .. tab-set::
@@ -670,7 +730,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
       .. code-block:: bash
 
-         uv run python scripts/tools/record_demos.py \
+         uv run --extra teleop isaaclab teleop record \
            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
            --num_demos 5 \
            --dataset_file ./datasets/dataset.hdf5 \
