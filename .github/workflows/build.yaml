@@ -872,11 +872,6 @@ jobs:
           num_envs: 512
           timeout_minutes: 20
           args: renderer=newton_renderer
-        - name: shadow-camera-newton-rtx
-          task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
-          num_envs: 512
-          timeout_minutes: 20
-          args: physics=newton_mjwarp renderer=isaacsim_rtx
         - name: shadow-camera-newton-renderer
           task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
           num_envs: 512

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
@@ -28,6 +29,8 @@ class MetricResult:
     measured: float | None
     reference: float | None
     regression_pct: float | None
+    warn_regression_pct: float | None
+    fail_regression_pct: float | None
     verdict: str
     message: str
 
@@ -59,7 +62,13 @@ def _mapping(value: Any, name: str) -> dict[str, Any]:
 def _number(value: Any, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ComparisonError(f"{name} must be a number")
-    return float(value)
+    try:
+        number = float(value)
+    except OverflowError:
+        raise ComparisonError(f"{name} must be finite") from None
+    if not math.isfinite(number):
+        raise ComparisonError(f"{name} must be finite")
+    return number
 
 
 def _nested_number(data: dict[str, Any], path: tuple[str, ...]) -> float | None:
@@ -139,12 +148,10 @@ def _matching_row(table: dict[str, Any], identity: dict[str, object]) -> dict[st
 def _metric_result(
     name: str,
     measured: float | None,
-    config: Any,
+    config: dict[str, Any],
     *,
     higher_is_worse: bool,
 ) -> MetricResult:
-    if config is None:
-        return MetricResult(name, measured, None, None, "SKIP", "Metric is not configured in the baseline")
     config = _mapping(config, f"metrics.{name}")
     if measured is None:
         raise ComparisonError(f"Benchmark result does not contain a measured value for {name}")
@@ -168,7 +175,7 @@ def _metric_result(
     else:
         verdict = "PASS"
     message = f"Measured {measured:g} versus {reference:g} ({regression:+.2f}% regression)"
-    return MetricResult(name, measured, reference, regression, verdict, message)
+    return MetricResult(name, measured, reference, regression, warn, fail, verdict, message)
 
 
 def compare(runtime_bundle: dict[str, object], baseline_table: dict[str, object]) -> ComparisonReport:
@@ -178,14 +185,15 @@ def compare(runtime_bundle: dict[str, object], baseline_table: dict[str, object]
     identity = _identity(bundle)
     row = _matching_row(table, identity)
     metric_configs = _mapping(row.get("metrics"), "baseline metrics")
-    if not any(name in metric_configs for name, _, _, _ in _METRICS):
-        raise ComparisonError("The matching baseline row configures no supported metrics")
+    missing_metrics = [name for name, _, _, _ in _METRICS if name not in metric_configs]
+    if missing_metrics:
+        raise ComparisonError(f"The matching baseline row is missing required metrics: {', '.join(missing_metrics)}")
 
     metrics = tuple(
         _metric_result(
             name,
             _nested_number(bundle, path),
-            metric_configs.get(name),
+            metric_configs[name],
             higher_is_worse=higher_is_worse,
         )
         for name, _, path, higher_is_worse in _METRICS
@@ -200,7 +208,8 @@ def skipped_report(runtime_bundle: dict[str, object], reason: str) -> Comparison
     """Build a report that records unavailable baseline configuration."""
     bundle = _mapping(runtime_bundle, "benchmark result")
     metrics = tuple(
-        MetricResult(name, _nested_number(bundle, path), None, None, "SKIP", reason) for name, _, path, _ in _METRICS
+        MetricResult(name, _nested_number(bundle, path), None, None, None, None, "SKIP", reason)
+        for name, _, path, _ in _METRICS
     )
     return ComparisonReport(_identity(bundle), metrics, "SKIP", reason)
 
@@ -224,19 +233,23 @@ def write_outputs(
         "",
         report.message,
         "",
-        "| Metric | Measured | Reference | Regression | Verdict |",
-        "| --- | ---: | ---: | ---: | --- |",
+        "| Metric | Measured | Reference | Regression | Warn | Fail | Verdict |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     for metric in report.metrics:
         regression = "-" if metric.regression_pct is None else f"{metric.regression_pct:+.2f}%"
+        warn = "-" if metric.warn_regression_pct is None else f"{metric.warn_regression_pct:.2f}%"
+        fail = "-" if metric.fail_regression_pct is None else f"{metric.fail_regression_pct:.2f}%"
         lines.append(
             f"| {_LABELS.get(metric.name, metric.name)} | {_format_value(metric.measured)} | "
-            f"{_format_value(metric.reference)} | {regression} | {metric.verdict} |"
+            f"{_format_value(metric.reference)} | {regression} | {warn} | {fail} | {metric.verdict} |"
         )
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     json_path.write_text(json.dumps(asdict(report), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    test_metrics = report.metrics or (MetricResult("comparison", None, None, None, report.verdict, report.message),)
+    test_metrics = report.metrics or (
+        MetricResult("comparison", None, None, None, None, None, report.verdict, report.message),
+    )
     failures = sum(metric.verdict in {"FAIL", "ERROR"} for metric in test_metrics)
     skipped = sum(metric.verdict == "SKIP" for metric in test_metrics)
     suite = ET.Element(
@@ -257,7 +270,7 @@ def write_outputs(
 
 
 def _error_report(message: str) -> ComparisonReport:
-    metric = MetricResult("comparison", None, None, None, "ERROR", message)
+    metric = MetricResult("comparison", None, None, None, None, None, "ERROR", message)
     return ComparisonReport({}, (metric,), "ERROR", message)
 
 

@@ -81,7 +81,7 @@ def test_compare_applies_warning_and_failure_boundaries(runtime_bundle: dict) ->
     assert [metric.verdict for metric in report.metrics] == ["FAIL", "WARN", "PASS"]
 
 
-def test_compare_rejects_missing_or_duplicate_rows(runtime_bundle: dict) -> None:
+def test_compare_rejects_incomplete_or_ambiguous_baselines(runtime_bundle: dict) -> None:
     table = _baseline_table()
     table["baselines"][0]["task"] = "Another-Task"
     with pytest.raises(performance_compare.ComparisonError, match="No baseline row"):
@@ -90,6 +90,21 @@ def test_compare_rejects_missing_or_duplicate_rows(runtime_bundle: dict) -> None
     table = _baseline_table()
     table["baselines"].append(dict(table["baselines"][0]))
     with pytest.raises(performance_compare.ComparisonError, match="Multiple baseline rows"):
+        performance_compare.compare(runtime_bundle, table)
+
+    table = _baseline_table()
+    del table["baselines"][0]["metrics"]["ram_peak_gb"]
+    with pytest.raises(performance_compare.ComparisonError, match="missing required metrics: ram_peak_gb"):
+        performance_compare.compare(runtime_bundle, table)
+
+    table = _baseline_table()
+    table["baselines"][0]["metrics"]["total_fps"]["reference"] = float("inf")
+    with pytest.raises(performance_compare.ComparisonError, match="must be finite"):
+        performance_compare.compare(runtime_bundle, table)
+
+    table = _baseline_table()
+    table["baselines"][0]["metrics"]["total_fps"]["reference"] = 10**400
+    with pytest.raises(performance_compare.ComparisonError, match="must be finite"):
         performance_compare.compare(runtime_bundle, table)
 
 
@@ -101,8 +116,13 @@ def test_write_outputs_reports_all_metrics(runtime_bundle: dict, tmp_path: Path)
 
     performance_compare.write_outputs(report, markdown, output_json, junit)
 
-    assert "| Total FPS | 95" in markdown.read_text()
-    assert json.loads(output_json.read_text())["verdict"] == "FAIL"
+    markdown_text = markdown.read_text()
+    assert "| Total FPS | 95" in markdown_text
+    assert "| Warn | Fail |" in markdown_text
+    output = json.loads(output_json.read_text())
+    assert output["verdict"] == "FAIL"
+    assert output["metrics"][0]["warn_regression_pct"] == 5.0
+    assert output["metrics"][0]["fail_regression_pct"] == 10.0
     suite = ET.parse(junit).getroot()
     assert suite.attrib == {"name": "performance-comparison", "tests": "3", "failures": "1", "skipped": "0"}
     assert [case.attrib["name"] for case in suite.findall("testcase")] == [
