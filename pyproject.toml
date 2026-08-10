@@ -110,13 +110,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Automatic surface-to-volume tetrahedralization. PyTetWild imports PyVista eagerly,
-# so its ``all`` extra is required even when only the array API is used.
+
 tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
-# Video recording. MoviePy bundles an FFmpeg binary through imageio-ffmpeg, so
-# keep this dependency explicit rather than including it in default installs.
+
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
-# Developer/test tooling.
+
 test = [
     "pytest",
     "pytest-mock",
@@ -160,17 +158,8 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
 
-# Packages that cannot share an environment with Isaac Sim, because they provide the same
-# import paths it does. This is not "everything a kit-less setup installs" -- Newton, the RL
-# frameworks and the visualizers work with and without Isaac Sim and stay in the base set.
-# Membership rule: it belongs here only when co-installing it with Isaac Sim breaks imports.
-#
-#   * isaacsim-asset-isolated -- standalone URDF/MJCF importers. Contributes to the
-#     ``isaacsim`` namespace, so alongside a real Isaac Sim it displaces the Kit extension
-#     serving the same import and conversion fails with ``No module named 'isaacsim.asset'``.
-#
-# Runtime-only incompatibilities (ovrtx, ovphysx) do NOT belong here: they install fine
-# beside Isaac Sim and are rejected at launch by ``sim_launcher._validate_runtime``.
+# Standalone URDF/MJCF importers; conflicts with Isaac Sim because both provide
+# ``isaacsim.asset`` and the wheel displaces the Kit extension.
 importers = ["isaacsim-asset-isolated>=6.0,<6.1"]
 
 ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
@@ -183,17 +172,13 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
-# XR teleoperation: carries Isaac Sim for the Kit XR runtime, and isaaclab_mimic because
-# ``isaaclab teleop record`` imports it (robomimic stays in ``mimic``).
 teleop = [
     "isaacsim[all,extscache]==6.0.1.0",
     "isaaclab-teleop",
     "isaaclab-mimic",
-    # IsaacTeleop is Linux x86_64 only
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
-# RLinf VLA post-training (externally contributed).
 rlinf = [
     "ray[default]>=2.47.0",
     "av>=12.3.0",
@@ -206,15 +191,15 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-# Aggregate of the compatible extras. Omits teleop (would pull Isaac Sim in) and ovphysx
-# (packaging<24 clash with isaacsim); install those via their own extra.
-# Also omits tetrahedralization and video because their dependencies are large and
-# narrowly used; request either extra explicitly when needed.
-all = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,rlinf,mimic]",
-]
 leapp = [
     "leapp>=0.5.2",
+]
+# Every backend, RL library, and visualizer in one flag. No extra is forked in
+# [tool.uv].conflicts, so Isaac Sim and both OV backends resolve into a single
+# environment. The specialized extras (rlinf, mimic, teleop, tetrahedralization,
+# video, leapp) and the developer ``test`` tooling stay opt-in by name.
+all = [
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,isaacsim,ov]",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
@@ -428,13 +413,11 @@ override-dependencies = [
     "packaging>=20,<27",
 ]
 # ``ov`` stays forked: it pulls ovrtx, which is not validated alongside Isaac Sim.
-# ``teleop`` bundles isaacsim, so it inherits that pair.
+# ``teleop`` bundles isaacsim, so both inherit the importers pair.
 conflicts = [
     [{ extra = "teleop" }, { extra = "ov" }],
     [{ extra = "isaacsim" }, { extra = "ov" }],
-    # both supply the ``isaacsim.asset`` importers; together the wheel shadows the Kit extension
     [{ extra = "isaacsim" }, { extra = "importers" }],
-    # teleop carries isaacsim itself, so it inherits the same incompatibility
     [{ extra = "teleop" }, { extra = "importers" }],
 ]
 python-preference = "only-managed"

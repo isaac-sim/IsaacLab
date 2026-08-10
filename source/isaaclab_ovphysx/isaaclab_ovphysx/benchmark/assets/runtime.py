@@ -22,7 +22,7 @@ def _load_runtime_symbols() -> None:
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
     from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
 
-    from isaaclab_ovphysx.test.mock_interfaces import MockOvPhysxBindingSet
+    from isaaclab_ovphysx.test.fixtures import MockOvPhysxBindingSet
 
 
 def create_test_articulation(

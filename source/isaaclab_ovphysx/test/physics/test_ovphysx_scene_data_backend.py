@@ -18,6 +18,16 @@ import pytest
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 
+@pytest.fixture(autouse=True)
+def _close_test_views():
+    from isaaclab_ovphysx.sim.views import OvPhysxView
+
+    existing_views = set(OvPhysxView._live_views)
+    yield
+    for view in OvPhysxView._live_views - existing_views:
+        view.close()
+
+
 @pytest.fixture(scope="module", autouse=True)
 def _register_ovphysx_schemas_before_test_stages():
     """Register OvPhysX schemas before this module creates any USD stage."""
@@ -352,53 +362,15 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
     assert calls == [PhysicsEvent.STOP, "warmup", PhysicsEvent.PHYSICS_READY]
 
 
-def test_manager_supports_declared_legacy_runtime_api():
-    """The declared public OVPhysX wheel keeps its constructor, step, and reset API."""
+@pytest.mark.parametrize(
+    ("device", "gpu_index", "expected_cpu_mode", "expected_active_cuda_gpus"),
+    [("cpu", 0, True, None), ("gpu", 2, False, "2")],
+)
+def test_manager_supports_pinned_runtime_api(device, gpu_index, expected_cpu_mode, expected_active_cuda_gpus):
+    """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
     from isaaclab_ovphysx.physics import OvPhysxManager
 
-    class LegacyPhysX:
-        def __init__(self, *, device, active_cuda_gpus=None, config=None):
-            self.constructor = {"device": device, "active_cuda_gpus": active_cuda_gpus, "config": config}
-            self.calls = []
-
-        def set_config_int32(self, key, value):
-            self.calls.append(("set_config_int32", key, value))
-
-        def step_sync(self, *, dt, sim_time):
-            self.calls.append(("step_sync", dt, sim_time))
-
-        def reset(self):
-            self.calls.append(("reset",))
-            return 17
-
-        def wait_op(self, operation):
-            self.calls.append(("wait_op", operation))
-
-    runtime = SimpleNamespace(
-        PhysX=LegacyPhysX,
-        PhysXConfig=lambda **kwargs: SimpleNamespace(**kwargs),
-        ConfigInt32=SimpleNamespace(NUM_THREADS="num_threads"),
-    )
-
-    physx = OvPhysxManager._create_physx_instance(runtime, "gpu", 2)
-    OvPhysxManager._step_physx(physx, dt=0.01, sim_time=1.5)
-    OvPhysxManager._reset_physx_stage(physx)
-
-    assert physx.constructor["device"] == "gpu"
-    assert physx.constructor["active_cuda_gpus"] == "2"
-    assert physx.calls == [
-        ("set_config_int32", "num_threads", 8),
-        ("step_sync", 0.01, 1.5),
-        ("reset",),
-        ("wait_op", 17),
-    ]
-
-
-def test_manager_supports_current_runtime_api():
-    """The trusted current OVPhysX wheel keeps its class-mode, step, and reset API."""
-    from isaaclab_ovphysx.physics import OvPhysxManager
-
-    class CurrentPhysX:
+    class PinnedPhysX:
         cpu_mode = None
 
         @classmethod
@@ -420,16 +392,16 @@ def test_manager_supports_current_runtime_api():
             self.calls.append(("wait_op", operation))
 
     runtime = SimpleNamespace(
-        PhysX=CurrentPhysX,
+        PhysX=PinnedPhysX,
         PhysXConfig=lambda **kwargs: SimpleNamespace(**kwargs),
     )
 
-    physx = OvPhysxManager._create_physx_instance(runtime, "cpu", 0)
-    OvPhysxManager._step_physx(physx, dt=0.02, sim_time=3.0)
+    physx = OvPhysxManager._create_physx_instance(runtime, device, gpu_index)
+    OvPhysxManager._step_physx(physx, dt=0.02)
     OvPhysxManager._reset_physx_stage(physx)
 
-    assert CurrentPhysX.cpu_mode is True
-    assert physx.constructor["active_cuda_gpus"] is None
+    assert PinnedPhysX.cpu_mode is expected_cpu_mode
+    assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
 
@@ -505,6 +477,9 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
         def wait_op(self, op):
             events.append(("wait", op))
 
+        def release(self):
+            events.append(("release",))
+
     fake_ovstage = ModuleType("ovstage")
     fake_ovstage.Stage = FakeStage
     fake_ovstage.PopulationDomain = SimpleNamespace(ALL="all")
@@ -517,8 +492,14 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
 
     previous_physx = OvPhysxManager._physx
     previous_ovstage = getattr(OvPhysxManager, "_ovstage", None)
-    OvPhysxManager._physx = FakePhysX()
+    physx = FakePhysX()
+    OvPhysxManager._physx = physx
     OvPhysxManager._ovstage = None
+    monkeypatch.setattr(
+        OvPhysxManager,
+        "_close_physx_views",
+        staticmethod(lambda value: events.append(("close_views", value))),
+    )
     try:
         OvPhysxManager._attach_ovstage("#usda 1.0")
         stage = OvPhysxManager._ovstage
@@ -531,8 +512,10 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
         ("stage", "isaaclab"),
         ("populate", stage, "#usda 1.0", 1, "all"),
         ("attach", stage, 1),
+        ("close_views", physx),
         ("reset",),
         ("wait", 17),
+        ("release",),
         ("destroy",),
     ]
 
@@ -591,9 +574,9 @@ def test_manager_keeps_kit_physx_provider_and_registers_deformable_schema(monkey
     fake_pxr = ModuleType("pxr")
     fake_pxr.Plug = SimpleNamespace(Registry=lambda: registry)
     fake_ovphysx = ModuleType("ovphysx")
-    fake_ovphysx.__file__ = str(tmp_path / "ovphysx" / "__init__.py")
     deformable_schema_path = tmp_path / "ovphysx" / "plugins" / "usd" / "OmniUsdPhysicsDeformableSchema" / "resources"
     deformable_schema_path.mkdir(parents=True)
+    fake_ovphysx.codeless_schema_paths = lambda: [deformable_schema_path]
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
     monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
 
@@ -605,7 +588,7 @@ def test_manager_keeps_kit_physx_provider_and_registers_deformable_schema(monkey
         OvPhysxManager._physx_schemas_registered = previous
 
     assert registry.get_all_calls == 1
-    assert registry.registered_paths == [str(deformable_schema_path)]
+    assert registry.registered_paths == [[str(deformable_schema_path)]]
 
 
 def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):
@@ -789,6 +772,7 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
                 count=2,
                 prim_paths=[],
                 read=lambda dst: None,
+                destroy=lambda: None,
             )
             created.append(b)
             return b
@@ -942,7 +926,13 @@ def test_setup_continues_when_create_tensor_binding_raises(monkeypatch, caplog):
             if pattern.endswith("/cart"):
                 raise RuntimeError("simulated wheel-side failure")
             return SimpleNamespace(
-                pattern=pattern, tensor_type=tensor_type, shape=(1, 7), count=1, prim_paths=[], read=lambda dst: None
+                pattern=pattern,
+                tensor_type=tensor_type,
+                shape=(1, 7),
+                count=1,
+                prim_paths=[],
+                read=lambda dst: None,
+                destroy=lambda: None,
             )
 
     import isaaclab_ovphysx.physics.ovphysx_manager as om_mod
