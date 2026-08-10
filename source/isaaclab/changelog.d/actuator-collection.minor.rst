@@ -32,3 +32,9 @@ Changed
   :attr:`~isaaclab.assets.ArticulationCfg.actuators` before constructing the
   articulation; runtime assignment to or deletion from
   :attr:`~isaaclab.assets.Articulation.actuators` raises :class:`TypeError`.
+
+Fixed
+^^^^^
+
+* Fixed runtime, play, and startup benchmarks to step environments under
+  PyTorch inference mode.
