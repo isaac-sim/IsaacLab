@@ -20,6 +20,7 @@ from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import 
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 BACKENDS: list[str] = []
+BACKEND_UNAVAILABLE_REASONS: dict[str, str] = {}
 
 try:
     from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import (
@@ -30,8 +31,8 @@ try:
     )
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
-except ImportError:
-    pass
+except ImportError as error:
+    BACKEND_UNAVAILABLE_REASONS["physx"] = f"{type(error).__name__}: {error}"
 else:
     # PhysX data classes need gravity even though interface tests do not create a physics scene.
     _mock_physics_sim_view = MagicMock()
@@ -47,10 +48,9 @@ try:
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data import (
         RigidObjectCollectionData as NewtonRigidObjectCollectionData,
     )
-    from isaaclab_newton.test.fixtures.mock_newton import WrenchComposer as NewtonWrenchComposer
     from isaaclab_newton.test.fixtures.views import MockNewtonCollectionView as NewtonMockCollectionView
-except ImportError:
-    pass
+except ImportError as error:
+    BACKEND_UNAVAILABLE_REASONS["newton"] = f"{type(error).__name__}: {error}"
 else:
     BACKENDS.append("newton")
 
@@ -64,11 +64,13 @@ try:
         RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
     )
     from isaaclab_ovphysx.test.fixtures.views import MockOvPhysxBindingSet
-except ImportError:
-    pass
+except ImportError as error:
+    BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
 else:
     if hasattr(OvPhysxRigidObjectCollection, "_create_buffers"):
         BACKENDS.append("ovphysx")
+    else:
+        BACKEND_UNAVAILABLE_REASONS["ovphysx"] = "RigidObjectCollection._create_buffers is missing"
 
 
 def create_physx_rigid_object_collection(
@@ -197,8 +199,8 @@ def create_newton_rigid_object_collection(
     data.body_names = body_names
 
     # Mock wrench composers (Newton-specific)
-    mock_inst_wrench = NewtonWrenchComposer(collection)
-    mock_perm_wrench = NewtonWrenchComposer(collection)
+    mock_inst_wrench = WrenchComposer(collection)
+    mock_perm_wrench = WrenchComposer(collection)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
