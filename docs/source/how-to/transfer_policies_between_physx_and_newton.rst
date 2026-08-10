@@ -594,7 +594,7 @@ The two backends are rendered side by side for direct comparison.
 .. raw:: html
 
    <video controls style="width:100%; max-width:960px; margin-bottom:1.5em;">
-     <source src="../../_static/how-to/sim2sim_anymal_d_transfer.mp4" type="video/mp4">
+     <source src="../../_static/sim2sim_anymal_d_transfer.mp4" type="video/mp4">
    </video>
 
 **Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro``)
@@ -602,7 +602,7 @@ The two backends are rendered side by side for direct comparison.
 .. raw:: html
 
    <video controls style="width:100%; max-width:960px; margin-bottom:1.5em;">
-     <source src="../../_static/how-to/sim2sim_allegro_transfer.mp4" type="video/mp4">
+     <source src="../../_static/sim2sim_allegro_transfer.mp4" type="video/mp4">
    </video>
 
 
