@@ -36,12 +36,15 @@ def _cases(report) -> dict[str, ElementTree.Element]:
     return {f"{case.get('classname')}::{case.get('name')}": case for case in root.iter("testcase")}
 
 
+def _result_tags(case: ElementTree.Element) -> list[str]:
+    """Return the local tags of a case's result children, in document order."""
+    return [child.tag for child in case if child.tag in ("failure", "error", "skipped")]
+
+
 def _result_tag(case: ElementTree.Element) -> str:
-    """Return the local tag of a case's result child, or ``"passed"`` when it has none."""
-    for child in case:
-        if child.tag in ("failure", "error", "skipped"):
-            return child.tag
-    return "passed"
+    """Return the local tag of a case's first result child, or ``"passed"`` when it has none."""
+    tags = _result_tags(case)
+    return tags[0] if tags else "passed"
 
 
 # -- junit_names ------------------------------------------------------------------------------
@@ -100,6 +103,34 @@ def test_read_journal_collapses_repeated_results_to_worst_outcome(tmp_path):
     assert entry["duration"] == 3.0
 
 
+def test_read_journal_keeps_the_text_of_the_phase_that_set_the_worst_outcome(tmp_path):
+    # A skipped setup records its reason; a later teardown failure must not inherit it as its body.
+    journal_file = _write_journal(
+        tmp_path,
+        [
+            {"event": "collected", "node_ids": [f"{_FILE}::test_a"]},
+            {
+                "event": "result",
+                "node_id": f"{_FILE}::test_a",
+                "when": "setup",
+                "outcome": "skipped",
+                "longrepr": "Skipped: needs a GPU",
+            },
+            {
+                "event": "result",
+                "node_id": f"{_FILE}::test_a",
+                "when": "teardown",
+                "outcome": "failed",
+                "longrepr": "RuntimeError: teardown boom",
+            },
+        ],
+    )
+    entry = read_journal(journal_file).results[f"{_FILE}::test_a"]
+    assert entry["outcome"] == "failed"
+    assert entry["when"] == "teardown"
+    assert entry["longrepr"] == "RuntimeError: teardown boom"
+
+
 # -- create_crash_report ----------------------------------------------------------------------
 
 
@@ -144,6 +175,39 @@ def test_create_crash_report_preserves_verdicts_and_blames_in_flight_test(tmp_pa
     # Collected but never reached: recorded as skipped so it does not vanish from the results.
     assert _result_tag(cases["source.pkg.test.test_x::test_d"]) == "skipped"
     assert counters == {"errors": 1, "failures": 1, "skipped": 1, "tests": 4, "time_elapsed": 3.5}
+
+
+def test_create_crash_report_keeps_the_recorded_failure_of_the_culprit(tmp_path):
+    # A test that failed its call phase and then took the process down during teardown must keep
+    # its assertion failure: it was journaled before the crash, so losing it hides a real defect.
+    journal_file = _write_journal(
+        tmp_path,
+        [
+            {"event": "collected", "node_ids": [f"{_FILE}::test_a"]},
+            {"event": "start", "node_id": f"{_FILE}::test_a"},
+            {
+                "event": "result",
+                "node_id": f"{_FILE}::test_a",
+                "when": "call",
+                "outcome": "failed",
+                "duration": 2.0,
+                "longrepr": "assert 1 == 2\nE  AssertionError",
+            },
+            # No finish record: the process died in teardown.
+        ],
+    )
+
+    report, counters, culprit = create_crash_report(journal_file, "test_x", "SIGSEGV", "diagnostics")
+
+    assert culprit == f"{_FILE}::test_a"
+    case = _cases(report)["source.pkg.test.test_x::test_a"]
+    assert _result_tags(case) == ["failure", "error"]
+    results = {child.tag: child for child in case}
+    assert "AssertionError" in (results["failure"].text or "")
+    assert results["error"].get("message") == "SIGSEGV"
+    assert counters["failures"] == 1
+    assert counters["errors"] == 1
+    assert counters["tests"] == 1
 
 
 def test_create_crash_report_carries_markers_property(tmp_path):
@@ -194,7 +258,7 @@ def test_create_crash_report_handles_crash_during_collection(tmp_path):
 # -- identity stability against real pytest ---------------------------------------------------
 
 
-def _run_pytest(tmp_path: Path, target: str, journal_file: Path, junit_file: Path):
+def _run_pytest(tmp_path: Path, target: str, journal_file: Path, junit_file: Path, *extra_args: str):
     """Run a real pytest session in ``tmp_path`` with the repo-root journaling hooks loaded."""
     # Pin rootdir to tmp_path so node IDs stay relative to it, the way CI's --config-file does.
     (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
@@ -205,6 +269,7 @@ def _run_pytest(tmp_path: Path, target: str, journal_file: Path, junit_file: Pat
             import sys
             sys.path.insert(0, {str(_REPO_ROOT)!r})
             from conftest import (
+                pytest_collection_finish,
                 pytest_collection_modifyitems,
                 pytest_runtest_logfinish,
                 pytest_runtest_logreport,
@@ -215,7 +280,7 @@ def _run_pytest(tmp_path: Path, target: str, journal_file: Path, junit_file: Pat
         encoding="utf-8",
     )
     return subprocess.run(
-        [sys.executable, "-m", "pytest", "-p", "journal_plugin", f"--junitxml={junit_file}", target],
+        [sys.executable, "-m", "pytest", "-p", "journal_plugin", f"--junitxml={junit_file}", target, *extra_args],
         cwd=tmp_path,
         env={
             **os.environ,
@@ -312,6 +377,36 @@ def test_rebuilt_ids_match_the_ids_pytest_writes_on_a_clean_run(tmp_path):
 
     assert rebuilt_ids == pytest_ids
     assert len(pytest_ids) == 3
+
+
+def test_deselected_tests_are_not_journaled_as_collected(tmp_path):
+    """Regression test for a rebuilt report claiming tests that this pass never selected.
+
+    ``tools/conftest.py`` splits a run into passes selected by marker and device, so journaling
+    from ``pytest_collection_modifyitems`` — which runs before pytest's own ``trylast``
+    deselection hook — would record the other passes' tests too. A crash would then rebuild them
+    as "not run" skips, inflating the counts and duplicating node IDs the sibling pass reported.
+    """
+    (tmp_path / "source" / "pkg" / "test").mkdir(parents=True)
+    (tmp_path / "source" / "pkg" / "test" / "test_x.py").write_text(
+        textwrap.dedent(
+            """
+            def test_keep():
+                pass
+
+            def test_drop():
+                pass
+            """
+        ),
+        encoding="utf-8",
+    )
+    journal_file = tmp_path / "journal.jsonl"
+    junit_file = tmp_path / "report.xml"
+    result = _run_pytest(tmp_path, "source/pkg/test/test_x.py", journal_file, junit_file, "-k", "keep")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    journal = read_journal(str(journal_file))
+    assert journal.collected == ["source/pkg/test/test_x.py::test_keep"]
 
 
 def test_rebuilt_result_tags_match_the_tags_pytest_writes_on_a_clean_run(tmp_path):

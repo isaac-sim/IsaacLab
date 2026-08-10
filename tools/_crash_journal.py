@@ -111,28 +111,33 @@ def _merge_result(results: dict[str, dict], record: dict) -> None:
     """Fold one journal ``result`` record into the aggregated outcome for its node ID.
 
     A test emits up to three records (setup, call, teardown) and, when retried by the ``flaky``
-    plugin, one set per attempt. The aggregate keeps the most severe outcome, sums the phase
-    durations, and holds the first failure text seen — so a retried test collapses to one entry
-    instead of the duplicate IDs the JUnit path produces.
+    plugin, one set per attempt. The aggregate keeps the most severe outcome and sums the phase
+    durations, so a retried test collapses to one entry instead of the duplicate IDs the JUnit
+    path produces.
 
-    The phase that established the worst outcome is kept alongside it, because pytest's own JUnit
-    writer reports a failing ``call`` as ``<failure>`` but a failing ``setup``/``teardown`` as
-    ``<error>``. Records predating this field are treated as ``call``.
+    The phase and failure text that established the worst outcome are kept alongside it. The phase
+    matters because pytest's own JUnit writer reports a failing ``call`` as ``<failure>`` but a
+    failing ``setup``/``teardown`` as ``<error>``; keeping the matching text is what stops a
+    skipped setup's reason from being reported as the body of a later teardown failure. Records
+    predating the ``when`` field are treated as ``call``.
     """
     node_id = record.get("node_id")
     if not node_id:
         return
     entry = results.setdefault(str(node_id), {"outcome": "passed", "when": "call", "duration": 0.0, "longrepr": ""})
     outcome = str(record.get("outcome", "passed"))
-    if _OUTCOME_PRIORITY.get(outcome, 0) > _OUTCOME_PRIORITY.get(entry["outcome"], 0):
+    longrepr = str(record.get("longrepr") or "")
+    severity = _OUTCOME_PRIORITY.get(outcome, 0)
+    if severity > _OUTCOME_PRIORITY.get(entry["outcome"], 0):
         entry["outcome"] = outcome
         entry["when"] = str(record.get("when") or "call")
+        entry["longrepr"] = longrepr
+    elif severity == _OUTCOME_PRIORITY.get(entry["outcome"], 0) and not entry["longrepr"]:
+        entry["longrepr"] = longrepr
     try:
         entry["duration"] += float(record.get("duration") or 0.0)
     except (TypeError, ValueError):
         pass
-    if not entry["longrepr"]:
-        entry["longrepr"] = str(record.get("longrepr") or "")
 
 
 def read_journal(journal_file: str) -> Journal | None:
@@ -187,9 +192,9 @@ def create_crash_report(
     """Rebuild a JUnit report for a run that died before pytest wrote its own.
 
     Every test the journal saw reach a verdict is emitted under its real node ID with its real
-    outcome, the test that was in flight when the process died becomes an ``<error>``, and tests
-    that were collected but never reached become skips so they do not silently vanish from the
-    uploaded results.
+    outcome, the test that was in flight when the process died gains an ``<error>`` for the crash,
+    and tests that were collected but never reached become skips so they do not silently vanish
+    from the uploaded results.
 
     Args:
         journal_file: Path to the JSONL journal for the crashed run.
@@ -220,14 +225,9 @@ def create_crash_report(
             case.append(properties)
 
         entry = journal.results.get(node_id)
-        if node_id == culprit:
-            case.time = entry["duration"] if entry else 0.0
-            error = Error(message=message)
-            error.text = details
-            case.result = [error]
-            counters["errors"] += 1
-        elif entry is not None:
-            case.time = entry["duration"]
+        case.time = entry["duration"] if entry is not None else 0.0
+        results = []
+        if entry is not None:
             counters["time_elapsed"] += entry["duration"]
             if entry["outcome"] == "failed":
                 # Mirror pytest's JUnit writer: only a failing call phase is a <failure>; a
@@ -235,18 +235,28 @@ def create_crash_report(
                 is_call = entry["when"] == "call"
                 result = (Failure if is_call else Error)(message=_first_line(entry["longrepr"]) or message)
                 result.text = entry["longrepr"]
-                case.result = [result]
+                results.append(result)
                 counters["failures" if is_call else "errors"] += 1
             elif entry["outcome"] == "skipped":
                 skip = Skipped(message=_first_line(entry["longrepr"]))
                 skip.text = entry["longrepr"]
-                case.result = [skip]
+                results.append(skip)
                 counters["skipped"] += 1
-        else:
+        if node_id == culprit:
+            # pytest emits one <testcase> holding every phase's result, so a test that already
+            # failed its call phase keeps that failure and gains the crash error beside it —
+            # overwriting it would throw away the assertion and traceback the journal saved.
+            error = Error(message=message)
+            error.text = details
+            results.append(error)
+            counters["errors"] += 1
+        elif entry is None:
             skip = Skipped(message=f"not run: session aborted at {culprit or SESSION_CRASH_CASE}")
             skip.text = message
-            case.result = [skip]
+            results.append(skip)
             counters["skipped"] += 1
+        if results:
+            case.result = results
         counters["tests"] += 1
         suite.add_testcase(case)
 

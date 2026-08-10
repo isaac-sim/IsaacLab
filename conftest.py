@@ -49,6 +49,16 @@ def _journal_write(record: dict) -> None:
         pass
 
 
+def _marker_value(item, registered: set[str]) -> str:
+    """Return an item's registered markers as the comma-separated ``markers`` property value."""
+    return ",".join(sorted(mark.name for mark in item.iter_markers() if mark.name in registered))
+
+
+def _registered_markers(config) -> set[str]:
+    """Return the marker names registered in the repo-root ``pyproject.toml``."""
+    return {entry.split(":", 1)[0].strip() for entry in config.getini("markers")}
+
+
 def pytest_collection_modifyitems(config, items):
     """Record each collected test's registered markers for the JUnit report.
 
@@ -61,23 +71,36 @@ def pytest_collection_modifyitems(config, items):
     ``integration``, ``benchmark``, ``rendering``) are recorded; pytest's built-in structural marks
     (``parametrize``, ``skip``, ``usefixtures``, ...) are excluded so they do not leak
     into the artifact's ``test_type`` field.
-
-    The same marker map is journaled alongside the collected node IDs so a crash-rebuilt
-    report can reproduce both, keeping ``test_type`` consistent with a clean run.
     """
-    registered = {entry.split(":", 1)[0].strip() for entry in config.getini("markers")}
-    journal_markers = {}
+    registered = _registered_markers(config)
     for item in items:
-        markers = {mark.name for mark in item.iter_markers() if mark.name in registered}
-        value = ",".join(sorted(markers))
-        item.user_properties.append(("markers", value))
+        item.user_properties.append(("markers", _marker_value(item, registered)))
+
+
+def pytest_collection_finish(session):
+    """Journal the node IDs that will actually run, with their markers.
+
+    Journaling from :func:`pytest_collection_modifyitems` would record tests that are about to be
+    dropped: pytest's own mark plugin applies ``-k`` / ``-m`` deselection from a ``trylast`` hook,
+    which runs after this file's. Since ``tools/conftest.py`` splits a run into passes selected by
+    marker and device, a rebuilt crash report would then emit every other pass's tests as "not run"
+    skips, inflating the counts and duplicating node IDs whose real verdicts came from the sibling
+    pass. ``session.items`` is post-deselection, so it holds exactly the tests this pass runs.
+
+    The markers are journaled alongside the node IDs so a crash-rebuilt report can reproduce the
+    ``markers`` property, keeping ``test_type`` consistent with a clean run.
+    """
+    registered = _registered_markers(session.config)
+    markers = {}
+    for item in session.items:
+        value = _marker_value(item, registered)
         if value:
-            journal_markers[item.nodeid] = value
+            markers[item.nodeid] = value
     _journal_write(
         {
             "event": "collected",
-            "node_ids": [item.nodeid for item in items],
-            "markers": journal_markers,
+            "node_ids": [item.nodeid for item in session.items],
+            "markers": markers,
         }
     )
 
