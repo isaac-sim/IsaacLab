@@ -34,7 +34,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["isaaclab_ov", "isaaclab_ov.*", "isaaclab_ovphysx"]
+include = ["isaaclab_ov", "isaaclab_ov.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
