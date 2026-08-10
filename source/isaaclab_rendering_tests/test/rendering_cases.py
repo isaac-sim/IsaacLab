@@ -38,8 +38,6 @@ NEWTON_WARP_AOVS = (
     RenderBufferKind.SEMANTIC_SEGMENTATION,
     RenderBufferKind.INSTANCE_SEGMENTATION,
 )
-# Motion-vector magnitudes vary substantially across GPUs; the runner validates their behavior after one step.
-NON_GOLDEN_AOVS = frozenset({RenderBufferKind.MOTION_VECTORS})
 
 
 @dataclass(frozen=True)
@@ -57,6 +55,13 @@ class RenderCase:
     def id(self) -> str:
         variant = self.variant or (self.aovs[0].value if len(self.aovs) == 1 else None)
         return "-".join(part for part in (self.scene, self.physics, self.renderer, variant) if part)
+
+    @property
+    def golden_aovs(self) -> tuple[RenderBufferKind, ...]:
+        """Exclude Newton motion magnitudes; deterministic backends retain image baselines."""
+        if self.physics == "newton":
+            return tuple(aov for aov in self.aovs if aov != RenderBufferKind.MOTION_VECTORS)
+        return self.aovs
 
     def golden_id(self, aov: RenderBufferKind) -> str:
         """Return a baseline identity that is stable when compatible AOVs are bundled."""

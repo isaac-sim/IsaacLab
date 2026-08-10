@@ -29,7 +29,6 @@ from rendering_cases import (  # noqa: E402
     KIT_RENDERING_CASES,
     KITLESS_CASES,
     KITLESS_RENDERING_CASES,
-    NON_GOLDEN_AOVS,
     OVRTX_AOVS,
     SIMPLE_SHADING_AOVS,
     SPECIALIZED_KIT_CASES,
@@ -280,6 +279,11 @@ def test_renderer_matrix_encodes_compatibility_and_cost() -> None:
     assert all(isinstance(aov, RenderBufferKind) for case in all_cases for aov in case.aovs)
     for case in all_cases:
         assert len(set(case.aovs) & set(SIMPLE_SHADING_AOVS)) <= 1
+    motion_cases = [case for case in all_cases if RenderBufferKind.MOTION_VECTORS in case.aovs]
+    assert motion_cases
+    assert all(
+        (RenderBufferKind.MOTION_VECTORS in case.golden_aovs) == (case.physics != "newton") for case in motion_cases
+    )
 
 
 def test_case_identity_names_only_render_dimensions() -> None:
@@ -297,9 +301,9 @@ def test_golden_inventory_is_derived_from_the_case_matrix() -> None:
     expected = {case.scene: set() for case in KIT_RENDERING_CASES}
     expected.update({case.scene: set() for _, case in KITLESS_RENDERING_CASES})
     for case in KIT_RENDERING_CASES:
-        expected[case.scene].update(case.golden_filename(aov, "kit") for aov in case.aovs if aov not in NON_GOLDEN_AOVS)
+        expected[case.scene].update(case.golden_filename(aov, "kit") for aov in case.golden_aovs)
     for _, case in KITLESS_RENDERING_CASES:
-        expected[case.scene].update(case.golden_filename(aov) for aov in case.aovs if aov not in NON_GOLDEN_AOVS)
+        expected[case.scene].update(case.golden_filename(aov) for aov in case.golden_aovs)
 
     renderer_root = _TEST_DIR / "golden_images/renderers"
     assert {path.name for path in renderer_root.iterdir() if path.is_dir()} == set(expected)
@@ -307,7 +311,6 @@ def test_golden_inventory_is_derived_from_the_case_matrix() -> None:
         assert {path.name for path in (renderer_root / scene).glob("*.png")} == filenames
     assert not list(renderer_root.rglob("legacy-*.png"))
     assert not list(renderer_root.rglob("ovstage-*.png"))
-    assert not list(renderer_root.rglob("*motion_vectors.png"))
 
     visualizer_expected = {
         f"{physics}-{visualizer}-{mode}.png"

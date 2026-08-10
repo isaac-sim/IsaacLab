@@ -13,7 +13,7 @@ from typing import Any
 
 import torch
 from golden_image import camera_output_image, compare_to_golden
-from rendering_cases import KIT_RENDERING_CASES, NON_GOLDEN_AOVS, RenderCase
+from rendering_cases import KIT_RENDERING_CASES, RenderCase
 from rendering_runtime import SEMANTIC_COLORS, build_rendering_scene
 from rendering_scene_cfgs import make_rendering_scene_spec
 
@@ -28,6 +28,7 @@ _NO_SSIM = {
     RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
     RenderBufferKind.INSTANCE_SEGMENTATION,
     RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST,
+    RenderBufferKind.MOTION_VECTORS,
 }
 _ALPHA_ONLY_AOVS = {RenderBufferKind.INSTANCE_SEGMENTATION, RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST}
 
@@ -73,12 +74,11 @@ def run_rendering_case(
             assert torch.all(raw_moving_pixels > 20), f"Too few moving pixels: {raw_moving_pixels.tolist()}"
             assert torch.all(support_pixels > 0), f"No high-confidence motion: {support_pixels.tolist()}"
             assert torch.all(support_pixels < view_pixels // 2), f"Motion is not localized: {support_pixels.tolist()}"
+            outputs[RenderBufferKind.MOTION_VECTORS] = motion
 
         _validate_segmentation(outputs, info, scene.required_labels)
         failures = []
-        for aov in case.aovs:
-            if aov in NON_GOLDEN_AOVS:
-                continue
+        for aov in case.golden_aovs:
             image_max_diff_pct, min_ssim = scene.image_tolerance(case.renderer, aov)
             golden_filename = case.golden_filename(aov, golden_namespace)
             artifact_label = "-".join(
