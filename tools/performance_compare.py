@@ -33,6 +33,15 @@ class MetricResult:
     fail_regression_pct: float | None
     verdict: str
     message: str
+    measured_samples: int | None = None
+    reference_samples: int | None = None
+    significance_metric: str | None = None
+    significance_measured: float | None = None
+    significance_reference: float | None = None
+    significance_measured_std: float | None = None
+    significance_reference_std: float | None = None
+    significance_sigma: float | None = None
+    statistically_significant: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -46,11 +55,24 @@ class ComparisonReport:
 
 
 _METRICS = (
-    ("total_fps", "Total FPS", ("runtime", "total_fps", "mean"), False),
-    ("gpu_mem_peak_gb", "Peak GPU memory [GB]", ("resources", "gpu_mem_gb", "peak"), True),
-    ("ram_peak_gb", "Peak process RSS [GB]", ("resources", "ram_gb", "peak"), True),
+    ("total_fps", "Total FPS", (("runtime", "total_fps", "mean"),), False),
+    (
+        "startup_time_s",
+        "Total startup time [s]",
+        (
+            ("runtime", "startup_time_s", "app_launch"),
+            ("runtime", "startup_time_s", "python_imports"),
+            ("runtime", "startup_time_s", "task_config"),
+            ("runtime", "startup_time_s", "env_creation"),
+            ("runtime", "startup_time_s", "first_step"),
+        ),
+        True,
+    ),
+    ("gpu_mem_peak_gb", "Peak GPU memory [GB]", (("resources", "gpu_mem_gb", "peak"),), True),
+    ("ram_peak_gb", "Peak process RSS [GB]", (("resources", "ram_gb", "peak"),), True),
 )
 _LABELS = {name: label for name, label, _, _ in _METRICS}
+_MIN_SIGNIFICANCE_SIGMA = 2.0
 
 
 def _mapping(value: Any, name: str) -> dict[str, Any]:
@@ -71,6 +93,20 @@ def _number(value: Any, name: str) -> float:
     return number
 
 
+def _sample_count(value: Any, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 1:
+        raise ComparisonError(f"{name} must be an integer greater than one")
+    _number(value, name)
+    return value
+
+
+def _positive_int(value: Any, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ComparisonError(f"{name} must be a positive integer")
+    _number(value, name)
+    return value
+
+
 def _nested_number(data: dict[str, Any], path: tuple[str, ...]) -> float | None:
     value: Any = data
     for key in path:
@@ -80,9 +116,68 @@ def _nested_number(data: dict[str, Any], path: tuple[str, ...]) -> float | None:
     return _number(value, ".".join(path))
 
 
+def _startup_time(data: dict[str, Any]) -> float | None:
+    runtime = _mapping(data.get("runtime"), "runtime")
+    startup = _mapping(runtime.get("startup_time_s"), "runtime.startup_time_s")
+    values: list[float] = []
+    for name in ("app_launch", "env_creation", "first_step"):
+        values.append(_number(startup.get(name), f"runtime.startup_time_s.{name}"))
+    for name in ("python_imports", "task_config"):
+        value = startup.get(name)
+        if value is not None:
+            values.append(_number(value, f"runtime.startup_time_s.{name}"))
+    if any(value < 0 for value in values):
+        raise ComparisonError("runtime startup phases must be non-negative")
+    return _number(sum(values), "total startup time")
+
+
+def _metric_value(data: dict[str, Any], name: str, paths: tuple[tuple[str, ...], ...]) -> float:
+    if name == "startup_time_s":
+        return _startup_time(data)
+    values = [_nested_number(data, path) for path in paths]
+    value = values[0] if len(values) == 1 else sum(item for item in values if item is not None)
+    if value is None:
+        raise ComparisonError(f"Benchmark result does not contain a measured value for {name}")
+    if value < 0:
+        raise ComparisonError(f"Measured {name} must be non-negative")
+    return value
+
+
+def _fps_statistics(
+    bundle: dict[str, Any], measured_fps: float, expected_steps_per_iteration: int
+) -> tuple[float, float, int, int]:
+    if measured_fps <= 0:
+        raise ComparisonError("Measured total_fps must be greater than zero")
+    runtime = _mapping(bundle.get("runtime"), "runtime")
+    mean = _nested_number(bundle, ("runtime", "iteration_time_s", "mean"))
+    std = _nested_number(bundle, ("runtime", "iteration_time_s", "std"))
+    if mean is None or std is None:
+        raise ComparisonError("Benchmark result does not contain iteration-time statistics for total_fps")
+    if mean <= 0 or std < 0:
+        raise ComparisonError("Iteration-time mean must be positive and standard deviation non-negative")
+    samples = _sample_count(runtime.get("iterations_completed"), "measured total_fps sample count")
+    steps = _positive_int(runtime.get("steps_per_iteration"), "runtime.steps_per_iteration")
+    if steps != expected_steps_per_iteration:
+        raise ComparisonError("runtime.steps_per_iteration must match run.num_envs")
+    if not math.isclose(mean, steps / measured_fps, rel_tol=1e-6):
+        raise ComparisonError("total_fps.mean and iteration_time_s.mean describe different aggregates")
+    return mean, std, samples, steps
+
+
 def _normalize_gpu_model(value: str) -> str:
     value = re.sub(r"^nvidia\s+", "", value.strip(), flags=re.IGNORECASE)
     return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+
+
+def _runtime_version(versions: dict[str, Any]) -> str:
+    for provider in ("isaacsim", "newton"):
+        value = versions.get(provider)
+        if value is None:
+            continue
+        if not isinstance(value, str) or not value.strip():
+            raise ComparisonError(f"versions.{provider} must be a non-empty string when present")
+        return f"{provider}:{value.strip()}"
+    raise ComparisonError("versions must contain an Isaac Sim or Newton runtime version")
 
 
 def _identity(bundle: dict[str, Any]) -> dict[str, object]:
@@ -107,14 +202,12 @@ def _identity(bundle: dict[str, Any]) -> dict[str, object]:
         "rendering_backend": config.get("rendering_backend"),
         "presets": sorted(presets),
         "gpu_model": _normalize_gpu_model(gpu_name),
-        "isaacsim_version": versions.get("isaacsim"),
-        "num_envs": run.get("num_envs"),
+        "runtime_version": _runtime_version(versions),
+        "num_envs": _positive_int(run.get("num_envs"), "benchmark identity field 'num_envs'"),
     }
-    for key in ("task", "physics_backend", "rendering_backend", "isaacsim_version"):
+    for key in ("task", "physics_backend", "rendering_backend"):
         if not isinstance(identity[key], str) or not identity[key]:
             raise ComparisonError(f"benchmark identity field {key!r} must be a non-empty string")
-    if isinstance(identity["num_envs"], bool) or not isinstance(identity["num_envs"], int):
-        raise ComparisonError("benchmark identity field 'num_envs' must be an integer")
     return identity
 
 
@@ -151,6 +244,11 @@ def _metric_result(
     config: dict[str, Any],
     *,
     higher_is_worse: bool,
+    measured_samples: Any = None,
+    require_significance: bool = False,
+    significance_measured: float | None = None,
+    significance_measured_std: float | None = None,
+    significance_scale: int | None = None,
 ) -> MetricResult:
     config = _mapping(config, f"metrics.{name}")
     if measured is None:
@@ -166,16 +264,82 @@ def _metric_result(
     if fail < warn:
         raise ComparisonError(f"metrics.{name}.fail_regression_pct must be greater than or equal to warning")
 
-    change = (measured - reference) / reference * 100.0
+    change = _number((measured - reference) / reference * 100.0, f"derived {name} percentage change")
     regression = change if higher_is_worse else -change
-    if regression >= fail:
+    reference_samples: int | None = None
+    significance_metric: str | None = None
+    significance_reference: float | None = None
+    significance_reference_std: float | None = None
+    significance_sigma: float | None = None
+    statistically_significant: bool | None = None
+    if require_significance:
+        if measured_samples is None:
+            raise ComparisonError(f"Benchmark result does not contain a measured sample count for {name}")
+        measured_samples = _sample_count(measured_samples, f"measured {name} sample count")
+        reference_samples = _sample_count(config.get("reference_samples"), f"metrics.{name}.reference_samples")
+        if significance_measured is None or significance_measured_std is None or significance_scale is None:
+            raise ComparisonError(f"Benchmark result does not contain iteration-time statistics for {name}")
+        significance_metric = "iteration_time_s"
+        significance_measured = _number(significance_measured, "runtime.iteration_time_s.mean")
+        significance_measured_std = _number(significance_measured_std, "runtime.iteration_time_s.std")
+        significance_reference = _number(
+            significance_scale / reference, f"derived metrics.{name}.reference_iteration_time_s"
+        )
+        significance_reference_std = _number(
+            config.get("reference_iteration_time_std_s"), f"metrics.{name}.reference_iteration_time_std_s"
+        )
+        if significance_measured <= 0 or significance_reference <= 0:
+            raise ComparisonError("iteration-time means must be greater than zero")
+        if significance_measured_std < 0 or significance_reference_std < 0:
+            raise ComparisonError("iteration-time standard deviations must be non-negative")
+        standard_error = _number(
+            math.hypot(
+                significance_measured_std / math.sqrt(measured_samples),
+                significance_reference_std / math.sqrt(reference_samples),
+            ),
+            f"derived metrics.{name} standard error",
+        )
+        difference = _number(
+            abs(significance_measured - significance_reference), f"derived metrics.{name} timing difference"
+        )
+        if standard_error == 0.0:
+            statistically_significant = difference > 0.0
+        else:
+            significance_sigma = _number(difference / standard_error, f"derived metrics.{name} significance")
+            statistically_significant = significance_sigma >= _MIN_SIGNIFICANCE_SIGMA
+
+    crosses_fail = regression > 0 and regression >= fail
+    crosses_warn = regression > 0 and regression >= warn
+    threshold_is_significant = statistically_significant is not False
+    if crosses_fail and threshold_is_significant:
         verdict = "FAIL"
-    elif regression >= warn:
+    elif crosses_warn and threshold_is_significant:
         verdict = "WARN"
     else:
         verdict = "PASS"
     message = f"Measured {measured:g} versus {reference:g} ({regression:+.2f}% regression)"
-    return MetricResult(name, measured, reference, regression, warn, fail, verdict, message)
+    if statistically_significant is not None:
+        sigma = "infinite" if significance_sigma is None else f"{significance_sigma:.2f}"
+        message += f", {sigma} sigma ({'significant' if statistically_significant else 'not significant'})"
+    return MetricResult(
+        name,
+        measured,
+        reference,
+        regression,
+        warn,
+        fail,
+        verdict,
+        message,
+        measured_samples=measured_samples,
+        reference_samples=reference_samples,
+        significance_metric=significance_metric,
+        significance_measured=significance_measured,
+        significance_reference=significance_reference,
+        significance_measured_std=significance_measured_std,
+        significance_reference_std=significance_reference_std,
+        significance_sigma=significance_sigma,
+        statistically_significant=statistically_significant,
+    )
 
 
 def compare(runtime_bundle: dict[str, object], baseline_table: dict[str, object]) -> ComparisonReport:
@@ -188,15 +352,24 @@ def compare(runtime_bundle: dict[str, object], baseline_table: dict[str, object]
     missing_metrics = [name for name, _, _, _ in _METRICS if name not in metric_configs]
     if missing_metrics:
         raise ComparisonError(f"The matching baseline row is missing required metrics: {', '.join(missing_metrics)}")
+    values = {name: _metric_value(bundle, name, paths) for name, _, paths, _ in _METRICS}
+    iteration_time_mean, iteration_time_std, fps_samples, steps_per_iteration = _fps_statistics(
+        bundle, values["total_fps"], identity["num_envs"]
+    )
 
     metrics = tuple(
         _metric_result(
             name,
-            _nested_number(bundle, path),
+            values[name],
             metric_configs[name],
             higher_is_worse=higher_is_worse,
+            measured_samples=fps_samples if name == "total_fps" else None,
+            require_significance=name == "total_fps",
+            significance_measured=iteration_time_mean if name == "total_fps" else None,
+            significance_measured_std=iteration_time_std if name == "total_fps" else None,
+            significance_scale=steps_per_iteration if name == "total_fps" else None,
         )
-        for name, _, path, higher_is_worse in _METRICS
+        for name, _, paths, higher_is_worse in _METRICS
     )
     verdict = "FAIL" if any(item.verdict == "FAIL" for item in metrics) else "WARN"
     if verdict == "WARN" and not any(item.verdict == "WARN" for item in metrics):
@@ -207,11 +380,29 @@ def compare(runtime_bundle: dict[str, object], baseline_table: dict[str, object]
 def skipped_report(runtime_bundle: dict[str, object], reason: str) -> ComparisonReport:
     """Build a report that records unavailable baseline configuration."""
     bundle = _mapping(runtime_bundle, "benchmark result")
-    metrics = tuple(
-        MetricResult(name, _nested_number(bundle, path), None, None, None, None, "SKIP", reason)
-        for name, _, path, _ in _METRICS
+    identity = _identity(bundle)
+    values = {name: _metric_value(bundle, name, paths) for name, _, paths, _ in _METRICS}
+    iteration_time_mean, iteration_time_std, fps_samples, _ = _fps_statistics(
+        bundle, values["total_fps"], identity["num_envs"]
     )
-    return ComparisonReport(_identity(bundle), metrics, "SKIP", reason)
+    metrics = tuple(
+        MetricResult(
+            name,
+            values[name],
+            None,
+            None,
+            None,
+            None,
+            "SKIP",
+            reason,
+            measured_samples=fps_samples if name == "total_fps" else None,
+            significance_metric="iteration_time_s" if name == "total_fps" else None,
+            significance_measured=iteration_time_mean if name == "total_fps" else None,
+            significance_measured_std=iteration_time_std if name == "total_fps" else None,
+        )
+        for name, _, paths, _ in _METRICS
+    )
+    return ComparisonReport(identity, metrics, "SKIP", reason)
 
 
 def _format_value(value: float | None) -> str:
@@ -233,16 +424,26 @@ def write_outputs(
         "",
         report.message,
         "",
-        "| Metric | Measured | Reference | Regression | Warn | Fail | Verdict |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | --- |",
+        "| Metric | Measured | Reference | Regression | Measured timing std [s] | Reference timing std [s] | "
+        "Significance | Warn | Fail | Verdict |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     for metric in report.metrics:
         regression = "-" if metric.regression_pct is None else f"{metric.regression_pct:+.2f}%"
         warn = "-" if metric.warn_regression_pct is None else f"{metric.warn_regression_pct:.2f}%"
         fail = "-" if metric.fail_regression_pct is None else f"{metric.fail_regression_pct:.2f}%"
+        if metric.statistically_significant is None:
+            significance = "-"
+        elif metric.significance_sigma is None:
+            significance = "infinite" if metric.statistically_significant else "0.00 sigma"
+        else:
+            significance = f"{metric.significance_sigma:.2f} sigma"
+        measured_timing_std = _format_value(metric.significance_measured_std)
+        reference_timing_std = _format_value(metric.significance_reference_std)
         lines.append(
             f"| {_LABELS.get(metric.name, metric.name)} | {_format_value(metric.measured)} | "
-            f"{_format_value(metric.reference)} | {regression} | {warn} | {fail} | {metric.verdict} |"
+            f"{_format_value(metric.reference)} | {regression} | {measured_timing_std} | "
+            f"{reference_timing_std} | {significance} | {warn} | {fail} | {metric.verdict} |"
         )
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     json_path.write_text(json.dumps(asdict(report), indent=2, sort_keys=True) + "\n", encoding="utf-8")
