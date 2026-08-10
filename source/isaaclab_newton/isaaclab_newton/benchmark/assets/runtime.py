@@ -31,7 +31,7 @@ def _configure_articulation_model(model, num_instances: int, num_bodies: int, nu
 
 
 def _load_runtime_symbols() -> None:
-    global ArticulationCfg, MockNewtonArticulationView, MockNewtonCollectionView, MockWrenchComposer
+    global ArticulationCfg, MockNewtonArticulationView, MockNewtonCollectionView, WrenchComposer
     global RigidObjectCfg, RigidObjectCollectionCfg, create_mock_newton_manager, np, wp
 
     import numpy as np
@@ -40,13 +40,13 @@ def _load_runtime_symbols() -> None:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
     from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
+    from isaaclab.utils.wrench_composer import WrenchComposer
 
-    from isaaclab_newton.test.mock_interfaces import (
+    from isaaclab_newton.test.fixtures import (
         MockNewtonArticulationView,
-        MockWrenchComposer,
         create_mock_newton_manager,
     )
-    from isaaclab_newton.test.mock_interfaces.views import MockNewtonCollectionView
+    from isaaclab_newton.test.fixtures.views import MockNewtonCollectionView
 
 
 def create_test_articulation(
@@ -91,8 +91,8 @@ def create_test_articulation(
     data = data_module.ArticulationData(mock_view, device)
     object.__setattr__(articulation, "_data", data)
 
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation)
+    mock_perm_wrench = WrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -167,8 +167,8 @@ def create_test_rigid_object(
     data = RigidObjectData(mock_view, device)
     object.__setattr__(rigid_object, "_data", data)
 
-    mock_inst_wrench = MockWrenchComposer(rigid_object)
-    mock_perm_wrench = MockWrenchComposer(rigid_object)
+    mock_inst_wrench = WrenchComposer(rigid_object)
+    mock_perm_wrench = WrenchComposer(rigid_object)
     object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(rigid_object, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -225,8 +225,8 @@ def create_test_collection(
     data = RigidObjectCollectionData(mock_view, num_bodies, device)
     object.__setattr__(collection, "_data", data)
 
-    mock_inst_wrench = MockWrenchComposer(collection)
-    mock_perm_wrench = MockWrenchComposer(collection)
+    mock_inst_wrench = WrenchComposer(collection)
+    mock_perm_wrench = WrenchComposer(collection)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 

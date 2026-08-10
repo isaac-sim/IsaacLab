@@ -3,8 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Mock PhysX TensorAPI views."""
-
-from isaaclab.utils.module import lazy_export
-
-lazy_export()
+"""Internal helpers for Warp-backed PhysX fixture views."""
