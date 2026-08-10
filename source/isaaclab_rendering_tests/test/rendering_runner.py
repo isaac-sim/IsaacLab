@@ -13,7 +13,7 @@ from typing import Any
 
 import torch
 from golden_image import camera_output_image, compare_to_golden
-from rendering_cases import KIT_RENDERING_CASES, RenderCase
+from rendering_cases import KIT_RENDERING_CASES, NON_GOLDEN_AOVS, RenderCase
 from rendering_runtime import SEMANTIC_COLORS, build_rendering_scene
 from rendering_scene_cfgs import make_rendering_scene_spec
 
@@ -29,7 +29,6 @@ _NO_SSIM = {
     RenderBufferKind.INSTANCE_SEGMENTATION,
     RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST,
 }
-_SEMANTIC_ONLY_AOVS = {RenderBufferKind.MOTION_VECTORS}
 _ALPHA_ONLY_AOVS = {RenderBufferKind.INSTANCE_SEGMENTATION, RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST}
 
 
@@ -78,7 +77,7 @@ def run_rendering_case(
         _validate_segmentation(outputs, info, scene.required_labels)
         failures = []
         for aov in case.aovs:
-            if aov in _SEMANTIC_ONLY_AOVS:
+            if aov in NON_GOLDEN_AOVS:
                 continue
             image_max_diff_pct, min_ssim = scene.image_tolerance(case.renderer, aov)
             golden_filename = case.golden_filename(aov, golden_namespace)

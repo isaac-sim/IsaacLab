@@ -38,6 +38,8 @@ NEWTON_WARP_AOVS = (
     RenderBufferKind.SEMANTIC_SEGMENTATION,
     RenderBufferKind.INSTANCE_SEGMENTATION,
 )
+# Motion-vector magnitudes vary substantially across GPUs; the runner validates their behavior after one step.
+NON_GOLDEN_AOVS = frozenset({RenderBufferKind.MOTION_VECTORS})
 
 
 @dataclass(frozen=True)

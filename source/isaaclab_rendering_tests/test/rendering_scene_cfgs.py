@@ -199,20 +199,21 @@ _FRANKA_ROBOT = FRANKA_PANDA_MENAGERIE_CFG.replace(
         ),
     },
 )
-_FRANKA_TABLE_SPAWN = sim_utils.CuboidCfg(
+_FRANKA_FAILURE_TABLE_SPAWN = sim_utils.CuboidCfg(
     size=(1.3, 0.9, 1.05),
     collision_props=sim_utils.CollisionPropertiesCfg(),
-    # The task's command visualizer initially draws the otherwise-hidden collider in this failure color.
+    # The task always draws its otherwise-hidden table through this failure-state command marker. Authoring the
+    # marker directly also makes it part of OVRTX's initial scene capture instead of a late manager-owned addition.
     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
     semantic_tags=[("class", "table")],
 )
 _FRANKA_SOFT_TABLE = AssetBaseCfg(
     prim_path="{ENV_REGEX_NS}/Table",
-    spawn=_FRANKA_TABLE_SPAWN,
+    spawn=_FRANKA_FAILURE_TABLE_SPAWN,
     init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, -0.525)),
 )
 _FRANKA_CLOTH_TABLE = _FRANKA_SOFT_TABLE.replace(
-    spawn=_FRANKA_TABLE_SPAWN.replace(
+    spawn=_FRANKA_FAILURE_TABLE_SPAWN.replace(
         physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1)
     ),
 )
@@ -545,17 +546,17 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
     if scene in {"franka_soft", "franka_cloth"}:
         if physics != "newton":
             raise ValueError(f"{scene} rendering requires its shared Newton task composition.")
-        scene_cfg_type, deformable, physics_cfg, env_spacing, max_diff_pct = {
-            "franka_soft": (FrankaSoftRenderingSceneCfg, _SOFT_NEWTON, _SOFT_NEWTON_PHYSICS, 2.0, 12.0),
+        scene_cfg_type, deformable, physics_cfg, max_diff_pct = {
+            "franka_soft": (FrankaSoftRenderingSceneCfg, _SOFT_NEWTON, _SOFT_NEWTON_PHYSICS, 12.0),
             "franka_cloth": (
                 FrankaClothRenderingSceneCfg,
                 _CLOTH_NEWTON,
                 _CLOTH_NEWTON_PHYSICS,
-                2.5,
                 8.0,
             ),
         }[scene]
-        cfg = scene_cfg_type(num_envs=4, env_spacing=env_spacing, lazy_sensor_update=True)
+        # Match the former golden harness override so neighboring task markers stay outside every camera view.
+        cfg = scene_cfg_type(num_envs=4, env_spacing=3.0, lazy_sensor_update=True)
         cfg.deformable = deformable.copy()
         cfg.fill_light.spawn.texture_file = retrieve_file_path(cfg.fill_light.spawn.texture_file)
         return RenderingSceneSpec(

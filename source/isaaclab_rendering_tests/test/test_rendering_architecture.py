@@ -29,6 +29,7 @@ from rendering_cases import (  # noqa: E402
     KIT_RENDERING_CASES,
     KITLESS_CASES,
     KITLESS_RENDERING_CASES,
+    NON_GOLDEN_AOVS,
     OVRTX_AOVS,
     SIMPLE_SHADING_AOVS,
     SPECIALIZED_KIT_CASES,
@@ -296,13 +297,9 @@ def test_golden_inventory_is_derived_from_the_case_matrix() -> None:
     expected = {case.scene: set() for case in KIT_RENDERING_CASES}
     expected.update({case.scene: set() for _, case in KITLESS_RENDERING_CASES})
     for case in KIT_RENDERING_CASES:
-        expected[case.scene].update(
-            case.golden_filename(aov, "kit") for aov in case.aovs if aov != RenderBufferKind.MOTION_VECTORS
-        )
+        expected[case.scene].update(case.golden_filename(aov, "kit") for aov in case.aovs if aov not in NON_GOLDEN_AOVS)
     for _, case in KITLESS_RENDERING_CASES:
-        expected[case.scene].update(
-            case.golden_filename(aov) for aov in case.aovs if aov != RenderBufferKind.MOTION_VECTORS
-        )
+        expected[case.scene].update(case.golden_filename(aov) for aov in case.aovs if aov not in NON_GOLDEN_AOVS)
 
     renderer_root = _TEST_DIR / "golden_images/renderers"
     assert {path.name for path in renderer_root.iterdir() if path.is_dir()} == set(expected)
