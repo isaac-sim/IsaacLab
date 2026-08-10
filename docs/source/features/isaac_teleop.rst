@@ -414,7 +414,7 @@ Prerequisites
 
   The kernel log will show the assigned device, e.g. ``[USB] ... ttyACM0``. Use that path
   (e.g. ``/dev/ttyACM0``, ``/dev/ttyACM1``) in the command below. Alternatively,
-  ``lerobot-find-port`` (``uv pip install lerobot``) can identify the port interactively.
+  ``uvx --from lerobot lerobot-find-port`` can identify the port interactively (no install needed).
 
   .. code-block:: bash
 
