@@ -52,16 +52,13 @@ same ``isaacsim.asset`` importers. Install it from a source checkout:
 
    ./isaaclab.sh --install 'newton,rl[rsl-rl],importers'
 
-or into an environment built from the published wheel. The isolated importers live on the
-NVIDIA index, and one of their dependencies is a pre-release, so a standalone install needs
-the index and resolution flags that a source checkout would supply through ``[tool.uv]``:
+or into an environment built from the published wheel. The converters require
+``tinyobjloader>=2.0.0rc13``, which only a pre-release satisfies, so pre-releases must be
+enabled -- a source checkout supplies this through ``[tool.uv]``:
 
 .. code-block:: bash
 
-   uv pip install 'isaaclab[importers]' \
-     --extra-index-url https://pypi.nvidia.com \
-     --index-strategy unsafe-best-match \
-     --prerelease allow
+   uv pip install 'isaaclab[importers]' --prerelease allow
 
 Run conversion in the kit-less environment. Optionally pass ``--viz newton`` (or ``rerun`` /
 ``viser``) to preview the converted asset in a kit-less Isaac Lab visualizer:
