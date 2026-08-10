@@ -12,7 +12,7 @@
 - Keep related public symbols discoverable through consistent prefixes.
 - Use concrete types for public interfaces where practical.
 - Use Google-style docstrings for public APIs.
-- Document SI units for public physical quantities.
+- Document SI units for public physical quantities in docstrings using inline `[unit]` notation (e.g. `Particle positions [m], shape [N, 3]`); use `[m or rad, depending on joint type]` where applicable, and skip non-physical fields (indices, counts, flags).
 - Keep comments brief and explain intent, constraints, or edge cases rather than restating code.
 - Do not remove or rename a public API without a prior deprecation and migration path.
 - Update public documentation when adding or changing public APIs.
