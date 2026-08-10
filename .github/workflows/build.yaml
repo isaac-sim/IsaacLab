@@ -835,6 +835,141 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-${{ matrix.variant }}-test"
         omni-github-test-type: "rendering-correctness-kitless-${{ matrix.variant }}"
 
+  performance-smoke:
+    name: "performance-smoke (${{ matrix.name }})"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: cartpole-physx
+          task: Isaac-Cartpole-Direct
+          num_envs: 4096
+          timeout_minutes: 10
+          args: ""
+        - name: cartpole-newton
+          task: Isaac-Cartpole-Direct
+          num_envs: 4096
+          timeout_minutes: 10
+          args: physics=newton_mjwarp
+        - name: gear-mesh-physx
+          task: IsaacContrib-Factory-GearMesh-Direct
+          num_envs: 512
+          timeout_minutes: 15
+          args: ""
+        - name: shadow-camera-physx-rtx
+          task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
+          num_envs: 512
+          timeout_minutes: 20
+          args: renderer=isaacsim_rtx
+        - name: shadow-camera-physx-newton-renderer
+          task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
+          num_envs: 512
+          timeout_minutes: 20
+          args: renderer=newton_renderer
+        - name: shadow-camera-newton-rtx
+          task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
+          num_envs: 512
+          timeout_minutes: 20
+          args: physics=newton_mjwarp renderer=isaacsim_rtx
+        - name: shadow-camera-newton-renderer
+          task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
+          num_envs: 512
+          timeout_minutes: 20
+          args: physics=newton_mjwarp renderer=newton_renderer
+        - name: g1-physx
+          task: Isaac-Velocity-Flat-G1
+          num_envs: 512
+          timeout_minutes: 12
+          args: ""
+        - name: g1-newton
+          task: Isaac-Velocity-Flat-G1
+          num_envs: 512
+          timeout_minutes: 12
+          args: physics=newton_mjwarp
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - name: Pull pull-request image
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+    - name: Run runtime benchmark
+      env:
+        BENCHMARK_ARGS: ${{ matrix.args }}
+        BENCHMARK_TASK: ${{ matrix.task }}
+        CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
+        NUM_ENVS: ${{ matrix.num_envs }}
+      run: |
+        set -euo pipefail
+        install -d -m 0777 benchmark-output
+        docker run --rm --gpus all --network=host --ipc=host \
+          -e OMNI_KIT_ACCEPT_EULA=yes \
+          -e ACCEPT_EULA=Y \
+          -e ISAAC_SIM_HEADLESS=1 \
+          -v "$PWD/benchmark-output:/benchmark-output" \
+          --entrypoint bash "$CI_IMAGE_TAG" -lc \
+          "./isaaclab.sh benchmark runtime \
+            --task '$BENCHMARK_TASK' \
+            --num_envs '$NUM_ENVS' \
+            --num_steps 200 \
+            --warmup_steps 100 \
+            --seed 42 \
+            --benchmark_formatter schema \
+            --output_path /benchmark-output \
+            --visualizer none \
+            $BENCHMARK_ARGS"
+    - name: Download authoritative baseline
+      if: vars.PERF_BASELINE_S3_URI != ''
+      env:
+        PERF_BASELINE_S3_URI: ${{ vars.PERF_BASELINE_S3_URI }}
+      run: aws s3 cp "$PERF_BASELINE_S3_URI" "$RUNNER_TEMP/performance-baseline.json"
+    - name: Compare with baseline
+      env:
+        BASELINE_CONFIGURED: ${{ vars.PERF_BASELINE_S3_URI != '' }}
+      run: |
+        set -euo pipefail
+        mapfile -t results < <(find benchmark-output -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
+        if [ "${#results[@]}" -ne 1 ]; then
+          echo "Expected one runtime benchmark JSON, found ${#results[@]}"
+          exit 1
+        fi
+
+        baseline_args=()
+        if [ "$BASELINE_CONFIGURED" = "true" ]; then
+          baseline_args=(--baseline "$RUNNER_TEMP/performance-baseline.json")
+        fi
+
+        set +e
+        python3 tools/performance_compare.py \
+          --benchmark_result "${results[0]}" \
+          "${baseline_args[@]}" \
+          --markdown benchmark-output/comparison.md \
+          --output_json benchmark-output/comparison.json \
+          --junit benchmark-output/comparison.xml
+        status=$?
+        set -e
+        cat benchmark-output/comparison.md >> "$GITHUB_STEP_SUMMARY"
+        exit "$status"
+    - name: Upload performance results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: performance-smoke-${{ matrix.name }}-${{ github.run_id }}
+        path: benchmark-output/
+        if-no-files-found: warn
+        retention-days: 7
+
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and
   # no solver-heavy test job runs on push. Does not restore before saving:
