@@ -30,9 +30,10 @@ from rendering_cases import (  # noqa: E402
     KITLESS_CASES,
     KITLESS_RENDERING_CASES,
     OVRTX_AOVS,
-    SCENE_PROBE_KIT_CASES,
-    SCENE_PROBE_KITLESS_CASES,
     SIMPLE_SHADING_AOVS,
+    SPECIALIZED_KIT_CASES,
+    SPECIALIZED_KITLESS_CASES,
+    RenderCase,
 )
 
 
@@ -163,7 +164,7 @@ def test_process_partitions_cover_every_rendering_case_once() -> None:
 
 
 def test_scene_composition_has_one_downstream_owner() -> None:
-    """The canonical scene has deliberate placement, defaults, and semantic labels."""
+    """The shared scene has deliberate placement, defaults, and semantic labels."""
     owners = [
         path.relative_to(_REPO_ROOT)
         for path in (_REPO_ROOT / "source").rglob("*.py")
@@ -199,10 +200,10 @@ def test_specialized_scenes_own_facts_and_runner_stays_generic() -> None:
         "KukaHeterogeneousRenderingSceneCfg",
         "ShadowHandRenderingSceneCfg",
     } <= classes
-    assert {case.scene for case in SCENE_PROBE_KIT_CASES} == expected_scenes
-    assert {case.scene for _, case in SCENE_PROBE_KITLESS_CASES} == expected_scenes - {"kuka_heterogeneous"}
-    assert KIT_RENDERING_CASES == KIT_CASES + SCENE_PROBE_KIT_CASES
-    assert KITLESS_RENDERING_CASES == KITLESS_CASES + SCENE_PROBE_KITLESS_CASES
+    assert {case.scene for case in SPECIALIZED_KIT_CASES} == expected_scenes
+    assert {case.scene for _, case in SPECIALIZED_KITLESS_CASES} == expected_scenes - {"kuka_heterogeneous"}
+    assert KIT_RENDERING_CASES == KIT_CASES + SPECIALIZED_KIT_CASES
+    assert KITLESS_RENDERING_CASES == KITLESS_CASES + SPECIALIZED_KITLESS_CASES
 
     runner_source = (_TEST_DIR / "rendering_runner.py").read_text()
     assert not [scene for scene in expected_scenes if f'"{scene}"' in runner_source]
@@ -254,25 +255,40 @@ def test_renderer_matrix_encodes_compatibility_and_cost() -> None:
     """Cases share compatible AOVs and isolate OVRTX's single-AOV calls."""
     assert len(KIT_CASES) <= 10
     assert len(KITLESS_CASES) <= 50
-    standard = [case for case in KIT_CASES if case.profile == "standard"]
-    standard.extend(case for _, case in KITLESS_CASES if case.profile == "standard")
-    assert all(len(case.aovs) == 1 for case in standard if case.renderer == "ovrtx")
-    assert all(len(case.aovs) > 1 for case in standard if case.renderer != "ovrtx")
+    default_cases = [
+        case for case in KIT_CASES if case.variant is None and not set(case.aovs) & set(SIMPLE_SHADING_AOVS)
+    ]
+    default_cases.extend(
+        case for _, case in KITLESS_CASES if case.variant is None and not set(case.aovs) & set(SIMPLE_SHADING_AOVS)
+    )
+    assert all(len(case.aovs) == 1 for case in default_cases if case.renderer == "ovrtx")
+    assert all(len(case.aovs) > 1 for case in default_cases if case.renderer != "ovrtx")
     for physics in ("ovphysx", "newton"):
         actual = tuple(
             case.aovs[0]
             for stage, case in KITLESS_CASES
-            if stage == "legacy" and case.physics == physics and case.renderer == "ovrtx" and case.profile == "standard"
+            if stage == "legacy"
+            and case.physics == physics
+            and case.renderer == "ovrtx"
+            and case.variant is None
+            and case.aovs[0] in OVRTX_AOVS
         )
         assert actual == OVRTX_AOVS
 
     all_cases = [*KIT_RENDERING_CASES, *(case for _, case in KITLESS_RENDERING_CASES)]
     assert all(isinstance(aov, RenderBufferKind) for case in all_cases for aov in case.aovs)
-    simple_profiles = {aov.value for aov in SIMPLE_SHADING_AOVS}
     for case in all_cases:
         assert len(set(case.aovs) & set(SIMPLE_SHADING_AOVS)) <= 1
-        if case.profile in simple_profiles:
-            assert case.aovs == (RenderBufferKind(case.profile),)
+
+
+def test_case_identity_names_only_render_dimensions() -> None:
+    """Case IDs expose scene/backend/renderer facts and only real variants."""
+    assert "profile" not in RenderCase.__dataclass_fields__
+    assert not hasattr(RenderCase, "suite")
+    case_ids = [case.id for case in KIT_RENDERING_CASES]
+    case_ids.extend(f"{stage}-{case.id}" for stage, case in KITLESS_RENDERING_CASES)
+    assert len(case_ids) == len(set(case_ids))
+    assert not [case_id for case_id in case_ids if any(word in case_id for word in ("canonical", "probe", "standard"))]
 
 
 def test_golden_inventory_is_derived_from_the_case_matrix() -> None:

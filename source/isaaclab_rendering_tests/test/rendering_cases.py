@@ -47,23 +47,18 @@ class RenderCase:
     physics: str
     renderer: str
     aovs: tuple[RenderBufferKind, ...]
-    profile: str = "standard"
+    variant: str | None = None
     scene: str = "rendering_scene"
     background_color: tuple[float, float, float] | None = None
 
     @property
-    def suite(self) -> str:
-        return "canonical" if self.scene == "rendering_scene" else "probe"
-
-    @property
     def id(self) -> str:
-        profile = f"standard-{self.aovs[0]}" if self.profile == "standard" and len(self.aovs) == 1 else self.profile
-        scene = "" if self.suite == "canonical" else f"-{self.scene}"
-        return f"{self.suite}-{self.physics}-{self.renderer}{scene}-{profile}"
+        variant = self.variant or (self.aovs[0].value if len(self.aovs) == 1 else None)
+        return "-".join(part for part in (self.scene, self.physics, self.renderer, variant) if part)
 
     def golden_id(self, aov: RenderBufferKind) -> str:
         """Return a baseline identity that is stable when compatible AOVs are bundled."""
-        suffix = aov if self.profile == aov and self.aovs == (aov,) else f"{self.profile}-{aov}"
+        suffix = aov.value if self.variant is None else f"{self.variant}-{aov.value}"
         return f"{self.physics}-{self.renderer}-{suffix}"
 
     def golden_filename(self, aov: RenderBufferKind, namespace: str | None = None) -> str:
@@ -78,7 +73,7 @@ def _single_aov_cases(physics: str, renderer: str, aovs: tuple[RenderBufferKind,
 
 def _simple_shading_cases(physics: str, renderer: str) -> tuple[RenderCase, ...]:
     # Simple shading modes share one renderer setting and cannot coexist in a camera.
-    return tuple(RenderCase(physics, renderer, (aov,), profile=aov.value) for aov in SIMPLE_SHADING_AOVS)
+    return tuple(RenderCase(physics, renderer, (aov,)) for aov in SIMPLE_SHADING_AOVS)
 
 
 _KIT_CASES = [
@@ -91,7 +86,7 @@ _KIT_CASES = [
         "physx",
         "isaac_rtx",
         (RenderBufferKind.RGB,),
-        profile="yellow-background",
+        variant="yellow-background",
         background_color=(1.0, 1.0, 0.0),
     ),
 ]
@@ -107,7 +102,7 @@ _KITLESS_CASES = [
         "ovphysx",
         "ovrtx",
         (RenderBufferKind.RGB,),
-        profile="yellow-background",
+        variant="yellow-background",
         background_color=(1.0, 1.0, 0.0),
     ),
 ]
@@ -120,48 +115,48 @@ KITLESS_CASES = tuple(
 
 
 @dataclass(frozen=True)
-class SceneProbe:
+class SceneCoverage:
     aovs: tuple[RenderBufferKind, ...]
     kit_physics: tuple[str, ...]
     kitless_physics: tuple[str, ...]
 
 
-SCENE_PROBES = {
-    "shadow_hand": SceneProbe(
+SPECIALIZED_SCENE_COVERAGE = {
+    "shadow_hand": SceneCoverage(
         (RenderBufferKind.RGB, RenderBufferKind.SEMANTIC_SEGMENTATION, RenderBufferKind.INSTANCE_SEGMENTATION),
         ("physx", "newton"),
         ("ovphysx", "newton"),
     ),
-    "kuka_heterogeneous": SceneProbe((RenderBufferKind.RGB, RenderBufferKind.INSTANCE_SEGMENTATION), ("physx",), ()),
-    "franka_cloth": SceneProbe((RenderBufferKind.RGB, RenderBufferKind.MOTION_VECTORS), ("newton",), ("newton",)),
-    "franka_soft": SceneProbe((RenderBufferKind.RGB, RenderBufferKind.MOTION_VECTORS), ("newton",), ("newton",)),
+    "kuka_heterogeneous": SceneCoverage((RenderBufferKind.RGB, RenderBufferKind.INSTANCE_SEGMENTATION), ("physx",), ()),
+    "franka_cloth": SceneCoverage((RenderBufferKind.RGB, RenderBufferKind.MOTION_VECTORS), ("newton",), ("newton",)),
+    "franka_soft": SceneCoverage((RenderBufferKind.RGB, RenderBufferKind.MOTION_VECTORS), ("newton",), ("newton",)),
 }
-SCENE_PROBE_KIT_CASES = tuple(
+SPECIALIZED_KIT_CASES = tuple(
     RenderCase(
         physics,
         renderer,
-        tuple(aov for aov in probe.aovs if renderer != "newton_warp" or aov in NEWTON_WARP_AOVS),
+        tuple(aov for aov in coverage.aovs if renderer != "newton_warp" or aov in NEWTON_WARP_AOVS),
         scene=scene,
     )
-    for scene, probe in SCENE_PROBES.items()
-    for physics in probe.kit_physics
+    for scene, coverage in SPECIALIZED_SCENE_COVERAGE.items()
+    for physics in coverage.kit_physics
     for renderer in ("isaac_rtx", "newton_warp")
 )
-SCENE_PROBE_KITLESS_CASES = tuple(
+SPECIALIZED_KITLESS_CASES = tuple(
     (stage, case)
-    for scene, probe in SCENE_PROBES.items()
-    for physics in probe.kitless_physics
+    for scene, coverage in SPECIALIZED_SCENE_COVERAGE.items()
+    for physics in coverage.kitless_physics
     for case in (
-        *(RenderCase(physics, "ovrtx", (aov,), scene=scene) for aov in probe.aovs),
+        *(RenderCase(physics, "ovrtx", (aov,), scene=scene) for aov in coverage.aovs),
         RenderCase(
             physics,
             "newton_warp",
             tuple(
                 aov
-                for aov in probe.aovs
+                for aov in coverage.aovs
                 if aov in NEWTON_WARP_AOVS
                 # Legacy USD cloning exposes either env_0 or its clones in semantic color depending on GPU.
-                # Canonical legacy and specialized Kit cases retain stable Newton-Warp semantic coverage.
+                # The shared legacy and specialized Kit cases retain stable Newton-Warp semantic coverage.
                 and not (scene == "shadow_hand" and aov == RenderBufferKind.SEMANTIC_SEGMENTATION)
             ),
             scene=scene,
@@ -169,5 +164,5 @@ SCENE_PROBE_KITLESS_CASES = tuple(
     )
     for stage in (("legacy", "ovstage") if case.renderer == "ovrtx" and physics == "ovphysx" else ("legacy",))
 )
-KIT_RENDERING_CASES = KIT_CASES + SCENE_PROBE_KIT_CASES
-KITLESS_RENDERING_CASES = KITLESS_CASES + SCENE_PROBE_KITLESS_CASES
+KIT_RENDERING_CASES = KIT_CASES + SPECIALIZED_KIT_CASES
+KITLESS_RENDERING_CASES = KITLESS_CASES + SPECIALIZED_KITLESS_CASES

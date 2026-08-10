@@ -78,21 +78,35 @@ Note: Any tests not listed here will use the default timeout.
 
 PROCESS_ISOLATED_TESTS = {
     "source/isaaclab_rendering_tests/test/test_rendering_kit.py": (
-        ("canonical", ("canonical",)),
+        ("rendering_scene", ("rendering_scene",)),
         ("shadow_hand", ("shadow_hand",)),
         ("kuka_cloth", ("kuka_heterogeneous", "franka_cloth")),
         ("franka_soft", ("franka_soft",)),
     ),
     "source/isaaclab_rendering_tests/test/test_rendering_kitless.py": (
-        ("legacy-canonical-ovphysx", ("legacy-canonical-ovphysx",)),
-        ("legacy-canonical-newton", ("legacy-canonical-newton",)),
-        ("legacy-probe-ovphysx-ovrtx", ("legacy-probe-ovphysx-ovrtx",)),
-        ("legacy-probe-ovphysx-newton-warp", ("legacy-probe-ovphysx-newton_warp",)),
-        ("legacy-probe-newton-ovrtx", ("legacy-probe-newton-ovrtx",)),
-        ("legacy-probe-newton-newton-warp", ("legacy-probe-newton-newton_warp",)),
-        ("ovstage-canonical-ovphysx", ("ovstage-canonical-ovphysx",)),
-        ("ovstage-canonical-newton", ("ovstage-canonical-newton",)),
-        ("ovstage-probe-ovphysx-ovrtx", ("ovstage-probe-ovphysx-ovrtx",)),
+        ("legacy-rendering-scene-ovphysx", ("legacy-rendering_scene-ovphysx",)),
+        ("legacy-rendering-scene-newton", ("legacy-rendering_scene-newton",)),
+        ("legacy-shadow-hand-ovphysx-ovrtx", ("legacy-shadow_hand-ovphysx-ovrtx",)),
+        ("legacy-shadow-hand-ovphysx-newton-warp", ("legacy-shadow_hand-ovphysx-newton_warp",)),
+        (
+            "legacy-newton-ovrtx-scenes",
+            (
+                "legacy-shadow_hand-newton-ovrtx",
+                "legacy-franka_cloth-newton-ovrtx",
+                "legacy-franka_soft-newton-ovrtx",
+            ),
+        ),
+        (
+            "legacy-newton-newton-warp-scenes",
+            (
+                "legacy-shadow_hand-newton-newton_warp",
+                "legacy-franka_cloth-newton-newton_warp",
+                "legacy-franka_soft-newton-newton_warp",
+            ),
+        ),
+        ("ovstage-rendering-scene-ovphysx", ("ovstage-rendering_scene-ovphysx",)),
+        ("ovstage-rendering-scene-newton", ("ovstage-rendering_scene-newton",)),
+        ("ovstage-shadow-hand-ovphysx-ovrtx", ("ovstage-shadow_hand-ovphysx-ovrtx",)),
     ),
 }
 """Named case selectors that must run in separate native-resource processes."""

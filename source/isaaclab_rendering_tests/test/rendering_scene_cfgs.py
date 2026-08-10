@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Task-independent scene composition for specialized renderer probes."""
+"""Task-independent composition for shared and specialized rendering scenes."""
 
 from __future__ import annotations
 
@@ -544,7 +544,7 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
         )
     if scene in {"franka_soft", "franka_cloth"}:
         if physics != "newton":
-            raise ValueError(f"{scene} rendering probes require their shared Newton task composition.")
+            raise ValueError(f"{scene} rendering requires its shared Newton task composition.")
         scene_cfg_type, deformable, physics_cfg, env_spacing, max_diff_pct = {
             "franka_soft": (FrankaSoftRenderingSceneCfg, _SOFT_NEWTON, _SOFT_NEWTON_PHYSICS, 2.0, 12.0),
             "franka_cloth": (

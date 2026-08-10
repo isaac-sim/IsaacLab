@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Visualizer correctness on the canonical task-free rendering scene."""
+"""Visualizer correctness on the shared task-free rendering scene."""
 
 import sys
 from pathlib import Path
