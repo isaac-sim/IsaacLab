@@ -78,13 +78,6 @@ Rough-terrain velocity tasks remain unsupported until
 Quick Start
 ~~~~~~~~~~~
 
-Each workflow is shown as a pair: train the policy, then replay the checkpoint it wrote.
-Inference takes the same ``--frontend warp presets=newton_mjwarp`` pair as training, so a
-policy trained on the warp runtime is replayed on it as well. ``--checkpoint latest``
-resolves the newest checkpoint of the most recent matching run under ``logs/``; pass a
-path instead to replay a specific one. ``--visualizer newton_gl`` (alias ``--viz``) opens
-the Newton viewer to watch the rollout; drop it to evaluate headless.
-
 .. tab-set::
 
    .. tab-item:: uv (Recommended)
