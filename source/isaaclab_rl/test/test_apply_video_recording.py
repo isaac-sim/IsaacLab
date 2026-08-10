@@ -145,6 +145,42 @@ def test_apply_video_recording_injects_kit_visualizer_when_no_concrete_visualize
     assert env_cfg.video_recorders[0].source == "visualizer:kit"
 
 
+def test_apply_video_recording_allows_warp_frontend():
+    """--video is accepted on the warp frontend; warp environments record video."""
+    env_cfg = _env_cfg()
+    apply_video_recording(env_cfg, "/my/log", _args(frontend="warp", visualizer=["newton_gl"]))
+    assert len(env_cfg.video_recorders) == 1
+    assert env_cfg.video_recorders[0].source == "visualizer:newton_gl"
+
+
+def test_apply_video_recording_injects_newton_gl_visualizer_on_warp_frontend():
+    """--video without --viz injects Newton GL on warp; the warp runtime never initialises Kit."""
+    import sys
+
+    newton_cfg_instance = object()
+    MockNewtonGLVisualizerCfg = MagicMock(return_value=newton_cfg_instance)
+
+    fake_newton_module = ModuleType("isaaclab_visualizers.newton")
+    fake_newton_module.NewtonGLVisualizerCfg = MockNewtonGLVisualizerCfg
+    fake_visualizers_module = ModuleType("isaaclab_visualizers")
+
+    sim_cfg = SimpleNamespace(visualizer_cfgs=[])
+    env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
+
+    with patch.dict(
+        sys.modules,
+        {
+            "isaaclab_visualizers": fake_visualizers_module,
+            "isaaclab_visualizers.newton": fake_newton_module,
+        },
+    ):
+        apply_video_recording(env_cfg, "/my/log", _args(frontend="warp"))
+
+    assert sim_cfg.visualizer_cfgs == [newton_cfg_instance]
+    MockNewtonGLVisualizerCfg.assert_called_once_with(headless=True)
+    assert env_cfg.video_recorders[0].source == "visualizer:newton_gl"
+
+
 def test_apply_video_recording_rejects_viz_none_with_video():
     """--viz none combined with --video raises ValueError with a clear message.
 

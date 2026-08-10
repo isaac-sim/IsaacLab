@@ -784,13 +784,23 @@ def pre_launch_video_config(env_cfg: Any, log_dir: str | None = None, args_cli: 
     if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
         sim_cfg.visualizer_cfgs = []
 
+    # The warp runtime never initialises Kit, so a Kit visualizer cannot serve as a frame
+    # source there. Newton GL is capture-capable and runs on both frontends.
+    frontend = getattr(args_cli, "frontend", "torch") or "torch"
     try:
-        from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+        if frontend == "torch":
+            from isaaclab_visualizers.kit import KitVisualizerCfg as _CaptureCfg
 
-        sim_cfg.visualizer_cfgs.append(_KitCfg(headless=True))
+            name = "Kit"
+        else:
+            from isaaclab_visualizers.newton import NewtonGLVisualizerCfg as _CaptureCfg
+
+            name = "Newton GL"
+
+        sim_cfg.visualizer_cfgs.append(_CaptureCfg(headless=True))
         print(
-            "[INFO] pre_launch_video_config: pre-injecting a headless Kit visualizer so the launcher "
-            "includes the Kit runtime. Pass --viz <type> to choose a different visualizer."
+            f"[INFO] pre_launch_video_config: pre-injecting a headless {name} visualizer as the video "
+            "frame source. Pass --viz <type> to choose a different visualizer."
         )
     except (ImportError, ModuleNotFoundError):
         pass
@@ -825,14 +835,6 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
     """
     if not getattr(args_cli, "video", False):
         return
-
-    frontend = getattr(args_cli, "frontend", "torch") or "torch"
-    if frontend != "torch":
-        raise ValueError(
-            f"--video is not supported with --frontend {frontend!r}. "
-            "Video recording requires the standard torch frontend. "
-            "Remove --video or switch to --frontend torch."
-        )
 
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
@@ -927,15 +929,26 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                 # pre-launch hook was skipped or failed (e.g. isaaclab_visualizers not installed).
                 if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
                     sim_cfg.visualizer_cfgs = []
+                # Match pre_launch_video_config: Kit cannot be a frame source on the warp
+                # runtime, which never initialises it.
+                frontend = getattr(args_cli, "frontend", "torch") or "torch"
                 try:
-                    from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+                    if frontend == "torch":
+                        from isaaclab_visualizers.kit import KitVisualizerCfg as _CaptureCfg
 
-                    sim_cfg.visualizer_cfgs.append(_KitCfg(headless=True))
-                    visualizer_source = "visualizer:kit"
+                        viz_name = "kit"
+                    else:
+                        from isaaclab_visualizers.newton import NewtonGLVisualizerCfg as _CaptureCfg
+
+                        viz_name = "newton_gl"
+
+                    sim_cfg.visualizer_cfgs.append(_CaptureCfg(headless=True))
+                    visualizer_source = f"visualizer:{viz_name}"
                     print(
-                        "[INFO] --video specified without --viz: auto-creating a headless Kit visualizer "
-                        "for video recording. Pass --viz <type> to choose a different visualizer, or "
-                        "set video_recorders in your env config to record from a scene sensor instead."
+                        f"[INFO] --video specified without --viz: auto-creating a headless {viz_name} "
+                        "visualizer for video recording. Pass --viz <type> to choose a different "
+                        "visualizer, or set video_recorders in your env config to record from a scene "
+                        "sensor instead."
                     )
                 except (ImportError, ModuleNotFoundError):
                     pass

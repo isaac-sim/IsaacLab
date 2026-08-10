@@ -375,6 +375,10 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
                 timer=DEBUG_TIMER_STEP,
             )
 
+        # -- advance video recorders (after render and resets, before final obs)
+        for recorder in self.video_recorders:
+            recorder.step()
+
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
         self.obs_buf = self._manager_call_switch.call_stage(
