@@ -35,7 +35,7 @@ def run_kitless_rendering_case(stage_variant: str, case: RenderCase, request: An
             __import__("ovphysx")
         except ImportError as exc:
             raise AssertionError(f"OVPhysX rendering requires the ovphysx extra: {exc}") from exc
-    run_rendering_case(case, request, stage_variant=stage_variant)
+    run_rendering_case(case, request, golden_namespace=None, artifact_namespace=stage_variant)
 
 
 def make_kitless_test() -> Any:

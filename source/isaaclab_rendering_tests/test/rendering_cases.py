@@ -66,6 +66,11 @@ class RenderCase:
         suffix = aov if self.profile == aov and self.aovs == (aov,) else f"{self.profile}-{aov}"
         return f"{self.physics}-{self.renderer}-{suffix}"
 
+    def golden_filename(self, aov: RenderBufferKind, namespace: str | None = None) -> str:
+        """Return a baseline filename independent of execution-path details."""
+        prefix = f"{namespace}-" if namespace else ""
+        return f"{prefix}{self.golden_id(aov)}.png"
+
 
 def _single_aov_cases(physics: str, renderer: str, aovs: tuple[RenderBufferKind, ...]) -> tuple[RenderCase, ...]:
     return tuple(RenderCase(physics, renderer, (aov,)) for aov in aovs)

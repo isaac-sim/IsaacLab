@@ -281,17 +281,19 @@ def test_golden_inventory_is_derived_from_the_case_matrix() -> None:
     expected.update({case.scene: set() for _, case in KITLESS_RENDERING_CASES})
     for case in KIT_RENDERING_CASES:
         expected[case.scene].update(
-            f"kit-{case.golden_id(aov)}.png" for aov in case.aovs if aov != RenderBufferKind.MOTION_VECTORS
+            case.golden_filename(aov, "kit") for aov in case.aovs if aov != RenderBufferKind.MOTION_VECTORS
         )
-    for stage, case in KITLESS_RENDERING_CASES:
+    for _, case in KITLESS_RENDERING_CASES:
         expected[case.scene].update(
-            f"{stage}-{case.golden_id(aov)}.png" for aov in case.aovs if aov != RenderBufferKind.MOTION_VECTORS
+            case.golden_filename(aov) for aov in case.aovs if aov != RenderBufferKind.MOTION_VECTORS
         )
 
     renderer_root = _TEST_DIR / "golden_images/renderers"
     assert {path.name for path in renderer_root.iterdir() if path.is_dir()} == set(expected)
     for scene, filenames in expected.items():
         assert {path.name for path in (renderer_root / scene).glob("*.png")} == filenames
+    assert not list(renderer_root.rglob("legacy-*.png"))
+    assert not list(renderer_root.rglob("ovstage-*.png"))
     assert not list(renderer_root.rglob("*motion_vectors.png"))
 
     visualizer_expected = {

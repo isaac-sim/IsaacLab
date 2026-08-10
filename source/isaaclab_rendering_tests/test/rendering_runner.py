@@ -33,7 +33,13 @@ _SEMANTIC_ONLY_AOVS = {RenderBufferKind.MOTION_VECTORS}
 _ALPHA_ONLY_AOVS = {RenderBufferKind.INSTANCE_SEGMENTATION, RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST}
 
 
-def run_rendering_case(case: RenderCase, request: Any, *, stage_variant: str = "kit") -> None:
+def run_rendering_case(
+    case: RenderCase,
+    request: Any,
+    *,
+    golden_namespace: str | None = "kit",
+    artifact_namespace: str | None = None,
+) -> None:
     """Build once, capture all compatible AOVs, and step physics once only for motion."""
     configure_seed(42, torch_deterministic=True)
     scene = make_rendering_scene_spec(case.scene, case.physics)
@@ -75,16 +81,20 @@ def run_rendering_case(case: RenderCase, request: Any, *, stage_variant: str = "
             if aov in _SEMANTIC_ONLY_AOVS:
                 continue
             image_max_diff_pct, min_ssim = scene.image_tolerance(case.renderer, aov)
-            golden_label = f"{stage_variant}-{case.golden_id(aov)}"
-            artifact_label = f"{case.scene}-{golden_label}"
+            golden_filename = case.golden_filename(aov, golden_namespace)
+            artifact_label = "-".join(
+                part for part in (case.scene, artifact_namespace, golden_filename.removesuffix(".png")) if part
+            )
             comparison = compare_to_golden(
                 camera_output_image(outputs[aov], aov),
-                _GOLDEN_ROOT / case.scene / f"{golden_label}.png",
+                _GOLDEN_ROOT / case.scene / golden_filename,
                 label=artifact_label,
                 artifact_dir=_ARTIFACT_DIR,
                 max_diff_pct=0.75 if case.renderer == "newton_warp" else image_max_diff_pct,
                 min_ssim=None if aov in _NO_SSIM else min_ssim,
-                alpha_only=aov in _ALPHA_ONLY_AOVS,
+                # OVRTX's numeric semantic IDs vary by USD reader; metadata validates their labels separately.
+                alpha_only=aov in _ALPHA_ONLY_AOVS
+                or (case.renderer == "ovrtx" and aov == RenderBufferKind.SEMANTIC_SEGMENTATION),
             )
             comparison.record(request)
             if not comparison.passed:
