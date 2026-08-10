@@ -312,3 +312,60 @@ def test_rebuilt_ids_match_the_ids_pytest_writes_on_a_clean_run(tmp_path):
 
     assert rebuilt_ids == pytest_ids
     assert len(pytest_ids) == 3
+
+
+def test_rebuilt_result_tags_match_the_tags_pytest_writes_on_a_clean_run(tmp_path):
+    """A rebuilt case must land in the same JUnit bucket pytest would have put it in.
+
+    pytest reports a failing ``call`` as ``<failure>`` but a failing ``setup``/``teardown`` as
+    ``<error>``. Reading that split off the journaled phase is what keeps a crashed run's counts
+    comparable to a clean one's instead of recounting broken fixtures as test failures.
+    """
+    (tmp_path / "source" / "pkg" / "test").mkdir(parents=True)
+    (tmp_path / "source" / "pkg" / "test" / "test_x.py").write_text(
+        textwrap.dedent(
+            """
+            import pytest
+
+            @pytest.fixture
+            def broken_setup():
+                raise RuntimeError("fixture boom")
+
+            @pytest.fixture
+            def broken_teardown():
+                yield
+                raise RuntimeError("teardown boom")
+
+            def test_setup_error(broken_setup):
+                pass
+
+            def test_teardown_error(broken_teardown):
+                pass
+
+            def test_call_failure():
+                assert 1 == 2
+
+            def test_ok():
+                pass
+            """
+        ),
+        encoding="utf-8",
+    )
+    journal_file = tmp_path / "journal.jsonl"
+    junit_file = tmp_path / "report.xml"
+    _run_pytest(tmp_path, "source/pkg/test/test_x.py", journal_file, junit_file)
+
+    root = ElementTree.fromstring(junit_file.read_text(encoding="utf-8"))
+    pytest_tags = {f"{case.get('classname')}::{case.get('name')}": _result_tag(case) for case in root.iter("testcase")}
+    report, _, _ = create_crash_report(str(journal_file), "test_x", "SIGKILL", "diagnostics")
+    rebuilt_tags = {node_id: _result_tag(case) for node_id, case in _cases(report).items()}
+
+    assert pytest_tags == {
+        "source.pkg.test.test_x::test_setup_error": "error",
+        "source.pkg.test.test_x::test_teardown_error": "error",
+        "source.pkg.test.test_x::test_call_failure": "failure",
+        "source.pkg.test.test_x::test_ok": "passed",
+    }
+    # The session case only exists on the rebuilt side: the clean run had no crash to report.
+    rebuilt_tags.pop(f"source.pkg.test.test_x::{SESSION_CRASH_CASE}")
+    assert rebuilt_tags == pytest_tags

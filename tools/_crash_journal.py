@@ -50,7 +50,7 @@ class Journal:
         markers: Registered markers per node ID, as recorded for the JUnit ``markers`` property.
         started: Node IDs in the order they began running.
         finished: Node IDs that completed teardown.
-        results: Aggregated ``{"outcome", "duration", "longrepr"}`` per node ID.
+        results: Aggregated ``{"outcome", "when", "duration", "longrepr"}`` per node ID.
     """
 
     collected: list[str] = field(default_factory=list)
@@ -114,14 +114,19 @@ def _merge_result(results: dict[str, dict], record: dict) -> None:
     plugin, one set per attempt. The aggregate keeps the most severe outcome, sums the phase
     durations, and holds the first failure text seen — so a retried test collapses to one entry
     instead of the duplicate IDs the JUnit path produces.
+
+    The phase that established the worst outcome is kept alongside it, because pytest's own JUnit
+    writer reports a failing ``call`` as ``<failure>`` but a failing ``setup``/``teardown`` as
+    ``<error>``. Records predating this field are treated as ``call``.
     """
     node_id = record.get("node_id")
     if not node_id:
         return
-    entry = results.setdefault(str(node_id), {"outcome": "passed", "duration": 0.0, "longrepr": ""})
+    entry = results.setdefault(str(node_id), {"outcome": "passed", "when": "call", "duration": 0.0, "longrepr": ""})
     outcome = str(record.get("outcome", "passed"))
     if _OUTCOME_PRIORITY.get(outcome, 0) > _OUTCOME_PRIORITY.get(entry["outcome"], 0):
         entry["outcome"] = outcome
+        entry["when"] = str(record.get("when") or "call")
     try:
         entry["duration"] += float(record.get("duration") or 0.0)
     except (TypeError, ValueError):
@@ -225,10 +230,13 @@ def create_crash_report(
             case.time = entry["duration"]
             counters["time_elapsed"] += entry["duration"]
             if entry["outcome"] == "failed":
-                failure = Failure(message=_first_line(entry["longrepr"]) or message)
-                failure.text = entry["longrepr"]
-                case.result = [failure]
-                counters["failures"] += 1
+                # Mirror pytest's JUnit writer: only a failing call phase is a <failure>; a
+                # failing fixture (setup/teardown) is an <error>.
+                is_call = entry["when"] == "call"
+                result = (Failure if is_call else Error)(message=_first_line(entry["longrepr"]) or message)
+                result.text = entry["longrepr"]
+                case.result = [result]
+                counters["failures" if is_call else "errors"] += 1
             elif entry["outcome"] == "skipped":
                 skip = Skipped(message=_first_line(entry["longrepr"]))
                 skip.text = entry["longrepr"]
