@@ -77,13 +77,13 @@ Note: Any tests not listed here will use the default timeout.
 
 
 PROCESS_ISOLATED_TESTS = {
-    "source/_isaaclab_integration_tests/test/rendering/test_rendering_kit.py": (
+    "source/_isaaclab_testing/test/rendering/test_rendering_kit.py": (
         ("rendering_scene", ("rendering_scene",)),
         ("shadow_hand", ("shadow_hand",)),
         ("kuka_cloth", ("kuka_heterogeneous", "franka_cloth")),
         ("franka_soft", ("franka_soft",)),
     ),
-    "source/_isaaclab_integration_tests/test/rendering/test_rendering_kitless.py": (
+    "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py": (
         ("legacy-rendering-scene-ovphysx", ("legacy-rendering_scene-ovphysx",)),
         ("legacy-rendering-scene-newton", ("legacy-rendering_scene-newton",)),
         ("legacy-shadow-hand-ovphysx-ovrtx", ("legacy-shadow_hand-ovphysx-ovrtx",)),

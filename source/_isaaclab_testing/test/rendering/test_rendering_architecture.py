@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Architecture gates for rendering in the downstream integration-test project."""
+"""Architecture gates for rendering in the private downstream testing project."""
 
 from __future__ import annotations
 
@@ -52,12 +52,13 @@ def _defined_classes(path: Path) -> set[str]:
     return {node.name for node in ast.parse(path.read_text()).body if isinstance(node, ast.ClassDef)}
 
 
-def test_integration_project_owns_rendering_suite() -> None:
+def test_testing_project_owns_rendering_suite() -> None:
     """The private project is a dependency sink whose rendering code stays in one suite."""
-    assert _PROJECT_ROOT.name == "_isaaclab_integration_tests"
+    assert _PROJECT_ROOT.name == "_isaaclab_testing"
     assert _SUITE_DIR == _TEST_ROOT / "rendering"
     assert not list(_TEST_ROOT.glob("*.py"))
-    assert not (_REPO_ROOT / "source/isaaclab_rendering_tests").exists()
+    former_projects = ("isaaclab_rendering_tests", "_isaaclab_integration_tests")
+    assert not [name for name in former_projects if (_REPO_ROOT / "source" / name).exists()]
 
     with (_PROJECT_ROOT / "pyproject.toml").open("rb") as file:
         manifest = tomllib.load(file)
@@ -72,7 +73,7 @@ def test_integration_project_owns_rendering_suite() -> None:
         "isaaclab-physx",
         "isaaclab-visualizers",
     } <= dependencies
-    assert manifest["project"]["name"] == "isaaclab-integration-tests"
+    assert manifest["project"]["name"] == "isaaclab-testing"
     assert manifest["tool"]["setuptools"]["packages"] == []
     assert manifest["tool"]["setuptools"]["py-modules"] == []
 
@@ -102,7 +103,7 @@ def test_integration_project_owns_rendering_suite() -> None:
     )
     assert not [path.relative_to(_REPO_ROOT) for path in old_owners if path.exists()]
 
-    project_names = ("isaaclab_rendering_tests", "_isaaclab_integration_tests", "isaaclab-integration-tests")
+    project_names = (*former_projects, "_isaaclab_testing", "isaaclab-integration-tests", "isaaclab-testing")
     reverse_references = [
         path.relative_to(_REPO_ROOT)
         for root in (_CORE_ROOT, _TASK_ROOT, _VISUALIZER_ROOT)
@@ -143,10 +144,10 @@ def test_process_partitions_cover_every_rendering_case_once() -> None:
     )
 
     cases_by_root = {
-        "source/_isaaclab_integration_tests/test/rendering/test_rendering_kit.py": [
+        "source/_isaaclab_testing/test/rendering/test_rendering_kit.py": [
             case.id for case in KIT_RENDERING_CASES
         ],
-        "source/_isaaclab_integration_tests/test/rendering/test_rendering_kitless.py": [
+        "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py": [
             f"{stage}-{case.id}" for stage, case in KITLESS_RENDERING_CASES
         ],
     }
@@ -179,7 +180,7 @@ def test_scene_composition_has_one_downstream_owner() -> None:
         for path in (_REPO_ROOT / "source").rglob("*.py")
         if "RenderingTestSceneCfg" in _defined_classes(path)
     ]
-    assert owners == [Path("source/_isaaclab_integration_tests/test/rendering/rendering_scene_cfgs.py")]
+    assert owners == [Path("source/_isaaclab_testing/test/rendering/rendering_scene_cfgs.py")]
 
     from rendering_scene_cfgs import RenderingTestSceneCfg
 

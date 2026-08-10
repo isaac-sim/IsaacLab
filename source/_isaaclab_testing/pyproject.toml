@@ -8,14 +8,14 @@ requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "isaaclab-integration-tests"
+name = "isaaclab-testing"
 version = "0.1.0"
-description = "Internal cross-package integration tests for Isaac Lab."
+description = "Internal cross-package testing for Isaac Lab."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 requires-python = ">=3.12"
-# This project is a downstream composition root for cross-package integration suites.
+# This project is a downstream composition root for cross-package test suites.
 # Keep suite dependencies explicit and keep production packages independent of this project.
 dependencies = [
     "isaaclab",
