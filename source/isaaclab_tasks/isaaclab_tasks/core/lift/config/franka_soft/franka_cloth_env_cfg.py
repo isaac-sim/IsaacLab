@@ -15,7 +15,7 @@ from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPro
 from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -32,7 +32,6 @@ from isaaclab_tasks.utils import PresetCfg
 from ... import mdp
 from .franka_soft_env_cfg import (
     FRANKA_CAMERA_CFG,
-    TABLE_SPAWN_CFG,
     FrankaCameraObservationsCfg,
     FrankaSoftEnvCfg,
     _FrankaSoftSceneCfg,
@@ -121,7 +120,7 @@ class DeformableCfg(PresetCfg):
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
-                density=10.0,
+                density=1.0,
                 particle_radius=0.002,
                 tri_ke=5e2,
                 tri_ka=5e2,
@@ -142,13 +141,13 @@ class DeformableCfg(PresetCfg):
             collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=PhysxSurfaceDeformableBodyMaterialCfg(
-                density=5000.0,
-                surface_thickness=0.002,
-                surface_stretch_stiffness=1e3,
-                surface_shear_stiffness=1e3,
+                density=1000.0,
+                surface_thickness=0.001,
+                poissons_ratio=0.25,
+                youngs_modulus=1e6,
                 surface_bend_stiffness=1e6,
-                elasticity_damping=1.0,
-                bend_damping=1.0,
+                elasticity_damping=1e-1,
+                bend_damping=1e-1,
                 static_friction=10.0,
                 dynamic_friction=10.0,
             ),
