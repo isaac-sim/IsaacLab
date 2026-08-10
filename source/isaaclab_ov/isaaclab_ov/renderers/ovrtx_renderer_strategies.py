@@ -5,18 +5,17 @@
 
 """Rendering execution strategies for the OVRTX renderer.
 
-The OVRTX renderer delegates *how* a frame is executed — how transform writes are staged and how the
-OVRTX step is dispatched and consumed — to a :class:`_RenderStrategy`. This is the Strategy pattern:
-the two implementations are interchangeable and selected once from configuration, so the renderer's
-call sites stay free of ``sync``/``async`` branching.
+The renderer delegates *how* a frame is executed -- how transform writes are staged and how the OVRTX
+step is dispatched and consumed -- to a :class:`_RenderStrategy`, selected once from configuration so
+the renderer's call sites carry no ``sync``/``async`` branching.
 
 - :class:`_SyncRenderStrategy` writes transforms straight into OVRTX and consumes each step inline.
 - :class:`_AsyncRenderStrategy` pipelines steps and double-buffers transform staging, so rendering
   overlaps simulation at the cost of camera outputs arriving one frame later.
 
-The interface is deliberately mechanism-neutral (:meth:`~_RenderStrategy.initialize`,
+The interface is mechanism-neutral (:meth:`~_RenderStrategy.initialize`,
 :meth:`~_RenderStrategy.stage_object_transforms`, :meth:`~_RenderStrategy.stage_camera_transforms`,
-:meth:`~_RenderStrategy.render`, :meth:`~_RenderStrategy.cleanup`); all slot/queue vocabulary stays
+:meth:`~_RenderStrategy.render`, :meth:`~_RenderStrategy.cleanup`); slot and queue vocabulary stays
 private to :class:`_AsyncRenderStrategy`.
 """
 
@@ -239,11 +238,10 @@ class _AsyncRenderStrategy(_RenderStrategy):
     to recycle once its write has drained.
     """
 
-    # Number of transform staging slots. See :meth:`_ensure_slots` for why two is always enough.
+    # See :meth:`_ensure_slots` for why two is always enough.
     _NUM_SLOTS = 2
-    # Default number of ``step_async`` renders kept in flight before the oldest is drained. Two means a
-    # render submitted this frame is consumed on the next frame, i.e. one frame of camera latency.
-    # Overridable per run via the ``OVRTX_NUM_BUFFERS`` environment variable (see :meth:`_resolve_render_queue_depth`).
+    # Renders kept in flight before the oldest is drained. Two means one frame of camera latency.
+    # Overridable via ``OVRTX_NUM_BUFFERS`` (see :meth:`_resolve_render_queue_depth`).
     _DEFAULT_RENDER_QUEUE_DEPTH = 2
 
     @classmethod
@@ -302,7 +300,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
     def _enqueue_render_op(
         self, op: _AsyncRenderOp, render_data: OVRTXRenderData | None, consume_products: _RenderProductConsumer
     ) -> _AsyncRenderEntry:
-        """Record an async render op and end the current frame's slot. When ring is full, drain and consume one slot."""
+        """Record an async render op and end the current frame's slot, draining one slot when the ring is full."""
         entry = _AsyncRenderEntry(op, render_data, consume_products)
         self._ring.append(entry)
         self._current_slot = None
@@ -336,14 +334,9 @@ class _AsyncRenderStrategy(_RenderStrategy):
         if self._slots:
             return
 
-        # OVRTX async binding writes with DataAccess.ASYNC copy the transform data into OVRTX's own
-        # storage; OVRTX reads the caller-owned buffer only until the returned write op completes.
-        # We wait on a buffer's previous write before reusing it (see _begin_slot ->
-        # _AsyncRenderSlot.wait_for_writes), so once that wait returns OVRTX has its own copy and overwriting the
-        # buffer cannot disturb an in-flight render. With one write per frame and two alternating
-        # buffers, a buffer's only outstanding work on reuse is the write from two frames ago, so two
-        # buffers are always enough regardless of render depth. OVRTX operations are stream-ordered,
-        # so a step_async() observes earlier write_async() calls issued for the same stage.
+        # Two slots suffice at any render depth: with one write per frame, a slot's only outstanding
+        # work on reuse is its write from two frames ago, which :meth:`_begin_slot` waits on. OVRTX
+        # copies the buffer into its own storage before that write op completes.
         assert self._device is not None
         for _ in range(self._NUM_SLOTS):
             self._slots.append(
@@ -452,8 +445,8 @@ class _AsyncRenderStrategy(_RenderStrategy):
 
         See :meth:`_RenderStrategy.cleanup`.
         """
-        # Drain best-effort: a failure on one op must not prevent draining the rest or tearing the
-        # renderer down, so log and continue. The per-frame drain in _enqueue_render_op propagates.
+        # Log and continue: a failure on one op must not prevent draining the rest or tearing the
+        # renderer down. The per-frame drain in :meth:`_enqueue_render_op` propagates instead.
         while self._has_pending_ops():
             try:
                 self._try_drain_one()

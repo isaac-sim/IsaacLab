@@ -20,12 +20,10 @@ from rendering_test_utils import (
     rendering_test_cartpole,
 )
 
-# OVRTX asynchronous-rendering variants, built with the same combo helper as the synchronous
-# combinations. ``OVRTX_ASYNC_RENDERING`` toggles the renderer's pipelined path independently of the
-# preset, so the async output must still match the same (synchronous) golden images -- it trails by
-# one frame of latency, which the SSIM / pixel-difference tolerances absorb. We cover the beauty
-# buffer per kitless physics backend; the shared harness already renders warm-up frames until the
-# camera outputs are non-zero, which primes the async pipeline before capture.
+# Async variants of the synchronous combinations: ``OVRTX_ASYNC_RENDERING`` toggles the renderer's
+# pipelined path independently of the preset, so the output must match the same golden images. The one
+# frame of latency is absorbed by the SSIM / pixel-difference tolerances, and the shared harness renders
+# warm-up frames until camera outputs are non-zero, which primes the pipeline before capture.
 _ASYNC_COMBINATIONS = make_kitless_rendering_params(
     [
         *_make_sensor_data_type_params("ovphysx", "ovrtx", ["rgb"]),

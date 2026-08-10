@@ -25,7 +25,7 @@ pytestmark = [
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer, _SceneBackendOperation
 
-# Declared as :class:`_SceneBackendOperation`; each needs an ``_ovstage`` and a ``_legacy`` method.
+# Declared as :class:`_SceneBackendOperation`; each requires an ``_ovstage`` and a ``_legacy`` method.
 _BACKEND_OPERATIONS = (
     "init_fields",
     "initialize_from_spec",
@@ -49,7 +49,7 @@ def test_both_backends_implement_every_operation(operation, suffix):
 
 
 def test_declared_operations_match_the_paired_implementations():
-    """An ``_x_ovstage``/``_x_legacy`` pair that is not declared would still need manual dispatch."""
+    """An ``_x_ovstage``/``_x_legacy`` pair must be declared to get dispatch."""
     paired = {
         name.removesuffix("_ovstage").removeprefix("_")
         for name in vars(OVRTXRenderer)

@@ -1559,9 +1559,9 @@ class OVRTXRenderer(BaseRenderer):
 
     def close(self) -> None:
         """Release the shared stage state. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.close`."""
-        # Drain the strategy's in-flight work before either backend releases the renderer it belongs to.
-        # ``render_data`` is None here: :meth:`cleanup` has already released the per-camera buffers, so
-        # the queued renders are only drained (waited on), not consumed into a now-empty buffer map.
+        # Drain in-flight work before either backend releases the renderer it belongs to. ``render_data``
+        # is None because :meth:`cleanup` already released the per-camera buffers, so queued renders are
+        # only waited on, not consumed.
         self._strategy.cleanup(None, self._consume_products)
         self._close()
 

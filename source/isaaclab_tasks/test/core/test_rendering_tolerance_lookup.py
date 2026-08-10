@@ -16,11 +16,11 @@ import pytest
 _UTILS_PATH = Path(__file__).resolve().parent.parent / "rendering_test_utils.py"
 _SOURCE = _UTILS_PATH.read_text()
 
-# Call sites must resolve a tolerance through the helper, which selects the sync or async entry.
-# A bare subscript of the table hands ``validate_camera_outputs`` the whole ``[sync, async]`` list.
+# Call sites must resolve tolerances through the helper; a bare subscript yields the whole
+# ``[sync, async]`` list instead of a float.
 _RAW_SUBSCRIPT_RE = re.compile(r"MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME\[")
 
-# The helper itself is the one sanctioned reader of the table.
+# The helper is the only sanctioned reader of the table.
 _HELPER_UNPACK = "synchronous, asynchronous = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME"
 
 
@@ -35,7 +35,7 @@ def test_no_call_site_subscripts_the_tolerance_table_directly():
 
 
 def test_every_environment_declares_a_sync_and_async_tolerance():
-    """A scalar entry would silently make the async lane reuse the synchronous tolerance."""
+    """Every entry must be a two-element ``[sync, async]`` list."""
     tree = ast.parse(_SOURCE)
     table = next(
         node.value

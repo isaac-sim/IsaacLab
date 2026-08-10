@@ -71,12 +71,9 @@ class OVRTXRendererCfg(RendererCfg):
     async_rendering: bool = False
     """Whether to render asynchronously. Defaults to False.
 
-    When False, rendering is synchronous. When True, the renderer submits a render and returns
-    immediately, overlapping rendering with simulation and Python work to improve throughput, at the
-    cost of camera outputs arriving one frame later.
-
-    The render latency is one frame. User control over the number of frames to delay is left to a
-    future Isaac Lab-side configuration rather than a renderer-level knob.
+    When True, the renderer submits a render and returns immediately, overlapping rendering with
+    simulation and Python work to improve throughput, at the cost of camera outputs arriving one
+    frame later.
 
     For tests this can be overridden with the ``OVRTX_ASYNC_RENDERING`` environment variable
     (``0``/``false``/``no``/``off`` disable, any other non-empty value enables).

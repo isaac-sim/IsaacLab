@@ -43,14 +43,10 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The max percentage of pixels allowed to differ. If the percentage exceeds this value, the test will fail.
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
-# Per-env pixel-diff tolerances as ``[synchronous, asynchronous]``. Index 0 is the synchronous render
-# path; index 1 is asynchronous (pipelined) rendering, whose render state at capture differs slightly
-# from synchronous and so gets its own tolerance. Only cartpole has an async integration test today;
-# the other envs' index-1 values are placeholders (equal to their sync value) until they gain async
-# coverage.
+# Entries are ``[synchronous, asynchronous]``: pipelined rendering captures a slightly different render
+# state, so it carries its own tolerance. Read via :func:`max_different_pixels_percentage_for`.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # RTX anti-aliasing along the ground-plane edges varies slightly across GPU and driver environments.
-    # Index 1 (async) additionally absorbs the small render-state difference on the static scene.
     "cartpole": [1.5, 2.5],
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": [8.0, 8.0],
@@ -70,10 +66,7 @@ _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
 
 
 def _async_rendering_enabled() -> bool:
-    """Whether asynchronous (pipelined) rendering is active for this run, selecting index 1 of
-    :data:`MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME`.
-    Currently only the OVRTX renderer supports async rendering.
-    Driven by the ``OVRTX_ASYNC_RENDERING`` toggle."""
+    """Whether asynchronous (pipelined) rendering is active, per the ``OVRTX_ASYNC_RENDERING`` toggle."""
     value = os.environ.get("OVRTX_ASYNC_RENDERING", "").strip().lower()
     return value not in ("", "0", "false", "no", "off")
 
