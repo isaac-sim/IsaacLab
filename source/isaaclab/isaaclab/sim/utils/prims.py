@@ -33,17 +33,6 @@ if TYPE_CHECKING:
 # import logger
 logger = logging.getLogger(__name__)
 
-REQUIRED_VARIANT_SETS = frozenset({"Physics"})
-"""Variant sets whose absence is an error rather than a skip.
-
-Selecting a variant set the asset does not have is normally harmless -- one spawn configuration
-may cover assets that expose different options, such as a payload or a colour, so a missing set is
-skipped with a warning. The sets listed here instead carry a description the asset is unusable
-without: ``"Physics"`` holds the joints, articulation roots, and mass properties that the URDF and
-MJCF importers author as payloads, and an unselected variant set contributes nothing, so the asset
-would spawn as plain geometry with no indication that anything was lost.
-"""
-
 
 """
 General Utils
@@ -1044,18 +1033,13 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
             variants=TableVariants(),
         )
 
-    A variant set the prim does not have is skipped with a warning, so one configuration can spawn
-    assets that expose different options. Sets named in :obj:`REQUIRED_VARIANT_SETS` are the
-    exception: they carry a description the asset is unusable without, so they raise instead.
-
     Args:
         prim_path: The path of the USD prim.
         variants: A dictionary or config class mapping variant set names to variant selections.
         stage: The USD stage. Defaults to None, in which case, the current stage is used.
 
     Raises:
-        ValueError: If the prim at the specified path is not valid, or if a variant set in
-            :obj:`REQUIRED_VARIANT_SETS` is absent or lacks the requested variant.
+        ValueError: If the prim at the specified path is not valid.
 
     .. _USD Variants: https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
     """
@@ -1073,27 +1057,12 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
 
     existing_variant_sets = prim.GetVariantSets()
     for variant_set_name, variant_selection in variants.items():  # type: ignore
-        required = variant_set_name in REQUIRED_VARIANT_SETS
         # Check if the variant set exists on the prim.
         if not existing_variant_sets.HasVariantSet(variant_set_name):
-            message = (
-                f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'."
-                f" Available: {existing_variant_sets.GetNames()}."
-            )
-            if required:
-                raise ValueError(message)
-            logger.warning(message)
+            logger.warning(f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'.")
             continue
 
         variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
-        # USD accepts a selection naming a variant the set does not offer, and the prim then
-        # composes as if nothing were selected. For a required set that silently drops the
-        # description it exists to carry, so reject it instead.
-        if required and variant_selection not in variant_set.GetVariantNames():
-            raise ValueError(
-                f"Variant set '{variant_set_name}' on prim '{prim_path}' has no variant"
-                f" '{variant_selection}'. Available: {variant_set.GetVariantNames()}."
-            )
         # Only set the variant selection if it is different from the current selection.
         if variant_set.GetVariantSelection() != variant_selection:
             variant_set.SetVariantSelection(variant_selection)

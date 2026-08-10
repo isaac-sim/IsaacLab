@@ -52,11 +52,16 @@ same ``isaacsim.asset`` importers. Install it from a source checkout:
 
    ./isaaclab.sh --install 'newton,rl[rsl-rl],importers'
 
-or into an environment built from the published wheel:
+or into an environment built from the published wheel. The isolated importers live on the
+NVIDIA index, and one of their dependencies is a pre-release, so a standalone install needs
+the index and resolution flags that a source checkout would supply through ``[tool.uv]``:
 
 .. code-block:: bash
 
-   uv pip install 'isaaclab[importers]'
+   uv pip install 'isaaclab[importers]' \
+     --extra-index-url https://pypi.nvidia.com \
+     --index-strategy unsafe-best-match \
+     --prerelease allow
 
 Run conversion in the kit-less environment. Optionally pass ``--viz newton`` (or ``rerun`` /
 ``viser``) to preview the converted asset in a kit-less Isaac Lab visualizer:
@@ -70,8 +75,8 @@ Run conversion in the kit-less environment. Optionally pass ``--viz newton`` (or
      path/to/model.xml path/to/output.usd --merge_mesh
 
 The two cannot share an environment: both provide ``isaacsim.asset``, and the wheel displaces
-the Kit extension, so conversion fails with ``No module named 'isaacsim.asset'``. ``uv`` refuses
-the combination, but plain ``pip`` does not enforce it -- install ``importers`` only where Isaac
+the Kit extension, so conversion fails with ``No module named 'isaacsim.asset'``. ``uv sync`` refuses the combination because it reads
+``[tool.uv].conflicts``; ``uv pip install`` and ``pip`` do not -- install ``importers`` only where Isaac
 Sim is absent.
 
 

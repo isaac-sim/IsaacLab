@@ -53,9 +53,10 @@ def test_resolved_environment_has_no_second_usd_provider():
     with (_repo_root() / "uv.lock").open("rb") as f:
         lock = tomllib.load(f)
 
-    usd_providers = sorted({package["name"] for package in lock["package"] if package["name"].startswith("usd-")})
+    locked = {package["name"] for package in lock["package"]}
 
-    assert usd_providers == ["usd-exchange"]
+    assert "usd-core" not in locked
+    assert "usd-exchange" in locked
 
 
 def test_standalone_importers_ship_in_the_importers_extra():

@@ -1123,11 +1123,15 @@ def _requested_root_extras(
     return extras
 
 
+ISAACSIM_BEARING_EXTRAS = frozenset({"isaacsim", "teleop"})
+"""Extras that install Isaac Sim, directly or by bundling it."""
+
+
 def _reject_conflicts_with_environment(requested: set[str]) -> None:
     """Reject an extra that conflicts with what this environment already has.
 
-    :func:`_reject_conflicting_extras` only sees one invocation. Installing the two sides in
-    separate passes, or into a checkout carrying a local Isaac Sim, reaches the same broken state.
+    :func:`_reject_conflicting_extras` only sees one invocation, so installing the two sides in
+    separate passes, or into a checkout carrying a local Isaac Sim, still reaches the broken state.
 
     Args:
         requested: Names of the extras this install would apply.
@@ -1135,7 +1139,9 @@ def _reject_conflicts_with_environment(requested: set[str]) -> None:
     Raises:
         SystemExit: When the environment already holds the other side of a conflict.
     """
-    if "importers" in requested:
+    wants_isaacsim = bool(requested & ISAACSIM_BEARING_EXTRAS)
+
+    if "importers" in requested and not wants_isaacsim:
         isaacsim_path = extract_isaacsim_path(required=False)
         if isaacsim_path is not None and isaacsim_path.exists():
             raise SystemExit(
@@ -1147,10 +1153,13 @@ def _reject_conflicts_with_environment(requested: set[str]) -> None:
                 "error: 'importers' cannot be installed here; the isaacsim package is already"
                 " installed. It provides the same importers, and the wheel would displace it."
             )
-    if "isaacsim" in requested and _is_installed("isaacsim-asset-isolated"):
+
+    if wants_isaacsim and _is_installed("isaacsim-asset-isolated"):
+        names = ", ".join(f"'{e}'" for e in sorted(requested & ISAACSIM_BEARING_EXTRAS))
         raise SystemExit(
-            "error: 'isaacsim' cannot be installed here; the standalone importers are already"
-            " installed and would displace the Isaac Sim ones. Uninstall isaacsim-asset-isolated first."
+            f"error: {names} installs Isaac Sim, which cannot be added here; the standalone"
+            " importers are already installed and provide the same imports."
+            " Uninstall isaacsim-asset-isolated first."
         )
 
 

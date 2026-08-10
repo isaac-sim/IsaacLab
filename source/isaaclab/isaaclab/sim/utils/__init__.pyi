@@ -28,7 +28,6 @@ __all__ = [
     "add_usd_reference",
     "get_usd_references",
     "select_usd_variants",
-    "REQUIRED_VARIANT_SETS",
     "get_next_free_prim_path",
     "get_first_matching_ancestor_prim",
     "get_first_matching_child_prim",
@@ -96,7 +95,6 @@ from .prims import (
     bind_physics_material,
     add_usd_reference,
     get_usd_references,
-    REQUIRED_VARIANT_SETS,
     select_usd_variants,
 )
 from .queries import (

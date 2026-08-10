@@ -24,7 +24,6 @@ simulation_app = AppLauncher(headless=True).app if _USE_KIT else None
 
 import os
 import sys
-import tempfile
 from types import SimpleNamespace
 
 import pytest
@@ -41,20 +40,6 @@ from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 # conversion is served by the standalone importers when Isaac Sim is absent, so these run
 # unchanged in the Kit-less container
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci, pytest.mark.kitless]
-
-
-def _output_root() -> str:
-    """Directory for converted USD output.
-
-    The kit-less CI image mounts ``source/`` read-only, so fall back to a temporary directory
-    when the tests cannot write beside themselves.
-    """
-    beside_tests = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
-    try:
-        os.makedirs(beside_tests, exist_ok=True)
-        return beside_tests
-    except OSError:
-        return os.path.join(tempfile.gettempdir(), "isaaclab_converter_tests")
 
 
 _MJCF_IMPORTER_EXTENSION = "isaacsim.asset.importer.mjcf"
@@ -185,7 +170,7 @@ def test_create_prim_from_usd(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_self_collision(test_setup_teardown):
+def test_self_collision(test_setup_teardown, tmp_path):
     """Verify that ``self_collision=True`` enables self-collisions on the Newton articulation root.
 
     The Isaac Sim importer's ``enable_self_collision`` writes the ``newton:selfCollisionEnabled``
@@ -193,7 +178,7 @@ def test_self_collision(test_setup_teardown):
     ``PhysicsArticulationRootAPI``, or ``NewtonArticulationRootAPI``).
     """
     sim, config = test_setup_teardown
-    output_dir = os.path.join(_output_root(), "mjcf_self_collision")
+    output_dir = os.path.join(str(tmp_path), "mjcf_self_collision")
     os.makedirs(output_dir, exist_ok=True)
 
     config.self_collision = True
@@ -225,10 +210,10 @@ def test_self_collision(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_collision_from_visuals(test_setup_teardown):
+def test_collision_from_visuals(test_setup_teardown, tmp_path):
     """Verify that ``collision_from_visuals=True`` runs successfully and produces a spawnable USD."""
     sim, config = test_setup_teardown
-    output_dir = os.path.join(_output_root(), "mjcf_collision_visuals")
+    output_dir = os.path.join(str(tmp_path), "mjcf_collision_visuals")
     os.makedirs(output_dir, exist_ok=True)
 
     config.collision_from_visuals = True
@@ -244,10 +229,10 @@ def test_collision_from_visuals(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_collision_type_convex_decomposition(test_setup_teardown):
+def test_collision_type_convex_decomposition(test_setup_teardown, tmp_path):
     """Verify that ``collision_type='Convex Decomposition'`` runs without error."""
     sim, config = test_setup_teardown
-    output_dir = os.path.join(_output_root(), "mjcf_convex_decomp")
+    output_dir = os.path.join(str(tmp_path), "mjcf_convex_decomp")
     os.makedirs(output_dir, exist_ok=True)
 
     config.collision_from_visuals = True
@@ -264,14 +249,14 @@ def test_collision_type_convex_decomposition(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_link_density(test_setup_teardown):
+def test_link_density(test_setup_teardown, tmp_path):
     """Verify that ``link_density`` applies density without errors.
 
     ``nv_ant.xml`` has explicit inertial data on most bodies, so density is only applied where
     mass is unspecified. This test ensures the pipeline runs and the output is spawnable.
     """
     sim, config = test_setup_teardown
-    output_dir = os.path.join(_output_root(), "mjcf_link_density")
+    output_dir = os.path.join(str(tmp_path), "mjcf_link_density")
     os.makedirs(output_dir, exist_ok=True)
 
     config.link_density = 500.0
@@ -291,10 +276,10 @@ def test_link_density(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_merge_mesh(test_setup_teardown):
+def test_merge_mesh(test_setup_teardown, tmp_path):
     """Verify that ``merge_mesh=True`` runs successfully and still produces a spawnable USD."""
     sim, config = test_setup_teardown
-    output_dir = os.path.join(_output_root(), "mjcf_merge_mesh")
+    output_dir = os.path.join(str(tmp_path), "mjcf_merge_mesh")
     os.makedirs(output_dir, exist_ok=True)
 
     config.merge_mesh = True
@@ -310,10 +295,10 @@ def test_merge_mesh(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_import_physics_scene(test_setup_teardown):
+def test_import_physics_scene(test_setup_teardown, tmp_path):
     """Verify that ``import_physics_scene=True`` still produces a spawnable USD."""
     sim, config = test_setup_teardown
-    output_dir = os.path.join(_output_root(), "mjcf_physics_scene")
+    output_dir = os.path.join(str(tmp_path), "mjcf_physics_scene")
     os.makedirs(output_dir, exist_ok=True)
 
     config.import_physics_scene = True
@@ -325,10 +310,10 @@ def test_import_physics_scene(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_run_asset_transformer_disabled(test_setup_teardown):
+def test_run_asset_transformer_disabled(test_setup_teardown, tmp_path):
     """Verify that ``run_asset_transformer=False`` produces a flat USD that is still spawnable."""
     sim, config = test_setup_teardown
-    output_dir = os.path.join(_output_root(), "mjcf_no_transformer")
+    output_dir = os.path.join(str(tmp_path), "mjcf_no_transformer")
     os.makedirs(output_dir, exist_ok=True)
 
     config.run_asset_transformer = False
@@ -344,7 +329,7 @@ def test_run_asset_transformer_disabled(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_override_actuator_gains(test_setup_teardown):
+def test_override_actuator_gains(test_setup_teardown, tmp_path):
     """Verify that actuator gain overrides are written to ``MjcActuator`` prims.
 
     ``nv_ant.xml`` defines ``MjcActuator`` prims, so setting ``override_gain_type``,
@@ -352,7 +337,7 @@ def test_override_actuator_gains(test_setup_teardown):
     corresponding ``mjc:*`` attributes on every actuator.
     """
     sim, config = test_setup_teardown
-    output_dir = os.path.join(_output_root(), "mjcf_actuator_gains")
+    output_dir = os.path.join(str(tmp_path), "mjcf_actuator_gains")
     os.makedirs(output_dir, exist_ok=True)
 
     kp = 50.0

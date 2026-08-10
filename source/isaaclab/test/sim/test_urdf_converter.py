@@ -44,20 +44,6 @@ from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 
-def _output_root() -> str:
-    """Directory for converted USD output.
-
-    The kit-less CI image mounts ``source/`` read-only, so fall back to a temporary directory
-    when the tests cannot write beside themselves.
-    """
-    beside_tests = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
-    try:
-        os.makedirs(beside_tests, exist_ok=True)
-        return beside_tests
-    except OSError:
-        return os.path.join(tempfile.gettempdir(), "isaaclab_converter_tests")
-
-
 # Portable Franka URDF for the kitless path (the Kit path uses the importer extension's bundled
 # ``panda_arm_hand.urdf``). Both expose the same 7 revolute + 2 prismatic joint structure.
 _REPO_FRANKA_URDF = os.path.join(
@@ -127,11 +113,11 @@ def test_no_change(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_config_change(sim_config):
+def test_config_change(sim_config, tmp_path):
     """Call conversion twice but change the config in the second call. This should generate a new USD file."""
 
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_config_change")
+    output_dir = os.path.join(str(tmp_path), "urdf_config_change")
     os.makedirs(output_dir, exist_ok=True)
 
     config.usd_dir = output_dir
@@ -163,7 +149,7 @@ def test_create_prim_from_usd(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_config_drive_type(sim_config):
+def test_config_drive_type(sim_config, tmp_path):
     """Verify that ``target_type='position'`` plus uniform PD gains are written into every joint's DriveAPI.
 
     Reads the converter's USD output directly via :class:`pxr.UsdPhysics.DriveAPI` so the assertion does
@@ -171,7 +157,7 @@ def test_config_drive_type(sim_config):
     convention) and prismatic joints in N/m.
     """
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_converter")
+    output_dir = os.path.join(str(tmp_path), "urdf_converter")
     os.makedirs(output_dir, exist_ok=True)
 
     stiffness = 42.0
@@ -287,11 +273,11 @@ def test_merge_fixed_joints_xml():
 
 
 @pytest.mark.isaacsim_ci
-def test_merge_fixed_joints_converter(sim_config):
+def test_merge_fixed_joints_converter(sim_config, tmp_path):
     """Test the full URDF converter pipeline with merge_fixed_joints enabled."""
     sim, config = sim_config
     # Create directory to dump results
-    output_dir = os.path.join(_output_root(), "urdf_converter_merge")
+    output_dir = os.path.join(str(tmp_path), "urdf_converter_merge")
     os.makedirs(output_dir, exist_ok=True)
 
     # use a URDF that has fixed joints
@@ -312,10 +298,10 @@ def test_merge_fixed_joints_converter(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_fix_base_creates_fixed_joint(sim_config):
+def test_fix_base_creates_fixed_joint(sim_config, tmp_path):
     """Verify that fix_base=True creates a FixedJoint in the output USD."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_fix_base")
+    output_dir = os.path.join(str(tmp_path), "urdf_fix_base")
     os.makedirs(output_dir, exist_ok=True)
 
     config.fix_base = True
@@ -338,10 +324,10 @@ def test_fix_base_creates_fixed_joint(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_no_fix_base(sim_config):
+def test_no_fix_base(sim_config, tmp_path):
     """Verify that fix_base=False does not create a fix_base_joint."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_no_fix_base")
+    output_dir = os.path.join(str(tmp_path), "urdf_no_fix_base")
     os.makedirs(output_dir, exist_ok=True)
 
     config.fix_base = False
@@ -359,7 +345,7 @@ def test_no_fix_base(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_collision_from_visuals(sim_config):
+def test_collision_from_visuals(sim_config, tmp_path):
     """Verify that collision_from_visuals runs without error and produces valid output.
 
     Note: CollisionAPI is applied on the intermediate stage before the asset transformer
@@ -368,7 +354,7 @@ def test_collision_from_visuals(sim_config):
     inspecting the final USD for CollisionAPI schemas.
     """
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_collision_visuals")
+    output_dir = os.path.join(str(tmp_path), "urdf_collision_visuals")
     os.makedirs(output_dir, exist_ok=True)
 
     config.collision_from_visuals = True
@@ -384,10 +370,10 @@ def test_collision_from_visuals(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_no_collision_from_visuals(sim_config):
+def test_no_collision_from_visuals(sim_config, tmp_path):
     """Verify that conversion succeeds when collision_from_visuals is disabled."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_no_collision_visuals")
+    output_dir = os.path.join(str(tmp_path), "urdf_no_collision_visuals")
     os.makedirs(output_dir, exist_ok=True)
 
     config.collision_from_visuals = False
@@ -403,7 +389,7 @@ def test_no_collision_from_visuals(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_self_collision(sim_config):
+def test_self_collision(sim_config, tmp_path):
     """Verify that ``self_collision=True`` enables self-collision on the Newton articulation root.
 
     The Isaac Sim importer's ``enable_self_collision`` writes the ``newton:selfCollisionEnabled``
@@ -411,7 +397,7 @@ def test_self_collision(sim_config):
     ``PhysicsArticulationRootAPI``, or ``NewtonArticulationRootAPI``).
     """
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_self_collision")
+    output_dir = os.path.join(str(tmp_path), "urdf_self_collision")
     os.makedirs(output_dir, exist_ok=True)
 
     config.self_collision = True
@@ -445,10 +431,10 @@ def test_self_collision(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_drive_type_acceleration(sim_config):
+def test_drive_type_acceleration(sim_config, tmp_path):
     """Verify that drive_type='acceleration' is applied to all joints."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_drive_accel")
+    output_dir = os.path.join(str(tmp_path), "urdf_drive_accel")
     os.makedirs(output_dir, exist_ok=True)
 
     config.force_usd_conversion = True
@@ -478,10 +464,10 @@ def test_drive_type_acceleration(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_target_type_none_zeros_gains(sim_config):
+def test_target_type_none_zeros_gains(sim_config, tmp_path):
     """Verify that ``target_type='none'`` zeros the DriveAPI stiffness and damping on every joint."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_target_none")
+    output_dir = os.path.join(str(tmp_path), "urdf_target_none")
     os.makedirs(output_dir, exist_ok=True)
 
     config.force_usd_conversion = True
@@ -513,10 +499,10 @@ def test_target_type_none_zeros_gains(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_per_joint_dict_gains(sim_config):
+def test_per_joint_dict_gains(sim_config, tmp_path):
     """Verify that per-joint dict-based gains are applied correctly."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_dict_gains")
+    output_dir = os.path.join(str(tmp_path), "urdf_dict_gains")
     os.makedirs(output_dir, exist_ok=True)
 
     arm_stiffness = 100.0
@@ -582,10 +568,10 @@ def test_per_joint_dict_gains(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_per_joint_dict_drive_type(sim_config):
+def test_per_joint_dict_drive_type(sim_config, tmp_path):
     """Verify that per-joint dict-based drive type is applied correctly."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_dict_drive_type")
+    output_dir = os.path.join(str(tmp_path), "urdf_dict_drive_type")
     os.makedirs(output_dir, exist_ok=True)
 
     config.force_usd_conversion = True
@@ -619,10 +605,10 @@ def test_per_joint_dict_drive_type(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_natural_frequency_gains_deprecation(sim_config):
+def test_natural_frequency_gains_deprecation(sim_config, tmp_path):
     """Verify that NaturalFrequencyGainsCfg emits a DeprecationWarning and conversion still succeeds."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_nat_freq")
+    output_dir = os.path.join(str(tmp_path), "urdf_nat_freq")
     os.makedirs(output_dir, exist_ok=True)
 
     config.force_usd_conversion = True
@@ -648,10 +634,10 @@ def test_natural_frequency_gains_deprecation(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_usd_structure_has_joints_and_links(sim_config):
+def test_usd_structure_has_joints_and_links(sim_config, tmp_path):
     """Validate that the output USD contains the expected joint and link prims for Franka Panda."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_structure")
+    output_dir = os.path.join(str(tmp_path), "urdf_structure")
     os.makedirs(output_dir, exist_ok=True)
 
     config.merge_fixed_joints = False
@@ -684,7 +670,7 @@ def test_usd_structure_has_joints_and_links(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_link_density(sim_config):
+def test_link_density(sim_config, tmp_path):
     """Verify that link_density applies density to rigid body links.
 
     Note: The Franka Panda URDF has explicit mass on all links, so the importer's
@@ -692,7 +678,7 @@ def test_link_density(sim_config):
     This test verifies the pipeline runs without errors when ``link_density`` is set.
     """
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_link_density")
+    output_dir = os.path.join(str(tmp_path), "urdf_link_density")
     os.makedirs(output_dir, exist_ok=True)
 
     config.link_density = 500.0
@@ -715,7 +701,7 @@ def test_link_density(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_collision_type_convex_decomposition(sim_config):
+def test_collision_type_convex_decomposition(sim_config, tmp_path):
     """Verify that ``collision_type='Convex Decomposition'`` runs without error and produces valid output.
 
     Note: MeshCollisionAPI is applied on the intermediate stage before the asset transformer.
@@ -723,7 +709,7 @@ def test_collision_type_convex_decomposition(sim_config):
     verifies the pipeline executes successfully and produces a spawnable USD.
     """
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_convex_decomp")
+    output_dir = os.path.join(str(tmp_path), "urdf_convex_decomp")
     os.makedirs(output_dir, exist_ok=True)
 
     config.collision_from_visuals = True
@@ -740,10 +726,10 @@ def test_collision_type_convex_decomposition(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_unsupported_features_warn(sim_config):
+def test_unsupported_features_warn(sim_config, tmp_path):
     """Verify that deprecated config options emit warnings without failing."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_deprecated_warn")
+    output_dir = os.path.join(str(tmp_path), "urdf_deprecated_warn")
     os.makedirs(output_dir, exist_ok=True)
 
     config.convert_mimic_joints_to_normal_joints = True
@@ -784,14 +770,14 @@ def _count_physics(usd_path: str) -> tuple[int, int]:
 
 
 @pytest.mark.isaacsim_ci
-def test_physics_variant_selected_by_default(sim_config):
+def test_physics_variant_selected_by_default(sim_config, tmp_path):
     """Verify that the converter selects the backend-portable ``"physics"`` variant by default.
 
     The importer leaves its ``"Physics"`` variant set unselected, which composes the asset without
     joints, articulation roots, or mass properties. Without a selection this asserts 0 joints.
     """
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_physics_variant_default")
+    output_dir = os.path.join(str(tmp_path), "urdf_physics_variant_default")
     os.makedirs(output_dir, exist_ok=True)
 
     config.force_usd_conversion = True
@@ -807,10 +793,10 @@ def test_physics_variant_selected_by_default(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_physics_variant_override(sim_config):
+def test_physics_variant_override(sim_config, tmp_path):
     """Verify that ``physics_variant`` selects the requested variant instead of the default."""
     sim, config = sim_config
-    output_dir = os.path.join(_output_root(), "urdf_physics_variant_override")
+    output_dir = os.path.join(str(tmp_path), "urdf_physics_variant_override")
     os.makedirs(output_dir, exist_ok=True)
 
     config.force_usd_conversion = True
@@ -827,36 +813,13 @@ def test_physics_variant_override(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_physics_variant_raises_when_requested_absent():
-    """Verify that requesting a variant the asset does not offer fails instead of substituting one.
-
-    ``test_fixed_only.urdf`` carries a single fixed joint, for which the importer writes no
-    PhysX-specific data, so its variant set offers only ``"none"`` and ``"physics"``. Silently
-    selecting one of those would hand back an asset configured for a different backend.
-    """
-    output_dir = os.path.join(_output_root(), "urdf_physics_variant_missing")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config = UrdfConverterCfg(
-        asset_path=_FIXED_ONLY_URDF,
-        fix_base=True,
-        force_usd_conversion=True,
-        usd_dir=output_dir,
-        physics_variant="physx",
-    )
-
-    with pytest.raises(ValueError, match="no 'physx' physics variant"):
-        UrdfConverter(config)
-
-
-@pytest.mark.isaacsim_ci
-def test_physics_variant_raises_again_on_retry():
+def test_physics_variant_raises_again_on_retry(tmp_path):
     """Verify that a conversion which failed on the variant does not count as cached.
 
     The converter skips conversion when the asset hash matches, so recording the hash before the
     variant is settled would make an identical retry return the asset the importer selected.
     """
-    output_dir = os.path.join(_output_root(), "urdf_physics_variant_missing_retry")
+    output_dir = os.path.join(str(tmp_path), "urdf_physics_variant_missing_retry")
     os.makedirs(output_dir, exist_ok=True)
 
     config = UrdfConverterCfg(
