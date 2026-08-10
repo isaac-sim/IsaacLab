@@ -508,6 +508,75 @@ def select_next_transfer_cube(
     return torch.multinomial(candidates.float(), 1).squeeze(1)
 
 
+def _assign_conveyor_transfer_goal(
+    env: ManagerBasedRLEnv,
+    env_ids: torch.Tensor,
+    target_cube_ids: torch.Tensor,
+    source_side_ids: torch.Tensor,
+    success_context_name: str,
+) -> None:
+    """Publish a new transfer command and clear progress from the previous command."""
+    context = env.termination_manager.get_term_cfg(success_context_name).func
+    if not hasattr(context, "consume_success"):
+        raise RuntimeError("Conveyor goal changes require a stable transfer-success context.")
+
+    state = env.conveyor_transfer_state
+    state.goal_ids[env_ids] += 1
+    state.subgoal_start_steps[env_ids] = env.episode_length_buf[env_ids]
+    state.target_cube_ids[env_ids] = target_cube_ids
+    state.source_side_ids[env_ids] = source_side_ids
+    state.held_cube_ids[env_ids] = -1
+    context.consume_success(env_ids)
+
+
+def set_conveyor_transfer_goal(
+    env: ManagerBasedRLEnv,
+    target_cube_id: int,
+    env_ids: Sequence[int] | torch.Tensor | None = None,
+    success_context_name: str = "transfer_success_context",
+) -> None:
+    """Command a numbered cube to move from its current conveyor to the opposite one.
+
+    The cube's current local y-position determines its source conveyor. Positions
+    in the central transfer region use the nearest side of the workspace center.
+
+    Args:
+        env: Conveyor Franka environment whose command state is updated.
+        target_cube_id: Stable numbered cube index.
+        env_ids: Environments receiving the command, or ``None`` for all environments.
+        success_context_name: Stable-success term reset for the new command.
+    """
+    if not isinstance(target_cube_id, int) or isinstance(target_cube_id, bool):
+        raise TypeError("target_cube_id must be an integer.")
+    if not 0 <= target_cube_id < CUBE_COUNT:
+        raise ValueError(f"target_cube_id must lie in [0, {CUBE_COUNT - 1}].")
+
+    if env_ids is None:
+        resolved_env_ids = torch.arange(env.num_envs, dtype=torch.long, device=env.device)
+    else:
+        resolved_env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
+    if resolved_env_ids.numel() == 0:
+        return
+    if torch.any((resolved_env_ids < 0) | (resolved_env_ids >= env.num_envs)):
+        raise IndexError("Conveyor goal environment indices are out of range.")
+
+    cube: RigidObject = env.scene[f"cube_{target_cube_id}"]
+    local_y = cube.data.root_pos_w.torch[resolved_env_ids, 1] - env.scene.env_origins[resolved_env_ids, 1]
+    source_side_ids = torch.where(
+        local_y >= 0.0,
+        torch.full_like(resolved_env_ids, LEFT_SIDE),
+        torch.full_like(resolved_env_ids, RIGHT_SIDE),
+    )
+    target_cube_ids = torch.full_like(resolved_env_ids, target_cube_id)
+    _assign_conveyor_transfer_goal(
+        env,
+        resolved_env_ids,
+        target_cube_ids,
+        source_side_ids,
+        success_context_name,
+    )
+
+
 def advance_conveyor_transfer_goal(
     env: ManagerBasedRLEnv,
     env_ids: torch.Tensor,
@@ -545,9 +614,10 @@ def advance_conveyor_transfer_goal(
 
     state.direction_transfer_counts[completed_ids, previous_source_side_ids] += 1
     state.transfer_counts[completed_ids] += 1
-    state.goal_ids[completed_ids] += 1
-    state.subgoal_start_steps[completed_ids] = env.episode_length_buf[completed_ids]
-    state.target_cube_ids[completed_ids] = next_cube_ids
-    state.source_side_ids[completed_ids] = next_source_side_ids
-    state.held_cube_ids[completed_ids] = -1
-    context.consume_success(completed_ids)
+    _assign_conveyor_transfer_goal(
+        env,
+        completed_ids,
+        next_cube_ids,
+        next_source_side_ids,
+        success_context_name,
+    )

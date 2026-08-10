@@ -23,6 +23,7 @@ from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
     BELT_TOP_Z,
     BELT_TURN_RADIUS,
     TURN_SEGMENT_COUNT,
+    CuboidSpec,
     MeshSpec,
     belt_collision_section_specs,
     belt_direction,
@@ -79,12 +80,16 @@ def test_racetrack_lanes_counter_rotate():
 
 
 def test_collision_sections_and_velocity_fields_share_one_description():
-    """Straight and curved force fields stay aligned with their collision meshes."""
+    """Straight and curved force fields stay aligned with robust collision geometry."""
     for side in ("Left", "Right"):
         sections = belt_collision_section_specs(side)
 
         assert len(sections) == 4
         assert [section.velocity_field_type for section in sections] == ["constant", "constant", "pivot", "pivot"]
+        assert all(isinstance(section.geometry, CuboidSpec) for section in sections[:2])
+        for section in sections[2:]:
+            assert isinstance(section.geometry, MeshSpec)
+            assert set(_edge_use_counts(section.geometry).values()) == {2}
         assert all(section.radius == BELT_TURN_RADIUS for section in sections[2:])
         assert sections[0].direction == tuple(-value for value in sections[1].direction)
         assert sections[2].direction == sections[3].direction

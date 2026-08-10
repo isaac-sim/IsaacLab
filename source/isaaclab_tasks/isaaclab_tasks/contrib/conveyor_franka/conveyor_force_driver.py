@@ -566,7 +566,7 @@ class ConveyorForceDriver:
         shape_body = model.shape_body.numpy()
         shape_world = model.shape_world.numpy()
         shape_transform = model.shape_transform.numpy()
-        patterns = tuple(re.compile(rf"(?:^|/){re.escape(spec.mesh.name)}(?:/|$)") for spec in self._surface_specs)
+        patterns = tuple(re.compile(rf"(?:^|/){re.escape(spec.geometry.name)}(?:/|$)") for spec in self._surface_specs)
         seen_sections: set[tuple[int, int]] = set()
         for shape_id, label in enumerate(model.shape_label):
             matching_specs = [index for index, pattern in enumerate(patterns) if pattern.search(label)]
@@ -585,7 +585,7 @@ class ConveyorForceDriver:
             if section_key in seen_sections:
                 raise RuntimeError(
                     f"World {world_id} contains multiple shapes matching conveyor section "
-                    f"{self._surface_specs[spec_id].mesh.name!r}."
+                    f"{self._surface_specs[spec_id].geometry.name!r}."
                 )
             seen_sections.add(section_key)
 
@@ -606,7 +606,7 @@ class ConveyorForceDriver:
         missing_sections = sorted(expected_sections - seen_sections)
         if missing_sections:
             details = ", ".join(
-                f"world {world_id}: {self._surface_specs[spec_id].mesh.name}"
+                f"world {world_id}: {self._surface_specs[spec_id].geometry.name}"
                 for world_id, spec_id in missing_sections[:8]
             )
             raise RuntimeError(f"Missing {len(missing_sections)} conveyor collision sections ({details}).")
@@ -864,31 +864,31 @@ class ConveyorForceDriver:
         """Validate structural surface descriptions before resolving Newton shapes."""
         if not self._surface_specs:
             raise ValueError("At least one conveyor surface specification is required.")
-        names = [spec.mesh.name for spec in self._surface_specs]
+        names = [spec.geometry.name for spec in self._surface_specs]
         if len(set(names)) != len(names):
             raise ValueError(f"Conveyor surface names must be unique, got {names}.")
         for spec in self._surface_specs:
             if spec.velocity_field_type not in {"constant", "pivot"}:
                 raise ValueError(
-                    f"Unknown velocity field {spec.velocity_field_type!r} for conveyor surface {spec.mesh.name!r}."
+                    f"Unknown velocity field {spec.velocity_field_type!r} for conveyor surface {spec.geometry.name!r}."
                 )
             direction = np.asarray(spec.direction, dtype=np.float64)
             pivot_point = np.asarray(spec.pivot_point, dtype=np.float64)
             surface_normal = np.asarray(spec.surface_normal, dtype=np.float64)
             if direction.shape != (3,) or not np.all(np.isfinite(direction)) or np.linalg.norm(direction) <= 1.0e-8:
-                raise ValueError(f"Conveyor surface {spec.mesh.name!r} needs a non-zero 3-D direction.")
+                raise ValueError(f"Conveyor surface {spec.geometry.name!r} needs a non-zero 3-D direction.")
             if pivot_point.shape != (3,) or not np.all(np.isfinite(pivot_point)):
-                raise ValueError(f"Conveyor surface {spec.mesh.name!r} needs a 3-D pivot point.")
+                raise ValueError(f"Conveyor surface {spec.geometry.name!r} needs a 3-D pivot point.")
             if (
                 surface_normal.shape != (3,)
                 or not np.all(np.isfinite(surface_normal))
                 or np.linalg.norm(surface_normal) <= 1.0e-8
             ):
-                raise ValueError(f"Conveyor surface {spec.mesh.name!r} needs a non-zero 3-D surface normal.")
+                raise ValueError(f"Conveyor surface {spec.geometry.name!r} needs a non-zero 3-D surface normal.")
             if spec.velocity_field_type == "pivot" and (
                 spec.radius is None or not np.isfinite(spec.radius) or spec.radius <= 0.0
             ):
-                raise ValueError(f"Pivot conveyor surface {spec.mesh.name!r} needs a positive arc radius.")
+                raise ValueError(f"Pivot conveyor surface {spec.geometry.name!r} needs a positive arc radius.")
 
     def _validate_backend_buffers(self) -> None:
         """Validate every fixed-size Newton buffer consumed by conveyor kernels."""

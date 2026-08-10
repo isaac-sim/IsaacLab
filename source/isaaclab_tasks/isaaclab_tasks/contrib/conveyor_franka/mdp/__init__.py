@@ -27,6 +27,7 @@ from .reset_events import (
     advance_conveyor_transfer_goal,
     build_reset_rows,
     select_next_transfer_cube,
+    set_conveyor_transfer_goal,
 )
 from .rewards import (
     ConveyorTransferProgressReward,

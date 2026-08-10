@@ -18,6 +18,13 @@ GUARD_COLOR = (0.66, 0.69, 0.74)
 """Brushed-metal color used by Newton's conveyor example."""
 
 PARCEL_COLOR = (0.72, 0.55, 0.35)
+CUBE_COLORS = (
+    (0.15, 0.35, 0.90),
+    (0.90, 0.20, 0.15),
+    (0.15, 0.75, 0.25),
+    PARCEL_COLOR,
+)
+"""Stable sRGB colors for the four numbered transfer cubes."""
 """Cardboard color used by Newton's conveyor example."""
 
 BELT_CENTER_X = 0.58
@@ -52,8 +59,17 @@ class MeshSpec:
 
 
 @dataclass(frozen=True)
+class CuboidSpec:
+    """Native cuboid and semantic name for one static racetrack component."""
+
+    name: str
+    size: tuple[float, float, float]
+    position: tuple[float, float, float]
+
+
+@dataclass(frozen=True)
 class ConveyorSectionSpec:
-    """Collision mesh and velocity field for one conveyor section.
+    """Collision geometry and velocity field for one conveyor section.
 
     The direction and pivot are expressed in the collision prim's local frame.
     Constant sections interpret ``direction`` as the unit travel direction;
@@ -62,7 +78,7 @@ class ConveyorSectionSpec:
     also local, so rotated or inclined sections need no world-space special case.
     """
 
-    mesh: MeshSpec
+    geometry: MeshSpec | CuboidSpec
     velocity_field_type: Literal["constant", "pivot"]
     direction: tuple[float, float, float]
     pivot_point: tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -203,22 +219,20 @@ def belt_mesh_spec(side: str) -> MeshSpec:
     )
 
 
-def _straight_collision_mesh(name: str, center_y: float) -> MeshSpec:
-    """Build one horizontal straight collision surface with +Z face winding."""
+def _straight_collision_cuboid(name: str, center_y: float) -> CuboidSpec:
+    """Build one solid native cuboid for a straight conveyor section."""
     half_width = 0.5 * BELT_WIDTH + BELT_COLLISION_OVERHANG
     x_min = BELT_CENTER_X - BELT_HALF_STRAIGHT - BELT_COLLISION_SEAM_OVERLAP
     x_max = BELT_CENTER_X + BELT_HALF_STRAIGHT + BELT_COLLISION_SEAM_OVERLAP
-    vertices = (
-        (x_min, center_y - half_width, BELT_TOP_Z),
-        (x_max, center_y - half_width, BELT_TOP_Z),
-        (x_max, center_y + half_width, BELT_TOP_Z),
-        (x_min, center_y + half_width, BELT_TOP_Z),
+    return CuboidSpec(
+        name=name,
+        size=(x_max - x_min, 2.0 * half_width, BELT_THICKNESS),
+        position=(0.5 * (x_min + x_max), center_y, BELT_TOP_Z - 0.5 * BELT_THICKNESS),
     )
-    return MeshSpec(name=name, vertices=vertices, faces=((0, 1, 2), (0, 2, 3)))
 
 
 def _turn_collision_mesh(name: str, pivot_x: float, center_y: float, start_angle: float) -> MeshSpec:
-    """Build one horizontal annular half-turn collision surface with +Z normals."""
+    """Build one closed annular half-turn prism with a +Z top surface."""
     half_width = 0.5 * BELT_WIDTH + BELT_COLLISION_OVERHANG
     inner_radius = BELT_TURN_RADIUS - half_width
     outer_radius = BELT_TURN_RADIUS + half_width
@@ -227,30 +241,67 @@ def _turn_collision_mesh(name: str, pivot_x: float, center_y: float, start_angle
     angle_step = (math.pi + 2.0 * angle_overlap) / TURN_SEGMENT_COUNT
     angles = tuple(angle_start + index * angle_step for index in range(TURN_SEGMENT_COUNT + 1))
 
-    inner = tuple(
+    inner_top = tuple(
         (pivot_x + inner_radius * math.cos(angle), center_y + inner_radius * math.sin(angle), BELT_TOP_Z)
         for angle in angles
     )
-    outer = tuple(
+    outer_top = tuple(
         (pivot_x + outer_radius * math.cos(angle), center_y + outer_radius * math.sin(angle), BELT_TOP_Z)
         for angle in angles
     )
-    outer_offset = len(inner)
+    bottom_z = BELT_TOP_Z - BELT_THICKNESS
+    inner_bottom = tuple((x, y, bottom_z) for x, y, _ in inner_top)
+    outer_bottom = tuple((x, y, bottom_z) for x, y, _ in outer_top)
+
+    count = len(inner_top)
+    outer_top_offset = count
+    inner_bottom_offset = 2 * count
+    outer_bottom_offset = 3 * count
     faces: list[tuple[int, int, int]] = []
     for index in range(TURN_SEGMENT_COUNT):
         next_index = index + 1
+        inner_top_i = index
+        inner_top_j = next_index
+        outer_top_i = outer_top_offset + index
+        outer_top_j = outer_top_offset + next_index
+        inner_bottom_i = inner_bottom_offset + index
+        inner_bottom_j = inner_bottom_offset + next_index
+        outer_bottom_i = outer_bottom_offset + index
+        outer_bottom_j = outer_bottom_offset + next_index
         faces.extend(
             (
-                (index, outer_offset + index, outer_offset + next_index),
-                (index, outer_offset + next_index, next_index),
+                # Top, bottom, outer wall, and inner wall.
+                (inner_top_i, outer_top_i, outer_top_j),
+                (inner_top_i, outer_top_j, inner_top_j),
+                (inner_bottom_i, inner_bottom_j, outer_bottom_j),
+                (inner_bottom_i, outer_bottom_j, outer_bottom_i),
+                (outer_bottom_i, outer_bottom_j, outer_top_j),
+                (outer_bottom_i, outer_top_j, outer_top_i),
+                (inner_bottom_i, inner_top_i, inner_top_j),
+                (inner_bottom_i, inner_top_j, inner_bottom_j),
             )
         )
-    return MeshSpec(name=name, vertices=inner + outer, faces=tuple(faces))
+
+    # Close both radial ends of the annular prism.
+    end = TURN_SEGMENT_COUNT
+    faces.extend(
+        (
+            (0, inner_bottom_offset, outer_bottom_offset),
+            (0, outer_bottom_offset, outer_top_offset),
+            (end, outer_top_offset + end, outer_bottom_offset + end),
+            (end, outer_bottom_offset + end, inner_bottom_offset + end),
+        )
+    )
+    return MeshSpec(
+        name=name,
+        vertices=inner_top + outer_top + inner_bottom + outer_bottom,
+        faces=tuple(faces),
+    )
 
 
-def belt_collision_mesh_specs(side: str) -> tuple[MeshSpec, MeshSpec, MeshSpec, MeshSpec]:
-    """Build straight and pivot-field collision sections for one racetrack."""
-    return tuple(section.mesh for section in belt_collision_section_specs(side))
+def belt_collision_geometry_specs(side: str) -> tuple[CuboidSpec | MeshSpec, ...]:
+    """Build native straight and closed-mesh turn collision geometry for one racetrack."""
+    return tuple(section.geometry for section in belt_collision_section_specs(side))
 
 
 def belt_collision_section_specs(
@@ -263,24 +314,24 @@ def belt_collision_section_specs(
     direction = belt_direction(side)
     return (
         ConveyorSectionSpec(
-            mesh=_straight_collision_mesh(f"Conveyor{side}TopStraightCollision", center_y + BELT_TURN_RADIUS),
+            geometry=_straight_collision_cuboid(f"Conveyor{side}TopStraightCollision", center_y + BELT_TURN_RADIUS),
             velocity_field_type="constant",
             direction=(direction, 0.0, 0.0),
         ),
         ConveyorSectionSpec(
-            mesh=_straight_collision_mesh(f"Conveyor{side}BottomStraightCollision", center_y - BELT_TURN_RADIUS),
+            geometry=_straight_collision_cuboid(f"Conveyor{side}BottomStraightCollision", center_y - BELT_TURN_RADIUS),
             velocity_field_type="constant",
             direction=(-direction, 0.0, 0.0),
         ),
         ConveyorSectionSpec(
-            mesh=_turn_collision_mesh(f"Conveyor{side}RightTurnCollision", right_x, center_y, -0.5 * math.pi),
+            geometry=_turn_collision_mesh(f"Conveyor{side}RightTurnCollision", right_x, center_y, -0.5 * math.pi),
             velocity_field_type="pivot",
             direction=(0.0, 0.0, -direction),
             pivot_point=(right_x, center_y, 0.0),
             radius=BELT_TURN_RADIUS,
         ),
         ConveyorSectionSpec(
-            mesh=_turn_collision_mesh(f"Conveyor{side}LeftTurnCollision", left_x, center_y, 0.5 * math.pi),
+            geometry=_turn_collision_mesh(f"Conveyor{side}LeftTurnCollision", left_x, center_y, 0.5 * math.pi),
             velocity_field_type="pivot",
             direction=(0.0, 0.0, -direction),
             pivot_point=(left_x, center_y, 0.0),

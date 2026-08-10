@@ -30,6 +30,7 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     franka_tool_position,
     reset_variant_counts,
     select_next_transfer_cube,
+    set_conveyor_transfer_goal,
 )
 from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import transfer_potential
 from isaaclab_tasks.contrib.conveyor_franka.mdp.terminations import (
@@ -44,14 +45,18 @@ def test_contact_and_drive_cfg_preserve_transport_and_grasp_friction():
     cfg = ConveyorFrankaEnvCfg()
     belt_collision = cfg.scene.conveyor_left_top_straight_collision.spawn.collision_props
     belt_mujoco = next(fragment for fragment in belt_collision if isinstance(fragment, MujocoCollisionCfg))
+    belt_material = cfg.scene.conveyor_left_top_straight_collision.spawn.physics_material
     cube_material = cfg.scene.cube_0.spawn.physics_material
     hand_actuator = cfg.scene.robot.actuators["panda_hand"]
 
     assert belt_mujoco.priority == 1
+    assert isinstance(belt_material, NewtonMaterialPropertiesCfg)
+    assert belt_material.contact_stiffness == 1.0e4
+    assert belt_material.contact_damping == 200.0
     assert isinstance(cube_material, NewtonMaterialPropertiesCfg)
     assert cube_material.dynamic_friction == 0.6
-    assert cube_material.contact_stiffness == 2.5e3
-    assert cube_material.contact_damping == 100.0
+    assert cube_material.contact_stiffness == 1.0e4
+    assert cube_material.contact_damping == 200.0
     assert hand_actuator.stiffness == 350.0
     assert hand_actuator.damping == 10.0
     assert cfg.actions.arm_action.gravity_compensation
@@ -293,6 +298,51 @@ def test_next_transfer_cube_is_random_among_eligible_alternatives():
     assert set(selected.tolist()) == {1, 2}
     frequencies = torch.bincount(selected, minlength=CUBE_COUNT).float() / count
     assert torch.all(torch.abs(frequencies[1:3] - 0.5) < 0.05)
+
+
+def test_manual_transfer_goal_uses_selected_cube_current_side():
+    """Viewer goal changes preserve cube identity and infer the opposite destination."""
+
+    class _Scene(dict):
+        pass
+
+    class _SuccessContext:
+        consumed_env_ids = None
+
+        def consume_success(self, env_ids):
+            self.consumed_env_ids = env_ids.clone()
+
+    origins = torch.tensor(((0.0, 1.0, 0.0), (0.0, -2.0, 0.0)))
+    selected_cube_positions = torch.tensor(((0.2, 1.3, 0.06), (0.7, -2.3, 0.06)))
+    scene = _Scene(
+        cube_2=SimpleNamespace(data=SimpleNamespace(root_pos_w=SimpleNamespace(torch=selected_cube_positions)))
+    )
+    scene.env_origins = origins
+    context = _SuccessContext()
+    state = SimpleNamespace(
+        target_cube_ids=torch.tensor((0, 1)),
+        source_side_ids=torch.tensor((1, 0)),
+        held_cube_ids=torch.tensor((0, 1)),
+        goal_ids=torch.tensor((4, 7)),
+        subgoal_start_steps=torch.tensor((2, 3)),
+    )
+    env = SimpleNamespace(
+        num_envs=2,
+        device="cpu",
+        scene=scene,
+        conveyor_transfer_state=state,
+        episode_length_buf=torch.tensor((11, 19)),
+        termination_manager=SimpleNamespace(get_term_cfg=lambda _name: SimpleNamespace(func=context)),
+    )
+
+    set_conveyor_transfer_goal(env, 2)
+
+    assert state.target_cube_ids.tolist() == [2, 2]
+    assert state.source_side_ids.tolist() == [0, 1]
+    assert state.held_cube_ids.tolist() == [-1, -1]
+    assert state.goal_ids.tolist() == [5, 8]
+    assert state.subgoal_start_steps.tolist() == [11, 19]
+    assert context.consumed_env_ids.tolist() == [0, 1]
 
 
 def test_continuing_training_truncates_only_stalled_or_long_sequences():

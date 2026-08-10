@@ -35,8 +35,9 @@ from .conveyor_geometry import (
     BELT_CENTER_Y,
     BELT_COLOR,
     BELT_TURN_RADIUS,
+    CUBE_COLORS,
     GUARD_COLOR,
-    PARCEL_COLOR,
+    CuboidSpec,
     MeshSpec,
     belt_collision_section_specs,
     belt_mesh_spec,
@@ -47,6 +48,8 @@ from .franka_robot_cfg import FRANKA_PANDA_CONVEYOR_CFG
 _DYNAMIC_PROPERTIES = sim_utils.RigidBodyBaseCfg()
 _CONTACT_GAP = 0.01
 _CUBE_CONTACT_MARGIN = 0.003
+_MANIPULATION_CONTACT_STIFFNESS = 1.0e4
+_MANIPULATION_CONTACT_DAMPING = 200.0
 _MUJOCO_SOLIMP = (0.9, 0.95, 0.001, 0.5, 2.0)
 _MUJOCO_SOLREF = (0.02, 1.0)
 _POLICY_DT = 1.0 / 60.0
@@ -395,11 +398,25 @@ def _visual_mesh(
     )
 
 
+def _collision_material(friction: float, stiff_contact: bool) -> NewtonMaterialPropertiesCfg:
+    """Build frictionless-drive contact material, optionally with manipulation-grade gains."""
+    return NewtonMaterialPropertiesCfg(
+        static_friction=friction,
+        dynamic_friction=friction,
+        restitution=0.0,
+        torsional_friction=0.0,
+        rolling_friction=0.0,
+        contact_stiffness=_MANIPULATION_CONTACT_STIFFNESS if stiff_contact else None,
+        contact_damping=_MANIPULATION_CONTACT_DAMPING if stiff_contact else None,
+    )
+
+
 def _hidden_collision_mesh(
     prim_path: str,
     spec: MeshSpec,
     friction: float,
     mujoco_priority: int,
+    stiff_contact: bool = False,
 ) -> AssetBaseCfg:
     """Build a hidden static triangle-mesh collider."""
     spawn = sim_utils.MeshCustomCfg(
@@ -407,14 +424,55 @@ def _hidden_collision_mesh(
         faces=spec.faces,
         visible=False,
         collision_props=_collision_properties(mujoco_priority=mujoco_priority),
-        physics_material=RigidBodyMaterialBaseCfg(
-            static_friction=friction,
-            dynamic_friction=friction,
-            restitution=0.0,
-        ),
+        physics_material=_collision_material(friction, stiff_contact),
     )
     spawn.func = _spawn_hidden_collision_mesh
     return AssetBaseCfg(prim_path=prim_path, spawn=spawn)
+
+
+def _hidden_collision_cuboid(
+    prim_path: str,
+    spec: CuboidSpec,
+    friction: float,
+    mujoco_priority: int,
+    stiff_contact: bool = False,
+) -> AssetBaseCfg:
+    """Build a hidden native cuboid collider."""
+    return AssetBaseCfg(
+        prim_path=prim_path,
+        init_state=AssetBaseCfg.InitialStateCfg(pos=spec.position),
+        spawn=sim_utils.CuboidCfg(
+            size=spec.size,
+            visible=False,
+            collision_props=_collision_properties(mujoco_priority=mujoco_priority),
+            physics_material=_collision_material(friction, stiff_contact),
+        ),
+    )
+
+
+def _hidden_collision_geometry(
+    prim_path: str,
+    spec: MeshSpec | CuboidSpec,
+    friction: float,
+    mujoco_priority: int,
+    stiff_contact: bool = False,
+) -> AssetBaseCfg:
+    """Build hidden collision geometry while preferring native primitives where possible."""
+    if isinstance(spec, CuboidSpec):
+        return _hidden_collision_cuboid(
+            prim_path=prim_path,
+            spec=spec,
+            friction=friction,
+            mujoco_priority=mujoco_priority,
+            stiff_contact=stiff_contact,
+        )
+    return _hidden_collision_mesh(
+        prim_path=prim_path,
+        spec=spec,
+        friction=friction,
+        mujoco_priority=mujoco_priority,
+        stiff_contact=stiff_contact,
+    )
 
 
 def _cube(
@@ -438,8 +496,8 @@ def _cube(
         restitution=0.0,
         torsional_friction=0.002,
         rolling_friction=0.0001,
-        contact_stiffness=2.5e3,
-        contact_damping=100.0,
+        contact_stiffness=_MANIPULATION_CONTACT_STIFFNESS,
+        contact_damping=_MANIPULATION_CONTACT_DAMPING,
     )
     spawn.func = _spawn_shape_with_display_color
     return RigidObjectCfg(
@@ -483,10 +541,10 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
         color=(0.18, 0.20, 0.23),
     )
 
-    cube_0 = _cube("Cube0", (0.15, 0.35, 0.90), (0.30, BELT_CENTER_Y - BELT_TURN_RADIUS, 0.06))
-    cube_1 = _cube("Cube1", (0.90, 0.20, 0.15), (0.78, BELT_CENTER_Y - BELT_TURN_RADIUS, 0.06))
-    cube_2 = _cube("Cube2", (0.15, 0.75, 0.25), (0.30, -BELT_CENTER_Y + BELT_TURN_RADIUS, 0.06))
-    cube_3 = _cube("Cube3", PARCEL_COLOR, (0.78, -BELT_CENTER_Y + BELT_TURN_RADIUS, 0.06))
+    cube_0 = _cube("Cube0", CUBE_COLORS[0], (0.30, BELT_CENTER_Y - BELT_TURN_RADIUS, 0.06))
+    cube_1 = _cube("Cube1", CUBE_COLORS[1], (0.78, BELT_CENTER_Y - BELT_TURN_RADIUS, 0.06))
+    cube_2 = _cube("Cube2", CUBE_COLORS[2], (0.30, -BELT_CENTER_Y + BELT_TURN_RADIUS, 0.06))
+    cube_3 = _cube("Cube3", CUBE_COLORS[3], (0.78, -BELT_CENTER_Y + BELT_TURN_RADIUS, 0.06))
 
     cube_contacts = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Cube.*",
@@ -523,11 +581,11 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
 
             section_keys = ("top_straight", "bottom_straight", "right_turn", "left_turn")
             for section_key, section in zip(section_keys, belt_collision_section_specs(side), strict=True):
-                spec = section.mesh
+                spec = section.geometry
                 setattr(
                     self,
                     f"conveyor_{side.lower()}_{section_key}_collision",
-                    _hidden_collision_mesh(
+                    _hidden_collision_geometry(
                         prim_path=f"{{ENV_REGEX_NS}}/{spec.name}",
                         spec=spec,
                         # MuJoCo requires a tiny positive value even though the force driver,
@@ -535,6 +593,8 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
                         friction=1.1e-5,
                         # Override cube friction only for collision-section/cube pairs.
                         mujoco_priority=1,
+                        # Match the locally stable Franka Stack support surface.
+                        stiff_contact=True,
                     ),
                 )
 

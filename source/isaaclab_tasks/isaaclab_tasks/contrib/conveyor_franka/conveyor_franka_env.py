@@ -14,6 +14,7 @@ from isaaclab.envs import ManagerBasedRLEnv
 from .conveyor_force_driver import ConveyorForceDriver
 from .conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
 from .conveyor_geometry import belt_collision_section_specs
+from .conveyor_goal_selector import ConveyorGoalSelector
 
 
 class ConveyorFrankaEnv(ManagerBasedRLEnv):
@@ -35,6 +36,22 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
             transported_body_pattern=cfg.conveyor_force.transported_body_pattern,
             transported_body_count_per_env=cfg.conveyor_force.transported_body_count_per_env,
         )
+        self._goal_selector: ConveyorGoalSelector | None = None
+        self._setup_goal_selector()
+
+    def _setup_goal_selector(self) -> None:
+        """Attach one task panel to the first interactive Newton visualizer."""
+        for visualizer in self.sim.visualizers:
+            if getattr(visualizer.cfg, "visualizer_type", None) not in {"newton_gl", "newton_rtx"}:
+                continue
+            register_callback = getattr(visualizer, "register_ui_callback", None)
+            if register_callback is None:
+                continue
+            visible_env_ids = visualizer.get_visualized_env_ids()
+            env_id = visible_env_ids[0] if visible_env_ids else 0
+            self._goal_selector = ConveyorGoalSelector(self, env_id)
+            register_callback(self._goal_selector.render, position="panel")
+            return
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset selected environments and discard stale conveyor forces."""
