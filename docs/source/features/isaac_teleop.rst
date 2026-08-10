@@ -406,15 +406,22 @@ Prerequisites
   servos directly -- it has no ``lerobot`` or FEETECH SDK dependency -- so calibrate with its own
   ``calibrate`` subcommand, which needs no OpenXR runtime.
 
-  First, identify the serial port. Plug in the USB cable, then run:
+  First, identify the serial port. The easiest way is ``uvx``, which runs
+  ``lerobot-find-port`` in a temporary environment with no installation required:
 
   .. code-block:: bash
 
-     dmesg | grep tty | tail -5
+     uvx --from lerobot lerobot-find-port
 
-  The kernel log will show the assigned device, e.g. ``[USB] ... ttyACM0``. Use that path
-  (e.g. ``/dev/ttyACM0``, ``/dev/ttyACM1``) in the command below. Alternatively,
-  ``uvx --from lerobot lerobot-find-port`` can identify the port interactively (no install needed).
+  Alternatively, plug in the USB cable and immediately run:
+
+  .. code-block:: bash
+
+     dmesg | grep tty | tail -1
+
+  Because ``tail -1`` shows only the most recent kernel message, the output unambiguously
+  names the just-connected device, e.g. ``[12345.6] usb ... ttyACM0``.
+  Use that path (``/dev/ttyACM0``, ``/dev/ttyACM1``, etc.) in the command below.
 
   .. code-block:: bash
 
