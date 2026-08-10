@@ -254,11 +254,19 @@ class NavigationAction(ThrustAction):
     setpoints and allocates the resulting wrench to individual thrusters through
     the multirotor allocation matrix.
 
-    The three-dimensional action contains forward magnitude, pitch angle [rad],
-    and yaw command. Translational command units depend on the configured Lee
-    controller: position [m], velocity [m/s], or acceleration [m/s^2]. The yaw
-    command is a yaw rate [rad/s] for velocity and acceleration control or a
-    relative yaw angle [rad] for position control.
+    The three-dimensional action contains normalized magnitude, inclination,
+    and yaw components. Each component is clamped to the dimensionless range
+    ``[-1, 1]`` before conversion to controller setpoints. For a clamped action
+    :math:`(a_m, a_i, a_y)`, the inclination angle is
+    :math:`\\theta = a_i\\,\\mathtt{max\\_inclination\\_angle}` [rad] and the
+    translational magnitude is
+    :math:`m = (a_m + 1)\\,\\mathtt{max\\_magnitude} / 2`. The translational
+    setpoint is :math:`(m\\cos\\theta, 0, m\\sin\\theta)`, where its units depend
+    on the configured Lee controller: position [m], velocity [m/s], or
+    acceleration [m/s^2]. The yaw setpoint is
+    :math:`a_y\\,\\mathtt{max\\_yaw\\_command}` and represents a yaw rate [rad/s]
+    for velocity and acceleration control or a relative yaw angle [rad] for
+    position control.
 
     The action term constrains lateral motion to keep commands inside the camera
     field of view. It resets controller state, including integral terms, when
