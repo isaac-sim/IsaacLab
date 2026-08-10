@@ -62,6 +62,7 @@ jobs:
           private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
+          permission-workflows: write
 
       - uses: actions/checkout@v6
         with:
