@@ -1,8 +1,10 @@
 # Scopes pytest to this self-contained tool: the ``[tool.pytest.ini_options]``
 # section makes pytest treat ``tools/changelog/`` as its rootdir, so:
 #
-#   1. ``pythonpath = ["."]`` adds ``tools/changelog/`` to ``sys.path``,
-#      making ``import cli`` work from the test files without any shim.
+#   1. ``pythonpath = ["."]`` adds ``tools/changelog/`` to ``sys.path``, so
+#      the test files import the modules under test (``cli``, ``packages``,
+#      ``autobump``, ``lockfile``) and their shared ``conftest`` directly,
+#      with no shim.
 #   2. ``tools/conftest.py`` (a session-takeover hook for the IsaacLab
 #      source/ test suite) sits *above* rootdir and is therefore not
 #      loaded — no ``--noconftest`` flag required.

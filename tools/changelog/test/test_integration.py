@@ -17,8 +17,10 @@ import re
 import shutil
 from pathlib import Path
 
-import cli
+import packages
 import pytest
+
+from conftest import write_version_file
 
 EXAMPLES = Path(__file__).parent / "integration"
 
@@ -49,7 +51,7 @@ def test_demo_compile_matches_changelog_after(tmp_path, demo, expected_version):
     pkg_root = tmp_path / "demo_pkg"
     pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
-    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n', encoding="utf-8")
+    write_version_file(pkg_root, pkg_root.name, "1.2.3")
     shutil.copy(demo_dir / "changelog_before.rst", pkg_root / "docs" / "CHANGELOG.rst")
 
     # Copy fragments into tmp_path so the compile's auto-clean doesn't
@@ -58,7 +60,7 @@ def test_demo_compile_matches_changelog_after(tmp_path, demo, expected_version):
     shutil.copytree(demo_dir / "fragments", fragments_tmp)
 
     # Run the compiler against the (copied) fragments.
-    pkg = cli.Package(pkg_root)
+    pkg = packages.Package(pkg_root)
     pkg.compile(fragments_dir=fragments_tmp)
 
     actual = (pkg_root / "docs" / "CHANGELOG.rst").read_text(encoding="utf-8")
