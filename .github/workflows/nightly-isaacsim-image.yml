@@ -44,7 +44,6 @@ env:
   SOURCE_TAG: latest-develop
   TARGET_BRANCH: develop
   UPDATE_BRANCH: ci/nightly-isaacsim-image-update
-  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
 
 jobs:
   update-image-pin:
@@ -71,6 +70,8 @@ jobs:
           fetch-depth: 0
 
       - name: Log in to the Isaac Sim registry
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
         run: |
           set -euo pipefail
           if [ -z "$NGC_API_KEY" ]; then
