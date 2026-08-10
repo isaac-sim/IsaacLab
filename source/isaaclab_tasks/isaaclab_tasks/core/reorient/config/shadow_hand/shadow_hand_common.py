@@ -34,7 +34,7 @@ from isaaclab_assets.robots.shadow_hand import (
 
 
 @configclass
-class ShadowHandEventCfg:
+class ShadowHandRandomizationEventCfg:
     """Randomization of the hand and the object, applied on every physics backend."""
 
     robot_joint_stiffness_and_damping = EventTerm(
@@ -140,7 +140,7 @@ class ShadowHandManagerResetEventCfg:
 
 
 @configclass
-class ShadowHandManagerEventCfg(ShadowHandEventCfg, ShadowHandManagerResetEventCfg):
+class ShadowHandManagerEventCfg(ShadowHandRandomizationEventCfg, ShadowHandManagerResetEventCfg):
     """Randomization plus the state reset the manager tasks apply on every episode."""
 
 

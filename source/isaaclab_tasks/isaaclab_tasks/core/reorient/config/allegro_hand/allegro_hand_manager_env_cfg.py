@@ -17,14 +17,14 @@ from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import
     GOAL_OBJECT_CFG,
     PhysicsCfg,
 )
-from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ManagerEnvCfg, SceneCfg
+from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ReorientManagerEnvBaseCfg, ReorientSceneBaseCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
 @configclass
-class AllegroHandManagerSceneCfg(SceneCfg):
+class AllegroHandManagerSceneCfg(ReorientSceneBaseCfg):
     """The shared scene, holding the Allegro hand and its in-hand cube."""
 
     robot: ArticulationCfg = ALLEGRO_HAND_ROBOT_CFG
@@ -32,7 +32,7 @@ class AllegroHandManagerSceneCfg(SceneCfg):
 
 
 @configclass
-class ResetEventCfg:
+class AllegroHandResetEventCfg:
     """Only the per-episode state reset, with no domain randomization."""
 
     reset_object = EventTerm(
@@ -56,7 +56,7 @@ class ResetEventCfg:
 
 
 @configclass
-class EventCfg(ResetEventCfg):
+class AllegroHandRandomizationEventCfg(AllegroHandResetEventCfg):
     """Randomization terms plus the Direct task's reset distribution."""
 
     robot_physics_material = EventTerm(
@@ -115,16 +115,16 @@ class EventCfg(ResetEventCfg):
 
 
 @configclass
-class EventPresetCfg(PresetCfg):
+class AllegroHandEventPresetCfg(PresetCfg):
     """``presets=randomized`` adds the domain-randomization terms to the episode reset."""
 
-    randomized = EventCfg()
-    reset_only = ResetEventCfg()
+    randomized = AllegroHandRandomizationEventCfg()
+    reset_only = AllegroHandResetEventCfg()
     default = reset_only
 
 
 @configclass
-class AllegroHandManagerEnvCfg(ManagerEnvCfg):
+class AllegroHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
     """Manager-based Allegro Hand task with Direct-compatible semantics."""
 
     fingertip_body_names = ALLEGRO_FINGERTIP_BODY_NAMES
@@ -135,7 +135,7 @@ class AllegroHandManagerEnvCfg(ManagerEnvCfg):
 
     scene: AllegroHandManagerSceneCfg = AllegroHandManagerSceneCfg()
     # ``presets=randomized`` adds the domain-randomization terms
-    events: EventPresetCfg = EventPresetCfg()
+    events: AllegroHandEventPresetCfg = AllegroHandEventPresetCfg()
 
     def __post_init__(self):
         super().__post_init__()

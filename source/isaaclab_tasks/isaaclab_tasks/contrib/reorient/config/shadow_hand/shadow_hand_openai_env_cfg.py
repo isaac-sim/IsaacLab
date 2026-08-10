@@ -10,7 +10,10 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import PhysicsCfg, ShadowHandEventCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
+    PhysicsCfg,
+    ShadowHandRandomizationEventCfg,
+)
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 
 
@@ -50,7 +53,7 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     act_moving_average = 0.3
     force_torque_obs_scale = 10.0
     # domain randomization config
-    events: ShadowHandEventCfg = ShadowHandEventCfg()
+    events: ShadowHandRandomizationEventCfg = ShadowHandRandomizationEventCfg()
     # per-step gaussian noise + reset-sampled bias, as in the paper
     action_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
         noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),

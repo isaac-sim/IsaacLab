@@ -21,9 +21,9 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     ShadowHandRobotCfg,
 )
 from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import (
-    FullStateObsCfg,
-    ManagerEnvCfg,
-    SceneCfg,
+    ReorientFullStateObsCfg,
+    ReorientManagerEnvBaseCfg,
+    ReorientSceneBaseCfg,
 )
 from isaaclab_tasks.utils import PresetCfg
 
@@ -35,7 +35,7 @@ from isaaclab_assets.robots.shadow_hand import SHADOW_ACTUATED_JOINT_NAMES, SHAD
 
 
 @configclass
-class ShadowHandManagerSceneCfg(SceneCfg):
+class ShadowHandManagerSceneCfg(ReorientSceneBaseCfg):
     """The shared scene, holding the Shadow hand and its in-hand cube."""
 
     robot: PresetCfg = ShadowHandRobotCfg()
@@ -43,7 +43,7 @@ class ShadowHandManagerSceneCfg(SceneCfg):
 
 
 @configclass
-class ShadowHandManagerEnvCfg(ManagerEnvCfg):
+class ShadowHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
     """Manager-based state Shadow Hand task with Direct-compatible semantics."""
 
     fingertip_body_names = SHADOW_FINGERTIP_BODY_NAMES
@@ -74,7 +74,7 @@ class ShadowHandAsymmetricSceneCfg(ShadowHandManagerSceneCfg):
 
 
 @configclass
-class AsymmetricObservationsCfg:
+class ShadowHandAsymmetricObservationsCfg:
     """A reduced actor observation paired with a privileged critic."""
 
     @configclass
@@ -88,7 +88,11 @@ class AsymmetricObservationsCfg:
         object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
         goal_quat_diff = ObsTerm(
             func=mdp.goal_quat_diff,
-            params={"asset_cfg": SceneEntityCfg("object"), "command_name": "object_pose", "make_quat_unique": False},
+            params={
+                "asset_cfg": SceneEntityCfg("object"),
+                "command_name": "object_pose",
+                "make_quat_unique": False,
+            },
         )
         last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
 
@@ -96,7 +100,7 @@ class AsymmetricObservationsCfg:
             self.concatenate_terms = True
 
     @configclass
-    class CriticCfg(FullStateObsCfg):
+    class CriticCfg(ReorientFullStateObsCfg):
         """The full state, plus contact sensing only the simulator can supply."""
 
         fingertip_wrench = ObsTerm(
@@ -115,7 +119,7 @@ class ShadowHandAsymmetricEnvCfg(ShadowHandManagerEnvCfg):
     """The state task with a reduced actor and a privileged critic."""
 
     scene: ShadowHandAsymmetricSceneCfg = ShadowHandAsymmetricSceneCfg()
-    observations: AsymmetricObservationsCfg = AsymmetricObservationsCfg()
+    observations: ShadowHandAsymmetricObservationsCfg = ShadowHandAsymmetricObservationsCfg()
 
 
 @configclass

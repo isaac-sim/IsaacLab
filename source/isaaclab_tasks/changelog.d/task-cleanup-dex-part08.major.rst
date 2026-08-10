@@ -62,7 +62,7 @@ Removed
 ^^^^^^^
 
 * Removed ``ReorientObjectEnvCfg``. The Shadow and Allegro manager tasks now share
-  ``isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ManagerEnvCfg``, which each hand
+  ``isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientManagerEnvBaseCfg``, which each hand
   specializes with its fingertip bodies, actuated joints, scene and control rate.
 * Removed ``reorient_common``. Its constants are declared by the tasks that use them, and
   the in-hand offset and goal-marker position are per-robot fields on the Direct

@@ -32,7 +32,7 @@ from isaaclab_tasks.utils import PresetCfg
 
 
 @configclass
-class SceneCfg(InteractiveSceneCfg):
+class ReorientSceneBaseCfg(InteractiveSceneCfg):
     """Shared reorientation scene. A hand supplies its robot and its object."""
 
     num_envs = 8192
@@ -75,11 +75,11 @@ class ActionsCfg:
 
 
 @configclass
-class RobotObsCfg(ObsGroup):
+class ReorientRobotObsCfg(ObsGroup):
     """What the hand can measure about itself.
 
     The fingertip terms are the only hand-specific entries; the env cfg fills their
-    ``asset_cfg`` from :attr:`ManagerEnvCfg.fingertip_body_names`.
+    ``asset_cfg`` from :attr:`ReorientManagerEnvBaseCfg.fingertip_body_names`.
     """
 
     joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("robot")})
@@ -92,11 +92,11 @@ class RobotObsCfg(ObsGroup):
 
 
 @configclass
-class ObjectObsCfg(ObsGroup):
+class ReorientObjectObsCfg(ObsGroup):
     """The object's state and its goal.
 
     A camera task replaces this half with learned features, so it is kept separate
-    from :class:`RobotObsCfg` rather than nulled out per task.
+    from :class:`ReorientRobotObsCfg` rather than nulled out per task.
     """
 
     object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
@@ -117,7 +117,7 @@ class ObjectObsCfg(ObsGroup):
 
 
 @configclass
-class FullStateObsCfg(RobotObsCfg, ObjectObsCfg):
+class ReorientFullStateObsCfg(ReorientRobotObsCfg, ReorientObjectObsCfg):
     """The full state, before the action terms."""
 
 
@@ -126,7 +126,7 @@ class ObservationsCfg:
     """Full-state observation in Direct order."""
 
     @configclass
-    class PolicyCfg(FullStateObsCfg):
+    class PolicyCfg(ReorientFullStateObsCfg):
         last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
 
     policy: PolicyCfg = PolicyCfg()
@@ -166,7 +166,7 @@ class TerminationsCfg:
 
 
 @configclass
-class ManagerEnvCfg(ManagerBasedRLEnvCfg):
+class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
     """Manager-based reorientation with Direct-compatible semantics.
 
     A hand subclass supplies :attr:`fingertip_body_names`, :attr:`actuated_joint_names`,

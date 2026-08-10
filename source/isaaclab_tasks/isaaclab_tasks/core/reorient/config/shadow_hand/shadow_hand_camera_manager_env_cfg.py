@@ -17,11 +17,11 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_e
     validate_shadow_hand_camera_settings,
 )
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg import (
-    FullStateObsCfg,
+    ReorientFullStateObsCfg,
     ShadowHandManagerEnvCfg,
     ShadowHandManagerSceneCfg,
 )
-from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import RobotObsCfg
+from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ReorientRobotObsCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_FINGERTIP_BODY_NAMES
 
@@ -40,45 +40,43 @@ class ShadowHandCameraManagerSceneCfg(ShadowHandManagerSceneCfg):
 
 
 @configclass
-class CameraPolicyCfg(RobotObsCfg):
-    """Direct-compatible camera actor observation.
-
-    Builds on the robot half only: the object half is inferred from pixels, so the
-    privileged object and goal-difference terms belong to the critic alone.
-    """
-
-    goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
-    last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
-    camera_features = ObsTerm(
-        func=mdp.ShadowHandCameraFeatures,
-        params={
-            "feature_extractor_cfg": FeatureExtractorCfg(),
-            "sensor_cfg": SceneEntityCfg("tiled_camera"),
-            "object_cfg": SceneEntityCfg("object"),
-        },
-    )
-    goal_keypoints = ObsTerm(func=mdp.shadow_hand_goal_keypoints, params={"command_name": "object_pose"})
-
-    def __post_init__(self):
-        self.concatenate_terms = True
-
-
-@configclass
-class CameraCriticCfg(FullStateObsCfg):
-    """Direct-compatible 214-dimensional asymmetric camera critic state."""
-
-    fingertip_wrench = ObsTerm(
-        func=mdp.body_incoming_wrench,
-        scale=10.0,
-        params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES)},
-    )
-    last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
-    camera_features = ObsTerm(func=mdp.shadow_hand_camera_cached_features)
-
-
-@configclass
-class CameraObservationsCfg:
+class ShadowHandCameraObservationsCfg:
     """Camera actor and asymmetric critic observation groups."""
+
+    @configclass
+    class CameraPolicyCfg(ReorientRobotObsCfg):
+        """Direct-compatible camera actor observation.
+
+        Builds on the robot half only: the object half is inferred from pixels, so the
+        privileged object and goal-difference terms belong to the critic alone.
+        """
+
+        goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+        camera_features = ObsTerm(
+            func=mdp.ShadowHandCameraFeatures,
+            params={
+                "feature_extractor_cfg": FeatureExtractorCfg(),
+                "sensor_cfg": SceneEntityCfg("tiled_camera"),
+                "object_cfg": SceneEntityCfg("object"),
+            },
+        )
+        goal_keypoints = ObsTerm(func=mdp.shadow_hand_goal_keypoints, params={"command_name": "object_pose"})
+
+        def __post_init__(self):
+            self.concatenate_terms = True
+
+    @configclass
+    class CameraCriticCfg(ReorientFullStateObsCfg):
+        """Direct-compatible 214-dimensional asymmetric camera critic state."""
+
+        fingertip_wrench = ObsTerm(
+            func=mdp.body_incoming_wrench,
+            scale=10.0,
+            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES)},
+        )
+        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+        camera_features = ObsTerm(func=mdp.shadow_hand_camera_cached_features)
 
     policy: CameraPolicyCfg = CameraPolicyCfg()
     critic: CameraCriticCfg = CameraCriticCfg()
@@ -90,7 +88,7 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
 
     # only the fields that differ from ShadowHandManagerEnvCfg are overridden
     scene: ShadowHandCameraManagerSceneCfg = ShadowHandCameraManagerSceneCfg()
-    observations: CameraObservationsCfg = CameraObservationsCfg()
+    observations: ShadowHandCameraObservationsCfg = ShadowHandCameraObservationsCfg()
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg()
 
     def __post_init__(self):
