@@ -90,7 +90,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
     )
 
-    isaacsim_physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg(gpu_found_lost_pairs_capacity=2**22)
 
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
