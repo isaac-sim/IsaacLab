@@ -1935,7 +1935,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "15.6.0"
+version = "16.0.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -2322,7 +2322,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "3.2.1"
+version = "4.0.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform == 'linux' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform == 'linux' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform == 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform == 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop')" },
@@ -2333,7 +2333,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "0.10.5"
+version = "1.0.0"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform == 'linux' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform == 'linux' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform == 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform == 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop')" },
@@ -2363,7 +2363,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "4.2.1"
+version = "5.0.0"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform == 'linux' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform == 'linux' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform == 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform == 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop')" },
@@ -2402,7 +2402,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "15.0.0"
+version = "15.0.1"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform == 'linux' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform == 'linux' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop') or (sys_platform == 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-isaacsim') or (sys_platform == 'win32' and extra == 'extra-12-isaaclab-dev-importers' and extra == 'extra-12-isaaclab-dev-teleop')" },
