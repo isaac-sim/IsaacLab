@@ -48,7 +48,7 @@ params:
   load_path: '' # path to the checkpoint to load
 
   config:
-    name: pendulum_direct
+    name: pendulum_marl_direct
     env_name: rlgpu
     device: 'cuda:0'
     device_name: 'cuda:0'
