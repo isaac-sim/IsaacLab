@@ -1015,12 +1015,12 @@ Classic
     +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
     | World                  | Environment ID                     | Description                                                                                                           | Presets                      |
     +========================+====================================+=======================================================================================================================+==============================+
-    | |cart-double-pendulum| | |cart-double-pendulum-direct-link| | Move the cart and the pendulum to keep the last one upwards in the classic inverted double pendulum on a cart control |                              |
+    | |cart-double-pendulum| | |cart-double-pendulum-direct-link| | Cooperative ``cart`` and ``pendulum`` agents solve the classic inverted double pendulum control task.                  |                              |
     +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
 
 .. |cart-double-pendulum| image:: ../_static/tasks/classic/cart_double_pendulum.jpg
 
-.. |cart-double-pendulum-direct-link| replace:: :isaaclab-source:`Isaac-Pendulum-Direct <source/isaaclab_tasks/isaaclab_tasks/core/pendulum/pendulum_env.py>`
+.. |cart-double-pendulum-direct-link| replace:: :isaaclab-source:`Isaac-Pendulum-MARL-Direct <source/isaaclab_tasks/isaaclab_tasks/core/pendulum/pendulum_marl_env.py>`
 
 Manipulation
 ~~~~~~~~~~~~
@@ -1156,7 +1156,7 @@ including disabling runtime perturbations used for training.
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Pendulum-Direct
+    * - Isaac-Pendulum-MARL-Direct
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
       -

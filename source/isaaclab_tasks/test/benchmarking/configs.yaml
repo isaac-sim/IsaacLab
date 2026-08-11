@@ -115,7 +115,7 @@ full:
     upper_thresholds:
       duration: 2500
   # Classic control tasks
-  Isaac-Pendulum-Direct:
+  Isaac-Pendulum-MARL-Direct:
     max_iterations: 300
     lower_thresholds:
       reward: 400
