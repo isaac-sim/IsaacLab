@@ -995,8 +995,12 @@ jobs:
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_cartpole_kitless.py
+        # Only the two RTX paths compile PSO blobs: isaacsim_rtx ids come from
+        # the Kit file and fill kit/, ovrtx ids from the kitless file and fill
+        # kitless/. Selecting newton_warp instead would spend GPU time on the
+        # Warp rasterizer, which populates neither tree.
         test-k-expr: >-
-          (newton_warp or ovrtx) and (rgb or depth)
+          (isaacsim_rtx or ovrtx) and (rgb or depth)
         ovrtx-shader-cache: ${{ env.PUBLISHES_OVRTX_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-ovrtx-cache-warm
         omni-github-test-type: ovrtx-cache-warm
