@@ -375,7 +375,7 @@ class RigidObject(BaseRigidObject):
             self.data._reset_pose()
         # set into simulation
         self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=sim_env_ids)
-        SimulationManager._mark_render_sync_required()
+        SimulationManager.notify_tensor_pose_write()
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -468,7 +468,7 @@ class RigidObject(BaseRigidObject):
             self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=sim_env_ids)
-        SimulationManager._mark_render_sync_required()
+        SimulationManager.notify_tensor_pose_write()
 
     def write_root_com_pose_to_sim_mask(
         self,

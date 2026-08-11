@@ -14,6 +14,8 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 """Rest everything follows."""
 
 import weakref
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import numpy as np
 import pytest
@@ -917,6 +919,28 @@ def test_isaac_event_triggered_on_reset(event_type):
 def test_forward_and_clean_render_do_not_emit_native_step_callbacks():
     """Forward and clean renders must not emit native physics-step callbacks."""
     sim = SimulationContext(SimulationCfg(dt=0.01))
+    sim.reset()
+
+    with (
+        _temporary_bool_setting(sim, "/isaaclab/video/enabled", False),
+        _native_step_callback_counts() as callback_counts,
+    ):
+        sim.forward()
+        sim.render()
+
+        assert sim.get_physics_step_count() == 0
+        assert callback_counts == {"pre": 0, "post": 0}
+
+        sim.step(render=False)
+
+        assert sim.get_physics_step_count() == 1
+        assert callback_counts == {"pre": 1, "post": 1}
+
+
+@pytest.mark.isaacsim_ci
+def test_render_sync_only_runs_for_kit_rtx_frames():
+    """Pending rigid poses must sync only when a Kit/RTX frame will consume them."""
+    sim = SimulationContext(SimulationCfg(dt=0.01))
     cube = RigidObject(
         RigidObjectCfg(
             prim_path="/World/Cube",
@@ -929,30 +953,33 @@ def test_forward_and_clean_render_do_not_emit_native_step_callbacks():
     )
     sim.reset()
 
-    callback_counts = {"pre": 0, "post": 0}
+    with (
+        _temporary_bool_setting(sim, "/isaaclab/video/enabled", False),
+        _temporary_bool_setting(sim, "/isaaclab/render/rtx_sensors", False),
+        _native_step_callback_counts() as callback_counts,
+    ):
+        root_pose = cube.data.default_root_pose.torch.clone()
+        root_pose[:, 0] += 0.1
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        root_pose[:, 0] += 0.1
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
 
-    def on_pre_step(_dt):
-        callback_counts["pre"] += 1
-
-    def on_post_step(_dt):
-        callback_counts["post"] += 1
-
-    physx_interface = omni.physx.get_physx_interface()
-    subscriptions = [
-        physx_interface.subscribe_physics_on_step_events(on_pre_step, pre_step=True, order=0),
-        physx_interface.subscribe_physics_on_step_events(on_post_step, pre_step=False, order=0),
-    ]
-
-    try:
-        sim.forward()
-        sim.render()
+        # Multiple writes coalesce, and an RTX sensor can be active while per-step
+        # camera/Kit rendering is disabled.
+        sim.set_setting("/isaaclab/render/rtx_sensors", True)
+        sim.render(skip_app_pumping=True)
 
         assert sim.get_physics_step_count() == 0
         assert callback_counts == {"pre": 0, "post": 0}
 
-        root_pose = cube.data.default_root_pose.torch.clone()
-        root_pose[:, 0] += 0.1
-        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        # A render with no Kit/RTX consumer must also keep the pending sync intact.
+        sim.set_setting("/isaaclab/render/rtx_sensors", False)
+        sim.render()
+
+        assert callback_counts == {"pre": 0, "post": 0}
+
+        # The next real RTX render consumes the pending sync exactly once.
+        sim.set_setting("/isaaclab/video/enabled", True)
         sim.render()
 
         assert sim.get_physics_step_count() == 0
@@ -973,6 +1000,38 @@ def test_forward_and_clean_render_do_not_emit_native_step_callbacks():
 
         assert sim.get_physics_step_count() == 2
         assert callback_counts == {"pre": 3, "post": 3}
+
+
+@contextmanager
+def _temporary_bool_setting(sim: SimulationContext, path: str, value: bool) -> Iterator[None]:
+    """Temporarily override a process-global simulation setting."""
+    previous_value = bool(sim.get_setting(path))
+    sim.set_setting(path, value)
+    try:
+        yield
+    finally:
+        sim.set_setting(path, previous_value)
+
+
+@contextmanager
+def _native_step_callback_counts() -> Iterator[dict[str, int]]:
+    """Count callbacks emitted directly by the native PhysX interface."""
+    callback_counts = {"pre": 0, "post": 0}
+
+    def on_pre_step(_dt: float):
+        callback_counts["pre"] += 1
+
+    def on_post_step(_dt: float):
+        callback_counts["post"] += 1
+
+    physx_interface = omni.physx.get_physx_interface()
+    subscriptions = [
+        physx_interface.subscribe_physics_on_step_events(on_pre_step, pre_step=True, order=0),
+        physx_interface.subscribe_physics_on_step_events(on_post_step, pre_step=False, order=0),
+    ]
+
+    try:
+        yield callback_counts
     finally:
         subscriptions.clear()
 

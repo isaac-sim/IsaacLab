@@ -52,6 +52,7 @@ _RTX_FIELD_TO_SETTING = {
 _last_render_update_key: tuple[int, int, int] = (0, -1, -1)
 
 _STREAMING_WAIT_TIMEOUT_S: float = 30.0
+_PLAY_SIMULATIONS_SETTING = "/app/player/playSimulations"
 
 
 def _setting_path_from_key(key: str) -> str:
@@ -239,6 +240,9 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     if not force and not sim.is_rendering:
         return
 
+    # Flush tensor pose writes before the frame consumes PhysX/Fabric transforms.
+    sim.physics_manager.before_kit_app_update()
+
     # Sync physics results → Fabric so RTX sees updated positions.
     # physics_manager.step() only runs simulate()/fetch_results() and does NOT
     # call _update_fabric(), so without this the render would lag one frame behind.
@@ -246,13 +250,15 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
 
     import omni.kit.app
 
-    sim.set_setting("/app/player/playSimulations", False)
-    omni.kit.app.get_app().update()
+    play_flag = sim.get_setting(_PLAY_SIMULATIONS_SETTING)
+    sim.set_setting(_PLAY_SIMULATIONS_SETTING, False)
+    try:
+        omni.kit.app.get_app().update()
 
-    if _get_stage_streaming_busy():
-        _wait_for_streaming_complete()
-
-    sim.set_setting("/app/player/playSimulations", True)
+        if _get_stage_streaming_busy():
+            _wait_for_streaming_complete()
+    finally:
+        sim.set_setting(_PLAY_SIMULATIONS_SETTING, bool(play_flag) if play_flag is not None else True)
 
     _last_render_update_key = key
 
