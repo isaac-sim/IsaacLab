@@ -223,7 +223,7 @@ def _load_agent(checkpoint_path: str, device: str):
 
 def _resolve_checkpoint(args_cli: argparse.Namespace, task_name: str) -> str | None:
     """Resolve the SB3 checkpoint selected by the export arguments."""
-    if args_cli.use_pretrained_checkpoint:
+    if args_cli.checkpoint == "pretrained":
         return get_published_pretrained_checkpoint("sb3", task_name)
 
     log_root_path = os.path.abspath(os.path.join("logs", "sb3", task_name))
@@ -300,7 +300,7 @@ def export_sb3_agent(
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path
-        elif args_cli.use_pretrained_checkpoint:
+        elif args_cli.checkpoint == "pretrained":
             save_path = os.path.join(".pretrained_checkpoints", "sb3", checkpoint_task_name)
         else:
             save_path = log_dir

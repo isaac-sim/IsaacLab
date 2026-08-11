@@ -45,6 +45,9 @@ def _resolve_rlinf_checkpoint(
     """Resolve an RLinf checkpoint selector or local path."""
     from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 
+    if checkpoint == "pretrained":
+        raise ValueError("Pre-trained checkpoints are not available for RLinf.")
+
     if checkpoint in CHECKPOINT_SELECTORS:
         return resolve_checkpoint_selector(
             log_root_path,

@@ -81,6 +81,14 @@ def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
     assert args.max_iterations == 10
 
 
+def test_rlinf_rejects_pretrained_checkpoint() -> None:
+    """RLinf has no published pre-trained checkpoint."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_checkpoint
+
+    with pytest.raises(ValueError, match="Pre-trained checkpoints are not available for RLinf"):
+        _resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
+
+
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
     """A training backend that mutates ``sys.argv`` must not leak the change to the caller."""
     module = types.ModuleType("fake_train_backend")
