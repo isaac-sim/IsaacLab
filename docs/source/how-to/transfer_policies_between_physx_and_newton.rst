@@ -274,10 +274,9 @@ independently.
    .. tab-item:: Franka lift
       :sync: franka
 
-      Task ``Isaac-Lift-Franka``. The play entry point applies ``play_mode`` overrides
-      automatically and disables gripper-closing-speed randomization. The Franka arm is a serial
-      chain whose joint and body order is identical in both backends, so the cross-backend
-      commands need no ordering override.
+      Task ``Isaac-Lift-Franka``. The ``play`` entry point applies ``play_mode`` overrides
+      automatically and disables gripper-closing-speed randomization. The current Franka asset
+      resolves to the same joint and body order in both backends.
 
       **PhysX source**
 
