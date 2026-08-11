@@ -28,18 +28,30 @@ reproducible state distribution. Runtime reconstructs the same source-local part
 for each row and resets the complete MPM solver state; it does not replay cached stress or particle
 trajectories.
 
-## Reset dataset artifact
+## Generate the reset artifact
 
-The calibrated 20,000-row v12 production artifact is generated and supplied externally. Its
-expected content digest is
-`93e1f86a5145812a412c4e3c0d5873bff765bce9d236e4e2f0893e190c4a75bf`. Place the artifact at
-`datasets/franka_pour/reset_dataset.pt`; the environment validates its schema, provenance, pinned
-content digest, and task contract when it starts. The `datasets/` directory is intentionally
-ignored by Git.
+The artifact is generated locally and is intentionally not stored in Git. Run the one-file
+generator from the repository root:
 
-The canonical artifact download location has not yet been published. Consequently, a clean
-checkout cannot run this task until the artifact is supplied separately. Publishing that location
-is required before treating the task as a reproducible user-facing workflow.
+```bash
+uv run python scripts/tools/generate_franka_pour_reset_dataset.py \
+  --device cuda:0
+```
+
+This creates `datasets/franka_pour/reset_dataset.pt` with 20,000 rows. The script exposes the same
+14 connected reset phases and phase quotas as the reference distribution. Newton IK, joint-limit,
+table/object, self-collision, grasp-seating, and particle-workspace checks reject unsafe proposals;
+there is no second validation or artifact-promotion command.
+
+The generator and task also require the Franka Pour cups USD. Its current default is on the Isaac
+development Nucleus server. Until that asset is moved to a public or repository location, external
+users must set `ISAACLAB_FRANKA_POUR_CUPS_USD_PATH` to a compatible local copy. This asset issue is
+separate from the reset artifact: the generated database itself does not need to be published.
+
+The `datasets/` directory is ignored by Git. At completion the generator prints the artifact's
+content digest and the training override needed to pin it. The historical reference artifact has
+digest `93e1f86a5145812a412c4e3c0d5873bff765bce9d236e4e2f0893e190c4a75bf`, but publishing it is not
+required because users can reproduce the distribution with the script.
 
 ## Train or play
 
@@ -55,6 +67,7 @@ from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import FrankaPourResetDatas
 
 env_cfg = FrankaPourResetDatasetEnvCfg()
 env_cfg.reset_dataset_path = "datasets/franka_pour/reset_dataset.pt"
+env_cfg.reset_dataset_content_sha256 = "<digest printed by the generator>"
 agent_cfg = FrankaPourResetDatasetPPORunnerCfg()
 ```
 
@@ -72,13 +85,15 @@ uv run isaaclab train --rl_library rsl_rl \
   --task IsaacContrib-Franka-Pour \
   --num_envs 2048 --device cuda:0 \
   --max_iterations 3000 \
-  env.reset_dataset_path="$PWD/datasets/franka_pour/reset_dataset.pt"
+  env.reset_dataset_path="$PWD/datasets/franka_pour/reset_dataset.pt" \
+  env.reset_dataset_content_sha256=<digest-printed-by-generator>
 
 uv run isaaclab play --rl_library rsl_rl \
   --task IsaacContrib-Franka-Pour \
   --checkpoint /path/to/model.pt \
   --device cuda:0 --viz newton \
-  env.reset_dataset_path="$PWD/datasets/franka_pour/reset_dataset.pt"
+  env.reset_dataset_path="$PWD/datasets/franka_pour/reset_dataset.pt" \
+  env.reset_dataset_content_sha256=<digest-printed-by-generator>
 ```
 
 ## Learning contract

@@ -62,16 +62,12 @@ class UR10ParticlePushGaussianDistributionCfg(RslRlCNNModelCfg.GaussianDistribut
 class UR10ParticlePushPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO defaults for the deployable heightmap-and-proprioception policy."""
 
-    # A 72-step rollout exposes 1.2 s of simulated motion before every update. With 128 worlds per
-    # distributed worker this remains a tractable collection interval while giving the policy
-    # enough time to complete a meaningful push within one rollout.
+    # 72 policy steps span 1.2 s at 60 Hz.
     num_steps_per_env = 72
-    # Every world must receive a complete level-zero episode before curriculum outcomes are counted.
-    init_at_random_ep_len = False
     max_iterations = 6000
     save_interval = 50
     experiment_name = "ur10_particle_push"
-    run_name = "staged_particle_push_curriculum"
+    run_name = "single_pile_push"
     # Keep the task usable offline by default. Distributed launch profiles select W&B explicitly
     # with ``--logger wandb`` and provide the project and credentials.
     logger = "tensorboard"
@@ -94,10 +90,6 @@ class UR10ParticlePushPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         # Both image and proprioceptive inputs are bounded at their source. Rank-local empirical
         # normalizers would otherwise make distributed checkpoints depend on the saved rank.
         obs_normalization=False,
-        # At the initial standard deviation, the physical one-sigma joint offsets are 0.021 rad
-        # for joints 1--3 and 0.0312 rad for joints 4--6. A controlled local comparison showed
-        # that this samples terminal deliveries and advances the curriculum immediately; the
-        # bounded distribution can then reduce exploration as the sweep becomes competent.
         distribution_cfg=UR10ParticlePushGaussianDistributionCfg(),
     )
     critic = RslRlCNNModelCfg(
@@ -116,8 +108,6 @@ class UR10ParticlePushPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        # The previous 3e-4 coefficient let exploration collapse to 0.11 while delivery plateaued
-        # at one sweep. Preserve enough lateral exploration to discover repositioning between piles.
         entropy_coef=1.0e-3,
         num_learning_epochs=5,
         num_mini_batches=4,

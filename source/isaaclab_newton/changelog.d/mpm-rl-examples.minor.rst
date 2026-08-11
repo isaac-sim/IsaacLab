@@ -16,15 +16,17 @@ Added
 Changed
 ^^^^^^^
 
-* **Breaking:** Restricted
-  :attr:`~isaaclab_newton.physics.MPMSolverCfg.collider_velocity_mode` to
-  Newton's canonical ``"forward"`` and ``"backward"`` values. Replace
-  ``"instantaneous"`` with ``"forward"`` and ``"finite_difference"`` with
-  ``"backward"``.
 * Renamed ``scripts/demos/mpm/particle_pour.py`` to
   ``scripts/demos/mpm/teapot_fill.py``. Invoke the teapot-fill path for the
   maintained container-filling example. Use the canonical ``--max_steps``,
   ``--voxel_size``, and ``--container_usd`` options.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``"instantaneous"`` and ``"finite_difference"`` values of
+  :attr:`~isaaclab_newton.physics.MPMSolverCfg.collider_velocity_mode` in favor
+  of ``"forward"`` and ``"backward"``, respectively.
 
 Fixed
 ^^^^^

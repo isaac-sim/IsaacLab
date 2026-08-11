@@ -71,12 +71,9 @@ def tcp_cup_grasp_pose_tanh(
     orientation_error = torch.linalg.vector_norm(math_utils.axis_angle_from_quat(error_quat), dim=-1)
     orientation_quality = 1.0 - torch.tanh(orientation_error / float(orientation_std))
 
-    # Retain half of the Cartesian gradient even under a poor tool orientation. Multiplying two
-    # narrow kernels would make an independently sampled arm receive almost no useful reach signal.
+    # Retain half of the position contribution when orientation quality is zero.
     pose_quality = position_quality * (0.5 + 0.5 * orientation_quality)
-    # Opening is useful while approaching, but its bonus fades to zero at the grasp pose. Closing
-    # prematurely therefore loses potential without erasing the position/orientation gradient that
-    # lets the policy recover and finish the approach.
+    # Weight the open-hand term by 1 - pose_quality so it vanishes at the grasp pose.
     potential = pose_quality + float(open_hand_fraction) * (1.0 - pose_quality) * _open_quality(env)
     return torch.nan_to_num(potential, nan=0.0, posinf=1.0, neginf=0.0).clamp_(0.0, 1.0)
 
@@ -93,9 +90,7 @@ def _grasp_width_quality(env: FrankaPourEnv, preload_position: float) -> torch.T
     gripper = env.action_manager.get_term("gripper_action")
     command = gripper.commanded_position[:, 0]
     commanded_preload = torch.clamp((open_position - command) / preload_travel, 0.0, 1.0)
-    # ``minimum`` is a conjunctive crossfade without the quadratic dead zone produced by a
-    # product: coordinated physical closure and commanded preload remain monotonic from open to
-    # contact, while either an open command or an empty fully closed hand still yields zero.
+    # The minimum requires both physical closure and commanded preload; either zero input yields zero.
     return torch.minimum(close_progress, commanded_preload) * gripper.contact_quality
 
 
@@ -132,8 +127,7 @@ def _grasp_lift_potential(
 
     distance = torch.linalg.vector_norm(env.tcp_pos_e() - env.cup_grasp_point_e(), dim=-1)
     proximity = torch.clamp(1.0 - distance / float(grasp_reach_std), 0.0, 1.0)
-    # Compact-support smoothstep prevents closing an empty hand at stand-off from earning grasp
-    # credit. The broader approach potential supplies the gradient until this contact neighborhood.
+    # Smoothstep has compact support: proximity is zero outside grasp_reach_std.
     proximity = proximity.square() * (3.0 - 2.0 * proximity)
     held = proximity * _grasp_width_quality(env, grasp_preload_position)
     height = torch.clamp(
@@ -142,7 +136,7 @@ def _grasp_lift_potential(
         1.0,
     )
     if capture_orientation_tolerance is None:
-        # Preserve the classic path exactly, including its floating-point operation order.
+        # Preserve operation order in the no-orientation branch for numerical compatibility.
         potential = held * (float(grasp_fraction) + (1.0 - float(grasp_fraction)) * height)
         return torch.nan_to_num(potential, nan=0.0, posinf=1.0, neginf=0.0).clamp_(0.0, 1.0)
 
@@ -161,10 +155,7 @@ def _grasp_lift_potential(
     open_position = 0.5 * float(env.gripper_open_width)
     preload_travel = max(open_position - float(grasp_preload_position), 1.0e-4)
     commanded_close = torch.clamp((open_position - command) / preload_travel, 0.0, 1.0)
-    # At 30 Hz the binary hand target is deliberately low-pass filtered. Emphasize the first
-    # consistent close commands without introducing a plateau before full preload. This preserves
-    # a bounded, monotonic potential and makes the reach-to-contact transition visible to PPO
-    # before independently sampled exploration noise changes sign.
+    # Map commanded_close monotonically to [0, 1] while increasing sensitivity near zero.
     shaped_close = 1.0 - torch.pow(1.0 - commanded_close, float(capture_intent_gain))
     intent = proximity * orientation_proximity * shaped_close
     # A probabilistic union hands the potential continuously from commanded capture to actual
@@ -299,8 +290,7 @@ class PourResetLearningProgress(ManagerTermBase):
         params = dict(params)
         params.pop("minimum_progress", None)
         params.pop("minimum_episode_steps", None)
-        # Command intent is useful as a diagnostic but is not physical progress. Omitting these
-        # optional arguments makes grasp advancement depend on contact-qualified finger deflection.
+        # Omit capture-intent parameters so advancement requires contact-qualified deflection.
         params.pop("capture_orientation_tolerance", None)
         params.pop("capture_intent_gain", None)
         return params

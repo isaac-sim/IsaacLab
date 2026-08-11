@@ -17,6 +17,7 @@ import collections
 import contextlib
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -58,12 +59,6 @@ _EVAL_TASK_SUFFIXES = ("-Eval",)
 # RL libraries not discoverable from Gym ``kwargs`` (e.g. RLinf YAML-based workflows).
 RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
     "IsaacContrib-Assemble-Trocar-G129-Dex3": {"rlinf": ["PPO"]},
-}
-
-# Custom environment subclasses whose workflow is not encoded in their entry-point name.
-_WORKFLOW_OVERRIDES = {
-    "IsaacContrib-Franka-Pour": "Manager Based",
-    "IsaacContrib-UR10-Particle-Push": "Manager Based",
 }
 
 # Marker comments that delimit the auto-generated section in environments.rst.
@@ -456,10 +451,21 @@ def _render_grid_row(cells: list[list[str]], widths: list[int], indent: str) -> 
     return output
 
 
-def get_workflow(entry_point: str) -> str:
+def get_workflow(entry_point: str | Callable[..., object]) -> str:
     """Return the human-readable workflow label for a Gym entry point."""
-    if "ManagerBasedRLEnv" in entry_point:
+    if isinstance(entry_point, str) and "ManagerBasedRLEnv" in entry_point:
         return "Manager Based"
+
+    env_creator = entry_point
+    if isinstance(entry_point, str):
+        with contextlib.suppress(ImportError, AttributeError, ValueError):
+            env_creator = gym.envs.registration.load_env_creator(entry_point)
+
+    if isinstance(env_creator, type):
+        from isaaclab.envs import ManagerBasedRLEnv
+
+        if issubclass(env_creator, ManagerBasedRLEnv):
+            return "Manager Based"
     return "Direct"
 
 
@@ -489,9 +495,7 @@ def collect_environment_doc_rows(
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
 
-        workflow = _WORKFLOW_OVERRIDES.get(spec.id)
-        if workflow is None:
-            workflow = get_workflow(spec.entry_point)
+        workflow = get_workflow(spec.entry_point)
         rows.append(
             EnvironmentDocRow(
                 task_name=spec.id,

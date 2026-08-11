@@ -177,6 +177,33 @@ A few quick showroom scripts to run and checkout:
       :alt: Deformable primitive-shaped objects in Isaac Lab
 
 
+-  Fill a Utah teapot with water particles, then tilt it to pour the fluid into a bowl:
+
+   **Physics:** Newton implicit MPM only
+
+   **Visualizer:** ``newton_gl`` (recommended), ``kit``
+
+   This demo shows how to sample particles inside a hollow mesh and simulate the resulting
+   fluid with Newton's experimental implicit Material Point Method (MPM) backend.
+
+   .. tab-set::
+      :sync-group: os
+
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
+
+         .. code:: bash
+
+            uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer newton_gl
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code:: batch
+
+            uv run python scripts\demos\mpm\teapot_fill.py --device cuda:0 --visualizer newton_gl
+
+
 -  Interactive inference of trained H1 rough terrain locomotion policy:
 
    **Physics:** ``isaacsim_physx`` only

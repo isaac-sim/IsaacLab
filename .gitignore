@@ -65,6 +65,10 @@ _build
 # Teleop Recorded Dataset
 /datasets/
 
+# Local Franka Pour reset-generator references retained while the public one-file workflow is slimmed.
+/scripts/tools/generate_franka_pour_reset_dataset_legacy.py
+/source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pour/reset_dataset_generator_legacy.py
+
 # Tests
 /tests/
 

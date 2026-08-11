@@ -10,8 +10,9 @@ from __future__ import annotations
 import math
 import os
 import struct
-from copy import deepcopy
+from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any, Literal
 
 from isaaclab_newton.assets import MPMObjectCfg
@@ -58,29 +59,120 @@ FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256 = "b3c61e9abf91872144a6d16a2b088907694d
 FRANKA_POUR_ROBOT_PHYSICS_OVERRIDE = "remove_duplicate_neutral_finger_mimic_v1"
 FRANKA_POUR_CUPS_ASSET_ID = "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Contrib/MPM/Pour/franka_pour_cups.usda"
 FRANKA_POUR_CUPS_USD_PATH = os.environ.get("ISAACLAB_FRANKA_POUR_CUPS_USD_PATH", FRANKA_POUR_CUPS_ASSET_ID)
-FRANKA_POUR_CUP_GEOMETRY = {
-    "source_cup_inner_width": 0.042,
-    "source_cup_inner_depth": 0.042,
-    "source_cup_cavity_depth": 0.110,
-    "source_cup_wall_thickness": 0.007,
-    "source_cup_bottom_thickness": 0.009,
-    "target_cup_inner_width": 0.140,
-    "target_cup_inner_depth": 0.140,
-    "target_cup_cavity_depth": 0.065,
-    "target_cup_wall_thickness": 0.009,
-    "target_cup_bottom_thickness": 0.009,
-}
-FRANKA_POUR_ARM_DRIVE_STIFFNESS = {
-    "panda_joint[1-2]": 1000.0,
-    "panda_joint[3-4]": 750.0,
-    "panda_joint[5-7]": 300.0,
-}
-FRANKA_POUR_ARM_DRIVE_DAMPING = {
-    "panda_joint[1-2]": 20.0,
-    "panda_joint[3-4]": 4.0,
-    "panda_joint[5-7]": 2.0,
-}
-# Identify the canonical asset consistently whether it is streamed or materialized.
+FRANKA_POUR_CUP_GEOMETRY = MappingProxyType(
+    {
+        "source_cup_inner_width": 0.042,
+        "source_cup_inner_depth": 0.042,
+        "source_cup_cavity_depth": 0.110,
+        "source_cup_wall_thickness": 0.007,
+        "source_cup_bottom_thickness": 0.009,
+        "target_cup_inner_width": 0.140,
+        "target_cup_inner_depth": 0.140,
+        "target_cup_cavity_depth": 0.065,
+        "target_cup_wall_thickness": 0.009,
+        "target_cup_bottom_thickness": 0.009,
+    }
+)
+FRANKA_POUR_ARM_DRIVE_STIFFNESS = MappingProxyType(
+    {
+        "panda_joint[1-2]": 1000.0,
+        "panda_joint[3-4]": 750.0,
+        "panda_joint[5-7]": 300.0,
+    }
+)
+FRANKA_POUR_ARM_DRIVE_DAMPING = MappingProxyType(
+    {
+        "panda_joint[1-2]": 20.0,
+        "panda_joint[3-4]": 4.0,
+        "panda_joint[5-7]": 2.0,
+    }
+)
+
+_ARM_JOINT_NAMES = tuple(f"panda_joint{index}" for index in range(1, 8))
+_ARM_HOME = (
+    -1.07505691,
+    0.76868522,
+    0.53213346,
+    -2.93226814,
+    2.50670838,
+    1.40047050,
+    0.21146376,
+)
+_GRIPPER_OPEN_POSITION = 0.04
+_SOURCE_CUP_POSITION = (0.5, 0.0, 0.0)
+_TARGET_CUP_POSITION = (0.5, -0.18, 0.0)
+_SOURCE_CUP_MASS = 0.05
+_SOURCE_CUP_PARTICLE_FRICTION = 0.9
+_SOURCE_CUP_GRASP_FRICTION = 2.0
+_TARGET_CUP_FRICTION = 0.8
+_CUP_GRASP_HEIGHT = 0.083
+_CUP_GRASP_TCP_QUAT_C = (0.0, math.sqrt(0.5), 0.0, math.sqrt(0.5))
+_MEDIA_FILL_FRACTION = 0.17181818181818181
+_MEDIA_PARTICLE_SPACING = 0.005
+_MPM_COLLIDER_MARGIN = 0.004
+
+
+def _expand_arm_drive_contract(values: Mapping[str, float]) -> tuple[float, ...]:
+    """Expand the three actuator patterns into canonical Panda joint order."""
+    pattern_counts = (("panda_joint[1-2]", 2), ("panda_joint[3-4]", 2), ("panda_joint[5-7]", 3))
+    return tuple(float(values[pattern]) for pattern, count in pattern_counts for _ in range(count))
+
+
+def _source_cup_asset_cfg() -> RigidObjectCfg:
+    """Build the source-cup asset authored by the task scene."""
+    return RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/SourceCup",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=_SOURCE_CUP_POSITION, rot=(0.0, 0.0, 0.0, 1.0)),
+        spawn=UsdFileCfg(
+            usd_path=FRANKA_POUR_CUPS_USD_PATH,
+            variants={"cupType": "source"},
+            mass_props=MassCfg(mass=_SOURCE_CUP_MASS),
+            rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=False),
+            physics_material=RigidBodyMaterialBaseCfg(
+                static_friction=_SOURCE_CUP_GRASP_FRICTION,
+                dynamic_friction=_SOURCE_CUP_GRASP_FRICTION,
+            ),
+        ),
+    )
+
+
+def _target_cup_asset_cfg() -> RigidObjectCfg:
+    """Build the receiver asset authored by the task scene."""
+    return RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/TargetCup",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=_TARGET_CUP_POSITION, rot=(0.0, 0.0, 0.0, 1.0)),
+        spawn=UsdFileCfg(
+            usd_path=FRANKA_POUR_CUPS_USD_PATH,
+            variants={"cupType": "target"},
+            rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
+            physics_material=RigidBodyMaterialBaseCfg(
+                static_friction=_TARGET_CUP_FRICTION,
+                dynamic_friction=_TARGET_CUP_FRICTION,
+            ),
+        ),
+    )
+
+
+def _media_asset_cfg() -> MPMObjectCfg:
+    """Build the source-cup particle grid authored by the task scene."""
+    return build_media_object_cfg(
+        cup_pos=_SOURCE_CUP_POSITION,
+        cup_quat_xyzw=(0.0, 0.0, 0.0, 1.0),
+        source_inner_width=FRANKA_POUR_CUP_GEOMETRY["source_cup_inner_width"],
+        source_inner_depth=FRANKA_POUR_CUP_GEOMETRY["source_cup_inner_depth"],
+        source_cavity_depth=FRANKA_POUR_CUP_GEOMETRY["source_cup_cavity_depth"],
+        source_bottom_thickness=FRANKA_POUR_CUP_GEOMETRY["source_cup_bottom_thickness"],
+        fill_fraction=_MEDIA_FILL_FRACTION,
+        particle_spacing=_MEDIA_PARTICLE_SPACING,
+        collider_margin=_MPM_COLLIDER_MARGIN,
+        material=MPMParticleMaterialCfg(
+            density=1500.0,
+            friction=0.7,
+            yield_pressure=1.0e12,
+        ),
+    )
+
+
 FRANKA_POUR_ROBOT_USD_PATH = os.environ.get("ISAACLAB_FRANKA_POUR_ROBOT_USD_PATH", FRANKA_POUR_ROBOT_ASSET_ID)
 FRANKA_POUR_ARM_COLLISION_PROXIES = frozenset(
     {
@@ -206,7 +298,7 @@ def _resolve_mpm_cell_cap(cfg: FrankaPourResetDatasetEnvCfg) -> int:
         alignment = int(cfg.mpm_cell_capacity_alignment)
         if alignment <= 0:
             raise ValueError("mpm_cell_capacity_alignment must be positive.")
-        particle_count = media_particle_count(cfg)
+        particle_count = media_particle_count(cfg.scene.media)
         per_world = ((particle_count + alignment - 1) // alignment) * alignment
         capacity = per_world * int(cfg.scene.num_envs)
     else:
@@ -214,6 +306,16 @@ def _resolve_mpm_cell_cap(cfg: FrankaPourResetDatasetEnvCfg) -> int:
     if capacity <= 0:
         raise ValueError("The resolved MPM active-cell capacity must be positive.")
     return capacity
+
+
+def _configure_mpm_capacities(cfg: FrankaPourResetDatasetEnvCfg) -> None:
+    """Resolve world-count-dependent MPM capacities after command-line overrides."""
+    solver_cfg = _mpm_solver_cfg(cfg)
+    solver_cfg.max_active_cell_count = _resolve_mpm_cell_cap(cfg)
+    if solver_cfg.grid_type == "sparse":
+        world_count = int(cfg.scene.num_envs)
+        solver_cfg.max_lower_node_count = max(32, 32 * world_count)
+        solver_cfg.max_upper_node_count = max(32, (world_count + 1) // 2)
 
 
 @configclass
@@ -262,10 +364,12 @@ class PourSceneCfg(InteractiveSceneCfg):
     }
     robot.actuators["panda_forearm"].damping = {"panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_DAMPING["panda_joint[5-7]"]}
     robot.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
+    robot.init_state.joint_pos.update(dict(zip(_ARM_JOINT_NAMES, _ARM_HOME, strict=True)))
+    robot.init_state.joint_pos["panda_finger_joint.*"] = _GRIPPER_OPEN_POSITION
 
-    source_cup: RigidObjectCfg | None = None
-    target_cup: RigidObjectCfg | None = None
-    media: MPMObjectCfg | None = None
+    source_cup: RigidObjectCfg = _source_cup_asset_cfg()
+    target_cup: RigidObjectCfg = _target_cup_asset_cfg()
+    media: MPMObjectCfg = _media_asset_cfg()
 
 
 @configclass
@@ -443,66 +547,20 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     events: EventsCfg = EventsCfg()
     curriculum: ResetDatasetCurriculumCfg = ResetDatasetCurriculumCfg()
 
-    robot_asset_identity: str = FRANKA_POUR_ROBOT_ASSET_ID
-    robot_physics_payload_sha256: str = FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256
-    robot_physics_override: str = FRANKA_POUR_ROBOT_PHYSICS_OVERRIDE
-
-    arm_home: tuple[float, float, float, float, float, float, float] = (
-        -1.07505691,
-        0.76868522,
-        0.53213346,
-        -2.93226814,
-        2.50670838,
-        1.40047050,
-        0.21146376,
-    )
     tcp_body_name: str = "panda_hand"
     tcp_offset_pos: tuple[float, float, float] = (0.0, 0.0, 0.107)
     tcp_offset_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
-    gripper_open_pos: float = 0.04
-    gripper_preload_pos: float = 0.024
-
-    source_cup_inner_width: float = 0.042
-    source_cup_inner_depth: float = 0.042
-    source_cup_cavity_depth: float = 0.110
-    source_cup_wall_thickness: float = 0.007
-    source_cup_bottom_thickness: float = 0.009
-    source_cup_friction: float = 0.9
-    cup_mass: float = 0.05
-    cup_grasp_box_half: tuple[float, float, float] = (0.028, 0.028, 0.0595)
-    cup_grasp_height: float = 0.083
-    cup_grasp_tcp_quat_c: tuple[float, float, float, float] = (
-        0.0,
-        math.sqrt(0.5),
-        0.0,
-        math.sqrt(0.5),
-    )
-    cup_grasp_box_friction: float = 2.0
     grasp_contact_ke: float = 1.0e5
     grasp_contact_kd: float = 5.0e2
     grasp_contact_kf: float = 1.0e3
-    cup_reset_pos: tuple[float, float, float] = (0.5, 0.0, 0.0)
-
-    target_cup_inner_width: float = 0.140
-    target_cup_inner_depth: float = 0.140
-    target_cup_cavity_depth: float = 0.065
-    target_cup_wall_thickness: float = 0.009
-    target_cup_bottom_thickness: float = 0.009
-    target_cup_friction: float = 0.8
-    target_cup_reset_pos: tuple[float, float, float] = (0.5, -0.18, 0.0)
     collider_margin: float = 0.002
-    source_receiver_clearance: float = 0.001
 
     pour_target_frac: float = 0.70
     particle_count_margin: float = 0.003
     spill_table_height: float = 0.0
     max_spill_fraction: float = 0.10
     success_dwell_time_s: float = 0.15
-    lost_grasp_dwell_time_s: float = 0.05
     success_min_lift_height: float = 0.05
-    success_max_tcp_distance: float = 0.018
-    success_max_gripper_width_error: float = 0.006
-    success_max_gripper_command: float = 0.027
 
     state_bound_joint_position_margin: float = 0.05
     state_bound_max_joint_velocity: float = 20.0
@@ -511,29 +569,9 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     particle_workspace_lower_bound: tuple[float, float, float] = (-1.0, -1.0, -0.5)
     particle_workspace_upper_bound: tuple[float, float, float] = (1.5, 1.0, 1.5)
 
-    media_fill_frac: float = 0.17181818181818181
     particle_max_velocity: float = 10.0
-    media_material: MPMParticleMaterialCfg = MPMParticleMaterialCfg(
-        density=1500.0,
-        friction=0.7,
-        yield_pressure=1.0e12,
-    )
-
-    voxel_size: float = 0.01
-    media_particle_spacing: float = 0.005
-    mpm_iterations: int = 24
-    mpm_tolerance: float = 1.0e-4
-    mpm_collider_margin: float = 0.004
-    mpm_collider_basis: Literal["pic27", "S2"] = "pic27"
-    mpm_collider_velocity_mode: Literal["forward", "backward"] = "forward"
     mpm_cell_capacity_alignment: int = 512
     mpm_cell_cap_override: int | None = None
-    physics_substeps: int = 2
-    rigid_entry_substeps: int = 3
-    mpm_entry_substeps: int = 1
-    proxy_iterations: int = 1
-    proxy_mass_scale: float = 100.0
-    use_cuda_graph: bool = True
 
     reset_dataset_path: str = "datasets/franka_pour/reset_dataset.pt"
     reset_dataset_content_sha256: str | None = FRANKA_POUR_RESET_DATASET_CONTENT_SHA256
@@ -547,11 +585,224 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         kappa=1.0,
         epsilon=1.0e-4,
         uniform_fraction_initial=0.50,
-        # Keep half of all assignments on exact cyclic replay so persistently failing reaching and
-        # grasp-acquisition rows remain represented beside the adaptive competence frontier.
+        # Reserve 50% of assignments for cyclic replay.
         uniform_fraction=0.50,
     )
     curriculum_freeze: bool = False
+
+    @property
+    def arm_home(self) -> tuple[float, ...]:
+        """Canonical arm reset positions [rad]."""
+        return tuple(float(self.scene.robot.init_state.joint_pos[name]) for name in _ARM_JOINT_NAMES)
+
+    @property
+    def gripper_open_pos(self) -> float:
+        """Per-finger open reset position [m]."""
+        return float(self.scene.robot.init_state.joint_pos["panda_finger_joint.*"])
+
+    @property
+    def gripper_preload_pos(self) -> float:
+        """Per-finger preload reset position [m]."""
+        return float(self.actions.gripper_action.default_position)
+
+    @property
+    def source_cup_inner_width(self) -> float:
+        """Source-cup inner width [m]."""
+        return FRANKA_POUR_CUP_GEOMETRY["source_cup_inner_width"]
+
+    @property
+    def source_cup_inner_depth(self) -> float:
+        """Source-cup inner depth [m]."""
+        return FRANKA_POUR_CUP_GEOMETRY["source_cup_inner_depth"]
+
+    @property
+    def source_cup_cavity_depth(self) -> float:
+        """Source-cup cavity depth [m]."""
+        return FRANKA_POUR_CUP_GEOMETRY["source_cup_cavity_depth"]
+
+    @property
+    def source_cup_wall_thickness(self) -> float:
+        """Source-cup wall thickness [m]."""
+        return FRANKA_POUR_CUP_GEOMETRY["source_cup_wall_thickness"]
+
+    @property
+    def source_cup_bottom_thickness(self) -> float:
+        """Source-cup bottom thickness [m]."""
+        return FRANKA_POUR_CUP_GEOMETRY["source_cup_bottom_thickness"]
+
+    @property
+    def target_cup_inner_width(self) -> float:
+        """Receiver inner width [m]."""
+        return FRANKA_POUR_CUP_GEOMETRY["target_cup_inner_width"]
+
+    @property
+    def target_cup_inner_depth(self) -> float:
+        """Receiver inner depth [m]."""
+        return FRANKA_POUR_CUP_GEOMETRY["target_cup_inner_depth"]
+
+    @property
+    def target_cup_cavity_depth(self) -> float:
+        """Receiver cavity depth [m]."""
+        return FRANKA_POUR_CUP_GEOMETRY["target_cup_cavity_depth"]
+
+    @property
+    def target_cup_wall_thickness(self) -> float:
+        """Receiver wall thickness [m]."""
+        return FRANKA_POUR_CUP_GEOMETRY["target_cup_wall_thickness"]
+
+    @property
+    def target_cup_bottom_thickness(self) -> float:
+        """Receiver bottom thickness [m]."""
+        return FRANKA_POUR_CUP_GEOMETRY["target_cup_bottom_thickness"]
+
+    @property
+    def cup_mass(self) -> float:
+        """Source-cup mass [kg]."""
+        return float(self.scene.source_cup.spawn.mass_props.mass)
+
+    @property
+    def cup_grasp_box_half(self) -> tuple[float, float, float]:
+        """Half extents of the source-cup outer envelope [m]."""
+        return (
+            0.5 * self.source_cup_inner_width + self.source_cup_wall_thickness,
+            0.5 * self.source_cup_inner_depth + self.source_cup_wall_thickness,
+            0.5 * (self.source_cup_cavity_depth + self.source_cup_bottom_thickness),
+        )
+
+    @property
+    def cup_grasp_height(self) -> float:
+        """Source-cup grasp-frame height [m]."""
+        return _CUP_GRASP_HEIGHT
+
+    @property
+    def cup_grasp_tcp_quat_c(self) -> tuple[float, float, float, float]:
+        """TCP orientation in the source-cup grasp frame as an xyzw quaternion."""
+        return _CUP_GRASP_TCP_QUAT_C
+
+    @property
+    def cup_grasp_box_friction(self) -> float:
+        """Rigid grasp-proxy friction coefficient."""
+        return float(self.scene.source_cup.spawn.physics_material.static_friction)
+
+    @property
+    def source_cup_friction(self) -> float:
+        """Source-cup particle friction coefficient."""
+        return _SOURCE_CUP_PARTICLE_FRICTION
+
+    @property
+    def target_cup_friction(self) -> float:
+        """Receiver rigid and particle friction coefficient."""
+        return float(self.scene.target_cup.spawn.physics_material.static_friction)
+
+    @property
+    def cup_reset_pos(self) -> tuple[float, float, float]:
+        """Source-cup reset position [m]."""
+        return tuple(float(value) for value in self.scene.source_cup.init_state.pos)
+
+    @property
+    def target_cup_reset_pos(self) -> tuple[float, float, float]:
+        """Receiver reset position [m]."""
+        return tuple(float(value) for value in self.scene.target_cup.init_state.pos)
+
+    @property
+    def media_material(self) -> MPMParticleMaterialCfg:
+        """Particle material authored by :attr:`scene`."""
+        return self.scene.media.spawn.material
+
+    @property
+    def media_particle_spacing(self) -> float:
+        """Initial particle spacing [m]."""
+        return float(self.scene.media.spawn.voxel_size)
+
+    @property
+    def media_fill_frac(self) -> float:
+        """Nominal fraction of source-cup volume requested by the particle layout."""
+        return _MEDIA_FILL_FRACTION
+
+    @property
+    def mpm_collider_margin(self) -> float:
+        """MPM collider margin [m]."""
+        return _MPM_COLLIDER_MARGIN
+
+    @property
+    def voxel_size(self) -> float:
+        """MPM grid voxel size [m]."""
+        return float(_mpm_solver_cfg(self).voxel_size)
+
+    @property
+    def mpm_iterations(self) -> int:
+        """Maximum MPM nonlinear iterations."""
+        return int(_mpm_solver_cfg(self).max_iterations)
+
+    @property
+    def mpm_tolerance(self) -> float:
+        """MPM nonlinear-solver tolerance."""
+        return float(_mpm_solver_cfg(self).tolerance)
+
+    @property
+    def mpm_collider_basis(self) -> str:
+        """MPM collider basis."""
+        return str(_mpm_solver_cfg(self).collider_basis)
+
+    @property
+    def mpm_collider_velocity_mode(self) -> str:
+        """MPM collider velocity mode."""
+        return str(_mpm_solver_cfg(self).collider_velocity_mode)
+
+    @property
+    def physics_substeps(self) -> int:
+        """Coupled Newton substeps per simulation step."""
+        return int(self.sim.physics.num_substeps)
+
+    @property
+    def rigid_entry_substeps(self) -> int:
+        """Rigid-solver substeps per coupled substep."""
+        return int(_resolve_pour_solver_tree(self).arm_entry.substeps)
+
+    @property
+    def mpm_entry_substeps(self) -> int:
+        """MPM-solver substeps per coupled substep."""
+        return int(_resolve_pour_solver_tree(self).media_entry.substeps)
+
+    @property
+    def proxy_iterations(self) -> int:
+        """Rigid-MPM coupling iterations per coupled substep."""
+        return int(_resolve_pour_solver_tree(self).coupled.iterations)
+
+    @property
+    def proxy_mass_scale(self) -> float:
+        """Rigid-to-MPM proxy mass scale."""
+        return float(_resolve_pour_solver_tree(self).proxy.mass_scale)
+
+    @property
+    def use_cuda_graph(self) -> bool:
+        """Whether Newton execution uses CUDA graph capture."""
+        return bool(self.sim.physics.use_cuda_graph)
+
+    @property
+    def source_receiver_clearance(self) -> float:
+        """Minimum source-receiver separation [m]."""
+        return float(self.terminations.source_receiver_overlap.params["clearance"])
+
+    @property
+    def lost_grasp_dwell_time_s(self) -> float:
+        """Lost-grasp dwell time [s]."""
+        return float(self.terminations.lost_grasp.params["dwell_time_s"])
+
+    @property
+    def success_max_tcp_distance(self) -> float:
+        """Maximum TCP-to-grasp distance for a retained grasp [m]."""
+        return float(self.terminations.lost_grasp.params["max_tcp_distance"])
+
+    @property
+    def success_max_gripper_width_error(self) -> float:
+        """Maximum gripper width error for a retained grasp [m]."""
+        return float(self.terminations.lost_grasp.params["max_gripper_width_error"])
+
+    @property
+    def success_max_gripper_command(self) -> float:
+        """Maximum per-finger command for a retained grasp [m]."""
+        return float(self.terminations.lost_grasp.params["max_gripper_command"])
 
     def __post_init__(self):
         """Set the canonical control rate, horizon, viewer, and coupled Newton solver."""
@@ -578,8 +829,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                         solver_cfg=MJWarpSolverCfg(
                             use_mujoco_contacts=False,
                             integrator="implicitfast",
-                            # Contact-rich resets reached 1,994 constraint rows per world in the
-                            # production sweep. Retain bounded headroom without changing nconmax.
+                            # njmax must exceed the maximum per-world constraint count.
                             njmax=2560,
                             nconmax=400,
                         ),
@@ -590,23 +840,23 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                             r"/World/envs/env_.*/TargetCup",
                         ],
                         include_static_shapes=True,
-                        substeps=self.rigid_entry_substeps,
+                        substeps=3,
                     ),
                     CouplerEntryCfg(
                         name=MPM_ENTRY,
                         solver_cfg=MPMSolverCfg(
-                            voxel_size=self.voxel_size,
+                            voxel_size=0.01,
                             grid_type="sparse",
                             grid_padding=0,
                             max_active_cell_count=-1,
                             strain_basis="P0",
                             transfer_scheme="apic",
-                            max_iterations=self.mpm_iterations,
-                            tolerance=self.mpm_tolerance,
+                            max_iterations=24,
+                            tolerance=1.0e-4,
                             warmstart_mode="none",
                             velocity_basis="Q1",
-                            collider_basis=self.mpm_collider_basis,
-                            collider_velocity_mode=self.mpm_collider_velocity_mode,
+                            collider_basis="pic27",
+                            collider_velocity_mode="forward",
                             solver="jacobi",
                             separate_worlds=True,
                         ),
@@ -614,7 +864,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                         bodies=[SPILL_FLOOR_LABEL_PATTERN],
                         include_static_shapes=False,
                         include_child_joints=False,
-                        substeps=self.mpm_entry_substeps,
+                        substeps=1,
                         in_place=True,
                     ),
                 ],
@@ -623,65 +873,21 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                         source=RIGID_ENTRY,
                         destination=MPM_ENTRY,
                         bodies=[r"/World/envs/env_.*/SourceCup", r"/World/envs/env_.*/TargetCup"],
-                        mass_scale=self.proxy_mass_scale,
+                        mass_scale=100.0,
                         # Synchronize MPM colliders from the rigid solver's end pose so particle
                         # reactions do not lag behind a cup resting on the table.
                         mode="staggered",
                         collision_pipeline=None,
                     )
                 ],
-                iterations=self.proxy_iterations,
+                iterations=1,
             ),
             collision_cfg=NewtonCollisionPipelineCfg(soft_contact_max=0),
-            num_substeps=self.physics_substeps,
-            use_cuda_graph=self.use_cuda_graph,
+            num_substeps=2,
+            use_cuda_graph=True,
         )
-        self._synchronize_mdp_cfg()
-        self._apply_robot_cfg()
-        self._validate_values()
 
-    def _synchronize_mdp_cfg(self) -> None:
-        """Propagate task geometry and safety overrides into manager terms."""
-        lost_grasp = self.terminations.lost_grasp.params
-        lost_grasp.update(
-            {
-                "dwell_time_s": self.lost_grasp_dwell_time_s,
-                "max_tcp_distance": self.success_max_tcp_distance,
-                "max_gripper_width_error": self.success_max_gripper_width_error,
-                "max_gripper_command": self.success_max_gripper_command,
-                "terminate": False,
-            }
-        )
-        self.terminations.source_receiver_overlap.params["clearance"] = self.source_receiver_clearance
-        self.terminations.spill.params["terminate"] = True
-        self.terminations.success.params = {}
-        progress = self.terminations.learning_progress_context.params["potential_params"]
-        progress["grasp_preload_position"] = self.gripper_preload_pos
-        progress["source_mouth_height"] = self.source_cup_bottom_thickness + self.source_cup_cavity_depth
-        progress["target_rim_height"] = self.target_cup_bottom_thickness + self.target_cup_cavity_depth
-
-    def _apply_robot_cfg(self) -> None:
-        """Apply the final robot reset positions."""
-        arm_joint_names = [f"panda_joint{index}" for index in range(1, 8)]
-        self.scene.robot.init_state.joint_pos.update(dict(zip(arm_joint_names, self.arm_home, strict=True)))
-        self.scene.robot.init_state.joint_pos["panda_finger_joint.*"] = self.gripper_open_pos
-
-    def _apply_solver_cfg_overrides(self) -> None:
-        """Apply top-level Hydra overrides to the constructed solver tree."""
-        solver = _resolve_pour_solver_tree(self)
-        solver.media_solver.voxel_size = self.voxel_size
-        solver.media_solver.max_iterations = self.mpm_iterations
-        solver.media_solver.tolerance = self.mpm_tolerance
-        solver.media_solver.collider_basis = self.mpm_collider_basis
-        solver.media_solver.collider_velocity_mode = self.mpm_collider_velocity_mode
-        solver.arm_entry.substeps = self.rigid_entry_substeps
-        solver.media_entry.substeps = self.mpm_entry_substeps
-        solver.coupled.iterations = self.proxy_iterations
-        solver.proxy.mass_scale = self.proxy_mass_scale
-        self.sim.physics.num_substeps = self.physics_substeps
-        self.sim.physics.use_cuda_graph = self.use_cuda_graph
-
-    def _validate_values(self) -> None:
+    def validate_config(self) -> None:
         """Validate the physical, control, task, and reset-dataset configuration."""
         self._validate_physics_values()
         self._validate_action_values()
@@ -745,20 +951,11 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         if not isinstance(self.use_cuda_graph, bool):
             raise TypeError("use_cuda_graph must be a bool.")
 
-        for name, authored_value in FRANKA_POUR_CUP_GEOMETRY.items():
-            if not math.isclose(float(getattr(self, name)), authored_value, rel_tol=0.0, abs_tol=1.0e-9):
-                raise ValueError(f"{name} must match the geometry authored in FRANKA_POUR_CUPS_USD_PATH.")
-
         source_outer = (
             self.source_cup_inner_width + 2.0 * self.source_cup_wall_thickness,
             self.source_cup_inner_depth + 2.0 * self.source_cup_wall_thickness,
             self.source_cup_cavity_depth + self.source_cup_bottom_thickness,
         )
-        if len(self.cup_grasp_box_half) != 3 or any(
-            not math.isclose(half, 0.5 * outer, rel_tol=0.0, abs_tol=1.0e-9)
-            for half, outer in zip(self.cup_grasp_box_half, source_outer, strict=True)
-        ):
-            raise ValueError("cup_grasp_box_half must match the source-cup outer envelope.")
         if not self.source_cup_bottom_thickness < self.cup_grasp_height < source_outer[2]:
             raise ValueError("cup_grasp_height must lie above the source bottom and below its rim.")
         if len(self.cup_grasp_tcp_quat_c) != 4 or not math.isclose(
@@ -770,7 +967,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         """Validate the task action contract."""
         arm_action = self.actions.arm_action
         gripper_action = self.actions.gripper_action
-        if arm_action.joint_names != [f"panda_joint{index}" for index in range(1, 8)]:
+        if tuple(arm_action.joint_names) != _ARM_JOINT_NAMES:
             raise ValueError("arm_action must preserve the canonical seven-joint order.")
         if not math.isfinite(float(arm_action.alpha)) or not 0.0 < float(arm_action.alpha) <= 1.0:
             raise ValueError("arm_action alpha must lie in (0, 1].")
@@ -847,55 +1044,6 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
             raise TypeError("curriculum_freeze must be a bool.")
         self.reset_dataset_sampler.validate_values()
 
-    def finalize(self) -> FrankaPourResetDatasetEnvCfg:
-        """Return an independent configuration with scene assets and capacities resolved."""
-        resolved = deepcopy(self)
-        resolved.sim.render_interval = resolved.decimation
-        resolved._apply_solver_cfg_overrides()
-        resolved._synchronize_mdp_cfg()
-        resolved._apply_robot_cfg()
-        resolved._validate_values()
-
-        resolved.scene.source_cup = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/SourceCup",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=resolved.cup_reset_pos, rot=(0.0, 0.0, 0.0, 1.0)),
-            spawn=UsdFileCfg(
-                usd_path=FRANKA_POUR_CUPS_USD_PATH,
-                variants={"cupType": "source"},
-                mass_props=MassCfg(mass=resolved.cup_mass),
-                rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=False),
-                physics_material=RigidBodyMaterialBaseCfg(
-                    static_friction=resolved.cup_grasp_box_friction,
-                    dynamic_friction=resolved.cup_grasp_box_friction,
-                ),
-            ),
-        )
-        resolved.scene.target_cup = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/TargetCup",
-            init_state=RigidObjectCfg.InitialStateCfg(
-                pos=resolved.target_cup_reset_pos,
-                rot=(0.0, 0.0, 0.0, 1.0),
-            ),
-            spawn=UsdFileCfg(
-                usd_path=FRANKA_POUR_CUPS_USD_PATH,
-                variants={"cupType": "target"},
-                rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
-                physics_material=RigidBodyMaterialBaseCfg(
-                    static_friction=resolved.target_cup_friction,
-                    dynamic_friction=resolved.target_cup_friction,
-                ),
-            ),
-        )
-        resolved.scene.media = build_media_object_cfg(resolved, resolved.cup_reset_pos, (0.0, 0.0, 0.0, 1.0))
-
-        mpm_solver = _mpm_solver_cfg(resolved)
-        mpm_solver.max_active_cell_count = _resolve_mpm_cell_cap(resolved)
-        if mpm_solver.grid_type == "sparse":
-            world_count = int(resolved.scene.num_envs)
-            mpm_solver.max_lower_node_count = max(32, 32 * world_count)
-            mpm_solver.max_upper_node_count = max(32, (world_count + 1) // 2)
-        return resolved
-
     def play_mode(self) -> None:
         """Configure frozen single-world dataset playback."""
         from isaaclab_visualizers.kit import KitVisualizerCfg
@@ -959,12 +1107,12 @@ def _reset_dataset_task_contract(cfg: FrankaPourResetDatasetEnvCfg) -> dict[str,
     particle_spacing = float(cfg.media_particle_spacing)
 
     return {
-        "robot_asset": str(cfg.robot_asset_identity),
-        "robot_physics_payload_sha256": str(cfg.robot_physics_payload_sha256),
-        "robot_physics_override": str(cfg.robot_physics_override),
+        "robot_asset": FRANKA_POUR_ROBOT_ASSET_ID,
+        "robot_physics_payload_sha256": FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256,
+        "robot_physics_override": FRANKA_POUR_ROBOT_PHYSICS_OVERRIDE,
         "use_newton_actuators": bool(cfg.sim.use_newton_actuators),
-        "robot_arm_drive_stiffness": (1000.0, 1000.0, 750.0, 750.0, 300.0, 300.0, 300.0),
-        "robot_arm_drive_damping": (20.0, 20.0, 4.0, 4.0, 2.0, 2.0, 2.0),
+        "robot_arm_drive_stiffness": _expand_arm_drive_contract(FRANKA_POUR_ARM_DRIVE_STIFFNESS),
+        "robot_arm_drive_damping": _expand_arm_drive_contract(FRANKA_POUR_ARM_DRIVE_DAMPING),
         "source_box_half": source_half,
         "source_mouth_height": float(cfg.source_cup_bottom_thickness + cfg.source_cup_cavity_depth),
         "target_box_half": target_half,
@@ -1042,7 +1190,7 @@ def _reset_dataset_task_contract(cfg: FrankaPourResetDatasetEnvCfg) -> dict[str,
         "success_max_gripper_command": float(cfg.success_max_gripper_command),
         "pour_target_fraction": float(cfg.pour_target_frac),
         "maximum_spill_fraction": float(cfg.max_spill_fraction),
-        "particle_count": media_particle_count(cfg),
+        "particle_count": media_particle_count(cfg.scene.media),
         "particle_spacing": particle_spacing,
         "particle_mass": particle_spacing**3 * float(material.density),
         "particle_radius": 0.5 * particle_spacing,

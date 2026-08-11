@@ -194,6 +194,16 @@ def particle_fractions_obs(env: FrankaPourEnv) -> torch.Tensor:
     return torch.stack((source, target, spilled), dim=-1)
 
 
+def _masked_particle_moments(env: FrankaPourEnv, mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Return particle centroid, mean velocity, and count for each masked environment."""
+    weight = mask.unsqueeze(-1).to(dtype=torch.float32)
+    count = weight.sum(dim=1)
+    denominator = count.clamp_min(1.0)
+    centroid = (env.particle_pos_e() * weight).sum(dim=1) / denominator
+    velocity = (env.particle_vel_e() * weight).sum(dim=1) / denominator
+    return centroid, velocity, count
+
+
 def particle_source_state_obs(env: FrankaPourEnv) -> torch.Tensor:
     """Source-contained media centroid and relative velocity in the source-cup frame.
 
@@ -202,11 +212,7 @@ def particle_source_state_obs(env: FrankaPourEnv) -> torch.Tensor:
     normalized by 2 m/s. Both vectors are zero when the source cup contains no particles.
     """
     source = env.particle_region_masks()[0]
-    weight = source.unsqueeze(-1).to(dtype=torch.float32)
-    count = weight.sum(dim=1)
-    denominator = count.clamp_min(1.0)
-    centroid = (env.particle_pos_e() * weight).sum(dim=1) / denominator
-    velocity = (env.particle_vel_e() * weight).sum(dim=1) / denominator
+    centroid, velocity, count = _masked_particle_moments(env, source)
 
     cup_pose = env.cup_pose_e()
     centroid_offset = centroid - cup_pose[:, :3]
@@ -232,11 +238,7 @@ def particle_transfer_obs(env: FrankaPourEnv) -> torch.Tensor:
     """
     source, target, spilled = env.particle_region_masks()
     airborne = ~(source | target | spilled)
-    weight = airborne.unsqueeze(-1).to(dtype=torch.float32)
-    count = weight.sum(dim=1)
-    denominator = count.clamp_min(1.0)
-    centroid = (env.particle_pos_e() * weight).sum(dim=1) / denominator
-    velocity = (env.particle_vel_e() * weight).sum(dim=1) / denominator
+    centroid, velocity, count = _masked_particle_moments(env, airborne)
     receiver_pose = env.target_pose_e()
     centroid_relative = math_utils.quat_apply_inverse(
         receiver_pose[:, 3:7],

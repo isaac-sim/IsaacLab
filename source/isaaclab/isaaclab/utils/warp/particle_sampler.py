@@ -3,25 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sampling particles inside mesh volumes and hollow cavities using Warp point-mesh queries.
-
-This module provides two fast, solver-agnostic samplers that fill space with a regular (optionally
-jittered) particle lattice. In both cases a candidate lattice is generated over the mesh AABB and
-every candidate is tested on the selected Warp device with BVH-accelerated queries, so empty space
-outside the bounding box is never tested. The cost is ``O(num_candidates)`` queries, each
-``O(log(num_faces))``.
-
-* :func:`sample_particles_in_mesh` fills the *solid interior* of a triangle mesh, using the
-  generalized winding-number sign test (:func:`warp.mesh_query_point_sign_winding_number`). This is
-  intended for **solid, closed** assets; open or non-watertight inputs can produce geometry-dependent
-  classifications.
-* :func:`sample_particles_in_cavity` heuristically fills the *enclosed air cavity* of a consistently
-  oriented, closed, double-walled shell such as the Utah teapot. A winding-number fill of such an
-  asset only fills the thin wall material, so instead each candidate is kept when it is (a) *not*
-  inside the wall material and (b) surrounded along most axis-aligned rays
-  (:func:`warp.mesh_query_ray`). This ray test is not a general topological enclosure test for open
-  vessels or arbitrary concave meshes.
-"""
+"""Sample particle lattices inside solid mesh volumes and hollow mesh cavities."""
 
 from __future__ import annotations
 

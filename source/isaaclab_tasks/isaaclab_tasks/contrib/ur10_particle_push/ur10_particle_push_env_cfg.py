@@ -46,25 +46,17 @@ MPM_ENTRY = "media"
 MPM_VOXEL_SIZE = 0.025
 MPM_COLLIDER_MARGIN = 0.5 * MPM_VOXEL_SIZE
 MPM_PARTICLES_PER_CELL = 2.0
-# Newton's granular examples use a jitter range equal to one sample spacing, which
-# displaces each point by up to half a cell. Retain a small stratification guard so
-# neighboring samples cannot cross cell boundaries during randomized resets.
+# Limit jitter to 45% of sample spacing so particles remain in their original lattice cells.
 MPM_RESET_JITTER_FRACTION = 0.45
 MPM_VISUAL_COLOR = (0.83, 0.60, 0.22)
 PUSH_ACTION_DIM = 6
-PUSH_POLICY_OBSERVATION_DIM = 31
-PUSH_CRITIC_OBSERVATION_DIM = 11
 
-# These conservative per-world floors retain spread headroom for the capacity-bounded
-# rebuildable grid. Small evaluation runs retain 32 total upper nodes even when a linear
-# per-world reservation would be smaller.
+# Enforce a per-world lower-node minimum and a 32-node total upper minimum.
 SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD = 1 << 6
 SPARSE_MPM_MIN_UPPER_NODES_PER_WORLD = 1
 SPARSE_MPM_MIN_TOTAL_UPPER_NODE_COUNT = 1 << 5
 
-# All task geometry is specified once and reused for the visible MPM colliders, the hidden rigid
-# collision mirror, paddle safety checks, and tests. This prevents a visually plausible bin from
-# silently disagreeing with either subsolver.
+# Shared source of truth for the visible MPM and hidden rigid solver geometry.
 WORK_SURFACE_SIZE = (1.28, 0.91, 0.04)
 WORK_SURFACE_POSITION = (0.3939, 0.0, -0.02)
 MPM_GROUND_SIZE = (2.60, 2.60, 0.10)
@@ -86,29 +78,20 @@ BIN_INNER_Y_BOUNDS = (
     BIN_FLOOR_POSITION[1] - 0.5 * BIN_FLOOR_SIZE[1],
     BIN_FLOOR_POSITION[1] + 0.5 * BIN_FLOOR_SIZE[1],
 )
-# A narrow blade requires lateral correction to cover the nominal 0.40 m-wide pile.
 PADDLE_SIZE = (0.34, 0.24, 0.04)
 PADDLE_OFFSET = (0.5 * PADDLE_SIZE[0] + 0.02, 0.0, 0.0)
 PADDLE_MASS = 1.0
 PADDLE_CONTACT_MARGIN = 0.4 * MPM_VOXEL_SIZE
-# The vertical blade starts with its lower edge exactly one table-plus-paddle MPM margin above the
-# work surface. Newton MPM consumes shape margins but not rigid contact gaps, so the collision
-# bands meet without overlap while the blade engages the complete supported pile.
-# Reset roughly 70 mm behind the nominal trailing pile face. This removes an uninformative
-# empty-space reach while leaving randomized clearance before first particle contact.
+# The blade starts one combined MPM margin above the support surface and clear of the pile.
 PADDLE_RESET_CENTER = (
-    0.36,
+    0.42,
     0.0,
     0.5 * PADDLE_SIZE[0] + MPM_COLLIDER_MARGIN + PADDLE_CONTACT_MARGIN,
 )
-PILE_NOMINAL_CENTER = (0.60, 0.0, 0.0)
+PILE_NOMINAL_CENTER = (0.67, 0.0, 0.0)
 
-# Two material samples per grid-cell axis retain useful sub-voxel quadrature without paying the
-# 3.375x particle cost of three samples per axis. A broad, shallow 24 x 32 x 8 lattice holds
-# 6,144 particles: essentially the former particle cost, but with a realistic sweep footprint.
-# Every reset repacks this same material volume. The volume-equivalent radius keeps Newton's
-# ``8 * radius**3`` volume consistent with each sample.
-PILE_LOCAL_SIZE = (0.299999, 0.399999, 0.099999)
+# Particle volume equals one lattice-cell volume; radius follows Newton's ``8 * radius**3`` convention.
+PILE_LOCAL_SIZE = (0.274999, 0.349999, 0.099999)
 PILE_LATTICE_RESOLUTION = tuple(
     math.ceil(MPM_PARTICLES_PER_CELL * extent / MPM_VOXEL_SIZE) for extent in PILE_LOCAL_SIZE
 )
@@ -337,7 +320,6 @@ def _static_collision_box(
 class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
     """Official workcell plus aligned MPM and rigid work-surface/bin collision."""
 
-    # This is the same SeattleLab workbench placement used by Isaac Lab's manipulation tasks.
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(
@@ -363,18 +345,13 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
 
     robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot.init_state.joint_pos = dict(zip(UR10_JOINT_NAMES, UR10_PUSH_HOME, strict=True))
-    # The stock gains visibly yield under a broad granular blade. Preserve the official USD,
-    # inertia, joint limits, and effort cap while matching a stiff industrial position loop.
+    # Override arm drive gains; preserve the USD inertia, limits, and effort cap.
     robot.actuators["arm"].stiffness = 2400.0
     robot.actuators["arm"].damping = 70.0
-    # A real UR controller compensates gravity while tracking joint-position targets. Author the
-    # equivalent MuJoCo property declaratively instead of injecting task-level effort commands.
+    # Enable actuator gravity compensation in MuJoCo; do not add task-level effort commands.
     robot.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
 
-    # A mass-bearing paddle is welded to the official UR10's terminal rigid body. Its local X
-    # dimension is vertical at the reset pose and local Z is the pushing normal. Keep collision
-    # and visual geometry separate so standalone viewers can hide the collider without hiding the
-    # visible tool.
+    # Weld the paddle to ee_link; separate collision and visual geometry for independent visibility.
     paddle = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Robot/ee_link/Paddle",
         init_state=AssetBaseCfg.InitialStateCfg(pos=PADDLE_OFFSET),
@@ -491,8 +468,7 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Media",
         init_state=MPMObjectCfg.InitialStateCfg(pos=PILE_NOMINAL_CENTER),
         spawn=MPMGridCfg(
-            # Cell-centered emission avoids the boundary overcount in Newton's historical public
-            # examples. The lowest centers lie exactly on the expanded table support plane.
+            # Emit cell centers so the lowest layer lies on the expanded support plane.
             lower=PILE_LOCAL_LOWER,
             upper=PILE_LOCAL_UPPER,
             voxel_size=MPM_VOXEL_SIZE,
@@ -503,7 +479,6 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
             jitter=0.0,
             radius=MPM_PARTICLE_RADIUS,
             material=MPMParticleMaterialCfg(
-                # Use a realistic lightweight-pellet bulk density for safe UR10 manipulation.
                 density=300.0,
                 friction=0.7,
                 yield_pressure=1.0e12,
@@ -517,8 +492,7 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """One bounded relative-position command for the six UR10 arm joints."""
 
-    # These offsets let the stiff position loop reach the UR10 effort limit without commanding a
-    # discontinuous absolute pose. The action term snapshots one target per policy step.
+    # Snapshot one relative joint target per policy step.
     arm_action = mdp.ClampedRelativeJointPositionActionCfg(
         asset_name="robot",
         joint_names=list(UR10_JOINT_NAMES),
@@ -578,7 +552,6 @@ class RewardsCfg:
     success = RewTerm(func=mdp.success_event, weight=2.0)
     bin_progress = RewTerm(func=mdp.BinProgressReward, weight=1.50)
     transport_progress = RewTerm(func=mdp.TransportProgressReward, weight=0.15)
-    paddle_reach = RewTerm(func=mdp.PaddleReachProgressReward, weight=0.25)
     spill = RewTerm(func=mdp.spill_fraction, weight=-0.20)
     failure = RewTerm(func=mdp.failure_event, weight=-2.0)
     action_magnitude = RewTerm(func=mdp.action_magnitude, weight=-0.10)
@@ -598,16 +571,16 @@ class TerminationsCfg:
 
 @configclass
 class EventsCfg:
-    """Reset the robot and fixed granular payload after curriculum selection."""
+    """Domain randomization events."""
 
-    reset_scene = EventTerm(func=mdp.reset_push_scene, mode="reset")
+    randomize_robot_and_pile = EventTerm(func=mdp.randomize_push_scene, mode="reset")
 
 
 @configclass
 class CurriculumCfg:
-    """Outcome-driven reverse curriculum over the reset families."""
+    """Competence-based expansion of the single-push reset distribution."""
 
-    task_levels = CurrTerm(func=mdp.PushCurriculum)
+    reset_randomization = CurrTerm(func=mdp.SinglePushCurriculum, params={"initial_level": 0})
 
 
 @configclass
@@ -615,19 +588,15 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based, relative-joint-control UR10 particle-pushing task."""
 
     decimation = 2
-    # An 18 s horizon leaves time for approach, multiple corrective sweeps, and the success dwell
-    # while producing curriculum outcomes substantially more often than the former 30 s episodes.
-    episode_length_s = 18.0
+    # One approach and sweep comfortably fits within this horizon.
+    episode_length_s = 12.0
     # Treat the deadline as a training truncation. The actor has no remaining-time observation,
     # so assigning a hidden finite-horizon terminal value would make the value function non-Markov.
     is_finite_horizon = False
-    # A 20 mm image grid resolves the 25 mm MPM grid over the 1.00 m y by 1.71 m x
-    # camera workspace. Channels contain the current and four-policy-step-old surfaces plus a
-    # fixed bin-region mask that is reproducible from camera calibration.
+    # 50 x 86 cells at 20 mm resolution; channels are current surface, delayed surface, and bin mask.
     heightmap_shape: tuple[int, int] = (50, 86)
     heightmap_history_steps: int = 4
     scene: UR10ParticlePushSceneCfg = UR10ParticlePushSceneCfg(
-        # Runtime count should be selected from measured sparse-MPM throughput and memory headroom.
         num_envs=64,
         env_spacing=3.0,
         replicate_physics=True,
@@ -646,66 +615,35 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     paddle_size: tuple[float, float, float] = PADDLE_SIZE
     paddle_reset_center: tuple[float, float, float] = PADDLE_RESET_CENTER
     pile_nominal_center: tuple[float, float, float] = PILE_NOMINAL_CENTER
-    # Pack the fixed particle population into visibly different, volume-preserving shapes. Each
-    # profile is ``(vertical cells, footprint X/Y aspect ratio)``; sample spacing, material volume,
-    # density, and PPC remain unchanged. Playback cycles profiles, while training samples them.
+    # Pack the fixed particle population into compact, volume-preserving shapes. Each profile is
+    # ``(vertical cells, footprint X/Y aspect ratio)``. Their average width is close to the blade,
+    # so one coordinated sweep is sufficient while shape variation remains observable.
     reset_source_shape_profiles: tuple[tuple[int, float], ...] = (
-        (12, 0.40),  # tall, laterally wide
-        (10, 0.75),  # compact mound
-        (8, 0.75),  # nominal broad pile
-        (8, 1.50),  # deep, laterally narrow
-        (10, 2.00),  # compact deep ridge
+        (12, 1.00),
+        (14, 0.75),
+        (14, 1.25),
     )
-    # Particle transforms are sampled continuously; a small startup-only pose bank supplies
-    # canonical-branch, collision-screened robot starts.
+    # The reset event samples a startup-only bank of collision-screened robot starts. Successful
+    # environments advance immediately from a nearby pile to the full reset distribution. Every
+    # level remains the same one-pile, one-sweep task and keeps all particles outside the bin.
+    reset_pile_center_x: tuple[float, ...] = (0.78, 0.72, PILE_NOMINAL_CENTER[0])
+    reset_randomization_scales: tuple[float, ...] = (0.35, 0.65, 1.0)
     reset_seed: int = 17
-    reset_pose_count: int = 200
+    reset_pose_count: int = 192
     reset_cycle: bool = False
-    # Optional deterministic curriculum-level sequence for inspection and evaluation. Training
-    # leaves this disabled and advances levels only from completed-episode outcomes.
-    reset_curriculum_level_cycle: tuple[int, ...] | None = None
-    # Use asymmetric longitudinal bounds: deployment material can begin much farther from the bin,
-    # while the positive bound keeps it clear of the front-wall coupling margin. Single piles can
-    # use more table width than split piles, whose fixed side-to-side separation already provides
-    # substantial lateral variation.
-    reset_particle_longitudinal_offset_range: tuple[float, float] = (-0.18, 0.08)
-    reset_particle_max_lateral_offset: float = 0.20
-    reset_particle_split_max_lateral_offset: float = 0.12
-    reset_particle_max_yaw: float = 0.30
-    # Randomize each point through 90 percent of its lattice cell (up to 45 percent of the sample
-    # spacing in either direction). This matches the scale used by Newton's granular examples while
-    # keeping samples in their original strata. The support correction keeps the lowest point on
-    # the table margin.
-    reset_particle_jitter: float = MPM_RESET_JITTER_FRACTION * min(PILE_LATTICE_CELL_SIZE)
-    reset_paddle_longitudinal_offset_range: tuple[float, float] = (-0.12, 0.06)
+    # Randomize the robot in task space, then sample the pile relative to the paddle. This keeps
+    # every reset immediately useful for learning while covering a broad region of the table.
+    reset_paddle_longitudinal_offset_range: tuple[float, float] = (-0.08, 0.08)
     reset_paddle_max_lateral_offset: float = 0.16
-    reset_paddle_split_max_lateral_offset: float = 0.09
-    reset_paddle_max_yaw: float = 0.35
-    reset_particle_paddle_residual_half_range: tuple[float, float] = (0.06, 0.05)
-    # Post-first-sweep resets start the paddle near the bin on the completed pile's side, forcing
-    # the policy to withdraw and cross to the remaining pile before it can make progress.
-    post_first_sweep_paddle_center_x: float = BIN_INNER_X_BOUNDS[0] - 0.08
-    post_first_sweep_paddle_longitudinal_offset_range: tuple[float, float] = (-0.04, 0.02)
-    post_first_sweep_paddle_max_lateral_offset: float = 0.04
+    reset_paddle_max_yaw: float = 0.25
+    reset_pile_paddle_distance_range: tuple[float, float] = (0.225, 0.285)
+    reset_pile_paddle_lateral_offset_range: tuple[float, float] = (-0.06, 0.06)
+    reset_particle_max_yaw: float = 0.20
+    reset_particle_jitter: float = MPM_RESET_JITTER_FRACTION * min(PILE_LATTICE_CELL_SIZE)
     reset_ik_seeds: int = 64
     reset_ik_iterations: int = 96
     reset_ik_noise_std: float = 0.25
     reset_ik_max_cost: float = 1.0e-3
-
-    # Reverse curriculum with one invariant 80% terminal objective. Early resets place a settled
-    # fraction in the bin and expose only a small residual pile. Levels three through five initialize
-    # the post-first-sweep transition: one side is already delivered, the opposite pile remains,
-    # and the paddle starts beside the bin on the completed side. Later levels restore the full
-    # two-pile sequence before the final single broad deployment pile.
-    curriculum_pile_center_x: tuple[float, ...] = (0.80, 0.77, 0.77, 0.74, 0.71, 0.68, 0.65, 0.63, 0.605, 0.60)
-    curriculum_initial_bin_fraction: tuple[float, ...] = (0.79, 0.76, 0.72, 0.77, 0.71, 0.64, 0.54, 0.42, 0.16, 0.0)
-    curriculum_source_pile_count: tuple[int, ...] = (1, 1, 2, 1, 1, 1, 2, 2, 2, 1)
-    curriculum_source_lateral_offset: tuple[float, ...] = (0.0, 0.0, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.0)
-    curriculum_post_first_sweep: tuple[bool, ...] = (False, False, False, True, True, True, False, False, False, False)
-    curriculum_randomization_scale: tuple[float, ...] = (0.40, 0.48, 0.56, 0.64, 0.72, 0.79, 0.85, 0.91, 0.96, 1.00)
-    curriculum_successes_to_promote: int = 2
-    curriculum_failures_to_demote: int = 3
-    curriculum_level_override: int | None = None
     # Keep the leading particle safely behind the expanded bin-front collision band.
     reset_bin_clearance: float = 0.01
 
@@ -713,9 +651,8 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     # overhead camera without exposing simulator-only particle identities to the actor.
     heightmap_x_bounds: tuple[float, float] = (-0.25, 1.46)
     heightmap_y_bounds: tuple[float, float] = (-0.50, 0.50)
-    # Preserve contrast across the physical bin floor, table pile, and ordinary airborne grains.
     heightmap_z_min: float = -0.20
-    heightmap_z_range: float = 0.38
+    heightmap_z_range: float = 0.40
     heightmap_depth_noise_std: float = 0.004
     heightmap_xy_noise_std: float = 0.003
     heightmap_dropout_probability: float = 0.01
@@ -726,20 +663,16 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     # compressed bottom layer remains part of the successful payload.
     bin_inner_z_bounds: tuple[float, float] = (-0.186, 0.09)
     bin_physical_z_bounds: tuple[float, float] = (-0.186, 0.12)
-    success_fraction: float = 0.80
+    success_fraction: float = 0.60
     success_max_spill_fraction: float = 0.02
-    # Success remains strict, while only a clearly unrecoverable spill ends exploration.
     failure_max_spill_fraction: float = 0.20
     # Settled-quality reference for privileged diagnostics and the physical validator. Terminal
-    # success uses sustained bin occupancy instead: global RMS includes the undelivered source
-    # pile and would incorrectly veto partial-curriculum deliveries.
+    # success uses sustained bin occupancy so remaining source particles do not veto delivery.
     success_max_rms_particle_speed: float = 0.12
     success_dwell_time_s: float = 0.30
     particle_workspace_lower_bound: tuple[float, float, float] = (-0.30, -0.60, -0.35)
     particle_workspace_upper_bound: tuple[float, float, float] = (1.50, 0.60, 0.80)
-    # Match the physical 2% success spill tolerance. This is a sparse-topology safety bound rather
-    # than an objective-reachability condition: retaining runaway particles can expand the
-    # NanoVDB hierarchy indefinitely.
+    # Terminate when escaped particles exceed 2% to bound sparse-grid growth.
     max_escaped_particle_fraction: float = 0.02
     # Bound numerical velocity outliers before they can cross many sparse-grid regions.
     particle_max_velocity: float = 10.0
@@ -749,17 +682,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     state_bound_max_joint_velocity: float = 20.0
     state_bound_max_ee_linear_velocity: float = 10.0
     state_bound_max_ee_angular_velocity: float = 50.0
-    paddle_reach_distance: float = 0.15
-    # Saturate only after the blade has crossed two MPM voxels into the nominal pile envelope,
-    # ensuring the exploration bridge includes first contact rather than stopping just before it.
-    paddle_reach_contact_depth: float = 0.04
-    paddle_lateral_alignment_distance: float = 0.25
-    paddle_vertical_alignment_distance: float = 0.08
-    multi_push_first_sweep_delivery_fraction: float = 0.90
-    multi_push_second_delivery_fraction: float = 0.05
-    multi_push_reach_threshold: float = 0.80
-    # Active sparse-grid capacity follows occupied solver cells, not the raw 6,144-particle count.
-    # The 3,072-cell reservation retains measured PIC27 spread headroom without using a dense grid.
+    # Reserve active sparse-grid cells per world, independent of particle count.
     mpm_active_cell_count_per_world: int = 3072
     mpm_leaf_node_count_per_world: int = 1 << 9
     mpm_lower_node_count_per_world: int = SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD
@@ -785,8 +708,24 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         particle_radius = self.scene.media.spawn.radius
         if particle_radius is None or not math.isfinite(particle_radius) or particle_radius <= 0.0:
             raise ValueError("UR10 Push requires an explicit positive particle radius.")
-        if self.reset_pose_count < 1:
-            raise ValueError("reset_pose_count must be positive.")
+        level_count = len(self.reset_randomization_scales)
+        if level_count < 2 or len(self.reset_pile_center_x) != level_count:
+            raise ValueError("The reset curriculum must contain matching center and scale sequences.")
+        if self.reset_pose_count < level_count or self.reset_pose_count % level_count != 0:
+            raise ValueError("reset_pose_count must be positive and divisible by the reset curriculum level count.")
+        if (
+            any(not math.isfinite(value) for value in self.reset_pile_center_x)
+            or any(not math.isfinite(value) or not 0.0 < value <= 1.0 for value in self.reset_randomization_scales)
+            or any(
+                current >= following
+                for current, following in zip(
+                    self.reset_randomization_scales,
+                    self.reset_randomization_scales[1:],
+                )
+            )
+            or not math.isclose(self.reset_randomization_scales[-1], 1.0)
+        ):
+            raise ValueError("Reset scales must be finite, strictly increasing values in (0, 1] ending at one.")
 
         centers = (*self.paddle_reset_center, *self.pile_nominal_center)
         if (
@@ -795,42 +734,54 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
             or not all(math.isfinite(value) for value in centers)
         ):
             raise ValueError("Paddle and pile reset centers must contain three finite coordinates.")
-        longitudinal_ranges = (
-            self.reset_particle_longitudinal_offset_range,
-            self.reset_paddle_longitudinal_offset_range,
-        )
-        if any(
-            len(bounds) != 2 or not all(math.isfinite(value) for value in bounds) or not bounds[0] <= 0.0 <= bounds[1]
-            for bounds in longitudinal_ranges
+        if (
+            len(self.reset_paddle_longitudinal_offset_range) != 2
+            or not all(math.isfinite(value) for value in self.reset_paddle_longitudinal_offset_range)
+            or not self.reset_paddle_longitudinal_offset_range[0]
+            <= 0.0
+            <= self.reset_paddle_longitudinal_offset_range[1]
         ):
-            raise ValueError("Reset longitudinal ranges must be finite ordered intervals containing zero.")
-        if len(self.reset_particle_paddle_residual_half_range) != 2:
-            raise ValueError("reset_particle_paddle_residual_half_range must contain two values.")
+            raise ValueError("The paddle longitudinal range must be finite, ordered, and contain zero.")
+        if (
+            len(self.reset_pile_paddle_distance_range) != 2
+            or not all(math.isfinite(value) for value in self.reset_pile_paddle_distance_range)
+            or not 0.0 < self.reset_pile_paddle_distance_range[0] <= self.reset_pile_paddle_distance_range[1]
+        ):
+            raise ValueError("The pile-to-paddle distance range must be finite, positive, and ordered.")
+        if (
+            len(self.reset_pile_paddle_lateral_offset_range) != 2
+            or not all(math.isfinite(value) for value in self.reset_pile_paddle_lateral_offset_range)
+            or not self.reset_pile_paddle_lateral_offset_range[0]
+            <= 0.0
+            <= self.reset_pile_paddle_lateral_offset_range[1]
+        ):
+            raise ValueError("The pile-to-paddle lateral range must be finite, ordered, and contain zero.")
         randomization_magnitudes = (
-            self.reset_particle_max_lateral_offset,
-            self.reset_particle_split_max_lateral_offset,
             self.reset_particle_max_yaw,
             self.reset_particle_jitter,
             self.reset_paddle_max_lateral_offset,
-            self.reset_paddle_split_max_lateral_offset,
             self.reset_paddle_max_yaw,
-            *self.reset_particle_paddle_residual_half_range,
         )
         if any(not math.isfinite(value) or value < 0.0 for value in randomization_magnitudes):
             raise ValueError("Reset randomization magnitudes must be finite and non-negative.")
-        if (
-            self.reset_particle_longitudinal_offset_range[0] > self.reset_paddle_longitudinal_offset_range[0]
-            or self.reset_particle_longitudinal_offset_range[1] < self.reset_paddle_longitudinal_offset_range[1]
-            or self.reset_particle_max_lateral_offset < self.reset_paddle_max_lateral_offset
-            or self.reset_particle_split_max_lateral_offset < self.reset_paddle_split_max_lateral_offset
+        nominal_distance = self.pile_nominal_center[0] - self.paddle_reset_center[0]
+        nominal_lateral_offset = self.pile_nominal_center[1] - self.paddle_reset_center[1]
+        if not self.reset_pile_paddle_distance_range[0] <= nominal_distance <= self.reset_pile_paddle_distance_range[1]:
+            raise ValueError("The nominal pile-to-paddle distance must lie within its reset range.")
+        if not (
+            self.reset_pile_paddle_lateral_offset_range[0]
+            <= nominal_lateral_offset
+            <= self.reset_pile_paddle_lateral_offset_range[1]
         ):
-            raise ValueError("Particle translation ranges must contain the paddle translation ranges.")
+            raise ValueError("The nominal pile-to-paddle lateral offset must lie within its reset range.")
         if max(self.reset_particle_max_yaw, self.reset_paddle_max_yaw) >= 0.5 * math.pi:
             raise ValueError("Reset yaw magnitudes must be smaller than pi/2.")
         if self.reset_particle_jitter >= 0.5 * min(PILE_LATTICE_CELL_SIZE):
             raise ValueError("Particle reset jitter must be smaller than half the particle spacing.")
+        if not math.isfinite(self.reset_bin_clearance) or self.reset_bin_clearance < 0.0:
+            raise ValueError("reset_bin_clearance must be finite and non-negative.")
 
-        self._validate_curriculum_config()
+        self._validate_particle_reset_envelope()
         paddle_size = tuple(self.paddle_size)
         if (
             tuple(self.scene.paddle.spawn.size) != paddle_size
@@ -850,148 +801,61 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         ):
             raise ValueError("The arm action joint-limit margin must be finite and non-negative.")
 
-    def _validate_curriculum_config(self) -> None:
-        """Validate the reverse curriculum and collision-safe reset envelope."""
-        level_count = len(self.curriculum_pile_center_x)
-        if level_count < 2 or any(
-            len(values) != level_count
-            for values in (
-                self.curriculum_initial_bin_fraction,
-                self.curriculum_source_pile_count,
-                self.curriculum_source_lateral_offset,
-                self.curriculum_post_first_sweep,
-                self.curriculum_randomization_scale,
-            )
-        ):
-            raise ValueError("Every curriculum sequence must contain one value per level.")
-        if self.reset_pose_count % level_count != 0:
-            raise ValueError("reset_pose_count must be divisible by the number of curriculum levels.")
-        if not all(math.isfinite(center_x) for center_x in self.curriculum_pile_center_x):
-            raise ValueError("Curriculum pile centers must be finite.")
-        if not all(0.0 <= value < self.success_fraction for value in self.curriculum_initial_bin_fraction):
-            raise ValueError("Curriculum initial bin fractions must lie in [0, success_fraction).")
-        if not all(0.0 < value <= 1.0 for value in self.curriculum_randomization_scale):
-            raise ValueError("Curriculum randomization scales must lie in (0, 1].")
-        rows_per_level = self.reset_pose_count // level_count
-        for level, (pile_count, lateral_offset, post_first_sweep) in enumerate(
-            zip(
-                self.curriculum_source_pile_count,
-                self.curriculum_source_lateral_offset,
-                self.curriculum_post_first_sweep,
-                strict=True,
-            )
-        ):
-            if pile_count not in (1, 2):
-                raise ValueError(f"Curriculum level {level} must contain one or two source piles.")
-            side_count = 2 if post_first_sweep else pile_count
-            if rows_per_level % side_count != 0:
-                raise ValueError(f"Reset-pose rows at curriculum level {level} must divide across its reset sides.")
-            expected_lateral_offset = pile_count == 2 or post_first_sweep
-            if not lateral_offset >= 0.0 or expected_lateral_offset == math.isclose(lateral_offset, 0.0):
-                raise ValueError(
-                    "Single-pile approach resets require zero lateral offset; split and post-sweep resets require a "
-                    "positive offset."
-                )
-        if min(self.curriculum_successes_to_promote, self.curriculum_failures_to_demote) < 1:
-            raise ValueError("Curriculum promotion and demotion streaks must be positive.")
-        if self.curriculum_level_override is not None and not 0 <= self.curriculum_level_override < level_count:
-            raise ValueError(f"curriculum_level_override must be None or lie in [0, {level_count - 1}].")
-        if self.reset_curriculum_level_cycle is not None:
-            if self.curriculum_level_override is not None:
-                raise ValueError("reset_curriculum_level_cycle and curriculum_level_override are mutually exclusive.")
-            if not self.reset_curriculum_level_cycle or any(
-                not 0 <= level < level_count for level in self.reset_curriculum_level_cycle
-            ):
-                raise ValueError(f"reset_curriculum_level_cycle entries must lie in [0, {level_count - 1}].")
-        if not self.reset_bin_clearance >= 0.0:
-            raise ValueError("reset_bin_clearance must be non-negative.")
-        if not self.post_first_sweep_paddle_center_x < self.bin_inner_x_bounds[0]:
-            raise ValueError("The post-first-sweep paddle must start behind the bin mouth.")
-        if any(
-            not 0.0 < value <= 1.0
-            for value in (
-                self.multi_push_first_sweep_delivery_fraction,
-                self.multi_push_second_delivery_fraction,
-                self.multi_push_reach_threshold,
-            )
-        ):
-            raise ValueError("Multi-push phase thresholds must lie in (0, 1].")
-        self._validate_particle_reset_envelopes()
-
-    def _validate_particle_reset_envelopes(self) -> None:
-        """Keep every staged particle group inside its physical support geometry."""
-        # Bound the compact source group generated at each level, including global translation,
-        # yaw, and cell-local jitter. Source material must remain on the table and behind the
-        # expanded front-wall collider; delivered material is checked against the bin interior.
+    def _validate_particle_reset_envelope(self) -> None:
+        """Keep every randomized single pile on the table and clear of the paddle and bin."""
         particle_count = math.prod(PILE_LATTICE_RESOLUTION)
         safe_front_x = BIN_FRONT_POSITION[0] - 0.5 * BIN_FRONT_SIZE[0] - MPM_COLLIDER_MARGIN - self.reset_bin_clearance
         safe_table_min_x = WORK_SURFACE_POSITION[0] - 0.5 * WORK_SURFACE_SIZE[0] + MPM_COLLIDER_MARGIN
         safe_table_half_width = 0.5 * WORK_SURFACE_SIZE[1] - MPM_COLLIDER_MARGIN
-        for level, (center_x, delivered_fraction, pile_count, lateral_offset, post_first_sweep, scale) in enumerate(
-            zip(
-                self.curriculum_pile_center_x,
-                self.curriculum_initial_bin_fraction,
-                self.curriculum_source_pile_count,
-                self.curriculum_source_lateral_offset,
-                self.curriculum_post_first_sweep,
-                self.curriculum_randomization_scale,
-                strict=True,
-            )
+        nominal_distance = self.pile_nominal_center[0] - self.paddle_reset_center[0]
+        required_paddle_gap = MPM_COLLIDER_MARGIN + PADDLE_CONTACT_MARGIN
+        for level, (center_x, scale) in enumerate(
+            zip(self.reset_pile_center_x, self.reset_randomization_scales, strict=True)
         ):
-            delivered_count = math.floor(particle_count * delivered_fraction)
-            maximum_group_count = math.ceil((particle_count - delivered_count) / pile_count)
-            yaw = self.reset_particle_max_yaw * scale
-            shape_half_extents = tuple(
+            half_extents = tuple(
                 _packed_group_half_extent(
-                    maximum_group_count,
+                    particle_count,
                     vertical_cell_count,
-                    source_aspect_ratio,
-                    yaw,
+                    aspect_ratio,
+                    scale * self.reset_particle_max_yaw,
                     self.reset_particle_jitter,
                 )
-                for vertical_cell_count, source_aspect_ratio in self.reset_source_shape_profiles
+                for vertical_cell_count, aspect_ratio in self.reset_source_shape_profiles
             )
-            maximum_half_x = max(extent[0] for extent in shape_half_extents)
-            maximum_half_y = max(extent[1] for extent in shape_half_extents)
-            trailing_x = center_x + self.reset_particle_longitudinal_offset_range[0] * scale - maximum_half_x
-            if trailing_x < safe_table_min_x:
-                raise ValueError(
-                    f"Curriculum level {level} can spawn particles beyond the rear work-surface edge "
-                    f"({trailing_x:.6f} < {safe_table_min_x:.6f})."
-                )
-            leading_x = center_x + self.reset_particle_longitudinal_offset_range[1] * scale + maximum_half_x
-            if leading_x > safe_front_x:
-                raise ValueError(
-                    f"Curriculum level {level} can spawn particles in the bin-front contact band "
-                    f"({leading_x:.6f} > {safe_front_x:.6f})."
-                )
-            lateral_range = (
-                self.reset_particle_split_max_lateral_offset
-                if pile_count == 2 or post_first_sweep
-                else self.reset_particle_max_lateral_offset
+            maximum_half_x = max(extent[0] for extent in half_extents)
+            maximum_half_y = max(extent[1] for extent in half_extents)
+            paddle_yaw = scale * self.reset_paddle_max_yaw
+            paddle_half_x = 0.5 * (
+                self.paddle_size[2] * math.cos(paddle_yaw) + self.paddle_size[1] * math.sin(paddle_yaw)
             )
-            lateral_reach = lateral_offset + lateral_range * scale + maximum_half_y
-            if lateral_reach > safe_table_half_width:
+            minimum_distance = nominal_distance + scale * (self.reset_pile_paddle_distance_range[0] - nominal_distance)
+            minimum_paddle_gap = minimum_distance - maximum_half_x - paddle_half_x
+            if minimum_paddle_gap < required_paddle_gap:
                 raise ValueError(
-                    f"Curriculum level {level} can spawn particles beyond the work surface "
-                    f"({lateral_reach:.6f} > {safe_table_half_width:.6f})."
+                    f"Reset level {level} can overlap the paddle and pile "
+                    f"({minimum_paddle_gap:.6f} < {required_paddle_gap:.6f})."
                 )
 
-        maximum_delivered_count = math.floor(particle_count * max(self.curriculum_initial_bin_fraction))
-        bin_aspect_ratio = (self.bin_inner_x_bounds[1] - self.bin_inner_x_bounds[0]) / (
-            self.bin_inner_y_bounds[1] - self.bin_inner_y_bounds[0]
-        )
-        delivered_half_x, delivered_half_y = _packed_group_half_extent(
-            maximum_delivered_count,
-            PILE_LATTICE_RESOLUTION[2],
-            bin_aspect_ratio,
-            0.0,
-            self.reset_particle_jitter,
-        )
-        if delivered_half_x >= 0.5 * (
-            self.bin_inner_x_bounds[1] - self.bin_inner_x_bounds[0]
-        ) or delivered_half_y >= 0.5 * (self.bin_inner_y_bounds[1] - self.bin_inner_y_bounds[0]):
-            raise ValueError("The largest staged delivered pile must fit inside the physical bin.")
+            minimum_center_x = center_x + scale * (
+                self.reset_paddle_longitudinal_offset_range[0]
+                + self.reset_pile_paddle_distance_range[0]
+                - nominal_distance
+            )
+            maximum_center_x = center_x + scale * (
+                self.reset_paddle_longitudinal_offset_range[1]
+                + self.reset_pile_paddle_distance_range[1]
+                - nominal_distance
+            )
+            if minimum_center_x - maximum_half_x < safe_table_min_x:
+                raise ValueError(f"Reset level {level} can spawn particles beyond the rear work-surface edge.")
+            if maximum_center_x + maximum_half_x > safe_front_x:
+                raise ValueError(f"Reset level {level} can spawn particles in the bin-front contact band.")
+            maximum_center_y = scale * (
+                self.reset_paddle_max_lateral_offset
+                + max(abs(value) for value in self.reset_pile_paddle_lateral_offset_range)
+            )
+            if maximum_center_y + maximum_half_y > safe_table_half_width:
+                raise ValueError(f"Reset level {level} can spawn particles beyond the lateral work-surface edge.")
 
     def _validate_heightmap_config(self) -> None:
         """Validate the deployable image observation and calibrated goal mask."""
@@ -1081,20 +945,13 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         observation_divisors = (
             self.particle_max_velocity,
             self.success_max_rms_particle_speed,
-            self.paddle_reach_distance,
-            self.paddle_lateral_alignment_distance,
-            self.paddle_vertical_alignment_distance,
         )
         if any(not math.isfinite(value) or value <= 0.0 for value in observation_divisors):
-            raise ValueError("Particle-speed and paddle-alignment scales must be finite and positive.")
-        nominal_pile_length = self.scene.media.spawn.upper[0] - self.scene.media.spawn.lower[0]
-        if not 0.0 <= self.paddle_reach_contact_depth < 0.5 * nominal_pile_length:
-            raise ValueError("Paddle reach contact depth must lie within the trailing half of the pile.")
+            raise ValueError("Particle-speed scales must be finite and positive.")
         reward_values = (
             self.rewards.success.weight,
             self.rewards.bin_progress.weight,
             self.rewards.transport_progress.weight,
-            self.rewards.paddle_reach.weight,
             self.rewards.spill.weight,
             self.rewards.failure.weight,
             self.rewards.action_magnitude.weight,
@@ -1102,9 +959,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         )
         if not all(math.isfinite(value) for value in reward_values):
             raise ValueError("Every reward and penalty coefficient must be finite.")
-        maximum_positive_shaping = (
-            self.rewards.bin_progress.weight + self.rewards.transport_progress.weight + self.rewards.paddle_reach.weight
-        )
+        maximum_positive_shaping = self.rewards.bin_progress.weight + self.rewards.transport_progress.weight
         if self.rewards.success.weight <= maximum_positive_shaping:
             raise ValueError("The success reward must exceed the maximum positive potential shaping.")
 
@@ -1134,7 +989,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                         ),
                         bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Table"],
                         include_static_shapes=True,
-                        # Match Pour's stable rigid refinement inside each coupled interval.
+                        # Refine rigid integration with three substeps per coupled interval.
                         substeps=3,
                     ),
                     CouplerEntryCfg(
@@ -1145,10 +1000,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                             grid_padding=0,
                             strain_basis="P0",
                             transfer_scheme="apic",
-                            # Match Newton's granular rheology path. Particle-backed warm-starting
-                            # preserves constitutive history on a rebuildable sparse grid. A loaded
-                            # deterministic sweep validates 24 iterations without collider crossings or
-                            # material delivery regression while avoiding an unnecessary solve tail.
+                            # Preserve particle-backed constitutive history on the rebuildable sparse grid.
                             max_iterations=24,
                             tolerance=1.0e-4,
                             warmstart_mode="auto",
@@ -1171,8 +1023,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                         all_particles=True,
                         include_static_shapes=False,
                         include_child_joints=False,
-                        # Match Pour: entry-local repeats reuse a stale proxy pose, so moving
-                        # collider temporal resolution belongs in the outer coupled substeps.
+                        # Keep entry-local substeps at one; collider poses refresh between outer coupled substeps.
                         substeps=1,
                         in_place=True,
                     ),
@@ -1190,11 +1041,9 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                 iterations=1,
             ),
             collision_cfg=NewtonCollisionPipelineCfg(soft_contact_max=0),
-            # One coupled solve per 120 Hz simulation step is sufficient for the coarse granular
-            # media. Loaded slow and aggressive sweep regressions remain crossing-free at this
-            # cadence, while a second outer solve nearly doubles collection time.
+            # Run one coupled solve per 120 Hz simulation step.
             num_substeps=1,
-            # Fixed particle topology makes reset-time state writes CUDA-graph safe.
+            # Bounded sparse topology defers capture until the initial reset has authored its graph shape.
             use_cuda_graph=True,
         )
         # Keep the UR10's implicit drives on the Newton backend used by the coupled step.
@@ -1202,19 +1051,14 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         configure_sparse_mpm_capacities(self)
 
     def play_mode(self) -> None:
-        """Cycle the two hardest trained reset families in a small playback scene."""
+        """Cycle the randomized reset bank in a small playback scene."""
         super().play_mode()
         self.scene.num_envs = min(self.scene.num_envs, 4)
         self.heightmap_depth_noise_std = 0.0
         self.heightmap_xy_noise_std = 0.0
         self.heightmap_dropout_probability = 0.0
         self.reset_cycle = True
-        final_level = len(self.curriculum_pile_center_x) - 1
-        self.curriculum_level_override = None
-        # The penultimate level contains two separated source piles with an empty bin; the final
-        # level contains one broad deployment pile. Both retain near-maximum/full reset
-        # randomization and the same 80% terminal objective used during training.
-        self.reset_curriculum_level_cycle = (final_level - 1, final_level)
+        self.curriculum.reset_randomization.params["initial_level"] = len(self.reset_randomization_scales) - 1
         # Newton's generic viewer defaults to hidden particles. Enable them only for playback so
         # training remains renderer-free unless a visualizer is explicitly requested.
         self.sim.visualizer_cfgs = [

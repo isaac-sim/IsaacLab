@@ -39,6 +39,7 @@ from ._state import (
     spilled_particle_mask,
     state_finite,
 )
+from .pour_env_cfg import _configure_mpm_capacities
 from .reset_dataset_io import reset_dataset_validate_runtime
 
 logger = logging.getLogger(__name__)
@@ -93,16 +94,15 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     cfg: FrankaPourResetDatasetEnvCfg
 
     def __init__(self, cfg: FrankaPourResetDatasetEnvCfg, render_mode: str | None = None, **kwargs):
-        resolved_cfg = cfg.finalize()
-        self._prepare_newton_extras(resolved_cfg)
+        _configure_mpm_capacities(cfg)
+        self._prepare_newton_extras(cfg)
         with newton_builder_world_hook(self._add_pour_world_to_builder):
-            super().__init__(resolved_cfg, render_mode, **kwargs)
+            super().__init__(cfg, render_mode, **kwargs)
 
     def load_managers(self) -> None:
         self._setup_after_physics()
         super().load_managers()
 
-    # ------------------------------------------------------------------ build
     def _prepare_newton_extras(self, cfg: FrankaPourResetDatasetEnvCfg) -> None:
         """Cache task geometry bounds and Newton contact values from the resolved config.
 
@@ -404,15 +404,16 @@ class FrankaPourEnv(ManagerBasedRLEnv):
                 builder.shape_material_kf[shape_id] = self._grasp_contact_kf
                 builder.shape_material_mu[shape_id] = self._grasp_contact_mu
 
-    # ----------------------------------------------------------- post-physics
     def _bind_scene_assets(self) -> None:
         """Resolve the scene assets and indices shared by runtime and offline sampling."""
         self._robot = self.scene["robot"]
         self._source_cup = self.scene["source_cup"]
         self._target_cup = self.scene["target_cup"]
         self._media: MPMObject = self.scene["media"]
-        self._arm_joint_ids, _ = self._robot.find_joints(ARM_JOINTS, preserve_order=True)
-        self._finger_joint_ids, _ = self._robot.find_joints(FINGER_JOINTS, preserve_order=True)
+        arm_joint_ids, _ = self._robot.find_joints(ARM_JOINTS, preserve_order=True, as_proxy=True)
+        finger_joint_ids, _ = self._robot.find_joints(FINGER_JOINTS, preserve_order=True, as_proxy=True)
+        self._arm_joint_ids = arm_joint_ids.torch
+        self._finger_joint_ids = finger_joint_ids.torch
         self._joint_pos_limits_t = self._robot.data.joint_pos_limits.torch.clone()
         self.env_origins = self.scene.env_origins.to(device=self.device, dtype=torch.float32)
         self._num_particles = int(self._media.particles_per_object)
@@ -497,7 +498,6 @@ class FrankaPourEnv(ManagerBasedRLEnv):
             metadata["state_count"],
         )
 
-    # ----------------------------------------------------------- poses / obs
     def _pose_w_to_e(self, pose_w: torch.Tensor) -> torch.Tensor:
         """Convert a public world-frame pose view to a finite environment-frame pose."""
         pos = torch.nan_to_num(pose_w[:, :3], nan=0.0, posinf=0.0, neginf=0.0) - self.env_origins
@@ -687,7 +687,6 @@ class FrankaPourEnv(ManagerBasedRLEnv):
             self._particle_workspace_upper_t,
         )
 
-    # ----------------------------------------------------------- reset
     def _reset_from_dataset(self, env_ids: torch.Tensor, world_mask: torch.Tensor) -> None:
         """Restore exact dataset rows and clear all per-world solver history."""
         rows = self.reset_dataset_row_id[env_ids]
@@ -770,16 +769,13 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self._episode_reached_grasp_point[env_ids] = False
         self._episode_bilateral_grasp[env_ids] = False
         self._episode_lifted_grasp[env_ids] = False
-        # A grasping cache row is an offline-validated demonstrated grasp. Seed the latch from the
-        # row category so opening the hand immediately after reset cannot evade dropped-cup
-        # termination before the first runtime grasp observation. Non-grasping rows remain
-        # unlatched and may freely approach the cup.
+        # Seed the dropped-grasp latch for validated grasp rows; non-grasp rows start clear.
         self._lifted_grasp_seen[env_ids] = states["category"][rows] == GRASPING_CATEGORY
 
     def reset_pour_scene(self, env_ids: torch.Tensor) -> None:
         """Restore selected environments from reset-dataset rows."""
         if not isinstance(env_ids, torch.Tensor):
-            env_ids = torch.as_tensor(list(env_ids), device=self.device, dtype=torch.long)
+            env_ids = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
         env_ids = env_ids.to(device=self.device, dtype=torch.long).flatten()
         if env_ids.numel() == 0:
             return

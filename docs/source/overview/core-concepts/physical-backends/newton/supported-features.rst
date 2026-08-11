@@ -29,29 +29,9 @@ preset to your own task.
 Implicit MPM Demos
 ------------------
 
-Start with the compact granular example for the minimal declarative
-:class:`~isaaclab_newton.assets.MPMObjectCfg` and
-:class:`~isaaclab_newton.sim.MPMGridCfg` setup:
-
-.. code-block:: bash
-
-    uv run python scripts/demos/mpm/newton_mpm_granular.py --device cuda:0 --visualizer newton
-
-The following advanced showcases add sparse-grid capture, rigid-MPM proxy
-coupling, mesh-cavity sampling, and particle rendering:
-
-.. code-block:: bash
-
-    uv run python scripts/demos/mpm/snowball_smash.py --device cuda:0 --visualizer newton
-    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer kit
-
-The advanced showcases use a capacity-bounded rebuildable sparse grid with
-zero padding and the P0/S2/Q1 bases for CUDA graph capture by default.
-Snowball smash couples MPM to MuJoCo-Warp rigid bodies through
-:class:`~isaaclab_contrib.coupling.CouplerProxyCfg`; teapot fill samples hollow
-meshes with :func:`~isaaclab.utils.warp.sample_particles_in_cavity` and applies
-an explicit particle render material. See :doc:`using-mpm` for the minimal
-authoring path and tuning order.
+The repository includes standalone granular, rigid-coupled snowball, and
+mesh-cavity filling examples. See :doc:`using-mpm` for the runnable commands,
+minimal authoring path, and tuning guidance.
 
 
 Supported APIs

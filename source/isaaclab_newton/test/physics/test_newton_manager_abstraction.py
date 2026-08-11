@@ -274,6 +274,30 @@ def test_mpm_solver_cfg_maps_only_newton_solver_fields():
     assert not hasattr(newton_cfg, "project_outside_colliders")
 
 
+@pytest.mark.parametrize(
+    "deprecated_value, replacement",
+    [
+        ("instantaneous", "forward"),
+        ("finite_difference", "backward"),
+    ],
+)
+def test_mpm_solver_cfg_translates_deprecated_collider_velocity_modes(deprecated_value, replacement):
+    """Deprecated collider velocity modes warn and map to Newton's current values."""
+    with pytest.warns(DeprecationWarning, match=f"use {replacement!r}"):
+        newton_cfg = _make_solver_config(MPMSolverCfg(collider_velocity_mode=deprecated_value))
+
+    assert newton_cfg.collider_velocity_mode == replacement
+
+
+@pytest.mark.parametrize("mode", ["forward", "backward"])
+def test_mpm_solver_cfg_preserves_canonical_collider_velocity_modes(mode, recwarn):
+    """Canonical collider velocity modes pass through without deprecation warnings."""
+    newton_cfg = _make_solver_config(MPMSolverCfg(collider_velocity_mode=mode))
+
+    assert newton_cfg.collider_velocity_mode == mode
+    assert not [warning for warning in recwarn if issubclass(warning.category, DeprecationWarning)]
+
+
 # Tuples of ``(field_name, non_default_value)`` covering every solver-tunable
 # field on :class:`MPMSolverCfg`. Each entry exercises the implementation-side
 # SolverImplicitMPM.Config construction so a Newton field rename or accidental
@@ -512,6 +536,86 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
             assert calls["n"] >= 1
         else:
             assert calls["n"] == 0
+
+
+@pytest.mark.parametrize(
+    ("grid_type", "max_active_cell_count", "expected"),
+    [
+        pytest.param("fixed", -1, True, id="fixed"),
+        pytest.param("sparse", 1024, True, id="bounded_sparse"),
+        pytest.param("sparse", -1, False, id="unbounded_sparse"),
+        pytest.param("dense", -1, False, id="dense"),
+    ],
+)
+def test_mpm_cuda_graph_capture_supports_static_topology(monkeypatch, grid_type, max_active_cell_count, expected):
+    """Only fixed and capacity-bounded rebuildable sparse grids support outer capture."""
+    solver = SimpleNamespace(
+        grid_type=grid_type,
+        max_active_cell_count=max_active_cell_count,
+        grid_padding=0,
+        velocity_basis="Q1",
+        strain_basis="P0",
+        collider_basis="S2",
+    )
+    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
+
+    assert NewtonMPMManager._supports_cuda_graph_capture() is expected
+
+
+def test_mpm_supported_cuda_graph_capture_defers_until_initial_reset(monkeypatch):
+    """A bounded sparse grid must not capture before reset-authored topology exists."""
+    solver = SimpleNamespace(
+        grid_type="sparse",
+        max_active_cell_count=1024,
+        grid_padding=0,
+        velocity_basis="Q1",
+        strain_basis="P0",
+        collider_basis="S2",
+    )
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
+    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", False, raising=False)
+
+    class UnexpectedCapture:
+        def __init__(self, *args, **kwargs):
+            pytest.fail("MPM capture started before the initial environment reset.")
+
+    monkeypatch.setattr(wp, "ScopedCapture", UnexpectedCapture)
+
+    NewtonMPMManager._capture_or_defer_graph()
+
+    assert NewtonManager._graph is None
+    assert NewtonManager._graph_capture_pending is True
+
+
+def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
+    """An unbounded sparse grid should retain the eager-execution fallback."""
+    solver = SimpleNamespace(
+        grid_type="sparse",
+        max_active_cell_count=-1,
+        grid_padding=0,
+        velocity_basis="Q1",
+        strain_basis="P0",
+        collider_basis="S2",
+    )
+    monkeypatch.setattr(
+        PhysicsManager,
+        "_cfg",
+        NewtonCfg(solver_cfg=MPMSolverCfg(grid_type="sparse"), use_cuda_graph=True),
+        raising=False,
+    )
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True, raising=False)
+
+    NewtonMPMManager._capture_or_defer_graph()
+
+    assert NewtonManager._graph is None
+    assert NewtonManager._graph_capture_pending is False
 
 
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):

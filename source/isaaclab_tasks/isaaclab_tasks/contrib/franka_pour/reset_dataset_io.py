@@ -35,6 +35,19 @@ _STATE_TENSOR_SPECS = {
     "difficulty": (torch.float32, ()),
     "particle_layout_id": (torch.int32, ()),
 }
+FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_POLICY = "newton_ik_collision_v1"
+FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_CHECKS = (
+    "newton_ik",
+    "joint_limits",
+    "robot_self_collision",
+    "robot_table_collision",
+    "robot_object_collision",
+    "source_receiver_separation",
+    "table_support",
+    "grasp_seating",
+    "finger_state_consistency",
+    "particle_workspace",
+)
 
 
 class _HashWriter:
@@ -116,7 +129,7 @@ def reset_dataset_validate_runtime(
 
     Raises:
         TypeError: If a required container or tensor has the wrong type.
-        ValueError: If the artifact does not match the task, is malformed, or is not production-calibrated.
+        ValueError: If the artifact does not match the task, is malformed, or lacks supported generation provenance.
     """
     if not isinstance(payload, Mapping):
         raise TypeError("Reset dataset payload must be a mapping.")
@@ -293,14 +306,16 @@ def _validate_runtime_metadata(metadata: Mapping[str, Any]):
 
 
 def _validate_production_marker(metadata: Mapping[str, Any]):
-    """Require an externally calibrated production marker."""
+    """Require either the reference calibration or the one-file generator screen."""
     marker = _require_mapping(metadata, "static_validation", path="metadata")
-    if (
-        marker.get("policy") != "analytic_static_v1"
-        or marker.get("all_rows_statically_validated") is not True
-        or marker.get("per_row_mpm_rollout") is not False
-    ):
+    if marker.get("all_rows_statically_validated") is not True or marker.get("per_row_mpm_rollout") is not False:
         raise ValueError("Reset dataset does not contain supported all-row static validation.")
+    if marker.get("policy") == FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_POLICY:
+        if tuple(marker.get("checks", ())) != FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_CHECKS:
+            raise ValueError("Reset dataset one-file generator checks are incomplete.")
+        return
+    if marker.get("policy") != "analytic_static_v1":
+        raise ValueError("Reset dataset static-validation policy is unsupported.")
     manifold = _require_mapping(marker, "terminal_pour_manifold", path="metadata.static_validation")
     if manifold.get("policy") != "relative_source_receiver_v1":
         raise ValueError("Reset dataset terminal-pour manifold policy is unsupported.")

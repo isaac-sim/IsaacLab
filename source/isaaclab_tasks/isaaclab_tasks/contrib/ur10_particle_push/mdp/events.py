@@ -15,6 +15,6 @@ if TYPE_CHECKING:
     from ..ur10_particle_push_env import UR10ParticlePushEnv
 
 
-def reset_push_scene(env: UR10ParticlePushEnv, env_ids: torch.Tensor) -> None:
-    """Reset the robot and fixed granular payload for selected environments."""
-    env.reset_push_scene(env_ids)
+def randomize_push_scene(env: UR10ParticlePushEnv, env_ids: torch.Tensor) -> None:
+    """Randomize the robot and single-pile state for selected environments."""
+    env.randomize_push_scene(env_ids)

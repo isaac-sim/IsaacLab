@@ -114,7 +114,7 @@ parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 
 
-# A 400 Hz outer step keeps the moving spout within the MPM contact band between collider updates.
+# Update the kinematic spout at 400 Hz; its per-step displacement must remain inside the MPM contact band.
 FPS = 400
 VOXEL_SIZE = args_cli.voxel_size
 FILL_SPACING = args_cli.fill_spacing if args_cli.fill_spacing is not None else VOXEL_SIZE / DEFAULT_PARTICLES_PER_CELL
@@ -128,7 +128,6 @@ MAX_ACTIVE_CELL_COUNT = (1 << 16) if GRID_TYPE == "sparse" else (1 << 18)
 MPM_SUBSTEPS = 2
 
 PARTICLE_DENSITY = 1000.0
-# Small lattice jitter breaks up the regular sampling grid for a more natural fill.
 FILL_JITTER = 0.2
 FILL_SEED = 7
 PARTICLE_RADIUS = 0.5 * FILL_SPACING
@@ -407,7 +406,6 @@ def create_sim_cfg():
                 max_active_cell_count=MAX_ACTIVE_CELL_COUNT,
                 max_iterations=100,
                 tolerance=1.0e-4,
-                # Use the stable S2/P0/APIC configuration shared by the MPM demos.
                 collider_basis="S2",
                 strain_basis="P0",
                 transfer_scheme="apic",

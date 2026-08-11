@@ -50,8 +50,12 @@ class MPMSolverCfg(NewtonSolverCfg):
     warmstart_mode: Literal["none", "auto", "particles", "grid", "smoothed"] = "auto"
     """Warm-start mode for the rheology solver."""
 
-    collider_velocity_mode: Literal["forward", "backward"] = "forward"
-    """Collider velocity computation mode."""
+    collider_velocity_mode: Literal["forward", "backward", "instantaneous", "finite_difference"] = "forward"
+    """Collider velocity computation mode.
+
+    ``"instantaneous"`` is deprecated in favor of ``"forward"``, and
+    ``"finite_difference"`` is deprecated in favor of ``"backward"``.
+    """
 
     # grid
     voxel_size: float = 0.1

@@ -20,12 +20,10 @@ class FrankaPourResetDatasetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     class ExplorationDistributionCfg(RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg):
         """Bounded state-dependent exploration for contact-rich manipulation."""
 
-        # Independent noise is resampled at every 30 Hz policy step. Cap the distribution below the
-        # action clamp so exploration remains compatible with the 0.03-rad joint scale.
+        # Keep the configured standard-deviation range below the action clamp.
         std_range: tuple[float, float] = (0.15, 0.75)
 
-    # A 3.2-second physical rollout at 30 Hz lets grasp acquisition and transport influence one
-    # advantage estimate.
+    # 96 policy steps span 3.2 s at 30 Hz.
     num_steps_per_env = 96
     max_iterations = 3000
     # Reset-dataset learning requires complete episodes for its first outcome cohort.
@@ -42,7 +40,6 @@ class FrankaPourResetDatasetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         # Observations are physically scaled at their source, so empirical normalization is not
         # needed.
         obs_normalization=False,
-        # Retain contact-scale exploration while keeping the distribution below the action clamp.
         distribution_cfg=ExplorationDistributionCfg(
             init_std=0.60,
             std_type="log",
@@ -57,12 +54,11 @@ class FrankaPourResetDatasetPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        # Preserve contact-scale exploration while the reset distribution adapts.
         entropy_coef=3.0e-4,
         num_learning_epochs=5,
         num_mini_batches=4,
         learning_rate=1.5e-4,
-        # Keep PPO update size stationary while the reset distribution itself changes.
+        # Use a fixed learning-rate schedule.
         schedule="fixed",
         # Express the discount and GAE time constants at the task's 30 Hz policy rate.
         gamma=0.99 ** (1.0 / 3.0),

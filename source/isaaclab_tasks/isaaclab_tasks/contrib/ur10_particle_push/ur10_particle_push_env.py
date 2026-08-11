@@ -29,11 +29,8 @@ from isaaclab.utils.math import quat_apply
 from . import mdp
 from .reset_randomization import (
     PushResetPoseBank,
-    build_reset_paddle_targets,
-    build_reset_pose_curriculum_levels,
-    build_reset_pose_source_pile_indices,
-    build_staged_particle_reset,
-    sample_correlated_particle_translation,
+    build_particle_reset,
+    build_reset_targets,
 )
 from .ur10_particle_push_env_cfg import PUSH_ACTION_DIM, UR10ParticlePushEnvCfg, configure_sparse_mpm_capacities
 
@@ -134,12 +131,14 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         self._robot = self.scene["robot"]
         self._media = self.scene["media"]
 
-        self._joint_ids, joint_names = self._robot.find_joints(
-            list(self.cfg.scene.robot.init_state.joint_pos),
+        joint_ids, joint_names = self._robot.find_joints(
+            tuple(self.cfg.scene.robot.init_state.joint_pos),
             preserve_order=True,
+            as_proxy=True,
         )
-        if len(self._joint_ids) != PUSH_ACTION_DIM:
+        if len(joint_ids) != PUSH_ACTION_DIM:
             raise RuntimeError(f"Expected six UR10 arm joints, resolved {joint_names}.")
+        self._joint_ids = joint_ids.torch
         ee_ids, _ = self._robot.find_bodies(self.cfg.ee_body_name, preserve_order=True)
         if len(ee_ids) != 1:
             raise RuntimeError(f"Expected one {self.cfg.ee_body_name!r} body, found {len(ee_ids)}.")
@@ -152,14 +151,6 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         )
         self._particle_workspace_upper = torch.tensor(
             self.cfg.particle_workspace_upper_bound,
-            device=self.device,
-        )
-        self._particle_longitudinal_offset_range = torch.tensor(
-            self.cfg.reset_particle_longitudinal_offset_range,
-            device=self.device,
-        )
-        self._particle_paddle_residual_half_range = torch.tensor(
-            self.cfg.reset_particle_paddle_residual_half_range,
             device=self.device,
         )
         source_shape_profiles = torch.tensor(
@@ -183,30 +174,11 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         self._particle_reset_template_e = (
             self._media.data.default_particle_state_w.torch[..., :3] - self.scene.env_origins[:, None, :]
         ).clone()
-        self._particle_focused_source_mask = torch.ones(
-            (self.num_envs, self._media.particles_per_object),
-            dtype=torch.bool,
-            device=self.device,
-        )
-        self._particle_source_group_masks = torch.zeros(
-            (self.num_envs, 2, self._media.particles_per_object),
-            dtype=torch.bool,
-            device=self.device,
-        )
-        self._initial_source_index = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-        self._split_source_episode = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self._post_first_sweep_reset = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self._first_sweep_complete = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self._second_pile_reached = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self._second_push_started = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self._paddle_reach_target_revision = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._bin_fraction = torch.zeros(self.num_envs, device=self.device)
         self._spill_fraction = torch.zeros_like(self._bin_fraction)
         self._success_streak = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._success_this_step = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self._episode_success = torch.zeros_like(self._success_this_step)
         self._transport_progress = torch.zeros_like(self._bin_fraction)
-        self._paddle_reach_potential = torch.zeros_like(self._bin_fraction)
         self._rms_particle_speed = torch.zeros_like(self._bin_fraction)
         self._invalid_state = torch.zeros_like(self._success_this_step)
         self._escaped_workspace = torch.zeros_like(self._success_this_step)
@@ -224,72 +196,22 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         self._heightmap_goal_mask = mdp.build_bin_goal_mask(self.cfg, device=self.device).expand(self.num_envs, -1, -1)
         self._success_dwell_steps = max(1, math.ceil(self.cfg.success_dwell_time_s / self.step_dt))
 
-        self._curriculum_pile_center_x = torch.tensor(
-            self.cfg.curriculum_pile_center_x,
-            device=self.device,
-            dtype=torch.float32,
-        )
-        self._curriculum_randomization_scale = torch.tensor(
-            self.cfg.curriculum_randomization_scale,
-            device=self.device,
-            dtype=torch.float32,
-        )
-        self._curriculum_initial_bin_fraction = torch.tensor(
-            self.cfg.curriculum_initial_bin_fraction,
-            device=self.device,
-            dtype=torch.float32,
-        )
-        self._curriculum_source_pile_count = torch.tensor(
-            self.cfg.curriculum_source_pile_count,
-            device=self.device,
-            dtype=torch.long,
-        )
-        self._curriculum_source_lateral_offset = torch.tensor(
-            self.cfg.curriculum_source_lateral_offset,
-            device=self.device,
-            dtype=torch.float32,
-        )
-        self._curriculum_post_first_sweep = torch.tensor(
-            self.cfg.curriculum_post_first_sweep,
-            device=self.device,
-            dtype=torch.bool,
-        )
-        if self.cfg.curriculum_level_override is not None:
-            initial_level = self.cfg.curriculum_level_override
-        elif self.cfg.reset_curriculum_level_cycle is not None:
-            initial_level = self.cfg.reset_curriculum_level_cycle[0]
-        else:
-            initial_level = 0
-        self._curriculum_level = torch.full(
+        self._episode_start_centroid_x = torch.full(
             (self.num_envs,),
-            initial_level,
+            self.cfg.pile_nominal_center[0],
             device=self.device,
-            dtype=torch.long,
         )
-        self._curriculum_success_streak = torch.zeros_like(self._curriculum_level)
-        self._curriculum_failure_streak = torch.zeros_like(self._curriculum_level)
-        self._episode_success_fraction = torch.full(
-            (self.num_envs,), self.cfg.success_fraction, device=self.device, dtype=torch.float32
-        )
-        self._episode_start_centroid_x = self._curriculum_pile_center_x[self._curriculum_level].clone()
 
-        paddle_position_e, paddle_quaternion = build_reset_paddle_targets(self.cfg, device=self.device)
+        paddle_position_e, paddle_quaternion, pile_center_xy, curriculum_level = build_reset_targets(
+            self.cfg,
+            device=self.device,
+        )
         self._reset_pose_bank = PushResetPoseBank(
             joint_position=self._solve_reset_joint_positions(paddle_position_e, paddle_quaternion),
-            paddle_position_e=paddle_position_e,
-            curriculum_level=build_reset_pose_curriculum_levels(self.cfg, device=self.device),
-            source_pile_index=build_reset_pose_source_pile_indices(self.cfg, device=self.device),
+            pile_center_xy=pile_center_xy,
+            curriculum_level=curriculum_level,
         )
-        level_count = len(self.cfg.curriculum_pile_center_x)
-        self._reset_pose_cycle_rows = [torch.empty(0, dtype=torch.long, device=self.device) for _ in range(level_count)]
-        self._reset_pose_cycle_cursors = [0] * level_count
-        self._reset_curriculum_level_cycle = (
-            torch.tensor(self.cfg.reset_curriculum_level_cycle, dtype=torch.long, device=self.device)
-            if self.cfg.reset_curriculum_level_cycle is not None
-            else None
-        )
-        self._reset_curriculum_cycle_cursor = 0
-        self._reset_initialized = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._reset_pose_cycle_cursor = 0
 
     def _collision_free_reset_candidates(
         self,
@@ -547,38 +469,23 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         return joint_position
 
     def _sample_reset_pose_ids(self, curriculum_level: torch.Tensor) -> torch.Tensor:
-        """Sample collision-screened paddle poses matching each episode's curriculum level."""
+        """Sample collision-screened robot starts from the requested curriculum levels."""
         count = curriculum_level.numel()
-        level_count = len(self.cfg.curriculum_pile_center_x)
-        rows_per_level = self._reset_pose_bank.row_count // level_count
+        level_count = len(self.cfg.reset_randomization_scales)
+        poses_per_level = self._reset_pose_bank.row_count // level_count
+        if bool(torch.any((curriculum_level < 0) | (curriculum_level >= level_count))):
+            raise ValueError("Reset curriculum levels lie outside the pose bank.")
         if self.cfg.reset_cycle:
-            sampled = torch.empty_like(curriculum_level)
-            for level_tensor in curriculum_level.unique(sorted=True):
-                level = int(level_tensor.item())
-                output_ids = torch.where(curriculum_level == level)[0]
-                rows = torch.nonzero(
-                    self._reset_pose_bank.curriculum_level == level,
-                    as_tuple=False,
-                ).flatten()
-                chunks: list[torch.Tensor] = []
-                remaining = output_ids.numel()
-                while remaining > 0:
-                    cursor = self._reset_pose_cycle_cursors[level]
-                    cycle_rows = self._reset_pose_cycle_rows[level]
-                    if cursor == cycle_rows.numel():
-                        cycle_rows = rows[torch.randperm(rows.numel(), device=self.device)]
-                        cursor = 0
-                    available = cycle_rows.numel() - cursor
-                    take = min(remaining, available)
-                    stop = cursor + take
-                    chunks.append(cycle_rows[cursor:stop])
-                    self._reset_pose_cycle_rows[level] = cycle_rows
-                    self._reset_pose_cycle_cursors[level] = stop
-                    remaining -= take
-                sampled[output_ids] = torch.cat(chunks) if chunks else rows[:0]
-            return sampled
-        local_rows = torch.randint(rows_per_level, (count,), device=self.device)
-        return curriculum_level * rows_per_level + local_rows
+            pose_offset = (torch.arange(count, device=self.device) + self._reset_pose_cycle_cursor).remainder(
+                poses_per_level
+            )
+            self._reset_pose_cycle_cursor = (self._reset_pose_cycle_cursor + count) % poses_per_level
+        else:
+            pose_offset = torch.randint(poses_per_level, (count,), device=self.device)
+        pose_ids = curriculum_level * poses_per_level + pose_offset
+        if not torch.equal(self._reset_pose_bank.curriculum_level[pose_ids], curriculum_level):
+            raise RuntimeError("Reset pose bank is not grouped by curriculum level.")
+        return pose_ids
 
     @property
     def arm_action(self) -> mdp.ClampedRelativeJointPositionAction:
@@ -598,40 +505,6 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         return self._transport_progress
 
     @property
-    def paddle_reach_potential(self) -> torch.Tensor:
-        return self._paddle_reach_potential
-
-    @property
-    def paddle_reach_target_revision(self) -> torch.Tensor:
-        """Monotonic revision of the active source-pile target."""
-        return self._paddle_reach_target_revision
-
-    @property
-    def first_sweep_complete(self) -> torch.Tensor:
-        """Whether the initially focused pile was substantially delivered."""
-        return self._first_sweep_complete
-
-    @property
-    def second_pile_reached(self) -> torch.Tensor:
-        """Whether the paddle reached the remaining pile after the first sweep."""
-        return self._second_pile_reached
-
-    @property
-    def second_push_started(self) -> torch.Tensor:
-        """Whether the remaining pile began entering the bin."""
-        return self._second_push_started
-
-    @property
-    def post_first_sweep_reset(self) -> torch.Tensor:
-        """Whether the episode began from a post-first-sweep reset."""
-        return self._post_first_sweep_reset
-
-    @property
-    def split_source_episode(self) -> torch.Tensor:
-        """Whether the episode began with two source piles."""
-        return self._split_source_episode
-
-    @property
     def invalid_state(self) -> torch.Tensor:
         return self._invalid_state
 
@@ -646,41 +519,6 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
     @property
     def success_this_step(self) -> torch.Tensor:
         return self._success_this_step
-
-    @property
-    def episode_success(self) -> torch.Tensor:
-        return self._episode_success
-
-    @property
-    def episode_success_fraction(self) -> torch.Tensor:
-        return self._episode_success_fraction
-
-    @property
-    def curriculum_level(self) -> torch.Tensor:
-        return self._curriculum_level
-
-    @property
-    def curriculum_success_streak(self) -> torch.Tensor:
-        return self._curriculum_success_streak
-
-    @property
-    def curriculum_failure_streak(self) -> torch.Tensor:
-        return self._curriculum_failure_streak
-
-    @property
-    def reset_initialized(self) -> torch.Tensor:
-        return self._reset_initialized
-
-    def sample_reset_curriculum_levels(self, count: int) -> torch.Tensor | None:
-        """Return the next deterministic playback levels, when level cycling is enabled."""
-        if self._reset_curriculum_level_cycle is None:
-            return None
-        cycle_count = self._reset_curriculum_level_cycle.numel()
-        indices = (
-            torch.arange(count, dtype=torch.long, device=self.device) + self._reset_curriculum_cycle_cursor
-        ).remainder(cycle_count)
-        self._reset_curriculum_cycle_cursor = (self._reset_curriculum_cycle_cursor + count) % cycle_count
-        return self._reset_curriculum_level_cycle[indices]
 
     def update_task_state(self) -> None:
         """Update shared termination, reward, and critic metrics once per policy step."""
@@ -707,7 +545,6 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         particle_speed = torch.linalg.vector_norm(safe_velocity_e, dim=-1)
         self._rms_particle_speed = torch.sqrt(torch.square(particle_speed).mean(dim=1))
 
-        particle_bin_mask = mdp.compute_particle_bin_mask(safe_position_e, self.cfg)
         self._bin_fraction, self._spill_fraction = mdp.compute_particle_metrics(safe_position_e, self.cfg)
         self._excessive_spill = self._spill_fraction > self.cfg.failure_max_spill_fraction
         self._transport_progress = mdp.compute_transport_progress(
@@ -724,51 +561,6 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         )
         self._escaped_workspace = escaped_particle_fraction > self.cfg.max_escaped_particle_fraction
         safe_ee_pose_w = torch.nan_to_num(ee_pose_w, nan=0.0, posinf=10.0, neginf=-10.0)
-        paddle_position_e = (
-            safe_ee_pose_w[:, :3] + quat_apply(safe_ee_pose_w[:, 3:7], self._paddle_offset)
-        ) - self.scene.env_origins
-        paddle_normal_e = quat_apply(safe_ee_pose_w[:, 3:7], self._paddle_local_normal)
-        paddle_vertical_e = quat_apply(safe_ee_pose_w[:, 3:7], self._paddle_local_vertical)
-        source_group_count = self._particle_source_group_masks.sum(dim=2).clamp_min(1)
-        source_group_delivered = (self._particle_source_group_masks & particle_bin_mask[:, None, :]).sum(dim=2)
-        source_group_delivery_fraction = source_group_delivered / source_group_count
-        initial_source_delivery = source_group_delivery_fraction.gather(
-            1,
-            self._initial_source_index[:, None],
-        ).squeeze(1)
-        first_sweep_completed_now = (
-            self._split_source_episode
-            & ~self._first_sweep_complete
-            & (initial_source_delivery >= self.cfg.multi_push_first_sweep_delivery_fraction)
-        )
-        self._first_sweep_complete |= first_sweep_completed_now
-        self._paddle_reach_target_revision += first_sweep_completed_now.long()
-        active_source_index = torch.where(
-            self._split_source_episode & self._first_sweep_complete,
-            1 - self._initial_source_index,
-            self._initial_source_index,
-        )
-        active_source_mask = self._particle_source_group_masks.gather(
-            1,
-            active_source_index[:, None, None].expand(-1, 1, self._media.particles_per_object),
-        ).squeeze(1)
-        self._particle_focused_source_mask.copy_(active_source_mask)
-        self._paddle_reach_potential = mdp.compute_paddle_reach_potential(
-            safe_position_e,
-            paddle_position_e,
-            paddle_normal_e,
-            paddle_vertical_e,
-            self.cfg,
-            self._particle_focused_source_mask,
-        )
-        multi_push_phase = self._first_sweep_complete & (self._split_source_episode | self._post_first_sweep_reset)
-        self._second_pile_reached |= multi_push_phase & (
-            self._paddle_reach_potential >= self.cfg.multi_push_reach_threshold
-        )
-        active_source_delivery = source_group_delivery_fraction.gather(1, active_source_index[:, None]).squeeze(1)
-        self._second_push_started |= multi_push_phase & (
-            active_source_delivery >= self.cfg.multi_push_second_delivery_fraction
-        )
         joint_limits = self._robot.data.soft_joint_pos_limits.torch[:, self._joint_ids]
         joint_position_in_bounds = (
             (joint_position >= joint_limits[..., 0] - self.cfg.state_bound_joint_position_margin)
@@ -794,7 +586,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             self._success_streak,
             self._bin_fraction,
             self._spill_fraction,
-            success_fraction=self._episode_success_fraction,
+            success_fraction=self.cfg.success_fraction,
             max_spill_fraction=self.cfg.success_max_spill_fraction,
             dwell_steps=self._success_dwell_steps,
         )
@@ -802,11 +594,10 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         unsafe = self._invalid_state | self._escaped_workspace | self._excessive_spill
         self._success_streak = torch.where(unsafe, torch.zeros_like(self._success_streak), self._success_streak)
         self._success_this_step &= ~unsafe
-        self._episode_success |= self._success_this_step
         self._task_state_step = self.common_step_counter
 
     def policy_observation(self) -> torch.Tensor:
-        """Return the unchanged 31-value actor vector used by existing checkpoints."""
+        """Return the 30-value actor vector."""
         joint_position = torch.nan_to_num(
             self._robot.data.joint_pos.torch[:, self._joint_ids],
             nan=0.0,
@@ -842,14 +633,13 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
                 paddle_normal_e,
                 paddle_vertical_e,
                 normalized_paddle_to_bin,
-                self._episode_success_fraction[:, None],
             ),
             dim=-1,
         )
         return torch.nan_to_num(policy, nan=0.0, posinf=4.0, neginf=-4.0).clamp(-4.0, 4.0)
 
     def heightmap_observation(self) -> torch.Tensor:
-        """Return the unchanged three-channel heightmap used by existing checkpoints."""
+        """Return the three-channel overhead heightmap."""
         particle_position_e = torch.nan_to_num(
             self._particle_position_e(),
             nan=0.0,
@@ -860,7 +650,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         return torch.nan_to_num(heightmap, nan=0.0, posinf=1.0, neginf=0.0)
 
     def critic_observation(self) -> torch.Tensor:
-        """Return the unchanged 11-value privileged vector used by existing checkpoints."""
+        """Return the 11-value privileged vector."""
         self.update_task_state()
         particle_position_e = torch.nan_to_num(
             self._particle_position_e(),
@@ -899,14 +689,22 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         )
         return torch.nan_to_num(privileged, nan=0.0, posinf=4.0, neginf=-4.0).clamp(-4.0, 4.0)
 
-    def reset_push_scene(self, env_ids: Sequence[int] | torch.Tensor) -> None:
-        """Reset the robot and fixed granular payload after curriculum selection."""
+    def randomize_push_scene(self, env_ids: Sequence[int] | torch.Tensor) -> None:
+        """Randomize a collision-screened robot start and its nearby single pile."""
         env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
         if len(env_ids) == 0:
             return
 
-        episode_level = self._curriculum_level[env_ids]
-        pose_ids = self._sample_reset_pose_ids(episode_level)
+        reset_count = len(env_ids)
+        curriculum = self.curriculum_manager.cfg.reset_randomization.func
+        if not isinstance(curriculum, mdp.SinglePushCurriculum):
+            raise TypeError("The push reset event requires SinglePushCurriculum.")
+        curriculum_level = curriculum.levels[env_ids]
+        pose_ids = self._sample_reset_pose_ids(curriculum_level)
+        randomization_scale = torch.as_tensor(
+            self.cfg.reset_randomization_scales,
+            device=self.device,
+        )[curriculum_level]
         default_root_pose = self._robot.data.default_root_pose.torch[env_ids].clone()
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
         default_root_velocity = self._robot.data.default_root_vel.torch[env_ids].clone()
@@ -930,64 +728,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         # Consume FK invalidation before MPM snapshots the reset paddle transform.
         _ = self._robot.data.body_link_pose_w
 
-        reset_count = len(env_ids)
-        randomization_scale = self._curriculum_randomization_scale[episode_level]
-        source_pile_index = self._reset_pose_bank.source_pile_index[pose_ids]
-        source_pile_count = self._curriculum_source_pile_count[episode_level]
-        source_lateral_offset = self._curriculum_source_lateral_offset[episode_level]
-        post_first_sweep = self._curriculum_post_first_sweep[episode_level]
-        approach_paddle_xy = torch.stack(
-            (
-                self.cfg.paddle_reset_center[0]
-                + self._curriculum_pile_center_x[episode_level]
-                - self.cfg.pile_nominal_center[0],
-                torch.where(source_pile_index == 0, -source_lateral_offset, source_lateral_offset),
-            ),
-            dim=1,
-        )
-        post_sweep_paddle_xy = torch.stack(
-            (
-                torch.full_like(source_lateral_offset, self.cfg.post_first_sweep_paddle_center_x),
-                torch.where(source_pile_index == 0, -source_lateral_offset, source_lateral_offset),
-            ),
-            dim=1,
-        )
-        nominal_paddle_xy = torch.where(post_first_sweep[:, None], post_sweep_paddle_xy, approach_paddle_xy)
-        # Correlate the absolute paddle and source transforms so each reset keeps a short approach
-        # to its selected pile. A smaller residual supplies particle-only deployment variation.
-        particle_lateral_range = torch.where(
-            (source_pile_count == 2) | post_first_sweep,
-            self.cfg.reset_particle_split_max_lateral_offset,
-            self.cfg.reset_particle_max_lateral_offset,
-        )
-        translation_lower_bound = (
-            torch.stack(
-                (
-                    self._particle_longitudinal_offset_range[0].expand(reset_count),
-                    -particle_lateral_range,
-                ),
-                dim=1,
-            )
-            * randomization_scale[:, None]
-        )
-        translation_upper_bound = (
-            torch.stack(
-                (
-                    self._particle_longitudinal_offset_range[1].expand(reset_count),
-                    particle_lateral_range,
-                ),
-                dim=1,
-            )
-            * randomization_scale[:, None]
-        )
-        translation_xy = sample_correlated_particle_translation(
-            self._reset_pose_bank.paddle_position_e[pose_ids, :2],
-            nominal_paddle_xy,
-            translation_lower_bound,
-            translation_upper_bound,
-            self._particle_paddle_residual_half_range * randomization_scale[:, None],
-        )
-        yaw = (
+        pile_yaw = (
             (2.0 * torch.rand(reset_count, device=self.device) - 1.0)
             * self.cfg.reset_particle_max_yaw
             * randomization_scale
@@ -1010,31 +751,15 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             )
             - 1.0
         ) * self.cfg.reset_particle_jitter
-        reset_source_lateral_offset = torch.where(
-            post_first_sweep & (source_pile_index == 0),
-            -source_lateral_offset,
-            source_lateral_offset,
-        )
-        focused_source_pile_index = torch.where(
-            post_first_sweep,
-            torch.zeros_like(source_pile_index),
-            source_pile_index,
-        )
-        particle_reset = build_staged_particle_reset(
+        particle_position_e = build_particle_reset(
             self._particle_reset_template_e[env_ids],
-            self._curriculum_pile_center_x[episode_level],
-            source_pile_count,
-            reset_source_lateral_offset,
-            self._curriculum_initial_bin_fraction[episode_level],
-            focused_source_pile_index,
-            translation_xy,
-            yaw,
+            self._reset_pose_bank.pile_center_xy[pose_ids],
+            pile_yaw,
             particle_jitter,
             self.cfg,
-            source_vertical_cell_count=self._reset_source_vertical_cell_count[source_shape_profile],
-            source_footprint_aspect_ratio=self._reset_source_footprint_aspect_ratio[source_shape_profile],
+            vertical_cell_count=self._reset_source_vertical_cell_count[source_shape_profile],
+            footprint_aspect_ratio=self._reset_source_footprint_aspect_ratio[source_shape_profile],
         )
-        particle_position_e = particle_reset.position_e
         particle_state = self._media.data.default_particle_state_w.torch[env_ids].clone()
         particle_state[..., :3] = particle_position_e + self.scene.env_origins[env_ids, None, :]
         particle_state[..., 3:] = 0.0
@@ -1056,33 +781,13 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             self.cfg,
             start_centroid_x,
         )
-        paddle_position_e, paddle_normal_e, paddle_vertical_e = self._paddle_pose_e()
-        paddle_reach_potential = mdp.compute_paddle_reach_potential(
-            particle_position_e,
-            paddle_position_e[env_ids],
-            paddle_normal_e[env_ids],
-            paddle_vertical_e[env_ids],
-            self.cfg,
-            particle_reset.focused_source_mask,
-        )
-        self._particle_focused_source_mask[env_ids] = particle_reset.focused_source_mask
-        self._particle_source_group_masks[env_ids] = particle_reset.source_group_masks
-        self._initial_source_index[env_ids] = focused_source_pile_index
-        self._split_source_episode[env_ids] = (source_pile_count == 2) & ~post_first_sweep
-        self._post_first_sweep_reset[env_ids] = post_first_sweep
-        self._first_sweep_complete[env_ids] = post_first_sweep
-        self._second_pile_reached[env_ids] = False
-        self._second_push_started[env_ids] = False
-        self._paddle_reach_target_revision[env_ids] += 1
         self._bin_fraction[env_ids] = bin_fraction
         self._spill_fraction[env_ids] = spill_fraction
         self._episode_start_centroid_x[env_ids] = start_centroid_x
         self._transport_progress[env_ids] = transport_progress
-        self._paddle_reach_potential[env_ids] = paddle_reach_potential
 
         self._success_streak[env_ids] = 0
         self._success_this_step[env_ids] = False
-        self._episode_success[env_ids] = False
         self._rms_particle_speed[env_ids] = 0.0
         self._invalid_state[env_ids] = False
         self._escaped_workspace[env_ids] = False
@@ -1097,7 +802,6 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             self._heightmap_xy_offset[env_ids] = 0.0
         self._heightmap_history_reset[env_ids] = True
         self._heightmap_history_reset_pending = True
-        self._reset_initialized[env_ids] = True
         self._task_state_step = self.common_step_counter
 
     def _particle_position_e(self) -> torch.Tensor:

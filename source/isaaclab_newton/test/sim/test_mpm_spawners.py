@@ -167,3 +167,33 @@ def test_mpm_config_imports_do_not_load_pxr():
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "module",
+    [
+        "scripts.demos.mpm.newton_mpm_granular",
+        "scripts.demos.mpm.snowball_smash",
+        "scripts.demos.mpm.teapot_fill",
+    ],
+)
+def test_mpm_demo_configs_do_not_load_pxr_before_simulation_launch(module):
+    """Every MPM demo must delay USD imports until after ``AppLauncher`` starts."""
+    code = textwrap.dedent(
+        f"""
+        import importlib
+        import sys
+
+        sys.argv = ["demo.py", "--max_steps", "0", "--visualizer", "none", "--device", "cuda:0"]
+        demo = importlib.import_module({module!r})
+        demo.create_sim_cfg()
+
+        loaded_pxr_modules = [name for name in sys.modules if name == "pxr" or name.startswith("pxr.")]
+        if loaded_pxr_modules:
+            raise SystemExit("pxr loaded before simulation launch: " + ", ".join(loaded_pxr_modules[:20]))
+        """
+    )
+
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+
+    assert result.returncode == 0, result.stdout + result.stderr

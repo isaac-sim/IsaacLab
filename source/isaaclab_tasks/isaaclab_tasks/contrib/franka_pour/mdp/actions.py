@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.envs.mdp.actions import BinaryJointPositionAction, RelativeJointPositionAction
 
@@ -62,7 +63,7 @@ class CurriculumGripperPositionAction(BinaryJointPositionAction):
         binary_cfg.open_command_expr = {".*": float(cfg.neutral_position)}
         binary_cfg.close_command_expr = {".*": float(cfg.close_position)}
         super().__init__(binary_cfg, env)
-        self._joint_ids_torch, _ = self._asset.find_joints(cfg.joint_names, preserve_order=True)
+        self._joint_ids_torch = wp.to_torch(self._joint_ids)
         self._alpha = float(cfg.alpha)
         close_position = float(cfg.close_position)
         self._neutral_position = float(cfg.neutral_position)

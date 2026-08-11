@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import warp as wp
 from newton import (
     BodyFlags,
@@ -27,12 +29,25 @@ from .newton_manager import NewtonManager
 
 def _make_solver_config(solver_cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
     """Build Newton's implicit MPM solver config from Isaac Lab's cfg."""
+    collider_velocity_mode = solver_cfg.collider_velocity_mode
+    deprecated_velocity_modes = {
+        "instantaneous": "forward",
+        "finite_difference": "backward",
+    }
+    if replacement := deprecated_velocity_modes.get(collider_velocity_mode):
+        warnings.warn(
+            f"collider_velocity_mode={collider_velocity_mode!r} is deprecated; use {replacement!r} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        collider_velocity_mode = replacement
+
     return SolverImplicitMPM.Config(
         max_iterations=solver_cfg.max_iterations,
         tolerance=solver_cfg.tolerance,
         solver=solver_cfg.solver,
         warmstart_mode=solver_cfg.warmstart_mode,
-        collider_velocity_mode=solver_cfg.collider_velocity_mode,
+        collider_velocity_mode=collider_velocity_mode,
         voxel_size=solver_cfg.voxel_size,
         grid_type=solver_cfg.grid_type,
         grid_padding=solver_cfg.grid_padding,
@@ -131,6 +146,43 @@ class NewtonMPMManager(NewtonManager):
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = False
         cls._project_outside_colliders = solver_cfg.project_outside_colliders
+
+    @classmethod
+    def _requires_initial_reset_before_graph_capture(cls) -> bool:
+        """Capture MPM only after the task authors its initial particle state."""
+        return True
+
+    @classmethod
+    def _supports_cuda_graph_capture(cls) -> bool:
+        """Return whether the active MPM grid has capture-stable storage."""
+        return cls._solver_supports_cuda_graph_capture(cls._solver)
+
+    @staticmethod
+    def _solver_supports_cuda_graph_capture(solver: SolverImplicitMPM) -> bool:
+        """Return whether an implicit-MPM solver satisfies Newton's capture contract."""
+        if solver.grid_type == "fixed":
+            return True
+        if solver.grid_type != "sparse":
+            return False
+
+        strain_rebuild_safe = solver.strain_basis.startswith("pic") or solver.strain_basis in (
+            "P0",
+            "P1d",
+            "Q1d",
+            "Q1",
+        )
+        collider_rebuild_safe = solver.collider_basis.startswith("pic") or solver.collider_basis in (
+            "Q1",
+            "S2",
+            "S3",
+        )
+        return (
+            solver.max_active_cell_count > 0
+            and solver.grid_padding == 0
+            and solver.velocity_basis == "Q1"
+            and strain_rebuild_safe
+            and collider_rebuild_safe
+        )
 
     @classmethod
     def _check_solver_status(cls) -> None:

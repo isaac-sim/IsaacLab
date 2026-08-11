@@ -110,8 +110,9 @@ solver actually needs it:
   CUDA graph capture and fall back to eager execution. Defaults to ``True``;
   :class:`~isaaclab_newton.physics.NewtonMPMManager` accepts fixed and
   capacity-bounded rebuildable sparse grids.
-* ``_defer_standard_graph_capture()``: delay headless CUDA graph capture until
-  the first post-reset step when solver resources depend on reset-authored state.
+* ``_requires_initial_reset_before_graph_capture()``: delay headless CUDA graph
+  capture until the first post-reset step when solver resources depend on
+  reset-authored state.
 * ``_solver_specific_clear()``: release any class-level state owned by the
   solver manager.
 

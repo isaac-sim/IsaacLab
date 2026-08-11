@@ -7,12 +7,7 @@ Added
   outcome-aware reset curriculum with per-region progress metrics.
 * Added bounded sparse MPM configurations with CUDA graph capture and
   fixed-payload resets for both tasks.
-* Added randomized pile footprint, shape, and lateral placement to the UR10
-  particle-pushing task, with partial-progress and split-pile resets for
-  multi-pass manipulation.
-
-Changed
-^^^^^^^
-
-* Reduced the UR10 particle-push paddle width so broad piles require
-  corrective sweeps.
+* Added randomized pile shape and table placement, paired collision-screened
+  robot starts, and a competence-based reset curriculum to the UR10
+  particle-pushing task. Every level keeps the same single-pile, single-sweep
+  objective.

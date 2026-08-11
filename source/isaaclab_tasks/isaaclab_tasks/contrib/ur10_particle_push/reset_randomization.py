@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Small, deployment-facing reset randomization for UR10 particle push."""
+"""Reset randomization for UR10 particle push."""
 
 from __future__ import annotations
 
@@ -22,12 +22,11 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class PushResetPoseBank:
-    """Collision-screened robot poses sampled once at environment construction."""
+    """Collision-screened robot starts paired with nearby pile centers."""
 
     joint_position: torch.Tensor
-    paddle_position_e: torch.Tensor
+    pile_center_xy: torch.Tensor
     curriculum_level: torch.Tensor
-    source_pile_index: torch.Tensor
 
     @property
     def row_count(self) -> int:
@@ -35,121 +34,70 @@ class PushResetPoseBank:
         return int(self.joint_position.shape[0])
 
 
-@dataclass(frozen=True)
-class PushParticleResetState:
-    """Particle state and semantic masks generated for one reset batch."""
-
-    position_e: torch.Tensor
-    focused_source_mask: torch.Tensor
-    source_group_masks: torch.Tensor
-
-
-def build_reset_pose_curriculum_levels(
+def build_reset_targets(
     cfg: UR10ParticlePushEnvCfg,
     *,
     device: torch.device | str,
-) -> torch.Tensor:
-    """Return the curriculum level assigned to every deterministic reset-pose row."""
-    level_count = len(cfg.curriculum_pile_center_x)
-    poses_per_level = cfg.reset_pose_count // level_count
-    return torch.arange(level_count, device=device, dtype=torch.long).repeat_interleave(poses_per_level)
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Build deterministic, paired paddle and pile targets for reset-time sampling.
 
-
-def build_reset_pose_source_pile_indices(
-    cfg: UR10ParticlePushEnvCfg,
-    *,
-    device: torch.device | str,
-) -> torch.Tensor:
-    """Return the source pile targeted by each deterministic reset-pose row."""
-    levels = build_reset_pose_curriculum_levels(cfg, device="cpu").numpy()
-    indices = np.zeros(cfg.reset_pose_count, dtype=np.int64)
-    for level, (pile_count, post_first_sweep) in enumerate(
-        zip(cfg.curriculum_source_pile_count, cfg.curriculum_post_first_sweep, strict=True)
-    ):
-        level_rows = np.flatnonzero(levels == level)
-        side_count = 2 if post_first_sweep else pile_count
-        indices[level_rows] = np.arange(level_rows.size) % side_count
-    return torch.as_tensor(indices, dtype=torch.long, device=device)
-
-
-def build_reset_paddle_targets(
-    cfg: UR10ParticlePushEnvCfg,
-    *,
-    device: torch.device | str,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Sample deterministic upright paddle poses for every curriculum level.
-
-    Each level shifts the paddle with its particle pile, preserving the same short approach
-    distance. The first row per level is exact; remaining rows vary position and world-Z yaw by
-    that level's randomization scale.
+    Newton IK is intentionally solved once during environment construction. At reset time, the
+    Isaac Lab event term samples this collision-screened bank while particle shape, yaw, and
+    sub-cell positions remain continuously randomized.
     """
     count = cfg.reset_pose_count
-    levels = build_reset_pose_curriculum_levels(cfg, device="cpu").numpy()
-    source_pile_indices = build_reset_pose_source_pile_indices(cfg, device="cpu").numpy()
+    level_count = len(cfg.reset_randomization_scales)
+    poses_per_level = count // level_count
     rng = np.random.default_rng(cfg.reset_seed)
-    nominal = np.asarray(cfg.paddle_reset_center, dtype=np.float32)
-    positions = np.broadcast_to(nominal, (count, 3)).copy()
-    yaw = np.zeros(count, dtype=np.float32)
-    for level in range(len(cfg.curriculum_pile_center_x)):
-        level_rows = np.flatnonzero(levels == level)
-        level_scale = np.float32(cfg.curriculum_randomization_scale[level])
-        pile_count = cfg.curriculum_source_pile_count[level]
-        post_first_sweep = cfg.curriculum_post_first_sweep[level]
-        lateral_offset = np.float32(cfg.curriculum_source_lateral_offset[level])
-        if post_first_sweep:
-            positions[level_rows, 0] = np.float32(cfg.post_first_sweep_paddle_center_x)
-            positions[level_rows, 1] = np.where(
-                source_pile_indices[level_rows] == 0,
-                -lateral_offset,
-                lateral_offset,
-            )
-        else:
-            positions[level_rows, 0] += np.float32(cfg.curriculum_pile_center_x[level] - cfg.pile_nominal_center[0])
-            if pile_count == 2:
-                positions[level_rows, 1] += np.where(
-                    source_pile_indices[level_rows] == 0,
-                    -lateral_offset,
-                    lateral_offset,
-                )
-        paddle_lateral_range = np.float32(
-            cfg.post_first_sweep_paddle_max_lateral_offset
-            if post_first_sweep
-            else (cfg.reset_paddle_split_max_lateral_offset if pile_count == 2 else cfg.reset_paddle_max_lateral_offset)
-        )
-        # Keep one exact pose for every focus side and randomize the remaining rows locally.
-        side_count = 2 if post_first_sweep else pile_count
-        for pile_index in range(side_count):
-            pile_rows = level_rows[source_pile_indices[level_rows] == pile_index]
-            randomized_rows = pile_rows[1:]
-            if randomized_rows.size == 0:
-                continue
-            longitudinal_range = (
-                cfg.post_first_sweep_paddle_longitudinal_offset_range
-                if post_first_sweep
-                else cfg.reset_paddle_longitudinal_offset_range
-            )
-            positions[randomized_rows, 0] += rng.uniform(
-                longitudinal_range[0] * level_scale,
-                longitudinal_range[1] * level_scale,
-                randomized_rows.size,
-            ).astype(np.float32)
-            positions[randomized_rows, 1] += rng.uniform(
-                -paddle_lateral_range * level_scale,
-                paddle_lateral_range * level_scale,
-                randomized_rows.size,
-            ).astype(np.float32)
-            yaw[randomized_rows] = rng.uniform(
-                -cfg.reset_paddle_max_yaw * level_scale,
-                cfg.reset_paddle_max_yaw * level_scale,
-                randomized_rows.size,
-            ).astype(np.float32)
+    curriculum_level = np.arange(count, dtype=np.int64) // poses_per_level
+    randomization_scale = np.asarray(cfg.reset_randomization_scales, dtype=np.float32)[curriculum_level]
+    pile_center_x = np.asarray(cfg.reset_pile_center_x, dtype=np.float32)[curriculum_level]
+    paddle_center = np.broadcast_to(np.asarray(cfg.paddle_reset_center, dtype=np.float32), (count, 3)).copy()
+    paddle_center[:, 0] += pile_center_x - np.float32(cfg.pile_nominal_center[0])
+    paddle_position = paddle_center.copy()
+    pile_center_xy = np.empty((count, 2), dtype=np.float32)
+    paddle_yaw = np.zeros(count, dtype=np.float32)
+
+    paddle_position[:, 0] += randomization_scale * rng.uniform(
+        *cfg.reset_paddle_longitudinal_offset_range,
+        count,
+    ).astype(np.float32)
+    paddle_position[:, 1] += randomization_scale * rng.uniform(
+        -cfg.reset_paddle_max_lateral_offset,
+        cfg.reset_paddle_max_lateral_offset,
+        count,
+    ).astype(np.float32)
+    paddle_yaw[:] = randomization_scale * rng.uniform(
+        -cfg.reset_paddle_max_yaw,
+        cfg.reset_paddle_max_yaw,
+        count,
+    ).astype(np.float32)
+    nominal_distance = np.float32(cfg.pile_nominal_center[0] - cfg.paddle_reset_center[0])
+    sampled_distance = rng.uniform(
+        *cfg.reset_pile_paddle_distance_range,
+        count,
+    ).astype(np.float32)
+    pile_center_xy[:, 0] = (
+        paddle_position[:, 0] + nominal_distance + randomization_scale * (sampled_distance - nominal_distance)
+    )
+    pile_center_xy[:, 1] = paddle_position[:, 1] + randomization_scale * rng.uniform(
+        *cfg.reset_pile_paddle_lateral_offset_range,
+        count,
+    ).astype(np.float32)
+
+    # Retain one exact pose per level for deterministic smoke tests and playback.
+    for level in range(level_count):
+        canonical_row = level * poses_per_level
+        paddle_position[canonical_row] = paddle_center[canonical_row]
+        paddle_yaw[canonical_row] = 0.0
+        pile_center_xy[canonical_row] = (pile_center_x[canonical_row], cfg.pile_nominal_center[1])
 
     # Rz(yaw) @ Ry(pi / 2): local X remains vertical-down and local Z points toward +X at yaw=0.
-    half_yaw = 0.5 * yaw
+    half_yaw = 0.5 * paddle_yaw
     sine = np.sin(half_yaw)
     cosine = np.cos(half_yaw)
     half_sqrt_two = np.float32(2.0**-0.5)
-    quaternions = np.stack(
+    paddle_quaternion = np.stack(
         (
             -half_sqrt_two * sine,
             half_sqrt_two * cosine,
@@ -159,73 +107,54 @@ def build_reset_paddle_targets(
         axis=-1,
     ).astype(np.float32)
     return (
-        torch.as_tensor(positions, dtype=torch.float32, device=device),
-        torch.as_tensor(quaternions, dtype=torch.float32, device=device),
+        torch.as_tensor(paddle_position, dtype=torch.float32, device=device),
+        torch.as_tensor(paddle_quaternion, dtype=torch.float32, device=device),
+        torch.as_tensor(pile_center_xy, dtype=torch.float32, device=device),
+        torch.as_tensor(curriculum_level, dtype=torch.long, device=device),
     )
 
 
-def sample_correlated_particle_translation(
-    paddle_position_xy: torch.Tensor,
-    paddle_reset_xy: torch.Tensor,
-    translation_lower_bound: torch.Tensor,
-    translation_upper_bound: torch.Tensor,
-    residual_half_range: torch.Tensor,
-) -> torch.Tensor:
-    """Sample bounded pile translations while preserving a local paddle-to-pile approach."""
-    if paddle_position_xy.ndim != 2 or paddle_position_xy.shape[1] != 2:
-        raise ValueError("paddle_position_xy must have shape (num_envs, 2).")
-    env_count = paddle_position_xy.shape[0]
-    expected_bounds_shape = (env_count, 2)
-    if paddle_reset_xy.shape not in ((2,), expected_bounds_shape):
-        raise ValueError("paddle_reset_xy must have shape (2,) or (num_envs, 2).")
-    for name, value in (
-        ("translation_lower_bound", translation_lower_bound),
-        ("translation_upper_bound", translation_upper_bound),
-        ("residual_half_range", residual_half_range),
-    ):
-        if value.shape not in ((2,), expected_bounds_shape):
-            raise ValueError(f"{name} must have shape (2,) or {expected_bounds_shape}.")
-
-    paddle_translation = paddle_position_xy - paddle_reset_xy
-    residual_lower = torch.maximum(-residual_half_range, translation_lower_bound - paddle_translation)
-    residual_upper = torch.minimum(residual_half_range, translation_upper_bound - paddle_translation)
-    residual = residual_lower + torch.rand_like(paddle_position_xy) * (residual_upper - residual_lower)
-    return paddle_translation + residual
-
-
-def _pack_particle_group(
-    rank: torch.Tensor,
-    count: torch.Tensor,
-    mask: torch.Tensor,
-    center_xy: torch.Tensor,
-    support_z: torch.Tensor,
-    spacing: torch.Tensor,
+def build_particle_reset(
+    template_position_e: torch.Tensor,
+    pile_center_xy: torch.Tensor,
+    pile_yaw: torch.Tensor,
     particle_jitter: torch.Tensor,
-    yaw: torch.Tensor,
+    cfg: UR10ParticlePushEnvCfg,
     *,
-    vertical_cell_count: int | torch.Tensor,
-    footprint_aspect_ratio: float | torch.Tensor,
+    vertical_cell_count: torch.Tensor,
+    footprint_aspect_ratio: torch.Tensor,
 ) -> torch.Tensor:
-    """Pack one masked group into a compact, bottom-supported particle lattice."""
-    vertical_cell_count = torch.as_tensor(vertical_cell_count, dtype=torch.long, device=count.device)
-    footprint_aspect_ratio = torch.as_tensor(
-        footprint_aspect_ratio,
-        dtype=spacing.dtype,
-        device=count.device,
-    )
-    if vertical_cell_count.ndim == 0:
-        vertical_cell_count = vertical_cell_count.expand_as(count)
-    if footprint_aspect_ratio.ndim == 0:
-        footprint_aspect_ratio = footprint_aspect_ratio.expand_as(count)
-    if vertical_cell_count.shape != count.shape or footprint_aspect_ratio.shape != count.shape:
-        raise ValueError("Per-group packing parameters must be scalar or have one value per environment.")
+    """Pack every environment's fixed particle population into one supported pile."""
+    if template_position_e.ndim != 3 or template_position_e.shape[-1] != 3:
+        raise ValueError("template_position_e must have shape (num_envs, num_particles, 3).")
+    env_count, particle_count, _ = template_position_e.shape
+    if particle_count != math.prod(PILE_LATTICE_RESOLUTION):
+        raise ValueError("template_position_e must contain the complete emitted particle lattice.")
+    if pile_center_xy.shape != (env_count, 2):
+        raise ValueError(f"pile_center_xy must have shape {(env_count, 2)}.")
+    if pile_yaw.shape != (env_count,):
+        raise ValueError(f"pile_yaw must have shape {(env_count,)}.")
+    if particle_jitter.shape != template_position_e.shape:
+        raise ValueError(f"particle_jitter must have shape {tuple(template_position_e.shape)}.")
+    if vertical_cell_count.shape != (env_count,) or footprint_aspect_ratio.shape != (env_count,):
+        raise ValueError("Pile packing profiles must contain one value per environment.")
 
-    safe_rank = rank.clamp_min(0)
+    spawn = cfg.scene.media.spawn
+    extent = template_position_e.new_tensor(
+        tuple(upper - lower for lower, upper in zip(spawn.lower, spawn.upper, strict=True))
+    )
+    spacing = extent / template_position_e.new_tensor(PILE_LATTICE_RESOLUTION)
+    rank = torch.arange(particle_count, device=template_position_e.device).expand(env_count, -1)
+    vertical_cell_count = vertical_cell_count.to(dtype=torch.long, device=template_position_e.device)
+    footprint_aspect_ratio = footprint_aspect_ratio.to(
+        dtype=template_position_e.dtype,
+        device=template_position_e.device,
+    )
     footprint_count = torch.div(
-        count + vertical_cell_count - 1,
+        particle_count + vertical_cell_count - 1,
         vertical_cell_count,
         rounding_mode="floor",
-    ).clamp_min(1)
+    )
     x_cell_count = torch.ceil(torch.sqrt(footprint_count.float() * footprint_aspect_ratio)).long().clamp_min(1)
     y_cell_count = torch.div(
         footprint_count + x_cell_count - 1,
@@ -233,184 +162,24 @@ def _pack_particle_group(
         rounding_mode="floor",
     ).clamp_min(1)
 
-    vertical_index = safe_rank.remainder(vertical_cell_count[:, None])
-    planar_index = torch.div(safe_rank, vertical_cell_count[:, None], rounding_mode="floor")
+    vertical_index = rank.remainder(vertical_cell_count[:, None])
+    planar_index = torch.div(rank, vertical_cell_count[:, None], rounding_mode="floor")
     y_index = planar_index.remainder(y_cell_count[:, None])
     x_index = torch.div(planar_index, y_cell_count[:, None], rounding_mode="floor")
     local_x = (x_index - 0.5 * (x_cell_count[:, None] - 1)) * spacing[0] + particle_jitter[..., 0]
     local_y = (y_index - 0.5 * (y_cell_count[:, None] - 1)) * spacing[1] + particle_jitter[..., 1]
-    cosine = torch.cos(yaw)[:, None]
-    sine = torch.sin(yaw)[:, None]
-    position = torch.stack(
+    cosine = torch.cos(pile_yaw)[:, None]
+    sine = torch.sin(pile_yaw)[:, None]
+    support_z = template_position_e[..., 2].amin(dim=1)
+    position_e = torch.stack(
         (
-            center_xy[:, None, 0] + cosine * local_x - sine * local_y,
-            center_xy[:, None, 1] + sine * local_x + cosine * local_y,
+            pile_center_xy[:, None, 0] + cosine * local_x - sine * local_y,
+            pile_center_xy[:, None, 1] + sine * local_x + cosine * local_y,
             support_z[:, None] + vertical_index * spacing[2] + particle_jitter[..., 2],
         ),
         dim=-1,
     )
 
-    # Correct support per group. Delivered and source piles sit on different physical floors.
-    infinity = torch.full_like(position[..., 2], torch.inf)
-    minimum_z = torch.where(mask, position[..., 2], infinity).amin(dim=1)
-    correction = torch.where(mask.any(dim=1), support_z - minimum_z, torch.zeros_like(support_z))
-    position[..., 2] += correction[:, None]
-    return position
-
-
-def build_staged_particle_reset(
-    template_position_e: torch.Tensor,
-    source_center_x: torch.Tensor,
-    source_pile_count: torch.Tensor,
-    source_lateral_offset: torch.Tensor,
-    initial_bin_fraction: torch.Tensor,
-    focused_source_pile_index: torch.Tensor,
-    source_translation_xy: torch.Tensor,
-    source_yaw: torch.Tensor,
-    particle_jitter: torch.Tensor,
-    cfg: UR10ParticlePushEnvCfg,
-    *,
-    source_vertical_cell_count: torch.Tensor | None = None,
-    source_footprint_aspect_ratio: torch.Tensor | None = None,
-) -> PushParticleResetState:
-    """Build reverse-curriculum resets from delivered material and one or two source piles.
-
-    Every world reuses the complete emitted lattice. Partial-progress states change only material
-    placement, while particle count, spacing, volume, density, and PPC remain fixed.
-    """
-    if template_position_e.ndim != 3 or template_position_e.shape[-1] != 3:
-        raise ValueError("template_position_e must have shape (num_envs, num_particles, 3).")
-    env_count, particle_count, _ = template_position_e.shape
-    if particle_count != math.prod(PILE_LATTICE_RESOLUTION):
-        raise ValueError("template_position_e must contain the complete emitted particle lattice.")
-    if particle_jitter.shape != template_position_e.shape:
-        raise ValueError(
-            f"particle_jitter must have shape {tuple(template_position_e.shape)}, got {tuple(particle_jitter.shape)}."
-        )
-    for name, value in (
-        ("source_center_x", source_center_x),
-        ("source_pile_count", source_pile_count),
-        ("source_lateral_offset", source_lateral_offset),
-        ("initial_bin_fraction", initial_bin_fraction),
-        ("focused_source_pile_index", focused_source_pile_index),
-        ("source_yaw", source_yaw),
-    ):
-        if value.shape != (env_count,):
-            raise ValueError(f"{name} must have shape {(env_count,)}, got {tuple(value.shape)}.")
-    if source_translation_xy.shape != (env_count, 2):
-        raise ValueError(
-            f"source_translation_xy must have shape {(env_count, 2)}, got {tuple(source_translation_xy.shape)}."
-        )
-
-    particle_rank = torch.arange(particle_count, device=template_position_e.device).expand(env_count, -1)
-    delivered_count = torch.floor(particle_count * initial_bin_fraction).long().clamp(0, particle_count - 1)
-    delivered_mask = particle_rank < delivered_count[:, None]
-    source_mask = ~delivered_mask
-    source_rank = particle_rank - delivered_count[:, None]
-    source_group_index = source_rank.remainder(source_pile_count[:, None])
-    source_group_rank = torch.div(source_rank, source_pile_count[:, None], rounding_mode="floor")
-    focused_source_mask = source_mask & (source_group_index == focused_source_pile_index[:, None])
-    source_group_masks = torch.stack(
-        tuple(source_mask & (source_group_index == pile_index) for pile_index in range(2)),
-        dim=1,
-    )
-
-    spawn = cfg.scene.media.spawn
-    extent = template_position_e.new_tensor(
-        tuple(upper - lower for lower, upper in zip(spawn.lower, spawn.upper, strict=True))
-    )
-    default_source_aspect_ratio = (spawn.upper[0] - spawn.lower[0]) / (spawn.upper[1] - spawn.lower[1])
-    lattice_resolution = template_position_e.new_tensor(PILE_LATTICE_RESOLUTION)
-    spacing = extent / lattice_resolution
-    vertical_cell_count = PILE_LATTICE_RESOLUTION[2]
-    if source_vertical_cell_count is None:
-        source_vertical_cell_count = torch.full(
-            (env_count,),
-            vertical_cell_count,
-            dtype=torch.long,
-            device=template_position_e.device,
-        )
-    if source_footprint_aspect_ratio is None:
-        source_footprint_aspect_ratio = torch.full(
-            (env_count,),
-            default_source_aspect_ratio,
-            dtype=template_position_e.dtype,
-            device=template_position_e.device,
-        )
-    else:
-        source_footprint_aspect_ratio = source_footprint_aspect_ratio.to(
-            dtype=template_position_e.dtype,
-            device=template_position_e.device,
-        )
-    source_vertical_cell_count = source_vertical_cell_count.to(
-        dtype=torch.long,
-        device=template_position_e.device,
-    )
-    if source_vertical_cell_count.shape != (env_count,) or source_footprint_aspect_ratio.shape != (env_count,):
-        raise ValueError("Source packing profiles must contain one value per environment.")
-
-    source_support_z = template_position_e[..., 2].amin(dim=1)
-    bin_floor = cfg.scene.bin_floor
-    bin_support_z = template_position_e.new_full(
-        (env_count,),
-        bin_floor.init_state.pos[2] + 0.5 * bin_floor.spawn.size[2] + 0.5 * spawn.voxel_size,
-    )
-    bin_center_xy = template_position_e.new_tensor(
-        (
-            0.5 * sum(cfg.bin_inner_x_bounds),
-            0.5 * sum(cfg.bin_inner_y_bounds),
-        )
-    ).expand(env_count, -1)
-    delivered_position = _pack_particle_group(
-        particle_rank,
-        delivered_count,
-        delivered_mask,
-        bin_center_xy,
-        bin_support_z,
-        spacing,
-        particle_jitter,
-        torch.zeros_like(source_yaw),
-        vertical_cell_count=vertical_cell_count,
-        footprint_aspect_ratio=(cfg.bin_inner_x_bounds[1] - cfg.bin_inner_x_bounds[0])
-        / (cfg.bin_inner_y_bounds[1] - cfg.bin_inner_y_bounds[0]),
-    )
-
-    position_e = torch.where(delivered_mask[..., None], delivered_position, template_position_e)
-    source_center_x = source_center_x + source_translation_xy[:, 0]
-    source_midpoint_y = source_translation_xy[:, 1]
-    source_count = particle_count - delivered_count
-    for pile_index in range(2):
-        pile_enabled = source_pile_count > pile_index
-        pile_mask = source_mask & pile_enabled[:, None] & (source_group_index == pile_index)
-        pile_count = torch.div(
-            source_count + source_pile_count - 1 - pile_index,
-            source_pile_count,
-            rounding_mode="floor",
-        ).clamp_min(0)
-        lateral_sign = -1.0 if pile_index == 0 else 1.0
-        pile_center_xy = torch.stack(
-            (
-                source_center_x,
-                source_midpoint_y + lateral_sign * source_lateral_offset,
-            ),
-            dim=1,
-        )
-        pile_position = _pack_particle_group(
-            source_group_rank,
-            pile_count,
-            pile_mask,
-            pile_center_xy,
-            source_support_z,
-            spacing,
-            particle_jitter,
-            source_yaw,
-            vertical_cell_count=source_vertical_cell_count,
-            footprint_aspect_ratio=source_footprint_aspect_ratio,
-        )
-        position_e = torch.where(pile_mask[..., None], pile_position, position_e)
-
-    return PushParticleResetState(
-        position_e=position_e,
-        focused_source_mask=focused_source_mask,
-        source_group_masks=source_group_masks,
-    )
+    # Jitter is symmetric, so translate each pile back onto its physical support plane.
+    position_e[..., 2] += (support_z - position_e[..., 2].amin(dim=1))[:, None]
+    return position_e
