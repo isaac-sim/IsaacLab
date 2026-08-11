@@ -17,7 +17,6 @@ from isaaclab_tasks.contrib.conveyor_franka.agents.rsl_rl_ppo_cfg import (
 )
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
 from isaaclab_tasks.contrib.conveyor_franka.mdp.curriculums import (
-    _ring_append_bool_count_rate,
     deployment_probability_from_progress,
     reset_sampling_probabilities,
 )
@@ -220,14 +219,14 @@ def test_reset_sampling_guarantees_deployment_mass_and_tracks_frontier():
     variant_ids = torch.tensor([row.variant_id for row in rows], dtype=torch.long)
     target_cube_ids = torch.tensor([row.target_cube_id for row in rows], dtype=torch.long)
     source_side_ids = torch.tensor([row.source_side_id for row in rows], dtype=torch.long)
-    attempts = torch.zeros(len(rows), dtype=torch.long)
-    successes = torch.zeros_like(attempts)
     place_stratum = (recipe_ids == int(ConveyorResetRecipe.PLACE)) & (target_cube_ids == 0) & (source_side_ids == 0)
     place_ids = torch.nonzero(place_stratum, as_tuple=False).flatten()
-    attempts[place_ids[0]] = 100
-    successes[place_ids[0]] = 100
-    attempts[place_ids[1]] = 100
-    successes[place_ids[1]] = 50
+    monitor_cfg = ConveyorFrankaEnvCfg().curriculum.reset_sampling.params["success_monitor"]
+    monitor = monitor_cfg.class_type(monitor_cfg, num_partitions=1, partition_size=len(rows), device="cpu")
+    monitor.success_update(
+        torch.cat((place_ids[0].repeat(50), place_ids[1].repeat(50))),
+        torch.cat((torch.ones(50, dtype=torch.bool), torch.arange(50) % 2 == 0)),
+    )
 
     deployment_rows = (recipe_ids == int(ConveyorResetRecipe.BELT)) & (
         variant_ids == reset_variant_counts()[int(ConveyorResetRecipe.BELT)] - 1
@@ -237,10 +236,8 @@ def test_reset_sampling_guarantees_deployment_mass_and_tracks_frontier():
         variant_ids,
         target_cube_ids,
         source_side_ids,
-        attempts,
-        successes,
+        monitor.target_weights(),
         deployment_probability=0.35,
-        epsilon=0.05,
     )
 
     torch.testing.assert_close(probabilities.sum(), torch.tensor(1.0))
@@ -363,25 +360,19 @@ def test_continuing_training_truncates_only_stalled_or_long_sequences():
 
 def test_rolling_progress_monitor_forgets_stale_outcomes_in_order():
     """Per-row curriculum evidence retains only each row's latest outcomes."""
-    history = torch.zeros((2, 3), dtype=torch.bool)
-    pointer = torch.zeros(2, dtype=torch.int32)
-    size = torch.zeros_like(pointer)
-    true_count = torch.zeros_like(pointer)
-    rate = torch.zeros(2)
+    monitor_cfg = (
+        ConveyorFrankaEnvCfg().curriculum.reset_sampling.params["success_monitor"].replace(monitored_history_len=3)
+    )
+    monitor = monitor_cfg.class_type(monitor_cfg, num_partitions=1, partition_size=2, device="cpu")
 
-    _ring_append_bool_count_rate(
-        history,
+    monitor.success_update(
         torch.tensor([0, 0, 1, 0, 0]),
         torch.tensor([False, False, True, True, True]),
-        pointer,
-        size,
-        true_count,
-        rate,
     )
 
-    assert size.tolist() == [3, 1]
-    assert true_count.tolist() == [2, 1]
-    torch.testing.assert_close(rate, torch.tensor([2.0 / 3.0, 1.0]))
+    assert monitor.success_size.tolist() == [3, 1]
+    assert monitor.success_buf.sum(dim=1).tolist() == [2, 1]
+    torch.testing.assert_close(monitor.get_success_rate(), torch.tensor([2.0 / 3.0, 1.0]))
 
 
 def test_active_cube_sampling_avoids_inactive_source_lane_cubes():

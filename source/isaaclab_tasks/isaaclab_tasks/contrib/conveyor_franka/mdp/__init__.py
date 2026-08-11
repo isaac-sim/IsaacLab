@@ -6,6 +6,7 @@
 """MDP terms for the conveyor-to-conveyor Franka transfer task."""
 
 from isaaclab.envs.mdp import *  # noqa: F401, F403
+from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
 
 from .actions import ConveyorRelativeJointPositionAction, ResetBufferedGripperAction
 from .actions_cfg import ConveyorRelativeJointPositionActionCfg, ResetBufferedGripperActionCfg

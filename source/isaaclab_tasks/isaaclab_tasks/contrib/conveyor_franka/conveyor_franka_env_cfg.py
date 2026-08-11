@@ -237,9 +237,14 @@ class CurriculumCfg:
         params={
             "progress_context_name": "learning_progress_context",
             "final_success_context_name": "transfer_success_context",
-            # Match Franka Stack: sampling follows each row's recent policy
-            # competence instead of retaining stale early failures forever.
-            "monitored_history_len": 50,
+            # Shared target-rate monitor keeps each physical reset row near the
+            # policy's 50% competence frontier without stale early outcomes.
+            "success_monitor": mdp.SuccessMonitorCfg(
+                monitored_history_len=50,
+                target_success_rate=0.5,
+                kappa=1.0,
+                temperature=1.0,
+            ),
             # Keep a deployment-facing stream while the remaining starts
             # adapt around the rolling pickup-to-placement frontier. Every
             # recipe, cube identity, and direction retains equal total mass.
