@@ -20,12 +20,10 @@ Sim-to-sim transfer evaluates one policy checkpoint in a physics backend differe
 used for training. This guide covers both PhysX-trained policies deployed in Newton and
 Newton-trained policies deployed in PhysX.
 
-The checkpoint contains no physics engine. It maps an ordered observation tensor to an ordered
-action tensor, possibly using saved normalization and recurrent-policy weights. Transfer succeeds
-when both backends implement a sufficiently similar **environment contract** around that mapping.
-The goal is not bitwise trajectory equivalence. It is comparable task behavior with understood
-physical differences. Successful sim-to-sim transfer can be an important first step towards
-sim-to-real deployment.
+The checkpoint maps ordered observations to actions; it does not include the physics engine.
+Transfer works when both backends expose the same policy inputs and outputs. Expect similar
+behavior, not identical trajectories. Successful transfer can be a first step toward sim-to-real
+deployment.
 
 
 Task readiness and checkpoint compatibility
