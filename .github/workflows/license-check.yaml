@@ -66,7 +66,11 @@ jobs:
         # No extras conflict, so this is a single resolution -- Isaac Sim no longer needs
         # an imperative install after the sync.
         uv sync --extra all --extra test --extra rlinf --extra mimic
-        uv pip install pip-licenses pipdeptree \
+        # ``[tool.uv.pip] prerelease = "allow"`` lets unpinned tools float onto
+        # prereleases. pip-licenses 6.0.0a1 reports an empty License where 5.x reports
+        # ``UNKNOWN``, which license-exceptions.json keys on, and joins multi-license
+        # strings unsorted. Cap below 6.0 until 6.x ships stable and is re-reviewed.
+        uv pip install "pip-licenses<6.0" pipdeptree \
           -r tools/template/requirements.txt
         # Put the venv on PATH for later steps.
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
@@ -308,6 +312,7 @@ jobs:
           "0bsd"
           "apache-2.0"
           "apache-2.0 and cnri-python"
+          "apache-2.0 and mit"
           "apache-2.0 with llvm-exception"
           "bsd-0-clause"
           "bsd-1-clause"
