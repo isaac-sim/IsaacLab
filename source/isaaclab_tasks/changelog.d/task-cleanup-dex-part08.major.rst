@@ -11,8 +11,6 @@ Added
   domain-randomization events to the per-episode reset.
 * Added Newton and OvPhysX presets to the manager-based reorientation environments,
   selectable with ``physics=``.
-* Added a Direct-versus-manager value-parity test covering timing, success tolerance and
-  fall distance.
 
 Changed
 ^^^^^^^

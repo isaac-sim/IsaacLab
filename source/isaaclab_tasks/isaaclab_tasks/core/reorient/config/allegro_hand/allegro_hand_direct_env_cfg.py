@@ -32,7 +32,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     asymmetric_obs = False
     obs_type = "full"
 
-    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
+    # simulation — values mirrored by the manager cfg
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,
