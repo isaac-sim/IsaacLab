@@ -3,4 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .pose_commands_cfg import *  # noqa: F401, F403
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

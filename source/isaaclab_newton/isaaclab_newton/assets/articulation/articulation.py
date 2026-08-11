@@ -421,6 +421,7 @@ class Articulation(BaseArticulation):
                     inputs=[
                         composer.out_force_b.warp,
                         composer.out_torque_b.warp,
+                        self._data.body_link_pose_w.warp,
                         self._body_user_to_backend_map(),
                         self._data._sim_bind_body_external_wrench,
                         self._ALL_ENV_MASK,
@@ -435,6 +436,7 @@ class Articulation(BaseArticulation):
                     inputs=[
                         composer.out_force_b,
                         composer.out_torque_b,
+                        self._data.body_link_pose_w.warp,
                         self._data._sim_bind_body_external_wrench,
                         self._ALL_ENV_MASK,
                         self._ALL_BODY_MASK,

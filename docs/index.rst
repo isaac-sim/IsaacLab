@@ -95,6 +95,13 @@ Table of Contents
 
 
 .. toctree::
+   :maxdepth: 1
+   :caption: Concepts
+
+   source/concepts/backends_and_presets
+
+
+.. toctree::
    :maxdepth: 2
    :caption: Getting Started
    :titlesonly:

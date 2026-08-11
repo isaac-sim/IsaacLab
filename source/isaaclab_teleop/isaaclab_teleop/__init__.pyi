@@ -19,6 +19,9 @@ __all__ = [
     "SystemCheckItem",
     "SystemCheckResult",
     "TELEOP_CONTROL_CHANNEL_UUID",
+    "XrCameraFeedCfg",
+    "XrCameraFeedLayoutCfg",
+    "XrCameraFeedSession",
     "XrAnchorRotationMode",
     "XrAnchorSynchronizer",
     "XrCfg",
@@ -29,6 +32,7 @@ __all__ = [
     "remove_camera_configs",
 ]
 
+from .camera_feed import XrCameraFeedSession
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID, ControlEvents, SupportsControlEvents, poll_control_events
 from .haptic_feedback import (
     ControllerHapticFeedbackCfg,
@@ -38,7 +42,14 @@ from .haptic_feedback import (
     HapticFeedbackReceiver,
     create_haptic_feedback_driver,
 )
-from .isaac_teleop_cfg import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV, IsaacTeleopCfg
+from .isaac_teleop_cfg import (
+    CLOUDXR_AVP_ENV,
+    CLOUDXR_JS_ENV,
+    CLOUDXR_STANDALONE_ENV,
+    IsaacTeleopCfg,
+    XrCameraFeedCfg,
+    XrCameraFeedLayoutCfg,
+)
 from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
 from .system_check import SystemCheckItem, SystemCheckResult, check_system_requirements
 from .xr_anchor_utils import XrAnchorSynchronizer

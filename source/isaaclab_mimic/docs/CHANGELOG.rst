@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+2.0.4 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`SceneAsset` leaking its cached frame view when the view is rebuilt,
+  which left the view's backend state to be released on garbage collection.
+
+
+2.0.3 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``ModuleNotFoundError: No module named 'ipywidgets'`` when running dataset generation
+  from an environment without the ``mimic`` extra. ``isaaclab_mimic.datagen.utils`` imported
+  ``ipywidgets`` and ``IPython`` at module scope even though only its interactive notebook
+  helpers use them, so importing the module for its path helpers pulled in dependencies the
+  generation path never needs.
+
+
 2.0.2 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 
