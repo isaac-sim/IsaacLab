@@ -1718,33 +1718,6 @@ def rendering_test_lift_kuka(
     for marker_cfg in env_cfg.commands.object_pose.success_visualizer_cfg.markers.values():
         marker_cfg.visible = False
 
-    # Pin reset domain randomization so tiled envs share the same object pose/orientation.
-    # Otherwise ``reset_object`` / ``reset_object_to_target`` / joint offsets make the cube look
-    # differently sized across tiles (camera distance + foreshortening), which is unrelated to
-    # geometry spawning. Homo already forces ``CuboidCfg(size=(0.05, 0.05, 0.05))`` via ``cube``.
-    reset_params = env_cfg.events.conditional_reset.params
-    reset_terms = reset_params["terms"]
-    reset_terms["reset_object"].params["pose_range"] = {
-        "x": (0.0, 0.0),
-        "y": (0.0, 0.0),
-        "z": (0.0, 0.0),
-        "roll": (0.0, 0.0),
-        "pitch": (0.0, 0.0),
-        "yaw": (0.0, 0.0),
-    }
-    reset_terms["reset_object_to_target"].params["pose_range"] = {
-        "x": (0.0, 0.0),
-        "y": (0.0, 0.0),
-        "z": (0.0, 0.0),
-    }
-    reset_terms["reset_object_to_target"].params["probability"] = 0.0
-    reset_terms["reset_robot_joints"].params["position_range"] = (0.0, 0.0)
-    reset_terms["reset_robot_wrist_joint"].params["position_range"] = (0.0, 0.0)
-    # Skip diversity harvesting: with fixed poses it only slows startup and is unused.
-    reset_params["diversity_feature"] = None
-    reset_params["buffer_size_per_group"] = 1
-    reset_params["oversample_factor"] = 1.0
-
     test_name = f"lift_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
 
     env = None
