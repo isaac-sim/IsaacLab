@@ -566,7 +566,8 @@ def show_run_summary(
     device = getattr(args_cli, "device", None) or env_cfg.sim.device
     num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
     scan(env_cfg, args_cli)
-    physics, renderer = _physics_name(env_cfg.sim.physics), _renderer_name(env_cfg)
+    physics = _physics_name(env_cfg.sim.physics)
+    renderer = _renderer_name(env_cfg)
     screen.summary(
         f"Isaac Lab · {action}",
         {
