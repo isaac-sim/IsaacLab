@@ -29,6 +29,7 @@ from isaaclab.utils.warp import ProxyArray
 from . import ordering_kernels
 
 if TYPE_CHECKING:
+    from isaaclab.actuators import ActuatorCollection
     from isaaclab.utils.buffers import TimestampedBufferWarp
 
     from .ordering import ArticulationNameMap
@@ -64,6 +65,48 @@ class BaseArticulationData(ABC):
         """
         # Set the parameters
         self.device = device
+        self._actuator_collection: ActuatorCollection | None = None
+
+    def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
+        """Bind collection-owned command and telemetry aliases plus actuator compatibility projections."""
+        self._actuator_collection = actuators
+        self._joint_pos_target = actuators.command.position.warp
+        self._joint_vel_target = actuators.command.velocity.warp
+        self._joint_effort_target = actuators.command.effort.warp
+        self._computed_torque = actuators.computed_torque.warp
+        self._applied_torque = actuators.applied_torque.warp
+        self._soft_joint_vel_limits = actuators._soft_joint_vel_limits
+        self._gear_ratio = actuators._gear_ratio
+        self._joint_pos_target_ta = actuators.command.position
+        self._joint_vel_target_ta = actuators.command.velocity
+        self._joint_effort_target_ta = actuators.command.effort
+        self._computed_torque_ta = actuators.computed_torque
+        self._applied_torque_ta = actuators.applied_torque
+        self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
+        self._gear_ratio_ta = ProxyArray(self._gear_ratio)
+
+    def _get_actuator_collection_proxy(self, name: str, buffer_name: str, proxy_name: str) -> ProxyArray:
+        collection = self._actuator_collection
+        if collection is not None:
+            command_field = {
+                "joint_pos_target": "position",
+                "joint_vel_target": "velocity",
+                "joint_effort_target": "effort",
+            }.get(name)
+            replacement = f"command.{command_field}" if command_field is not None else name
+            warnings.warn(
+                f"ArticulationData.{name} is deprecated. Use articulation.actuators.{replacement} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return (
+                getattr(collection.command, command_field) if command_field is not None else getattr(collection, name)
+            )
+        proxy = getattr(self, proxy_name)
+        if proxy is None:
+            proxy = ProxyArray(getattr(self, buffer_name))
+            setattr(self, proxy_name, proxy)
+        return proxy
 
     @abstractmethod
     def update(self, dt: float) -> None:
@@ -298,7 +341,6 @@ class BaseArticulationData(ABC):
     ##
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_POSITION)
     def joint_pos_target(self) -> ProxyArray:
         """Deprecated. Use ``articulation.actuators.command.position`` instead.
@@ -306,10 +348,9 @@ class BaseArticulationData(ABC):
         Joint position targets commanded by the user [m or rad, depending on joint type].
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("joint_pos_target", "_joint_pos_target", "_joint_pos_target_ta")
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_VELOCITY)
     def joint_vel_target(self) -> ProxyArray:
         """Deprecated. Use ``articulation.actuators.command.velocity`` instead.
@@ -317,10 +358,9 @@ class BaseArticulationData(ABC):
         Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("joint_vel_target", "_joint_vel_target", "_joint_vel_target_ta")
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_TORQUES)
     def joint_effort_target(self) -> ProxyArray:
         """Deprecated. Use ``articulation.actuators.command.effort`` instead.
@@ -328,14 +368,15 @@ class BaseArticulationData(ABC):
         Joint effort targets commanded by the user [N or N·m, depending on joint type].
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy(
+            "joint_effort_target", "_joint_effort_target", "_joint_effort_target_ta"
+        )
 
     ##
     # Joint commands -- Explicit actuators.
     ##
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind="state/joint/computed_torque")
     def computed_torque(self) -> ProxyArray:
         """Deprecated. Use ``articulation.actuators.computed_torque`` instead.
@@ -343,10 +384,9 @@ class BaseArticulationData(ABC):
         Joint torques computed from the actuator model before clipping [N or N·m,
         depending on joint type]. Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("computed_torque", "_computed_torque", "_computed_torque_ta")
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind="state/joint/applied_torque")
     def applied_torque(self) -> ProxyArray:
         """Deprecated. Use ``articulation.actuators.applied_torque`` instead.
@@ -354,7 +394,7 @@ class BaseArticulationData(ABC):
         Joint torques applied from the actuator model after clipping [N or N·m,
         depending on joint type]. Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("applied_torque", "_applied_torque", "_applied_torque_ta")
 
     ##
     # Joint properties.
@@ -471,7 +511,6 @@ class BaseArticulationData(ABC):
         raise NotImplementedError
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(const=True)
     def soft_joint_vel_limits(self) -> ProxyArray:
         """Actuator-resolved soft joint velocity limits [m/s or rad/s, depending on joint type].
@@ -482,10 +521,9 @@ class BaseArticulationData(ABC):
         state-dependent velocity-limit model, such as one with a variable gear ratio. They are compatibility outputs;
         the solver velocity limits remain :attr:`joint_vel_limits`.
         """
-        raise NotImplementedError
+        return self._soft_joint_vel_limits_ta
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(const=True)
     def gear_ratio(self) -> ProxyArray:
         """Actuator gear ratios relating motor torques to applied joint torques [dimensionless].
@@ -495,7 +533,7 @@ class BaseArticulationData(ABC):
         These are actuator-model compatibility outputs. The solvers receive the resulting joint torques directly,
         rather than using these values as joint properties.
         """
-        raise NotImplementedError
+        return self._gear_ratio_ta
 
     ##
     # Fixed tendon properties.

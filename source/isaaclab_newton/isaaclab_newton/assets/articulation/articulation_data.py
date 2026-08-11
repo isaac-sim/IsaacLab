@@ -27,8 +27,6 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 if TYPE_CHECKING:
     from newton.selection import ArticulationView
 
-    from isaaclab.actuators import ActuatorCollection
-
 # import logger
 logger = logging.getLogger(__name__)
 
@@ -79,7 +77,6 @@ class ArticulationData(BaseArticulationData):
         self._is_primed = False
         self._fk_timestamp = 0.0
         self._read_launch_cache = _WarpLaunchCache(device)
-        self._actuator_collection: ActuatorCollection | None = None
 
         # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2) so
         # per-env gravity randomization stays live; consumers normalize on read.
@@ -97,43 +94,6 @@ class ArticulationData(BaseArticulationData):
     def is_primed(self) -> bool:
         """Whether the articulation data is fully instantiated and ready to use."""
         return self._is_primed
-
-    def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
-        """Bind collection-owned command and telemetry aliases plus actuator compatibility projections."""
-        self._actuator_collection = actuators
-        self._joint_pos_target = actuators.command.position.warp
-        self._joint_vel_target = actuators.command.velocity.warp
-        self._joint_effort_target = actuators.command.effort.warp
-        self._computed_torque = actuators.computed_torque.warp
-        self._applied_torque = actuators.applied_torque.warp
-        self._soft_joint_vel_limits = actuators._soft_joint_vel_limits
-        self._gear_ratio = actuators._gear_ratio
-        self._joint_pos_target_ta = actuators.command.position
-        self._joint_vel_target_ta = actuators.command.velocity
-        self._joint_effort_target_ta = actuators.command.effort
-        self._computed_torque_ta = actuators.computed_torque
-        self._applied_torque_ta = actuators.applied_torque
-        self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-        self._gear_ratio_ta = ProxyArray(self._gear_ratio)
-
-    def _get_actuator_collection_proxy(self, name: str, proxy_name: str) -> ProxyArray:
-        collection = self._actuator_collection
-        if collection is not None:
-            command_field = {
-                "joint_pos_target": "position",
-                "joint_vel_target": "velocity",
-                "joint_effort_target": "effort",
-            }.get(name)
-            replacement = f"command.{command_field}" if command_field is not None else name
-            warnings.warn(
-                f"ArticulationData.{name} is deprecated. Use articulation.actuators.{replacement} instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return (
-                getattr(collection.command, command_field) if command_field is not None else getattr(collection, name)
-            )
-        return getattr(self, proxy_name)
 
     @is_primed.setter
     def is_primed(self, value: bool) -> None:
@@ -411,59 +371,6 @@ class ArticulationData(BaseArticulationData):
         self._default_joint_vel.assign(value)
 
     """
-    Joint commands -- Set into simulation.
-    """
-
-    @property
-    def joint_pos_target(self) -> ProxyArray:
-        """Deprecated position commands [m or rad, depending on joint type].
-
-        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
-        Use ``articulation.actuators.command.position``.
-        """
-        return self._get_actuator_collection_proxy("joint_pos_target", "_joint_pos_target_ta")
-
-    @property
-    def joint_vel_target(self) -> ProxyArray:
-        """Deprecated velocity commands [m/s or rad/s, depending on joint type].
-
-        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
-        Use ``articulation.actuators.command.velocity``.
-        """
-        return self._get_actuator_collection_proxy("joint_vel_target", "_joint_vel_target_ta")
-
-    @property
-    def joint_effort_target(self) -> ProxyArray:
-        """Deprecated effort commands [N or N·m, depending on joint type].
-
-        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
-        Use ``articulation.actuators.command.effort``.
-        """
-        return self._get_actuator_collection_proxy("joint_effort_target", "_joint_effort_target_ta")
-
-    """
-    Joint commands -- Explicit actuators.
-    """
-
-    @property
-    def computed_torque(self) -> ProxyArray:
-        """Deprecated pre-clipping effort [N or N·m, depending on joint type].
-
-        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
-        Use ``articulation.actuators.computed_torque``.
-        """
-        return self._get_actuator_collection_proxy("computed_torque", "_computed_torque_ta")
-
-    @property
-    def applied_torque(self) -> ProxyArray:
-        """Deprecated applied effort [N or N·m, depending on joint type].
-
-        Shape is ``(num_instances, num_joints)``, dtype = wp.float32.
-        Use ``articulation.actuators.applied_torque``.
-        """
-        return self._get_actuator_collection_proxy("applied_torque", "_applied_torque_ta")
-
-    """
     Joint properties
     """
 
@@ -608,28 +515,6 @@ class ArticulationData(BaseArticulationData):
         simulation, but is useful for learning agents to prevent the joint positions from violating the limits.
         """
         return self._soft_joint_pos_limits_ta
-
-    @property
-    def soft_joint_vel_limits(self) -> ProxyArray:
-        """Actuator-resolved soft joint velocity limits [m/s or rad/s, depending on joint type].
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        These compatibility outputs may differ from :attr:`joint_vel_limits` when an actuator model has a
-        state-dependent velocity-limit model, such as a variable gear ratio. The solver velocity limits remain
-        :attr:`joint_vel_limits`.
-        """
-        return self._soft_joint_vel_limits_ta
-
-    @property
-    def gear_ratio(self) -> ProxyArray:
-        """Actuator gear ratios relating motor torques to applied joint torques [dimensionless].
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        These actuator-model outputs are not solver joint properties; the solver receives the resulting joint torques.
-        """
-        return self._gear_ratio_ta
 
     """
     Fixed tendon properties.
