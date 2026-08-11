@@ -17,6 +17,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand import agents
 
 reorient_direct_entry = "isaaclab_tasks.core.reorient.reorient_direct_env:ReorientDirectEnv"
 
+
 gym.register(
     id="Isaac-Reorient-Cube-Shadow-Direct",
     entry_point=reorient_direct_entry,
@@ -29,29 +30,16 @@ gym.register(
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
-
 gym.register(
-    id="Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct",
-    entry_point=reorient_direct_entry,
+    id="Isaac-Reorient-Cube-Shadow",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.shadow_hand_direct_env_cfg:ShadowHandOpenAIEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_ff_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandAsymFFPPORunnerCfg",
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_manager_env_cfg:ShadowHandManagerEnvPresetCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandManagerPPORunnerCfg",
         "default_agent": "rsl_rl",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ff_ppo_cfg.yaml",
-    },
-)
-
-gym.register(
-    id="Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct",
-    entry_point=reorient_direct_entry,
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.shadow_hand_direct_env_cfg:ShadowHandOpenAIEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_lstm_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandAsymLSTMPPORunnerCfg",
-        "default_agent": "rsl_rl",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
 
@@ -70,13 +58,12 @@ gym.register(
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_camera_cfg.yaml",
     },
 )
-
 gym.register(
-    id="Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct",
-    entry_point=f"{__name__}.shadow_hand_direct_camera_env:ShadowHandCameraEnv",
+    id="Isaac-Reorient-Cube-Shadow-Camera",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.shadow_hand_direct_camera_env_cfg:ShadowHandCameraBenchmarkEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.shadow_hand_camera_manager_env_cfg:ShadowHandCameraManagerEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandCameraFFPPORunnerCfg",
         "default_agent": "rsl_rl",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_camera_cfg.yaml",
