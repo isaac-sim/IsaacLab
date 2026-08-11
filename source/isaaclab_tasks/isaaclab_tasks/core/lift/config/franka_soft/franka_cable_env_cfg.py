@@ -20,6 +20,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -28,17 +29,17 @@ from isaaclab_contrib.deformable import VBDSolverCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from ... import mdp
-from .franka_soft_env_cfg import TABLE_SPAWN_CFG, FrankaSoftEnvCfg, _FrankaSoftSceneCfg
+from .franka_soft_env_cfg import (
+    FRANKA_CAMERA_CFG,
+    TABLE_SPAWN_CFG,
+    FrankaCameraObservationsCfg,
+    FrankaSoftEnvCfg,
+    _FrankaSoftSceneCfg,
+)
 from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
 
 _CABLE_SEGMENT_COUNT = 12
-_CABLE_SEGMENT_LENGTH = 0.03
-_CABLE_DIAMETER = 0.01
 _CABLE_MIDDLE_SEGMENT_INDEX = _CABLE_SEGMENT_COUNT // 2
-_CABLE_RADIUS = 0.5 * _CABLE_DIAMETER
-_CABLE_STRETCH_MODULUS = 5.0e5 * _CABLE_SEGMENT_LENGTH / (math.pi * _CABLE_RADIUS**2)
-_CABLE_BEND_MODULUS = 20.0 * _CABLE_SEGMENT_LENGTH / (0.25 * math.pi * _CABLE_RADIUS**4)
-
 
 @configclass
 class PhysicsCfg(PresetCfg):
@@ -91,18 +92,25 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
     cable: CableObjectCfg = CableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cable",
         spawn=sim_utils.CableCfg(
-            positions=[(_CABLE_SEGMENT_LENGTH * index, 0.0, 0.0) for index in range(_CABLE_SEGMENT_COUNT + 1)],
+            positions=[(0.03 * index, 0.0, 0.0) for index in range(_CABLE_SEGMENT_COUNT + 1)],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
             physics_material=sim_utils.CableMaterialCfg(
-                thickness=_CABLE_DIAMETER,
+                thickness=0.01,
                 density=100.0,
-                stretch_stiffness=_CABLE_STRETCH_MODULUS,
-                bend_stiffness=_CABLE_BEND_MODULUS,
+                stretch_stiffness=1.0e6,
+                bend_stiffness=1.0e2,
             ),
             collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
         ),
-        init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.01)),
+        init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.011)),
     )
+
+
+@configclass
+class FrankaCableCameraSceneCfg(FrankaCableSceneCfg):
+    """Franka cable scene with a base camera."""
+
+    base_camera: CameraCfg = FRANKA_CAMERA_CFG
 
 
 @configclass
@@ -161,6 +169,29 @@ class ObservationsCfg:
 
 
 @configclass
+class FrankaCableCameraObservationsCfg(FrankaCameraObservationsCfg):
+    """Observation groups for visual cable lifting."""
+
+    @configclass
+    class PolicyCfg(FrankaCameraObservationsCfg.PolicyCfg):
+        target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "cable_pose"})
+
+    @configclass
+    class PerceptionCfg(ObsGroup):
+        cable_segment_positions = ObsTerm(
+            func=mdp.cable_segment_positions_in_robot_root_frame,
+            params={"asset_cfg": SceneEntityCfg("cable")},
+        )
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = True
+            self.concatenate_terms = True
+
+    policy: PolicyCfg = PolicyCfg()
+    perception: PerceptionCfg = PerceptionCfg()
+
+
+@configclass
 class EventCfg(FrankaSoftEventCfg):
     """Reset events for the Franka cable environment."""
 
@@ -194,7 +225,7 @@ class RewardsCfg:
         func=mdp.cable_segment_lifting,
         params={
             "std": 0.1,
-            "minimal_height": 0.02,
+            "minimal_height": 0.01,
             "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,
             "asset_cfg": SceneEntityCfg("cable"),
         },
@@ -270,3 +301,17 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
     def __post_init__(self) -> None:
         super().__post_init__()
         self.sim.physics = PhysicsCfg()
+        # Fully close the gripper on the thin cable; the shared beam default only closes to 0.01 m.
+        self.actions.ik.gripper_action.close_command_expr = {"panda_finger_joint1": 0.0}
+
+
+@configclass
+class FrankaCableCameraEnvCfg(FrankaCableEnvCfg):
+    """Visual Franka cable lifting environment."""
+
+    scene: FrankaCableCameraSceneCfg = FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
+    observations: FrankaCableCameraObservationsCfg = FrankaCableCameraObservationsCfg()
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.num_rerenders_on_reset = 2
