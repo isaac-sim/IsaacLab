@@ -633,7 +633,7 @@ def _ensure_isaac_sim_available() -> None:
         "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"
         "\n"
         "  This environment requires Isaac Sim and Omniverse Kit.\n"
-        "    PhysX backend and Kit visualizer require Isaac Sim.\n"
+        "    PhysX backend and Kit visualizer currently requires Isaac Sim.\n"
         "\n"
         f"{extra_hint}"
         "  To fix this, ensure Isaac Sim is installed and available in the current environment.\n"
