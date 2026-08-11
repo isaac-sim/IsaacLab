@@ -54,11 +54,8 @@ runs:
       print("ovrtx renderer initialized")
       '
 
-      # Files are discovered by grep, not by pointing pytest at a directory: this image has no
-      # Isaac Sim, and collecting a directory imports every module in it to read its markers,
-      # which most of the suite cannot survive. Adding coverage is a `kitless` marker, nothing
-      # here. pytest goes only into this disposable layer; reinstalling the workspace would fail
-      # against the read-only source mount.
+      # Discover files by grep, not by pointing pytest at a directory: this image has no Isaac
+      # Sim, and collecting a directory imports every module to read its markers.
       docker run --rm --gpus all --network host \
         "${mount_args[@]}" \
         "$IMAGE_TAG" \
