@@ -146,10 +146,10 @@ rerun = [
     "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
 
-isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
-ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
-ovphysx = ["ovphysx==0.5.9", "ovstage==0.1.0.346039"]
-ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
+isaacsim = ["isaacsim[all,extscache]==6.1.0rc3+release.45488.8127a152.gl"]
+ov = ["ovphysx==0.5.10", "ovrtx>=0.4.1,<0.5.0", "ovstage==0.1.1.355824"]
+ovphysx = ["ovphysx==0.5.10", "ovstage==0.1.1.355824"]
+ovrtx = ["ovrtx>=0.4.1,<0.5.0", "ovstage==0.1.1.355824"]
 
 mimic = [
     "isaaclab-mimic",
@@ -158,7 +158,7 @@ mimic = [
 ]
 
 teleop = [
-    "isaacsim[all,extscache]==6.0.1.0",
+    "isaacsim[all,extscache]==6.1.0rc3+release.45488.8127a152.gl",
     "isaaclab-teleop",
     "isaaclab-mimic",
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
@@ -192,13 +192,13 @@ all = [
 # the extras above, and [tool.uv].override-dependencies mirror these values;
 # ``test_version_single_source`` fails CI if they drift.
 [tool.isaaclab.versions]
-isaacsim = "6.0.1.0"
+isaacsim = "6.1.0rc3+release.45488.8127a152.gl"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
-ovphysx = "0.5.9"
-ovrtx = ">=0.4.0,<0.5.0"
-ovstage = "0.1.0.346039"
+ovphysx = "0.5.10"
+ovrtx = ">=0.4.1,<0.5.0"
+ovstage = "0.1.1.355824"
 newton = "release-1.5"
 warp = "1.16.0"
 
@@ -344,6 +344,22 @@ markers = [
 url = "https://pypi.nvidia.com"
 explicit = false
 
+# Internal Omniverse PyPI (ct-omniverse-pypi-local). Hosts pre-release ovphysx/ovrtx
+# builds not yet on public PyPI / pypi.nvidia.com (e.g. ovphysx 0.5.10, ovrtx 0.4.1.*).
+[[tool.uv.index]]
+name = "ct-omniverse-pypi"
+url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple"
+explicit = true
+
+# Internal Isaac Sim PyPI (sw-isaacsim-pypi-local). Hosts the release-candidate builds
+# not yet on pypi.nvidia.com (e.g. 6.1.0rc3+release.45488.8127a152.gl). Left non-explicit
+# because the ``isaacsim[all,extscache]`` metapackage pins every ``isaacsim-*`` subpackage
+# to the same version, and only this index carries them; the repo hosts nothing else.
+[[tool.uv.index]]
+name = "sw-isaacsim-pypi"
+url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple"
+explicit = false
+
 [[tool.uv.index]]
 name = "pypi-public"
 url = "https://pypi.org/simple"
@@ -404,7 +420,8 @@ package = false
 
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
-ovphysx = { index = "pypi-public" }
+ovphysx = { index = "ct-omniverse-pypi" }
+ovrtx = { index = "ct-omniverse-pypi" }
 ovstage = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
