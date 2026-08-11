@@ -294,7 +294,7 @@ independently.
 
       .. code-block:: bash
 
-         PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/lift_franka/physx_source/RUN_DIRECTORY/model_ITERATION.pt"
+         PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/lift_franka/RUN_DIRECTORY/model_ITERATION.pt"
 
       PP: reproduce source baseline in PhysX
 
