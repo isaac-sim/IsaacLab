@@ -34,6 +34,7 @@ from isaaclab_newton.physics import NewtonCfg
 # Registering the task packages is the whole point — import for side effects.
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 # Stable manager-based tasks resolve to this env class; direct tasks provide their own and
 # take the :meth:`WarpFrontend._resolve_direct_warp_class` path instead of cfg adaptation.
@@ -110,14 +111,14 @@ def _sweep_warp_support() -> tuple[frozenset[str], dict[str, str], dict[str, str
     for task_id, spec in gym.registry.items():
         if spec.entry_point != _STABLE_MANAGER_ENTRY_POINT:
             continue
-        cfg_entry = (spec.kwargs or {}).get("env_cfg_entry_point")
-        if not isinstance(cfg_entry, str):
+        if (spec.kwargs or {}).get("env_cfg_entry_point") is None:
             continue
         try:
-            module_path, class_name = cfg_entry.split(":")
-            cfg = getattr(importlib.import_module(module_path), class_name)()
+            # the canonical loader, so every registry form the runtime accepts is surveyed;
+            # matching only ``str`` entry points here would skip callable ones silently
+            cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
             cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
-        except Exception as exc:  # noqa: BLE001 - any cfg import failure means "cannot judge"
+        except Exception as exc:  # noqa: BLE001 - any cfg load failure means "cannot judge"
             unimportable[task_id] = f"{type(exc).__name__}: {exc}"
             continue
         reason = WarpFrontend.check_compatibility(cfg)
