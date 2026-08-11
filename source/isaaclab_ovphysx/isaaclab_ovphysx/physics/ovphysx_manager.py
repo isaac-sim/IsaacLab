@@ -963,8 +963,11 @@ class OvPhysxManager(PhysicsManager):
         if not os.path.isabs(cache_dir):
             # ``expanduser`` leaves "~" unchanged when the home directory cannot be resolved
             # (e.g. an arbitrary-UID container with no passwd entry); a relative path would
-            # put the cache under the working directory.
-            cache_dir = os.path.join(tempfile.gettempdir(), "ov", "DerivedDataCache")
+            # put the cache under the working directory. The UID keeps concurrent users on a
+            # shared host off each other's cache, since the temp root is world-writable on
+            # POSIX; Windows already gives each user a private temp directory.
+            root = f"ov-{os.getuid()}" if hasattr(os, "getuid") else "ov"
+            cache_dir = os.path.join(tempfile.gettempdir(), root, "DerivedDataCache")
         return cache_dir
 
     @staticmethod
