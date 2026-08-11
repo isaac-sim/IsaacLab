@@ -19,14 +19,15 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 BACKENDS: list[str] = []
+BACKEND_UNAVAILABLE_REASONS: dict[str, str] = {}
 
 try:
     from isaaclab_physx.assets.rigid_object.rigid_object import RigidObject as PhysXRigidObject
     from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData as PhysXRigidObjectData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
-except ImportError:
-    pass
+except ImportError as error:
+    BACKEND_UNAVAILABLE_REASONS["physx"] = f"{type(error).__name__}: {error}"
 else:
     # PhysX data classes need gravity even though interface tests do not create a physics scene.
     _mock_physics_sim_view = MagicMock()
@@ -39,8 +40,8 @@ try:
     from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject as NewtonRigidObject
     from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData as NewtonRigidObjectData
     from isaaclab_newton.test.fixtures.views import MockNewtonArticulationView as NewtonMockArticulationView
-except ImportError:
-    pass
+except ImportError as error:
+    BACKEND_UNAVAILABLE_REASONS["newton"] = f"{type(error).__name__}: {error}"
 else:
     BACKENDS.append("newton")
 
@@ -50,8 +51,8 @@ try:
     from isaaclab_ovphysx.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
     from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
     from isaaclab_ovphysx.test.fixtures.views import MockOvPhysxBindingSet
-except ImportError:
-    pass
+except ImportError as error:
+    BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
 else:
     BACKENDS.append("ovphysx")
 

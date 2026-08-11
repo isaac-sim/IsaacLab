@@ -72,6 +72,38 @@ assert all(not any(backend.lower() == "physx" for backend in module.BACKENDS) fo
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+@pytest.mark.parametrize("backend", ["physx", "newton"])
+def test_no_iface_utility_silently_drops_a_backend(backend: str) -> None:
+    """Fail when a backend disappears from one utility's test matrix.
+
+    Detected by cross-checking the three utilities: they gate ``physx`` and ``newton`` on the
+    same backend package being importable, so a backend registered by some and not others is a
+    broken import in that utility rather than an unavailable backend. ``ovphysx`` is excluded
+    because the collection utility additionally gates it on ``_create_buffers``.
+    """
+    script = f"""
+import importlib
+import sys
+
+sys.path.insert(0, {_ASSET_TEST_DIR.as_posix()!r})
+backend = {backend!r}
+registered = {{}}
+details = []
+for name in {_IFACE_UTIL_MODULES!r}:
+    module = importlib.import_module(name)
+    registered[name] = backend in module.BACKENDS
+    reason = module.BACKEND_UNAVAILABLE_REASONS.get(backend, "-")
+    details.append(name + ": registered=" + str(registered[name]) + " reason=" + reason)
+assert len(set(registered.values())) == 1, (
+    "interface utilities disagree on " + backend + ":\\n" + "\\n".join(details)
+)
+"""
+
+    result = _run_probe(script)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 @pytest.mark.parametrize("module_name", _IFACE_UTIL_MODULES)
 def test_iface_utility_handles_no_available_backends(module_name: str) -> None:
     script = f"""
