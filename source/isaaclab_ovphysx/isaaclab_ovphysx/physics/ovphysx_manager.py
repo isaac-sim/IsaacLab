@@ -961,11 +961,8 @@ class OvPhysxManager(PhysicsManager):
             base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
             cache_dir = os.path.join(base, "ov", "DerivedDataCache")
         if not os.path.isabs(cache_dir):
-            # ``expanduser`` leaves "~" unchanged when the home directory cannot be resolved
-            # (e.g. an arbitrary-UID container with no passwd entry); a relative path would
-            # put the cache under the working directory. The UID keeps concurrent users on a
-            # shared host off each other's cache, since the temp root is world-writable on
-            # POSIX; Windows already gives each user a private temp directory.
+            # ``expanduser`` leaves "~" unchanged when the home cannot be resolved; the UID keeps
+            # concurrent users on a shared host off each other's cache.
             root = f"ov-{os.getuid()}" if hasattr(os, "getuid") else "ov"
             cache_dir = os.path.join(tempfile.gettempdir(), root, "DerivedDataCache")
         return cache_dir

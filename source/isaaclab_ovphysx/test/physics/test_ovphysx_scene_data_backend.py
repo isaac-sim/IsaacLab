@@ -369,12 +369,7 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
 def test_manager_supports_pinned_runtime_api(
     monkeypatch, tmp_path, device, gpu_index, expected_cpu_mode, expected_active_cuda_gpus
 ):
-    """The pinned OVPhysX wheel keeps its constructor, step, and reset API.
-
-    The config also carries an explicit cooked-collider cache directory. Without it the
-    bundled Carbonite defaults that cache to the directory holding the Python interpreter,
-    which is silently wrong when writable and errors when it is not.
-    """
+    """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
     from isaaclab_ovphysx.physics import OvPhysxManager
 
     if sys.platform == "win32":
@@ -405,8 +400,7 @@ def test_manager_supports_pinned_runtime_api(
         def wait_op(self, operation):
             self.calls.append(("wait_op", operation))
 
-    # Mirrors the real PhysXConfig signature, so a keyword the wheel would reject fails here
-    # instead of being absorbed by a permissive ``**kwargs`` stub.
+    # Strict signature: a keyword the real wheel would reject fails here.
     def pinned_config(*, num_threads=None, cooked_collider_cache_dir=None, carbonite_overrides=None):
         return SimpleNamespace(
             num_threads=num_threads,
