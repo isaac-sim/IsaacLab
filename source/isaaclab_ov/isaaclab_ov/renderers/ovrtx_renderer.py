@@ -201,16 +201,21 @@ def ovrtx_use_ovstage_enabled() -> bool:
 class _SceneBackendOperation:
     """Resolves a scene operation to the backend implementation the renderer selected.
 
-    The ovstage and legacy paths own the scene differently -- ovstage publishes into a stage the
-    renderer borrows, the legacy path writes OVRTX bindings directly -- but implement the same set of
+    The ovstage and legacy paths own the scene differently -- ovstage publishes into a stage OVRTX
+    reads, the legacy path writes OVRTX bindings directly -- but implement the same set of
     operations, named ``_<operation>_ovstage`` and ``_<operation>_legacy``. Declaring an operation as
-    this descriptor routes it to the selected backend, so call sites carry no branching and adding an
-    operation cannot leave one path behind.
+    this descriptor routes it to the selected backend, so call sites carry no branching, and
+    :meth:`__set_name__` rejects a declaration whose pair is incomplete.
     """
 
     def __set_name__(self, owner: type, name: str) -> None:
         self._ovstage_name = f"{name}_ovstage"
         self._legacy_name = f"{name}_legacy"
+        # Runs after the class body is evaluated, so both implementations are already visible: a
+        # half-implemented operation fails at class creation instead of on first dispatch.
+        for attr in (self._ovstage_name, self._legacy_name):
+            if not callable(getattr(owner, attr, None)):
+                raise TypeError(f"{owner.__name__} declares {name!r} but has no {attr!r} method")
 
     def __get__(self, instance, owner=None):
         if instance is None:
@@ -219,12 +224,13 @@ class _SceneBackendOperation:
 
 
 def _resolve_render_strategy(cfg: OVRTXRendererCfg) -> _RenderStrategy:
-    """Return the render strategy for ``cfg``.
+    """Return the asynchronous strategy when ``cfg`` enables it, else the synchronous one.
 
-    Asynchronous rendering is available on both scene-ownership paths. Under ovstage the renderer
-    borrows the stage's storage, so :meth:`_RenderStrategy.settle_before_scene_write` bounds each
-    pipelined step: it settles before the next frame's first write, leaving the step to observe only
-    the publication its ordinal names.
+    Both scene-ownership paths support asynchronous rendering. Under ovstage the renderer reads the
+    stage's storage in place, so a scene write could otherwise mutate data a queued render is still
+    reading; every ovstage write drains the queue first via
+    :meth:`_RenderStrategy.settle_before_scene_write`, leaving each render to observe exactly the
+    publication its ordinal names.
     """
     return _AsyncRenderStrategy.try_create(cfg) or _SyncRenderStrategy()
 
@@ -1579,11 +1585,11 @@ class OVRTXRenderer(BaseRenderer):
     # ---------------------------------------------------------------------------
 
     def _write_attribute_ovstage(self, *args, **kwargs) -> None:
-        """Write one ovstage attribute, settling any render that would otherwise observe the change.
+        """Write one ovstage attribute after draining any render that must not observe the change.
 
-        Every ovstage scene mutation goes through here. The renderer borrows ovstage's storage, so a
-        write lands in memory an in-flight step may still be reading; the strategy settles those steps
-        first. Sync rendering has none in flight, making this the plain write.
+        All ovstage scene mutations funnel through here. OVRTX reads the stage's storage in place, so
+        this write would land in memory a queued render is still reading; the strategy drains those
+        renders first. Under synchronous rendering nothing is ever in flight, so the drain is a no-op.
         """
         self._strategy.settle_before_scene_write()
         self._stage.write_attribute(*args, **kwargs).wait()

@@ -64,6 +64,25 @@ def test_declared_operations_match_the_paired_implementations():
     assert declared == paired == set(_BACKEND_OPERATIONS)
 
 
+def test_declaring_an_operation_without_both_implementations_is_rejected():
+    """A declaration missing either implementation fails at class creation, not on first dispatch."""
+    with pytest.raises(TypeError, match="_oops_legacy"):
+
+        class MissingLegacy:
+            _oops = _SceneBackendOperation()
+
+            def _oops_ovstage(self):
+                pass
+
+    with pytest.raises(TypeError, match="_oops_ovstage"):
+
+        class MissingOvstage:
+            _oops = _SceneBackendOperation()
+
+            def _oops_legacy(self):
+                pass
+
+
 @pytest.mark.parametrize("use_ovstage", [False, True])
 def test_operations_resolve_to_the_selected_backend(use_ovstage):
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)

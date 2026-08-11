@@ -7,8 +7,8 @@ Added
   outputs arrive one frame later, improving throughput. The first frame after (re)initialization
   is consumed immediately so the first camera read returns a valid frame; later frames are
   pipelined. Available on both the legacy and ovstage scene-ownership paths; under ovstage each
-  scene write first settles any render still in flight, since the renderer borrows the stage's
-  storage.
+  scene write first drains any render still in flight, since OVRTX reads the stage's storage in
+  place.
 * Added the ``OVRTX_ASYNC_RENDERING`` environment variable to override
   :attr:`~isaaclab_ov.renderers.ovrtx_renderer_cfg.OVRTXRendererCfg.async_rendering` for tests.
 * Added the ``OVRTX_NUM_BUFFERS`` environment variable to configure the render queue depth: the
