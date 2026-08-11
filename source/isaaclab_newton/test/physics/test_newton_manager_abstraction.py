@@ -31,6 +31,7 @@ import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 import warp as wp
+from isaaclab_newton.cloner import copy_newton_source_builder, newton_builder_world_hook
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoSolverCfg,
@@ -632,6 +633,45 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
     assert NewtonManager._graph_capture_pending is False
 
 
+def test_adapt_world_mask_for_implicit_mpm_pads_selective_masks():
+    """Isaac Lab (world_count,) masks expand to Implicit MPM's (world_count + 1,) contract."""
+    from isaaclab_newton.physics.mpm_manager import (
+        adapt_world_mask_for_implicit_mpm,
+        should_skip_implicit_mpm_masked_reset,
+    )
+
+    solver = SimpleNamespace(model=SimpleNamespace(world_count=4), _separate_worlds=False)
+    world_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
+
+    assert should_skip_implicit_mpm_masked_reset(solver, world_mask) is True
+    adapted = adapt_world_mask_for_implicit_mpm(solver, world_mask)
+
+    assert adapted is not None
+    assert adapted.numpy().tolist() == [True, False, True, False, False]
+
+    solver._separate_worlds = True
+    assert should_skip_implicit_mpm_masked_reset(solver, world_mask) is False
+
+
+def test_adapt_world_mask_for_implicit_mpm_full_selection_becomes_unmasked():
+    """Selecting every world is equivalent to an unmasked Implicit MPM reset."""
+    from isaaclab_newton.physics.mpm_manager import (
+        adapt_world_mask_for_implicit_mpm,
+        should_skip_implicit_mpm_masked_reset,
+    )
+
+    solver = SimpleNamespace(model=SimpleNamespace(world_count=3), _separate_worlds=False)
+    world_mask = wp.array([True, True, True], dtype=wp.bool, device="cpu")
+
+    assert should_skip_implicit_mpm_masked_reset(solver, world_mask) is False
+    assert adapt_world_mask_for_implicit_mpm(solver, world_mask) is None
+    assert adapt_world_mask_for_implicit_mpm(solver, None) is None
+    assert should_skip_implicit_mpm_masked_reset(solver, None) is False
+
+    empty = wp.array([False, False, False], dtype=wp.bool, device="cpu")
+    assert should_skip_implicit_mpm_masked_reset(solver, empty) is True
+
+
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     """CUDA graph capture should use the simulation device instead of Warp's default device."""
     from isaaclab.physics import PhysicsManager
@@ -662,6 +702,70 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
 
     assert captured_devices == ["cuda:1"]
     assert NewtonManager._graph is captured_graph
+
+
+def test_newton_builder_world_hook_is_scoped_and_preserves_existing_registration(monkeypatch):
+    def existing(*args):
+        pass
+
+    def added(*args):
+        pass
+
+    hooks = [existing]
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", hooks, raising=False)
+
+    with newton_builder_world_hook(added):
+        assert hooks == [existing, added]
+    assert hooks == [existing]
+
+    with pytest.raises(RuntimeError, match="already registered"):
+        with newton_builder_world_hook(existing):
+            pass
+    assert hooks == [existing]
+
+
+def test_newton_builder_world_hook_cleans_up_after_error(monkeypatch):
+    def hook(*args):
+        pass
+
+    hooks = []
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", hooks, raising=False)
+
+    with pytest.raises(RuntimeError, match="stop"):
+        with newton_builder_world_hook(hook):
+            raise RuntimeError("stop")
+
+    assert hooks == []
+
+
+def test_copy_newton_source_builder_detaches_mutable_state_and_geometry(monkeypatch):
+    geometry = SimpleNamespace(name="mesh", copy=lambda: SimpleNamespace(name="mesh-copy"))
+    prototype = SimpleNamespace(
+        values=[1],
+        mapping={"rows": [2]},
+        array=np.asarray([3.0], dtype=np.float32),
+        shape_source=[geometry, None],
+    )
+    monkeypatch.setattr(NewtonManager, "_cl_protos", {"/World/envs/env_0": prototype}, raising=False)
+
+    builder = copy_newton_source_builder("/World/envs/env_0")
+    builder.values.append(4)
+    builder.mapping["rows"].append(5)
+    builder.array[0] = 6.0
+
+    assert builder is not prototype
+    assert builder.shape_source[0].name == "mesh-copy"
+    assert builder.shape_source[0] is not prototype.shape_source[0]
+    assert prototype.values == [1]
+    assert prototype.mapping == {"rows": [2]}
+    assert prototype.array == pytest.approx([3.0])
+
+
+def test_copy_newton_source_builder_rejects_unknown_source(monkeypatch):
+    monkeypatch.setattr(NewtonManager, "_cl_protos", {"/World/known": object()}, raising=False)
+
+    with pytest.raises(RuntimeError, match="/World/missing.*Available: /World/known"):
+        copy_newton_source_builder("/World/missing")
 
 
 # ---------------------------------------------------------------------------

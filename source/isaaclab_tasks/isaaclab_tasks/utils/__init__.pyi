@@ -4,6 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "AdaptiveResetSampler",
+    "AdaptiveResetSamplerCfg",
+    "reset_dataset_collect_batches",
+    "reset_dataset_content_digest",
+    "reset_dataset_digest",
+    "reset_dataset_save_atomic",
+    "reset_dataset_validate_header",
     "import_packages",
     "get_checkpoint_path",
     "load_cfg_from_registry",
@@ -16,7 +23,15 @@ __all__ = [
     "setup_preset_cli",
 ]
 
-from .hydra import PresetCfg, preset, hydra_task_config, resolve_task_config, resolve_presets
+from .adaptive_reset_sampler import AdaptiveResetSampler, AdaptiveResetSamplerCfg
+from .hydra import PresetCfg, hydra_task_config, preset, resolve_presets, resolve_task_config
 from .importer import import_packages
 from .parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 from .preset_cli import setup_preset_cli
+from .reset_dataset import (
+    reset_dataset_collect_batches,
+    reset_dataset_content_digest,
+    reset_dataset_digest,
+    reset_dataset_save_atomic,
+    reset_dataset_validate_header,
+)

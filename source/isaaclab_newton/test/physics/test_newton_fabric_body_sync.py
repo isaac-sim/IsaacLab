@@ -179,9 +179,13 @@ class _FakeXformable:
 class _FakeFabricHierarchy:
     def __init__(self):
         self.update_world_xforms_count = 0
+        self.reset_xform_stacks = []
 
     def update_world_xforms(self):
         self.update_world_xforms_count += 1
+
+    def set_reset_xform_stack(self, path, enabled):
+        self.reset_xform_stacks.append((path, enabled))
 
 
 class _FakeRt:
@@ -194,6 +198,7 @@ class _FakeValueTypeNames:
 
 class _FakeSdf:
     ValueTypeNames = _FakeValueTypeNames
+    Path = str
 
 
 class _FakeUsdrt:
@@ -325,6 +330,19 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
                 )
         finally:
             sim.register_interactive_scene(None)
+
+
+def test_initialize_mpm_body_prims_reset_fabric_stack(monkeypatch):
+    prim = _FakePrim()
+    prim_path = "/World/envs/env_0/Robot/base"
+    stage = _FakeStage({prim_path: prim})
+    fabric_hierarchy = _FakeFabricHierarchy()
+    monkeypatch.setattr(NewtonManager, "_mpm_object_registry", [object()], raising=False)
+
+    NewtonManager._initialize_fabric_body_prims(stage, fabric_hierarchy, _FakeUsdrt, [(prim_path, 3)])
+
+    assert prim.applied_schemas == []
+    assert fabric_hierarchy.reset_xform_stacks == [(prim_path, True)]
 
 
 @pytest.mark.isaacsim_ci

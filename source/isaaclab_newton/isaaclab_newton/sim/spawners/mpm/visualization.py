@@ -11,12 +11,18 @@ import numpy as np
 
 
 def create_mpm_particle_visualization(
-    prim_path: str,
+    prim_paths: Sequence[str],
     positions: np.ndarray,
     widths: np.ndarray,
     color: Sequence[float],
 ) -> list[str]:
-    """Create one ``UsdGeom.Points`` prim per environment for Kit MPM particle rendering.
+    """Create one ``UsdGeom.Points`` prim per environment for USD-based MPM particle rendering.
+
+    A ``Points`` prim is authored at each path in ``prim_paths``. The paths live inside the
+    environment hierarchy (a child of the asset prim, e.g. ``/World/envs/env_{idx}/Media/Particles``)
+    so the prim inherits its environment's ``omni:scenePartition`` and is drawn in the correct tile
+    by partition-aware renderers (Kit RTX cameras, OVRTX). The reset-xform-stack flag is set so the
+    world-frame positions are not offset a second time by the inherited environment/asset transform.
 
     The created prims are static USD containers: per-frame position updates are
     handled by :meth:`isaaclab_newton.physics.NewtonManager.sync_particles_to_usd`
@@ -24,8 +30,7 @@ def create_mpm_particle_visualization(
     :meth:`isaaclab_newton.physics.NewtonManager.register_particle_visual_prim`.
 
     Args:
-        prim_path: Base prim path; one ``Points`` prim is created per environment
-            at ``{prim_path}/env_{idx}``.
+        prim_paths: Absolute ``Points`` prim paths, one per environment in environment order.
         positions: Initial world-frame particle positions [m], shape
             ``(num_envs, particles_per_env, 3)``.
         widths: Particle display widths (diameters) [m], one per particle.
@@ -38,8 +43,13 @@ def create_mpm_particle_visualization(
 
     import isaaclab.sim as sim_utils
 
+    if len(prim_paths) != positions.shape[0]:
+        raise ValueError(
+            f"Expected one prim path per environment: got {len(prim_paths)} paths for"
+            f" {positions.shape[0]} environments."
+        )
+
     stage = sim_utils.get_current_stage()
-    prim_paths = [f"{prim_path}/env_{env_idx}" for env_idx in range(positions.shape[0])]
     points_prims = [UsdGeom.Points.Define(stage, path) for path in prim_paths]
 
     widths_vt = Vt.FloatArray.FromNumpy(np.ascontiguousarray(widths, dtype=np.float32))
@@ -49,5 +59,8 @@ def create_mpm_particle_visualization(
             points.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(positions[env_idx]))
             points.CreateWidthsAttr(widths_vt)
             points.CreateDisplayColorAttr(color_vt)
+            # Positions are world-frame; drop the inherited env/asset transform so they are
+            # not offset a second time when the prim lives under ``/World/envs/env_{idx}``.
+            points.SetResetXformStack(True)
 
-    return prim_paths
+    return list(prim_paths)

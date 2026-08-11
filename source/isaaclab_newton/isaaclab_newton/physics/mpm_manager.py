@@ -7,13 +7,92 @@
 
 from __future__ import annotations
 
+import numpy as np
 import warp as wp
-from newton import BodyFlags, Contacts, Control, GeoType, Model, ModelBuilder, State
+from newton import BodyFlags, Contacts, Control, GeoType, Model, ModelBuilder, State, StateFlags
 from newton.solvers import SolverImplicitMPM
 from warp.fem import TemporaryStore
 
 from .mpm_manager_cfg import MPMSolverCfg
 from .newton_manager import NewtonManager
+
+
+def adapt_world_mask_for_implicit_mpm(
+    solver: SolverImplicitMPM,
+    world_mask: wp.array | None,
+) -> wp.array | None:
+    """Adapt an Isaac Lab world-reset mask to Implicit MPM's mask contract.
+
+    Isaac Lab and most Newton solvers use a per-world mask of shape
+    ``(world_count,)``. :meth:`SolverImplicitMPM.reset` instead expects
+    ``(world_count + 1,)``, where the trailing entry selects global objects
+    whose world index is ``-1``.
+
+    Args:
+        solver: Implicit MPM solver whose model defines ``world_count``.
+        world_mask: Optional Isaac Lab / Newton mask of shape ``(world_count,)``
+            or an already-adapted Implicit MPM mask of shape
+            ``(world_count + 1,)``.
+
+    Returns:
+        ``None`` when no mask is provided or every world is selected (a full
+        reset, including global world ``-1``). Otherwise a boolean Warp array
+        of shape ``(world_count + 1,)`` with the global bit left ``False``.
+
+    Raises:
+        ValueError: If ``world_mask`` has neither ``(world_count,)`` nor
+            ``(world_count + 1,)`` shape.
+    """
+    if world_mask is None:
+        return None
+
+    local_selected = _local_world_selection(solver, world_mask)
+    if bool(np.all(local_selected)):
+        # Full world selection is equivalent to an unmasked reset and also
+        # covers global (world index -1) particle/collider history.
+        return None
+
+    world_count = int(solver.model.world_count)
+    if tuple(world_mask.shape) == (world_count + 1,):
+        return world_mask
+
+    padded = np.zeros(world_count + 1, dtype=bool)
+    padded[:-1] = local_selected
+    return wp.array(padded, dtype=wp.bool, device=world_mask.device)
+
+
+def should_skip_implicit_mpm_masked_reset(
+    solver: SolverImplicitMPM,
+    world_mask: wp.array | None,
+) -> bool:
+    """Whether a masked Implicit MPM reset must be skipped.
+
+    Shared multi-world Implicit MPM (``separate_worlds=False``) rejects selective
+    masks when clearing grid-backed warm starts. Matching
+    :meth:`NewtonMPMManager._reset_solver_internals`, Isaac Lab skips those
+    resets instead of raising. Full-world selection still proceeds as an
+    unmasked reset.
+    """
+    if world_mask is None:
+        return False
+    if bool(getattr(solver, "_separate_worlds", False)) or int(solver.model.world_count) <= 1:
+        return False
+    return not bool(np.all(_local_world_selection(solver, world_mask)))
+
+
+def _local_world_selection(solver: SolverImplicitMPM, world_mask: wp.array) -> np.ndarray:
+    """Return the per-world selection bits from an Isaac Lab or Implicit MPM mask."""
+    world_count = int(solver.model.world_count)
+    shape = tuple(world_mask.shape)
+    selected = world_mask.numpy()
+    if shape == (world_count + 1,):
+        return selected[:-1]
+    if shape == (world_count,):
+        return selected
+    raise ValueError(
+        f"world_mask has shape {shape}, expected ({world_count},) or ({world_count + 1},) "
+        "for SolverImplicitMPM.reset."
+    )
 
 
 def _make_solver_config(solver_cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
@@ -160,6 +239,34 @@ class NewtonMPMManager(NewtonManager):
         Args:
             world_mask: Per-world reset mask, ignored.
         """
+
+    @classmethod
+    def reset_solver_state(
+        cls,
+        state: State | None = None,
+        world_mask: wp.array(dtype=wp.bool) | None = None,
+        flags: StateFlags | int | None = None,
+    ) -> None:
+        """Reset Implicit MPM history after simulation state is rewritten.
+
+        Expands Isaac Lab's ``(world_count,)`` mask to the
+        ``(world_count + 1,)`` shape required by :meth:`SolverImplicitMPM.reset`
+        before delegating to :meth:`NewtonManager.reset_solver_state`. Shared
+        multi-world selective masks are skipped; see
+        :func:`should_skip_implicit_mpm_masked_reset`.
+        """
+        if not isinstance(cls._solver, SolverImplicitMPM):
+            raise RuntimeError(
+                f"{cls.__name__}.reset_solver_state requires an active SolverImplicitMPM; "
+                f"got {type(cls._solver).__name__}."
+            )
+        if should_skip_implicit_mpm_masked_reset(cls._solver, world_mask):
+            return
+        super().reset_solver_state(
+            state=state,
+            world_mask=adapt_world_mask_for_implicit_mpm(cls._solver, world_mask),
+            flags=flags,
+        )
 
     @classmethod
     def _solver_specific_clear(cls) -> None:

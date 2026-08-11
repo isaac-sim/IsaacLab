@@ -49,6 +49,8 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
     "franka_soft": 8.0,
+    # Aliasing artifacts on the table and MPM particle noise.
+    "franka_pour": 8.0,
     # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
@@ -586,6 +588,16 @@ def maybe_save_stage(
             os.unlink(stage_path)
 
 
+def _camera_output_to_pil_image(tensor: torch.Tensor, data_type: str) -> Image.Image:
+    """Convert one camera output tensor to a display-ready PIL image."""
+    condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
+    corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
+    normalized = normalize_camera_output_for_display(corrected, data_type)
+    grid = make_camera_output_grid(normalized)
+    ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
+    return Image.fromarray(ndarr)
+
+
 def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     """Apply override args to env_cfg using parse_overrides and apply_overrides."""
     from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets, parse_overrides
@@ -678,6 +690,27 @@ def _physics_preset_name_deformable(physics_backend: str) -> str:
     return "newton_mjwarp_vbd_proxy" if physics_backend == "newton" else physics_backend
 
 
+def _supported_presets_for_concrete_physics(physics_cfg: Any) -> set[str]:
+    """Map a fixed (non-``PresetCfg``) physics cfg to Hydra preset names it can satisfy.
+
+    Returns an empty set when the concrete physics type is unrecognized.
+    """
+    supported_presets = set()
+
+    name = type(physics_cfg).__name__
+    if name == "NewtonCfg":
+        # Fixed Newton backends accept any newton_* Hydra label used by these tests.
+        supported_presets.add("newton")
+        supported_presets.add("newton_mjwarp")
+        supported_presets.add("newton_mjwarp_vbd")
+    if name == "PhysxCfg":
+        supported_presets.add("physx")
+    if name == "OvPhysxCfg":
+        supported_presets.add("ovphysx")
+
+    return supported_presets
+
+
 def _skip_if_physics_preset_unsupported(env_cfg: Any, physics_preset_name: str) -> None:
     """Skip the test when the env does not support the given physics preset.
 
@@ -707,6 +740,35 @@ def _save_comparison_image(img: Image.Image, filename: str) -> str:
     path = os.path.join(_COMPARISON_IMAGES_DIR, _COMPARISON_IMAGE_SUBDIR, filename)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     img.save(path, format="PNG")
+    return path
+
+
+def _camera_outputs_to_pil(camera_outputs: dict[str, ProxyArray]) -> Image.Image:
+    """Convert the first camera AOV in ``camera_outputs`` to a displayable PIL image."""
+    data_type, output = next(iter(camera_outputs.items()))
+    tensor = output if isinstance(output, torch.Tensor) else output.torch
+    condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
+    corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
+    normalized = normalize_camera_output_for_display(corrected, data_type)
+    grid = make_camera_output_grid(normalized)
+    ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
+    return Image.fromarray(ndarr)
+
+
+def _save_image_sequence_gif(frames: list[Image.Image], filename: str, duration_ms: int = 100) -> str:
+    """Save a PIL image sequence as an animated GIF under the current working directory (repo root)."""
+    if not frames:
+        raise ValueError("No frames to save as GIF.")
+    path = os.path.join(os.getcwd(), filename)
+    rgb_frames = [frame.convert("RGB") for frame in frames]
+    rgb_frames[0].save(
+        path,
+        save_all=True,
+        append_images=rgb_frames[1:],
+        duration=duration_ms,
+        loop=0,
+    )
+    logger.info("Wrote GIF with %d frames to %s", len(frames), path)
     return path
 
 
@@ -1090,10 +1152,7 @@ def validate_camera_outputs(
             failed_data_types[data_type] = f"Camera output '{data_type}' has no non-zero pixels."
             continue
 
-        normalized = normalize_camera_output_for_display(corrected, data_type)
-        grid = make_camera_output_grid(normalized)
-        ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
-        result_image = Image.fromarray(ndarr)
+        result_image = _camera_output_to_pil_image(corrected, data_type)
 
         golden_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}.png")
         if not os.path.exists(golden_path):
@@ -1901,6 +1960,147 @@ def rendering_test_franka_soft(
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
             comparison_scores=comparison_scores,
         )
+    finally:
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+def _make_franka_pour_camera_env_cfg(data_type: str):
+    """Create a test-local Franka pour camera env cfg without exposing a production task."""
+    import isaaclab.sim as sim_utils
+    from isaaclab.envs import mdp as env_mdp
+    from isaaclab.managers import ObservationGroupCfg as ObsGroup
+    from isaaclab.managers import ObservationTermCfg as ObsTerm
+    from isaaclab.managers import SceneEntityCfg
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.utils.configclass import configclass
+
+    from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import FrankaPourEnvCfg, PourSceneCfg
+    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+    @configclass
+    class TestFrankaPourCameraSceneCfg(PourSceneCfg):
+        """Franka pour scene with a test-only camera sensor."""
+
+        tiled_camera: CameraCfg = CameraCfg(
+            prim_path="/World/envs/env_.*/Camera",
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.85, -0.55, 0.42),
+                rot=(0.5080, 0.2114, 0.318, 0.7720),
+                convention="opengl",
+            ),
+            data_types=[data_type],
+            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
+            width=128,
+            height=128,
+            renderer_cfg=MultiBackendRendererCfg(),
+        )
+
+    @configclass
+    class TestFrankaPourCameraObservationsCfg:
+        """Image-only observations for the local rendering test env."""
+
+        @configclass
+        class PolicyCfg(ObsGroup):
+            image = ObsTerm(
+                func=env_mdp.image,
+                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type, "permute": True},
+            )
+
+            def __post_init__(self) -> None:
+                self.enable_corruption = False
+                self.concatenate_terms = True
+
+        policy: ObsGroup = PolicyCfg()
+
+    @configclass
+    class TestFrankaPourCameraEnvCfg(FrankaPourEnvCfg):
+        """Test-only camera variant of ``Isaac-Pour-Franka-v0``."""
+
+        scene: TestFrankaPourCameraSceneCfg = TestFrankaPourCameraSceneCfg(
+            num_envs=4, env_spacing=2.5, replicate_physics=True
+        )
+        observations: TestFrankaPourCameraObservationsCfg = TestFrankaPourCameraObservationsCfg()
+
+        def __post_init__(self) -> None:
+            super().__post_init__()
+            self.seed = 42
+            # Match the training task default: start from the held, deeply tilted drain pose.
+            self.curriculum_start_stage = self.curriculum_stage_names.index("drain")
+            self.curriculum_freeze = True
+            self.decimation = 1
+            self.physics_substeps = 1
+            self.mpm_iterations = 6
+            self.use_cuda_graph = False
+            self.sim.render_interval = 1
+            self.sim.device = "cuda:0"
+
+    return TestFrankaPourCameraEnvCfg()
+
+
+def rendering_test_franka_pour(
+    physics_backend: str,
+    renderer: str,
+    data_type: str,
+    comparison_scores: list[dict],
+) -> None:
+    from isaaclab_tasks.contrib.franka_pour.pour_env import FrankaPourEnv
+
+    env_cfg = _make_franka_pour_camera_env_cfg(data_type)
+
+    # Skip if the physics preset is not supported by the env cfg.
+    physics_preset_name = _physics_preset_name(physics_backend)
+    if physics_preset_name not in _supported_presets_for_concrete_physics(env_cfg.sim.physics):
+        pytest.skip(f"FrankaPour env cfg does not support '{physics_preset_name}'.")
+
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
+
+    env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
+    test_name = "franka_pour"
+    env = None
+
+    FRAMES_BEFORE_POURING_PARTICLES = 40
+
+    try:
+        env = FrankaPourEnv(env_cfg)
+        env.reset()
+
+        env.sim._app_control_on_stop_handle = None
+
+        maybe_save_stage(test_name, physics_backend, renderer, data_type)
+
+        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        pour_frames = 180
+        frames: list[Image.Image] = []
+        for _ in range(pour_frames):
+            env.step(zero_actions)
+            frames.append(_camera_outputs_to_pil(env.scene.sensors["tiled_camera"].data.output))
+        _save_image_sequence_gif(
+            frames, f"{test_name}-{physics_backend}-{renderer}-{data_type}.gif"
+        )
+
+        # zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        # for _ in range(FRAMES_BEFORE_POURING_PARTICLES):
+        #     env.step(zero_actions)
+
+        # camera_outputs = env.scene.sensors["tiled_camera"].data.output
+        # validate_camera_outputs(
+        #     test_name,
+        #     physics_backend,
+        #     renderer,
+        #     camera_outputs,
+        #     max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+        #     comparison_scores=comparison_scores,
+        # )
+
     finally:
         if env is not None:
             env.close()

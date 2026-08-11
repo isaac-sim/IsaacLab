@@ -69,6 +69,7 @@ from newton import (
     ModelFlags,
     ShapeFlags,
     State,
+    StateFlags,
     eval_fk,
 )
 from newton.sensors import SensorContact as NewtonContactSensor
@@ -1583,22 +1584,30 @@ class NewtonManager(PhysicsManager):
     @staticmethod
     def _initialize_fabric_body_prims(stage, fabric_hierarchy, usdrt, body_bindings: Sequence[tuple[str, int]]) -> None:
         """Initialize Fabric body prims used by Newton transform sync."""
+        complete_hierarchy = bool(NewtonManager._mpm_object_registry)
         for prim_path, body_index in body_bindings:
             prim = stage.GetPrimAtPath(prim_path)
             if prim.IsValid():
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 xformable_prim.SetWorldXformFromUsd()
             else:
+                if complete_hierarchy:
+                    # Solver-only bodies without USD prims are skipped for MPM hierarchy sync.
+                    continue
                 prim = stage.DefinePrim(prim_path, "Xform")
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 xformable_prim.CreateFabricHierarchyWorldMatrixAttr()
 
             prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
             prim.GetAttribute(NewtonManager._newton_index_attr).Set(body_index)
-            # Tag with PhysicsRigidBodyAPI so FabricHierarchyGpuUpdateOptions.RIGID_BODY
-            # applies Inverse propagation (preserves Newton's world transforms and derives
-            # local) instead of Forward.
-            prim.AddAppliedSchema("PhysicsRigidBodyAPI")
+            if complete_hierarchy:
+                # MPM scenes publish absolute body poses through Fabric reset-stack locals.
+                fabric_hierarchy.set_reset_xform_stack(usdrt.Sdf.Path(prim_path), True)
+            else:
+                # Tag with PhysicsRigidBodyAPI so FabricHierarchyGpuUpdateOptions.RIGID_BODY
+                # applies Inverse propagation (preserves Newton's world transforms and derives
+                # local) instead of Forward.
+                prim.AddAppliedSchema("PhysicsRigidBodyAPI")
 
         fabric_hierarchy.update_world_xforms()
 
@@ -2026,6 +2035,44 @@ class NewtonManager(PhysicsManager):
         if world_mask is None:
             return
         cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+
+    @classmethod
+    def reset_solver_state(
+        cls,
+        state: State | None = None,
+        world_mask: wp.array(dtype=wp.bool) | None = None,
+        flags: StateFlags | int | None = None,
+    ) -> None:
+        """Reset solver-private history after simulation state is rewritten.
+
+        When :paramref:`state` is omitted, both distinct manager state buffers
+        are reset so a later buffer swap cannot restore stale solver history.
+
+        Args:
+            state: State whose solver-private history should be reset. If
+                omitted, reset both manager states.
+            world_mask: Optional mask selecting Newton worlds to reset.
+            flags: State components whose solver-private history should reset.
+
+        Raises:
+            RuntimeError: If the solver or a usable state is not initialized.
+        """
+        if cls._solver is None:
+            raise RuntimeError("Newton solver is not initialized; cannot reset solver state.")
+
+        candidates = (state,) if state is not None else (cls._state_1, cls._state_0)
+        states: list[State] = []
+        seen: set[int] = set()
+        for candidate in candidates:
+            if candidate is None or id(candidate) in seen:
+                continue
+            seen.add(id(candidate))
+            states.append(candidate)
+        if not states:
+            raise RuntimeError("Newton state is not initialized; provide an explicit state to reset.")
+
+        for candidate in states:
+            cls._solver.reset(candidate, world_mask=world_mask, flags=flags)
 
     # ----- Lifecycle orchestration ----------------------------------------
 
