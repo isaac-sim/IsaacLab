@@ -10,6 +10,7 @@ from __future__ import annotations
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -24,6 +25,7 @@ from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerP
 from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
 from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from ... import mdp
 from .franka_soft_env_cfg import (
@@ -171,7 +173,9 @@ class FrankaClothScenePresetCfg(PresetCfg):
 class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
     """Franka cloth scene with a base camera."""
 
-    base_camera: CameraCfg = FRANKA_CAMERA_CFG
+    base_camera: CameraCfg = FRANKA_CAMERA_CFG.replace(
+        renderer_cfg=MultiBackendRendererCfg(default=IsaacRtxRendererCfg())
+    )
 
 
 @configclass
