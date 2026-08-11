@@ -36,7 +36,10 @@ is reported against the session instead.
 """
 
 _OUTCOME_PRIORITY = {"passed": 0, "skipped": 1, "failed": 2}
-"""Severity ranking used to fold a test's setup/call/teardown outcomes into one verdict."""
+"""Severity ranking used to fold a phase's repeated attempts into one verdict."""
+
+_PHASE_ORDER = {"setup": 0, "call": 1, "teardown": 2}
+"""Order pytest runs a test's phases in, used to emit their results in the order they happened."""
 
 _MAX_MESSAGE_CHARS = 500
 """Maximum length of a generated JUnit ``message`` attribute."""
@@ -51,14 +54,14 @@ class Journal:
         markers: Registered markers per node ID, as recorded for the JUnit ``markers`` property.
         started: Node IDs in the order they began running, one entry per attempt.
         finished: Node IDs in the order they completed teardown, one entry per attempt.
-        results: Aggregated ``{"outcome", "when", "duration", "longrepr"}`` per node ID.
+        results: ``{"outcome", "duration", "longrepr"}`` per node ID, then per phase.
     """
 
     collected: list[str] = field(default_factory=list)
     markers: dict[str, str] = field(default_factory=dict)
     started: list[str] = field(default_factory=list)
     finished: list[str] = field(default_factory=list)
-    results: dict[str, dict] = field(default_factory=dict)
+    results: dict[str, dict[str, dict]] = field(default_factory=dict)
 
     @property
     def culprit(self) -> str | None:
@@ -129,30 +132,34 @@ def _first_line(text: str, limit: int = _MAX_MESSAGE_CHARS) -> str:
     return ""
 
 
-def _merge_result(results: dict[str, dict], record: dict) -> None:
-    """Fold one journal ``result`` record into the aggregated outcome for its node ID.
+def _merge_result(results: dict[str, dict[str, dict]], record: dict) -> None:
+    """Fold one journal ``result`` record into its node's per-phase outcomes.
 
-    A test emits up to three records (setup, call, teardown) and, when retried by the ``flaky``
-    plugin, one set per attempt. The aggregate keeps the most severe outcome and sums the phase
-    durations, so a retried test collapses to one entry instead of the duplicate IDs the JUnit
-    path produces.
+    A test emits up to three records (setup, call, teardown), each of which pytest reports
+    separately: a failing ``call`` becomes a ``<failure>`` while a failing ``setup``/``teardown``
+    becomes an ``<error>``. The phases are therefore kept apart rather than folded into one
+    verdict, so a test that fails an assertion and then breaks its own teardown reports both,
+    instead of the teardown error disappearing behind the equally severe call failure.
 
-    The phase and failure text that established the worst outcome are kept alongside it. The phase
-    matters because pytest's own JUnit writer reports a failing ``call`` as ``<failure>`` but a
-    failing ``setup``/``teardown`` as ``<error>``; keeping the matching text is what stops a
-    skipped setup's reason from being reported as the body of a later teardown failure. Records
-    predating the ``when`` field are treated as ``call``.
+    Repeats *within* one phase are folded, because the ``flaky`` plugin reruns a test in-process
+    and journals a fresh set of records per attempt. Those keep the most severe outcome, the
+    failure text that established it, and the summed duration, so a retried test still collapses
+    to one entry instead of the duplicate IDs the JUnit path produces.
+
+    Records predating the ``when`` field are treated as ``call``.
     """
     node_id = record.get("node_id")
     if not node_id:
         return
-    entry = results.setdefault(str(node_id), {"outcome": "passed", "when": "call", "duration": 0.0, "longrepr": ""})
+    phases = results.setdefault(str(node_id), {})
+    entry = phases.setdefault(
+        str(record.get("when") or "call"), {"outcome": "passed", "duration": 0.0, "longrepr": ""}
+    )
     outcome = str(record.get("outcome", "passed"))
     longrepr = str(record.get("longrepr") or "")
     severity = _OUTCOME_PRIORITY.get(outcome, 0)
     if severity > _OUTCOME_PRIORITY.get(entry["outcome"], 0):
         entry["outcome"] = outcome
-        entry["when"] = str(record.get("when") or "call")
         entry["longrepr"] = longrepr
     elif severity == _OUTCOME_PRIORITY.get(entry["outcome"], 0) and not entry["longrepr"]:
         entry["longrepr"] = longrepr
@@ -208,6 +215,44 @@ def read_journal(journal_file: str) -> Journal | None:
     return journal
 
 
+def _phase_results(
+    phases: dict[str, dict], message: str, counters: dict
+) -> tuple[list[tuple[Failure | Error | Skipped | None, float]], float]:
+    """Turn a node's journaled phases into ``(result, duration)`` pairs, in the order they ran.
+
+    Mirrors pytest's JUnit writer: only a failing ``call`` is a ``<failure>``, a failing
+    ``setup``/``teardown`` is an ``<error>``, and a passing phase produces no element at all.
+
+    Args:
+        phases: One node's ``{phase: {"outcome", "duration", "longrepr"}}`` mapping.
+        message: Fallback ``message`` attribute for a failure whose text is empty.
+        counters: Running report totals, updated in place.
+
+    Returns:
+        The pairs for the phases that produced a result element, and the total duration of the
+        phases that did not — which the caller charges to the node's first emitted case, so the
+        emitted cases still sum to the node's total time.
+    """
+    results: list[tuple[Failure | Error | Skipped | None, float]] = []
+    idle_duration = 0.0
+    for when, entry in sorted(phases.items(), key=lambda item: _PHASE_ORDER.get(item[0], 1)):
+        duration = entry["duration"]
+        counters["time_elapsed"] += duration
+        if entry["outcome"] == "failed":
+            is_call = when == "call"
+            result = (Failure if is_call else Error)(message=_first_line(entry["longrepr"]) or message)
+            counters["failures" if is_call else "errors"] += 1
+        elif entry["outcome"] == "skipped":
+            result = Skipped(message=_first_line(entry["longrepr"]))
+            counters["skipped"] += 1
+        else:
+            idle_duration += duration
+            continue
+        result.text = entry["longrepr"]
+        results.append((result, duration))
+    return results, idle_duration
+
+
 def create_crash_report(
     journal_file: str, suite_name: str, message: str, details: str
 ) -> tuple[JUnitXml, dict, str | None] | None:
@@ -217,6 +262,13 @@ def create_crash_report(
     outcome, the test that was in flight when the process died gains an ``<error>`` for the crash,
     and tests that were collected but never reached become skips so they do not silently vanish
     from the uploaded results.
+
+    A test that produced more than one result — an assertion failure followed by a teardown that
+    took the process down — is emitted as one ``<testcase>`` per result, which is how pytest's own
+    writer represents the same situation ("we need to open new testcase in case we have failure in
+    call and error in teardown in order to follow junit schema"). Stacking both inside a single
+    ``<testcase>`` would drop one of them: the results uploader reads only the first ``<failure>``
+    or ``<error>`` child of a case, so the crash and its flag would never leave the XML.
 
     Args:
         journal_file: Path to the JSONL journal for the crashed run.
@@ -239,48 +291,38 @@ def create_crash_report(
 
     for node_id in journal.ordered_node_ids:
         classname, name = junit_names(node_id)
-        case = TestCase(name=name, classname=classname)
-        marker_value = journal.markers.get(node_id)
-        if marker_value:
-            properties = Properties()
-            properties.append(Property(name="markers", value=marker_value))
-            case.append(properties)
-
-        entry = journal.results.get(node_id)
-        case.time = entry["duration"] if entry is not None else 0.0
-        results = []
-        if entry is not None:
-            counters["time_elapsed"] += entry["duration"]
-            if entry["outcome"] == "failed":
-                # Mirror pytest's JUnit writer: only a failing call phase is a <failure>; a
-                # failing fixture (setup/teardown) is an <error>.
-                is_call = entry["when"] == "call"
-                result = (Failure if is_call else Error)(message=_first_line(entry["longrepr"]) or message)
-                result.text = entry["longrepr"]
-                results.append(result)
-                counters["failures" if is_call else "errors"] += 1
-            elif entry["outcome"] == "skipped":
-                skip = Skipped(message=_first_line(entry["longrepr"]))
-                skip.text = entry["longrepr"]
-                results.append(skip)
-                counters["skipped"] += 1
+        phases = journal.results.get(node_id) or {}
+        cases, idle_duration = _phase_results(phases, message, counters)
         if node_id == culprit:
-            # pytest emits one <testcase> holding every phase's result, so a test that already
-            # failed its call phase keeps that failure and gains the crash error beside it —
-            # overwriting it would throw away the assertion and traceback the journal saved.
+            # The crash is reported beside whatever the test already achieved: a test that failed
+            # its call phase before taking the process down keeps that failure, since overwriting
+            # it would throw away the assertion and traceback the journal saved.
             error = Error(message=message)
             error.text = details
-            results.append(error)
+            cases.append((error, 0.0))
             counters["errors"] += 1
-        elif entry is None:
+        elif not phases:
             skip = Skipped(message=f"not run: session aborted at {culprit or SESSION_CRASH_CASE}")
             skip.text = message
-            results.append(skip)
+            cases.append((skip, 0.0))
             counters["skipped"] += 1
-        if results:
-            case.result = results
-        counters["tests"] += 1
-        suite.add_testcase(case)
+        if not cases:
+            # Every phase passed, so the node is one case carrying no result element.
+            cases.append((None, 0.0))
+        cases[0] = (cases[0][0], cases[0][1] + idle_duration)
+
+        marker_value = journal.markers.get(node_id)
+        for result, duration in cases:
+            case = TestCase(name=name, classname=classname)
+            if marker_value:
+                properties = Properties()
+                properties.append(Property(name="markers", value=marker_value))
+                case.append(properties)
+            case.time = duration
+            if result is not None:
+                case.result = [result]
+            counters["tests"] += 1
+            suite.add_testcase(case)
 
     if culprit is None:
         # Nothing was in flight, so the process died during session shutdown.

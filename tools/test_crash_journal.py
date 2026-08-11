@@ -31,10 +31,26 @@ def _write_journal(tmp_path: Path, records: list[dict], trailing: str = "") -> s
     return str(path)
 
 
+def _case_list(report) -> list[ElementTree.Element]:
+    """Return the generated cases in document order."""
+    return list(ElementTree.fromstring(report.tostring()).iter("testcase"))
+
+
 def _cases(report) -> dict[str, ElementTree.Element]:
-    """Return the generated cases keyed by ``classname::name``."""
-    root = ElementTree.fromstring(report.tostring())
-    return {f"{case.get('classname')}::{case.get('name')}": case for case in root.iter("testcase")}
+    """Return the generated cases keyed by ``classname::name``.
+
+    Only valid where each node emits a single case; use :func:`_cases_for` when a node is
+    expected to emit one case per result.
+    """
+    cases = _case_list(report)
+    keyed = {f"{case.get('classname')}::{case.get('name')}": case for case in cases}
+    assert len(keyed) == len(cases), "duplicate case IDs: use _cases_for"
+    return keyed
+
+
+def _cases_for(report, case_id: str) -> list[ElementTree.Element]:
+    """Return every case whose ``classname::name`` equals ``case_id``, in document order."""
+    return [case for case in _case_list(report) if f"{case.get('classname')}::{case.get('name')}" == case_id]
 
 
 def _result_tags(case: ElementTree.Element) -> list[str]:
@@ -90,7 +106,8 @@ def test_read_journal_skips_partial_trailing_line(tmp_path):
 
 
 def test_read_journal_collapses_repeated_results_to_worst_outcome(tmp_path):
-    # The flaky plugin reruns a test in-process, so one node ID can emit several result records.
+    # The flaky plugin reruns a test in-process, so one node ID can emit several result records
+    # for the same phase. Those fold together; records for different phases do not.
     journal_file = _write_journal(
         tmp_path,
         [
@@ -99,9 +116,11 @@ def test_read_journal_collapses_repeated_results_to_worst_outcome(tmp_path):
             {"event": "result", "node_id": f"{_FILE}::test_a", "outcome": "failed", "duration": 2.0, "longrepr": "x"},
         ],
     )
-    entry = read_journal(journal_file).results[f"{_FILE}::test_a"]
-    assert entry["outcome"] == "failed"
-    assert entry["duration"] == 3.0
+    # Records predating the ``when`` field are treated as ``call``.
+    phases = read_journal(journal_file).results[f"{_FILE}::test_a"]
+    assert list(phases) == ["call"]
+    assert phases["call"]["outcome"] == "failed"
+    assert phases["call"]["duration"] == 3.0
 
 
 def test_read_journal_blames_a_retry_that_never_finished(tmp_path):
@@ -135,8 +154,9 @@ def test_read_journal_blames_the_session_when_every_attempt_finished(tmp_path):
     assert read_journal(journal_file).culprit is None
 
 
-def test_read_journal_keeps_the_text_of_the_phase_that_set_the_worst_outcome(tmp_path):
-    # A skipped setup records its reason; a later teardown failure must not inherit it as its body.
+def test_read_journal_keeps_each_phase_separately(tmp_path):
+    # A skipped setup records its reason; a later teardown failure must not inherit it as its
+    # body, nor bury it - pytest reports the two in different JUnit buckets.
     journal_file = _write_journal(
         tmp_path,
         [
@@ -157,10 +177,11 @@ def test_read_journal_keeps_the_text_of_the_phase_that_set_the_worst_outcome(tmp
             },
         ],
     )
-    entry = read_journal(journal_file).results[f"{_FILE}::test_a"]
-    assert entry["outcome"] == "failed"
-    assert entry["when"] == "teardown"
-    assert entry["longrepr"] == "RuntimeError: teardown boom"
+    phases = read_journal(journal_file).results[f"{_FILE}::test_a"]
+    assert phases["setup"]["outcome"] == "skipped"
+    assert phases["setup"]["longrepr"] == "Skipped: needs a GPU"
+    assert phases["teardown"]["outcome"] == "failed"
+    assert phases["teardown"]["longrepr"] == "RuntimeError: teardown boom"
 
 
 # -- create_crash_report ----------------------------------------------------------------------
@@ -212,6 +233,7 @@ def test_create_crash_report_preserves_verdicts_and_blames_in_flight_test(tmp_pa
 def test_create_crash_report_keeps_the_recorded_failure_of_the_culprit(tmp_path):
     # A test that failed its call phase and then took the process down during teardown must keep
     # its assertion failure: it was journaled before the crash, so losing it hides a real defect.
+    # The two land in separate cases, the way pytest splits a call failure from a teardown error.
     journal_file = _write_journal(
         tmp_path,
         [
@@ -232,14 +254,17 @@ def test_create_crash_report_keeps_the_recorded_failure_of_the_culprit(tmp_path)
     report, counters, culprit = create_crash_report(journal_file, "test_x", "SIGSEGV", "diagnostics")
 
     assert culprit == f"{_FILE}::test_a"
-    case = _cases(report)["source.pkg.test.test_x::test_a"]
-    assert _result_tags(case) == ["failure", "error"]
-    results = {child.tag: child for child in case}
-    assert "AssertionError" in (results["failure"].text or "")
-    assert results["error"].get("message") == "SIGSEGV"
+    failure_case, error_case = _cases_for(report, "source.pkg.test.test_x::test_a")
+    assert _result_tags(failure_case) == ["failure"]
+    assert _result_tags(error_case) == ["error"]
+    assert "AssertionError" in (failure_case.find("failure").text or "")
+    assert error_case.find("error").get("message") == "SIGSEGV"
     assert counters["failures"] == 1
     assert counters["errors"] == 1
-    assert counters["tests"] == 1
+    # Both cases are counted, so the orchestrator's tests - failures - errors - skipped summary
+    # stays at zero passed instead of going negative.
+    assert counters["tests"] == 2
+    assert counters["time_elapsed"] == 2.0
 
 
 def test_create_crash_report_carries_markers_property(tmp_path):
@@ -466,6 +491,43 @@ def test_rebuilt_result_tags_match_the_tags_pytest_writes_on_a_clean_run(tmp_pat
     assert rebuilt_tags == pytest_tags
 
 
+def test_a_test_failing_twice_rebuilds_as_the_two_cases_pytest_writes(tmp_path):
+    """A test that fails and then breaks its own teardown must keep both results.
+
+    pytest opens a second ``<testcase>`` for the teardown error rather than stacking it beside
+    the call failure ("in order to follow junit schema"), and the results uploader reads only a
+    case's first ``<failure>``/``<error>`` child. Folding the two phases into one verdict - or
+    into one case - therefore drops the teardown error on the floor.
+    """
+    _write_test_module(
+        tmp_path,
+        """
+        import pytest
+
+        @pytest.fixture
+        def broken_teardown():
+            yield
+            raise RuntimeError("teardown boom")
+
+        def test_double(broken_teardown):
+            assert 1 == 2
+        """,
+    )
+    journal_file = tmp_path / "journal.jsonl"
+    junit_file = tmp_path / "report.xml"
+    _run_pytest(tmp_path, _TARGET, journal_file, junit_file)
+
+    root = ElementTree.fromstring(junit_file.read_text(encoding="utf-8"))
+    pytest_tags = [_result_tags(case) for case in root.iter("testcase")]
+    assert pytest_tags == [["failure"], ["error"]]
+
+    report, _, _ = create_crash_report(str(journal_file), "test_x", "SIGKILL", "diagnostics")
+    rebuilt = _cases_for(report, "source.pkg.test.test_x::test_double")
+    assert [_result_tags(case) for case in rebuilt] == pytest_tags
+    assert "assert 1 == 2" in (rebuilt[0].find("failure").text or "")
+    assert "teardown boom" in (rebuilt[1].find("error").text or "")
+
+
 # -- artificial crashes in a real pytest run --------------------------------------------------
 #
 # Each test below kills a real pytest subprocess at a different point in the session and checks
@@ -594,14 +656,15 @@ def test_crash_during_teardown_keeps_the_failure_the_test_already_reported(tmp_p
     report, counters, culprit = create_crash_report(str(journal_file), "test_x", "SIGSEGV", "diagnostics")
 
     assert culprit == f"{_TARGET}::test_b"
-    cases = _cases(report)
-    assert _result_tag(cases["source.pkg.test.test_x::test_a"]) == "passed"
-    # The assertion failure and the crash that followed it are both reported, the way pytest
-    # itself emits one <testcase> carrying every phase's result.
-    assert _result_tags(cases["source.pkg.test.test_x::test_b"]) == ["failure", "error"]
-    results = {child.tag: child for child in cases["source.pkg.test.test_x::test_b"]}
-    assert "assert 1 == 2" in (results["failure"].text or "")
-    assert results["error"].get("message") == "SIGSEGV"
+    assert _result_tag(_cases_for(report, "source.pkg.test.test_x::test_a")[0]) == "passed"
+    # The assertion failure and the crash that followed it are both reported, in a case each -
+    # pytest splits a call failure from a teardown error the same way, and the results uploader
+    # reads only a case's first <failure>/<error>, so stacking them would drop the crash.
+    failure_case, error_case = _cases_for(report, "source.pkg.test.test_x::test_b")
+    assert _result_tags(failure_case) == ["failure"]
+    assert _result_tags(error_case) == ["error"]
+    assert "assert 1 == 2" in (failure_case.find("failure").text or "")
+    assert error_case.find("error").get("message") == "SIGSEGV"
     assert counters["failures"] == 1
     assert counters["errors"] == 1
 
