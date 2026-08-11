@@ -98,7 +98,7 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
         spawn=TABLE_SPAWN_CFG.replace(
-            physics_material=RigidBodyMaterialBaseCfg(static_friction=0.001, dynamic_friction=0.001),
+            physics_material=RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01),
         ),
     )
 
@@ -230,13 +230,13 @@ class RewardsCfg:
             "std": 0.1,
             "asset_cfg": SceneEntityCfg("cable"),
         },
-        weight=5.0,
+        weight=1.0,
     )
 
     lifting_cable = RewTerm(
         func=mdp.cable_lifting,
         params={
-            "std": 0.1,
+            "std": 0.05,
             "minimal_height": 0.0,
             "asset_cfg": SceneEntityCfg("cable"),
         },
@@ -252,7 +252,7 @@ class RewardsCfg:
             "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,
             "asset_cfg": SceneEntityCfg("cable"),
         },
-        weight=2.0,
+        weight=5.0,
     )
 
     success_bonus = RewTerm(
