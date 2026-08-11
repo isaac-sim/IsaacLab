@@ -10,7 +10,7 @@ from __future__ import annotations
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import CableObjectCfg
+from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -19,6 +19,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.sensors import CameraCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -38,6 +39,14 @@ from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
 
 _CABLE_SEGMENT_COUNT = 12
 _CABLE_MIDDLE_SEGMENT_INDEX = _CABLE_SEGMENT_COUNT // 2
+_CABLE_SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
+    size=(0.02, 0.1, 0.05),
+    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
+    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+    collision_props=sim_utils.CollisionPropertiesCfg(),
+    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
+    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
+)
 
 
 @configclass
@@ -54,7 +63,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=20,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
+                    bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Support(Neg|Pos)X"],
                 ),
                 CouplerEntryCfg(
                     name="cable",
@@ -70,6 +79,7 @@ class PhysicsCfg(PresetCfg):
                     bodies=[
                         r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
                         r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
+                        r"/World/envs/env_.*/Support(Neg|Pos)X",
                     ],
                     collide_interval=1,
                 )
@@ -77,11 +87,9 @@ class PhysicsCfg(PresetCfg):
             iterations=1,
         ),
         default_shape_cfg=NewtonShapeCfg(
-            margin=0.0,
-            gap=0.01,
             ke=2.5e3,
             kd=100.0,
-            mu=1.0,
+            mu=10.0,
         ),
         num_substeps=2,
     )
@@ -95,6 +103,17 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
 
     deformable: None = None
 
+    support_neg_x: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/SupportNegX",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.45, 0.0, 0.025)),
+        spawn=_CABLE_SUPPORT_SPAWN_CFG,
+    )
+    support_pos_x: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/SupportPosX",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.55, 0.0, 0.025)),
+        spawn=_CABLE_SUPPORT_SPAWN_CFG,
+    )
+
     cable: CableObjectCfg = CableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cable",
         spawn=sim_utils.CableCfg(
@@ -102,13 +121,13 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
             physics_material=sim_utils.CableMaterialCfg(
                 thickness=0.01,
-                density=100.0,
+                density=1000.0,
                 stretch_stiffness=1.0e6,
-                bend_stiffness=1.0e2,
+                bend_stiffness=1.0e5,
             ),
             collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
         ),
-        init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.011)),
+        init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.06)),
     )
 
 
@@ -209,6 +228,8 @@ class EventCfg(FrankaSoftEventCfg):
         params={
             "position_range": {"x": (-0.15, 0.1), "y": (-0.2, 0.2), "z": (0.0, 0.0)},
             "asset_cfg": SceneEntityCfg("cable"),
+            "clear_gap_range": (0.075, 0.175),
+            "support_cfg": (SceneEntityCfg("support_neg_x"), SceneEntityCfg("support_pos_x")),
         },
     )
 
@@ -231,7 +252,7 @@ class RewardsCfg:
         func=mdp.cable_segment_lifting,
         params={
             "std": 0.1,
-            "minimal_height": 0.01,
+            "minimal_height": 0.06,
             "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,
             "asset_cfg": SceneEntityCfg("cable"),
         },
@@ -305,7 +326,7 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
     def __post_init__(self) -> None:
         super().__post_init__()
         self.sim.physics = PhysicsCfg()
-        # Fully close the gripper on the thin cable; the shared beam default only closes to 0.01 m.
+        # Close the gripper on the thin cable; the shared beam default only closes to 0.01 m.
         self.actions.ik.gripper_action.close_command_expr = {"panda_finger_joint1": 0.0}
 
 
