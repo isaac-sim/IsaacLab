@@ -17,11 +17,11 @@ checkpoints are collected into one subdirectory per RL library:
     └── skrl/
 
 Each checkpoint is named
-``<task_name>_<physics_backend>_<render_backend><extension>``. State-only
-tasks use ``none`` as the render backend because their policies do not depend
-on rendering. This workflow targets core tasks only; other registered tasks do
-not receive published checkpoints from this matrix. The core matrix excludes
-Newton Kamino presets.
+``<task_name>_<physics_backend>_<render_backend>_<rl_library><extension>``.
+State-only tasks use ``none`` as the render backend because their policies do
+not depend on rendering. This workflow targets core tasks only; other
+registered tasks do not receive published checkpoints from this matrix. The
+core matrix excludes Newton Kamino presets.
 
 Examples:
 

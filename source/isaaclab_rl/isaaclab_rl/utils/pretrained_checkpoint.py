@@ -76,8 +76,8 @@ def get_pretrained_checkpoint_filename(
     """Return the published checkpoint filename.
 
     Backend-aware checkpoints use
-    ``<task_name>_<physics_backend>_<render_backend><extension>``. Omitting
-    both backend names returns the legacy workflow-specific filename.
+    ``<task_name>_<physics_backend>_<render_backend>_<rl_library><extension>``.
+    Omitting both backend names returns the legacy workflow-specific filename.
 
     Args:
         workflow: RL workflow name.
@@ -102,7 +102,10 @@ def get_pretrained_checkpoint_filename(
         raise ValueError(f"Unsupported physics backend: {physics_backend!r}")
     if render_backend not in {"newton", "none", "rtx"}:
         raise ValueError(f"Unsupported render backend: {render_backend!r}")
-    return f"{task_name}_{physics_backend}_{render_backend}{WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS[workflow]}"
+    return (
+        f"{task_name}_{physics_backend}_{render_backend}_{workflow}"
+        f"{WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS[workflow]}"
+    )
 
 
 def get_pretrained_checkpoint_backend_names(

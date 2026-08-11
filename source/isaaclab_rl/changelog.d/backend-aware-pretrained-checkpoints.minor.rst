@@ -2,8 +2,8 @@ Added
 ^^^^^
 
 * Added backend-aware pretrained checkpoint discovery using
-  ``<task_name>_<physics_backend>_<render_backend>`` filenames, with
-  ``newtonmjwarp`` identifying the Newton MJWarp physics backend.
+  ``<task_name>_<physics_backend>_<render_backend>_<rl_library>`` filenames,
+  with ``newtonmjwarp`` identifying the Newton MJWarp physics backend.
 * Added preferred core-task checkpoint training and local collection by RL
   library.
 
@@ -19,3 +19,5 @@ Fixed
 
 * Fixed legacy checkpoint log discovery to preserve task-specific experiment
   directories.
+* Fixed LEAPP export scripts to select pretrained checkpoints for the resolved
+  physics and rendering backends.

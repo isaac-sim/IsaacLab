@@ -44,7 +44,7 @@ def test_get_pretrained_checkpoint_filename_includes_backends():
         "rtx",
     )
 
-    assert filename == "Isaac-Cartpole_newtonmjwarp_rtx.pt"
+    assert filename == "Isaac-Cartpole_newtonmjwarp_rtx_rsl_rl.pt"
 
 
 def test_get_pretrained_checkpoint_filename_preserves_legacy_layout():
@@ -121,7 +121,9 @@ def test_get_published_pretrained_checkpoint_path_uses_flat_workflow_directory(m
         "none",
     )
 
-    assert path == "omniverse://IsaacLab/PretrainedCheckpoints/skrl/Isaac-Shadow-Handover-Direct_newtonmjwarp_none.pt"
+    assert path == (
+        "omniverse://IsaacLab/PretrainedCheckpoints/skrl/Isaac-Shadow-Handover-Direct_newtonmjwarp_none_skrl.pt"
+    )
 
 
 def test_get_pretrained_checkpoint_publish_path_uses_flat_workflow_directory(monkeypatch: pytest.MonkeyPatch):
@@ -137,7 +139,7 @@ def test_get_pretrained_checkpoint_publish_path_uses_flat_workflow_directory(mon
         "none",
     )
 
-    assert path == "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none.pt"
+    assert path == "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt"
 
 
 def test_get_published_pretrained_checkpoint_downloads_to_flat_cache(
@@ -166,8 +168,8 @@ def test_get_published_pretrained_checkpoint_downloads_to_flat_cache(
         "none",
     )
 
-    assert path == ".pretrained_checkpoints/rsl_rl/Isaac-Cartpole_physx_none.pt"
+    assert path == ".pretrained_checkpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt"
     assert retrieved == {
-        "remote_path": "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none.pt",
+        "remote_path": "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt",
         "download_dir": ".pretrained_checkpoints/rsl_rl",
     }

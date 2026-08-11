@@ -83,7 +83,7 @@ def test_publish_uses_collected_checkpoint_without_training_logs(
         physics_backend="newtonmjwarp",
         render_backend="none",
     )
-    collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newtonmjwarp_none.pt"
+    collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newtonmjwarp_none_rsl_rl.pt"
     collected_path.parent.mkdir()
     collected_path.touch()
     args = Namespace(
@@ -95,6 +95,6 @@ def test_publish_uses_collected_checkpoint_without_training_logs(
 
     assert publish_pretrained_checkpoint(job, args)
     assert (
-        f"Publishing {collected_path} -> omniverse://checkpoints/rsl_rl/Isaac-Test_newtonmjwarp_none.pt"
+        f"Publishing {collected_path} -> omniverse://checkpoints/rsl_rl/Isaac-Test_newtonmjwarp_none_rsl_rl.pt"
         in capsys.readouterr().out
     )
