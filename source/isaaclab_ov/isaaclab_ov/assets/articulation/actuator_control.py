@@ -68,27 +68,19 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         write_vel = articulation._has_implicit_actuators and articulation._can_write_vel_target
         if articulation.data.has_joint_ordering:
             if write_effort or write_pos or write_vel:
-                # One fused gather replaces the per-target reorder launches. OVPhysX has
-                # no direct-drive joint-act output, so its gated-off output is left unset.
-                wp.launch(
-                    ordering_kernels.reorder_joint_targets_user_to_backend,
-                    dim=(self.num_instances, self.num_joints),
-                    inputs=[
-                        collection._applied_torque,
-                        collection._joint_pos_target,
-                        collection._joint_vel_target,
-                        articulation.data.joint_ordering.backend_to_user,
-                        write_effort,
-                        write_pos,
-                        write_vel,
-                        False,
-                    ],
-                    outputs=[
-                        articulation._applied_torque_backend,
-                        articulation._joint_pos_target_backend,
-                        articulation._joint_vel_target_backend,
-                        None,
-                    ],
+                ordering_kernels.launch_reorder_joint_targets_user_to_backend(
+                    user_effort=collection._applied_torque,
+                    user_pos_target=collection._joint_pos_target,
+                    user_vel_target=collection._joint_vel_target,
+                    backend_to_user=articulation.data.joint_ordering.backend_to_user,
+                    write_effort=write_effort,
+                    write_pos_target=write_pos,
+                    write_vel_target=write_vel,
+                    write_joint_act=False,
+                    backend_effort=articulation._applied_torque_backend,
+                    backend_pos_target=articulation._joint_pos_target_backend,
+                    backend_vel_target=articulation._joint_vel_target_backend,
+                    backend_joint_act=None,
                     device=self.device,
                 )
             effort = articulation._applied_torque_backend

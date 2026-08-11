@@ -158,71 +158,50 @@ class NewtonActuatorControl(ArticulationActuatorControl):
     def submit_commands(self, collection: ActuatorCollection) -> None:
         articulation = self._articulation
         if self._native_actuator_path_active:
-            # Raw targets go directly to Newton's control object. Newton PD
-            # consumes ``joint_act`` for explicit (Newton-managed) joints; the
-            # solver's built-in joint drive does the PD for implicit joints
-            # (whose stiffness/damping are non-zero in sim) and adds whatever
-            # is in ``joint_f`` as feedforward. Identity ordering copies the
-            # targets directly, while non-identity ordering gathers all four
-            # targets in one launch.
+            # Newton consumes raw explicit-actuator targets through joint_act.
+            user_effort = collection._joint_effort_target
+            user_pos_target = collection._joint_pos_target
+            user_vel_target = collection._joint_vel_target
+            write_pos_target = True
+            write_vel_target = True
+            write_joint_act = True
             if not articulation.data.has_joint_ordering:
                 articulation.data._sim_bind_joint_position_target.assign(collection._joint_pos_target)
                 articulation.data._sim_bind_joint_velocity_target.assign(collection._joint_vel_target)
                 articulation.data._sim_bind_joint_act.assign(collection._joint_effort_target)
                 articulation.data._sim_bind_joint_effort.assign(collection._joint_effort_target)
-            else:
-                wp.launch(
-                    ordering_kernels.reorder_joint_targets_user_to_backend,
-                    dim=(self.num_instances, self.num_joints),
-                    inputs=[
-                        collection._joint_effort_target,
-                        collection._joint_pos_target,
-                        collection._joint_vel_target,
-                        articulation._joint_backend_to_user_map(),
-                        True,
-                        True,
-                        True,
-                        True,
-                    ],
-                    outputs=[
-                        articulation.data._sim_bind_joint_effort,
-                        articulation.data._sim_bind_joint_position_target,
-                        articulation.data._sim_bind_joint_velocity_target,
-                        articulation.data._sim_bind_joint_act,
-                    ],
-                    device=self.device,
-                )
-            return
-
-        # Standard Lab actuator path. Identity ordering copies processed
-        # targets directly; non-identity ordering gathers them in one launch.
+                return
+        else:
+            # Lab executors publish processed targets; only implicit joints use
+            # the backend position and velocity drives.
+            user_effort = collection._joint_effort_target_sim
+            user_pos_target = collection._joint_pos_target_sim
+            user_vel_target = collection._joint_vel_target_sim
+            write_pos_target = collection.has_implicit_actuators
+            write_vel_target = collection.has_implicit_actuators
+            write_joint_act = False
         if not articulation.data.has_joint_ordering:
             articulation.data._sim_bind_joint_effort.assign(collection._joint_effort_target_sim)
             if collection.has_implicit_actuators:
                 articulation.data._sim_bind_joint_position_target.assign(collection._joint_pos_target_sim)
                 articulation.data._sim_bind_joint_velocity_target.assign(collection._joint_vel_target_sim)
-        else:
-            wp.launch(
-                ordering_kernels.reorder_joint_targets_user_to_backend,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    collection._joint_effort_target_sim,
-                    collection._joint_pos_target_sim,
-                    collection._joint_vel_target_sim,
-                    articulation._joint_backend_to_user_map(),
-                    True,
-                    collection.has_implicit_actuators,
-                    collection.has_implicit_actuators,
-                    False,
-                ],
-                outputs=[
-                    articulation.data._sim_bind_joint_effort,
-                    articulation.data._sim_bind_joint_position_target,
-                    articulation.data._sim_bind_joint_velocity_target,
-                    articulation.data._sim_bind_joint_act,
-                ],
-                device=self.device,
-            )
+            return
+
+        ordering_kernels.launch_reorder_joint_targets_user_to_backend(
+            user_effort=user_effort,
+            user_pos_target=user_pos_target,
+            user_vel_target=user_vel_target,
+            backend_to_user=articulation._joint_backend_to_user_map(),
+            write_effort=True,
+            write_pos_target=write_pos_target,
+            write_vel_target=write_vel_target,
+            write_joint_act=write_joint_act,
+            backend_effort=articulation.data._sim_bind_joint_effort,
+            backend_pos_target=articulation.data._sim_bind_joint_position_target,
+            backend_vel_target=articulation.data._sim_bind_joint_velocity_target,
+            backend_joint_act=articulation.data._sim_bind_joint_act,
+            device=self.device,
+        )
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
         if self._native_actuator_path_active and SimulationManager._adapter is not None:

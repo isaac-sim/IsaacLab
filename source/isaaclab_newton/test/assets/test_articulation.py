@@ -1489,17 +1489,7 @@ def test_newton_clear_callbacks_deregisters_post_step_hook(
 def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
     sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators, ordering_mode, monkeypatch
 ):
-    """Launch the fused target gather only under active ordering; copy straight through otherwise.
-
-    Regression for the identity fast path: an earlier rework launched
-    :func:`ordering_kernels.reorder_joint_targets_user_to_backend` unconditionally
-    in :meth:`write_data_to_sim`, so a scene with no ordering configured paid for a
-    per-step gather that the pre-ordering code never issued. This test records the
-    kernels launched during ``write_data_to_sim`` and asserts the target gather runs
-    only when ordering is active. With the unconditional launch reinstated, the
-    ``ordering_mode == "none"`` cases fail (the gather is recorded). Both the
-    Newton-actuator and Lab-actuator branches are covered.
-    """
+    """Gather joint targets only when non-identity joint ordering is active."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
     )
@@ -1535,8 +1525,7 @@ def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
     if has_ordering:
         assert target_gather in launched_kernels
     else:
-        # Identity ordering copies straight into the sim binds -- no target gather,
-        # and the sim-bound position target mirrors its user-order source.
+        # Identity ordering binds the user-order source directly.
         assert target_gather not in launched_kernels
         expected_source = (
             articulation.actuators.command.position.warp

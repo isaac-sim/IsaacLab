@@ -285,27 +285,19 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             user_vel_target = collection._joint_vel_target_sim
 
         if articulation.data.has_joint_ordering:
-            # One fused gather replaces the per-target reorder launches. PhysX has no
-            # direct-drive joint-act output, so its gated-off output is left unset.
-            wp.launch(
-                ordering_kernels.reorder_joint_targets_user_to_backend,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[
-                    user_effort,
-                    user_pos_target,
-                    user_vel_target,
-                    articulation.data.joint_ordering.backend_to_user,
-                    True,
-                    articulation._has_implicit_actuators,
-                    articulation._has_implicit_actuators,
-                    False,
-                ],
-                outputs=[
-                    articulation._joint_effort_target_backend,
-                    articulation._joint_pos_target_backend,
-                    articulation._joint_vel_target_backend,
-                    None,
-                ],
+            ordering_kernels.launch_reorder_joint_targets_user_to_backend(
+                user_effort=user_effort,
+                user_pos_target=user_pos_target,
+                user_vel_target=user_vel_target,
+                backend_to_user=articulation.data.joint_ordering.backend_to_user,
+                write_effort=True,
+                write_pos_target=articulation._has_implicit_actuators,
+                write_vel_target=articulation._has_implicit_actuators,
+                write_joint_act=False,
+                backend_effort=articulation._joint_effort_target_backend,
+                backend_pos_target=articulation._joint_pos_target_backend,
+                backend_vel_target=articulation._joint_vel_target_backend,
+                backend_joint_act=None,
                 device=self.device,
             )
             effort_target = articulation._joint_effort_target_backend
