@@ -110,6 +110,8 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+
+        # sim
         self.sim.physics.newton_mjwarp.num_substeps = 2
         # scene
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -140,12 +142,3 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.events.base_com = None
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-
-    def play_mode(self):
-        super().play_mode()
-
-        self.episode_length_s = 40.0
-        self.commands.base_velocity.ranges.lin_vel_x = (1.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
-        self.commands.base_velocity.ranges.heading = (0.0, 0.0)
