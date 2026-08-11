@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
@@ -24,8 +23,6 @@ if TYPE_CHECKING:
 
 def terminal_failure(env: FrankaPourEnv, include_time_out: bool = True) -> torch.Tensor:
     """Return one unit-integral pulse for an unsuccessful terminal transition."""
-    if not isinstance(include_time_out, bool):
-        raise TypeError("include_time_out must be a bool.")
     success = _success_terminal(env)
     completed = env.termination_manager.dones if include_time_out else env.termination_manager.terminated
     failed = completed & ~success
@@ -35,8 +32,8 @@ def terminal_failure(env: FrankaPourEnv, include_time_out: bool = True) -> torch
 
 
 def _open_quality(env: FrankaPourEnv) -> torch.Tensor:
-    travel = max(float(env.gripper_open_width) - float(env.gripper_grasp_width), 1.0e-4)
-    return torch.clamp((env.gripper_width() - float(env.gripper_grasp_width)) / travel, 0.0, 1.0)
+    travel = max(env._gripper_open_width - env._gripper_grasp_width, 1.0e-4)
+    return torch.clamp((env.gripper_width() - env._gripper_grasp_width) / travel, 0.0, 1.0)
 
 
 def tcp_cup_grasp_pose_tanh(
@@ -57,14 +54,7 @@ def tcp_cup_grasp_pose_tanh(
         orientation_std: Tanh scale for grasp orientation error [rad].
         open_hand_fraction: Maximum open-hand contribution away from the grasp pose.
     """
-    if not math.isfinite(position_std) or position_std <= 0.0:
-        raise ValueError("position_std must be finite and positive.")
-    if not math.isfinite(orientation_std) or orientation_std <= 0.0:
-        raise ValueError("orientation_std must be finite and positive.")
-    if not math.isfinite(open_hand_fraction) or not 0.0 <= open_hand_fraction <= 1.0:
-        raise ValueError("open_hand_fraction must lie in [0, 1].")
-
-    distance = torch.linalg.vector_norm(env.tcp_pos_e() - env.cup_grasp_point_e(), dim=-1)
+    distance = torch.linalg.vector_norm(env.tcp_pose_e()[:, :3] - env.cup_grasp_point_e(), dim=-1)
     position_quality = 1.0 - torch.tanh(distance / float(position_std))
 
     error_quat = _nearest_grasp_to_tcp_quat(env)
@@ -81,8 +71,8 @@ def tcp_cup_grasp_pose_tanh(
 def _grasp_width_quality(env: FrankaPourEnv, preload_position: float) -> torch.Tensor:
     """Return grasp quality requiring commanded preload and non-empty physical closure."""
     width = env.gripper_width()
-    open_width = float(env.gripper_open_width)
-    grasp_width = float(env.gripper_grasp_width)
+    open_width = env._gripper_open_width
+    grasp_width = env._gripper_grasp_width
     travel = max(open_width - grasp_width, 1.0e-4)
     close_progress = torch.clamp((open_width - width) / travel, 0.0, 1.0)
     open_position = 0.5 * open_width
@@ -110,28 +100,13 @@ def _grasp_lift_potential(
     exploration without rewarding empty-hand closure away from the cup. Physical contact remains
     mandatory for lift completion.
     """
-    if not math.isfinite(target_height) or target_height <= 0.0:
-        raise ValueError("target_height must be finite and positive.")
-    if not math.isfinite(grasp_reach_std) or grasp_reach_std <= 0.0:
-        raise ValueError("grasp_reach_std must be finite and positive.")
-    if not math.isfinite(grasp_preload_position):
-        raise ValueError("grasp_preload_position must be finite.")
-    if not math.isfinite(grasp_fraction) or not 0.0 <= grasp_fraction <= 1.0:
-        raise ValueError("grasp_fraction must lie in [0, 1].")
-    if capture_orientation_tolerance is not None and (
-        not math.isfinite(capture_orientation_tolerance) or not 0.0 < capture_orientation_tolerance <= math.pi
-    ):
-        raise ValueError("capture_orientation_tolerance must be None or lie in (0, pi].")
-    if not math.isfinite(capture_intent_gain) or capture_intent_gain <= 0.0:
-        raise ValueError("capture_intent_gain must be finite and positive.")
-
-    distance = torch.linalg.vector_norm(env.tcp_pos_e() - env.cup_grasp_point_e(), dim=-1)
+    distance = torch.linalg.vector_norm(env.tcp_pose_e()[:, :3] - env.cup_grasp_point_e(), dim=-1)
     proximity = torch.clamp(1.0 - distance / float(grasp_reach_std), 0.0, 1.0)
     # Smoothstep has compact support: proximity is zero outside grasp_reach_std.
     proximity = proximity.square() * (3.0 - 2.0 * proximity)
     held = proximity * _grasp_width_quality(env, grasp_preload_position)
     height = torch.clamp(
-        (env.cup_pose_e()[:, 2] - float(env.cup_reset_height)) / float(target_height),
+        (env.cup_pose_e()[:, 2] - env._cup_reset_height) / float(target_height),
         0.0,
         1.0,
     )
@@ -152,7 +127,7 @@ def _grasp_lift_potential(
     orientation_proximity = orientation_proximity.square() * (3.0 - 2.0 * orientation_proximity)
     gripper = env.action_manager.get_term("gripper_action")
     command = gripper.commanded_position[:, 0]
-    open_position = 0.5 * float(env.gripper_open_width)
+    open_position = 0.5 * env._gripper_open_width
     preload_travel = max(open_position - float(grasp_preload_position), 1.0e-4)
     commanded_close = torch.clamp((open_position - command) / preload_travel, 0.0, 1.0)
     # Map commanded_close monotonically to [0, 1] while increasing sensitivity near zero.
@@ -185,22 +160,6 @@ def _reset_dataset_physical_potential(
     capture_intent_gain: float = 1.0,
 ) -> torch.Tensor:
     """Return one label-free physical potential spanning the reset dataset."""
-    for name, value in (
-        ("source_mouth_height", source_mouth_height),
-        ("target_rim_height", target_rim_height),
-    ):
-        if not math.isfinite(value) or value < 0.0:
-            raise ValueError(f"{name} must be finite and nonnegative.")
-    for name, value in (
-        ("target_clearance_height", target_clearance_height),
-        ("alignment_std", alignment_std),
-        ("tilt_alignment_radius", tilt_alignment_radius),
-    ):
-        if not math.isfinite(value) or value <= 0.0:
-            raise ValueError(f"{name} must be finite and positive.")
-    if not math.isfinite(target_tilt) or not 0.0 < target_tilt < math.pi:
-        raise ValueError("target_tilt must lie in (0, pi).")
-
     approach = tcp_cup_grasp_pose_tanh(
         env,
         position_std=approach_position_std,
@@ -301,11 +260,7 @@ class PourResetLearningProgress(ManagerTermBase):
             env_ids = slice(None)
         params = dict(self.cfg.params or {})
         minimum_progress = float(params.get("minimum_progress", 0.08))
-        if not math.isfinite(minimum_progress) or not 0.0 < minimum_progress < 1.0:
-            raise ValueError("minimum_progress must lie strictly between zero and one.")
         potential_params = params.get("potential_params")
-        if not isinstance(potential_params, Mapping):
-            raise TypeError("potential_params must be a mapping.")
 
         initial = _reset_dataset_physical_potential(
             self._env,
@@ -336,13 +291,6 @@ class PourResetLearningProgress(ManagerTermBase):
         minimum_episode_steps: int = 3,
     ) -> torch.Tensor:
         """Latch local advancement and return a non-terminating mask."""
-        if not math.isfinite(minimum_progress) or not 0.0 < minimum_progress < 1.0:
-            raise ValueError("minimum_progress must lie strictly between zero and one.")
-        if not isinstance(minimum_episode_steps, int) or isinstance(minimum_episode_steps, bool):
-            raise TypeError("minimum_episode_steps must be an integer.")
-        if minimum_episode_steps < 0:
-            raise ValueError("minimum_episode_steps must be nonnegative.")
-
         current = _reset_dataset_physical_potential(env, **self._potential_params(potential_params))
         reached_potential = (
             (current >= self._target_potential)

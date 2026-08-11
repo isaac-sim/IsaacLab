@@ -32,12 +32,13 @@ from isaaclab_newton.physics import NewtonMPMManager
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils import math as math_utils
 
-from ._state import (
-    delivered_particle_mask,
-    particles_in_workspace,
-    rigid_state_in_bounds,
-    spilled_particle_mask,
-    state_finite,
+from .geometry import (
+    CUP_GRASP_HEIGHT,
+    CUP_GRASP_TCP_QUAT_C,
+    MPM_COLLIDER_MARGIN,
+    SOURCE_CUP_GEOMETRY,
+    TARGET_CUP_GEOMETRY,
+    points_inside_box,
 )
 from .pour_env_cfg import _configure_mpm_capacities
 from .reset_dataset_io import reset_dataset_validate_runtime
@@ -74,6 +75,7 @@ _SEATTLELAB_TABLETOP_COLLISION_INSET = 0.003
 # Newton exposes force-space shape gains through the numeric ``mujoco:solref_mode``
 # builder attribute but does not currently publish the corresponding enum.
 _MJWARP_SOLREF_MODE_FORCE_SPACE = 0
+_SOURCE_CUP_PARTICLE_FRICTION = 0.9
 
 
 def _set_mjwarp_force_space_solref_mode(builder: newton.ModelBuilder, shape_id: int) -> None:
@@ -109,36 +111,18 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         Runs before ``super().__init__`` so the per-world builder hook has the
         contact values available while the authored scene is imported.
         """
-        self._source_inner_lo = (
-            -0.5 * float(cfg.source_cup_inner_width),
-            -0.5 * float(cfg.source_cup_inner_depth),
-            float(cfg.source_cup_bottom_thickness),
-        )
-        self._source_inner_hi = (
-            0.5 * float(cfg.source_cup_inner_width),
-            0.5 * float(cfg.source_cup_inner_depth),
-            float(cfg.source_cup_bottom_thickness + cfg.source_cup_cavity_depth),
-        )
-        self._target_inner_lo = (
-            -0.5 * float(cfg.target_cup_inner_width),
-            -0.5 * float(cfg.target_cup_inner_depth),
-            float(cfg.target_cup_bottom_thickness),
-        )
-        self._target_inner_hi = (
-            0.5 * float(cfg.target_cup_inner_width),
-            0.5 * float(cfg.target_cup_inner_depth),
-            float(cfg.target_cup_bottom_thickness + cfg.target_cup_cavity_depth),
-        )
+        self._source_inner_lo, self._source_inner_hi = SOURCE_CUP_GEOMETRY.inner_bounds
+        self._target_inner_lo, self._target_inner_hi = TARGET_CUP_GEOMETRY.inner_bounds
 
         self._grasp_contact_ke = float(cfg.grasp_contact_ke)
         self._grasp_contact_kd = float(cfg.grasp_contact_kd)
         self._grasp_contact_kf = float(cfg.grasp_contact_kf)
-        self._grasp_contact_mu = float(cfg.cup_grasp_box_friction)
+        self._grasp_contact_mu = float(cfg.scene.source_cup.spawn.physics_material.static_friction)
 
-        self._source_cup_friction = float(cfg.source_cup_friction)
-        self._target_cup_friction = float(cfg.target_cup_friction)
+        self._source_cup_friction = _SOURCE_CUP_PARTICLE_FRICTION
+        self._target_cup_friction = float(cfg.scene.target_cup.spawn.physics_material.static_friction)
         self._rigid_contact_margin = float(cfg.collider_margin)
-        self._mpm_collider_margin = float(cfg.mpm_collider_margin)
+        self._mpm_collider_margin = MPM_COLLIDER_MARGIN
         self._particle_max_velocity = float(cfg.particle_max_velocity)
 
     def _add_pour_world_to_builder(self, builder, env_id: int, position, quaternion) -> None:
@@ -430,8 +414,13 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self._tcp_body_idx = tcp_body_ids[0]
         self._tcp_offset_pos = torch.tensor(self.cfg.tcp_offset_pos, device=dev).repeat(self.num_envs, 1)
         self._tcp_offset_quat = torch.tensor(self.cfg.tcp_offset_rot, device=dev).repeat(self.num_envs, 1)
-        grasp_tcp_quat_c = torch.as_tensor(self.cfg.cup_grasp_tcp_quat_c, device=dev, dtype=torch.float32)
+        grasp_tcp_quat_c = torch.as_tensor(CUP_GRASP_TCP_QUAT_C, device=dev, dtype=torch.float32)
         self._desired_grasp_tcp_quat_c = math_utils.quat_unique(grasp_tcp_quat_c).repeat(self.num_envs, 1)
+        self._gripper_open_width = 2.0 * float(self.cfg.scene.robot.init_state.joint_pos["panda_finger_joint.*"])
+        self._gripper_grasp_width = 2.0 * SOURCE_CUP_GEOMETRY.outer_half_extents[1]
+        self._cup_reset_height = float(self.cfg.scene.source_cup.init_state.pos[2])
+        self._source_outer_half_t = torch.tensor(SOURCE_CUP_GEOMETRY.outer_half_extents, device=dev)
+        self._target_outer_half_t = torch.tensor(TARGET_CUP_GEOMETRY.outer_half_extents, device=dev)
 
         self._particle_workspace_lower_t = torch.as_tensor(
             self.cfg.particle_workspace_lower_bound, device=dev, dtype=torch.float32
@@ -469,7 +458,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         if not cache_path.is_file():
             raise FileNotFoundError(f"Franka Pour reset dataset not found: {cache_path}")
         payload = torch.load(cache_path, map_location="cpu", weights_only=True)
-        metadata, states, layouts = reset_dataset_validate_runtime(
+        _, states, layouts = reset_dataset_validate_runtime(
             payload,
             expected_content_sha256=self.cfg.reset_dataset_content_sha256,
             expected_task_contract=_reset_dataset_task_contract(self.cfg),
@@ -493,7 +482,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
             "Loaded reset dataset %s (%s) with %d rows.",
             cache_path,
             payload["content_sha256"],
-            metadata["state_count"],
+            len(states["category"]),
         )
 
     def _pose_w_to_e(self, pose_w: torch.Tensor) -> torch.Tensor:
@@ -512,10 +501,6 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         """Cup body pose in the env frame: ``(num_envs, 7)`` pos + xyzw quat."""
         return self._pose_w_to_e(self._source_cup.data.root_link_pose_w.torch)
 
-    def cup_velocity_w(self) -> torch.Tensor:
-        """Source-cup linear and angular velocity in the world frame [m/s, rad/s]."""
-        return self._source_cup.data.root_link_vel_w.torch
-
     def target_pose_e(self) -> torch.Tensor:
         """Receiving-cup pose in the env frame: ``(num_envs, 7)`` pos + xyzw quat."""
         return self._pose_w_to_e(self._target_cup.data.root_link_pose_w.torch)
@@ -530,14 +515,11 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         pos, quat = math_utils.combine_frame_transforms(pos, quat, self._tcp_offset_pos, self._tcp_offset_quat)
         return torch.cat((torch.nan_to_num(pos), torch.nan_to_num(quat)), dim=-1)
 
-    def tcp_pos_e(self) -> torch.Tensor:
-        return self.tcp_pose_e()[:, :3]
-
     def cup_grasp_point_e(self) -> torch.Tensor:
         """World-facing grasp point at the middle of the source cup walls, in env coordinates."""
         pose = self.cup_pose_e()
         offset = torch.zeros((self.num_envs, 3), device=self.device)
-        offset[:, 2] = float(self.cfg.cup_grasp_height)
+        offset[:, 2] = CUP_GRASP_HEIGHT
         return pose[:, :3] + math_utils.quat_apply(pose[:, 3:7], offset)
 
     def gripper_width(self) -> torch.Tensor:
@@ -545,35 +527,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         finger_pos = self._robot.data.joint_pos.torch[:, self._finger_joint_ids]
         width = finger_pos.sum(dim=-1)
         valid = torch.isfinite(finger_pos).all(dim=-1) & torch.isfinite(width)
-        return torch.where(valid, width, torch.full_like(width, float(self.gripper_open_width)))
-
-    def finger_joint_pos(self) -> torch.Tensor:
-        """Individual policy-controlled finger joint positions [m]."""
-        return self._robot.data.joint_pos.torch[:, self._finger_joint_ids]
-
-    def finger_joint_vel(self) -> torch.Tensor:
-        """Individual policy-controlled finger joint velocities [m/s]."""
-        return self._robot.data.joint_vel.torch[:, self._finger_joint_ids]
-
-    def desired_grasp_tcp_quat_c(self) -> torch.Tensor:
-        """Desired TCP orientation in the source-cup frame as canonical XYZW quaternions."""
-        return self._desired_grasp_tcp_quat_c
-
-    @property
-    def gripper_open_width(self) -> float:
-        return 2.0 * float(self.cfg.gripper_open_pos)
-
-    @property
-    def gripper_grasp_width(self) -> float:
-        return 2.0 * float(self.cfg.cup_grasp_box_half[1])
-
-    @property
-    def cup_reset_height(self) -> float:
-        return float(self.cfg.cup_reset_pos[2])
-
-    @property
-    def num_particles(self) -> int:
-        return self._num_particles
+        return torch.where(valid, width, torch.full_like(width, self._gripper_open_width))
 
     def particle_pos_e(self) -> torch.Tensor:
         """Per-env MPM particle positions in env coordinates, shape ``(N, P, 3)``."""
@@ -583,107 +537,30 @@ class FrankaPourEnv(ManagerBasedRLEnv):
             self._particle_pos_e_cache_step = step
         return self._particle_pos_e_cache
 
-    def particle_vel_e(self) -> torch.Tensor:
-        """Per-env MPM particle velocities in environment axes, shape ``(N, P, 3)``."""
-        # Environments differ only by translation, so world and environment velocity axes coincide.
-        return self._media.data.particle_vel_w.torch
-
-    def _points_inside_cup(
-        self, points_e: torch.Tensor, pose_e: torch.Tensor, lo: torch.Tensor, hi: torch.Tensor
-    ) -> torch.Tensor:
-        rel = points_e - pose_e[:, None, :3]
-        quat = pose_e[:, None, 3:7].expand(-1, points_e.shape[1], -1)
-        local = math_utils.quat_apply_inverse(quat, rel)
-        margin = float(self.cfg.particle_count_margin)
-        return ((local >= lo - margin) & (local <= hi + margin)).all(dim=-1)
-
     def _particle_region_masks(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Boolean ``(source, target, spilled)`` masks, cached within one manager step."""
         step = int(getattr(self, "common_step_counter", -1))
         if self._particle_region_cache is not None and self._particle_region_cache_step == step:
             return self._particle_region_cache
         points = self.particle_pos_e()
-        source = self._points_inside_cup(points, self.cup_pose_e(), self._source_inner_lo_t, self._source_inner_hi_t)
-        target_region = self._points_inside_cup(
+        margin = float(self.cfg.particle_count_margin)
+        source = points_inside_box(points, self.cup_pose_e(), self._source_inner_lo_t, self._source_inner_hi_t, margin)
+        target_region = points_inside_box(
             points,
             self.target_pose_e(),
             self._target_inner_lo_t,
             self._target_inner_hi_t,
+            margin,
         )
         # Geometric overlap is not delivery: nesting the source cup inside the receiver must not
         # score particles that remain physically contained by the source cup.
-        target = delivered_particle_mask(source, target_region)
-        spill_margin = max(float(self.cfg.particle_count_margin), float(self.cfg.mpm_collider_margin))
+        target = target_region & ~source
+        spill_margin = max(margin, MPM_COLLIDER_MARGIN)
         spill_height = float(self.cfg.spill_table_height) + spill_margin
-        spilled = spilled_particle_mask(points, source, target, max_height=spill_height)
+        spilled = ~(source | target) & (points[..., 2] <= spill_height)
         self._particle_region_cache = (source, target, spilled)
         self._particle_region_cache_step = step
         return source, target, spilled
-
-    def particle_region_masks(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Return cached source, source-exclusive target, and irreversible-spill masks."""
-        return self._particle_region_masks()
-
-    def count_in_source(self) -> torch.Tensor:
-        return self._particle_region_masks()[0].sum(dim=1).float()
-
-    def count_in_target(self) -> torch.Tensor:
-        return self._particle_region_masks()[1].sum(dim=1).float()
-
-    def count_spilled(self) -> torch.Tensor:
-        return self._particle_region_masks()[2].sum(dim=1).float()
-
-    def spilled_fraction(self) -> torch.Tensor:
-        return self.count_spilled() / max(self.num_particles, 1)
-
-    def state_finite(self) -> torch.Tensor:
-        """Per-env instability guard over robot, source cup, and MPM media state."""
-        cup_velocity = self._source_cup.data.root_link_vel_w.torch
-        return state_finite(
-            self._robot.data.joint_pos.torch,
-            self._robot.data.joint_vel.torch,
-            self._robot.data.body_link_pose_w.torch[:, self._tcp_body_idx],
-            self._source_cup.data.root_link_pose_w.torch,
-            cup_velocity[:, :3],
-            cup_velocity[:, 3:],
-            self._media.data.particle_pos_w.torch,
-        )
-
-    def rigid_state_in_bounds(self) -> torch.Tensor:
-        """Return whether finite rigid state remains within task-safe observation bounds."""
-        cup_velocity = self._source_cup.data.root_link_vel_w.torch
-        hand_pose_w = self._robot.data.body_link_pose_w.torch[:, self._tcp_body_idx]
-        tcp_position_w, tcp_quaternion_w = math_utils.combine_frame_transforms(
-            hand_pose_w[:, :3],
-            hand_pose_w[:, 3:7],
-            self._tcp_offset_pos,
-            self._tcp_offset_quat,
-        )
-        tcp_pose_w = torch.cat((tcp_position_w, tcp_quaternion_w), dim=-1)
-        return rigid_state_in_bounds(
-            self._robot.data.joint_pos.torch,
-            self._robot.data.joint_vel.torch,
-            self._joint_pos_limits_t,
-            tcp_pose_w,
-            self._source_cup.data.root_link_pose_w.torch,
-            cup_velocity[:, :3],
-            cup_velocity[:, 3:],
-            self.env_origins,
-            self._particle_workspace_lower_t,
-            self._particle_workspace_upper_t,
-            joint_position_margin=self.cfg.state_bound_joint_position_margin,
-            max_joint_velocity=self.cfg.state_bound_max_joint_velocity,
-            max_cup_linear_velocity=self.cfg.state_bound_max_cup_linear_velocity,
-            max_cup_angular_velocity=self.cfg.state_bound_max_cup_angular_velocity,
-        )
-
-    def particles_in_workspace(self) -> torch.Tensor:
-        """Return a per-environment mask for media inside the configured local workspace."""
-        return particles_in_workspace(
-            self.particle_pos_e(),
-            self._particle_workspace_lower_t,
-            self._particle_workspace_upper_t,
-        )
 
     def _reset_from_dataset(self, env_ids: torch.Tensor, world_mask: torch.Tensor) -> None:
         """Restore exact dataset rows and clear all per-world solver history."""

@@ -32,6 +32,16 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import math as math_utils
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.contrib.franka_pour.geometry import (
+    CUP_GRASP_HEIGHT,
+    CUP_GRASP_TCP_QUAT_C,
+    SOURCE_CUP_GEOMETRY,
+    TARGET_CUP_GEOMETRY,
+    box_above_plane,
+    box_center_from_base_pose,
+    box_supported,
+    oriented_boxes_overlap,
+)
 from isaaclab_tasks.contrib.franka_pour.pour_env import FrankaPourEnv
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
     FrankaPourResetDatasetEnvCfg,
@@ -40,8 +50,6 @@ from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
 from isaaclab_tasks.contrib.franka_pour.reset_dataset_io import (
     FRANKA_POUR_RESET_DATASET_FORMAT,
     FRANKA_POUR_RESET_DATASET_SCHEMA_VERSION,
-    FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_CHECKS,
-    FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_POLICY,
     reset_dataset_content_digest,
     reset_dataset_validate_runtime,
 )
@@ -58,22 +66,6 @@ _NEAR_OBJECT = 1
 _TRANSPORT = 2
 _NEAR_GOAL = 3
 
-_PHASE_NAMES = (
-    "reaching_aligned",
-    "reaching_broad",
-    "near_object_contact",
-    "near_object_capture",
-    "near_object_pregrasp",
-    "near_object_approach",
-    "transport_just_grasped",
-    "transport_low_lift",
-    "transport_upright",
-    "transport_pre_pour",
-    "transport_pour_entry",
-    "near_goal_boundary",
-    "near_goal_quick",
-    "near_goal_immediate",
-)
 (
     _REACHING_ALIGNED,
     _REACHING_BROAD,
@@ -89,39 +81,59 @@ _PHASE_NAMES = (
     _BOUNDARY,
     _QUICK,
     _IMMEDIATE,
-) = range(len(_PHASE_NAMES))
-_PHASE_REGIONS = (
-    _REACHING,
-    _REACHING,
-    _NEAR_OBJECT,
-    _NEAR_OBJECT,
-    _NEAR_OBJECT,
-    _NEAR_OBJECT,
-    _TRANSPORT,
-    _TRANSPORT,
-    _TRANSPORT,
-    _TRANSPORT,
-    _TRANSPORT,
-    _NEAR_GOAL,
-    _NEAR_GOAL,
-    _NEAR_GOAL,
+) = range(14)
+
+
+@dataclass(frozen=True)
+class _PhaseSpec:
+    """One phase in the ordered reset manifold."""
+
+    name: str
+    region: int
+    category: int
+    weight: float
+    path_index: int
+
+
+_PHASES = (
+    _PhaseSpec("reaching_aligned", _REACHING, _NON_GRASPING, 1.0 / 6.0, 1),
+    _PhaseSpec("reaching_broad", _REACHING, _NON_GRASPING, 1.0 / 6.0, 0),
+    _PhaseSpec("near_object_contact", _NEAR_OBJECT, _NON_GRASPING, 1.0 / 6.0, 4),
+    _PhaseSpec("near_object_capture", _NEAR_OBJECT, _NON_GRASPING, 1.0 / 6.0, 5),
+    _PhaseSpec("near_object_pregrasp", _NEAR_OBJECT, _NON_GRASPING, 1.0 / 6.0, 3),
+    _PhaseSpec("near_object_approach", _NEAR_OBJECT, _NON_GRASPING, 1.0 / 6.0, 2),
+    _PhaseSpec("transport_just_grasped", _TRANSPORT, _GRASPING, 0.14, 6),
+    _PhaseSpec("transport_low_lift", _TRANSPORT, _GRASPING, 0.14, 7),
+    _PhaseSpec("transport_upright", _TRANSPORT, _GRASPING, 0.14, 8),
+    _PhaseSpec("transport_pre_pour", _TRANSPORT, _GRASPING, 0.14, 9),
+    _PhaseSpec("transport_pour_entry", _TRANSPORT, _GRASPING, 0.14, 10),
+    _PhaseSpec("near_goal_boundary", _NEAR_GOAL, _GRASPING, 0.26, 11),
+    _PhaseSpec("near_goal_quick", _NEAR_GOAL, _GRASPING, 0.03, 12),
+    _PhaseSpec("near_goal_immediate", _NEAR_GOAL, _GRASPING, 0.01, 13),
 )
-_PHASE_ORDER = (
-    _REACHING_BROAD,
-    _REACHING_ALIGNED,
-    _APPROACH,
-    _PREGRASP,
-    _CONTACT,
-    _CAPTURE,
-    _JUST_GRASPED,
-    _LOW_LIFT,
-    _UPRIGHT,
-    _PRE_POUR,
-    _POUR_ENTRY,
-    _BOUNDARY,
-    _QUICK,
-    _IMMEDIATE,
-)
+_PHASE_NAMES = tuple(phase.name for phase in _PHASES)
+_PHASE_ORDER = tuple(sorted(range(len(_PHASES)), key=lambda phase: _PHASES[phase].path_index))
+_TCP_SAMPLING = {
+    _REACHING_ALIGNED: ("reaching_aligned_radius_range", None, None),
+    _REACHING_BROAD: ("reaching_broad_radius_range", "reaching_broad_cone_angle", "reaching_broad_rotation_error"),
+    _CONTACT: ("contact_radius_range", None, None),
+    _CAPTURE: ("capture_radius_range", "capture_cone_angle", "capture_rotation_error"),
+    _PREGRASP: ("pregrasp_radius_range", None, None),
+    _APPROACH: ("approach_radius_range", None, None),
+}
+_FINGER_MODES = {_CONTACT: "contact", _CAPTURE: "capture"}
+_TRANSPORT_SAMPLING = {
+    _JUST_GRASPED: ("pickup", None, (0.0, 0.02), (0.0, math.radians(5.0)), 0.005),
+    _LOW_LIFT: ("pickup", None, (0.01, 0.08), (0.0, math.radians(10.0)), 0.01),
+    _UPRIGHT: ("interpolate", None, (0.06, 0.18), (0.0, math.radians(20.0)), 0.015),
+    _PRE_POUR: ("goal", (0.03, 0.10), (0.12, 0.25), (math.radians(20.0), math.radians(90.0)), 0.0),
+    _POUR_ENTRY: ("goal", (0.015, 0.06), (0.12, 0.22), (math.radians(90.0), math.radians(130.0)), 0.0),
+}
+_NEAR_GOAL_SAMPLING = {
+    _BOUNDARY: ("boundary", None, None, False),
+    _QUICK: ("goal", (0.0, 0.5), (0.0, 0.6), True),
+    _IMMEDIATE: ("goal", (0.0, 0.015), (0.2, 1.0), False),
+}
 _OUTPUT_STATE_KEYS = (
     "arm_joint_position",
     "arm_joint_velocity",
@@ -223,12 +235,14 @@ def _weighted_counts(total: int, weights: tuple[float, ...]) -> tuple[int, ...]:
 def phase_counts(cfg: GeneratorCfg) -> tuple[int, ...]:
     """Return the exact phase quotas used by the reference artifact."""
     counts = [0] * len(_PHASE_NAMES)
-    non_grasping = _weighted_counts(cfg.non_grasping_count, (1.0 / 6.0,) * 6)
-    grasping = _weighted_counts(cfg.grasping_count, (0.14, 0.14, 0.14, 0.14, 0.14, 0.26, 0.03, 0.01))
-    for phase, count in zip(_PHASE_ORDER[:6], non_grasping, strict=True):
-        counts[phase] = count
-    for phase, count in zip(_PHASE_ORDER[6:], grasping, strict=True):
-        counts[phase] = count
+    for category, total in ((_NON_GRASPING, cfg.non_grasping_count), (_GRASPING, cfg.grasping_count)):
+        phases = tuple(phase for phase in _PHASE_ORDER if _PHASES[phase].category == category)
+        for phase, count in zip(
+            phases,
+            _weighted_counts(total, tuple(_PHASES[phase].weight for phase in phases)),
+            strict=True,
+        ):
+            counts[phase] = count
     return tuple(counts)
 
 
@@ -270,56 +284,6 @@ def _grasp_objective(
     target_score = horizontal_score * height_score
     inversion *= target_score * (horizontal <= cfg.objective_inversion_gate_horizontal_threshold)
     return (distance_score + inversion + target_score) / 3.0
-
-
-def _boxes_overlap(
-    center_a: torch.Tensor,
-    quaternion_a: torch.Tensor,
-    half_a: torch.Tensor,
-    center_b: torch.Tensor,
-    quaternion_b: torch.Tensor,
-    half_b: torch.Tensor,
-    clearance: float,
-) -> torch.Tensor:
-    """Return batched oriented-box overlap using the 15 separating axes."""
-    rotation_a = math_utils.matrix_from_quat(quaternion_a)
-    rotation_b = math_utils.matrix_from_quat(quaternion_b)
-    relative = rotation_a.transpose(-1, -2) @ rotation_b
-    absolute = relative.abs() + 1.0e-6
-    translation = (rotation_a.transpose(-1, -2) @ (center_b - center_a).unsqueeze(-1)).squeeze(-1)
-    a = half_a + clearance * 0.5
-    b = half_b + clearance * 0.5
-    separated = torch.zeros(center_a.shape[0], device=center_a.device, dtype=torch.bool)
-    for axis in range(3):
-        separated |= translation[:, axis].abs() > a[axis] + (absolute[:, axis, :] * b).sum(-1)
-        projection = (translation * relative[:, :, axis]).sum(-1).abs()
-        separated |= projection > (absolute[:, :, axis] * a).sum(-1) + b[axis]
-    for axis_a in range(3):
-        for axis_b in range(3):
-            other_a, last_a = (axis_a + 1) % 3, (axis_a + 2) % 3
-            other_b, last_b = (axis_b + 1) % 3, (axis_b + 2) % 3
-            projection = (
-                translation[:, last_a] * relative[:, other_a, axis_b]
-                - translation[:, other_a] * relative[:, last_a, axis_b]
-            ).abs()
-            radius_a = a[other_a] * absolute[:, last_a, axis_b] + a[last_a] * absolute[:, other_a, axis_b]
-            radius_b = b[other_b] * absolute[:, axis_a, last_b] + b[last_b] * absolute[:, axis_a, other_b]
-            separated |= projection > radius_a + radius_b
-    return ~separated
-
-
-def _box_supported(
-    pose: torch.Tensor,
-    half: torch.Tensor,
-    support_lower: torch.Tensor,
-    support_upper: torch.Tensor,
-    clearance: float,
-) -> torch.Tensor:
-    offset = torch.zeros((pose.shape[0], 3), device=pose.device)
-    offset[:, 2] = half[2]
-    center = pose[:, :3] + math_utils.quat_apply(pose[:, 3:7], offset)
-    planar_radius = (math_utils.matrix_from_quat(pose[:, 3:7]).abs()[:, :2, :] * half).sum(-1) + clearance
-    return ((center[:, :2] - planar_radius >= support_lower) & (center[:, :2] + planar_radius <= support_upper)).all(-1)
 
 
 def _tabletop_bounds(env: FrankaPourEnv, source_env_path: str) -> tuple[torch.Tensor, torch.Tensor]:
@@ -475,43 +439,25 @@ def _mark_colliding_worlds(
 class _CollisionScreen:
     """Batch exact Newton collision queries in isolated candidate worlds."""
 
-    def __init__(self, prototype: newton.ModelBuilder, cfg: GeneratorCfg, task_cfg: Any, device: str):
+    def __init__(
+        self,
+        prototype: newton.ModelBuilder,
+        cfg: GeneratorCfg,
+        collider_margin: float,
+        device: str,
+    ):
         self.capacity = cfg.batch_size
         self.coordinate_count = prototype.joint_coord_count
         self.device = device
         self.penetration_tolerance = cfg.collision_penetration_tolerance
         self.source_finger_penetration_tolerance = cfg.finger_contact_penetration_tolerance
-        source_half = tuple(float(value) for value in task_cfg.cup_grasp_box_half)
+        source_half = SOURCE_CUP_GEOMETRY.outer_half_extents
         self._source_half_height = source_half[2]
-
-        outer_x = 0.5 * task_cfg.target_cup_inner_width + task_cfg.target_cup_wall_thickness
-        outer_y = 0.5 * task_cfg.target_cup_inner_depth + task_cfg.target_cup_wall_thickness
-        wall = float(task_cfg.target_cup_wall_thickness)
-        bottom = float(task_cfg.target_cup_bottom_thickness)
-        height = float(task_cfg.target_cup_cavity_depth + task_cfg.target_cup_bottom_thickness)
-        target_boxes = (
-            ((0.0, 0.0, 0.5 * bottom), (outer_x, outer_y, 0.5 * bottom)),
-            (
-                (0.5 * task_cfg.target_cup_inner_width + 0.5 * wall, 0.0, 0.5 * height),
-                (0.5 * wall, outer_y, 0.5 * height),
-            ),
-            (
-                (-0.5 * task_cfg.target_cup_inner_width - 0.5 * wall, 0.0, 0.5 * height),
-                (0.5 * wall, outer_y, 0.5 * height),
-            ),
-            (
-                (0.0, 0.5 * task_cfg.target_cup_inner_depth + 0.5 * wall, 0.5 * height),
-                (0.5 * task_cfg.target_cup_inner_width, 0.5 * wall, 0.5 * height),
-            ),
-            (
-                (0.0, -0.5 * task_cfg.target_cup_inner_depth - 0.5 * wall, 0.5 * height),
-                (0.5 * task_cfg.target_cup_inner_width, 0.5 * wall, 0.5 * height),
-            ),
-        )
+        target_boxes = TARGET_CUP_GEOMETRY.collision_boxes
         self._target_offsets = torch.tensor([box[0] for box in target_boxes], device=device)
         shape_cfg = newton.ModelBuilder.ShapeConfig(
             density=0.0,
-            margin=float(task_cfg.collider_margin),
+            margin=float(collider_margin),
             has_shape_collision=True,
             has_particle_collision=False,
             is_visible=False,
@@ -755,9 +701,12 @@ class _Generator:
         self.arm_limits = self.env._joint_pos_limits_t[0, self.env._arm_joint_ids].to(self.device)
         finger_limits = self.env._joint_pos_limits_t[0, self.env._finger_joint_ids].to(self.device)
         self.finger_range = (float(finger_limits[:, 0].max()), float(finger_limits[:, 1].min()))
-        self.arm_home = torch.tensor(self.task_cfg.arm_home, device=self.device)
+        arm_home = tuple(self.task_cfg.scene.robot.init_state.joint_pos[name] for name in _ARM_JOINT_NAMES)
+        self.arm_home = torch.tensor(arm_home, device=self.device)
+        self.gripper_open_position = float(self.task_cfg.scene.robot.init_state.joint_pos["panda_finger_joint.*"])
         self.tcp_offset_position = torch.tensor(self.task_cfg.tcp_offset_pos, device=self.device)
         self.tcp_offset_quaternion = torch.tensor(self.task_cfg.tcp_offset_rot, device=self.device)
+        self.base_grasp_quaternion = torch.tensor(CUP_GRASP_TCP_QUAT_C, device=self.device)
         self.joint_seed = wp.to_torch(self.ik_model.joint_q).to(self.device).repeat(self.cfg.batch_size, 1)
         self.joint_seed[:, self.arm_coordinate_ids] = self.arm_home
 
@@ -792,37 +741,28 @@ class _Generator:
         )
         self.pose_objective = self.ik_solver.objectives_by_name[objective_name]
 
-        self.source_half = torch.tensor(self.task_cfg.cup_grasp_box_half, device=self.device)
+        self.source_half = torch.tensor(SOURCE_CUP_GEOMETRY.outer_half_extents, device=self.device)
         self.cup_center_offset = torch.tensor((0.0, 0.0, float(self.source_half[2])), device=self.device)
-        self.cup_grasp_offset = torch.tensor((0.0, 0.0, self.task_cfg.cup_grasp_height), device=self.device)
-        self.source_mouth_offset = torch.tensor(
-            (0.0, 0.0, self.task_cfg.source_cup_bottom_thickness + self.task_cfg.source_cup_cavity_depth),
-            device=self.device,
-        )
+        self.cup_grasp_offset = torch.tensor((0.0, 0.0, CUP_GRASP_HEIGHT), device=self.device)
+        self.source_mouth_offset = torch.tensor((0.0, 0.0, SOURCE_CUP_GEOMETRY.rim_height), device=self.device)
         self.source_mouth_from_center_height = float(self.source_mouth_offset[2] - self.cup_center_offset[2])
-        nominal_source = torch.tensor(self.task_cfg.cup_reset_pos, device=self.device)
+        nominal_source = torch.tensor(self.task_cfg.scene.source_cup.init_state.pos, device=self.device)
         self.source_region_center = nominal_source + self.cup_center_offset
-        self.target_half = torch.tensor(
-            (
-                0.5 * self.task_cfg.target_cup_inner_width + self.task_cfg.target_cup_wall_thickness,
-                0.5 * self.task_cfg.target_cup_inner_depth + self.task_cfg.target_cup_wall_thickness,
-                0.5 * (self.task_cfg.target_cup_cavity_depth + self.task_cfg.target_cup_bottom_thickness),
-            ),
-            device=self.device,
-        )
+        self.target_half = torch.tensor(TARGET_CUP_GEOMETRY.outer_half_extents, device=self.device)
         self.target_rim_height = 2.0 * float(self.target_half[2])
 
         default_particle_state = self.env._media.data.default_particle_state_w.torch[0, :, :3]
-        self.local_particles = (
-            default_particle_state
-            - self.env.env_origins[0]
-            - torch.tensor(self.task_cfg.cup_reset_pos, device=self.device)
-        ).to(torch.float32)
+        self.local_particles = (default_particle_state - self.env.env_origins[0] - nominal_source).to(torch.float32)
         source_lower = torch.tensor(self.env._source_inner_lo, device=self.device)
         source_upper = torch.tensor(self.env._source_inner_hi, device=self.device)
         if not bool(((self.local_particles >= source_lower) & (self.local_particles <= source_upper)).all()):
             raise RuntimeError("The generated MPM layout is outside the source-cup cavity.")
-        self.collision_screen = _CollisionScreen(self.prototype, self.cfg, self.task_cfg, str(self.device))
+        self.collision_screen = _CollisionScreen(
+            self.prototype,
+            self.cfg,
+            self.task_cfg.collider_margin,
+            str(self.device),
+        )
 
     @torch.inference_mode()
     def generate(self) -> dict[str, Any]:
@@ -830,7 +770,7 @@ class _Generator:
         counts = phase_counts(self.cfg)
         for phase in _PHASE_ORDER:
             required = counts[phase]
-            category = _GRASPING if _PHASE_REGIONS[phase] >= _TRANSPORT else _NON_GRASPING
+            category = _PHASES[phase].category
             before = self.attempt_counts[category]
             parts.append(self._sample_phase(category, phase, required))
             attempts = self.attempt_counts[category] - before
@@ -850,20 +790,9 @@ class _Generator:
         cpu_states = {name: states[name][permutation].detach().cpu().contiguous() for name in _OUTPUT_STATE_KEYS}
 
         task_contract = _reset_dataset_task_contract(self.task_cfg)
-        sampler_cfg = {
-            "sampling_profile": "full",
-            "grasp_side_ids": self.cfg.grasp_side_ids,
-            **asdict(self.cfg),
-        }
         metadata = {
-            "seed": self.cfg.seed,
-            "state_count": self.cfg.non_grasping_count + self.cfg.grasping_count,
-            "joint_names": _ARM_JOINT_NAMES + _FINGER_JOINT_NAMES,
-            "frame": "environment",
-            "quaternion_order": "xyzw",
-            "particle_solver_state": "fresh_zero",
-            "sampler_cfg": sampler_cfg,
             "task_contract": task_contract,
+            "generator_cfg": asdict(self.cfg),
             "phase_names": _PHASE_NAMES,
             "phase_counts": torch.tensor(counts, dtype=torch.int64),
             "attempt_counts": torch.tensor(
@@ -878,12 +807,6 @@ class _Generator:
                     dtype=torch.int64,
                 )
                 for reason in sorted(set(self.rejection_counts[_NON_GRASPING]) | set(self.rejection_counts[_GRASPING]))
-            },
-            "static_validation": {
-                "policy": FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_POLICY,
-                "all_rows_statically_validated": True,
-                "per_row_mpm_rollout": False,
-                "checks": FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_CHECKS,
             },
         }
         local = self.local_particles.detach().cpu().contiguous()
@@ -952,6 +875,9 @@ class _Generator:
         side_quotas: torch.Tensor,
         count: int,
     ) -> dict[str, torch.Tensor]:
+        spec = _PHASES[phase]
+        if category != spec.category:
+            raise ValueError(f"Phase {spec.name!r} does not belong to category {category}.")
         source_position, source_quaternion, target_position = self._sample_table_pair(count)
         target_quaternion = self._identity_quaternions(count)
         finger_position = torch.empty((count, 2), device=self.device)
@@ -964,14 +890,16 @@ class _Generator:
         side_axis = torch.zeros((count, 3), device=self.device)
         side_axis[:, 2] = 1.0
         side_rotation = math_utils.quat_from_angle_axis(side_angle, side_axis)
-        base_grasp = torch.tensor(self.task_cfg.cup_grasp_tcp_quat_c, device=self.device).expand(count, -1)
+        base_grasp = self.base_grasp_quaternion.expand(count, -1)
 
         if category == _GRASPING:
             cup_to_tcp = math_utils.quat_mul(side_rotation, base_grasp)
-            position_std = self.cfg.near_goal_grasp_position_std if phase >= _BOUNDARY else self.cfg.grasp_position_std
+            position_std = (
+                self.cfg.near_goal_grasp_position_std if spec.region == _NEAR_GOAL else self.cfg.grasp_position_std
+            )
             tcp_seating_offset = torch.randn((count, 3), device=self.device, generator=self.random)
             tcp_seating_offset *= torch.tensor(position_std, device=self.device)
-            if phase >= _BOUNDARY:
+            if spec.region == _NEAR_GOAL:
                 source_quaternion, cup_center = self._sample_near_goal(target_position, phase)
             else:
                 source_quaternion, cup_center = self._sample_transport(
@@ -988,30 +916,10 @@ class _Generator:
             finger_position.fill_(float(self.source_half[1]))
             finger_target = torch.full_like(finger_position, float(self.task_cfg.actions.gripper_action.close_position))
         else:
-            if phase == _REACHING_BROAD:
-                radius_range = self.cfg.reaching_broad_radius_range
-                cone_angle = self.cfg.reaching_broad_cone_angle
-                rotation_error = self.cfg.reaching_broad_rotation_error
-            elif phase == _CONTACT:
-                radius_range = self.cfg.contact_radius_range
-                cone_angle = 0.0
-                rotation_error = 0.0
-            elif phase == _CAPTURE:
-                radius_range = self.cfg.capture_radius_range
-                cone_angle = self.cfg.capture_cone_angle
-                rotation_error = self.cfg.capture_rotation_error
-            elif phase == _PREGRASP:
-                radius_range = self.cfg.pregrasp_radius_range
-                cone_angle = 0.0
-                rotation_error = 0.0
-            elif phase == _APPROACH:
-                radius_range = self.cfg.approach_radius_range
-                cone_angle = 0.0
-                rotation_error = 0.0
-            else:
-                radius_range = self.cfg.reaching_aligned_radius_range
-                cone_angle = 0.0
-                rotation_error = 0.0
+            radius_attr, cone_attr, rotation_attr = _TCP_SAMPLING[phase]
+            radius_range = getattr(self.cfg, radius_attr)
+            cone_angle = 0.0 if cone_attr is None else getattr(self.cfg, cone_attr)
+            rotation_error = 0.0 if rotation_attr is None else getattr(self.cfg, rotation_attr)
             tcp_position, tcp_quaternion = self._sample_near_object_tcp(
                 source_position,
                 source_quaternion,
@@ -1020,17 +928,18 @@ class _Generator:
                 cone_angle,
                 rotation_error,
             )
-            if phase == _CONTACT:
+            finger_mode = _FINGER_MODES.get(phase, "open")
+            if finger_mode == "contact":
                 finger_position.fill_(
                     min(
                         float(self.source_half[1]) + self.cfg.contact_finger_clearance,
-                        float(self.task_cfg.gripper_open_pos),
+                        self.gripper_open_position,
                     )
                 )
                 finger_target = torch.full_like(
                     finger_position, float(self.task_cfg.actions.gripper_action.close_position)
                 )
-            elif phase == _CAPTURE:
+            elif finger_mode == "capture":
                 gripper_cfg = self.task_cfg.actions.gripper_action
                 steps = torch.randint(
                     self.cfg.capture_filter_step_range[0],
@@ -1040,7 +949,7 @@ class _Generator:
                     generator=self.random,
                 )
                 close = float(gripper_cfg.close_position)
-                opened = float(self.task_cfg.gripper_open_pos)
+                opened = self.gripper_open_position
                 filtered = close + (opened - close) * torch.pow(
                     finger_position.new_tensor(1.0 - float(gripper_cfg.alpha)), steps
                 )
@@ -1051,7 +960,7 @@ class _Generator:
                 finger_position.copy_(filtered[:, None].expand(-1, 2))
                 finger_target = finger_position.clone()
             else:
-                finger_position.fill_(float(self.task_cfg.gripper_open_pos))
+                finger_position.fill_(self.gripper_open_position)
                 finger_target = finger_position.clone()
             finger_position[:, 1] = finger_position[:, 0]
 
@@ -1099,7 +1008,7 @@ class _Generator:
             "target_root_velocity": torch.zeros((count, 6), device=self.device),
             "category": torch.full((count,), category, device=self.device, dtype=torch.int8),
             "objective": objective,
-            "reset_region": torch.full((count,), _PHASE_REGIONS[phase], device=self.device, dtype=torch.int8),
+            "reset_region": torch.full((count,), spec.region, device=self.device, dtype=torch.int8),
             "difficulty": difficulty_raw.clone(),
             "particle_layout_id": torch.zeros(count, device=self.device, dtype=torch.int32),
             "_objective_raw": objective_raw,
@@ -1182,6 +1091,8 @@ class _Generator:
 
     def _validate(self, proposal: dict[str, torch.Tensor], category: int) -> torch.Tensor:
         count = len(proposal["category"])
+        phase = int(proposal["_phase"][0])
+        spec = _PHASES[phase]
         valid = torch.ones(count, device=self.device, dtype=torch.bool)
         arm_q = proposal["arm_joint_position"]
         arm_margin = torch.minimum(arm_q - self.arm_limits[:, 0], self.arm_limits[:, 1] - arm_q).amin(-1)
@@ -1202,12 +1113,9 @@ class _Generator:
 
         source_pose = proposal["source_root_pose"]
         target_pose = proposal["target_root_pose"]
-        source_center = source_pose[:, :3] + math_utils.quat_apply(
-            source_pose[:, 3:7], self.cup_center_offset.expand(count, -1)
-        )
-        target_center = target_pose[:, :3].clone()
-        target_center[:, 2] += self.target_half[2]
-        clear = ~_boxes_overlap(
+        source_center = box_center_from_base_pose(source_pose, self.source_half)
+        target_center = box_center_from_base_pose(target_pose, self.target_half)
+        clear = ~oriented_boxes_overlap(
             source_center,
             source_pose[:, 3:7],
             self.source_half,
@@ -1218,14 +1126,28 @@ class _Generator:
         )
         valid = self._reject(valid, clear, category, "source_target_collision")
         valid = self._reject(
-            valid, self._box_above_table(source_pose, self.source_half), category, "source_table_collision"
-        )
-        valid = self._reject(
-            valid, self._box_above_table(target_pose, self.target_half), category, "target_table_collision"
+            valid,
+            box_above_plane(
+                source_pose,
+                self.source_half,
+                penetration_tolerance=self.cfg.collision_penetration_tolerance,
+            ),
+            category,
+            "source_table_collision",
         )
         valid = self._reject(
             valid,
-            _box_supported(
+            box_above_plane(
+                target_pose,
+                self.target_half,
+                penetration_tolerance=self.cfg.collision_penetration_tolerance,
+            ),
+            category,
+            "target_table_collision",
+        )
+        valid = self._reject(
+            valid,
+            box_supported(
                 target_pose,
                 self.target_half,
                 self.support_lower,
@@ -1238,7 +1160,7 @@ class _Generator:
         if category == _NON_GRASPING:
             valid = self._reject(
                 valid,
-                _box_supported(
+                box_supported(
                     source_pose,
                     self.source_half,
                     self.support_lower,
@@ -1250,8 +1172,7 @@ class _Generator:
             )
         valid = self._reject(valid, self._particles_in_workspace(source_pose), category, "particle_workspace")
 
-        phase = int(proposal["_phase"][0])
-        if category == _GRASPING and phase >= _BOUNDARY:
+        if spec.region == _NEAR_GOAL:
             mouth = source_pose[:, :3] + math_utils.quat_apply(
                 source_pose[:, 3:7], self.source_mouth_offset.expand(count, -1)
             )
@@ -1279,7 +1200,7 @@ class _Generator:
             side_axis[:, 2] = 1.0
             expected = math_utils.quat_mul(
                 math_utils.quat_from_angle_axis(side_angle, side_axis),
-                torch.tensor(self.task_cfg.cup_grasp_tcp_quat_c, device=self.device).expand(count, -1),
+                self.base_grasp_quaternion.expand(count, -1),
             )
             actual = math_utils.quat_mul(math_utils.quat_conjugate(source_pose[:, 3:7]), proposal["_tcp_quaternion"])
             seating_valid = (
@@ -1288,18 +1209,13 @@ class _Generator:
             valid = self._reject(valid, seating_valid, category, "invalid_grasp_seating")
         else:
             tcp_distance = torch.linalg.vector_norm(grasp_point - proposal["_tcp_position"], dim=-1)
-            if phase in (_CONTACT, _CAPTURE, _PREGRASP, _APPROACH):
-                radius_range = {
-                    _CONTACT: self.cfg.contact_radius_range,
-                    _CAPTURE: self.cfg.capture_radius_range,
-                    _PREGRASP: self.cfg.pregrasp_radius_range,
-                    _APPROACH: self.cfg.approach_radius_range,
-                }[phase]
+            if phase != _REACHING_BROAD:
+                radius_range = getattr(self.cfg, _TCP_SAMPLING[phase][0])
                 valid = self._reject(
                     valid,
                     (tcp_distance >= radius_range[0]) & (tcp_distance <= radius_range[1]),
                     category,
-                    "near_object_tcp_shell",
+                    "reaching_aligned_tcp_shell" if phase == _REACHING_ALIGNED else "near_object_tcp_shell",
                 )
                 if phase == _CAPTURE:
                     offset = math_utils.quat_apply_inverse(source_pose[:, 3:7], proposal["_tcp_position"] - grasp_point)
@@ -1319,7 +1235,7 @@ class _Generator:
                     )
                     expected = math_utils.quat_mul(
                         side_rotation,
-                        torch.tensor(self.task_cfg.cup_grasp_tcp_quat_c, device=self.device).expand(count, -1),
+                        self.base_grasp_quaternion.expand(count, -1),
                     )
                     actual = math_utils.quat_mul(
                         math_utils.quat_conjugate(source_pose[:, 3:7]), proposal["_tcp_quaternion"]
@@ -1330,14 +1246,6 @@ class _Generator:
                         category,
                         "near_object_capture_rotation",
                     )
-            elif phase == _REACHING_ALIGNED:
-                valid = self._reject(
-                    valid,
-                    (tcp_distance >= self.cfg.reaching_aligned_radius_range[0])
-                    & (tcp_distance <= self.cfg.reaching_aligned_radius_range[1]),
-                    category,
-                    "reaching_aligned_tcp_shell",
-                )
             else:
                 center_distance = torch.linalg.vector_norm(source_center - proposal["_tcp_position"], dim=-1)
                 valid = self._reject(
@@ -1370,19 +1278,12 @@ class _Generator:
                 source_pose[indices, :3],
                 source_pose[indices, 3:7],
                 target_pose[indices, :3],
-                allow_source_finger_contact=category == _GRASPING or phase in (_CONTACT, _CAPTURE),
+                allow_source_finger_contact=category == _GRASPING or phase in _FINGER_MODES,
             )
             full = torch.zeros_like(valid)
             full[indices] = clear
             valid = self._reject(valid, full, category, "complete_state_collision")
         return valid
-
-    def _box_above_table(self, pose: torch.Tensor, half: torch.Tensor) -> torch.Tensor:
-        offset = torch.zeros((len(pose), 3), device=self.device)
-        offset[:, 2] = half[2]
-        center = pose[:, :3] + math_utils.quat_apply(pose[:, 3:7], offset)
-        vertical_radius = (math_utils.matrix_from_quat(pose[:, 3:7]).abs()[:, 2, :] * half).sum(-1)
-        return center[:, 2] - vertical_radius >= -self.cfg.collision_penetration_tolerance
 
     def _particles_in_workspace(self, source_pose: torch.Tensor) -> torch.Tensor:
         count = len(source_pose)
@@ -1424,7 +1325,7 @@ class _Generator:
         tcp_position = grasp_point + math_utils.quat_apply(source_quaternion, approach)
         cup_to_tcp = math_utils.quat_mul(
             side_rotation,
-            torch.tensor(self.task_cfg.cup_grasp_tcp_quat_c, device=self.device).expand(count, -1),
+            self.base_grasp_quaternion.expand(count, -1),
         )
         aligned = math_utils.quat_mul(source_quaternion, cup_to_tcp)
         noise_axis = torch.nn.functional.normalize(
@@ -1488,44 +1389,31 @@ class _Generator:
         target_position: torch.Tensor,
         phase: int,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        mode, radius_range, height_range, tilt_range, xy_jitter = _TRANSPORT_SAMPLING[phase]
         count = len(target_position)
         pickup_center = pickup_position + math_utils.quat_apply(
             pickup_quaternion, self.cup_center_offset.expand(count, -1)
         )
         cup_center = pickup_center.clone()
-        if phase == _JUST_GRASPED:
-            cup_center[:, 2] += torch.empty(count, device=self.device).uniform_(0.0, 0.02, generator=self.random)
+        if mode == "pickup":
+            cup_center[:, 2] += torch.empty(count, device=self.device).uniform_(*height_range, generator=self.random)
             cup_center[:, :2] += torch.empty((count, 2), device=self.device).uniform_(
-                -0.005, 0.005, generator=self.random
+                -xy_jitter, xy_jitter, generator=self.random
             )
-            tilt_range = (0.0, math.radians(5.0))
-        elif phase == _LOW_LIFT:
-            cup_center[:, 2] += torch.empty(count, device=self.device).uniform_(0.01, 0.08, generator=self.random)
-            cup_center[:, :2] += torch.empty((count, 2), device=self.device).uniform_(
-                -0.01, 0.01, generator=self.random
-            )
-            tilt_range = (0.0, math.radians(10.0))
-        elif phase == _UPRIGHT:
+        elif mode == "interpolate":
             progress = torch.rand(count, device=self.device, generator=self.random)
             pour_xy = target_position[:, :2] + torch.tensor(self.cfg.pour_source_offset_xy, device=self.device)
             cup_center[:, :2] = torch.lerp(pickup_center[:, :2], pour_xy, progress[:, None])
             cup_center[:, :2] += torch.empty((count, 2), device=self.device).uniform_(
-                -0.015, 0.015, generator=self.random
+                -xy_jitter, xy_jitter, generator=self.random
             )
-            cup_center[:, 2] += torch.empty(count, device=self.device).uniform_(0.06, 0.18, generator=self.random)
-            tilt_range = (0.0, math.radians(20.0))
-        elif phase in (_PRE_POUR, _POUR_ENTRY):
-            if phase == _PRE_POUR:
-                radius_range = (0.03, 0.10)
-                height_range = (0.12, 0.25)
-                tilt_range = (math.radians(20.0), math.radians(90.0))
-            else:
-                radius_range = (0.015, 0.06)
-                height_range = (0.12, 0.22)
-                tilt_range = (math.radians(90.0), math.radians(130.0))
+            cup_center[:, 2] += torch.empty(count, device=self.device).uniform_(*height_range, generator=self.random)
+        elif mode == "goal":
             radius = torch.sqrt(
                 torch.empty(count, device=self.device).uniform_(
-                    radius_range[0] ** 2, radius_range[1] ** 2, generator=self.random
+                    radius_range[0] ** 2,
+                    radius_range[1] ** 2,
+                    generator=self.random,
                 )
             )
             angle = torch.empty(count, device=self.device).uniform_(-math.pi, math.pi, generator=self.random)
@@ -1537,7 +1425,7 @@ class _Generator:
             cup_center[:, 2] = target_position[:, 2] + self.target_rim_height
             cup_center[:, 2] += torch.empty(count, device=self.device).uniform_(*height_range, generator=self.random)
         else:
-            raise ValueError(f"Unsupported transport phase {phase}.")
+            raise ValueError(f"Unsupported transport mode {mode!r} for {_PHASE_NAMES[phase]}.")
         tilt = torch.empty(count, device=self.device).uniform_(*tilt_range, generator=self.random)
         yaw = torch.atan2(
             2.0 * pickup_quaternion[:, 2] * pickup_quaternion[:, 3],
@@ -1554,9 +1442,10 @@ class _Generator:
         return math_utils.quat_unique(quaternion), cup_center
 
     def _sample_near_goal(self, target_position: torch.Tensor, phase: int) -> tuple[torch.Tensor, torch.Tensor]:
+        mode, radius_range, tilt_fractions, radius_relative = _NEAR_GOAL_SAMPLING[phase]
         count = len(target_position)
         azimuth = torch.empty(count, device=self.device).uniform_(-math.pi, math.pi, generator=self.random)
-        if phase == _BOUNDARY:
+        if mode == "boundary":
             progress = torch.rand(count, device=self.device, generator=self.random)
             tilt = self.cfg.boundary_tilt_range[0] + progress * (
                 self.cfg.boundary_tilt_range[1] - self.cfg.boundary_tilt_range[0]
@@ -1574,22 +1463,10 @@ class _Generator:
             )
             radial_distance = torch.sqrt(torch.rand(count, device=self.device, generator=self.random)) * radius_limit
         else:
-            if phase == _QUICK:
-                radius_range = (0.0, 0.5 * self.cfg.near_pour_horizontal_radius)
-                tilt_range = (
-                    self.cfg.near_pour_tilt_range[0],
-                    self.cfg.near_pour_tilt_range[0]
-                    + 0.6 * (self.cfg.near_pour_tilt_range[1] - self.cfg.near_pour_tilt_range[0]),
-                )
-            elif phase == _IMMEDIATE:
-                radius_range = (0.0, 0.015)
-                tilt_range = (
-                    self.cfg.near_pour_tilt_range[0]
-                    + 0.2 * (self.cfg.near_pour_tilt_range[1] - self.cfg.near_pour_tilt_range[0]),
-                    self.cfg.near_pour_tilt_range[1],
-                )
-            else:
-                raise ValueError(f"Unsupported near-goal phase {phase}.")
+            tilt_span = self.cfg.near_pour_tilt_range[1] - self.cfg.near_pour_tilt_range[0]
+            tilt_range = tuple(self.cfg.near_pour_tilt_range[0] + fraction * tilt_span for fraction in tilt_fractions)
+            if radius_relative:
+                radius_range = tuple(value * self.cfg.near_pour_horizontal_radius for value in radius_range)
             tilt = torch.empty(count, device=self.device).uniform_(*tilt_range, generator=self.random)
             radial_distance = torch.sqrt(
                 torch.empty(count, device=self.device).uniform_(
@@ -1637,13 +1514,13 @@ class _Generator:
                 source_pose[:, 3:7],
                 math_utils.quat_mul(
                     math_utils.quat_from_angle_axis(side_angle, side_axis),
-                    torch.tensor(self.task_cfg.cup_grasp_tcp_quat_c, device=self.device).expand(count, -1),
+                    self.base_grasp_quaternion.expand(count, -1),
                 ),
             )
             rotation_error = math_utils.quat_error_magnitude(tcp_quaternion, expected)
             radius_score = ((tcp_distance - 0.001) / (0.08 - 0.001)).clamp(0.0, 1.0)
             phase_rank = {_CONTACT: 0.0, _CAPTURE: 1.0, _PREGRASP: 2.0, _APPROACH: 3.0}[phase]
-            opening = finger_position.mean(-1) / max(float(self.task_cfg.gripper_open_pos), 1.0e-6)
+            opening = finger_position.mean(-1) / max(self.gripper_open_position, 1.0e-6)
             return (
                 phase_rank
                 + 0.6 * radius_score
@@ -1718,7 +1595,7 @@ def main() -> None:
             env.close()
 
     output = args.output.expanduser().resolve()
-    print(f"[INFO] Wrote {payload['metadata']['state_count']} reset states to {output}.")
+    print(f"[INFO] Wrote {len(payload['states']['category'])} reset states to {output}.")
     print(f"[INFO] Content SHA-256: {payload['content_sha256']}")
     print("[INFO] Pin this artifact during training with:")
     print(f"       env.reset_dataset_content_sha256={payload['content_sha256']}")

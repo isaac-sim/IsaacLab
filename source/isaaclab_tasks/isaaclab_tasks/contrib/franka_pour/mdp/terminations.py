@@ -12,12 +12,13 @@ that leave the task workspace before they can expand the allocating sparse grid 
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
 from isaaclab.utils import math as math_utils
+
+from ..geometry import box_center_from_base_pose, oriented_boxes_overlap
 
 if TYPE_CHECKING:
     from ..pour_env import FrankaPourEnv
@@ -26,150 +27,82 @@ if TYPE_CHECKING:
 _GRIPPER_POSITION_TOLERANCE = 1.0e-6
 
 
-def _oriented_boxes_overlap(
-    center_a: torch.Tensor,
-    quaternion_a: torch.Tensor,
-    half_extents_a: Sequence[float],
-    center_b: torch.Tensor,
-    quaternion_b: torch.Tensor,
-    half_extents_b: Sequence[float],
-    *,
-    clearance: float = 0.0,
-) -> torch.Tensor:
-    """Return batched OBB intersection using the complete 15-axis separating-axis test."""
-    if center_a.ndim != 2 or center_a.shape[1] != 3 or center_b.shape != center_a.shape:
-        raise ValueError("Both center tensors must have shape (N, 3).")
-    count = center_a.shape[0]
-    if quaternion_a.shape != (count, 4) or quaternion_b.shape != (count, 4):
-        raise ValueError("Both quaternion tensors must have shape (N, 4).")
-    if clearance < 0.0:
-        raise ValueError("clearance must be nonnegative.")
-
-    rotation_a = math_utils.matrix_from_quat(quaternion_a)
-    rotation_b = math_utils.matrix_from_quat(quaternion_b)
-    relative_rotation = rotation_a.transpose(-1, -2) @ rotation_b
-    absolute_rotation = relative_rotation.abs() + 1.0e-6
-    translation = (rotation_a.transpose(-1, -2) @ (center_b - center_a).unsqueeze(-1)).squeeze(-1)
-    half_a = torch.as_tensor(half_extents_a, device=center_a.device, dtype=center_a.dtype) + clearance * 0.5
-    half_b = torch.as_tensor(half_extents_b, device=center_a.device, dtype=center_a.dtype) + clearance * 0.5
-
-    separated = torch.zeros(count, device=center_a.device, dtype=torch.bool)
-    for axis in range(3):
-        radius_b = (absolute_rotation[:, axis, :] * half_b).sum(dim=-1)
-        separated |= translation[:, axis].abs() > half_a[axis] + radius_b
-    for axis in range(3):
-        projection = (translation * relative_rotation[:, :, axis]).sum(dim=-1).abs()
-        radius_a = (absolute_rotation[:, :, axis] * half_a).sum(dim=-1)
-        separated |= projection > radius_a + half_b[axis]
-    for axis_a in range(3):
-        for axis_b in range(3):
-            other_a = (axis_a + 1) % 3
-            last_a = (axis_a + 2) % 3
-            other_b = (axis_b + 1) % 3
-            last_b = (axis_b + 2) % 3
-            projection = (
-                translation[:, last_a] * relative_rotation[:, other_a, axis_b]
-                - translation[:, other_a] * relative_rotation[:, last_a, axis_b]
-            ).abs()
-            radius_a = (
-                half_a[other_a] * absolute_rotation[:, last_a, axis_b]
-                + half_a[last_a] * absolute_rotation[:, other_a, axis_b]
-            )
-            radius_b = (
-                half_b[other_b] * absolute_rotation[:, axis_a, last_b]
-                + half_b[last_b] * absolute_rotation[:, axis_a, other_b]
-            )
-            separated |= projection > radius_a + radius_b
-    return ~separated
-
-
 def nonfinite_failure(env: FrankaPourEnv) -> torch.Tensor:
     """Terminate on non-finite simulation state (instability guard)."""
-    return ~env.state_finite()
+    cup_velocity = env._source_cup.data.root_link_vel_w.torch
+    finite = (
+        torch.isfinite(env._robot.data.joint_pos.torch).all(dim=-1)
+        & torch.isfinite(env._robot.data.joint_vel.torch).all(dim=-1)
+        & torch.isfinite(env._robot.data.body_link_pose_w.torch[:, env._tcp_body_idx]).all(dim=-1)
+        & torch.isfinite(env._source_cup.data.root_link_pose_w.torch).all(dim=-1)
+        & torch.isfinite(cup_velocity).all(dim=-1)
+        & torch.isfinite(env._media.data.particle_pos_w.torch).all(dim=(1, 2))
+    )
+    return ~finite
 
 
 def extreme_rigid_state(env: FrankaPourEnv) -> torch.Tensor:
     """Terminate finite rigid states before extreme values reach observation normalization."""
-    return ~env.rigid_state_in_bounds()
+    joint_position = env._robot.data.joint_pos.torch
+    joint_velocity = env._robot.data.joint_vel.torch
+    joint_lower = env._joint_pos_limits_t[..., 0] - float(env.cfg.state_bound_joint_position_margin)
+    joint_upper = env._joint_pos_limits_t[..., 1] + float(env.cfg.state_bound_joint_position_margin)
+    joint_ok = ((joint_position >= joint_lower) & (joint_position <= joint_upper)).all(dim=-1)
+    joint_ok &= (joint_velocity.abs() <= float(env.cfg.state_bound_max_joint_velocity)).all(dim=-1)
 
-
-def _source_receiver_envelope_overlap(
-    source_pose: torch.Tensor,
-    target_pose: torch.Tensor,
-    *,
-    source_half_extents: Sequence[float],
-    target_half_extents: Sequence[float],
-    clearance: float = 0.0,
-) -> torch.Tensor:
-    """Return conservative overlap between source and receiver outer envelopes.
-
-    Both body origins lie at their outer base. The source box is projected into the receiver frame,
-    then tested against the receiver's complete outer envelope. Treating the open cavity as part of
-    that forbidden envelope deliberately prevents the policy from nesting the loaded source cup in
-    the receiver instead of pouring from above. It remains rotation-aware and allows arbitrary
-    receiver yaw.
-    """
-    if source_pose.ndim != 2 or source_pose.shape[1] != 7 or target_pose.shape != source_pose.shape:
-        raise ValueError("source_pose and target_pose must have matching shape (N, 7).")
-    if not math.isfinite(clearance) or clearance < 0.0:
-        raise ValueError("clearance must be finite and nonnegative.")
-    if len(source_half_extents) != 3 or len(target_half_extents) != 3:
-        raise ValueError("source and target half extents must each contain three values.")
-    if any(not math.isfinite(float(value)) or float(value) <= 0.0 for value in source_half_extents):
-        raise ValueError("source half extents must be finite and positive.")
-    if any(not math.isfinite(float(value)) or float(value) <= 0.0 for value in target_half_extents):
-        raise ValueError("target half extents must be finite and positive.")
-
-    source_half = source_pose.new_tensor(source_half_extents)
-    target_half = target_pose.new_tensor(target_half_extents)
-    source_center_offset = torch.zeros((source_pose.shape[0], 3), device=source_pose.device, dtype=source_pose.dtype)
-    source_center_offset[:, 2] = source_half[2]
-    target_center_offset = torch.zeros_like(source_center_offset)
-    target_center_offset[:, 2] = target_half[2]
-    source_center = source_pose[:, :3] + math_utils.quat_apply(source_pose[:, 3:7], source_center_offset)
-    target_center = target_pose[:, :3] + math_utils.quat_apply(target_pose[:, 3:7], target_center_offset)
-    return _oriented_boxes_overlap(
-        source_center,
-        source_pose[:, 3:7],
-        source_half_extents,
-        target_center,
-        target_pose[:, 3:7],
-        target_half_extents,
-        clearance=clearance,
+    hand_pose = env._robot.data.body_link_pose_w.torch[:, env._tcp_body_idx]
+    tcp_position, tcp_quaternion = math_utils.combine_frame_transforms(
+        hand_pose[:, :3], hand_pose[:, 3:7], env._tcp_offset_pos, env._tcp_offset_quat
     )
+    tcp_pose = torch.cat((tcp_position, tcp_quaternion), dim=-1)
+    cup_pose = env._source_cup.data.root_link_pose_w.torch
+    lower, upper = env._particle_workspace_lower_t, env._particle_workspace_upper_t
+    tcp_position_e = tcp_pose[:, :3] - env.env_origins
+    cup_position_e = cup_pose[:, :3] - env.env_origins
+    pose_ok = (
+        ((tcp_position_e >= lower) & (tcp_position_e <= upper)).all(dim=-1)
+        & ((cup_position_e >= lower) & (cup_position_e <= upper)).all(dim=-1)
+        & torch.isfinite(tcp_pose).all(dim=-1)
+        & torch.isfinite(cup_pose).all(dim=-1)
+        & ((torch.linalg.vector_norm(tcp_pose[:, 3:7], dim=-1) - 1.0).abs() <= 0.1)
+        & ((torch.linalg.vector_norm(cup_pose[:, 3:7], dim=-1) - 1.0).abs() <= 0.1)
+    )
+    cup_velocity = env._source_cup.data.root_link_vel_w.torch
+    velocity_ok = torch.linalg.vector_norm(cup_velocity[:, :3], dim=-1) <= float(
+        env.cfg.state_bound_max_cup_linear_velocity
+    )
+    velocity_ok &= torch.linalg.vector_norm(cup_velocity[:, 3:], dim=-1) <= float(
+        env.cfg.state_bound_max_cup_angular_velocity
+    )
+    return ~(joint_ok & pose_ok & velocity_ok)
 
 
 def source_receiver_overlap(env: FrankaPourEnv, clearance: float = 0.001) -> torch.Tensor:
     """Terminate when the source cup enters the receiver's forbidden outer envelope."""
-    source_half_extents = (
-        0.5 * float(env.cfg.source_cup_inner_width) + float(env.cfg.source_cup_wall_thickness),
-        0.5 * float(env.cfg.source_cup_inner_depth) + float(env.cfg.source_cup_wall_thickness),
-        0.5 * (float(env.cfg.source_cup_cavity_depth) + float(env.cfg.source_cup_bottom_thickness)),
-    )
-    target_half_extents = (
-        0.5 * float(env.cfg.target_cup_inner_width) + float(env.cfg.target_cup_wall_thickness),
-        0.5 * float(env.cfg.target_cup_inner_depth) + float(env.cfg.target_cup_wall_thickness),
-        0.5 * (float(env.cfg.target_cup_cavity_depth) + float(env.cfg.target_cup_bottom_thickness)),
-    )
-    return _source_receiver_envelope_overlap(
-        env.cup_pose_e(),
-        env.target_pose_e(),
-        source_half_extents=source_half_extents,
-        target_half_extents=target_half_extents,
-        clearance=clearance,
+    source_pose, target_pose = env.cup_pose_e(), env.target_pose_e()
+    return oriented_boxes_overlap(
+        box_center_from_base_pose(source_pose, env._source_outer_half_t),
+        source_pose[:, 3:7],
+        env._source_outer_half_t,
+        box_center_from_base_pose(target_pose, env._target_outer_half_t),
+        target_pose[:, 3:7],
+        env._target_outer_half_t,
+        clearance,
     )
 
 
 def particle_out_of_bounds(env: FrankaPourEnv) -> torch.Tensor:
     """Terminate an environment when any media particle escapes its workspace."""
-    return ~env.particles_in_workspace()
+    particles = env.particle_pos_e()
+    return ~((particles >= env._particle_workspace_lower_t) & (particles <= env._particle_workspace_upper_t)).all(
+        dim=(1, 2)
+    )
 
 
 def excessive_spill(env: FrankaPourEnv, terminate: bool = True) -> torch.Tensor:
     """Track when strictly more than the allowed media fraction is spilled."""
-    if not isinstance(terminate, bool):
-        raise TypeError("terminate must be a bool.")
-    spilled = env.spilled_fraction() > float(env.cfg.max_spill_fraction)
+    spilled = env._particle_region_masks()[2].sum(dim=1) / max(env._num_particles, 1)
+    spilled = spilled > float(env.cfg.max_spill_fraction)
     return spilled if terminate else torch.zeros_like(spilled)
 
 
@@ -193,13 +126,9 @@ def lost_lifted_grasp(
     still allowing the reverse curriculum to terminate a genuinely dropped cup promptly. Static
     reset-dataset training can disable termination while retaining the state monitor for metrics.
     """
-    if not math.isfinite(dwell_time_s) or dwell_time_s <= 0.0:
-        raise ValueError(f"dwell_time_s must be finite and positive, got {dwell_time_s}.")
-    if not isinstance(terminate, bool):
-        raise TypeError("terminate must be a bool.")
-    cup_lift = env.cup_pose_e()[:, 2] - float(env.cup_reset_height)
-    tcp_distance = torch.linalg.vector_norm(env.tcp_pos_e() - env.cup_grasp_point_e(), dim=-1)
-    gripper_width_error = torch.abs(env.gripper_width() - float(env.gripper_grasp_width))
+    cup_lift = env.cup_pose_e()[:, 2] - env._cup_reset_height
+    tcp_distance = torch.linalg.vector_norm(env.tcp_pose_e()[:, :3] - env.cup_grasp_point_e(), dim=-1)
+    gripper_width_error = torch.abs(env.gripper_width() - env._gripper_grasp_width)
     gripper = env.action_manager.get_term("gripper_action")
     reached_grasp = tcp_distance <= float(max_tcp_distance)
     bilateral_grasp = (
@@ -244,7 +173,7 @@ def immediate_pour_success(env: FrankaPourEnv) -> torch.Tensor:
     measures task progress without also requiring a retained grasp, lift milestone, delivery
     history, or dwell interval. Failure terms run before success and therefore retain precedence.
     """
-    target_fraction = env.count_in_target() / max(env.num_particles, 1)
+    target_fraction = env._particle_region_masks()[1].sum(dim=1) / max(env._num_particles, 1)
     success = immediate_pour_success_mask(
         target_fraction,
         env.pour_target_frac,

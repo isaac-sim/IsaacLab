@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import os
 import struct
+from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal
@@ -41,6 +42,13 @@ from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerP
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 from . import mdp
+from .geometry import (
+    CUP_GRASP_HEIGHT,
+    CUP_GRASP_TCP_QUAT_C,
+    MPM_COLLIDER_MARGIN,
+    SOURCE_CUP_GEOMETRY,
+    TARGET_CUP_GEOMETRY,
+)
 from .media import build_media_object_cfg, media_particle_count
 from .reset_sampler import ResetDatasetSamplerCfg
 
@@ -54,20 +62,6 @@ FRANKA_POUR_ROBOT_ASSET_ID = (
 FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256 = "b3c61e9abf91872144a6d16a2b088907694d1cf73443242979da0be6c275573e"
 FRANKA_POUR_CUPS_ASSET_ID = "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Contrib/MPM/Pour/franka_pour_cups.usda"
 FRANKA_POUR_CUPS_USD_PATH = os.environ.get("ISAACLAB_FRANKA_POUR_CUPS_USD_PATH", FRANKA_POUR_CUPS_ASSET_ID)
-FRANKA_POUR_CUP_GEOMETRY = MappingProxyType(
-    {
-        "source_cup_inner_width": 0.042,
-        "source_cup_inner_depth": 0.042,
-        "source_cup_cavity_depth": 0.110,
-        "source_cup_wall_thickness": 0.007,
-        "source_cup_bottom_thickness": 0.009,
-        "target_cup_inner_width": 0.140,
-        "target_cup_inner_depth": 0.140,
-        "target_cup_cavity_depth": 0.065,
-        "target_cup_wall_thickness": 0.009,
-        "target_cup_bottom_thickness": 0.009,
-    }
-)
 FRANKA_POUR_ARM_DRIVE_STIFFNESS = MappingProxyType(
     {
         "panda_joint[1-2]": 1000.0,
@@ -97,14 +91,10 @@ _GRIPPER_OPEN_POSITION = 0.04
 _SOURCE_CUP_POSITION = (0.5, 0.0, 0.0)
 _TARGET_CUP_POSITION = (0.5, -0.18, 0.0)
 _SOURCE_CUP_MASS = 0.05
-_SOURCE_CUP_PARTICLE_FRICTION = 0.9
 _SOURCE_CUP_GRASP_FRICTION = 2.0
 _TARGET_CUP_FRICTION = 0.8
-_CUP_GRASP_HEIGHT = 0.083
-_CUP_GRASP_TCP_QUAT_C = (0.0, math.sqrt(0.5), 0.0, math.sqrt(0.5))
 _MEDIA_FILL_FRACTION = 0.17181818181818181
 _MEDIA_PARTICLE_SPACING = 0.005
-_MPM_COLLIDER_MARGIN = 0.004
 
 
 def _source_cup_asset_cfg() -> RigidObjectCfg:
@@ -147,13 +137,13 @@ def _media_asset_cfg() -> MPMObjectCfg:
     return build_media_object_cfg(
         cup_pos=_SOURCE_CUP_POSITION,
         cup_quat_xyzw=(0.0, 0.0, 0.0, 1.0),
-        source_inner_width=FRANKA_POUR_CUP_GEOMETRY["source_cup_inner_width"],
-        source_inner_depth=FRANKA_POUR_CUP_GEOMETRY["source_cup_inner_depth"],
-        source_cavity_depth=FRANKA_POUR_CUP_GEOMETRY["source_cup_cavity_depth"],
-        source_bottom_thickness=FRANKA_POUR_CUP_GEOMETRY["source_cup_bottom_thickness"],
+        source_inner_width=SOURCE_CUP_GEOMETRY.inner_width,
+        source_inner_depth=SOURCE_CUP_GEOMETRY.inner_depth,
+        source_cavity_depth=SOURCE_CUP_GEOMETRY.cavity_depth,
+        source_bottom_thickness=SOURCE_CUP_GEOMETRY.bottom_thickness,
         fill_fraction=_MEDIA_FILL_FRACTION,
         particle_spacing=_MEDIA_PARTICLE_SPACING,
-        collider_margin=_MPM_COLLIDER_MARGIN,
+        collider_margin=MPM_COLLIDER_MARGIN,
         material=MPMParticleMaterialCfg(
             density=1500.0,
             friction=0.7,
@@ -576,110 +566,6 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     )
     curriculum_freeze: bool = False
 
-    @property
-    def arm_home(self) -> tuple[float, ...]:
-        """Canonical arm reset positions [rad]."""
-        return tuple(float(self.scene.robot.init_state.joint_pos[name]) for name in _ARM_JOINT_NAMES)
-
-    @property
-    def gripper_open_pos(self) -> float:
-        """Per-finger open reset position [m]."""
-        return float(self.scene.robot.init_state.joint_pos["panda_finger_joint.*"])
-
-    @property
-    def source_cup_inner_width(self) -> float:
-        """Source-cup inner width [m]."""
-        return FRANKA_POUR_CUP_GEOMETRY["source_cup_inner_width"]
-
-    @property
-    def source_cup_inner_depth(self) -> float:
-        """Source-cup inner depth [m]."""
-        return FRANKA_POUR_CUP_GEOMETRY["source_cup_inner_depth"]
-
-    @property
-    def source_cup_cavity_depth(self) -> float:
-        """Source-cup cavity depth [m]."""
-        return FRANKA_POUR_CUP_GEOMETRY["source_cup_cavity_depth"]
-
-    @property
-    def source_cup_wall_thickness(self) -> float:
-        """Source-cup wall thickness [m]."""
-        return FRANKA_POUR_CUP_GEOMETRY["source_cup_wall_thickness"]
-
-    @property
-    def source_cup_bottom_thickness(self) -> float:
-        """Source-cup bottom thickness [m]."""
-        return FRANKA_POUR_CUP_GEOMETRY["source_cup_bottom_thickness"]
-
-    @property
-    def target_cup_inner_width(self) -> float:
-        """Receiver inner width [m]."""
-        return FRANKA_POUR_CUP_GEOMETRY["target_cup_inner_width"]
-
-    @property
-    def target_cup_inner_depth(self) -> float:
-        """Receiver inner depth [m]."""
-        return FRANKA_POUR_CUP_GEOMETRY["target_cup_inner_depth"]
-
-    @property
-    def target_cup_cavity_depth(self) -> float:
-        """Receiver cavity depth [m]."""
-        return FRANKA_POUR_CUP_GEOMETRY["target_cup_cavity_depth"]
-
-    @property
-    def target_cup_wall_thickness(self) -> float:
-        """Receiver wall thickness [m]."""
-        return FRANKA_POUR_CUP_GEOMETRY["target_cup_wall_thickness"]
-
-    @property
-    def target_cup_bottom_thickness(self) -> float:
-        """Receiver bottom thickness [m]."""
-        return FRANKA_POUR_CUP_GEOMETRY["target_cup_bottom_thickness"]
-
-    @property
-    def cup_grasp_box_half(self) -> tuple[float, float, float]:
-        """Half extents of the source-cup outer envelope [m]."""
-        return (
-            0.5 * self.source_cup_inner_width + self.source_cup_wall_thickness,
-            0.5 * self.source_cup_inner_depth + self.source_cup_wall_thickness,
-            0.5 * (self.source_cup_cavity_depth + self.source_cup_bottom_thickness),
-        )
-
-    @property
-    def cup_grasp_height(self) -> float:
-        """Source-cup grasp-frame height [m]."""
-        return _CUP_GRASP_HEIGHT
-
-    @property
-    def cup_grasp_tcp_quat_c(self) -> tuple[float, float, float, float]:
-        """TCP orientation in the source-cup grasp frame as an xyzw quaternion."""
-        return _CUP_GRASP_TCP_QUAT_C
-
-    @property
-    def cup_grasp_box_friction(self) -> float:
-        """Rigid grasp-proxy friction coefficient."""
-        return float(self.scene.source_cup.spawn.physics_material.static_friction)
-
-    @property
-    def source_cup_friction(self) -> float:
-        """Source-cup particle friction coefficient."""
-        return _SOURCE_CUP_PARTICLE_FRICTION
-
-    @property
-    def target_cup_friction(self) -> float:
-        """Receiver rigid and particle friction coefficient."""
-        return float(self.scene.target_cup.spawn.physics_material.static_friction)
-
-    @property
-    def cup_reset_pos(self) -> tuple[float, float, float]:
-        """Source-cup reset position [m]."""
-        return tuple(float(value) for value in self.scene.source_cup.init_state.pos)
-
-    @property
-    def mpm_collider_margin(self) -> float:
-        """MPM collider margin [m]."""
-        return _MPM_COLLIDER_MARGIN
-
     def __post_init__(self):
         """Set the canonical control rate, horizon, viewer, and coupled Newton solver."""
         from isaaclab_visualizers.kit import KitVisualizerCfg
@@ -766,6 +652,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     def validate_config(self) -> None:
         """Validate runtime values that otherwise fail with opaque errors."""
         self._validate_runtime_values()
+        self._validate_mdp_term_values()
         self._validate_reset_dataset_values()
 
     def _validate_runtime_values(self) -> None:
@@ -790,6 +677,91 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
             raise ValueError("particle workspace bounds must each contain three finite values.")
         if any(low >= high for low, high in zip(lower, upper, strict=True)):
             raise ValueError("particle workspace lower bounds must be smaller than upper bounds.")
+
+    def _validate_mdp_term_values(self) -> None:
+        """Validate constant manager-term parameters once instead of on every policy step."""
+
+        def params(term: Any, name: str) -> Mapping[str, Any]:
+            value = term.params
+            if not isinstance(value, Mapping):
+                raise TypeError(f"{name}.params must be a mapping.")
+            return value
+
+        def numbers(
+            values: Mapping[str, Any],
+            names: tuple[str, ...],
+            lower: float = -math.inf,
+            upper: float = math.inf,
+            *,
+            lower_open: bool = False,
+            upper_open: bool = False,
+        ) -> None:
+            for name in names:
+                value = values.get(name)
+                if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(float(value)):
+                    raise ValueError(f"{name} must be finite.")
+                value = float(value)
+                lower_valid = value > lower if lower_open else value >= lower
+                upper_valid = value < upper if upper_open else value <= upper
+                if not lower_valid or not upper_valid:
+                    left, right = ("(" if lower_open else "["), (")" if upper_open else "]")
+                    raise ValueError(f"{name} must lie in {left}{lower}, {upper}{right}.")
+
+        velocity = params(self.observations.media.cup_velocity, "observations.media.cup_velocity")
+        numbers(velocity, ("max_surface_speed", "surface_radius"), 0.0, lower_open=True)
+
+        failure = params(self.rewards.failure, "rewards.failure")
+        overlap = params(self.terminations.source_receiver_overlap, "terminations.source_receiver_overlap")
+        lost_grasp = params(self.terminations.lost_grasp, "terminations.lost_grasp")
+        spill = params(self.terminations.spill, "terminations.spill")
+        for values, name, label in (
+            (failure, "include_time_out", "include_time_out"),
+            (lost_grasp, "terminate", "lost_grasp.terminate"),
+            (spill, "terminate", "spill.terminate"),
+        ):
+            if not isinstance(values.get(name), bool):
+                raise TypeError(f"{label} must be a bool.")
+        numbers(overlap, ("clearance",), 0.0)
+        numbers(lost_grasp, ("dwell_time_s",), 0.0, lower_open=True)
+        numbers(
+            lost_grasp,
+            ("max_tcp_distance", "max_gripper_width_error", "max_gripper_command"),
+            0.0,
+        )
+
+        progress = params(self.terminations.learning_progress_context, "terminations.learning_progress_context")
+        numbers(progress, ("minimum_progress",), 0.0, 1.0, lower_open=True, upper_open=True)
+        minimum_steps = progress.get("minimum_episode_steps")
+        if not isinstance(minimum_steps, int) or isinstance(minimum_steps, bool):
+            raise TypeError("minimum_episode_steps must be an integer.")
+        if minimum_steps < 0:
+            raise ValueError("minimum_episode_steps must be nonnegative.")
+        potential = progress.get("potential_params")
+        if not isinstance(potential, Mapping):
+            raise TypeError("potential_params must be a mapping.")
+        numbers(
+            potential,
+            (
+                "approach_position_std",
+                "approach_orientation_std",
+                "grasp_target_height",
+                "grasp_reach_std",
+                "target_clearance_height",
+                "alignment_std",
+                "tilt_alignment_radius",
+            ),
+            0.0,
+            lower_open=True,
+        )
+        numbers(potential, ("source_mouth_height", "target_rim_height"), 0.0)
+        numbers(potential, ("grasp_preload_position",))
+        numbers(potential, ("approach_open_hand_fraction", "grasp_fraction"), 0.0, 1.0)
+        numbers(potential, ("target_tilt",), 0.0, math.pi, lower_open=True, upper_open=True)
+        tolerance = potential.get("capture_orientation_tolerance")
+        if tolerance is not None:
+            numbers(potential, ("capture_orientation_tolerance",), 0.0, math.pi, lower_open=True)
+        if "capture_intent_gain" in potential:
+            numbers(potential, ("capture_intent_gain",), 0.0, lower_open=True)
 
     def _validate_reset_dataset_values(self) -> None:
         """Validate the external reset-dataset and sampler contract."""
@@ -834,35 +806,29 @@ def _float32(value: float) -> float:
 
 def _reset_dataset_task_contract(cfg: FrankaPourResetDatasetEnvCfg) -> dict[str, Any]:
     """Return the runtime values required to interpret generated reset states."""
-    source_half = tuple(_float32(value) for value in cfg.cup_grasp_box_half)
-    target_half = tuple(
-        _float32(value)
-        for value in (
-            0.5 * cfg.target_cup_inner_width + cfg.target_cup_wall_thickness,
-            0.5 * cfg.target_cup_inner_depth + cfg.target_cup_wall_thickness,
-            0.5 * (cfg.target_cup_cavity_depth + cfg.target_cup_bottom_thickness),
-        )
-    )
+    source_half = tuple(_float32(value) for value in SOURCE_CUP_GEOMETRY.outer_half_extents)
+    target_half = tuple(_float32(value) for value in TARGET_CUP_GEOMETRY.outer_half_extents)
     gripper_action = cfg.actions.gripper_action
     particle_spacing = float(cfg.scene.media.spawn.voxel_size)
+    gripper_open_pos = cfg.scene.robot.init_state.joint_pos["panda_finger_joint.*"]
 
     return {
         "robot_asset": FRANKA_POUR_ROBOT_ASSET_ID,
         "robot_physics_payload_sha256": FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256,
         "source_box_half": source_half,
-        "source_mouth_height": float(cfg.source_cup_bottom_thickness + cfg.source_cup_cavity_depth),
+        "source_mouth_height": SOURCE_CUP_GEOMETRY.rim_height,
         "target_box_half": target_half,
         "target_rim_height": float(2.0 * target_half[2]),
-        "cup_grasp_tcp_quat_c": tuple(float(value) for value in cfg.cup_grasp_tcp_quat_c),
-        "cup_grasp_height": float(cfg.cup_grasp_height),
+        "cup_grasp_tcp_quat_c": CUP_GRASP_TCP_QUAT_C,
+        "cup_grasp_height": CUP_GRASP_HEIGHT,
         "tcp_body_name": str(cfg.tcp_body_name),
         "tcp_offset_pos": tuple(float(value) for value in cfg.tcp_offset_pos),
         "tcp_offset_rot": tuple(float(value) for value in cfg.tcp_offset_rot),
-        "gripper_open_pos": float(cfg.gripper_open_pos),
+        "gripper_open_pos": float(gripper_open_pos),
         "gripper_grasp_reset_target": float(gripper_action.close_position),
         "gripper_contact_min_deflection": float(gripper_action.contact_min_deflection),
         "collider_margin": float(cfg.collider_margin),
-        "mpm_collider_margin": float(cfg.mpm_collider_margin),
+        "mpm_collider_margin": MPM_COLLIDER_MARGIN,
         "particle_count": media_particle_count(cfg.scene.media),
         "particle_spacing": particle_spacing,
     }

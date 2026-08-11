@@ -14,6 +14,8 @@ import torch
 
 import isaaclab.utils.math as math_utils
 
+from ..geometry import CUP_GRASP_HEIGHT
+
 if TYPE_CHECKING:
     from ..pour_env import FrankaPourEnv
 
@@ -43,10 +45,10 @@ def tcp_to_grasp_position_c_obs(env: FrankaPourEnv) -> torch.Tensor:
     cup_pose = env.cup_pose_e()
     tcp_position_c = math_utils.quat_apply_inverse(
         cup_pose[:, 3:7],
-        env.tcp_pos_e() - cup_pose[:, :3],
+        env.tcp_pose_e()[:, :3] - cup_pose[:, :3],
     )
     desired_position_c = torch.zeros_like(tcp_position_c)
-    desired_position_c[:, 2] = float(env.cfg.cup_grasp_height)
+    desired_position_c[:, 2] = CUP_GRASP_HEIGHT
     return torch.nan_to_num(desired_position_c - tcp_position_c)
 
 
@@ -61,16 +63,7 @@ def _nearest_grasp_to_tcp_quat(env: FrankaPourEnv) -> torch.Tensor:
     """
     cup_quat = env.cup_pose_e()[:, 3:7]
     tcp_quat = env.tcp_pose_e()[:, 3:7]
-    base_grasp = env.desired_grasp_tcp_quat_c()
-    if base_grasp.ndim == 1:
-        base_grasp = base_grasp.unsqueeze(0)
-    if base_grasp.shape[0] == 1 and cup_quat.shape[0] != 1:
-        base_grasp = base_grasp.expand(cup_quat.shape[0], -1)
-    if base_grasp.shape != cup_quat.shape:
-        raise ValueError(
-            "desired_grasp_tcp_quat_c must return one XYZW quaternion per environment "
-            f"or one broadcast quaternion, got {tuple(base_grasp.shape)} for {cup_quat.shape[0]} environments."
-        )
+    base_grasp = env._desired_grasp_tcp_quat_c
 
     side_angles = torch.arange(4, device=cup_quat.device, dtype=cup_quat.dtype) * (0.5 * math.pi)
     side_axes = torch.zeros((4, 3), device=cup_quat.device, dtype=cup_quat.dtype)
@@ -115,12 +108,12 @@ def target_position_c_obs(env: FrankaPourEnv) -> torch.Tensor:
 
 def finger_position_obs(env: FrankaPourEnv) -> torch.Tensor:
     """Individual finger-joint positions [m]."""
-    return torch.nan_to_num(env.finger_joint_pos())
+    return torch.nan_to_num(env._robot.data.joint_pos.torch[:, env._finger_joint_ids])
 
 
 def finger_velocity_obs(env: FrankaPourEnv) -> torch.Tensor:
     """Individual finger-joint velocities [m/s]."""
-    return torch.nan_to_num(env.finger_joint_vel())
+    return torch.nan_to_num(env._robot.data.joint_vel.torch[:, env._finger_joint_ids])
 
 
 def success_dwell_obs(env: FrankaPourEnv) -> torch.Tensor:
@@ -173,10 +166,7 @@ def normalized_cup_velocity_obs(
     the cup's normalized conservative surface speed. Non-finite simulation state is handled by the
     failure terms and is kept finite here so PPO can consume the terminal observation.
     """
-    for name, value in (("max_surface_speed", max_surface_speed), ("surface_radius", surface_radius)):
-        if not math.isfinite(value) or value <= 0.0:
-            raise ValueError(f"{name} must be finite and positive.")
-    velocity = torch.nan_to_num(env.cup_velocity_w(), nan=0.0, posinf=0.0, neginf=0.0)
+    velocity = torch.nan_to_num(env._source_cup.data.root_link_vel_w.torch, nan=0.0, posinf=0.0, neginf=0.0)
     return torch.cat(
         (
             velocity[:, :3] / float(max_surface_speed),
@@ -188,11 +178,8 @@ def normalized_cup_velocity_obs(
 
 def particle_fractions_obs(env: FrankaPourEnv) -> torch.Tensor:
     """Fractions of particles in the source, target, and spill regions."""
-    scale = max(env.num_particles, 1)
-    source = env.count_in_source() / scale
-    target = env.count_in_target() / scale
-    spilled = env.count_spilled() / scale
-    return torch.stack((source, target, spilled), dim=-1)
+    scale = max(env._num_particles, 1)
+    return torch.stack([mask.sum(dim=1).float() / scale for mask in env._particle_region_masks()], dim=-1)
 
 
 def _masked_particle_moments(env: FrankaPourEnv, mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -201,7 +188,7 @@ def _masked_particle_moments(env: FrankaPourEnv, mask: torch.Tensor) -> tuple[to
     count = weight.sum(dim=1)
     denominator = count.clamp_min(1.0)
     centroid = (env.particle_pos_e() * weight).sum(dim=1) / denominator
-    velocity = (env.particle_vel_e() * weight).sum(dim=1) / denominator
+    velocity = (env._media.data.particle_vel_w.torch * weight).sum(dim=1) / denominator
     return centroid, velocity, count
 
 
@@ -212,12 +199,12 @@ def particle_source_state_obs(env: FrankaPourEnv) -> torch.Tensor:
     the rigid velocity of the corresponding cup point before rotating into the cup frame, then is
     normalized by 2 m/s. Both vectors are zero when the source cup contains no particles.
     """
-    source = env.particle_region_masks()[0]
+    source = env._particle_region_masks()[0]
     centroid, velocity, count = _masked_particle_moments(env, source)
 
     cup_pose = env.cup_pose_e()
     centroid_offset = centroid - cup_pose[:, :3]
-    cup_velocity = env.cup_velocity_w()
+    cup_velocity = env._source_cup.data.root_link_vel_w.torch
     rigid_point_velocity = cup_velocity[:, :3] + torch.linalg.cross(cup_velocity[:, 3:], centroid_offset, dim=-1)
     centroid_c = math_utils.quat_apply_inverse(cup_pose[:, 3:7], centroid_offset)
     velocity_c = math_utils.quat_apply_inverse(
@@ -237,7 +224,7 @@ def particle_transfer_obs(env: FrankaPourEnv) -> torch.Tensor:
     receiver. This compact, permutation-invariant summary exposes that flow without requiring an
     ordered particle point cloud.
     """
-    source, target, spilled = env.particle_region_masks()
+    source, target, spilled = env._particle_region_masks()
     airborne = ~(source | target | spilled)
     centroid, velocity, count = _masked_particle_moments(env, airborne)
     receiver_pose = env.target_pose_e()
@@ -248,6 +235,6 @@ def particle_transfer_obs(env: FrankaPourEnv) -> torch.Tensor:
     velocity = math_utils.quat_apply_inverse(receiver_pose[:, 3:7], velocity)
     centroid_relative = torch.where(count > 0.0, centroid_relative, torch.zeros_like(centroid))
     velocity = torch.where(count > 0.0, velocity, torch.zeros_like(velocity))
-    fraction = count / max(env.num_particles, 1)
+    fraction = count / max(env._num_particles, 1)
     summary = torch.cat((centroid_relative / 0.30, velocity / 2.0, fraction), dim=-1)
     return torch.nan_to_num(summary).clamp_(-2.0, 2.0)

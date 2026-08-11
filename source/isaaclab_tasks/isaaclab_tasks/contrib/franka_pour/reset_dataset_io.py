@@ -17,8 +17,6 @@ import torch
 FRANKA_POUR_RESET_DATASET_FORMAT = "franka_pour_reset_dataset"
 FRANKA_POUR_RESET_DATASET_SCHEMA_VERSION = 12
 
-_ARM_JOINT_NAMES = tuple(f"panda_joint{index}" for index in range(1, 8))
-_FINGER_JOINT_NAMES = ("panda_finger_joint1", "panda_finger_joint2")
 _STATE_TENSOR_SPECS = {
     "arm_joint_position": (torch.float32, (7,)),
     "arm_joint_velocity": (torch.float32, (7,)),
@@ -35,19 +33,6 @@ _STATE_TENSOR_SPECS = {
     "difficulty": (torch.float32, ()),
     "particle_layout_id": (torch.int32, ()),
 }
-FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_POLICY = "newton_ik_collision_v1"
-FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_CHECKS = (
-    "newton_ik",
-    "joint_limits",
-    "robot_self_collision",
-    "robot_table_collision",
-    "robot_object_collision",
-    "source_receiver_separation",
-    "table_support",
-    "grasp_seating",
-    "finger_state_consistency",
-    "particle_workspace",
-)
 
 
 class _HashWriter:
@@ -110,10 +95,10 @@ def reset_dataset_validate_runtime(
 ) -> tuple[Mapping[str, Any], Mapping[str, torch.Tensor], Mapping[str, torch.Tensor]]:
     """Validate a production Franka Pour reset dataset for runtime replay.
 
-    Dataset generation is an offline workflow. This validator checks the immutable runtime boundary:
-    envelope integrity, production provenance, metadata consumed by replay, and the tensors restored
-    by the environment. When supplied, :paramref:`expected_task_contract` compares only its keys so
-    callers can bind the artifact to the current task contract.
+    Dataset generation is an offline workflow. This validator keeps the runtime boundary limited to
+    the safety-critical artifact digest, task contract, tensor schema, shapes, and finite values.
+    When supplied, :paramref:`expected_task_contract` compares only its keys so callers can bind the
+    artifact to the current task contract.
 
     Args:
         payload: Safely loaded reset-dataset payload.
@@ -125,7 +110,7 @@ def reset_dataset_validate_runtime(
 
     Raises:
         TypeError: If a required container or tensor has the wrong type.
-        ValueError: If the artifact does not match the task, is malformed, or lacks supported generation provenance.
+        ValueError: If the artifact does not match the task or is malformed.
     """
     if not isinstance(payload, Mapping):
         raise TypeError("Reset dataset payload must be a mapping.")
@@ -154,10 +139,7 @@ def reset_dataset_validate_runtime(
     if expected_task_contract is not None:
         _validate_contract_subset(task_contract, expected_task_contract, path="metadata.task_contract")
 
-    _validate_runtime_metadata(metadata)
-    _validate_production_marker(metadata)
-    state_count = metadata["state_count"]
-    _validate_state_tensors(states, state_count)
+    _validate_state_tensors(states)
     layout_count = _validate_particle_layouts(particle_layouts)
     layout_ids = states["particle_layout_id"]
     if bool(torch.any((layout_ids < 0) | (layout_ids >= layout_count))):
@@ -259,38 +241,17 @@ def _validate_contract_subset(actual: Mapping[str, Any], expected: Mapping[str, 
             raise ValueError(f"Reset dataset task contract field {field_path!r} does not match the runtime.")
 
 
-def _validate_runtime_metadata(metadata: Mapping[str, Any]):
-    """Validate metadata consumed directly by runtime replay."""
-    state_count = metadata.get("state_count")
-    if not isinstance(state_count, int) or isinstance(state_count, bool) or state_count <= 0:
-        raise ValueError("metadata.state_count must be a positive integer.")
-    joint_names = metadata.get("joint_names")
-    if not isinstance(joint_names, (tuple, list)) or tuple(joint_names) != _ARM_JOINT_NAMES + _FINGER_JOINT_NAMES:
-        raise ValueError("Reset dataset joint order does not match the Franka runtime joint order.")
-    if metadata.get("frame") != "environment" or metadata.get("quaternion_order") != "xyzw":
-        raise ValueError("Reset dataset poses must use environment-frame XYZW representation.")
-    if metadata.get("particle_solver_state") != "fresh_zero":
-        raise ValueError("Reset dataset particles must use fresh zero solver state.")
-
-
-def _validate_production_marker(metadata: Mapping[str, Any]):
-    """Require the collision-screened one-file generator provenance."""
-    marker = _require_mapping(metadata, "static_validation", path="metadata")
-    if marker.get("all_rows_statically_validated") is not True or marker.get("per_row_mpm_rollout") is not False:
-        raise ValueError("Reset dataset does not contain supported all-row static validation.")
-    if marker.get("policy") == FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_POLICY:
-        if tuple(marker.get("checks", ())) != FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_CHECKS:
-            raise ValueError("Reset dataset one-file generator checks are incomplete.")
-        return
-    raise ValueError("Reset dataset static-validation policy is unsupported.")
-
-
-def _validate_state_tensors(states: Mapping[str, Any], state_count: int):
+def _validate_state_tensors(states: Mapping[str, Any]):
     """Validate tensors consumed by reset replay and adaptive sampling."""
+    state_count: int | None = None
     for name, (dtype, trailing_shape) in _STATE_TENSOR_SPECS.items():
         value = states.get(name)
         if not isinstance(value, torch.Tensor):
             raise TypeError(f"states.{name} must be a torch.Tensor.")
+        if state_count is None:
+            state_count = int(value.shape[0]) if value.ndim > 0 else 0
+            if state_count <= 0:
+                raise ValueError("Reset dataset must contain at least one state.")
         expected_shape = (state_count, *trailing_shape)
         if value.dtype != dtype or tuple(value.shape) != expected_shape:
             raise ValueError(

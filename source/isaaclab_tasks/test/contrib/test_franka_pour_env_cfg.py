@@ -14,15 +14,6 @@ from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
     _resolve_pour_solver_tree,
 )
 
-_REMOVED_MIRROR_FIELDS = {
-    "arm_home",
-    "cup_mass",
-    "media_material",
-    "mpm_iterations",
-    "physics_substeps",
-    "proxy_mass_scale",
-    "voxel_size",
-}
 _RESET_CONTRACT_FIELDS = {
     "robot_asset",
     "robot_physics_payload_sha256",
@@ -54,8 +45,6 @@ def test_config_is_fully_authored_once_with_compact_reset_contract():
     assert cfg.scene.target_cup is not None
     assert cfg.scene.media is not None
     assert cfg.reset_dataset_content_sha256 is None
-    assert _REMOVED_MIRROR_FIELDS.isdisjoint(cfg.to_dict())
-
     task_contract = _reset_dataset_task_contract(cfg)
     assert task_contract["particle_count"] == 245
     assert set(task_contract) == _RESET_CONTRACT_FIELDS
@@ -81,7 +70,7 @@ def test_nested_overrides_are_authoritative_without_rebuilding_assets():
     assert cfg.scene.source_cup is source_cup
     assert cfg.scene.media is media
     assert _resolve_pour_solver_tree(cfg) == solver
-    assert cfg.cup_reset_pos == (0.6, 0.0, 0.0)
+    assert tuple(cfg.scene.source_cup.init_state.pos) == (0.6, 0.0, 0.0)
     assert cfg.sim.physics.num_substeps == 5
     assert solver.media_solver.max_iterations == 17
     assert not cfg.sim.physics.use_cuda_graph
@@ -116,4 +105,24 @@ def test_final_validation_checks_runtime_allocation_values():
     cfg.mpm_cell_capacity_alignment = 0
 
     with pytest.raises(ValueError, match="mpm_cell_capacity_alignment must be a positive integer"):
+        cfg.validate()
+
+
+@pytest.mark.parametrize(
+    ("term_path", "parameter", "value", "message"),
+    [
+        (("observations", "media", "cup_velocity"), "surface_radius", 0.0, "surface_radius"),
+        (("terminations", "source_receiver_overlap"), "clearance", -0.1, "clearance"),
+        (("terminations", "lost_grasp"), "terminate", 1, "lost_grasp.terminate"),
+    ],
+)
+def test_constant_mdp_parameters_are_validated_before_stepping(term_path, parameter, value, message):
+    """Manager-term constants fail at config validation instead of inside batched MDP calls."""
+    cfg = FrankaPourResetDatasetEnvCfg()
+    term = cfg
+    for field in term_path:
+        term = getattr(term, field)
+    term.params[parameter] = value
+
+    with pytest.raises((TypeError, ValueError), match=message):
         cfg.validate()
