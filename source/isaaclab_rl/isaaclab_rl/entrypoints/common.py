@@ -784,8 +784,9 @@ def pre_launch_video_config(env_cfg: Any, log_dir: str | None = None, args_cli: 
     if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
         sim_cfg.visualizer_cfgs = []
 
-    # The warp runtime never initialises Kit, so a Kit visualizer cannot serve as a frame
-    # source there. Newton GL is capture-capable and runs on both frontends.
+    # Kit can record on either frontend, but it needs a full Isaac Sim install and the warp
+    # runtime is commonly run kitless. Newton GL captures without one, so it is the safer
+    # default there.
     frontend = getattr(args_cli, "frontend", "torch") or "torch"
     try:
         if frontend == "torch":
@@ -929,8 +930,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                 # pre-launch hook was skipped or failed (e.g. isaaclab_visualizers not installed).
                 if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
                     sim_cfg.visualizer_cfgs = []
-                # Match pre_launch_video_config: Kit cannot be a frame source on the warp
-                # runtime, which never initialises it.
+                # Match pre_launch_video_config: prefer Newton GL on warp, which is
+                # commonly run without a Kit install.
                 frontend = getattr(args_cli, "frontend", "torch") or "torch"
                 try:
                     if frontend == "torch":
