@@ -93,21 +93,6 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
-    def provides_implicit_damping(cls) -> bool:
-        """Whether this backend's integrator has implicit numerical damping.
-
-        With implicit damping (PhysX, OV-PhysX) a camera policy can infer velocity from a
-        single frame. Without it (Newton's symplectic integrator) the policy needs a temporal
-        cue in the observation (e.g. frame stacking).
-
-        The base default is ``True``; backends without implicit damping override to ``False``.
-
-        Returns:
-            Whether the backend's integrator has implicit numerical damping.
-        """
-        return True
-
-    @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
         """Ensure that an articulation root has one enabled world fixed joint.
 

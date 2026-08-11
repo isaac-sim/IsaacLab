@@ -16,8 +16,8 @@ def imu_update_kernel(
     offset_pos_b: wp.array(dtype=wp.vec3f),
     offset_quat_b: wp.array(dtype=wp.quatf),
     gravity_bias_w: wp.array(dtype=wp.vec3f),
-    inv_dt: wp.float32,
     timestamp: wp.array(dtype=wp.float32),
+    timestamp_last_update: wp.array(dtype=wp.float32),
     # inputs / outputs
     prev_lin_vel_w: wp.array(dtype=wp.vec3f),
     # outputs
@@ -34,8 +34,8 @@ def imu_update_kernel(
         offset_pos_b: Offset positions of the sensors.
         offset_quat_b: Offset quaternions of the sensors.
         gravity_bias_w: Gravity bias in the world frame.
-        inv_dt: Inverse of the time step.
         timestamp: Timestamp of the environment.
+        timestamp_last_update: Timestamp of the previous sensor sample.
         prev_lin_vel_w: Previous linear velocity in the world frame.
         out_ang_vel_b: Output angular velocity in the body frame.
         out_lin_acc_b: Output linear acceleration in the body frame.
@@ -48,6 +48,11 @@ def imu_update_kernel(
     # hold pre-reset values, so the finite-difference acceleration would be spurious.
     if timestamp[idx] == 0.0:
         return
+
+    elapsed_time = timestamp[idx] - timestamp_last_update[idx]
+    if elapsed_time <= 0.0:
+        return
+    inv_dt = 1.0 / elapsed_time
 
     body_quat = wp.transform_get_rotation(transforms[idx])
 
