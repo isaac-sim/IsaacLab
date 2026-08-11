@@ -1,6 +1,45 @@
 Changelog
 ---------
 
+0.14.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a startup loading screen to the ``train`` and ``play`` entrypoints. Each run now prints a
+  summary of its task, workflow, RL library, physics, renderer, presets, visualizer, device, and
+  environment count, followed by a progress bar that hands the console back before training starts.
+  The presets row lists any other presets the run selected, such as ``presets=cube``, and reads
+  ``none`` when it selected none.
+* Added :func:`~isaaclab_rl.entrypoints.run_train_multigpu_cli`, which moves the multi-GPU launcher
+  into the package alongside the train and play entry points.
+  ``scripts/reinforcement_learning/train_multigpu.py`` is now a shim over it.
+
+Changed
+^^^^^^^
+
+* Updated all play entrypoints (``play_rsl_rl``, ``play_sb3``, ``play_skrl``,
+  ``play_rl_games``) to use :func:`~isaaclab_rl.entrypoints.common.create_isaaclab_env`
+  instead of bare ``gym.make``, restoring warp frontend support and MARL-to-single-agent
+  conversion at play time (parity with the train entrypoints).
+
+* Replaced the ``gym.wrappers.RecordVideo`` wrapper approach with
+  :func:`~isaaclab_rl.entrypoints.common.apply_video_recording`, which injects a
+  :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` into the env config
+  before creation so recording is driven inside ``env.step()`` rather than via a wrapper.
+
+Fixed
+^^^^^
+
+* Fixed the multi-GPU launcher leaving worker processes behind on Ctrl-C. It ran torchrun in its own
+  process group, so the terminal signalled torchrun and every worker at the same moment the launcher
+  forwarded a signal of its own, and the extra signal interrupted torchelastic's shutdown before it
+  had reaped the workers. The launcher now starts the worker tree in a new session, forwards one
+  signal to it, and escalates to ``SIGTERM`` and then ``SIGKILL`` so a worker wedged in a native call
+  cannot outlive the run.
+
+
 0.13.0 (2026-08-05)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -16,7 +16,7 @@ import re
 import runpy
 import sys
 import warnings
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Container, Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,11 +27,18 @@ import gymnasium as gym
 import torch
 from PIL import Image
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import AppLauncher, LoadingScreen
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.io import dump_yaml
+
+# Preset selectors whose values name a preset, and the preset names that resolved
+# configs map back to when their class or ``renderer_type`` differs from the name.
+_PRESET_SELECTORS = frozenset({"presets", "physics", "renderer"})
+_PHYSICS_PRESET_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx", "PhysxAutoCfg": "physx"}
+_RENDERER_PRESET_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer", "auto_rtx": "rtx"}
 
 RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
@@ -508,6 +515,164 @@ def configure_io_descriptors(env_cfg: Any, args_cli: argparse.Namespace, logger:
         logger.warning(
             "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
         )
+
+
+def startup_screen(args_cli: argparse.Namespace, *, num_stages: int) -> LoadingScreen:
+    """Create the loading screen shown while a run starts up.
+
+    The live screen is used only for an interactive console, and only when the
+    run did not ask for verbose logging -- otherwise the startup output is the
+    point and is left untouched.
+
+    Args:
+        args_cli: Parsed command-line arguments.
+        num_stages: Number of stages the progress bar counts up to.
+
+    Returns:
+        An unopened loading screen.
+    """
+    verbose = getattr(args_cli, "verbose", False) or getattr(args_cli, "info", False)
+    return LoadingScreen(num_stages, enabled=False if verbose else None)
+
+
+def show_run_summary(
+    screen: LoadingScreen,
+    args_cli: argparse.Namespace,
+    env_cfg: Any,
+    *,
+    library: str,
+    action: str,
+) -> None:
+    """Print a summary of the backends and scale a run is about to use.
+
+    Values the run did not pick itself are shown as ``default (<resolved>)``, so
+    it is clear which backends came from the command line and which are the
+    task's own defaults.
+
+    Args:
+        screen: Loading screen that owns the console.
+        args_cli: Parsed command-line arguments.
+        env_cfg: Isaac Lab environment config, with its presets already resolved.
+        library: Reinforcement learning library running the workflow.
+        action: Workflow name, either ``"train"`` or ``"play"``.
+    """
+    selected = _selected_preset_names()
+    device = getattr(args_cli, "device", None) or env_cfg.sim.device
+    num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
+    physics = _physics_name(env_cfg.sim.physics)
+    renderer = _renderer_name(env_cfg)
+    screen.summary(
+        f"Isaac Lab · {action}",
+        {
+            "Task": args_cli.task,
+            "Workflow": _workflow_name(env_cfg),
+            "RL library": library,
+            "Physics": _label(physics, selected=selected),
+            "Renderer": "n/a (no camera sensors)" if renderer is None else _label(renderer, selected=selected),
+            "Presets": _additional_preset_names({physics, renderer}),
+            "Visualizer": _visualizer_name(args_cli, env_cfg),
+            "Device": str(device),
+            "Environments": str(num_envs),
+        },
+    )
+
+
+def _label(name: str, *, selected: set[str] = frozenset()) -> str:
+    """Mark *name* as a default unless the run asked for it by name."""
+    return name if name in selected else f"default ({name})"
+
+
+def _selected_preset_names() -> set[str]:
+    """Return the preset names the command line asked for.
+
+    Reads the same ``sys.argv`` the preset resolver consumes (see
+    :func:`~isaaclab_tasks.utils.hydra.register_task`), so the summary marks a
+    backend as chosen exactly when a ``physics=`` / ``renderer=`` / ``presets=``
+    token or a Hydra path override named it.
+    """
+    names: set[str] = set()
+    for token in sys.argv[1:]:
+        key, separator, value = token.partition("=")
+        if separator and (key.lstrip("-") in _PRESET_SELECTORS or key.startswith(("env.", "agent."))):
+            names.update(part.strip() for part in value.split(",") if part.strip())
+    return names
+
+
+def _additional_preset_names(shown: Container[str | None]) -> str:
+    """Return the presets the command line asked for beyond those with a row of their own.
+
+    Domain presets such as ``presets=cube`` do not surface anywhere else in the
+    summary, so they are listed here; the physics and renderer presets are left
+    out because their own rows already name them.
+
+    Args:
+        shown: Preset names already reported by the physics and renderer rows.
+
+    Returns:
+        The remaining preset names in command-line order, comma separated, or
+        ``"none"`` when the run named no other preset.
+    """
+    names: list[str] = []
+    for token in sys.argv[1:]:
+        key, separator, value = token.partition("=")
+        if not separator or key.lstrip("-") not in _PRESET_SELECTORS:
+            continue
+        for part in (part.strip() for part in value.split(",")):
+            if part and part not in shown and part not in names:
+                names.append(part)
+    return ", ".join(names) if names else "none"
+
+
+def _workflow_name(env_cfg: Any) -> str:
+    """Return the task workflow *env_cfg* belongs to."""
+    if isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        return "manager-based"
+    return "direct (multi-agent)" if isinstance(env_cfg, DirectMARLEnvCfg) else "direct"
+
+
+def _physics_name(physics_cfg: Any) -> str:
+    """Return the preset name of a resolved physics config."""
+    class_name = type(physics_cfg).__name__
+    if class_name in _PHYSICS_PRESET_NAMES:
+        return _PHYSICS_PRESET_NAMES[class_name]
+    solver_cfg = getattr(physics_cfg, "solver_cfg", None)
+    backend = class_name.removesuffix("Cfg").lower()
+    if solver_cfg is None:
+        return backend
+    return f"{backend}_{type(solver_cfg).__name__.removesuffix('SolverCfg').lower()}"
+
+
+def _renderer_name(env_cfg: Any) -> str | None:
+    """Return the preset name of the renderer used by the first camera sensor of *env_cfg*.
+
+    Only configs whose class declares ``renderer_cfg`` are read. Probing every
+    attribute with :func:`getattr` instead would resolve lazily evaluated config
+    values -- notably the ``ResolvableString`` class handles -- which imports
+    Kit modules before :class:`~isaaclab.app.AppLauncher` starts and breaks the
+    Isaac Sim runtime.
+    """
+    for container in (env_cfg, getattr(env_cfg, "scene", None)):
+        for value in vars(container).values() if container is not None else ():
+            if "renderer_cfg" not in getattr(type(value), "__dataclass_fields__", {}):
+                continue
+            renderer_cfg = value.renderer_cfg
+            if isinstance(renderer_cfg, RendererCfg):
+                renderer_type = renderer_cfg.renderer_type
+                return _RENDERER_PRESET_NAMES.get(renderer_type, renderer_type)
+    return None
+
+
+def _visualizer_name(args_cli: argparse.Namespace, env_cfg: Any) -> str:
+    """Return the visualizers selected on the command line or by *env_cfg*."""
+    selected = getattr(args_cli, "visualizer", None)
+    if isinstance(selected, str):
+        selected = selected.split(",")
+    if not selected:
+        visualizer_cfgs = env_cfg.sim.visualizer_cfgs
+        if not isinstance(visualizer_cfgs, list):
+            visualizer_cfgs = [visualizer_cfgs]
+        selected = [cfg.visualizer_type for cfg in visualizer_cfgs if cfg is not None]
+    return ", ".join(str(name).strip() for name in selected) if selected else "none (headless)"
 
 
 def create_isaaclab_env(

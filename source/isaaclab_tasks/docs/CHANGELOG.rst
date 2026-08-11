@@ -1,6 +1,105 @@
 Changelog
 ---------
 
+15.0.1 (2026-08-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` environment not resetting after a
+  successful cube stack. The success termination used a 100 µrad gripper-open tolerance
+  (``atol=0.0001``) that the follower cannot reach when the leader arm's raw encoder angle does
+  not exactly match ``SO101_GRIPPER_OPEN`` due to calibration offsets or joint soft-limit ceilings.
+  The tolerance is now set to ``gripper_threshold`` (0.2 rad) in the joint-teleop env, consistent
+  with the threshold used elsewhere to classify the gripper as open vs. closed.
+
+
+15.0.0 (2026-08-09)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a deformable COM pose command, dense deformable rewards with success logging, a gravity
+  curriculum, and ``joint`` and ``ik`` action presets to the Franka soft-beam and cloth lift tasks.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the default action space to relative joint-position control. Use
+  ``presets=ik`` for task-space inverse-kinematics control; integrations using the cloth
+  environments' previous absolute joint targets must update their actions.
+* **Breaking:** Changed the non-camera ``rsl_rl`` experiment name from ``franka_deformable`` to
+  ``franka_soft``. Update log and checkpoint paths that refer to ``logs/rsl_rl/franka_deformable``.
+* Re-tuned the robot, scenes, contact handling, control rate, and ``rsl_rl`` configuration for
+  gravity-based training.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed :func:`~isaaclab_tasks.core.lift.mdp.deformable_lifted`. Use
+  :func:`~isaaclab_tasks.core.lift.mdp.deformable_lifting` and set the required ``std``.
+* **Breaking:** Removed :func:`~isaaclab_tasks.core.lift.mdp.deformable_com_goal_distance`. Use
+  :class:`~isaaclab_tasks.core.lift.mdp.DeformableComGoalDistance` and set the required
+  ``success_threshold``.
+* **Breaking:** Removed :func:`~isaaclab_tasks.core.lift.mdp.deformable_outside_table_bounds`. Use
+  :func:`~isaaclab_tasks.core.lift.mdp.deformable_outside_bounds` and set the required ``z_bounds``.
+* **Breaking:** Removed :func:`~isaaclab_tasks.core.lift.mdp.deformable_com_below_minimum`. Use
+  :func:`~isaaclab_tasks.core.lift.mdp.deformable_outside_bounds` with appropriate ``z_bounds`` for
+  workspace termination.
+* **Breaking:** Removed the state-machine demo's video arguments. Use ``--num_steps`` to control
+  the finite demo and an external capture workflow to record it.
+* **Breaking:** Removed the unsupported ``ovphysx`` preset from the Franka soft-beam and cloth lift
+  environments. Use ``isaacsim_physx`` for the soft-beam task or
+  ``newton_mjwarp_vbd_proxy`` for either task.
+
+Fixed
+^^^^^
+
+* Fixed velocity command visualization markers clipping through the torso of humanoid robots
+  (H1, G1) by setting :attr:`~isaaclab.envs.mdp.commands.UniformVelocityCommandCfg.marker_pos_offset`
+  in their respective rough environment configs.
+* Fixed :func:`~isaaclab_tasks.utils.parse_cfg.get_checkpoint_path` raising a bare ``FileNotFoundError``
+  when the log directory does not exist. It now raises the documented ``ValueError`` naming the directory
+  and pattern, matching the behavior when the directory exists but holds no runs.
+
+
+14.0.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added recorded ``robot_pov_cam`` policy observations to the GR1T2 pick-place and G1
+  locomanipulation tasks for XR camera feedback.
+
+Changed
+^^^^^^^
+
+* Removed ``viewer: ViewerCfg = ViewerCfg(...)`` from task environment configs following the
+  removal of :class:`~isaaclab.envs.common.ViewerCfg`. Custom camera positions can be set via
+  ``cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=..., lookat=...)]``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``newton_kamino`` physics preset from
+  :class:`~isaaclab_tasks.core.reach.reach_env_cfg.ReachPhysicsCfg`, so ``Isaac-Reach-Franka``,
+  ``Isaac-Reach-Franka-OSC`` and ``Isaac-Reach-UR10`` no longer accept ``physics=newton_kamino``.
+  Use ``physics=newton_mjwarp`` (the default) instead, or redeclare a task-local
+  ``newton_kamino`` preset if the Kamino solver is needed.
+
+Fixed
+^^^^^
+
+* Fixed the ExhaustPipe ``robot_pov_cam`` rotation after the WXYZ-to-XYZW quaternion migration.
+* Fixed the GR1T2 and G1 XR cameras to follow their robot attachment points and restored
+  the calibrated G1 camera view with viewer-start panel placement.
+* Fixed Newton MJWarp locomotion training instability by tuning contact capacity and parameters, adjusting the
+  ANYmal-D initial height, and terminating excessively fast bodies.
+
+
 13.0.0 (2026-08-07)
 ~~~~~~~~~~~~~~~~~~~
 

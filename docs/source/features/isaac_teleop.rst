@@ -375,20 +375,18 @@ Prerequisites
      sudo apt-get update
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
-  Then clone, configure, build, and install. Each preset builds into its own directory, so the
-  install path must match the preset you configured with -- ``py3.11`` builds into
-  ``build/cmake-cpython-311``, ``py3.12`` into ``build/cmake-cpython-312``, ``py3.13`` into
-  ``build/cmake-cpython-313``:
+  Then clone, configure, build, and install. To target a specific Python version, pass
+  ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
+  version needs its own build directory if building multiple at once:
 
   .. code-block:: bash
 
      git clone https://github.com/NVIDIA/IsaacTeleop.git
      cd IsaacTeleop
 
-     # Pick the preset matching your Python, and keep it consistent across all three commands.
-     cmake --preset py3.12                       # configure
-     cmake --build --preset py3.12 --parallel    # build
-     cmake --install build/cmake-cpython-312     # install into ./install
+     cmake -B build                       # configure (default: Python 3.11)
+     cmake --build build --parallel       # build
+     cmake --install build                # install into ./install
 
   The plugin is installed to ``<IsaacTeleop>/install/plugins/so101_leader/so101_leader_plugin``.
   Every later command in this section runs from the Isaac Teleop checkout root; substitute your own
@@ -400,13 +398,30 @@ Prerequisites
      cd /path/to/IsaacTeleop
      ./install/plugins/so101_leader/so101_leader_plugin
 
-  See `Build from Source`_ for the full prerequisite list, the CMake presets, and all build
-  options, and the build-troubleshooting table in `Data Collection in Sim`_ for common failures
-  (including the ``clang-format not found but ENABLE_CLANG_FORMAT_CHECK is ON`` CMake error).
+  See `Build from Source`_ for the full prerequisite list and all build options, and the
+  build-troubleshooting table in `Data Collection in Sim`_ for common failures (including the
+  ``clang-format not found but ENABLE_CLANG_FORMAT_CHECK is ON`` CMake error).
 
 * **Calibration**: The SO-101 arm must be calibrated before use. The plugin talks to the FEETECH
   servos directly -- it has no ``lerobot`` or FEETECH SDK dependency -- so calibrate with its own
-  ``calibrate`` subcommand, which needs no OpenXR runtime:
+  ``calibrate`` subcommand, which needs no OpenXR runtime.
+
+  First, identify the serial port. The easiest way is ``uvx``, which runs
+  ``lerobot-find-port`` in a temporary environment with no installation required:
+
+  .. code-block:: bash
+
+     uvx --from lerobot lerobot-find-port
+
+  Alternatively, plug in the USB cable and immediately run:
+
+  .. code-block:: bash
+
+     dmesg | grep tty | tail -1
+
+  Because ``tail -1`` shows only the most recent kernel message, the output unambiguously
+  names the just-connected device, e.g. ``[12345.6] usb ... ttyACM0``.
+  Use that path (``/dev/ttyACM0``, ``/dev/ttyACM1``, etc.) in the command below.
 
   .. code-block:: bash
 
@@ -484,7 +499,8 @@ Start the plugin
 Isaac Lab does not spawn the plugin for you. Launch the sim first -- it brings up the CloudXR
 runtime the plugin connects through -- then, in a **separate terminal**, source the environment
 file the runtime writes on startup (this points the OpenXR loader at CloudXR) and start the plugin
-on the leader's serial port:
+on the leader's serial port (replace ``/dev/ttyACM0`` with your device -- see the port-identification
+note in the Calibration step above):
 
 .. code-block:: bash
 
