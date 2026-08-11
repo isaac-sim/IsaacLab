@@ -214,6 +214,49 @@ def test_module_importorskip_is_not_a_failure(monkeypatch, tmp_path: Path) -> No
     assert not was_failure
 
 
+def test_crash_journal_path_is_absolute(monkeypatch, tmp_path: Path) -> None:
+    """The journal path handed to the test subprocess must not depend on the current directory.
+
+    The repo-root ``conftest.py`` reopens this path on every journal write, from inside the test
+    process. A relative path would resolve against whatever directory the test happens to be in,
+    so a test using ``monkeypatch.chdir`` would write its verdicts to a journal under the
+    temporary directory and, once teardown restored the cwd, resume writing to this one — leaving
+    a test that ran and passed looking like it was never reached.
+    """
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    journal_paths: list[str] = []
+
+    def _capture(_cmd, _timeout, env, *, report_file: str, **_kwargs):
+        journal_paths.append(env[orchestrator.JOURNAL_ENV_VAR])
+        _write_partial_junit_report(report_file)
+        return 0, b"", b"", "", 0.1, ""
+
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert len(journal_paths) == 1
+    journal_path = Path(journal_paths[0])
+    assert journal_path.is_absolute()
+    # pytest only creates the report directory in ``pytest_sessionfinish``, which a crashed run
+    # never reaches, so the directory has to exist before the subprocess starts journaling.
+    assert journal_path.parent.is_dir()
+
+
 def test_result_summary_includes_fast_failure_after_thirty_slower_files():
     """The summary must print failures even when at least 30 files ran longer."""
     orchestrator = _load_orchestrator_module()

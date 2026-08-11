@@ -690,7 +690,16 @@ def _run_one_pass(
     report_file = f"tests/test-reports-{report_slug}{suffix}.xml"
     # Crash-durable progress log. pytest writes its JUnit XML only at session end, so this is
     # the only record of what passed, failed, and was in flight when a run dies before that.
-    journal_file = f"tests/test-journal-{report_slug}{suffix}.jsonl"
+    #
+    # Absolute, because the repo-root conftest reopens this path from inside the test process on
+    # every journal write. A test that changes directory (``monkeypatch.chdir``, or any fixture
+    # that does the same) would otherwise send its verdicts to a journal under the temporary cwd
+    # and, once teardown restored the cwd, resume writing to this one — so the rebuilt report
+    # would show a test that ran and passed as never having been reached.
+    journal_file = os.path.abspath(f"tests/test-journal-{report_slug}{suffix}.jsonl")
+    # pytest creates the report directory in ``pytest_sessionfinish``, which a crashed run never
+    # reaches; without this the journal's first write fails and ``_journal_write`` swallows it.
+    os.makedirs(os.path.dirname(journal_file), exist_ok=True)
     pass_env = {**ctx.env, JOURNAL_ENV_VAR: journal_file}
 
     cmd = [
