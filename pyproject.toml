@@ -52,7 +52,7 @@ dependencies = [
     "pyglet>=2.1.6,<3",
     "transformers==4.57.6",
     "einops",
-    "warp-lang==1.16.0.dev20260723",
+    "warp-lang==1.16.0",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
@@ -81,6 +81,7 @@ dependencies = [
     "hydra-core",
     "h5py>=3.15.0",
     "packaging",
+    "rich",
     "tqdm>=4.67.1",
     "rsl-rl-lib==5.4.1",  # default RL framework
     "onnxscript>=0.5",
@@ -90,7 +91,7 @@ dependencies = [
     # The importers extra carries the mesh-processing deps (coacd, fast-simplification,
     # ...) that honoring USD-authored ``physics:approximation`` requires.
     "newton[sim,importers]>=1.2.0",
-    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.0.
+    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.1.
     "newton-usd-schemas>=0.2.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
@@ -99,13 +100,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Automatic surface-to-volume tetrahedralization. PyTetWild imports PyVista eagerly,
-# so its ``all`` extra is required even when only the array API is used.
+
 tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
-# Video recording. MoviePy bundles an FFmpeg binary through imageio-ffmpeg, so
-# keep this dependency explicit rather than including it in default installs.
+
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
-# Developer/test tooling.
+
 test = [
     "pytest",
     "pytest-mock",
@@ -148,10 +147,9 @@ rerun = [
 ]
 
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
-
-ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
-ovphysx = ["ovphysx==0.5.9", "ovstage==0.1.0.346039"]
-ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
+ov = ["ovphysx==0.5.10", "ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.1.355824"]
+ovphysx = ["ovphysx==0.5.10", "ovstage==0.1.1.355824"]
+ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.1.355824"]
 
 mimic = [
     "isaaclab-mimic",
@@ -159,17 +157,13 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
-# XR teleoperation: carries Isaac Sim for the Kit XR runtime, and isaaclab_mimic because
-# ``isaaclab teleop record`` imports it (robomimic stays in ``mimic``).
 teleop = [
     "isaacsim[all,extscache]==6.0.1.0",
     "isaaclab-teleop",
     "isaaclab-mimic",
-    # IsaacTeleop is Linux x86_64 only
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
-# RLinf VLA post-training (externally contributed).
 rlinf = [
     "ray[default]>=2.47.0",
     "av>=12.3.0",
@@ -182,15 +176,15 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-# Aggregate of the compatible extras. Omits teleop (would pull Isaac Sim in) and ovphysx
-# (packaging<24 clash with isaacsim); install those via their own extra.
-# Also omits tetrahedralization and video because their dependencies are large and
-# narrowly used; request either extra explicitly when needed.
-all = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,rlinf,mimic]",
-]
 leapp = [
     "leapp>=0.5.2",
+]
+# Every backend, RL library, and visualizer in one flag. No extra is forked in
+# [tool.uv].conflicts, so Isaac Sim and both OV backends resolve into a single
+# environment. The specialized extras (rlinf, mimic, teleop, tetrahedralization,
+# video, leapp) and the developer ``test`` tooling stay opt-in by name.
+all = [
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,isaacsim,ov]",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
@@ -202,11 +196,11 @@ isaacsim = "6.0.1.0"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
-ovphysx = "0.5.9"
+ovphysx = "0.5.10"
 ovrtx = ">=0.4.0,<0.5.0"
-ovstage = "0.1.0.346039"
-newton = "10402ecbaf2d8afda00507123155042cbcb5c3fb"
-warp = "1.16.0.dev20260723"
+ovstage = "0.1.1.355824"
+newton = "release-1.5"
+warp = "1.16.0"
 
 [tool.ruff]
 line-length = 120
@@ -387,9 +381,9 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@10402ecbaf2d8afda00507123155042cbcb5c3fb",
+    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@release-1.5",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
-    "newton-usd-schemas>=0.4.0",
+    "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
@@ -397,16 +391,13 @@ override-dependencies = [
     "typing-extensions>=4.15.0",
     "websockets>=14.0,<17.0.0",
     "coverage>=7.6.1",
-]
-# ovphysx pins packaging>=20,<24 while isaacsim-core pins packaging==26.0: a genuine
-# two-sided incompatibility, so uv forks the resolution instead of failing. ``teleop``
-# bundles isaacsim, so it inherits that pair. Every other historical conflict was an
-# over-strict pin that the overrides above now reconcile.
-conflicts = [
-    [{ extra = "teleop" }, { extra = "ov" }],
-    [{ extra = "teleop" }, { extra = "ovphysx" }],
-    [{ extra = "isaacsim" }, { extra = "ov" }],
-    [{ extra = "isaacsim" }, { extra = "ovphysx" }],
+    # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
+    # stricter than the code needs, so widening lets them resolve together at 26.0.
+    "packaging>=20,<27",
+    # usd-exchange and usd-core each vendor a full ``pxr`` built against a different
+    # USD version, and newton[importers] pulls usd-exchange unmarked. Re-impose the
+    # platform split from [project.dependencies] so only one lands per platform.
+    "usd-exchange>=2.2 ; platform_machine == 'aarch64'",
 ]
 python-preference = "only-managed"
 package = false

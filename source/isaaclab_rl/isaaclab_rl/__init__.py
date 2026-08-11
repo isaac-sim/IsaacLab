@@ -40,6 +40,7 @@ __all__ = [
     "run_play_cli",
     "run_random_agent_cli",
     "run_train_cli",
+    "run_train_multigpu_cli",
     "run_zero_agent_cli",
     "train",
     "zero_agent",

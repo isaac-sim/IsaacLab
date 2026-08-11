@@ -58,6 +58,14 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     disable_contacts: bool = False
     """Whether to disable contact computation in MuJoCo."""
 
+    disable_sensors: bool = False
+    """Whether to disable MuJoCo Warp's internal sensor computation.
+
+    This must be ``True`` when :attr:`NewtonCfg.deterministic_mode` requests a
+    determinism guarantee. Isaac Lab sensors use Newton state directly and do
+    not depend on MuJoCo Warp's internal sensor data.
+    """
+
     default_actuator_gear: float | None = None
     """Default gear ratio for all actuators."""
 

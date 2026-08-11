@@ -83,6 +83,7 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
         # commands
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8
+        self.commands.base_velocity.marker_pos_offset = (0.0, 0.0, 1.0)
         self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
@@ -99,12 +100,3 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
         self.events.base_com = None
         self.events.base_external_force_torque.params["asset_cfg"].body_names = ".*torso_link"
-
-    def play_mode(self):
-        super().play_mode()
-
-        self.episode_length_s = 40.0
-        self.commands.base_velocity.ranges.lin_vel_x = (1.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
-        self.commands.base_velocity.ranges.heading = (0.0, 0.0)

@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+1.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the OV-RTX override of the unused temporal-camera-data capability method.
+
+
+0.10.5 (2026-08-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` when ``CameraCfg.isp_cfg`` is set. It
+  pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
 0.10.4 (2026-08-06)
 ~~~~~~~~~~~~~~~~~~~
 

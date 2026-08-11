@@ -99,7 +99,14 @@ class MeshCuboidCfg(MeshCfg):
     func: Callable | str = "{DIR}.meshes:spawn_mesh_cuboid"
 
     size: tuple[float, float, float] = MISSING
-    """Size of the cuboid (in m)."""
+    """Size of the cuboid [m]."""
+
+    edge_refinement: float = 1.0
+    """Surface edge refinement factor relative to the bounding-box diagonal.
+
+    The maximum edge length is the diagonal divided by this value. The factor must be at least
+    ``1.0``. Defaults to ``1.0``, which leaves the base mesh unchanged.
+    """
 
 
 @configclass

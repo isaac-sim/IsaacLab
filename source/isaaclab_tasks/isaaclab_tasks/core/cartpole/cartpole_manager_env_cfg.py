@@ -55,7 +55,7 @@ class CartpolePhysicsCfg(PresetCfg):
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(
             integrator="moreau",
-            use_collision_detector=True,
+            use_collision_detector=False,
             sparse_jacobian=True,
             constraints_alpha=0.1,
             padmm_max_iterations=100,
@@ -68,8 +68,6 @@ class CartpolePhysicsCfg(PresetCfg):
             padmm_warmstart_mode="containers",
             padmm_contact_warmstart_method="geom_pair_net_force",
             padmm_use_graph_conditionals=False,
-            collision_detector_pipeline="unified",
-            collision_detector_max_contacts_per_pair=8,
         ),
         debug_mode=False,
         use_cuda_graph=True,

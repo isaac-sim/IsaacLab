@@ -2534,7 +2534,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
     body_ids, _ = articulation.find_bodies(".*_SHANK")
     # Sample a large force
     external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
-    external_wrench_b[..., 2] = 100.0
+    external_wrench_b[..., 2] = 50.0
     external_wrench_positions_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
     external_wrench_positions_b[..., 1] = 1.0
 

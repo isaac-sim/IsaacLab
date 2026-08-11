@@ -18,11 +18,13 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import visualization_builder as visualization_builder_module
+from isaaclab_newton.physics import visualization_deformables as visualization_deformables_module
 from newton.solvers import SolverMuJoCo
 
 from pxr import Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan
+from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
 _VIS_LABEL_SUFFIXES = {
     "body_label": "Body",
@@ -397,6 +399,33 @@ class TestReplicateBuilderMapping(unittest.TestCase):
 
 
 class TestVisualizationClonePlan(unittest.TestCase):
+    def test_clone_plan_expands_prototype_deformables_to_selected_environments(self):
+        entry = DeformableStageEntry(
+            root_path="/World/envs/env_0/Deformable",
+            sim_mesh_path="/World/envs/env_0/Deformable/simulation_mesh",
+            vis_mesh_path="/World/envs/env_0/Deformable/visual_mesh",
+            deformable_type="surface",
+            vertex_count=3,
+            vis_vertex_count=3,
+        )
+        clone_plan = ClonePlan(
+            sources=("/World/envs/env_0",),
+            destinations=("/World/envs/env_{}",),
+            clone_mask=torch.ones((1, 4), dtype=torch.bool),
+            env_ids=torch.arange(4),
+        )
+
+        entries = visualization_deformables_module._expand_clone_plan_deformable_entries([entry], clone_plan)
+
+        self.assertEqual(
+            [entry.root_path for entry in entries],
+            [f"/World/envs/env_{env_id}/Deformable" for env_id in range(4)],
+        )
+        self.assertEqual(
+            [entry.vis_mesh_path for entry in entries],
+            [f"/World/envs/env_{env_id}/Deformable/visual_mesh" for env_id in range(4)],
+        )
+
     @staticmethod
     def _define_xform(stage, path, translation=None):
         xform = UsdGeom.Xform.Define(stage, path)

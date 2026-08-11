@@ -25,7 +25,9 @@ class SceneDataRequirement:
 
 _VISUALIZER_REQUIREMENTS: dict[str, SceneDataRequirement] = {
     "kit": SceneDataRequirement(requires_usd_stage=True),
-    "newton": SceneDataRequirement(requires_newton_model=True),
+    "newton_gl": SceneDataRequirement(requires_newton_model=True),
+    "newton": SceneDataRequirement(requires_newton_model=True),  # deprecated alias for newton_gl
+    "newton_rtx": SceneDataRequirement(requires_newton_model=True),
     "rerun": SceneDataRequirement(requires_newton_model=True),
     "viser": SceneDataRequirement(requires_newton_model=True),
 }

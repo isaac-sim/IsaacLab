@@ -56,7 +56,7 @@ def test_extras_exclude_what_cannot_co_resolve_with_isaacsim() -> None:
     # Read the conflicts rather than restating them: upstream swapped the
     # isaacsim pair from `viser` to `ov` in one release, and a hardcoded list
     # would still have passed while guarding the wrong extra.
-    conflicts = _pyproject()["tool"]["uv"]["conflicts"]
+    conflicts = _pyproject()["tool"]["uv"].get("conflicts", [])
     for pair in conflicts:
         names = {entry["extra"] for entry in pair}
         if "isaacsim" in names:

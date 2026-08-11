@@ -50,6 +50,7 @@ _OVERLAY_FIELDS = ("num_envs", "max_iterations", "timeout_s")
 # it fails only at the first recorded frame, after training has already run.
 UV_EXTRAS: tuple[str, ...] = (
     "isaacsim",
+    "ovphysx",
     "ovrtx",
     "rsl-rl",
     "skrl",

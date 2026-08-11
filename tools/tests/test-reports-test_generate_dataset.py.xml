@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites name="pytest tests"><testsuite name="test_generate_dataset" errors="0" failures="0" skipped="0" tests="1" time="91.437" timestamp="2026-01-30T16:20:45.799333+01:00" hostname="373da29-lcelt"><testcase classname="source.isaaclab_mimic.test.test_generate_dataset" name="test_generate_dataset" time="86.230"/></testsuite></testsuites>

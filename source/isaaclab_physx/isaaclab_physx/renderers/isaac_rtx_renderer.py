@@ -50,7 +50,7 @@ from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
+    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
     "isaaclab-ppisp extension from the Isaac Lab source checkout."
 )
 
@@ -116,11 +116,6 @@ class IsaacRtxRenderer(BaseRenderer):
 
     Requires Isaac Sim.
     """
-
-    @classmethod
-    def provides_temporal_camera_data(cls, data_type: str) -> bool:
-        # Only the rgb/rgba beauty buffer is temporally accumulated by DLSS; other AOVs bypass it.
-        return data_type in ("rgb", "rgba")
 
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
