@@ -22,6 +22,7 @@ import isaaclab.cli.commands.install as install_cmd
 from isaaclab.cli.commands.install import (
     _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
+    _install_isaacsim,
     _maybe_uninstall_prebundled_torch,
     _repoint_prebundle_packages,
     _torch_first_on_sys_path_is_prebundle,
@@ -70,6 +71,80 @@ def _make_site_packages(
         for sub in subs:
             (site_pkgs / pkg / sub).mkdir(parents=True, exist_ok=True)
     return site_pkgs
+
+
+class TestInstallIsaacSim:
+    """Tests for full Isaac Sim runtime installation."""
+
+    def test_full_runtime_is_not_reinstalled(self):
+        calls: list[list[str]] = []
+
+        def _run(cmd, **kwargs):
+            calls.append(list(cmd))
+            return _cp(0, "6.1.0rc3")
+
+        with (
+            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value="python"),
+            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=["uv", "pip"]),
+            mock.patch("isaaclab.cli.commands.install.run_command", side_effect=_run),
+        ):
+            _install_isaacsim()
+
+        assert len(calls) == 2
+        assert all("install" not in call for call in calls)
+
+    def test_kernel_only_install_adds_extras_at_installed_version(self):
+        calls: list[list[str]] = []
+
+        def _run(cmd, **kwargs):
+            calls.append(list(cmd))
+            if len(calls) == 1:
+                return _cp(0, "6.1.0rc3+release.45488.8127a152.gl")
+            if len(calls) == 2:
+                return _cp(1)
+            return _cp(0)
+
+        with (
+            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value="python"),
+            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=["uv", "pip"]),
+            mock.patch("isaaclab.cli.commands.install.run_command", side_effect=_run),
+        ):
+            _install_isaacsim()
+
+        assert calls[-1] == [
+            "uv",
+            "pip",
+            "install",
+            "isaacsim[all,extscache]==6.1.0rc3+release.45488.8127a152.gl",
+            "--extra-index-url",
+            install_cmd.NVIDIA_INDEX_URL,
+            "--index-strategy",
+            "unsafe-best-match",
+        ]
+
+    def test_missing_package_installs_pinned_requirement(self):
+        calls: list[list[str]] = []
+
+        def _run(cmd, **kwargs):
+            calls.append(list(cmd))
+            return _cp(1) if len(calls) == 1 else _cp(0)
+
+        with (
+            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value="python"),
+            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=["python", "-m", "pip"]),
+            mock.patch("isaaclab.cli.commands.install.run_command", side_effect=_run),
+        ):
+            _install_isaacsim()
+
+        assert calls[-1] == [
+            "python",
+            "-m",
+            "pip",
+            "install",
+            install_cmd._isaacsim_requirement(),
+            "--extra-index-url",
+            install_cmd.NVIDIA_INDEX_URL,
+        ]
 
 
 # ---------------------------------------------------------------------------

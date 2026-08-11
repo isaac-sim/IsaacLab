@@ -13,6 +13,7 @@ the launcher inputs, then validate and launch.
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import logging
 import os
 import sys
@@ -606,11 +607,33 @@ def _ensure_isaac_sim_available() -> None:
             f"    {source}\n"
         )
 
+    try:
+        installed_version = importlib.metadata.version("isaacsim")
+    except importlib.metadata.PackageNotFoundError:
+        installed_version = None
+
+    if installed_version:
+        installer = "isaaclab.bat" if sys.platform == "win32" else "./isaaclab.sh"
+        logger.error(
+            f"\n[ERROR] Isaac Sim {installed_version} is installed, but its full runtime is unavailable.\n"
+            "\n"
+            "  This environment requires Isaac Sim and Omniverse Kit.\n"
+            "    PhysX backend and Kit visualizer require Isaac Sim.\n"
+            "\n"
+            "  The current Python environment does not expose the SimulationApp API.\n"
+            f"{extra_hint}"
+            "  If this pip installation contains only the kernel package, install the full bundle by running:\n"
+            f"    {installer} -i isaacsim\n"
+            "\n"
+            "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
+        )
+        raise SystemExit(1)
+
     logger.error(
         "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"
         "\n"
         "  This environment requires Isaac Sim and Omniverse Kit.\n"
-        "    PhysX backend and Kit visualizer currently requires Isaac Sim.\n"
+        "    PhysX backend and Kit visualizer require Isaac Sim.\n"
         "\n"
         f"{extra_hint}"
         "  To fix this, ensure Isaac Sim is installed and available in the current environment.\n"
