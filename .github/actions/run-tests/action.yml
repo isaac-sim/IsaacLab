@@ -102,11 +102,8 @@ inputs:
     required: false
   ovrtx-shader-cache-host-dir:
     description: >-
-      Host OVRTX shader cache root directory. When set, two bind mounts are added:
-        host kit/   → /isaac-sim/kit/cache/nv_shadercache  (Kit rendering PSO cache)
-        host kitless/ → OVRTX_SHADER_CACHE_PATH             (standalone OVRTXRenderer)
-      The kitless path is also exposed as OVRTX_SHADER_CACHE_PATH env var so
-      OVRTXRenderer can redirect its nv_shadercache via carb settings.
+      Host OVRTX shader cache root. When set, its kit/ and kitless/ trees are
+      bind-mounted into the container; run_tests.sh owns the mount layout.
     default: ''
     required: false
   ci-marker:

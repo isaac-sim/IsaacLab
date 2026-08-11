@@ -270,10 +270,16 @@ run_tests() {
   fi
 
   if [ -n "$ovrtx_shader_cache_host_dir" ]; then
-    # kit/ sub-tree: nested bind mount that overlays the nv_shadercache directory
-    # that the kit/cache tmpdir mount would otherwise present as empty.  Docker
-    # processes mounts in declaration order, so this more-specific path takes
-    # precedence over the enclosing kit/cache tmpdir mount above.
+    # Canonical OVRTX shader cache mount layout; other boundaries refer here.
+    #   host kit/     -> /isaac-sim/kit/cache/nv_shadercache  (Kit / AppLauncher rendering)
+    #   host kitless/ -> OVRTX_SHADER_CACHE_PATH              (standalone OVRTXRenderer)
+    #
+    # kit/ is a nested bind mount that overlays the nv_shadercache directory the
+    # kit/cache tmpdir mount would otherwise present as empty. Docker processes
+    # mounts in declaration order, so this more-specific path takes precedence
+    # over the enclosing kit/cache tmpdir mount above. kitless/ is passed through
+    # as an env var because OVRTXRenderer applies it as a carb setting rather
+    # than reading a fixed path.
     kit_cache_dir="${ovrtx_shader_cache_host_dir}/kit"
     kitless_cache_dir="${ovrtx_shader_cache_host_dir}/kitless"
     mkdir -p "$kit_cache_dir" "$kitless_cache_dir"

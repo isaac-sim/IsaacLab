@@ -112,12 +112,6 @@ inputs:
       OVRTX shader cache mode. Empty disables the cache. 'restore' reads the
       newest compatible snapshot and never writes. 'save' restores and writes
       back a new snapshot; only warm-ovrtx-cache uses it.
-
-      The cache covers two sub-trees:
-        kit/      — nv_shadercache for Kit / AppLauncher-based rendering
-                    (bind-mounted over /isaac-sim/kit/cache/nv_shadercache)
-        kitless/  — nv_shadercache for standalone OVRTXRenderer
-                    (mounted at OVRTX_SHADER_CACHE_PATH inside the container)
     default: ''
     required: false
   standalone-script-scope:
@@ -249,23 +243,39 @@ runs:
       if: inputs.ovrtx-shader-cache != ''
       id: ovrtx-cache-key
       uses: ./.github/actions/ovrtx-shader-cache-key
+      with:
+        isaacsim-version: ${{ inputs.isaacsim-version }}
 
-    - name: Restore OVRTX shader cache
+    # Two entries, not one: kit/ is compiled by the RTX renderer inside the Isaac
+    # Sim image and kitless/ by the pip-installed ovrtx wheel, so each tree is
+    # keyed by its own producer and a bump to one does not invalidate the other.
+    - name: Restore OVRTX kit shader cache
       if: inputs.ovrtx-shader-cache != ''
-      id: ovrtx-cache-restore
+      id: ovrtx-cache-restore-kit
       uses: actions/cache/restore@v4
       with:
-        path: ${{ steps.ovrtx-cache-key.outputs.host-dir }}
-        key: ${{ steps.ovrtx-cache-key.outputs.key }}
-        restore-keys: ${{ steps.ovrtx-cache-key.outputs.restore-keys }}
+        path: ${{ steps.ovrtx-cache-key.outputs.kit-dir }}
+        key: ${{ steps.ovrtx-cache-key.outputs.kit-key }}
+        restore-keys: ${{ steps.ovrtx-cache-key.outputs.kit-restore-keys }}
+
+    - name: Restore OVRTX kitless shader cache
+      if: inputs.ovrtx-shader-cache != ''
+      id: ovrtx-cache-restore-kitless
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.ovrtx-cache-key.outputs.kitless-dir }}
+        key: ${{ steps.ovrtx-cache-key.outputs.kitless-key }}
+        restore-keys: ${{ steps.ovrtx-cache-key.outputs.kitless-restore-keys }}
 
     - name: Report restored OVRTX shader cache
       if: inputs.ovrtx-shader-cache != ''
       shell: bash
       env:
         HOST_DIR: ${{ steps.ovrtx-cache-key.outputs.host-dir }}
-        MATCHED_KEY: ${{ steps.ovrtx-cache-restore.outputs.cache-matched-key }}
-        COLLECTION: ${{ steps.ovrtx-cache-key.outputs.collection }}
+        KIT_MATCHED_KEY: ${{ steps.ovrtx-cache-restore-kit.outputs.cache-matched-key }}
+        KITLESS_MATCHED_KEY: ${{ steps.ovrtx-cache-restore-kitless.outputs.cache-matched-key }}
+        KIT_COLLECTION: ${{ steps.ovrtx-cache-key.outputs.kit-collection }}
+        KITLESS_COLLECTION: ${{ steps.ovrtx-cache-key.outputs.kitless-collection }}
       run: |
         set -euo pipefail
         mkdir -p "$HOST_DIR/kit" "$HOST_DIR/kitless"
@@ -274,12 +284,23 @@ runs:
           exit 1
         fi
 
-        if [ -z "$MATCHED_KEY" ]; then
-          echo "::warning::OVRTX shader cache miss - no entry in collection ${COLLECTION}"
+        # cache-matched-key is authoritative. Inferring a hit from directory size
+        # is not: an empty directory still measures as ~1 MB.
+        if [ -z "$KIT_MATCHED_KEY" ]; then
+          echo "::warning::OVRTX kit shader cache miss - no entry in collection ${KIT_COLLECTION}"
+        else
+          echo "OVRTX kit shader cache hit: ${KIT_MATCHED_KEY}"
+        fi
+        if [ -z "$KITLESS_MATCHED_KEY" ]; then
+          echo "::warning::OVRTX kitless shader cache miss - no entry in collection ${KITLESS_COLLECTION}"
+        else
+          echo "OVRTX kitless shader cache hit: ${KITLESS_MATCHED_KEY}"
+        fi
+
+        if [ -z "$KIT_MATCHED_KEY" ] && [ -z "$KITLESS_MATCHED_KEY" ]; then
           echo "OVRTX_CACHE_HIT=miss" >> "$GITHUB_ENV"
         else
-          echo "OVRTX shader cache hit: ${MATCHED_KEY}"
-          echo "OVRTX_CACHE_HIT=${MATCHED_KEY}" >> "$GITHUB_ENV"
+          echo "OVRTX_CACHE_HIT=${KIT_MATCHED_KEY:-miss}/${KITLESS_MATCHED_KEY:-miss}" >> "$GITHUB_ENV"
         fi
         echo "OVRTX_CACHE_MB_BEFORE=$(du -sm "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
 
@@ -436,6 +457,10 @@ runs:
         path: ${{ steps.warp-cache-key.outputs.host-dir }}
         key: ${{ steps.warp-cache-key.outputs.key }}
 
+    # Emits kit-files / kitless-files, which is what the writeback gates on: a
+    # size threshold cannot separate a populated tree from an empty directory,
+    # and each tree has to be judged on its own so a populated kit/ never carries
+    # an empty kitless/ into a published snapshot.
     - name: Report OVRTX shader cache growth
       if: always() && inputs.ovrtx-shader-cache != ''
       id: ovrtx-cache-growth
@@ -447,7 +472,8 @@ runs:
 
         if [ ! -d "$HOST_DIR" ]; then
           echo "OVRTX shader cache directory missing; nothing to report"
-          echo "empty=true" >> "$GITHUB_OUTPUT"
+          echo "kit-files=0" >> "$GITHUB_OUTPUT"
+          echo "kitless-files=0" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
@@ -468,14 +494,48 @@ runs:
         python3 .github/actions/run-package-tests/ovrtx_shader_cache_inventory.py \
           "$HOST_DIR" "OVRTX shader cache final"
 
-        [ "$after" -lt 1 ] && echo "empty=true" >> "$GITHUB_OUTPUT" || echo "empty=false" >> "$GITHUB_OUTPUT"
-
-    - name: Save OVRTX shader cache
-      if: '!cancelled() && inputs.ovrtx-shader-cache == ''save'' && steps.ovrtx-cache-growth.outputs.empty != ''true'''
+    # Not success(): the product is compiled PSO blobs, and those stay valid when
+    # a golden-image assertion fails. Cancellation still skips, so a tree the
+    # driver was mid-write on is never published.
+    - name: Save OVRTX kit shader cache
+      if: '!cancelled() && inputs.ovrtx-shader-cache == ''save'' && steps.ovrtx-cache-growth.outputs.kit-files != ''0'''
       uses: actions/cache/save@v4
       with:
-        path: ${{ steps.ovrtx-cache-key.outputs.host-dir }}
-        key: ${{ steps.ovrtx-cache-key.outputs.key }}
+        path: ${{ steps.ovrtx-cache-key.outputs.kit-dir }}
+        key: ${{ steps.ovrtx-cache-key.outputs.kit-key }}
+
+    - name: Save OVRTX kitless shader cache
+      if: '!cancelled() && inputs.ovrtx-shader-cache == ''save'' && steps.ovrtx-cache-growth.outputs.kitless-files != ''0'''
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.ovrtx-cache-key.outputs.kitless-dir }}
+        key: ${{ steps.ovrtx-cache-key.outputs.kitless-key }}
+
+    # The warmer exists to publish both trees. An empty one means its selected
+    # tests never exercised that render path - a silent half-warm that leaves the
+    # missing path compiling cold on every consumer - so fail rather than let the
+    # green check imply both were covered. warm-ovrtx-cache is
+    # continue-on-error, so this reports without breaking the push build.
+    - name: Verify both OVRTX shader cache trees were populated
+      if: '!cancelled() && inputs.ovrtx-shader-cache == ''save'''
+      shell: bash
+      env:
+        KIT_FILES: ${{ steps.ovrtx-cache-growth.outputs.kit-files }}
+        KITLESS_FILES: ${{ steps.ovrtx-cache-growth.outputs.kitless-files }}
+      run: |
+        set -euo pipefail
+        status=0
+        for tree in kit kitless; do
+          files="$KIT_FILES"
+          [ "$tree" = "kitless" ] && files="$KITLESS_FILES"
+          if [ "${files:-0}" -eq 0 ]; then
+            echo "::error::OVRTX ${tree}/ shader cache is empty - the selected tests did not exercise that render path"
+            status=1
+          else
+            echo "OVRTX ${tree}/ shader cache populated: ${files} file(s)"
+          fi
+        done
+        exit "$status"
 
     - name: Cleanup wheelhouse artifacts
       if: always() && steps.extract-wheelhouse.outputs.wheelhouse_host_dir != ''

@@ -5,64 +5,109 @@
 
 name: 'OVRTX Shader Cache Key'
 description: >
-  Computes the OVRTX shader cache collection prefix, per-run write key, and host
-  directory for both the writer (warm-ovrtx-cache) and the readers (test jobs).
-  One action so they cannot drift; if they do, every read misses. Requires a
-  prior checkout.
+  Computes the collection prefix, per-run write key and host directory for each
+  of the two OVRTX shader cache trees. One action so the writer
+  (warm-ovrtx-cache) and the readers (rendering test jobs) cannot drift; if they
+  do, every read misses. Requires a prior checkout.
 
-  The host directory has two sub-directories:
-    kit/      — nv_shadercache for Kit / AppLauncher-based rendering
-                (bind-mounted over /isaac-sim/kit/cache/nv_shadercache inside
-                the test container so the existing kit/cache tmpdir mount does
-                not discard the warm PSO blob)
-    kitless/  — nv_shadercache for the standalone OVRTXRenderer path
-                (mounted at OVRTX_SHADER_CACHE_PATH and redirected via carb
-                settings before Renderer construction)
+  The two trees are cached as separate entries because different runtimes
+  produce them: kit/ comes from the RTX renderer shipped inside the Isaac Sim
+  image, kitless/ from the ovrtx wheel the container pip-installs. Keying both
+  on one version would let a Kit upgrade reuse blobs compiled by the old
+  renderer, or a new ovrtx wheel overwrite the entry of the wheel before it.
+
+inputs:
+  isaacsim-version:
+    description: 'Isaac Sim image tag; identifies the exact Kit RTX build that compiles the kit/ blobs'
+    required: true
 
 outputs:
-  collection:
-    description: 'Collection prefix shared by every entry that is mutually compatible'
-    value: ${{ steps.compute.outputs.collection }}
-  key:
-    description: 'Write key, unique per run so each cumulative snapshot gets its own immutable entry'
-    value: ${{ steps.compute.outputs.key }}
-  restore-keys:
-    description: 'Collection prefix used to restore the newest compatible snapshot'
-    value: ${{ steps.compute.outputs.restore-keys }}
   host-dir:
-    description: 'Host directory holding both shader cache sub-trees; bind-mounted into the test container'
+    description: 'Parent directory holding both cache trees; bind-mounted into the test container'
     value: ${{ steps.compute.outputs.host-dir }}
+  kit-dir:
+    description: 'Host directory for the Kit / AppLauncher rendering PSO cache'
+    value: ${{ steps.compute.outputs.kit-dir }}
+  kit-collection:
+    description: 'Collection prefix shared by every kit/ entry that is mutually compatible'
+    value: ${{ steps.compute.outputs.kit-collection }}
+  kit-key:
+    description: 'kit/ write key, unique per run so each snapshot gets its own immutable entry'
+    value: ${{ steps.compute.outputs.kit-key }}
+  kit-restore-keys:
+    description: 'Collection prefix used to restore the newest compatible kit/ snapshot'
+    value: ${{ steps.compute.outputs.kit-restore-keys }}
+  kitless-dir:
+    description: 'Host directory for the standalone OVRTXRenderer PSO cache'
+    value: ${{ steps.compute.outputs.kitless-dir }}
+  kitless-collection:
+    description: 'Collection prefix shared by every kitless/ entry that is mutually compatible'
+    value: ${{ steps.compute.outputs.kitless-collection }}
+  kitless-key:
+    description: 'kitless/ write key, unique per run so each snapshot gets its own immutable entry'
+    value: ${{ steps.compute.outputs.kitless-key }}
+  kitless-restore-keys:
+    description: 'Collection prefix used to restore the newest compatible kitless/ snapshot'
+    value: ${{ steps.compute.outputs.kitless-restore-keys }}
+  ovrtx-version:
+    description: 'Exact ovrtx wheel version the kitless key was built from, or "unresolved"'
+    value: ${{ steps.compute.outputs.ovrtx-version }}
 
 runs:
   using: composite
   steps:
-    - name: Compute OVRTX shader cache key
+    # Only for the metadata-only resolve in resolve_ovrtx_version.py; the tests
+    # themselves install ovrtx inside the container.
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+
+    - name: Compute OVRTX shader cache keys
       id: compute
       shell: bash
+      env:
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
         set -euo pipefail
 
-        # ovrtx version pins the shader permutation set. The NV driver PSO blob
-        # (nv_shadercache/GLCache) is GPU-architecture and driver-version
-        # specific — both must be in the key so different runner configurations
-        # never share an incompatible blob.
-        ovrtx_ver="$(python3 .github/actions/ovrtx-shader-cache-key/collection_id.py)"
-
-        # Full driver version: even minor updates can change PSO compilation.
-        # nvidia-smi must be available on every runner that has a GPU.
+        # nv_shadercache holds NVIDIA Vulkan driver PSO blobs. A blob is valid
+        # only for the GPU architecture and driver version that compiled it, so
+        # both gate every entry regardless of which tree it belongs to.
+        # nvidia-smi is present on every runner that has a GPU.
         driver_ver="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || echo unknown)"
-
-        # SM compute capability (e.g. "8.0", "9.0") identifies the GPU
-        # architecture. PSO blobs compiled for one SM generation are not
-        # compatible with another, so heterogeneous runner fleets require
-        # this in the key to prevent cross-architecture cache hits.
         gpu_arch="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d '.' || echo unknown)"
 
-        collection="ovrtx-v1-${RUNNER_OS}-${RUNNER_ARCH}-sm${gpu_arch}-${ovrtx_ver}-drv${driver_ver}"
+        case "${RUNNER_ARCH}" in
+          ARM64) python_platform="aarch64-unknown-linux-gnu" ;;
+          *)     python_platform="x86_64-unknown-linux-gnu" ;;
+        esac
 
-        echo "collection=${collection}" >> "$GITHUB_OUTPUT"
-        echo "key=${collection}-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
-        echo "restore-keys=${collection}-" >> "$GITHUB_OUTPUT"
-        echo "host-dir=${RUNNER_TEMP}/isaaclab-ovrtx-shader-cache" >> "$GITHUB_OUTPUT"
+        # A cache is never worth failing a rendering job over: an unresolvable
+        # specifier falls back to its own collection, which misses and compiles
+        # cold, rather than sharing an entry with a wheel it may not match.
+        ovrtx_ver="$(python3 .github/actions/ovrtx-shader-cache-key/resolve_ovrtx_version.py "$python_platform" || echo unresolved)"
 
-        echo "OVRTX shader cache collection: ${collection} (driver ${driver_ver})"
+        # Cache keys may not contain commas, and the isaacsim tag is only
+        # conventionally bare, so keep both components to a known-safe alphabet.
+        sanitize() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'; }
+
+        base="v1-${RUNNER_OS}-${RUNNER_ARCH}-sm${gpu_arch}-drv$(sanitize "$driver_ver")"
+        kit_collection="ovrtx-kit-${base}-isaacsim$(sanitize "$ISAACSIM_VERSION")"
+        kitless_collection="ovrtx-kitless-${base}-ovrtx$(sanitize "$ovrtx_ver")"
+        host_dir="${RUNNER_TEMP}/isaaclab-ovrtx-shader-cache"
+
+        # Write key is unique per run so each cumulative snapshot is its own
+        # immutable entry; restore matches the collection prefix, newest first.
+        emit() {
+          echo "$1-collection=$2" >> "$GITHUB_OUTPUT"
+          echo "$1-key=$2-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          echo "$1-restore-keys=$2-" >> "$GITHUB_OUTPUT"
+          echo "$1-dir=${host_dir}/$1" >> "$GITHUB_OUTPUT"
+        }
+        emit kit "$kit_collection"
+        emit kitless "$kitless_collection"
+        echo "host-dir=${host_dir}" >> "$GITHUB_OUTPUT"
+        echo "ovrtx-version=${ovrtx_ver}" >> "$GITHUB_OUTPUT"
+
+        echo "OVRTX shader cache collections (driver ${driver_ver}, sm${gpu_arch}):"
+        echo "  kit/      ${kit_collection}"
+        echo "  kitless/  ${kitless_collection}"

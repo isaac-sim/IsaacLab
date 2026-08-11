@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Report the OVRTX shader cache inventory to the GitHub step summary.
+"""Report the OVRTX shader cache inventory and expose per-tree counts for save gating.
 
-The host directory has two sub-directories:
-  kit/      — nv_shadercache from Kit / AppLauncher-based rendering
-  kitless/  — nv_shadercache from standalone OVRTXRenderer
+Sizes alone cannot answer whether a tree was populated - an empty directory still
+measures around 1 MB - so the per-tree file counts written to ``GITHUB_OUTPUT``
+(``kit-files``, ``kit-bytes``, ``kitless-files``, ``kitless-bytes``) are what the
+caller gates its writeback on.
 
 Usage:
     python3 ovrtx_shader_cache_inventory.py <host_dir> <label>
@@ -17,6 +18,8 @@ from __future__ import annotations
 
 import os
 import sys
+
+TREES = ("kit", "kitless")
 
 
 def _dir_stats(path: str) -> tuple[int, int]:
@@ -35,6 +38,17 @@ def _dir_stats(path: str) -> tuple[int, int]:
     return count, total
 
 
+def _emit_outputs(stats: dict[str, tuple[int, int]]) -> None:
+    """Publish per-tree counts and byte totals as step outputs, when running in a step."""
+    output = os.environ.get("GITHUB_OUTPUT")
+    if not output:
+        return
+    with open(output, "a", encoding="utf-8") as handle:
+        for tree, (count, total) in stats.items():
+            handle.write(f"{tree}-files={count}\n")
+            handle.write(f"{tree}-bytes={total}\n")
+
+
 def main() -> int:
     if len(sys.argv) < 3:
         print(f"Usage: {sys.argv[0]} <host_dir> <label>", file=sys.stderr)
@@ -43,27 +57,24 @@ def main() -> int:
     host_dir = sys.argv[1]
     label = sys.argv[2]
 
-    kit_dir = os.path.join(host_dir, "kit")
-    kitless_dir = os.path.join(host_dir, "kitless")
-
-    kit_count, kit_bytes = _dir_stats(kit_dir)
-    kitless_count, kitless_bytes = _dir_stats(kitless_dir)
-
-    kit_mb = kit_bytes / (1024 * 1024)
-    kitless_mb = kitless_bytes / (1024 * 1024)
-    total_mb = kit_mb + kitless_mb
+    stats = {tree: _dir_stats(os.path.join(host_dir, tree)) for tree in TREES}
+    megabytes = {tree: total / (1024 * 1024) for tree, (_, total) in stats.items()}
 
     print(f"{label}:")
-    print(f"  kit/      {kit_count} file(s), {kit_mb:.1f} MB")
-    print(f"  kitless/  {kitless_count} file(s), {kitless_mb:.1f} MB")
-    print(f"  total     {total_mb:.1f} MB")
+    for tree in TREES:
+        count, _ = stats[tree]
+        print(f"  {tree + '/':10} {count} file(s), {megabytes[tree]:.1f} MB")
+    print(f"  {'total':10} {sum(megabytes.values()):.1f} MB")
+
+    _emit_outputs(stats)
 
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
-        with open(summary, "a", encoding="utf-8") as fh:
-            fh.write(
+        with open(summary, "a", encoding="utf-8") as handle:
+            handle.write(
                 f"🔵 OVRTX shader cache ({label}): "
-                f"kit={kit_mb:.0f} MB, kitless={kitless_mb:.0f} MB, total={total_mb:.0f} MB\n"
+                f"kit={megabytes['kit']:.0f} MB, kitless={megabytes['kitless']:.0f} MB, "
+                f"total={sum(megabytes.values()):.0f} MB\n"
             )
 
     return 0
