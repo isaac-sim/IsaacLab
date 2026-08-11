@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import itertools
 import logging
+import os
 import sys
 
 import torch
@@ -166,12 +167,17 @@ class FabricFrameView(BaseFrameView):
       collection timing is up to the interpreter, so relying on it can remove
       the tags at an arbitrary point in the frame (or, on a leaked reference,
       not at all).
-    * **Topology changes are absorbed, with no cache to invalidate.**  The
-      view-to-Fabric mapping is re-derived from live Fabric data on every
-      access, so prims moving between Fabric buckets can never leave a stale
-      mapping behind.  If a managed prim disappears (prim or attribute removed)
-      the next access raises :class:`RuntimeError` and the view must be
-      recreated.  See ``_refresh_child_selection`` for how this is done.
+    * **Topology changes are absorbed, keyed on Fabric's own change tracking.**
+      The view-to-Fabric mapping is cached and reused while
+      ``PrepareForReuse()`` reports the selection's batch view unchanged; any
+      Fabric topology change (which is what can move prims between buckets)
+      makes it return ``True`` and the mapping is re-derived from live Fabric
+      data, so bucket reorders can never leave a stale mapping behind.  Set
+      the ``ISAACLAB_DISABLE_FABRIC_VIEW_CACHE=1`` environment variable to
+      rebuild on every access instead when diagnosing suspected stale-mapping
+      issues.  If a managed prim disappears (prim or attribute removed) the
+      next access raises :class:`RuntimeError` and the view must be
+      recreated.  See ``_get_child_ifas`` for how this is done.
 
     Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`; the
     convenience :meth:`set_world_poses` / :meth:`set_local_poses` helpers accept
@@ -240,15 +246,26 @@ class FabricFrameView(BaseFrameView):
         # View-side indices array.
         self._view_indices: wp.array | None = None
 
-        # Kernel-built view->fabric slot mappings, refreshed on every selection
-        # access (see ``_refresh_child_selection``).  ``_child_parent_map`` holds
-        # view-side indices (uint32, like the Fabric ``UInt`` index attributes);
-        # the ``*_slots_buf`` buffers hold Fabric slots and must be int32, the
-        # only dtype ``wp.indexedfabricarray`` accepts for indices.
+        # Kernel-built view->fabric slot mappings, rebuilt whenever a selection
+        # access finds the Fabric topology changed (see ``_get_child_ifas``).
+        # ``_child_parent_map`` holds view-side indices (uint32, like the
+        # Fabric ``UInt`` index attributes); the ``*_slots_buf`` buffers hold
+        # Fabric slots and must be int32, the only dtype
+        # ``wp.indexedfabricarray`` accepts for indices.
         self._child_parent_map: wp.array | None = None
         self._child_slots_buf: wp.array | None = None
         self._parent_slots_buf: wp.array | None = None
         self._parent_slot_of_child_buf: wp.array | None = None
+
+        # Cached indexed fabric arrays, valid while ``PrepareForReuse`` keeps
+        # returning ``False`` (no Fabric topology change, so the selection's
+        # batch view -- and with it the slot mapping -- is unchanged).
+        # ``_cached_child_sel`` records which selection (RO or RW) the child
+        # arrays were built for, so an RO<->RW flip forces a rebuild.
+        self._cache_enabled = os.environ.get("ISAACLAB_DISABLE_FABRIC_VIEW_CACHE", "0") != "1"
+        self._cached_child_sel = None
+        self._cached_child_ifas: tuple[wp.indexedfabricarray, wp.indexedfabricarray] | None = None
+        self._cached_parent_ifa: wp.indexedfabricarray | None = None
 
         # Sentinel passed to compose/decompose kernels for unused slots.
         self._fabric_empty_2d_array_sentinel: wp.array | None = None
@@ -547,50 +564,32 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def _get_world_ifa(self) -> wp.indexedfabricarray:
-        sel = self._refresh_child_selection()
-        return wp.indexedfabricarray(fa=wp.fabricarray(sel, self._WORLD_MATRIX_NAME), indices=self._child_slots_buf)
+        return self._get_child_ifas()[0]
 
     def _get_local_ifa(self) -> wp.indexedfabricarray:
-        sel = self._refresh_child_selection()
-        return wp.indexedfabricarray(fa=wp.fabricarray(sel, self._LOCAL_MATRIX_NAME), indices=self._child_slots_buf)
+        return self._get_child_ifas()[1]
 
     def _get_child_ifas(self) -> tuple[wp.indexedfabricarray, wp.indexedfabricarray]:
-        """Return ``(world, local)`` child arrays from a single selection refresh.
+        """Return ``(world, local)`` child arrays for the active selection.
 
-        Callers that need both spaces must use this instead of calling
-        :meth:`_get_world_ifa` and :meth:`_get_local_ifa`, which would refresh
-        the same selection -- and re-run its mapping kernel -- twice.
-        """
-        sel = self._refresh_child_selection()
-        return (
-            wp.indexedfabricarray(fa=wp.fabricarray(sel, self._WORLD_MATRIX_NAME), indices=self._child_slots_buf),
-            wp.indexedfabricarray(fa=wp.fabricarray(sel, self._LOCAL_MATRIX_NAME), indices=self._child_slots_buf),
-        )
-
-    def _get_parent_world_ifa(self) -> wp.indexedfabricarray:
-        self._refresh_parent_selection()
-        return wp.indexedfabricarray(
-            fa=wp.fabricarray(self._sel_parent, self._WORLD_MATRIX_NAME),
-            indices=self._parent_slot_of_child_buf,
-        )
-
-    def _refresh_child_selection(self):
-        """Refresh the active child selection and rebuild its slot mapping on device.
-
-        Runs on every accessor call.  ``PrepareForReuse`` lets the persistent
-        selection absorb Fabric bucket changes (and notifies the renderer for
-        the RW selection); a single Warp kernel launch over the selection's
-        index attribute then rebuilds ``_child_slots_buf`` so that entry ``i``
-        is the fabric-side slot of view prim ``i``.  Re-deriving the mapping
-        from live Fabric data on each access means bucket reorders can never
-        leave a stale mapping behind, with no host-side path resolution and no
-        cache to invalidate.
-
-        Returns:
-            The active (RO or RW) child prim selection.
+        Runs on every accessor call.  ``PrepareForReuse`` must be called even
+        when the cache hits: it lets the persistent selection absorb Fabric
+        bucket changes and marks the RW selection's attributes dirty for
+        downstream change tracking (the renderer).  Its return value is the
+        cache key: ``False`` guarantees the selection's batch view -- and with
+        it the slot layout -- is unchanged since the previous call, so the
+        cached arrays are returned as-is.  On a topology change (or an RO<->RW
+        flip, tracked via ``_cached_child_sel``) a single Warp kernel launch
+        over the selection's index attribute rebuilds ``_child_slots_buf`` so
+        that entry ``i`` is the fabric-side slot of view prim ``i``.  The count
+        check only needs to run on rebuilds: the index tag is authored by this
+        view alone, so the selection can only change through a topology change,
+        which ``PrepareForReuse`` reports.
         """
         sel = self._sel_rw if self._is_rw else self._sel_ro
-        sel.PrepareForReuse()
+        topology_changed = sel.PrepareForReuse()
+        if self._cache_enabled and not topology_changed and sel is self._cached_child_sel:
+            return self._cached_child_ifas
         self._check_selection_count(sel.GetCount(), self.count, self._child_index_attr)
         wp.launch(
             kernel=fabric_utils.map_view_indices_to_fabric_slots,
@@ -598,18 +597,26 @@ class FabricFrameView(BaseFrameView):
             inputs=[wp.fabricarray(sel, self._child_index_attr), self._child_slots_buf],
             device=self._device,
         )
-        return sel
+        self._cached_child_ifas = (
+            wp.indexedfabricarray(fa=wp.fabricarray(sel, self._WORLD_MATRIX_NAME), indices=self._child_slots_buf),
+            wp.indexedfabricarray(fa=wp.fabricarray(sel, self._LOCAL_MATRIX_NAME), indices=self._child_slots_buf),
+        )
+        self._cached_child_sel = sel
+        return self._cached_child_ifas
 
-    def _refresh_parent_selection(self) -> None:
-        """Refresh the parent selection and rebuild the per-child parent-slot mapping.
+    def _get_parent_world_ifa(self) -> wp.indexedfabricarray:
+        """Return the per-child parent world array, rebuilt on topology changes.
 
-        Two kernel launches: the first inverts the parent index attribute into
+        Same caching contract as :meth:`_get_child_ifas`.  A rebuild is two
+        kernel launches: the first inverts the parent index attribute into
         per-ordinal fabric slots, the second gathers those slots per child
         through ``_child_parent_map`` (children sharing a parent read the same
         slot).
         """
+        topology_changed = self._sel_parent.PrepareForReuse()
+        if self._cache_enabled and not topology_changed and self._cached_parent_ifa is not None:
+            return self._cached_parent_ifa
         num_parents = self._parent_slots_buf.shape[0]
-        self._sel_parent.PrepareForReuse()
         self._check_selection_count(self._sel_parent.GetCount(), num_parents, self._parent_index_attr)
         wp.launch(
             kernel=fabric_utils.map_view_indices_to_fabric_slots,
@@ -623,6 +630,11 @@ class FabricFrameView(BaseFrameView):
             inputs=[self._parent_slots_buf, self._child_parent_map, self._parent_slot_of_child_buf],
             device=self._device,
         )
+        self._cached_parent_ifa = wp.indexedfabricarray(
+            fa=wp.fabricarray(self._sel_parent, self._WORLD_MATRIX_NAME),
+            indices=self._parent_slot_of_child_buf,
+        )
+        return self._cached_parent_ifa
 
     def _check_selection_count(self, found: int, expected: int, index_attr: str) -> None:
         """Raise if a selection stopped matching exactly the view's tagged prims."""

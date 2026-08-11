@@ -70,6 +70,7 @@ from pxr import Gf
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import FrameView
+from isaaclab.utils.warp import ProxyArray
 
 try:
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -78,6 +79,25 @@ try:
     HAS_NEWTON = True
 except ImportError:
     HAS_NEWTON = False
+
+
+# ------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------
+
+
+def _warp(array: ProxyArray | wp.array) -> wp.array:
+    """Return the underlying ``wp.array``; ``FrameView`` getters return :class:`ProxyArray`."""
+    return array.warp if isinstance(array, ProxyArray) else array
+
+
+def _torch(array: ProxyArray | wp.array | torch.Tensor) -> torch.Tensor:
+    """Return a zero-copy torch view of a ``ProxyArray``, ``wp.array`` or tensor."""
+    if isinstance(array, ProxyArray):
+        return array.torch
+    if isinstance(array, wp.array):
+        return wp.to_torch(array)
+    return array
 
 
 # ------------------------------------------------------------------
@@ -268,8 +288,8 @@ def _run_pose_benchmarks(
     num_prims: int,
     num_iterations: int,
     timing_results: dict,
-    positions: wp.array,
-    orientations: wp.array,
+    positions: ProxyArray | wp.array,
+    orientations: ProxyArray | wp.array,
 ):
     """Shared benchmark loop for get/set world poses on any FrameView."""
     start_time = time.perf_counter()
@@ -277,7 +297,8 @@ def _run_pose_benchmarks(
         view.get_world_poses()
     timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
-    new_positions = wp.clone(positions)
+    orientations = _warp(orientations)
+    new_positions = wp.clone(_warp(positions))
     new_positions_t = wp.to_torch(new_positions)
     new_positions_t[:, 2] += 0.5
     expected_positions = new_positions_t.clone()
@@ -289,8 +310,8 @@ def _run_pose_benchmarks(
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     ret_pos, ret_quat = view.get_world_poses()
-    ret_pos_t = wp.to_torch(ret_pos)
-    ret_quat_t = wp.to_torch(ret_quat)
+    ret_pos_t = _torch(ret_pos)
+    ret_quat_t = _torch(ret_quat)
     ori_t = wp.to_torch(orientations)
 
     pos_ok = torch.allclose(ret_pos_t, expected_positions, atol=1e-4, rtol=0)

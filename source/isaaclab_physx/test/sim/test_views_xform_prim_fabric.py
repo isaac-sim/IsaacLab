@@ -207,13 +207,13 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
 
     # Simulate topology change: refresh both child selections and the parent
     # selection, mirroring the accessor paths.
-    view._refresh_child_selection()  # RO (steady state)
+    view._get_child_ifas()  # RO (steady state)
     view._is_rw = True
     try:
-        view._refresh_child_selection()  # RW (writer scope)
+        view._get_child_ifas()  # RW (writer scope)
     finally:
         view._is_rw = False
-    view._refresh_parent_selection()
+    view._get_parent_world_ifa()
 
     # Trigger another write through the rebuilt arrays.
     new = wp.zeros((2, 3), dtype=wp.float32, device=device)
@@ -226,6 +226,52 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     expected = torch.tensor([[4.0, 5.0, 6.0], [4.0, 5.0, 6.0]], device=device)
     # 1e-5 ≈ 20 ULP at magnitudes ~4-6; absorbs float32 SRT compose/decompose drift.
     assert torch.allclose(pos_torch, expected, atol=1e-5), f"Read after rebuild failed on {device}: {pos_torch}"
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_child_arrays_cached_until_selection_flips(device, view_factory):
+    """Repeated reads reuse the cached arrays; an RO<->RW flip forces a rebuild.
+
+    ``PrepareForReuse`` returns ``False`` while Fabric topology is unchanged,
+    so back-to-back accesses on the same selection must return the identical
+    cached tuple; switching to the RW selection must not.
+    """
+    bundle = view_factory(2, device)
+    view = bundle.view
+    view.get_world_poses()  # ensure Fabric is initialized
+
+    first = view._get_child_ifas()
+    assert view._get_child_ifas() is first, "steady-state access should return the cached arrays"
+    assert view._get_parent_world_ifa() is view._get_parent_world_ifa(), (
+        "steady-state access should return the cached parent array"
+    )
+
+    view._is_rw = True
+    try:
+        assert view._get_child_ifas() is not first, "RO->RW flip should rebuild the arrays"
+    finally:
+        view._is_rw = False
+    assert view._get_child_ifas() is not first, "RW->RO flip should rebuild the arrays"
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_cache_disabled_by_environment_variable(device, view_factory, monkeypatch):
+    """``ISAACLAB_DISABLE_FABRIC_VIEW_CACHE=1`` rebuilds on every access, reads stay correct."""
+    monkeypatch.setenv("ISAACLAB_DISABLE_FABRIC_VIEW_CACHE", "1")
+    bundle = view_factory(2, device)
+    view = bundle.view
+
+    positions = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[positions, 7.0, 8.0, 9.0], device=device)
+    with view.xform_world_space_writer() as w:
+        w.set_poses(positions=positions)
+
+    assert view._get_child_ifas() is not view._get_child_ifas(), "disabled cache should rebuild on every access"
+
+    ret_pos, _ = view.get_world_poses()
+    pos_torch = torch.as_tensor(ret_pos, device=device)
+    expected = torch.tensor([[7.0, 8.0, 9.0], [7.0, 8.0, 9.0]], device=device)
+    assert torch.allclose(pos_torch, expected, atol=1e-5), f"Read with cache disabled failed on {device}: {pos_torch}"
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
