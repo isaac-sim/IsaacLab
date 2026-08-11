@@ -145,23 +145,20 @@ def _metric_value(data: dict[str, Any], name: str, paths: tuple[tuple[str, ...],
 
 def _fps_statistics(
     bundle: dict[str, Any], measured_fps: float, expected_steps_per_iteration: int
-) -> tuple[float, float, int, int]:
+) -> tuple[float, float, int]:
     if measured_fps <= 0:
         raise ComparisonError("Measured total_fps must be greater than zero")
     runtime = _mapping(bundle.get("runtime"), "runtime")
-    mean = _nested_number(bundle, ("runtime", "iteration_time_s", "mean"))
-    std = _nested_number(bundle, ("runtime", "iteration_time_s", "std"))
-    if mean is None or std is None:
-        raise ComparisonError("Benchmark result does not contain iteration-time statistics for total_fps")
-    if mean <= 0 or std < 0:
-        raise ComparisonError("Iteration-time mean must be positive and standard deviation non-negative")
+    std = _nested_number(bundle, ("runtime", "total_fps", "std"))
+    if std is None:
+        raise ComparisonError("Benchmark result does not contain throughput statistics for total_fps")
+    if std < 0:
+        raise ComparisonError("Throughput standard deviation must be non-negative")
     samples = _sample_count(runtime.get("iterations_completed"), "measured total_fps sample count")
     steps = _positive_int(runtime.get("steps_per_iteration"), "runtime.steps_per_iteration")
     if steps != expected_steps_per_iteration:
         raise ComparisonError("runtime.steps_per_iteration must match run.num_envs")
-    if not math.isclose(mean, steps / measured_fps, rel_tol=1e-6):
-        raise ComparisonError("total_fps.mean and iteration_time_s.mean describe different aggregates")
-    return mean, std, samples, steps
+    return measured_fps, std, samples
 
 
 def _normalize_gpu_model(value: str) -> str:
@@ -248,7 +245,6 @@ def _metric_result(
     require_significance: bool = False,
     significance_measured: float | None = None,
     significance_measured_std: float | None = None,
-    significance_scale: int | None = None,
 ) -> MetricResult:
     config = _mapping(config, f"metrics.{name}")
     if measured is None:
@@ -277,21 +273,17 @@ def _metric_result(
             raise ComparisonError(f"Benchmark result does not contain a measured sample count for {name}")
         measured_samples = _sample_count(measured_samples, f"measured {name} sample count")
         reference_samples = _sample_count(config.get("reference_samples"), f"metrics.{name}.reference_samples")
-        if significance_measured is None or significance_measured_std is None or significance_scale is None:
-            raise ComparisonError(f"Benchmark result does not contain iteration-time statistics for {name}")
-        significance_metric = "iteration_time_s"
-        significance_measured = _number(significance_measured, "runtime.iteration_time_s.mean")
-        significance_measured_std = _number(significance_measured_std, "runtime.iteration_time_s.std")
-        significance_reference = _number(
-            significance_scale / reference, f"derived metrics.{name}.reference_iteration_time_s"
-        )
-        significance_reference_std = _number(
-            config.get("reference_iteration_time_std_s"), f"metrics.{name}.reference_iteration_time_std_s"
-        )
+        if significance_measured is None or significance_measured_std is None:
+            raise ComparisonError(f"Benchmark result does not contain throughput statistics for {name}")
+        significance_metric = name
+        significance_measured = _number(significance_measured, "runtime.total_fps.mean")
+        significance_measured_std = _number(significance_measured_std, "runtime.total_fps.std")
+        significance_reference = reference
+        significance_reference_std = _number(config.get("reference_std"), f"metrics.{name}.reference_std")
         if significance_measured <= 0 or significance_reference <= 0:
-            raise ComparisonError("iteration-time means must be greater than zero")
+            raise ComparisonError("throughput means must be greater than zero")
         if significance_measured_std < 0 or significance_reference_std < 0:
-            raise ComparisonError("iteration-time standard deviations must be non-negative")
+            raise ComparisonError("throughput standard deviations must be non-negative")
         standard_error = _number(
             math.hypot(
                 significance_measured_std / math.sqrt(measured_samples),
@@ -353,9 +345,7 @@ def compare(runtime_bundle: dict[str, object], baseline_table: dict[str, object]
     if missing_metrics:
         raise ComparisonError(f"The matching baseline row is missing required metrics: {', '.join(missing_metrics)}")
     values = {name: _metric_value(bundle, name, paths) for name, _, paths, _ in _METRICS}
-    iteration_time_mean, iteration_time_std, fps_samples, steps_per_iteration = _fps_statistics(
-        bundle, values["total_fps"], identity["num_envs"]
-    )
+    fps_mean, fps_std, fps_samples = _fps_statistics(bundle, values["total_fps"], identity["num_envs"])
 
     metrics = tuple(
         _metric_result(
@@ -365,9 +355,8 @@ def compare(runtime_bundle: dict[str, object], baseline_table: dict[str, object]
             higher_is_worse=higher_is_worse,
             measured_samples=fps_samples if name == "total_fps" else None,
             require_significance=name == "total_fps",
-            significance_measured=iteration_time_mean if name == "total_fps" else None,
-            significance_measured_std=iteration_time_std if name == "total_fps" else None,
-            significance_scale=steps_per_iteration if name == "total_fps" else None,
+            significance_measured=fps_mean if name == "total_fps" else None,
+            significance_measured_std=fps_std if name == "total_fps" else None,
         )
         for name, _, paths, higher_is_worse in _METRICS
     )
@@ -382,9 +371,7 @@ def skipped_report(runtime_bundle: dict[str, object], reason: str) -> Comparison
     bundle = _mapping(runtime_bundle, "benchmark result")
     identity = _identity(bundle)
     values = {name: _metric_value(bundle, name, paths) for name, _, paths, _ in _METRICS}
-    iteration_time_mean, iteration_time_std, fps_samples, _ = _fps_statistics(
-        bundle, values["total_fps"], identity["num_envs"]
-    )
+    fps_mean, fps_std, fps_samples = _fps_statistics(bundle, values["total_fps"], identity["num_envs"])
     metrics = tuple(
         MetricResult(
             name,
@@ -396,9 +383,9 @@ def skipped_report(runtime_bundle: dict[str, object], reason: str) -> Comparison
             "SKIP",
             reason,
             measured_samples=fps_samples if name == "total_fps" else None,
-            significance_metric="iteration_time_s" if name == "total_fps" else None,
-            significance_measured=iteration_time_mean if name == "total_fps" else None,
-            significance_measured_std=iteration_time_std if name == "total_fps" else None,
+            significance_metric="total_fps" if name == "total_fps" else None,
+            significance_measured=fps_mean if name == "total_fps" else None,
+            significance_measured_std=fps_std if name == "total_fps" else None,
         )
         for name, _, paths, _ in _METRICS
     )
@@ -424,7 +411,7 @@ def write_outputs(
         "",
         report.message,
         "",
-        "| Metric | Measured | Reference | Regression | Measured timing std [s] | Reference timing std [s] | "
+        "| Metric | Measured | Reference | Regression | Measured FPS std | Reference FPS std | "
         "Significance | Warn | Fail | Verdict |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]

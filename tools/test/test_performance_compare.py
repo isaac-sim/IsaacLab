@@ -39,7 +39,7 @@ def runtime_bundle() -> dict:
             },
             "iterations_completed": 200,
             "steps_per_iteration": 4096,
-            "iteration_time_s": {"mean": 43.11578947368421, "std": 1.0, "peak": 50.0},
+            "iteration_time_s": {"mean": 44.0, "std": 1.0, "peak": 50.0},
             "total_fps": {"mean": 95.0, "std": 3.0, "peak": 98.0},
         },
         "resources": {
@@ -66,7 +66,7 @@ def _baseline_table() -> dict:
                     "total_fps": {
                         "reference": 100.0,
                         "reference_samples": 200,
-                        "reference_iteration_time_std_s": 1.0,
+                        "reference_std": 3.0,
                         **metric,
                     },
                     "startup_time_s": {"reference": 5.0, **metric},
@@ -92,7 +92,6 @@ def test_compare_uses_opposite_regression_directions_for_throughput_and_memory(r
 
 def test_compare_applies_warning_and_failure_boundaries(runtime_bundle: dict) -> None:
     runtime_bundle["runtime"]["total_fps"]["mean"] = 90.0
-    runtime_bundle["runtime"]["iteration_time_s"]["mean"] = 45.51111111111111
     runtime_bundle["resources"]["gpu_mem_gb"]["peak"] = 10.5
     runtime_bundle["resources"]["ram_gb"]["peak"] = 7.0
 
@@ -100,16 +99,16 @@ def test_compare_applies_warning_and_failure_boundaries(runtime_bundle: dict) ->
 
     assert [metric.verdict for metric in report.metrics] == ["FAIL", "PASS", "WARN", "PASS"]
 
-    runtime_bundle["runtime"]["iteration_time_s"]["std"] = 40.0
+    runtime_bundle["runtime"]["total_fps"]["std"] = 60.0
     table = _baseline_table()
-    table["baselines"][0]["metrics"]["total_fps"]["reference_iteration_time_std_s"] = 40.0
+    table["baselines"][0]["metrics"]["total_fps"]["reference_std"] = 60.0
 
     report = performance_compare.compare(runtime_bundle, table)
 
     assert report.metrics[0].regression_pct == 10.0
-    assert report.metrics[0].significance_sigma == pytest.approx(1.1377777778)
+    assert report.metrics[0].significance_sigma == pytest.approx(1.6666666667)
     assert report.metrics[0].statistically_significant is False
-    assert report.metrics[0].significance_metric == "iteration_time_s"
+    assert report.metrics[0].significance_metric == "total_fps"
     assert report.metrics[0].verdict == "PASS"
 
     table = _baseline_table()
@@ -172,17 +171,12 @@ def test_compare_rejects_incomplete_or_ambiguous_baselines(runtime_bundle: dict)
         performance_compare.compare(runtime_bundle, _baseline_table())
     runtime_bundle["resources"]["gpu_mem_gb"]["peak"] = 11.0
 
-    iteration_time_std = runtime_bundle["runtime"]["iteration_time_s"].pop("std")
+    total_fps_std = runtime_bundle["runtime"]["total_fps"].pop("std")
     fps_samples = runtime_bundle["runtime"].pop("iterations_completed")
-    with pytest.raises(performance_compare.ComparisonError, match="iteration-time statistics"):
+    with pytest.raises(performance_compare.ComparisonError, match="throughput statistics"):
         performance_compare.compare(runtime_bundle, _baseline_table())
-    runtime_bundle["runtime"]["iteration_time_s"]["std"] = iteration_time_std
+    runtime_bundle["runtime"]["total_fps"]["std"] = total_fps_std
     runtime_bundle["runtime"]["iterations_completed"] = fps_samples
-
-    runtime_bundle["runtime"]["iteration_time_s"]["mean"] = 40.96
-    with pytest.raises(performance_compare.ComparisonError, match="different aggregates"):
-        performance_compare.compare(runtime_bundle, _baseline_table())
-    runtime_bundle["runtime"]["iteration_time_s"]["mean"] = 43.11578947368421
 
     runtime_bundle["run"]["config"] = {
         "physics_backend": "newton_mjwarp",
@@ -217,14 +211,14 @@ def test_write_outputs_reports_all_metrics(runtime_bundle: dict, tmp_path: Path)
     assert output["metrics"][0]["fail_regression_pct"] == 10.0
     assert output["metrics"][0]["measured_samples"] == 200
     assert output["metrics"][0]["reference_samples"] == 200
-    assert output["metrics"][0]["significance_metric"] == "iteration_time_s"
-    assert output["metrics"][0]["significance_measured"] == pytest.approx(43.11578947368421)
-    assert output["metrics"][0]["significance_reference"] == 40.96
-    assert output["metrics"][0]["significance_measured_std"] == 1.0
-    assert output["metrics"][0]["significance_reference_std"] == 1.0
-    assert output["metrics"][0]["significance_sigma"] == pytest.approx(21.5578947)
+    assert output["metrics"][0]["significance_metric"] == "total_fps"
+    assert output["metrics"][0]["significance_measured"] == 95.0
+    assert output["metrics"][0]["significance_reference"] == 100.0
+    assert output["metrics"][0]["significance_measured_std"] == 3.0
+    assert output["metrics"][0]["significance_reference_std"] == 3.0
+    assert output["metrics"][0]["significance_sigma"] == pytest.approx(16.6666667)
     assert output["metrics"][0]["statistically_significant"] is True
-    assert "| Measured timing std [s] | Reference timing std [s] | Significance |" in markdown_text
+    assert "| Measured FPS std | Reference FPS std | Significance |" in markdown_text
     suite = ET.parse(junit).getroot()
     assert suite.attrib == {"name": "performance-comparison", "tests": "4", "failures": "1", "skipped": "0"}
     assert [case.attrib["name"] for case in suite.findall("testcase")] == [

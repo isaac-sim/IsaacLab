@@ -62,6 +62,11 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         action="store_true",
         help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
+    parser.add_argument(
+        "--aggregate_throughput",
+        action="store_true",
+        help="Report total steps divided by total measured time instead of mean per-step throughput.",
+    )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -156,6 +161,10 @@ def run(argv: list[str]) -> BenchmarkResult:
                         "name": "environment_step_measurement_mode",
                         "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
                     },
+                    {
+                        "name": "throughput_aggregation",
+                        "data": "aggregate" if args.aggregate_throughput else "per_step_mean",
+                    },
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -195,7 +204,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 steps_per_iteration=num_envs,
                 frames_per_environment_step=env.unwrapped.num_envs,
                 environment_step_warmup_steps=args.warmup_steps,
-                aggregate_throughput=True,
+                aggregate_throughput=args.aggregate_throughput,
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,

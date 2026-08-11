@@ -92,6 +92,9 @@ class BenchmarkRuntimeRequest:
         hydra_args: Additional Hydra overrides.
         output: Output configuration.
         launcher: Simulation launcher configuration.
+        aggregate_throughput: Whether to report throughput as total completed steps
+            divided by total measured wall time instead of the arithmetic mean of
+            per-step throughput.
     """
 
     task: str
@@ -104,6 +107,7 @@ class BenchmarkRuntimeRequest:
     hydra_args: tuple[str, ...] = field(default_factory=tuple)
     output: BenchmarkOutputConfig = field(default_factory=BenchmarkOutputConfig)
     launcher: BenchmarkLauncherConfig = field(default_factory=BenchmarkLauncherConfig)
+    aggregate_throughput: bool = False
 
     @property
     def workflow(self) -> Literal["runtime"]:
