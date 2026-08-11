@@ -1709,12 +1709,6 @@ class ArticulationData(BaseArticulationData):
         self._default_joint_vel = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        # -- joint commands (sent to the actuator from the user)
-        self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._joint_vel_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._joint_effort_target = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
         # -- computed joint efforts from the actuator models
         self._computed_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         self._applied_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
@@ -2334,9 +2328,9 @@ class ArticulationData(BaseArticulationData):
             self._default_root_vel_ta = ProxyArray(self._default_root_vel)
             self._default_joint_pos_ta = ProxyArray(self._default_joint_pos)
             self._default_joint_vel_ta = ProxyArray(self._default_joint_vel)
-            self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
-            self._joint_vel_target_ta = ProxyArray(self._joint_vel_target)
-            self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
+            self._joint_pos_target_ta = None
+            self._joint_vel_target_ta = None
+            self._joint_effort_target_ta = None
             self._computed_torque_ta = ProxyArray(self._computed_torque)
             self._applied_torque_ta = ProxyArray(self._applied_torque)
             self._joint_stiffness_ta = ProxyArray(joint_stiffness)

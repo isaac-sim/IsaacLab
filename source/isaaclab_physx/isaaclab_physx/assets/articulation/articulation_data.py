@@ -1759,12 +1759,6 @@ class ArticulationData(BaseArticulationData):
         self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(), device=self.device)
 
         # Pre-allocated buffers
-        # -- Joint commands (set into simulation)
-        self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._joint_vel_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._joint_effort_target = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
         # -- Joint commands (explicit actuator model)
         self._computed_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         self._applied_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)

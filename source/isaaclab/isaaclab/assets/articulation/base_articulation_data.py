@@ -66,6 +66,12 @@ class BaseArticulationData(ABC):
         # Set the parameters
         self.device = device
         self._actuator_collection: ActuatorCollection | None = None
+        self._joint_pos_target = None
+        self._joint_vel_target = None
+        self._joint_effort_target = None
+        self._joint_pos_target_ta: ProxyArray | None = None
+        self._joint_vel_target_ta: ProxyArray | None = None
+        self._joint_effort_target_ta: ProxyArray | None = None
 
     def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
         """Bind collection-owned command and telemetry aliases plus actuator compatibility projections."""
@@ -102,9 +108,19 @@ class BaseArticulationData(ABC):
             return (
                 getattr(collection.command, command_field) if command_field is not None else getattr(collection, name)
             )
+
+        warnings.warn(
+            f"ArticulationData.{name} is deprecated.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        buffer = getattr(self, buffer_name)
+        if buffer is None:
+            buffer = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            setattr(self, buffer_name, buffer)
         proxy = getattr(self, proxy_name)
         if proxy is None:
-            proxy = ProxyArray(getattr(self, buffer_name))
+            proxy = ProxyArray(buffer)
             setattr(self, proxy_name, proxy)
         return proxy
 
@@ -343,9 +359,11 @@ class BaseArticulationData(ABC):
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_POSITION)
     def joint_pos_target(self) -> ProxyArray:
-        """Deprecated. Use ``articulation.actuators.command.position`` instead.
+        """Joint position targets commanded by the user [m or rad, depending on joint type].
 
-        Joint position targets commanded by the user [m or rad, depending on joint type].
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.command.position`` instead.
+
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         return self._get_actuator_collection_proxy("joint_pos_target", "_joint_pos_target", "_joint_pos_target_ta")
@@ -353,9 +371,11 @@ class BaseArticulationData(ABC):
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_VELOCITY)
     def joint_vel_target(self) -> ProxyArray:
-        """Deprecated. Use ``articulation.actuators.command.velocity`` instead.
+        """Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
 
-        Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.command.velocity`` instead.
+
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         return self._get_actuator_collection_proxy("joint_vel_target", "_joint_vel_target", "_joint_vel_target_ta")
@@ -363,9 +383,11 @@ class BaseArticulationData(ABC):
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_TORQUES)
     def joint_effort_target(self) -> ProxyArray:
-        """Deprecated. Use ``articulation.actuators.command.effort`` instead.
+        """Joint effort targets commanded by the user [N or N·m, depending on joint type].
 
-        Joint effort targets commanded by the user [N or N·m, depending on joint type].
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.command.effort`` instead.
+
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         return self._get_actuator_collection_proxy(
