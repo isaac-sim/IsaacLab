@@ -49,9 +49,6 @@ outputs:
   kitless-restore-keys:
     description: 'Collection prefix used to restore the newest compatible kitless/ snapshot'
     value: ${{ steps.compute.outputs.kitless-restore-keys }}
-  ovrtx-version:
-    description: 'Exact ovrtx wheel version the kitless key was built from, or "unresolved"'
-    value: ${{ steps.compute.outputs.ovrtx-version }}
 
 runs:
   using: composite
@@ -106,7 +103,6 @@ runs:
         emit kit "$kit_collection"
         emit kitless "$kitless_collection"
         echo "host-dir=${host_dir}" >> "$GITHUB_OUTPUT"
-        echo "ovrtx-version=${ovrtx_ver}" >> "$GITHUB_OUTPUT"
 
         echo "OVRTX shader cache collections (driver ${driver_ver}, sm${gpu_arch}):"
         echo "  kit/      ${kit_collection}"
