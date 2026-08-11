@@ -10,9 +10,11 @@ ENV PATH=/root/.local/bin:$PATH
 # play fails with `Library "GL" not found`, surfaced as "requires pyglet to be
 # installed" even though pyglet is present. The NVIDIA driver's own GL is
 # injected at run time and needs the graphics capability, set in dispatch.yaml.j2.
+# libopengl0 carries libOpenGL.so.0, which OvPhysX links directly; libxt6 silences
+# a loader warning from the Isaac Sim stack.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl git \
-        libgl1 libegl1 \
+        libgl1 libegl1 libopengl0 libxt6 \
     && rm -rf /var/lib/apt/lists/*
 
 # uv manages its own Python (pyproject sets python-preference = "only-managed"),
