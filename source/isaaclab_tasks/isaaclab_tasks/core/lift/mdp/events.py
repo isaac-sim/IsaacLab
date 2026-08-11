@@ -74,22 +74,8 @@ def reset_cable_state_uniform(
     env_ids: torch.Tensor,
     position_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
-    clear_gap_range: tuple[float, float] | None = None,
-    support_cfg: tuple[SceneEntityCfg, SceneEntityCfg] | None = None,
 ) -> None:
-    """Reset a cable and optional support pair with a uniformly sampled translation [m].
-
-    Args:
-        env: The environment instance.
-        env_ids: The environment indices to reset.
-        position_range: Cable displacement bounds [m] keyed by ``x``, ``y``, ``z``.
-        asset_cfg: Scene entity of the cable to reset.
-        clear_gap_range: Optional clear gap bounds [m] for the support pair.
-        support_cfg: Optional negative-X and positive-X support pair.
-    """
-    if (clear_gap_range is None) != (support_cfg is None):
-        raise ValueError("clear_gap_range and support_cfg must be provided together.")
-
+    """Reset a cable to its default shape with a uniformly sampled translation [m]."""
     asset: CableObject = env.scene[asset_cfg.name]
     segment_pose = asset.data.default_segment_pose_w.torch[env_ids].clone()
     segment_velocity = asset.data.default_segment_velocity_w.torch[env_ids].clone()
@@ -98,8 +84,6 @@ def reset_cable_state_uniform(
     segment_pose[..., :3] += offset.unsqueeze(1)
     asset.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
     asset.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
-    if support_cfg is not None and clear_gap_range is not None:
-        _reset_support_pair(env, env_ids, offset, clear_gap_range, support_cfg, separation_axis=0)
 
 
 def reset_to_target(
@@ -952,6 +936,8 @@ def reset_deformable_over_support(
         asset_cfg: Scene entity of the deformable object to reset.
     """
     deformable: DeformableObject = env.scene[asset_cfg.name]
+    supports: tuple[RigidObject, RigidObject] = (env.scene[support_cfg[0].name], env.scene[support_cfg[1].name])
+
     ranges = torch.tensor([position_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z")], device=deformable.device)
     offset = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=deformable.device)
 
@@ -959,30 +945,17 @@ def reset_deformable_over_support(
     nodal_state[..., :3] += offset.unsqueeze(1)
     deformable.write_nodal_state_to_sim_index(nodal_state, env_ids=env_ids)
 
-    _reset_support_pair(env, env_ids, offset, clear_gap_range, support_cfg, separation_axis=1)
-
-
-def _reset_support_pair(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
-    offset: torch.Tensor,
-    clear_gap_range: tuple[float, float],
-    support_cfg: tuple[SceneEntityCfg, SceneEntityCfg],
-    separation_axis: int,
-) -> None:
-    """Move a support pair with an asset and randomize its clear gap."""
-    supports: tuple[RigidObject, RigidObject] = (env.scene[support_cfg[0].name], env.scene[support_cfg[1].name])
     root_poses = [support.data.default_root_pose.torch[env_ids].clone() for support in supports]
     for root_pose in root_poses:
         root_pose[:, :3] += env.scene.env_origins[env_ids]
         root_pose[:, :2] += offset[:, :2]
 
     gap = sample_uniform(*clear_gap_range, (len(env_ids),), device=supports[0].device)
-    center = 0.5 * (root_poses[0][:, separation_axis] + root_poses[1][:, separation_axis])
-    thickness_neg = supports[0].cfg.spawn.size[separation_axis]
-    thickness_pos = supports[1].cfg.spawn.size[separation_axis]
-    root_poses[0][:, separation_axis] = center - 0.5 * (gap + thickness_neg)
-    root_poses[1][:, separation_axis] = center + 0.5 * (gap + thickness_pos)
+    center_y = 0.5 * (root_poses[0][:, 1] + root_poses[1][:, 1])
+    thickness_neg = supports[0].cfg.spawn.size[1]
+    thickness_pos = supports[1].cfg.spawn.size[1]
+    root_poses[0][:, 1] = center_y - 0.5 * (gap + thickness_neg)
+    root_poses[1][:, 1] = center_y + 0.5 * (gap + thickness_pos)
 
     for support, root_pose in zip(supports, root_poses):
         support.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)

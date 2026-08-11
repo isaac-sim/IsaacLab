@@ -475,17 +475,16 @@ def gripper_close_action(env: ManagerBasedRLEnv, action_name: str = "gripper_act
     return torch.any(gripper_action < 0.0, dim=1).float()
 
 
-def cable_segment_lifting(
+def cable_lifting(
     env: ManagerBasedRLEnv,
     std: float,
     minimal_height: float,
-    segment_index: int,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
 ) -> torch.Tensor:
-    """Reward lifting a cable segment above minimal_height [m] with a tanh kernel (std [m])."""
+    """Reward the average cable height above minimal_height [m] with a tanh kernel (std [m])."""
     asset: CableObject = env.scene[asset_cfg.name]
-    segment_z = asset.data.segment_pose_w.torch[:, segment_index, 2]
-    height = (segment_z - minimal_height).clamp(min=0.0)
+    mean_z = asset.data.segment_pose_w.torch[..., 2].mean(dim=1)
+    height = (mean_z - minimal_height).clamp(min=0.0)
     return torch.tanh(height / std)
 
 
