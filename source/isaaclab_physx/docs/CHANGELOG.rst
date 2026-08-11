@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+5.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the Isaac RTX override of the unused temporal-camera-data capability method and the
+  empty ``isaaclab_physx.video_recording`` package.
+
+Fixed
+^^^^^
+
+* Fixed PhysX IMU and PVA acceleration for lazy reads and nonzero update periods.
+
+
 4.2.1 (2026-08-09)
 ~~~~~~~~~~~~~~~~~~
 
