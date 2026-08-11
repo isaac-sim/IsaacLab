@@ -15,6 +15,7 @@ import textwrap
 from pathlib import Path
 from xml.etree import ElementTree
 
+import pytest
 from _crash_journal import SESSION_CRASH_CASE, create_crash_report, junit_names, read_journal
 
 _FILE = "source/pkg/test/test_x.py"
@@ -101,6 +102,37 @@ def test_read_journal_collapses_repeated_results_to_worst_outcome(tmp_path):
     entry = read_journal(journal_file).results[f"{_FILE}::test_a"]
     assert entry["outcome"] == "failed"
     assert entry["duration"] == 3.0
+
+
+def test_read_journal_blames_a_retry_that_never_finished(tmp_path):
+    # The flaky plugin reruns a test in-process, journaling one start/finish pair per attempt.
+    # The first attempt's finish must not mask the second attempt's missing one, or the test that
+    # took the process down is reported as never run and the session takes the blame.
+    journal_file = _write_journal(
+        tmp_path,
+        [
+            {"event": "collected", "node_ids": [f"{_FILE}::test_a", f"{_FILE}::test_b"]},
+            {"event": "start", "node_id": f"{_FILE}::test_a"},
+            {"event": "finish", "node_id": f"{_FILE}::test_a"},
+            {"event": "start", "node_id": f"{_FILE}::test_a"},
+        ],
+    )
+    assert read_journal(journal_file).culprit == f"{_FILE}::test_a"
+
+
+def test_read_journal_blames_the_session_when_every_attempt_finished(tmp_path):
+    # The counterpart: both attempts completed, so nothing was in flight and no test is at fault.
+    journal_file = _write_journal(
+        tmp_path,
+        [
+            {"event": "collected", "node_ids": [f"{_FILE}::test_a"]},
+            {"event": "start", "node_id": f"{_FILE}::test_a"},
+            {"event": "finish", "node_id": f"{_FILE}::test_a"},
+            {"event": "start", "node_id": f"{_FILE}::test_a"},
+            {"event": "finish", "node_id": f"{_FILE}::test_a"},
+        ],
+    )
+    assert read_journal(journal_file).culprit is None
 
 
 def test_read_journal_keeps_the_text_of_the_phase_that_set_the_worst_outcome(tmp_path):
@@ -620,6 +652,59 @@ def test_crash_at_session_shutdown_is_not_blamed_on_a_test(tmp_path):
     assert _result_tag(cases[f"source.pkg.test.test_x::{SESSION_CRASH_CASE}"]) == "error"
     assert counters["errors"] == 1
     assert counters["failures"] == 0
+
+
+def test_crash_during_a_flaky_retry_is_blamed_on_the_retried_test(tmp_path):
+    """A crash on a rerun belongs to the test being rerun, not to session shutdown.
+
+    Driven by the real ``flaky`` plugin because the journal shape here is not something to guess
+    at: flaky reruns the test in-process, so the node logs a start and a finish for the first
+    attempt and then a second start that never finishes. It also reruns with pytest's report
+    logging suppressed, so the crashing attempt leaves no outcome record at all — which is why
+    mistaking it for a finished node reports the test that killed the run as "not run".
+    """
+    pytest.importorskip("flaky", reason="the rerun this test needs is driven by the flaky plugin")
+    _write_test_module(
+        tmp_path,
+        """
+        import os
+
+        import pytest
+
+        _attempts = []
+
+        @pytest.mark.flaky(max_runs=2)
+        def test_retried():
+            _attempts.append(1)
+            if len(_attempts) == 1:
+                raise AssertionError("first attempt fails, which is what triggers the rerun")
+            os._exit(1)
+
+        def test_never_reached():
+            pass
+        """,
+    )
+    journal_file = tmp_path / "journal.jsonl"
+    junit_file = tmp_path / "report.xml"
+    # -p loads flaky explicitly: the harness disables plugin autoload to keep the JUnit IDs clean.
+    _run_pytest(tmp_path, _TARGET, journal_file, junit_file, "-p", "flaky")
+
+    assert not junit_file.exists()
+
+    journal = read_journal(str(journal_file))
+    # Two attempts started, only the first one finished.
+    assert journal.started == [f"{_TARGET}::test_retried"] * 2
+    assert journal.finished == [f"{_TARGET}::test_retried"]
+
+    report, counters, culprit = create_crash_report(str(journal_file), "test_x", "SIGSEGV", "diagnostics")
+
+    assert culprit == f"{_TARGET}::test_retried"
+    cases = _cases(report)
+    assert _result_tag(cases["source.pkg.test.test_x::test_retried"]) == "error"
+    assert _result_tag(cases["source.pkg.test.test_x::test_never_reached"]) == "skipped"
+    # A test was in flight, so the crash is charged to it rather than to the session.
+    assert f"source.pkg.test.test_x::{SESSION_CRASH_CASE}" not in cases
+    assert counters == {"errors": 1, "failures": 0, "skipped": 1, "tests": 2, "time_elapsed": 0.0}
 
 
 def test_kill_before_any_test_runs_reports_every_collected_test_as_not_run(tmp_path):

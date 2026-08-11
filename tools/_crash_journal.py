@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections import Counter
 from dataclasses import dataclass, field
 
 from junitparser import Error, Failure, JUnitXml, Properties, Property, Skipped, TestCase, TestSuite
@@ -48,15 +49,15 @@ class Journal:
     Attributes:
         collected: Node IDs in collection order; empty when the run died during collection.
         markers: Registered markers per node ID, as recorded for the JUnit ``markers`` property.
-        started: Node IDs in the order they began running.
-        finished: Node IDs that completed teardown.
+        started: Node IDs in the order they began running, one entry per attempt.
+        finished: Node IDs in the order they completed teardown, one entry per attempt.
         results: Aggregated ``{"outcome", "when", "duration", "longrepr"}`` per node ID.
     """
 
     collected: list[str] = field(default_factory=list)
     markers: dict[str, str] = field(default_factory=dict)
     started: list[str] = field(default_factory=list)
-    finished: set[str] = field(default_factory=set)
+    finished: list[str] = field(default_factory=list)
     results: dict[str, dict] = field(default_factory=dict)
 
     @property
@@ -66,14 +67,35 @@ class Journal:
         A test that started but never finished teardown is the one that took the process down.
         When every started test also finished, nothing was running and the crash belongs to
         session shutdown.
+
+        Starts are matched against finishes one for one, rather than tested for membership,
+        because the ``flaky`` plugin reruns a test in-process and every attempt journals its own
+        start and finish. Treating a node as done the moment it finished once would let an earlier
+        attempt's finish mask a crash during a later one, blaming the session for a test that is
+        still running — and reporting that test as never run.
         """
-        pending = [node_id for node_id in self.started if node_id not in self.finished]
-        return pending[-1] if pending else None
+        unmatched = Counter(self.finished)
+        for node_id in reversed(self.started):
+            if unmatched[node_id]:
+                unmatched[node_id] -= 1
+            else:
+                return node_id
+        return None
 
     @property
     def ordered_node_ids(self) -> list[str]:
-        """Every known node ID, in collection order, with un-collected runs appended."""
-        return self.collected + [node_id for node_id in self.started if node_id not in self.collected]
+        """Every known node ID, in collection order, with un-collected runs appended once each.
+
+        A retried node appears in :attr:`started` once per attempt, so the appended IDs are
+        de-duplicated to keep one ``<testcase>`` per test.
+        """
+        seen = set(self.collected)
+        extra = []
+        for node_id in self.started:
+            if node_id not in seen:
+                seen.add(node_id)
+                extra.append(node_id)
+        return self.collected + extra
 
 
 def junit_names(node_id: str) -> tuple[str, str]:
@@ -175,7 +197,7 @@ def read_journal(journal_file: str) -> Journal | None:
                 elif event == "start" and record.get("node_id"):
                     journal.started.append(str(record["node_id"]))
                 elif event == "finish" and record.get("node_id"):
-                    journal.finished.add(str(record["node_id"]))
+                    journal.finished.append(str(record["node_id"]))
                 elif event == "result":
                     _merge_result(journal.results, record)
     except OSError:

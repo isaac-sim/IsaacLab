@@ -39,10 +39,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      # These tests only need pytest and junitparser (imported by tools/_crash_journal.py),
-      # so they run without an Isaac Sim install or a full project sync.
+      # These tests only need pytest, junitparser (imported by tools/_crash_journal.py) and
+      # flaky, so they run without an Isaac Sim install or a full project sync. flaky drives the
+      # rerun in test_crash_during_a_flaky_retry_is_blamed_on_the_retried_test; without it
+      # installed that test skips itself rather than failing, so keep it in this list.
       - name: Install test dependencies
-        run: python3 -m pip install pytest junitparser
+        run: python3 -m pip install pytest junitparser flaky
 
       - name: Run tools tests
         env:
