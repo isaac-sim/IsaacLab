@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+4.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed Newton overrides of the unused physics and renderer capability methods, along with the
+  empty ``isaaclab_newton.video_recording`` package.
+
+
 3.2.1 (2026-08-10)
 ~~~~~~~~~~~~~~~~~~
 
