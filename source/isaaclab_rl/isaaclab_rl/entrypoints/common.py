@@ -27,7 +27,7 @@ import gymnasium as gym
 import torch
 from PIL import Image
 
-from isaaclab.app import AppLauncher, LoadingScreen
+from isaaclab.app import AppLauncher, LoadingScreen, scan
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.dict import print_dict
@@ -545,9 +545,15 @@ def show_run_summary(
 ) -> None:
     """Print a summary of the backends and scale a run is about to use.
 
-    Values the run did not pick itself are shown as ``default (<resolved>)``, so
-    it is clear which backends came from the command line and which are the
-    task's own defaults.
+    Every row names the backend that will run. A backend the command line did not
+    ask for by name is shown as ``default (<resolved>)``, whether it came from the
+    task or from a selector that picks a backend automatically -- ``physics=physx``
+    and ``renderer=rtx`` name a family, and the run defaults to a member of it. The
+    selector itself is reported in the presets row.
+
+    Resolving those selectors mutates *env_cfg* in place, exactly as the following
+    :func:`~isaaclab.app.launch_simulation` call would; call this after every other
+    pre-launch config change, in particular :func:`pre_launch_video_config`.
 
     Args:
         screen: Loading screen that owns the console.
@@ -559,8 +565,8 @@ def show_run_summary(
     selected = _selected_preset_names()
     device = getattr(args_cli, "device", None) or env_cfg.sim.device
     num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
-    physics = _physics_name(env_cfg.sim.physics)
-    renderer = _renderer_name(env_cfg)
+    scan(env_cfg, args_cli)
+    physics, renderer = _physics_name(env_cfg.sim.physics), _renderer_name(env_cfg)
     screen.summary(
         f"Isaac Lab · {action}",
         {
@@ -599,14 +605,16 @@ def _selected_preset_names() -> set[str]:
 
 
 def _additional_preset_names(shown: Container[str | None]) -> str:
-    """Return the presets the command line asked for beyond those with a row of their own.
+    """Return the presets the command line asked for that no other row names.
 
     Domain presets such as ``presets=cube`` do not surface anywhere else in the
-    summary, so they are listed here; the physics and renderer presets are left
-    out because their own rows already name them.
+    summary, so they are listed here. So are selectors that name a backend family
+    rather than a backend -- ``renderer=rtx`` is listed next to a ``default
+    (ovrtx)`` renderer row, which is what asking for the family resolved to. A
+    preset naming the backend a row already reports is left out.
 
     Args:
-        shown: Preset names already reported by the physics and renderer rows.
+        shown: Preset names reported by the physics and renderer rows.
 
     Returns:
         The remaining preset names in command-line order, comma separated, or

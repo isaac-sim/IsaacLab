@@ -356,3 +356,50 @@ def test_additional_preset_names_lists_presets_without_a_row_of_their_own(
     """The presets row names the chosen presets that physics and renderer do not already report."""
     monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"] + argv)
     assert _rl_common._additional_preset_names({"newton_mjwarp", "rtx"}) == expected
+
+
+class _RecordingScreen:
+    """Loading screen stand-in that keeps the summary fields instead of drawing them."""
+
+    def __init__(self) -> None:
+        self.fields: dict[str, str] = {}
+
+    def summary(self, title: str, fields: dict[str, str]) -> None:
+        self.fields = fields
+
+
+@pytest.mark.parametrize(
+    "asked_physics, expected_physics, expected_renderer, expected_presets",
+    [
+        ("ovphysx", "ovphysx", "default (ovrtx)", "rtx"),
+        ("isaacsim_physx", "isaacsim_physx", "default (isaacsim_rtx)", "rtx"),
+        # ``physx`` selects the automatic physics backend, so both rows default
+        ("physx", "default (ovphysx)", "default (ovrtx)", "physx, rtx"),
+    ],
+)
+def test_run_summary_reports_the_backends_the_run_resolves_to(
+    asked_physics: str,
+    expected_physics: str,
+    expected_renderer: str,
+    expected_presets: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``physics=physx`` and ``renderer=rtx`` name a family; the summary names what will run.
+
+    A backend the run reached through such a selector is a default, since the run
+    never asked for that backend by name; the selector itself is listed under presets.
+    """
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    task = "Isaac-Cartpole-Camera-Direct"
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py", f"physics={asked_physics}", "renderer=rtx"])
+    env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
+    screen = _RecordingScreen()
+    args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
+
+    _rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
+
+    assert screen.fields["Physics"] == expected_physics
+    assert screen.fields["Renderer"] == expected_renderer
+    assert screen.fields["Presets"] == expected_presets
