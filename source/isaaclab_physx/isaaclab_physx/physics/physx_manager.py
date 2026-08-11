@@ -390,7 +390,7 @@ class PhysxManager(PhysicsManager):
     _stage_id: ClassVar[int] = -1
     _subscriptions: ClassVar[dict[str, Any]] = {}
     _fabric: ClassVar[Any] = None
-    _render_sync_step_count: ClassVar[int | None] = None
+    _pending_tensor_pose_write_step: ClassVar[int | None] = None
     _update_fabric: ClassVar[Callable[[float, float], None] | None] = None
     _anim_recorder: ClassVar[AnimationRecorder | None] = None
     _callback_exception: ClassVar[Exception | None] = None
@@ -497,28 +497,29 @@ class PhysxManager(PhysicsManager):
             cls._update_fabric(0.0, 0.0)
 
     @classmethod
-    def pre_render(cls) -> None:
-        """Synchronize pending rigid-object tensor pose writes before rendering."""
-        dirty_step_count = cls._render_sync_step_count
-        if dirty_step_count is None or not cls._view_created:
-            return
+    def notify_tensor_pose_write(cls) -> None:
+        """Record a PhysX tensor pose write that may need forwarding before the next Kit frame."""
         sim = PhysicsManager._sim
-        cls._render_sync_step_count = None
-        if sim is None or sim.get_physics_step_count() != dirty_step_count:
-            return
+        if sim is not None:
+            cls._pending_tensor_pose_write_step = sim.get_physics_step_count()
+
+    @classmethod
+    def before_kit_app_update(cls) -> bool:
+        """Forward pending PhysX tensor pose writes before a Kit/RTX frame."""
+        pending_write_step = cls._pending_tensor_pose_write_step
+        if pending_write_step is None or not cls._view_created:
+            return False
+        sim = PhysicsManager._sim
+        cls._pending_tensor_pose_write_step = None
+        if sim is None or sim.get_physics_step_count() != pending_write_step:
+            return False
         try:
             omni.physx.get_physx_interface().update_simulation(cls.get_physics_dt(), 0.0)
         except Exception:
-            if cls._render_sync_step_count is None:
-                cls._render_sync_step_count = dirty_step_count
+            if cls._pending_tensor_pose_write_step is None:
+                cls._pending_tensor_pose_write_step = pending_write_step
             raise
-
-    @classmethod
-    def _mark_render_sync_required(cls) -> None:
-        """Request a render sync after a rigid-object tensor pose write."""
-        sim = PhysicsManager._sim
-        if sim is not None:
-            cls._render_sync_step_count = sim.get_physics_step_count()
+        return True
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
@@ -976,7 +977,7 @@ class PhysxManager(PhysicsManager):
         physx.start_simulation()
         physx.update_simulation(cls.get_physics_dt(), 0.0)
         physx_sim.fetch_results()
-        cls._render_sync_step_count = None
+        cls._pending_tensor_pose_write_step = None
         cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
         cls._warmup_needed = False
 
@@ -1010,7 +1011,7 @@ class PhysxManager(PhysicsManager):
         cls._view = None
         cls._view_warp = None
         cls._view_created = False
-        cls._render_sync_step_count = None
+        cls._pending_tensor_pose_write_step = None
 
     @classmethod
     def _on_play(cls, event: Any) -> None:

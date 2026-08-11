@@ -14,7 +14,7 @@ from __future__ import annotations
 import sys
 import time
 import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 # Stub ``omni`` / ``omni.usd`` in ``sys.modules`` before importing the module
 # under test so its top-level ``import omni.usd`` succeeds outside a running
@@ -262,6 +262,7 @@ class TestEnsureIsaacRtxRenderUpdate:
         ):
             rtx_utils.ensure_isaac_rtx_render_update()
 
+        mock_sim.physics_manager.before_kit_app_update.assert_called_once_with()
         mock_app.update.assert_called_once()
 
     def test_second_call_with_visualizer_skips_pump(
@@ -283,6 +284,7 @@ class TestEnsureIsaacRtxRenderUpdate:
             mock_sim._physics_step_count = 1
             rtx_utils.ensure_isaac_rtx_render_update()
 
+        mock_sim.physics_manager.before_kit_app_update.assert_called_once_with()
         mock_app.update.assert_not_called()
 
     def test_no_sim_is_noop(self, mock_sim_context, mock_omni_kit_app):
@@ -310,6 +312,7 @@ class TestEnsureIsaacRtxRenderUpdate:
 
             rtx_utils.ensure_isaac_rtx_render_update()
 
+        mock_sim.physics_manager.before_kit_app_update.assert_called_once_with()
         mock_app.update.assert_not_called()
 
     def test_not_rendering_skips(self, mock_sim, mock_sim_context, mock_omni_kit_app):
@@ -321,4 +324,21 @@ class TestEnsureIsaacRtxRenderUpdate:
 
         rtx_utils.ensure_isaac_rtx_render_update()
 
+        mock_sim.physics_manager.before_kit_app_update.assert_not_called()
         mock_app.update.assert_not_called()
+
+    def test_restores_play_state_when_app_update_fails(self, mock_sim, mock_sim_context, mock_omni_kit_app):
+        """An app-update failure must not leak a changed Kit playback state."""
+        mock_sim.get_setting.return_value = False
+        mock_app = MagicMock()
+        mock_app.update.side_effect = RuntimeError("update failed")
+        mock_omni_kit_app.get_app.return_value = mock_app
+        mock_sim_context.instance.return_value = mock_sim
+
+        with pytest.raises(RuntimeError, match="update failed"):
+            rtx_utils.ensure_isaac_rtx_render_update()
+
+        assert mock_sim.set_setting.call_args_list == [
+            call(rtx_utils._PLAY_SIMULATIONS_SETTING, False),
+            call(rtx_utils._PLAY_SIMULATIONS_SETTING, False),
+        ]
