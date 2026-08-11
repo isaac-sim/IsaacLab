@@ -113,6 +113,25 @@ def test_instance_segmentation_metadata_matches_pixels_and_scene() -> None:
 def test_instance_segmentation_rejects_metadata_colors_absent_from_pixels() -> None:
     outputs, info, expected = _instance_segmentation_data()
     info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToLabels"][(99, 88, 77, 255)] = "/World/Extra"
+    info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToSemantics"][(99, 88, 77, 255)] = {"class": "extra"}
 
-    with pytest.raises(AssertionError, match="rendered colors"):
+    with pytest.raises(AssertionError, match="unrendered colors"):
         _validate_segmentation(outputs, info, expected)
+
+
+def test_partial_instance_metadata_accepts_scene_valid_static_mapping() -> None:
+    outputs, info, expected = _instance_segmentation_data()
+    occluded_color = (99, 88, 77, 255)
+    info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToLabels"][occluded_color] = "/World/Occluded"
+    info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToSemantics"][occluded_color] = {"class": "cube"}
+    expected.update({"/World/Occluded": "cube", "/World/Clone": "robot"})
+
+    _validate_segmentation(outputs, info, expected, exact_instance_metadata=False)
+
+
+def test_partial_instance_metadata_rejects_unknown_scene_instance() -> None:
+    outputs, info, expected = _instance_segmentation_data()
+    info[RenderBufferKind.INSTANCE_SEGMENTATION]["idToLabels"][(12, 34, 56, 255)] = "/World/Unknown"
+
+    with pytest.raises(AssertionError, match="scene-valid subset"):
+        _validate_segmentation(outputs, info, expected, exact_instance_metadata=False)

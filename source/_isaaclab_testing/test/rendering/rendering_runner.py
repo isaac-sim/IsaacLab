@@ -76,7 +76,9 @@ def run_rendering_case(
             assert torch.all(support_pixels < view_pixels // 2), f"Motion is not localized: {support_pixels.tolist()}"
             outputs[RenderBufferKind.MOTION_VECTORS] = motion
 
-        _validate_segmentation(outputs, info, scene.expected_instances)
+        _validate_segmentation(
+            outputs, info, scene.expected_instances, exact_instance_metadata=case.renderer != "newton_warp"
+        )
         failures = []
         for aov in case.golden_aovs:
             image_max_diff_pct, min_ssim = scene.image_tolerance(case.renderer, aov)
@@ -113,7 +115,11 @@ def generate_kit_test_cases() -> Any:
 
 
 def _validate_segmentation(
-    outputs: dict[str, torch.Tensor], info: dict[str, Any] | None, expected_instances: dict[str, str]
+    outputs: dict[str, torch.Tensor],
+    info: dict[str, Any] | None,
+    expected_instances: dict[str, str],
+    *,
+    exact_instance_metadata: bool = True,
 ) -> None:
     required_labels = frozenset(expected_instances.values())
     semantic = outputs.get(RenderBufferKind.SEMANTIC_SEGMENTATION)
@@ -172,9 +178,14 @@ def _validate_segmentation(
         tuple(int(channel) for channel in color)
         for color in torch.unique(instance.reshape(-1, instance.shape[-1]), dim=0).cpu().tolist()
     }
-    expected_colors = image_colors | set(reserved)
-    assert set(id_to_labels) == expected_colors, "Instance idToLabels keys do not match rendered colors."
-    assert set(id_to_semantics) == expected_colors, "Instance idToSemantics keys do not match rendered colors."
+    required_colors = image_colors | set(reserved)
+    label_colors, semantic_colors = set(id_to_labels), set(id_to_semantics)
+    assert label_colors == semantic_colors, "Instance metadata maps use different color keys."
+    missing_colors = required_colors - label_colors
+    assert not missing_colors, f"Instance metadata is missing rendered colors: {sorted(missing_colors)}."
+    if exact_instance_metadata:
+        extra_colors = label_colors - required_colors
+        assert not extra_colors, f"Instance metadata contains unrendered colors: {sorted(extra_colors)}."
     for color, (label, semantics) in reserved.items():
         assert id_to_labels[color] == label
         assert id_to_semantics[color] == semantics
@@ -186,6 +197,16 @@ def _validate_segmentation(
         assert isinstance(path, str) and path not in actual_instances
         assert isinstance(semantics, dict) and set(semantics) == {"class"}
         actual_instances[path] = semantics["class"]
-    assert actual_instances == expected_instances, (
-        f"Instance-segmentation metadata mismatch.\n  expected: {expected_instances}\n  actual: {actual_instances}"
-    )
+    if exact_instance_metadata:
+        assert actual_instances == expected_instances, (
+            f"Instance-segmentation metadata mismatch.\n  expected: {expected_instances}\n  actual: {actual_instances}"
+        )
+    else:
+        # Newton-Warp builds scene-static mappings from compiled collision shapes. Those mappings may include
+        # occluded shapes, while legacy USD cloning can expose only env_0 paths. The reported path/class pairs
+        # must still be a non-empty, scene-valid subset, and the checks above require every rendered color to map.
+        actual_items, expected_items = set(actual_instances.items()), set(expected_instances.items())
+        assert actual_items and actual_items <= expected_items, (
+            f"Instance-segmentation metadata is not a scene-valid subset.\n"
+            f"  expected: {expected_instances}\n  actual: {actual_instances}"
+        )
