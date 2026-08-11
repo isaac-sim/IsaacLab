@@ -369,16 +369,18 @@ class _RecordingScreen:
 
 
 @pytest.mark.parametrize(
-    "asked_physics, expected_physics, expected_renderer, expected_presets",
+    "selectors, expected_physics, expected_renderer, expected_presets",
     [
-        ("ovphysx", "ovphysx", "default (ovrtx)", "rtx"),
-        ("isaacsim_physx", "isaacsim_physx", "default (isaacsim_rtx)", "rtx"),
-        # ``physx`` selects the automatic physics backend, so both rows default
-        ("physx", "default (ovphysx)", "default (ovrtx)", "physx, rtx"),
+        (["physics=ovphysx", "renderer=rtx"], "ovphysx", "ovrtx", "rtx"),
+        (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "isaacsim_rtx", "rtx"),
+        # ``physx`` reaches the physics backend the same way ``rtx`` reaches the renderer
+        (["physics=physx", "renderer=rtx"], "ovphysx", "ovrtx", "physx, rtx"),
+        # a run that names no backend reports the ones the task pinned as defaults
+        ([], "default (isaacsim_physx)", "default (isaacsim_rtx)", "none"),
     ],
 )
 def test_run_summary_reports_the_backends_the_run_resolves_to(
-    asked_physics: str,
+    selectors: list[str],
     expected_physics: str,
     expected_renderer: str,
     expected_presets: str,
@@ -386,14 +388,15 @@ def test_run_summary_reports_the_backends_the_run_resolves_to(
 ) -> None:
     """``physics=physx`` and ``renderer=rtx`` name a family; the summary names what will run.
 
-    A backend the run reached through such a selector is a default, since the run
-    never asked for that backend by name; the selector itself is listed under presets.
+    A row reached through such a selector names the resolved backend on its own, since
+    the run never asked for a different one; the selector is listed under presets. Only
+    a backend the task pinned and the run never named is marked a default.
     """
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
     task = "Isaac-Cartpole-Camera-Direct"
-    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py", f"physics={asked_physics}", "renderer=rtx"])
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py", *selectors])
     env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
     screen = _RecordingScreen()
     args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
