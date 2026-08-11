@@ -17,9 +17,9 @@ import warp as wp
 
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
-from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
+from isaaclab.utils.wrench_composer import WrenchComposer
 
-BACKENDS = ["Mock"]  # Mock backend is always available.
+BACKENDS: list[str] = []
 
 try:
     from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import (
@@ -29,7 +29,7 @@ try:
         RigidObjectCollectionData as PhysXRigidObjectCollectionData,
     )
     from isaaclab_physx.physics import PhysxManager as SimulationManager
-    from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
+    from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
 except ImportError:
     pass
 else:
@@ -47,8 +47,7 @@ try:
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data import (
         RigidObjectCollectionData as NewtonRigidObjectCollectionData,
     )
-    from isaaclab_newton.test.mock_interfaces.mock_newton import MockWrenchComposer as NewtonMockWrenchComposer
-    from isaaclab_newton.test.mock_interfaces.views import MockNewtonCollectionView as NewtonMockCollectionView
+    from isaaclab_newton.test.fixtures.views import MockNewtonCollectionView as NewtonMockCollectionView
 except ImportError:
     pass
 else:
@@ -101,9 +100,9 @@ def create_physx_rigid_object_collection(
     object.__setattr__(collection, "_data", data)
     data.body_names = [f"object_{i}" for i in range(num_bodies)]
 
-    # Create mock wrench composers
-    mock_inst_wrench = MockWrenchComposer(collection)
-    mock_perm_wrench = MockWrenchComposer(collection)
+    # Create wrench composers
+    mock_inst_wrench = WrenchComposer(collection)
+    mock_perm_wrench = WrenchComposer(collection)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -196,9 +195,9 @@ def create_newton_rigid_object_collection(
     object.__setattr__(collection, "_data", data)
     data.body_names = body_names
 
-    # Mock wrench composers (Newton-specific)
-    mock_inst_wrench = NewtonMockWrenchComposer(collection)
-    mock_perm_wrench = NewtonMockWrenchComposer(collection)
+    # Wrench composers (Newton-specific)
+    mock_inst_wrench = WrenchComposer(collection)
+    mock_perm_wrench = WrenchComposer(collection)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -260,9 +259,9 @@ def create_ovphysx_rigid_object_collection(
     # Allocate the buffers that RigidObjectCollection normally allocates in _initialize_impl.
     collection._create_buffers()
 
-    # Replace the real wrench composers with mocks for iface coverage.
-    mock_inst_wrench = MockWrenchComposer(collection)
-    mock_perm_wrench = MockWrenchComposer(collection)
+    # Use production wrench composers for interface coverage.
+    mock_inst_wrench = WrenchComposer(collection)
+    mock_perm_wrench = WrenchComposer(collection)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -274,20 +273,6 @@ def create_ovphysx_rigid_object_collection(
 
     return collection, mock_bindings
 
-
-def create_mock_rigid_object_collection(
-    num_instances: int = 2,
-    num_bodies: int = 3,
-    device: str = "cuda:0",
-):
-    from isaaclab.test.mock_interfaces.assets.mock_rigid_object_collection import MockRigidObjectCollection
-
-    obj = MockRigidObjectCollection(
-        num_instances=num_instances,
-        num_bodies=num_bodies,
-        device=device,
-    )
-    return obj, None
 
 
 def get_rigid_object_collection(
@@ -302,7 +287,5 @@ def get_rigid_object_collection(
         return create_ovphysx_rigid_object_collection(num_instances, num_bodies, device)
     elif backend == "newton":
         return create_newton_rigid_object_collection(num_instances, num_bodies, device)
-    elif backend.lower() == "mock":
-        return create_mock_rigid_object_collection(num_instances, num_bodies, device)
     else:
         raise ValueError(f"Invalid backend: {backend}")
