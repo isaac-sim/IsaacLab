@@ -49,9 +49,8 @@ users must set `ISAACLAB_FRANKA_POUR_CUPS_USD_PATH` to a compatible local copy. 
 separate from the reset artifact: the generated database itself does not need to be published.
 
 The `datasets/` directory is ignored by Git. At completion the generator prints the artifact's
-content digest and the training override needed to pin it. The historical reference artifact has
-digest `93e1f86a5145812a412c4e3c0d5873bff765bce9d236e4e2f0893e190c4a75bf`, but publishing it is not
-required because users can reproduce the distribution with the script.
+content digest and the training override needed to pin it. The configuration does not assume a
+universal digest because the artifact is generated locally; publishing the database is not required.
 
 ## Train or play
 
@@ -71,9 +70,9 @@ env_cfg.reset_dataset_content_sha256 = "<digest printed by the generator>"
 agent_cfg = FrankaPourResetDatasetPPORunnerCfg()
 ```
 
-The configuration pins the production digest by default. Set
-`env_cfg.reset_dataset_content_sha256` explicitly only when intentionally using another trusted,
-matching artifact.
+The payload always verifies its own stored content digest. Set
+`env_cfg.reset_dataset_content_sha256` to the value printed by the generator to additionally pin a
+specific artifact for a reproducible training or evaluation run.
 
 Reset-dataset play mode uses one bounded sparse-grid world, disables observation corruption,
 freezes the sampler, and moves the interactive viewer closer.
@@ -123,12 +122,10 @@ rows at 0% or 100%. A shuffled cyclic stream receives 50% of assignments through
 which keeps persistently difficult reaching and grasp-acquisition rows represented alongside the
 adaptive competence frontier. There are no runtime stages or region probabilities.
 
-The sampler reports its effective pool size, concentration, cyclic-replay fraction, first-sweep
-coverage, and the assignment fraction for each offline reset region. Completed episodes also log
-terminal success, local progress, reaching, bilateral grasp, and lift rates by reset region. The
-regions are diagnostics for the sampled distribution; they do not gate policy behavior or change
-the sampler objective. Evaluate frozen policies separately rather than inferring performance from
-training-time samples.
+The sampler reports its effective pool size, concentration, and cyclic-replay fraction. Offline
+reset regions remain in the artifact as generation provenance, but runtime does not maintain a
+second set of per-region counters. Evaluate frozen policies separately rather than inferring
+performance from training-time samples.
 
 Each worker applies completed outcomes immediately to its own sampler. In distributed training,
 the curriculum therefore adapts independently on each rank while PPO still learns from all rank

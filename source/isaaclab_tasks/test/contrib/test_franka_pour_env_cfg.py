@@ -13,9 +13,7 @@ from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
     _reset_dataset_task_contract,
     _resolve_pour_solver_tree,
 )
-from isaaclab_tasks.contrib.franka_pour.reset_dataset_io import reset_dataset_digest
 
-_REFERENCE_TASK_CONTRACT_SHA256 = "804ce04acab78ee4dc1c9fceaad5364b735801e56406c67b3ffe2e027a113b21"
 _REMOVED_MIRROR_FIELDS = {
     "arm_home",
     "cup_mass",
@@ -25,21 +23,42 @@ _REMOVED_MIRROR_FIELDS = {
     "proxy_mass_scale",
     "voxel_size",
 }
+_RESET_CONTRACT_FIELDS = {
+    "robot_asset",
+    "robot_physics_payload_sha256",
+    "source_box_half",
+    "source_mouth_height",
+    "target_box_half",
+    "target_rim_height",
+    "cup_grasp_tcp_quat_c",
+    "cup_grasp_height",
+    "tcp_body_name",
+    "tcp_offset_pos",
+    "tcp_offset_rot",
+    "gripper_open_pos",
+    "gripper_grasp_reset_target",
+    "gripper_contact_min_deflection",
+    "collider_margin",
+    "mpm_collider_margin",
+    "particle_count",
+    "particle_spacing",
+}
 
 
-def test_config_is_fully_authored_once_with_unchanged_reset_contract():
-    """Scene assets exist immediately and retain the reference artifact contract."""
+def test_config_is_fully_authored_once_with_compact_reset_contract():
+    """Scene assets exist immediately and expose only reset-state compatibility fields."""
     cfg = FrankaPourResetDatasetEnvCfg()
 
     assert not hasattr(cfg, "finalize")
     assert cfg.scene.source_cup is not None
     assert cfg.scene.target_cup is not None
     assert cfg.scene.media is not None
+    assert cfg.reset_dataset_content_sha256 is None
     assert _REMOVED_MIRROR_FIELDS.isdisjoint(cfg.to_dict())
 
     task_contract = _reset_dataset_task_contract(cfg)
     assert task_contract["particle_count"] == 245
-    assert reset_dataset_digest(task_contract) == _REFERENCE_TASK_CONTRACT_SHA256
+    assert set(task_contract) == _RESET_CONTRACT_FIELDS
 
 
 def test_nested_overrides_are_authoritative_without_rebuilding_assets():
@@ -48,6 +67,7 @@ def test_nested_overrides_are_authoritative_without_rebuilding_assets():
     source_cup = cfg.scene.source_cup
     media = cfg.scene.media
     solver = _resolve_pour_solver_tree(cfg)
+    reset_contract = _reset_dataset_task_contract(cfg)
 
     cfg.from_dict(
         {
@@ -62,9 +82,10 @@ def test_nested_overrides_are_authoritative_without_rebuilding_assets():
     assert cfg.scene.media is media
     assert _resolve_pour_solver_tree(cfg) == solver
     assert cfg.cup_reset_pos == (0.6, 0.0, 0.0)
-    assert cfg.physics_substeps == 5
-    assert cfg.mpm_iterations == 17
-    assert not cfg.use_cuda_graph
+    assert cfg.sim.physics.num_substeps == 5
+    assert solver.media_solver.max_iterations == 17
+    assert not cfg.sim.physics.use_cuda_graph
+    assert _reset_dataset_task_contract(cfg) == reset_contract
 
 
 def test_capacity_resolution_only_updates_world_dependent_solver_limits():
@@ -89,10 +110,10 @@ def test_capacity_resolution_only_updates_world_dependent_solver_limits():
     assert cfg.scene.media is media
 
 
-def test_final_validation_checks_the_authoritative_solver_tree():
-    """Invalid nested solver overrides are rejected by the standard config validation hook."""
+def test_final_validation_checks_runtime_allocation_values():
+    """Invalid post-construction overrides are rejected by the standard config hook."""
     cfg = FrankaPourResetDatasetEnvCfg()
-    _resolve_pour_solver_tree(cfg).media_solver.max_iterations = 0
+    cfg.mpm_cell_capacity_alignment = 0
 
-    with pytest.raises(ValueError, match="mpm_iterations must be a positive integer"):
+    with pytest.raises(ValueError, match="mpm_cell_capacity_alignment must be a positive integer"):
         cfg.validate()

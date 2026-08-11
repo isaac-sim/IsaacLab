@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from io import BytesIO
 from typing import Any
 
@@ -105,22 +105,18 @@ def reset_dataset_content_digest(
 def reset_dataset_validate_runtime(
     payload: Mapping[str, Any],
     *,
-    expected_sampling_profile: str,
-    expected_grasp_side_ids: Sequence[int],
     expected_content_sha256: str | None = None,
     expected_task_contract: Mapping[str, Any] | None = None,
 ) -> tuple[Mapping[str, Any], Mapping[str, torch.Tensor], Mapping[str, torch.Tensor]]:
     """Validate a production Franka Pour reset dataset for runtime replay.
 
-    Dataset generation and calibration are external workflows. This validator checks the immutable
-    runtime boundary: envelope integrity, production provenance, metadata consumed by replay, and
-    the tensors restored by the environment. When supplied, :paramref:`expected_task_contract`
-    compares only its keys so callers can bind the artifact to the current task contract.
+    Dataset generation is an offline workflow. This validator checks the immutable runtime boundary:
+    envelope integrity, production provenance, metadata consumed by replay, and the tensors restored
+    by the environment. When supplied, :paramref:`expected_task_contract` compares only its keys so
+    callers can bind the artifact to the current task contract.
 
     Args:
         payload: Safely loaded reset-dataset payload.
-        expected_sampling_profile: Required external generation profile.
-        expected_grasp_side_ids: Required grasp-side identifiers.
         expected_content_sha256: Optional configured artifact content digest.
         expected_task_contract: Optional subset of task-contract fields to compare.
 
@@ -133,9 +129,6 @@ def reset_dataset_validate_runtime(
     """
     if not isinstance(payload, Mapping):
         raise TypeError("Reset dataset payload must be a mapping.")
-    if not isinstance(expected_sampling_profile, str) or not expected_sampling_profile:
-        raise ValueError("expected_sampling_profile must be a non-empty string.")
-    grasp_side_ids = _validate_expected_grasp_side_ids(expected_grasp_side_ids)
     if expected_content_sha256 is not None:
         _validate_sha256(expected_content_sha256, "expected_content_sha256")
     if expected_task_contract is not None and not isinstance(expected_task_contract, Mapping):
@@ -149,7 +142,6 @@ def reset_dataset_validate_runtime(
     metadata = _require_mapping(payload, "metadata")
     states = _require_mapping(payload, "states")
     particle_layouts = _require_mapping(payload, "particle_layouts")
-    sampler_cfg = _require_mapping(metadata, "sampler_cfg", path="metadata")
     task_contract = _require_mapping(metadata, "task_contract", path="metadata")
 
     content_sha256 = payload.get("content_sha256")
@@ -161,15 +153,6 @@ def reset_dataset_validate_runtime(
 
     if expected_task_contract is not None:
         _validate_contract_subset(task_contract, expected_task_contract, path="metadata.task_contract")
-
-    if sampler_cfg.get("sampling_profile") != expected_sampling_profile:
-        raise ValueError("Reset dataset sampling profile does not match the configured profile.")
-    try:
-        actual_grasp_side_ids = _validate_expected_grasp_side_ids(sampler_cfg.get("grasp_side_ids"))
-    except (TypeError, ValueError) as error:
-        raise ValueError("Reset dataset grasp-side identifiers are invalid.") from error
-    if actual_grasp_side_ids != grasp_side_ids:
-        raise ValueError("Reset dataset grasp-side identifiers do not match the configured identifiers.")
 
     _validate_runtime_metadata(metadata)
     _validate_production_marker(metadata)
@@ -261,21 +244,6 @@ def _validate_sha256(value: Any, name: str):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest.")
 
 
-def _validate_expected_grasp_side_ids(values: Sequence[int]) -> tuple[int, ...]:
-    """Validate and canonicalize configured grasp-side identifiers."""
-    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
-        raise TypeError("expected_grasp_side_ids must be a sequence of integers.")
-    result = tuple(values)
-    if (
-        not result
-        or any(not isinstance(value, int) or isinstance(value, bool) for value in result)
-        or len(set(result)) != len(result)
-        or any(value < 0 or value > 3 for value in result)
-    ):
-        raise ValueError("expected_grasp_side_ids must contain unique integers.")
-    return result
-
-
 def _validate_contract_subset(actual: Mapping[str, Any], expected: Mapping[str, Any], *, path: str):
     """Recursively compare only expected task-contract fields."""
     for key, expected_value in expected.items():
@@ -306,7 +274,7 @@ def _validate_runtime_metadata(metadata: Mapping[str, Any]):
 
 
 def _validate_production_marker(metadata: Mapping[str, Any]):
-    """Require either the reference calibration or the one-file generator screen."""
+    """Require the collision-screened one-file generator provenance."""
     marker = _require_mapping(metadata, "static_validation", path="metadata")
     if marker.get("all_rows_statically_validated") is not True or marker.get("per_row_mpm_rollout") is not False:
         raise ValueError("Reset dataset does not contain supported all-row static validation.")
@@ -314,35 +282,7 @@ def _validate_production_marker(metadata: Mapping[str, Any]):
         if tuple(marker.get("checks", ())) != FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_CHECKS:
             raise ValueError("Reset dataset one-file generator checks are incomplete.")
         return
-    if marker.get("policy") != "analytic_static_v1":
-        raise ValueError("Reset dataset static-validation policy is unsupported.")
-    manifold = _require_mapping(marker, "terminal_pour_manifold", path="metadata.static_validation")
-    if manifold.get("policy") != "relative_source_receiver_v1":
-        raise ValueError("Reset dataset terminal-pour manifold policy is unsupported.")
-    calibration = _require_mapping(
-        manifold,
-        "calibration",
-        path="metadata.static_validation.terminal_pour_manifold",
-    )
-    if calibration.get("policy") != "bounded_terminal_gpu_sweep_v2" or calibration.get("status") != "passed":
-        raise ValueError("Reset dataset terminal-pour calibration has not passed.")
-    measured_result = _require_mapping(
-        calibration,
-        "measured_result",
-        path="metadata.static_validation.terminal_pour_manifold.calibration",
-    )
-    if measured_result.get("passed") is not True:
-        raise ValueError("Reset dataset terminal-pour calibration result has not passed.")
-    source_sha256 = calibration.get("source_content_sha256")
-    _validate_sha256(source_sha256, "terminal calibration source_content_sha256")
-    physics_sha256 = manifold.get("physics_contract_sha256")
-    _validate_sha256(physics_sha256, "terminal manifold physics_contract_sha256")
-    if calibration.get("physics_contract_sha256") != physics_sha256:
-        raise ValueError("Reset dataset terminal-pour calibration physics contract is inconsistent.")
-    if measured_result.get("physics_contract_sha256") != physics_sha256:
-        raise ValueError("Reset dataset measured terminal calibration physics contract is inconsistent.")
-    if measured_result.get("source_content_sha256") != source_sha256:
-        raise ValueError("Reset dataset measured terminal calibration source digest is inconsistent.")
+    raise ValueError("Reset dataset static-validation policy is unsupported.")
 
 
 def _validate_state_tensors(states: Mapping[str, Any], state_count: int):

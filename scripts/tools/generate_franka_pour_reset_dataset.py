@@ -43,7 +43,6 @@ from isaaclab_tasks.contrib.franka_pour.reset_dataset_io import (
     FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_CHECKS,
     FRANKA_POUR_RESET_DATASET_STATIC_VALIDATION_POLICY,
     reset_dataset_content_digest,
-    reset_dataset_digest,
     reset_dataset_validate_runtime,
 )
 
@@ -891,7 +890,6 @@ class _Generator:
         payload: dict[str, Any] = {
             "format": FRANKA_POUR_RESET_DATASET_FORMAT,
             "schema_version": FRANKA_POUR_RESET_DATASET_SCHEMA_VERSION,
-            "contract_sha256": reset_dataset_digest({"sampler_cfg": sampler_cfg, "task_contract": task_contract}),
             "metadata": metadata,
             "states": cpu_states,
             "particle_layouts": {
@@ -902,8 +900,6 @@ class _Generator:
         payload["content_sha256"] = reset_dataset_content_digest(payload)
         reset_dataset_validate_runtime(
             payload,
-            expected_sampling_profile="full",
-            expected_grasp_side_ids=self.cfg.grasp_side_ids,
             expected_task_contract=task_contract,
         )
         return payload

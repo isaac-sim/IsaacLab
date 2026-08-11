@@ -137,9 +137,10 @@ def time_remaining_obs(env: FrankaPourEnv) -> torch.Tensor:
 
 def lost_grasp_dwell_obs(env: FrankaPourEnv) -> torch.Tensor:
     """Fraction of the consecutive post-lift grasp-loss dwell already accumulated."""
+    dwell_time_s = env.cfg.terminations.lost_grasp.params["dwell_time_s"]
     dwell_steps = max(
         1,
-        math.ceil(float(env.cfg.lost_grasp_dwell_time_s) / max(float(env.step_dt), 1.0e-6)),
+        math.ceil(float(dwell_time_s) / max(float(env.step_dt), 1.0e-6)),
     )
     return torch.clamp(env._lost_grasp_dwell_count.float() / dwell_steps, 0.0, 1.0).unsqueeze(-1)
 

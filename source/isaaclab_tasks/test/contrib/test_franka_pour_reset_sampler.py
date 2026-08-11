@@ -51,12 +51,12 @@ def test_rolling_history_matches_per_row_deques():
             assert _ring_values(sampler, row) == list(history)
 
 
-def test_uniform_replay_switches_after_exact_first_sweep(monkeypatch: pytest.MonkeyPatch):
-    """Cyclic replay covers every row before changing to the steady replay fraction."""
+def test_uniform_replay_covers_every_row_before_repeating(monkeypatch: pytest.MonkeyPatch):
+    """The configured replay fraction draws one complete shuffled cycle without replacement."""
     sampler = _ResetDatasetSampler(
         5,
         "cpu",
-        ResetDatasetSamplerCfg(uniform_fraction_initial=0.5, uniform_fraction=0.25),
+        ResetDatasetSamplerCfg(uniform_fraction=0.5),
     )
     cyclic_rows: list[int] = []
     take_uniform_rows = sampler._take_uniform_rows
@@ -67,16 +67,9 @@ def test_uniform_replay_switches_after_exact_first_sweep(monkeypatch: pytest.Mon
         return rows
 
     monkeypatch.setattr(sampler, "_take_uniform_rows", record_uniform_rows)
-    sampler._sample_with_uniform_replay(8, generator=torch.Generator().manual_seed(17))
+    sampler._sample_with_uniform_replay(10, generator=torch.Generator().manual_seed(17))
 
     metrics = sampler.metrics()
     assert metrics["sampler/uniform_replay_fraction"] == pytest.approx(0.5)
-    assert metrics["sampler/uniform_first_sweep_progress"] == pytest.approx(0.8)
-
-    while not sampler.metrics()["sampler/uniform_first_sweep_complete"]:
-        sampler._sample_with_uniform_replay(4, generator=torch.Generator().manual_seed(23))
-
-    assert set(cyclic_rows[: sampler.row_count]) == set(range(sampler.row_count))
-    metrics = sampler.metrics()
-    assert metrics["sampler/uniform_replay_fraction"] == pytest.approx(0.25)
-    assert metrics["sampler/uniform_first_sweep_progress"] == 1.0
+    assert len(cyclic_rows) == sampler.row_count
+    assert set(cyclic_rows) == set(range(sampler.row_count))

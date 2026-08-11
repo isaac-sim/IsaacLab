@@ -471,8 +471,6 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         payload = torch.load(cache_path, map_location="cpu", weights_only=True)
         metadata, states, layouts = reset_dataset_validate_runtime(
             payload,
-            expected_sampling_profile=self.cfg.reset_dataset_expected_sampling_profile,
-            expected_grasp_side_ids=self.cfg.reset_dataset_expected_grasp_side_ids,
             expected_content_sha256=self.cfg.reset_dataset_content_sha256,
             expected_task_contract=_reset_dataset_task_contract(self.cfg),
         )

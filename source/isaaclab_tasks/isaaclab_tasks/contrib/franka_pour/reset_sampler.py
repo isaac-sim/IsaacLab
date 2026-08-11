@@ -35,10 +35,7 @@ class ResetDatasetSamplerCfg:
     """Positive per-row weight floor that prevents reset-row starvation."""
 
     uniform_fraction: float = 0.25
-    """Steady fraction reserved for exact shuffled cyclic replay."""
-
-    uniform_fraction_initial: float | None = 0.5
-    """Cyclic-replay fraction used until every reset row has been visited once."""
+    """Fraction reserved for exact shuffled cyclic replay."""
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
@@ -71,14 +68,6 @@ class ResetDatasetSamplerCfg:
             or not 0.0 < uniform_fraction < 1.0
         ):
             raise ValueError("uniform_fraction must lie strictly between zero and one.")
-        if self.uniform_fraction_initial is not None:
-            uniform_fraction_initial = float(self.uniform_fraction_initial)
-            if (
-                isinstance(self.uniform_fraction_initial, bool)
-                or not math.isfinite(uniform_fraction_initial)
-                or not 0.0 < uniform_fraction_initial < 1.0
-            ):
-                raise ValueError("uniform_fraction_initial must be None or lie strictly between zero and one.")
 
 
 def _ring_append_bool_count_rate(
@@ -178,7 +167,6 @@ class _ResetDatasetSampler:
         self._uniform_order = torch.randperm(row_count, device=device)
         self._uniform_cursor = 0
         self._uniform_credit = 0.0
-        self._uniform_first_sweep_complete = False
 
     def _probabilities(self) -> torch.Tensor:
         """Return normalized Beta scores with a per-row epsilon floor."""
@@ -186,12 +174,6 @@ class _ResetDatasetSampler:
         weights *= (1.0 - self._success_rates).pow(self._beta_minus_one)
         weights.add_(self.cfg.epsilon)
         return weights / weights.sum()
-
-    def _uniform_replay_fraction(self) -> float:
-        """Current fraction reserved for exact cyclic replay."""
-        if not self._uniform_first_sweep_complete and self.cfg.uniform_fraction_initial is not None:
-            return float(self.cfg.uniform_fraction_initial)
-        return float(self.cfg.uniform_fraction)
 
     def _sample_with_uniform_replay(
         self,
@@ -234,7 +216,7 @@ class _ResetDatasetSampler:
 
     def metrics(self) -> dict[str, float]:
         """Return sampling-concentration and cyclic-replay metrics."""
-        replay_fraction = self._uniform_replay_fraction()
+        replay_fraction = float(self.cfg.uniform_fraction)
         probabilities = self._probabilities()
         probabilities.mul_(1.0 - replay_fraction).add_(replay_fraction / self.row_count)
         top_count = max(1, math.ceil(0.01 * self.row_count))
@@ -243,46 +225,21 @@ class _ResetDatasetSampler:
                 probabilities.square().sum().reciprocal() / self.row_count,
                 torch.topk(probabilities, top_count, sorted=False).values.sum(),
                 probabilities.new_tensor(replay_fraction),
-                probabilities.new_tensor(float(self._uniform_first_sweep_complete)),
-                probabilities.new_tensor(self._uniform_first_sweep_progress()),
             )
         )
         names = (
             "sampler/effective_pool_fraction",
             "sampler/top_1_percent_mass",
             "sampler/uniform_replay_fraction",
-            "sampler/uniform_first_sweep_complete",
-            "sampler/uniform_first_sweep_progress",
         )
         return dict(zip(names, values.tolist(), strict=True))
 
     def _uniform_assignment_count(self, unforced_count: int) -> int:
-        """Reserve cyclic assignments and switch fractions at the first complete sweep."""
-        if self._uniform_first_sweep_complete or self.cfg.uniform_fraction_initial is None:
-            replay_credit = self._uniform_credit + self.cfg.uniform_fraction * unforced_count
-            uniform_count = math.floor(replay_credit + 1.0e-12)
-            self._uniform_credit = replay_credit - uniform_count
-            return min(unforced_count, uniform_count)
-
-        rows_until_first_sweep = self.row_count - self._uniform_cursor
-        initial_fraction = self.cfg.uniform_fraction_initial
-        initial_credit = self._uniform_credit + initial_fraction * unforced_count
-        initial_uniform_count = math.floor(initial_credit + 1.0e-12)
-        if initial_uniform_count < rows_until_first_sweep:
-            self._uniform_credit = initial_credit - initial_uniform_count
-            return initial_uniform_count
-
-        unforced_until_first_sweep = math.ceil(
-            (rows_until_first_sweep - self._uniform_credit) / initial_fraction - 1.0e-12
-        )
-        credit_at_transition = (
-            self._uniform_credit + initial_fraction * unforced_until_first_sweep - rows_until_first_sweep
-        )
-        remaining_unforced = unforced_count - unforced_until_first_sweep
-        steady_credit = credit_at_transition + self.cfg.uniform_fraction * remaining_unforced
-        steady_uniform_count = math.floor(steady_credit + 1.0e-12)
-        self._uniform_credit = steady_credit - steady_uniform_count
-        return rows_until_first_sweep + steady_uniform_count
+        """Reserve the configured exact fraction for cyclic assignments over time."""
+        replay_credit = self._uniform_credit + self.cfg.uniform_fraction * unforced_count
+        uniform_count = math.floor(replay_credit + 1.0e-12)
+        self._uniform_credit = replay_credit - uniform_count
+        return min(unforced_count, uniform_count)
 
     def _take_uniform_rows(
         self,
@@ -301,7 +258,6 @@ class _ResetDatasetSampler:
             self._uniform_cursor += take
             remaining -= take
             if self._uniform_cursor == self.row_count:
-                self._uniform_first_sweep_complete = True
                 self._uniform_order = torch.randperm(
                     self.row_count,
                     device=self._success_rates.device,
@@ -309,9 +265,3 @@ class _ResetDatasetSampler:
                 )
                 self._uniform_cursor = 0
         return torch.cat(chunks)
-
-    def _uniform_first_sweep_progress(self) -> float:
-        """Return first-sweep cyclic coverage in ``[0, 1]``."""
-        if self._uniform_first_sweep_complete:
-            return 1.0
-        return self._uniform_cursor / self.row_count

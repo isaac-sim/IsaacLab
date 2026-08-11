@@ -692,26 +692,38 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     proxy_mass_scale: float = 10.0
 
     def _validate_source_shape_profiles(self) -> None:
-        """Validate source-pile profiles before any derived bounds consume them."""
+        """Validate source-pile profiles consumed by reset packing."""
         if not self.reset_source_shape_profiles or any(
             len(profile) != 2 for profile in self.reset_source_shape_profiles
         ):
             raise ValueError("Source shape profiles must contain vertical cells and an aspect ratio.")
         if any(
-            vertical_cells < 1 or not math.isfinite(aspect_ratio) or aspect_ratio <= 0.0
+            isinstance(vertical_cells, bool)
+            or not isinstance(vertical_cells, int)
+            or vertical_cells < 1
+            or not math.isfinite(aspect_ratio)
+            or aspect_ratio <= 0.0
             for vertical_cells, aspect_ratio in self.reset_source_shape_profiles
         ):
-            raise ValueError("Source shape profiles must contain positive finite values.")
+            raise ValueError(
+                "Source shape profiles require a positive integer height and finite positive aspect ratio."
+            )
 
     def _validate_reset_config(self) -> None:
-        """Validate fixed-payload and canonical pose-bank resets."""
+        """Validate values required to build the collision-screened reset bank."""
+        self._validate_source_shape_profiles()
         particle_radius = self.scene.media.spawn.radius
         if particle_radius is None or not math.isfinite(particle_radius) or particle_radius <= 0.0:
             raise ValueError("UR10 Push requires an explicit positive particle radius.")
         level_count = len(self.reset_randomization_scales)
-        if level_count < 2 or len(self.reset_pile_center_x) != level_count:
+        if level_count < 1 or len(self.reset_pile_center_x) != level_count:
             raise ValueError("The reset curriculum must contain matching center and scale sequences.")
-        if self.reset_pose_count < level_count or self.reset_pose_count % level_count != 0:
+        if (
+            isinstance(self.reset_pose_count, bool)
+            or not isinstance(self.reset_pose_count, int)
+            or self.reset_pose_count < level_count
+            or self.reset_pose_count % level_count != 0
+        ):
             raise ValueError("reset_pose_count must be positive and divisible by the reset curriculum level count.")
         if (
             any(not math.isfinite(value) for value in self.reset_pile_center_x)
@@ -723,9 +735,8 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                     self.reset_randomization_scales[1:],
                 )
             )
-            or not math.isclose(self.reset_randomization_scales[-1], 1.0)
         ):
-            raise ValueError("Reset scales must be finite, strictly increasing values in (0, 1] ending at one.")
+            raise ValueError("Reset scales must be finite, strictly increasing values in (0, 1].")
 
         centers = (*self.paddle_reset_center, *self.pile_nominal_center)
         if (
@@ -734,28 +745,18 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
             or not all(math.isfinite(value) for value in centers)
         ):
             raise ValueError("Paddle and pile reset centers must contain three finite coordinates.")
-        if (
-            len(self.reset_paddle_longitudinal_offset_range) != 2
-            or not all(math.isfinite(value) for value in self.reset_paddle_longitudinal_offset_range)
-            or not self.reset_paddle_longitudinal_offset_range[0]
-            <= 0.0
-            <= self.reset_paddle_longitudinal_offset_range[1]
+        reset_ranges = (
+            self.reset_paddle_longitudinal_offset_range,
+            self.reset_pile_paddle_distance_range,
+            self.reset_pile_paddle_lateral_offset_range,
+        )
+        if any(
+            len(bounds) != 2 or not all(math.isfinite(value) for value in bounds) or bounds[0] > bounds[1]
+            for bounds in reset_ranges
         ):
-            raise ValueError("The paddle longitudinal range must be finite, ordered, and contain zero.")
-        if (
-            len(self.reset_pile_paddle_distance_range) != 2
-            or not all(math.isfinite(value) for value in self.reset_pile_paddle_distance_range)
-            or not 0.0 < self.reset_pile_paddle_distance_range[0] <= self.reset_pile_paddle_distance_range[1]
-        ):
-            raise ValueError("The pile-to-paddle distance range must be finite, positive, and ordered.")
-        if (
-            len(self.reset_pile_paddle_lateral_offset_range) != 2
-            or not all(math.isfinite(value) for value in self.reset_pile_paddle_lateral_offset_range)
-            or not self.reset_pile_paddle_lateral_offset_range[0]
-            <= 0.0
-            <= self.reset_pile_paddle_lateral_offset_range[1]
-        ):
-            raise ValueError("The pile-to-paddle lateral range must be finite, ordered, and contain zero.")
+            raise ValueError("Reset ranges must contain two finite values in increasing order.")
+        if self.reset_pile_paddle_distance_range[0] <= 0.0:
+            raise ValueError("The pile-to-paddle distance range must be positive.")
         randomization_magnitudes = (
             self.reset_particle_max_yaw,
             self.reset_particle_jitter,
@@ -764,16 +765,6 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         )
         if any(not math.isfinite(value) or value < 0.0 for value in randomization_magnitudes):
             raise ValueError("Reset randomization magnitudes must be finite and non-negative.")
-        nominal_distance = self.pile_nominal_center[0] - self.paddle_reset_center[0]
-        nominal_lateral_offset = self.pile_nominal_center[1] - self.paddle_reset_center[1]
-        if not self.reset_pile_paddle_distance_range[0] <= nominal_distance <= self.reset_pile_paddle_distance_range[1]:
-            raise ValueError("The nominal pile-to-paddle distance must lie within its reset range.")
-        if not (
-            self.reset_pile_paddle_lateral_offset_range[0]
-            <= nominal_lateral_offset
-            <= self.reset_pile_paddle_lateral_offset_range[1]
-        ):
-            raise ValueError("The nominal pile-to-paddle lateral offset must lie within its reset range.")
         if max(self.reset_particle_max_yaw, self.reset_paddle_max_yaw) >= 0.5 * math.pi:
             raise ValueError("Reset yaw magnitudes must be smaller than pi/2.")
         if self.reset_particle_jitter >= 0.5 * min(PILE_LATTICE_CELL_SIZE):
@@ -781,25 +772,22 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         if not math.isfinite(self.reset_bin_clearance) or self.reset_bin_clearance < 0.0:
             raise ValueError("reset_bin_clearance must be finite and non-negative.")
 
-        self._validate_particle_reset_envelope()
         paddle_size = tuple(self.paddle_size)
         if (
-            tuple(self.scene.paddle.spawn.size) != paddle_size
+            len(paddle_size) != 3
+            or any(not math.isfinite(value) or value <= 0.0 for value in paddle_size)
+            or tuple(self.scene.paddle.spawn.size) != paddle_size
             or tuple(self.scene.paddle_visual.spawn.size) != paddle_size
         ):
-            raise ValueError("paddle_size must match both authored paddle geometries.")
-        maximum_lateral_width = PILE_LATTICE_RESOLUTION[1] * PILE_LATTICE_CELL_SIZE[1]
-        if paddle_size[1] >= maximum_lateral_width:
-            raise ValueError("The paddle must remain narrower than the maximum pile.")
-        if min(self.reset_ik_seeds, self.reset_ik_iterations) < 1:
-            raise ValueError("Reset IK seed and iteration counts must be positive.")
+            raise ValueError("paddle_size must be finite, positive, and match both authored paddle geometries.")
+        if any(
+            isinstance(value, bool) or not isinstance(value, int) or value < 1
+            for value in (self.reset_ik_seeds, self.reset_ik_iterations)
+        ):
+            raise ValueError("Reset IK seed and iteration counts must be positive integers.")
         if any(not math.isfinite(value) or value <= 0.0 for value in (self.reset_ik_max_cost, self.reset_ik_noise_std)):
             raise ValueError("Reset IK cost and noise thresholds must be finite and positive.")
-        if (
-            not math.isfinite(self.actions.arm_action.joint_limit_margin)
-            or self.actions.arm_action.joint_limit_margin < 0.0
-        ):
-            raise ValueError("The arm action joint-limit margin must be finite and non-negative.")
+        self._validate_particle_reset_envelope()
 
     def _validate_particle_reset_envelope(self) -> None:
         """Keep every randomized single pile on the table and clear of the paddle and bin."""
@@ -858,10 +846,16 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                 raise ValueError(f"Reset level {level} can spawn particles beyond the lateral work-surface edge.")
 
     def _validate_heightmap_config(self) -> None:
-        """Validate the deployable image observation and calibrated goal mask."""
-        if len(self.heightmap_shape) != 2 or any(size < 8 for size in self.heightmap_shape):
+        """Validate dimensions and bounds consumed by the image observation."""
+        if len(self.heightmap_shape) != 2 or any(
+            isinstance(size, bool) or not isinstance(size, int) or size < 8 for size in self.heightmap_shape
+        ):
             raise ValueError("heightmap_shape must contain two integer dimensions of at least eight cells.")
-        if self.heightmap_history_steps < 1:
+        if (
+            isinstance(self.heightmap_history_steps, bool)
+            or not isinstance(self.heightmap_history_steps, int)
+            or self.heightmap_history_steps < 1
+        ):
             raise ValueError("heightmap_history_steps must be a positive integer.")
         for name, bounds in (
             ("heightmap_x_bounds", self.heightmap_x_bounds),
@@ -879,23 +873,6 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         ):
             if heightmap_bounds[0] > bin_bounds[0] or heightmap_bounds[1] < bin_bounds[1]:
                 raise ValueError(f"{heightmap_name} must contain the complete {bin_name}.")
-        height_cells, width_cells = self.heightmap_shape
-        cell_size_x = (self.heightmap_x_bounds[1] - self.heightmap_x_bounds[0]) / width_cells
-        cell_size_y = (self.heightmap_y_bounds[1] - self.heightmap_y_bounds[0]) / height_cells
-        if max(cell_size_x, cell_size_y) > 1.05 * self.scene.media.spawn.voxel_size:
-            raise ValueError("The heightmap must resolve the particle surface at approximately the MPM voxel scale.")
-        if max(cell_size_x, cell_size_y) / min(cell_size_x, cell_size_y) > 1.05:
-            raise ValueError("The heightmap cells must be approximately square.")
-        for axis_name, map_bounds, bin_bounds, cell_count in (
-            ("x", self.heightmap_x_bounds, self.bin_inner_x_bounds, width_cells),
-            ("y", self.heightmap_y_bounds, self.bin_inner_y_bounds, height_cells),
-        ):
-            cell_size = (map_bounds[1] - map_bounds[0]) / cell_count
-            if not any(
-                bin_bounds[0] <= map_bounds[0] + (index + 0.5) * cell_size <= bin_bounds[1]
-                for index in range(cell_count)
-            ):
-                raise ValueError(f"The bin must cover at least one heightmap cell center along {axis_name}.")
         if (
             not math.isfinite(self.heightmap_z_min)
             or not math.isfinite(self.heightmap_z_range)
@@ -923,8 +900,8 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         if self.heightmap_z_min + self.heightmap_z_range <= required_heightmap_top:
             raise ValueError("The heightmap vertical range must include the complete deployment pile.")
 
-    def _validate_objective_config(self) -> None:
-        """Validate cross-field objective ranges and observation divisors."""
+    def _validate_runtime_config(self) -> None:
+        """Validate task thresholds, observation divisors, and workspace bounds."""
         if not math.isfinite(self.state_bound_joint_position_margin) or self.state_bound_joint_position_margin < 0.0:
             raise ValueError("state_bound_joint_position_margin must be finite and non-negative.")
         if not 0.0 < self.success_fraction <= 1.0 or not (
@@ -948,28 +925,22 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         )
         if any(not math.isfinite(value) or value <= 0.0 for value in observation_divisors):
             raise ValueError("Particle-speed scales must be finite and positive.")
-        reward_values = (
-            self.rewards.success.weight,
-            self.rewards.bin_progress.weight,
-            self.rewards.transport_progress.weight,
-            self.rewards.spill.weight,
-            self.rewards.failure.weight,
-            self.rewards.action_magnitude.weight,
-            self.rewards.action_rate.weight,
-        )
-        if not all(math.isfinite(value) for value in reward_values):
-            raise ValueError("Every reward and penalty coefficient must be finite.")
-        maximum_positive_shaping = self.rewards.bin_progress.weight + self.rewards.transport_progress.weight
-        if self.rewards.success.weight <= maximum_positive_shaping:
-            raise ValueError("The success reward must exceed the maximum positive potential shaping.")
+        lower = self.particle_workspace_lower_bound
+        upper = self.particle_workspace_upper_bound
+        if len(lower) != 3 or len(upper) != 3 or any(not math.isfinite(value) for value in (*lower, *upper)):
+            raise ValueError("Particle workspace bounds must each contain three finite values.")
+        if any(low >= high for low, high in zip(lower, upper, strict=True)):
+            raise ValueError("Particle workspace lower bounds must be smaller than upper bounds.")
+
+    def validate_config(self) -> None:
+        """Validate the final configuration after command-line overrides are applied."""
+        self._validate_reset_config()
+        self._validate_heightmap_config()
+        self._validate_runtime_config()
 
     def __post_init__(self) -> None:
         from isaaclab_visualizers.kit import KitVisualizerCfg
 
-        self._validate_source_shape_profiles()
-        self._validate_heightmap_config()
-        self._validate_reset_config()
-        self._validate_objective_config()
         self.sim.default_visualizer_cfg = KitVisualizerCfg(
             eye=(1.7, 1.5, 1.0),
             lookat=(0.55, 0.0, 0.0),
