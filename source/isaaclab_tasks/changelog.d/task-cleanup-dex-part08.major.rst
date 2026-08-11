@@ -66,8 +66,6 @@ Removed
   the in-hand offset and goal-marker position are per-robot fields on the Direct
   configurations.
 * Removed the handover ``EventCfg``, which was never wired into ``HandoverEnvCfg.events``.
-* Removed ``isaaclab_tasks.core.utils``. Its helpers moved to
-  ``isaaclab_tasks.core.reorient.utils``, which the hand-over task imports.
 * Removed ``evaluate_reorient_success`` and ``reorient_reward`` from the reorientation
   ``mdp`` namespace. Neither is a manager MDP term; import them from
   ``isaaclab_tasks.core.reorient.mdp.rewards`` instead.

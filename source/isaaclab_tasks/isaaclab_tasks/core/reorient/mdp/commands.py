@@ -21,7 +21,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 
-from isaaclab_tasks.core.reorient.utils import SuccessTracker
+from isaaclab_tasks.core.utils import SuccessTracker
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject

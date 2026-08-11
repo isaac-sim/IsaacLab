@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Helpers shared by the reorientation and hand-over tasks."""
+"""Shared utilities for core learning tasks."""
 
 from collections.abc import Sequence
 
