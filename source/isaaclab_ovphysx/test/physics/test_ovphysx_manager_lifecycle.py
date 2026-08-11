@@ -19,8 +19,9 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 
 class _FakePhysXConfig:
-    def __init__(self, num_threads=None, carbonite_overrides=None):
+    def __init__(self, num_threads=None, cooked_collider_cache_dir=None, carbonite_overrides=None):
         self.num_threads = num_threads
+        self.cooked_collider_cache_dir = cooked_collider_cache_dir
         self.carbonite_overrides = carbonite_overrides or {}
 
 

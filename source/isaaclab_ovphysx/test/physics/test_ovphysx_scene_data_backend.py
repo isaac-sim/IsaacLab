@@ -366,18 +366,11 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
     ("device", "gpu_index", "expected_cpu_mode", "expected_active_cuda_gpus"),
     [("cpu", 0, True, None), ("gpu", 2, False, "2")],
 )
-def test_manager_supports_pinned_runtime_api(
-    monkeypatch, tmp_path, device, gpu_index, expected_cpu_mode, expected_active_cuda_gpus
-):
+def test_manager_supports_pinned_runtime_api(tmp_path, device, gpu_index, expected_cpu_mode, expected_active_cuda_gpus):
     """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
     from isaaclab_ovphysx.physics import OvPhysxManager
 
-    if sys.platform == "win32":
-        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-        expected_cache_dir = str(tmp_path / "ov" / "cache" / "DerivedDataCache")
-    else:
-        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
-        expected_cache_dir = str(tmp_path / "ov" / "DerivedDataCache")
+    cache_dir = str(tmp_path / "cooked_colliders")
 
     class PinnedPhysX:
         cpu_mode = None
@@ -410,14 +403,14 @@ def test_manager_supports_pinned_runtime_api(
 
     runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config)
 
-    physx = OvPhysxManager._create_physx_instance(runtime, device, gpu_index)
+    physx = OvPhysxManager._create_physx_instance(runtime, device, gpu_index, cache_dir)
     OvPhysxManager._step_physx(physx, dt=0.02)
     OvPhysxManager._reset_physx_stage(physx)
 
     assert PinnedPhysX.cpu_mode is expected_cpu_mode
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
-    assert physx.constructor["config"].cooked_collider_cache_dir == expected_cache_dir
+    assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
     assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
 
 

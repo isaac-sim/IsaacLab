@@ -14,10 +14,7 @@ from __future__ import annotations
 
 import atexit
 import logging
-import os
 import re
-import sys
-import tempfile
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
@@ -37,6 +34,8 @@ from isaaclab.scene_data.deformable_discovery import (
 
 from isaaclab_ovphysx._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ovphysx._runtime import import_ovphysx
+
+from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -918,7 +917,9 @@ class OvPhysxManager(PhysicsManager):
         """
         ovphysx = import_ovphysx()
         ovphysx.bootstrap()
-        cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index)
+        # The runtime is also constructed outside a configured simulation, where no cfg exists.
+        cache_dir = getattr(PhysicsManager._cfg, "cooked_collider_cache_dir", DEFAULT_COOKED_COLLIDER_CACHE_DIR)
+        cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index, cache_dir)
         if not cls._atexit_registered:
             # Globally retained environments may otherwise keep TensorBinding DLPack
             # caches alive until Python module finalization. Normal atexit cleanup runs
@@ -946,35 +947,16 @@ class OvPhysxManager(PhysicsManager):
             logger.exception("Failed to close OVPhysX during process exit.")
 
     @staticmethod
-    def _derived_data_cache_dir() -> str:
-        """Return the canonical Omniverse derived-data cache directory.
-
-        Mirrors the location Kit resolves from its ``${omni_cache}`` token. The kitless
-        OVPhysX runtime cannot resolve that token, and its Carbonite fallback resolves
-        relative to the Python interpreter binary, which is not writable on installs that
-        reuse a system interpreter.
-        """
-        if sys.platform == "win32":
-            base = os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local")
-            cache_dir = os.path.join(base, "ov", "cache", "DerivedDataCache")
-        else:
-            base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
-            cache_dir = os.path.join(base, "ov", "DerivedDataCache")
-        if not os.path.isabs(cache_dir):
-            # ``expanduser`` leaves "~" unchanged when the home cannot be resolved; the UID keeps
-            # concurrent users on a shared host off each other's cache.
-            root = f"ov-{os.getuid()}" if hasattr(os, "getuid") else "ov"
-            cache_dir = os.path.join(tempfile.gettempdir(), root, "DerivedDataCache")
-        return cache_dir
-
-    @staticmethod
-    def _create_physx_instance(ovphysx: Any, ovphysx_device: str, gpu_index: int) -> Any:
+    def _create_physx_instance(
+        ovphysx: Any, ovphysx_device: str, gpu_index: int, cooked_collider_cache_dir: str
+    ) -> Any:
         """Create a PhysX instance through the pinned OVPhysX runtime API.
 
         Args:
             ovphysx: Imported OVPhysX runtime module.
             ovphysx_device: Physics device, either ``"cpu"`` or ``"gpu"``.
             gpu_index: CUDA device ordinal selected for GPU physics.
+            cooked_collider_cache_dir: Directory for the cooked-collider cache.
 
         Returns:
             The configured ``ovphysx.PhysX`` instance.
@@ -997,7 +979,7 @@ class OvPhysxManager(PhysicsManager):
         physx_kwargs = {
             "config": ovphysx.PhysXConfig(
                 num_threads=8,
-                cooked_collider_cache_dir=OvPhysxManager._derived_data_cache_dir(),
+                cooked_collider_cache_dir=cooked_collider_cache_dir,
                 carbonite_overrides=carbonite_overrides,
             ),
         }

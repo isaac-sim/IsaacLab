@@ -7,8 +7,17 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
+
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils.configclass import configclass
+
+# POSIX temp roots are shared between users; Windows already gives each user a private one.
+_CACHE_DIR_NAME = f"ovphysx_derived_data_cache_{os.getuid()}" if hasattr(os, "getuid") else "ovphysx_derived_data_cache"
+
+DEFAULT_COOKED_COLLIDER_CACHE_DIR: str = os.path.join(tempfile.gettempdir(), _CACHE_DIR_NAME)
+"""Fallback cache directory used when the runtime is constructed without an :class:`OvPhysxCfg`."""
 
 
 @configclass
@@ -21,6 +30,14 @@ class OvPhysxCfg(PhysicsCfg):
     """
 
     class_type = "{DIR}.ovphysx_manager:OvPhysxManager"
+
+    cooked_collider_cache_dir: str = DEFAULT_COOKED_COLLIDER_CACHE_DIR
+    """Directory for the OVPhysX cooked-collider cache. Defaults to a per-user directory under the system
+    temporary directory.
+
+    Left unset, the packaged Carbonite resolves this cache relative to the running executable, which for
+    an embedded runtime is the Python interpreter rather than an application package.
+    """
 
     enable_enhanced_determinism: bool = False
     """Enable/disable improved determinism at the expense of performance. Defaults to False.
