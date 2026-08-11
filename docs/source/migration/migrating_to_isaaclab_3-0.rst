@@ -83,12 +83,13 @@ In Isaac Lab 3.0, the equivalent is:
        --viz kit --enable_cameras --headless --video
 
 As a convenience, passing ``--video`` without ``--viz`` still works: Isaac Lab
-auto-creates a headless Kit visualizer (falling back to Newton GL if Kit is unavailable)
-and sets ``source="visualizer:kit"`` on the default recorder, printing:
+auto-creates a headless visualizer and points the default recorder at it. The backend
+depends on the frontend — Kit with ``--frontend torch``, and Newton GL with
+``--frontend warp``, which is commonly run without a Kit install. It prints:
 
 .. code-block:: text
 
-   [INFO] --video specified without --viz: auto-creating a headless Kit visualizer
+   [INFO] --video specified without --viz: auto-creating a headless kit visualizer
    for video recording. Pass --viz <type> to choose a different visualizer, or
    set video_recorders in your env config to record from a scene sensor instead.
 

@@ -739,7 +739,8 @@ def pre_launch_video_config(env_cfg: Any, log_dir: str | None = None, args_cli: 
     """Pre-inject a recording visualizer into env_cfg before launch_simulation().
 
     Must be called BEFORE :func:`~isaaclab.app.AppLauncher.launch_simulation` so the
-    launcher can include the Kit runtime requirement in its backend scan.
+    launcher can include the visualizer's runtime requirement in its backend scan.
+    The backend depends on the frontend: Kit on ``torch``, Newton GL on ``warp``.
 
     Only acts when:
 

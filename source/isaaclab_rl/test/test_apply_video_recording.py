@@ -40,9 +40,10 @@ def _env_cfg():
 def _patch_kit_visualizer():
     """Stub isaaclab_visualizers.kit so tests run without Isaac Sim installed.
 
-    apply_video_recording() always injects KitVisualizerCfg(headless=True) when no
-    concrete visualizer is pre-configured. Without this stub the import would fail in
-    the CI environment where the isaacsim extra is not installed.
+    apply_video_recording() injects KitVisualizerCfg(headless=True) on the torch frontend
+    when no concrete visualizer is pre-configured (the warp frontend gets Newton GL
+    instead). Without this stub the import would fail in the CI environment where the
+    isaacsim extra is not installed.
     """
     fake_kit_cfg_instance = MagicMock()
     MockKitVisualizerCfg = MagicMock(return_value=fake_kit_cfg_instance)

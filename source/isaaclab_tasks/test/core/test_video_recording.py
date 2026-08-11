@@ -138,6 +138,32 @@ def _run_cartpole_warp(env_cfg, *, steps: int = _STEPS) -> None:
         env.close()
 
 
+def _cartpole_manager_cfg_newton(*, num_envs: int = 1):
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
+    from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
+
+    cfg = CartpoleEnvCfg()
+    cfg.scene.num_envs = num_envs
+    cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
+    return cfg
+
+
+def _run_cartpole_manager_warp(env_cfg, *, steps: int = _STEPS) -> None:
+    """Build the manager-based Warp env the way the CLI does, via the frontend adapter."""
+    from isaaclab_experimental.envs.frontend import WarpFrontend
+
+    sim_utils.create_new_stage()
+    env = WarpFrontend.build_env(env_cfg, "Isaac-Cartpole")
+    try:
+        env.reset()
+        actions = torch.zeros(env.num_envs, *env.action_space.shape[1:], device=env.device)
+        for _ in range(steps):
+            env.step(actions)
+    finally:
+        env.close()
+
+
 def _run_cartpole_camera(env_cfg) -> None:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 
@@ -235,26 +261,36 @@ def test_newton_records_nonblack_clip():
         _assert_clip_nonblack(os.path.join(output_dir, "newton_0000.mp4"), "newton")
 
 
-def test_warp_env_records_and_flushes_clips():
-    """The Warp env drives recorders end to end: construction, per-step tick, close() flush.
+@pytest.mark.parametrize(
+    "make_cfg, run_env, label",
+    [
+        (_cartpole_cfg_newton, _run_cartpole_warp, "direct"),
+        (_cartpole_manager_cfg_newton, _run_cartpole_manager_warp, "manager"),
+    ],
+)
+def test_warp_env_records_and_flushes_clips(make_cfg, run_env, label):
+    """Each Warp env drives recorders end to end: construction, per-step tick, close() flush.
 
     The run is deliberately shorter than ``video_length``, so the clip never completes on its
     own and can only reach disk through the ``close()`` flush. Its frame count then equals the
     number of steps only if the recorder is advanced exactly once per step. Deleting any of
     the three hooks fails this test.
+
+    Both hierarchies are covered because ``DirectRLEnvWarp`` and the manager-based classes
+    are separate implementations with their own step and close paths.
     """
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     steps = _CLIP // 2
     with tempfile.TemporaryDirectory() as output_dir:
-        env_cfg = _cartpole_cfg_newton(num_envs=1)
+        env_cfg = make_cfg(num_envs=1)
         env_cfg.sim.visualizer_cfgs = [NewtonGLVisualizerCfg(window_width=320, window_height=240)]
-        env_cfg.video_recorders = [_recorder_cfg(output_dir, "visualizer:newton_gl", prefix="warp")]
-        _run_cartpole_warp(env_cfg, steps=steps)
+        env_cfg.video_recorders = [_recorder_cfg(output_dir, "visualizer:newton_gl", prefix=label)]
+        run_env(env_cfg, steps=steps)
 
-        clip = os.path.join(output_dir, "warp_0000.mp4")
+        clip = os.path.join(output_dir, f"{label}_0000.mp4")
         assert os.path.exists(clip), "close() did not flush the partial clip"
-        _assert_clip_nonblack(clip, "warp")
+        _assert_clip_nonblack(clip, label)
         # One frame per env step. Decoded counts round by ±1 against the clip duration, so
         # the bound is what is meaningful: a missing tick writes nothing, a doubled tick or a
         # tick hoisted out of the step loop lands far outside this range.
