@@ -8,7 +8,7 @@
 The robot must keep its pelvis upright at a target height.
 """
 
-from isaaclab_newton.physics import NewtonCfg, NewtonShapeCfg, kamino_padmm_solver_cfg
+from isaaclab_newton.physics import KaminoPADMMCfg, KaminoPADMMSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -51,13 +51,16 @@ _PHYSICS_MATERIAL = sim_utils.RigidBodyMaterialCfg(
 def _kamino_newton_cfg() -> NewtonCfg:
     """Kamino P-ADMM solver preset for DR Legs."""
     return NewtonCfg(
-        solver_cfg=kamino_padmm_solver_cfg(
+        solver_cfg=KaminoPADMMSolverCfg(
             use_fk_solver=True,
             max_contacts_per_world=32,
-            padmm__primal_tolerance=1.0e-5,
-            padmm__dual_tolerance=1.0e-5,
-            padmm__compl_tolerance=1.0e-5,
-            padmm__rho_0=0.02,
+            sparse_jacobian=True,
+            dynamics_solver_cfg=KaminoPADMMCfg(
+                primal_tolerance=1.0e-5,
+                dual_tolerance=1.0e-5,
+                compl_tolerance=1.0e-5,
+                rho_0=0.02,
+            ),
         ),
         use_cuda_graph=True,
         default_shape_cfg=NewtonShapeCfg(margin=0.0, gap=0.001),

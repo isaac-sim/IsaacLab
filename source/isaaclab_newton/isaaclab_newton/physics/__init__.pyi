@@ -9,11 +9,12 @@ __all__ = [
     "KaminoCollisionDetectorCfg",
     "KaminoConstraintsCfg",
     "KaminoDVICfg",
+    "KaminoDVISolverCfg",
     "KaminoDynamicsCfg",
     "KaminoFKCfg",
     "KaminoMaterialsCfg",
     "KaminoPADMMCfg",
-    "KaminoSolverCfg",
+    "KaminoPADMMSolverCfg",
     "MPMSolverCfg",
     "MJWarpSolverCfg",
     "NewtonCfg",
@@ -27,8 +28,6 @@ __all__ = [
     "NewtonSolverCfg",
     "NewtonXPBDManager",
     "XPBDSolverCfg",
-    "kamino_dvi_solver_cfg",
-    "kamino_padmm_solver_cfg",
 ]
 
 from .featherstone_manager import NewtonFeatherstoneManager
@@ -38,13 +37,12 @@ from .kamino_manager_cfg import (
     KaminoCollisionDetectorCfg,
     KaminoConstraintsCfg,
     KaminoDVICfg,
+    KaminoDVISolverCfg,
     KaminoDynamicsCfg,
     KaminoFKCfg,
     KaminoMaterialsCfg,
     KaminoPADMMCfg,
-    KaminoSolverCfg,
-    kamino_dvi_solver_cfg,
-    kamino_padmm_solver_cfg,
+    KaminoPADMMSolverCfg,
 )
 from .mjwarp_manager import NewtonMJWarpManager
 from .mjwarp_manager_cfg import MJWarpSolverCfg

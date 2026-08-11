@@ -23,11 +23,12 @@
     KaminoCollisionDetectorCfg
     KaminoConstraintsCfg
     KaminoDVICfg
+    KaminoDVISolverCfg
     KaminoDynamicsCfg
     KaminoFKCfg
     KaminoMaterialsCfg
     KaminoPADMMCfg
-    KaminoSolverCfg
+    KaminoPADMMSolverCfg
     MPMSolverCfg
     HydroelasticSDFCfg
 
@@ -104,14 +105,15 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: KaminoSolverCfg
+.. autoclass:: KaminoPADMMSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
 
-.. autofunction:: kamino_padmm_solver_cfg
-
-.. autofunction:: kamino_dvi_solver_cfg
+.. autoclass:: KaminoDVISolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
 
 .. autoclass:: MPMSolverCfg
   :members:

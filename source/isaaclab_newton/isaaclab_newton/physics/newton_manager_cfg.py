@@ -144,7 +144,8 @@ class NewtonCfg(PhysicsCfg):
     The pipeline is active when the solver delegates collision detection to Newton:
 
     - :class:`MJWarpSolverCfg` with ``use_mujoco_contacts=False``,
-    - :class:`KaminoSolverCfg` with ``use_collision_detector=False``,
+    - :class:`KaminoPADMMSolverCfg` or :class:`KaminoDVISolverCfg` with
+      ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
@@ -157,7 +158,7 @@ class NewtonCfg(PhysicsCfg):
 
     .. note::
         Setting this while ``MJWarpSolverCfg.use_mujoco_contacts=True`` raises
-        :class:`ValueError`.  When ``KaminoSolverCfg.use_collision_detector=True``,
+        :class:`ValueError`.  When a Kamino solver config has ``use_collision_detector=True``,
         the field is ignored because Kamino's internal detector handles contacts.
     """
 

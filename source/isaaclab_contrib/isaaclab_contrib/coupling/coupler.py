@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from functools import partial
 
 from isaaclab_newton.physics import (
-    KaminoSolverCfg,
+    KaminoDVISolverCfg,
+    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCollisionPipelineCfg,
@@ -62,7 +63,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         """
         if isinstance(solver_cfg, MJWarpSolverCfg):
             return not solver_cfg.use_mujoco_contacts
-        if isinstance(solver_cfg, KaminoSolverCfg):
+        if isinstance(solver_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)):
             return not solver_cfg.use_collision_detector
         if isinstance(solver_cfg, MPMSolverCfg):
             return False
@@ -150,9 +151,9 @@ class NewtonCouplerManager(NewtonVBDManager):
                     f"CouplerEntryCfg {entry.name!r} uses {type(nested_cfg).__name__}, whose manager "
                     "does not implement nested solver construction."
                 )
-            if isinstance(nested_cfg, KaminoSolverCfg):
+            if isinstance(nested_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)):
                 raise NotImplementedError(
-                    f"CouplerEntryCfg {entry.name!r} uses KaminoSolverCfg, whose manager-specific FK/reset "
+                    f"CouplerEntryCfg {entry.name!r} uses a Kamino solver config, whose manager-specific FK/reset "
                     "lifecycle cannot yet be preserved inside Newton's coupled-solver entry API."
                 )
             if isinstance(nested_cfg, MPMSolverCfg) and nested_cfg.project_outside_colliders:

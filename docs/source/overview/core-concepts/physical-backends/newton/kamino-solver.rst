@@ -5,7 +5,8 @@ Kamino Solver
 
 Kamino is a Newton solver, not a separate Isaac Lab physics backend. In Isaac Lab,
 Kamino is enabled by selecting a :class:`~isaaclab_newton.physics.NewtonCfg` whose
-``solver_cfg`` is :class:`~isaaclab_newton.physics.KaminoSolverCfg`.
+``solver_cfg`` is :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` or
+:class:`~isaaclab_newton.physics.KaminoDVISolverCfg`.
 This is usually exposed as a ``newton_kamino`` physics preset on the task configuration.
 
 Kamino support is currently beta. A task that works with PhysX or with Newton's
@@ -67,10 +68,10 @@ solver config types used by the presets:
 
     from isaaclab_newton.physics import (
         KaminoCollisionDetectorCfg,
+        KaminoDVISolverCfg,
+        KaminoPADMMSolverCfg,
         MJWarpSolverCfg,
         NewtonCfg,
-        kamino_dvi_solver_cfg,
-        kamino_padmm_solver_cfg,
     )
 
 Then add a ``newton_kamino`` entry beside the existing ``default``, ``physx``, and
@@ -85,29 +86,30 @@ Then add a ``newton_kamino`` entry beside the existing ``default``, ``physx``, a
 The important pieces are:
 
 * Add a ``newton_kamino`` preset whose value is :class:`~isaaclab_newton.physics.NewtonCfg`.
-* Set ``solver_cfg=kamino_padmm_solver_cfg(...)`` or build a
-  :class:`~isaaclab_newton.physics.KaminoSolverCfg` with nested sub-configs.
+* Construct a :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` or
+  :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`.
 * Keep the preset at the same config path used by the task's
   :class:`~isaaclab.sim.SimulationCfg`, for example ``env.sim.physics``.
 
 Choosing PADMM vs DVI
 ---------------------
 
-Kamino exposes two forward-dynamics backends through
-:attr:`~isaaclab_newton.physics.KaminoSolverCfg.dynamics_solver`:
+Kamino exposes two concrete forward-dynamics solver configurations:
 
-* ``"padmm"`` (default): robust proximal ADMM; recommended for contact-heavy tasks.
-* ``"dvi"``: faster projected-dual iterations; best for mechanisms with relatively
-  few active contacts. Requires ``dynamics.preconditioning=False``.
+* :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`: robust proximal ADMM;
+  recommended for contact-heavy tasks.
+* :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`: faster projected-dual
+  iterations; best for mechanisms with relatively few active contacts. It defaults
+  ``dynamics.preconditioning`` to ``False``.
 
-Use factory helpers for validated starting points:
+Construct the concrete solver configuration directly:
 
 .. code-block:: python
 
-    from isaaclab_newton.physics import kamino_dvi_solver_cfg, kamino_padmm_solver_cfg
+    from isaaclab_newton.physics import KaminoDVISolverCfg, KaminoPADMMSolverCfg
 
-    newton_kamino = NewtonCfg(solver_cfg=kamino_padmm_solver_cfg(use_collision_detector=True))
-    newton_kamino_dvi = NewtonCfg(solver_cfg=kamino_dvi_solver_cfg(integrator="moreau"))
+    newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(use_collision_detector=True))
+    newton_kamino_dvi = NewtonCfg(solver_cfg=KaminoDVISolverCfg(integrator="moreau"))
 
 You can select the preset globally:
 
@@ -178,8 +180,10 @@ points rather than universal defaults.
 Kamino Solver Parameters
 ------------------------
 
-The following fields are specific to :class:`~isaaclab_newton.physics.KaminoSolverCfg`.
-They are grouped by the part of the solver they affect.
+The following fields are shared by
+:class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
+:class:`~isaaclab_newton.physics.KaminoDVISolverCfg`. They are grouped by the part
+of the solver they affect.
 
 Core Integration
 ^^^^^^^^^^^^^^^^
@@ -190,9 +194,6 @@ Core Integration
 
     * - Parameter
       - Description
-    * - ``dynamics_solver``
-      - Default: ``"padmm"``. Forward-dynamics backend. Use ``"dvi"`` for the faster
-        projected-dual backend.
     * - ``integrator``
       - Default: ``"moreau"``. Time integration scheme. Use ``"euler"`` for explicit Euler integration.
     * - ``use_fk_solver``
@@ -256,7 +257,8 @@ Constraint Stabilization
 P-ADMM Solver Controls
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Configured through :class:`~isaaclab_newton.physics.KaminoPADMMCfg` at ``solver_cfg.padmm``.
+Configured through :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` at
+``solver_cfg.dynamics_solver_cfg``.
 
 .. list-table::
     :header-rows: 1
@@ -264,51 +266,51 @@ Configured through :class:`~isaaclab_newton.physics.KaminoPADMMCfg` at ``solver_
 
     * - Parameter
       - Description
-    * - ``padmm.max_iterations``
+    * - ``solver_cfg.max_iterations``
       - Default: ``100``. Maximum number of P-ADMM iterations per solver step. Higher values can improve convergence and increase runtime.
-    * - ``padmm.primal_tolerance``
+    * - ``solver_cfg.primal_tolerance``
       - Default: ``1e-4``. Primal residual convergence tolerance.
-    * - ``padmm.dual_tolerance``
+    * - ``solver_cfg.dual_tolerance``
       - Default: ``1e-4``. Dual residual convergence tolerance.
-    * - ``padmm.compl_tolerance``
+    * - ``solver_cfg.compl_tolerance``
       - Default: ``1e-4``. Complementarity residual convergence tolerance for contacts and unilateral constraints.
-    * - ``padmm.restart_tolerance``
+    * - ``solver_cfg.restart_tolerance``
       - Default: ``0.999``. Combined primal-dual residual tolerance for acceleration restarts.
-    * - ``padmm.rho_0``
+    * - ``solver_cfg.rho_0``
       - Default: ``0.05``. Initial P-ADMM penalty parameter. This influences how strongly constraint residuals are penalized early in the solve.
-    * - ``padmm.rho_min``
+    * - ``solver_cfg.rho_min``
       - Default: ``1e-5``. Lower bound on the penalty parameter.
-    * - ``padmm.a_0``
+    * - ``solver_cfg.a_0``
       - Default: ``1.0``. Initial acceleration parameter.
-    * - ``padmm.alpha``
+    * - ``solver_cfg.alpha``
       - Default: ``10.0``. Primal-dual residual threshold for penalty updates.
-    * - ``padmm.tau``
+    * - ``solver_cfg.tau``
       - Default: ``1.5``. Penalty increase/decrease factor.
-    * - ``padmm.eta``
+    * - ``solver_cfg.eta``
       - Default: ``1e-5``. Proximal regularization parameter. It must be greater than zero.
-    * - ``padmm.penalty_update_freq``
+    * - ``solver_cfg.penalty_update_freq``
       - Default: ``1``. Frequency of penalty updates. Zero disables updates.
-    * - ``padmm.penalty_update_method``
+    * - ``solver_cfg.penalty_update_method``
       - Default: ``"fixed"``. Penalty update method. Valid values are ``"fixed"`` and ``"balanced"``.
-    * - ``padmm.linear_solver_tolerance``
+    * - ``solver_cfg.linear_solver_tolerance``
       - Default: ``0.0``. Absolute tolerance for the iterative linear solver. Zero leaves it unchanged.
-    * - ``padmm.linear_solver_tolerance_ratio``
+    * - ``solver_cfg.linear_solver_tolerance_ratio``
       - Default: ``0.0``. Ratio adapting the linear solver tolerance from the ADMM primal residual.
-    * - ``padmm.use_acceleration``
+    * - ``solver_cfg.use_acceleration``
       - Default: ``True``. Enables acceleration in the P-ADMM iterations. This usually improves convergence but should be validated per task.
-    * - ``padmm.warmstart_mode``
+    * - ``solver_cfg.warmstart_mode``
       - Default: ``"containers"``. Warm-start source for P-ADMM. Valid values are ``"none"``, ``"internal"``, and ``"containers"``.
-    * - ``padmm.contact_warmstart_method``
+    * - ``solver_cfg.contact_warmstart_method``
       - Default: ``"geom_pair_net_force"``. Contact warm-start matching method.
-    * - ``padmm.use_graph_conditionals``
+    * - ``solver_cfg.use_graph_conditionals``
       - Default: ``False``. Uses CUDA graph conditional nodes for the iterative solver when ``True``. Setting it to ``False`` unrolls to fixed loops over the maximum iteration count.
 
 
 DVI Solver Controls
 ^^^^^^^^^^^^^^^^^^^
 
-Configured through :class:`~isaaclab_newton.physics.KaminoDVICfg` at ``solver_cfg.dvi``.
-Active only when ``dynamics_solver="dvi"``.
+Configured through :class:`~isaaclab_newton.physics.KaminoDVISolverCfg` at
+``solver_cfg.dynamics_solver_cfg``.
 
 .. list-table::
     :header-rows: 1
@@ -316,23 +318,23 @@ Active only when ``dynamics_solver="dvi"``.
 
     * - Parameter
       - Description
-    * - ``dvi.max_alternating_iterations``
+    * - ``solver_cfg.max_alternating_iterations``
       - Default: ``20``. Maximum outer DVI iterations.
-    * - ``dvi.tolerance``
+    * - ``solver_cfg.tolerance``
       - Default: ``1e-5``. Convergence tolerance on the projected update size.
-    * - ``dvi.regularization``
+    * - ``solver_cfg.regularization``
       - Default: ``1e-6``. Diagonal regularization added to each projected update denominator.
-    * - ``dvi.omega``
+    * - ``solver_cfg.omega``
       - Default: ``1.0``. Relaxation factor applied to projected Gauss-Seidel updates.
-    * - ``dvi.inequality_sweeps_per_iteration``
+    * - ``solver_cfg.inequality_sweeps_per_iteration``
       - Default: ``1``. Projected Gauss-Seidel sweeps per DVI iteration.
-    * - ``dvi.bilateral_solve_interval``
+    * - ``solver_cfg.bilateral_solve_interval``
       - Default: ``1``. DVI iterations between repeated direct bilateral solves.
-    * - ``dvi.bilateral_solver_type``
+    * - ``solver_cfg.bilateral_solver_type``
       - Default: ``"LLTB"``. Direct linear solver for bilateral constraints. Use ``"LLTBRCM"`` for large sparse systems.
-    * - ``dvi.warmstart_mode``
+    * - ``solver_cfg.warmstart_mode``
       - Default: ``"containers"``. Warm-start source for DVI. Valid values are ``"none"``, ``"internal"``, and ``"containers"``.
-    * - ``dvi.contact_warmstart_method``
+    * - ``solver_cfg.contact_warmstart_method``
       - Default: ``"key_and_position_with_net_force_backup"``. Contact warm-start method for container warm-starts.
 
 
@@ -382,13 +384,13 @@ Sparsity, Dynamics, and Debugging
     * - Parameter
       - Description
     * - ``sparse_jacobian``
-      - Default: ``None``. Uses sparse Jacobian computation. ``None`` lets Newton pick per backend. The :func:`~isaaclab_newton.physics.kamino_padmm_solver_cfg` factory sets this to ``True``.
+      - Default: ``None``. Uses sparse Jacobian computation. ``None`` lets Newton pick per backend.
     * - ``sparse_dynamics``
       - Default: ``False``. Uses sparse dynamics computation.
     * - ``dynamics.preconditioning``
-      - Default: ``True``. Enables preconditioning for constrained dynamics. Must be ``False`` for DVI. The :func:`~isaaclab_newton.physics.kamino_dvi_solver_cfg` factory sets this to ``False``.
+      - Default: ``True``. Enables preconditioning for constrained dynamics. Must be ``False`` for DVI.
     * - ``dynamics.linear_solver_type``
-      - Default: ``"LLTB"``. Linear solver for the dynamics problem. The :func:`~isaaclab_newton.physics.kamino_dvi_solver_cfg` factory sets this to ``"LLTBRCM"``.
+      - Default: ``"LLTB"``. Linear solver for the dynamics problem. The DVI config defaults it to ``"LLTBRCM"``.
     * - ``collect_solver_info``
       - Default: ``False``. Collects solver convergence and performance information. Enable only for debugging because it significantly increases runtime.
     * - ``compute_solution_metrics``

@@ -306,7 +306,7 @@ Physics backend selection uses the same preset system. A task can define a
 
 .. code-block:: python
 
-    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, kamino_padmm_solver_cfg
+    from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
     from isaaclab_ovphysx.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
@@ -329,7 +329,7 @@ Physics backend selection uses the same preset system. A task can define a
             num_substeps=1,
         )
         newton_kamino: NewtonCfg = NewtonCfg(
-            solver_cfg=kamino_padmm_solver_cfg(
+            solver_cfg=KaminoPADMMSolverCfg(
                 integrator="moreau",
                 use_collision_detector=True,
                 sparse_jacobian=True,
@@ -343,7 +343,7 @@ The ``newton_mjwarp`` and ``newton_kamino`` entries both select the Newton physi
 both entries are :class:`~isaaclab_newton.physics.NewtonCfg` objects. The difference
 is the solver configuration: ``newton_mjwarp`` uses
 :class:`~isaaclab_newton.physics.MJWarpSolverCfg`, while ``newton_kamino`` uses
-:class:`~isaaclab_newton.physics.KaminoSolverCfg`.
+:class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`.
 
 Kamino is therefore a solver preset, not a separate Isaac Lab backend. The same
 Newton assets, sensors, renderers, and visualizers are used after the preset is

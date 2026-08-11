@@ -8,10 +8,9 @@ from __future__ import annotations
 import math
 
 from isaaclab_newton.physics import (
-    KaminoCollisionDetectorCfg,
+    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
-    kamino_padmm_solver_cfg,
 )
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -48,7 +47,7 @@ class CartpolePhysicsCfg(PresetCfg):
         use_cuda_graph=True,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=kamino_padmm_solver_cfg(),
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
         debug_mode=False,
         use_cuda_graph=True,
     )

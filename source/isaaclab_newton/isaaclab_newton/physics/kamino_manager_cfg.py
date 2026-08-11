@@ -25,6 +25,11 @@ def _non_none_kwargs(cfg: Any) -> dict[str, Any]:
     return {key: value for key, value in cfg.to_dict().items() if value is not None}
 
 
+def _cfg_to_dict(cfg: Any) -> dict[str, Any]:
+    """Return a configclass mapping with a type-checker-friendly interface."""
+    return cfg.to_dict()
+
+
 @configclass
 class KaminoPADMMCfg:
     """P-ADMM forward-dynamics solver parameters for Kamino."""
@@ -218,12 +223,11 @@ class KaminoMaterialsCfg:
 
 
 @configclass
-class KaminoSolverCfg(NewtonSolverCfg):
-    """Configuration for Kamino solver-related parameters.
+class _KaminoSolverCfgBase(NewtonSolverCfg):
+    """Common configuration for Kamino solver-related parameters.
 
     Kamino simulates constrained rigid multi-body systems in maximal coordinates with
-    hard frictional contacts. Select the solver backend with
-    :attr:`dynamics_solver` (``"padmm"`` or ``"dvi"``).
+    hard frictional contacts.
 
     .. note::
 
@@ -239,9 +243,6 @@ class KaminoSolverCfg(NewtonSolverCfg):
 
     solver_type: str = "kamino"
     """Solver type. Can be "kamino"."""
-
-    dynamics_solver: Literal["padmm", "dvi"] = "padmm"
-    """Forward-dynamics solver backend. Use ``"padmm"`` for robustness or ``"dvi"`` for speed."""
 
     integrator: Literal["euler", "moreau"] = "moreau"
     """Integrator type."""
@@ -295,12 +296,6 @@ class KaminoSolverCfg(NewtonSolverCfg):
         Enabling this significantly increases solver runtime and should only be used for debugging.
     """
 
-    padmm: KaminoPADMMCfg = field(default_factory=KaminoPADMMCfg)
-    """P-ADMM solver parameters."""
-
-    dvi: KaminoDVICfg = field(default_factory=KaminoDVICfg)
-    """DVI solver parameters."""
-
     dynamics: KaminoDynamicsCfg = field(default_factory=KaminoDynamicsCfg)
     """Constrained dynamics problem parameters."""
 
@@ -327,6 +322,10 @@ class KaminoSolverCfg(NewtonSolverCfg):
 
     This field is applied by :class:`NewtonKaminoManager` and is not forwarded to Newton.
     """
+
+    def _get_dynamics_solver_config(self) -> tuple[Literal["padmm", "dvi"], dict[str, Any]]:
+        """Return the selected Newton solver name and its configuration keyword arguments."""
+        raise NotImplementedError
 
     def to_solver_config(self) -> SolverKamino.Config:
         """Build a :class:`SolverKamino.Config` from this configuration.
@@ -355,8 +354,20 @@ class KaminoSolverCfg(NewtonSolverCfg):
         if self.use_collision_detector:
             collision_detector = CollisionDetectorConfig(**_non_none_kwargs(self.collision_detector))
 
+        # Initialize all solver configs with default values.
+        solver_config_types = {
+            "padmm": PADMMSolverConfig,
+            "dvi": DVISolverConfig,
+        }
+        solver_configs = {name: config_type() for name, config_type in solver_config_types.items()}
+
+        # Overwrite the selected dynamics solver's config with the user-provided config.
+        dynamics_solver, active_solver_kwargs = self._get_dynamics_solver_config()
+        solver_configs[dynamics_solver] = solver_config_types[dynamics_solver](**active_solver_kwargs)
+
+        # Build the final solver config.
         config = SolverKamino.Config(
-            dynamics_solver=self.dynamics_solver,
+            dynamics_solver=dynamics_solver,
             integrator=self.integrator,
             use_collision_detector=self.use_collision_detector,
             use_fk_solver=use_fk_solver,
@@ -367,71 +378,40 @@ class KaminoSolverCfg(NewtonSolverCfg):
             collect_solver_info=self.collect_solver_info,
             compute_solution_metrics=self.compute_solution_metrics,
             collision_detector=collision_detector,
-            fk=ForwardKinematicsSolverConfig(**self.fk.to_dict()),
-            constraints=ConstraintStabilizationConfig(**self.constraints.to_dict()),
-            dynamics=ConstrainedDynamicsConfig(**self.dynamics.to_dict()),
-            materials=MaterialManagerConfig(**self.materials.to_dict()),
-            padmm=PADMMSolverConfig(**self.padmm.to_dict()),
-            dvi=DVISolverConfig(**self.dvi.to_dict()),
+            fk=ForwardKinematicsSolverConfig(**_cfg_to_dict(self.fk)),
+            constraints=ConstraintStabilizationConfig(**_cfg_to_dict(self.constraints)),
+            dynamics=ConstrainedDynamicsConfig(**_cfg_to_dict(self.dynamics)),
+            materials=MaterialManagerConfig(**_cfg_to_dict(self.materials)),
+            **solver_configs,
         )
         config.validate()
         return config
 
 
-def kamino_padmm_solver_cfg(**overrides: Any) -> KaminoSolverCfg:
-    """Return a Kamino cfg for the P-ADMM forward-dynamics backend.
+@configclass
+class KaminoPADMMSolverCfg(_KaminoSolverCfgBase):
+    """Configuration for Kamino with the P-ADMM forward-dynamics solver."""
 
-    Args:
-        **overrides: Keyword overrides applied to the returned :class:`KaminoSolverCfg`
-            or its nested sub-configs. Nested overrides use dotted keys such as
-            ``padmm__max_iterations=100`` or pass nested config instances directly via
-            ``padmm=KaminoPADMMCfg(...)``.
+    dynamics_solver_cfg: KaminoPADMMCfg = field(default_factory=KaminoPADMMCfg)
+    """P-ADMM forward-dynamics solver parameters."""
 
-    Returns:
-        Kamino solver configuration using ``dynamics_solver="padmm"``.
-    """
-    cfg = KaminoSolverCfg(dynamics_solver="padmm", sparse_jacobian=True)
-    return _apply_kamino_overrides(cfg, overrides)
+    def _get_dynamics_solver_config(self) -> tuple[Literal["padmm"], dict[str, Any]]:
+        """Return P-ADMM and its configuration keyword arguments."""
+        return "padmm", _cfg_to_dict(self.dynamics_solver_cfg)
 
 
-def kamino_dvi_solver_cfg(**overrides: Any) -> KaminoSolverCfg:
-    """Return a Kamino cfg for the DVI forward-dynamics backend.
+@configclass
+class KaminoDVISolverCfg(_KaminoSolverCfgBase):
+    """Configuration for Kamino with the DVI forward-dynamics solver."""
 
-    Args:
-        **overrides: Keyword overrides applied to the returned :class:`KaminoSolverCfg`
-            or its nested sub-configs.
+    dynamics_solver_cfg: KaminoDVICfg = field(default_factory=KaminoDVICfg)
+    """DVI forward-dynamics solver parameters."""
 
-    Returns:
-        Kamino solver configuration using ``dynamics_solver="dvi"``.
-    """
-    cfg = KaminoSolverCfg(
-        dynamics_solver="dvi",
-        dynamics=KaminoDynamicsCfg(preconditioning=False, linear_solver_type="LLTBRCM"),
+    dynamics: KaminoDynamicsCfg = field(
+        default_factory=lambda: KaminoDynamicsCfg(preconditioning=False, linear_solver_type="LLTBRCM")
     )
-    return _apply_kamino_overrides(cfg, overrides)
+    """Constrained dynamics problem parameters compatible with DVI."""
 
-
-def _apply_kamino_overrides(cfg: KaminoSolverCfg, overrides: dict[str, Any]) -> KaminoSolverCfg:
-    """Apply ``key=value`` overrides, supporting ``nested__field`` dotted keys."""
-    nested_map = {
-        "padmm": KaminoPADMMCfg,
-        "dvi": KaminoDVICfg,
-        "dynamics": KaminoDynamicsCfg,
-        "constraints": KaminoConstraintsCfg,
-        "fk": KaminoFKCfg,
-        "collision_detector": KaminoCollisionDetectorCfg,
-        "materials": KaminoMaterialsCfg,
-    }
-    for key, value in overrides.items():
-        if "__" in key:
-            nested_name, nested_field = key.split("__", 1)
-            if nested_name not in nested_map:
-                raise ValueError(f"Unknown nested KaminoSolverCfg override group: {nested_name!r}.")
-            nested_cfg = getattr(cfg, nested_name)
-            setattr(nested_cfg, nested_field, value)
-            continue
-        if key in nested_map and not isinstance(value, nested_map[key]):
-            setattr(cfg, key, nested_map[key](**value))
-        else:
-            setattr(cfg, key, value)
-    return cfg
+    def _get_dynamics_solver_config(self) -> tuple[Literal["dvi"], dict[str, Any]]:
+        """Return DVI and its configuration keyword arguments."""
+        return "dvi", _cfg_to_dict(self.dynamics_solver_cfg)

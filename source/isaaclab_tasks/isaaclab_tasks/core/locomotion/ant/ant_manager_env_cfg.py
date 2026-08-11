@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import (
+    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
-    kamino_padmm_solver_cfg,
 )
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -50,7 +50,7 @@ class AntPhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=kamino_padmm_solver_cfg(),
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
         debug_mode=False,
         use_cuda_graph=True,
     )

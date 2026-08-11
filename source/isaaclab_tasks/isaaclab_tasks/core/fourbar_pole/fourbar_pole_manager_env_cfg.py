@@ -9,8 +9,8 @@ from dataclasses import MISSING
 
 from isaaclab_newton.physics import (
     KaminoPADMMCfg,
+    KaminoPADMMSolverCfg,
     NewtonCfg,
-    kamino_padmm_solver_cfg,
 )
 
 import isaaclab.sim as sim_utils
@@ -52,10 +52,11 @@ class FourbarPolePhysicsCfg(PresetCfg):
 
     default: NewtonCfg = MISSING
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=kamino_padmm_solver_cfg(
+        solver_cfg=KaminoPADMMSolverCfg(
             integrator="euler",
             use_fk_solver=True,
-            padmm=KaminoPADMMCfg(rho_0=0.1),
+            sparse_jacobian=True,
+            dynamics_solver_cfg=KaminoPADMMCfg(rho_0=0.1),
         ),
         num_substeps=1,
         debug_mode=False,

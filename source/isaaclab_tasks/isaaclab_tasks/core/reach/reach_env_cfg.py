@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -54,7 +54,7 @@ class ReachPhysicsCfg(PresetCfg):
         use_cuda_graph=True,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
+        solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=32),
     )
     default: NewtonCfg = newton_mjwarp
 

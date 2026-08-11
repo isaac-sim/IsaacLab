@@ -301,7 +301,8 @@ What the selectors do:
 .. important::
 
     The coupler currently rejects
-    :class:`~isaaclab_newton.physics.KaminoSolverCfg` entries and
+    :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` or
+    :class:`~isaaclab_newton.physics.KaminoDVISolverCfg` entries and
     :class:`~isaaclab_newton.physics.MPMSolverCfg` entries configured with
     ``project_outside_colliders=True``, as well as
     :class:`~isaaclab_newton.physics.MJWarpSolverCfg` entries configured with

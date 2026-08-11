@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
-    KaminoSolverCfg,
+    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCollisionPipelineCfg,
@@ -168,7 +168,7 @@ def test_config_validation_requires_newton_solver_config():
     [
         (CouplerProxyCfg(), {}, ValueError, "nested CouplerCfg"),
         (VBDSolverCfg(model_cfg=NewtonModelCfg()), {}, ValueError, "model parameters are global"),
-        (KaminoSolverCfg(), {}, NotImplementedError, "FK/reset lifecycle"),
+        (KaminoPADMMSolverCfg(), {}, NotImplementedError, "FK/reset lifecycle"),
         (
             MPMSolverCfg(project_outside_colliders=True),
             {"in_place": True},
