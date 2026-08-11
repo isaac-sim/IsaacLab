@@ -79,7 +79,7 @@ def test_kernel_only_install_adds_extras_at_installed_version():
         mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=["uv", "pip"]),
         mock.patch(
             "isaaclab.cli.commands.install.run_command",
-            side_effect=[_cp(0, "6.1.0rc3+release.45488.8127a152.gl"), _cp(1), _cp(0)],
+            side_effect=[_cp(0, "1.2.3+local"), _cp(1), _cp(0)],
         ) as mock_run,
     ):
         _install_isaacsim()
@@ -88,7 +88,7 @@ def test_kernel_only_install_adds_extras_at_installed_version():
         "uv",
         "pip",
         "install",
-        "isaacsim[all,extscache]==6.1.0rc3+release.45488.8127a152.gl",
+        "isaacsim[all,extscache]==1.2.3+local",
         "--extra-index-url",
         install_cmd.NVIDIA_INDEX_URL,
         "--index-strategy",
