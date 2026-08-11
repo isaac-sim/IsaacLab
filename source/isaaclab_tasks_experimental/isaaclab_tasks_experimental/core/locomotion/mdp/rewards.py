@@ -380,11 +380,13 @@ def _survival_rate_kernel(
     counts: wp.array(dtype=wp.int32),
     success_rate: wp.array(dtype=wp.float32),
 ):
-    """Compute the survival success rate as the fraction of just-reset envs that timed out."""
-    if counts[0] > 0:
-        success_rate[0] = wp.float32(counts[1]) / wp.float32(counts[0])
-    else:
-        success_rate[0] = 0.0
+    """Compute the survival success rate as the fraction of just-reset envs that timed out.
+
+    Left undivided when no env reset: 0/0 is NaN, which is what the stable term's mean over an
+    empty selection yields. Substituting 0.0 would log a real 0% sample for a reset that
+    selected nothing.
+    """
+    success_rate[0] = wp.float32(counts[1]) / wp.float32(counts[0])
 
 
 class survival_success_rate(ManagerTermBase):
