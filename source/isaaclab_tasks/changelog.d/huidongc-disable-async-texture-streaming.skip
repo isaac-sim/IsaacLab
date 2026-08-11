@@ -1,0 +1,2 @@
+Test-only: refresh Isaac RTX / default_renderer golden images and registered-tasks
+camera goldens after disabling async texture streaming.
