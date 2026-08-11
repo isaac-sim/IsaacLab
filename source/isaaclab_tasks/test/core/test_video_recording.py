@@ -124,6 +124,20 @@ def _run_cartpole(env_cfg) -> None:
         env.close()
 
 
+def _run_cartpole_warp(env_cfg, *, steps: int = _STEPS) -> None:
+    from isaaclab_tasks_experimental.core.cartpole.cartpole_warp_env import CartpoleWarpEnv
+
+    sim_utils.create_new_stage()
+    env = CartpoleWarpEnv(env_cfg)
+    try:
+        env.reset()
+        actions = torch.zeros(env.num_envs, *env.action_space.shape[1:], device=env.device)
+        for _ in range(steps):
+            env.step(actions)
+    finally:
+        env.close()
+
+
 def _run_cartpole_camera(env_cfg) -> None:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 
@@ -219,6 +233,32 @@ def test_newton_records_nonblack_clip():
         env_cfg.video_recorders = [_recorder_cfg(output_dir, "visualizer:newton", prefix="newton")]
         _run_cartpole(env_cfg)
         _assert_clip_nonblack(os.path.join(output_dir, "newton_0000.mp4"), "newton")
+
+
+def test_warp_env_records_and_flushes_clips():
+    """The Warp env drives recorders end to end: construction, per-step tick, close() flush.
+
+    The run is deliberately shorter than ``video_length``, so the clip never completes on its
+    own and can only reach disk through the ``close()`` flush. Its frame count then equals the
+    number of steps only if the recorder is advanced exactly once per step. Deleting any of
+    the three hooks fails this test.
+    """
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
+    steps = _CLIP // 2
+    with tempfile.TemporaryDirectory() as output_dir:
+        env_cfg = _cartpole_cfg_newton(num_envs=1)
+        env_cfg.sim.visualizer_cfgs = [NewtonGLVisualizerCfg(window_width=320, window_height=240)]
+        env_cfg.video_recorders = [_recorder_cfg(output_dir, "visualizer:newton_gl", prefix="warp")]
+        _run_cartpole_warp(env_cfg, steps=steps)
+
+        clip = os.path.join(output_dir, "warp_0000.mp4")
+        assert os.path.exists(clip), "close() did not flush the partial clip"
+        _assert_clip_nonblack(clip, "warp")
+        # One frame per env step. Decoded counts round by ±1 against the clip duration, so
+        # the bound is what is meaningful: a missing tick writes nothing, a doubled tick or a
+        # tick hoisted out of the step loop lands far outside this range.
+        assert steps <= len(_read_frames(clip)) <= steps + 1, "recorder was not advanced once per env step"
 
 
 def test_sensor_physx_records_moving_clip():

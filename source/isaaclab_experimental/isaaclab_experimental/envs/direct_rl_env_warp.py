@@ -450,7 +450,9 @@ class DirectRLEnvWarp(DirectRLEnv):
         with Timer(name="visualize", msg="Visualize took:", enable=DEBUG_TIMERS):
             self._post_step_visualize()
 
-        # advance video recorders (after render and visualization, before obs)
+        # Advance video recorders: after render and visualization, and outside the captured
+        # graph scope. Unlike the manager-based envs this runs *after* observations, which
+        # `_step_warp_end_post()` computes inside the graph; only the obs_buf clone follows.
         for recorder in self.video_recorders:
             recorder.step()
 

@@ -154,7 +154,7 @@ def test_apply_video_recording_allows_warp_frontend():
 
 
 def test_apply_video_recording_injects_newton_gl_visualizer_on_warp_frontend():
-    """--video without --viz injects Newton GL on warp; the warp runtime never initialises Kit."""
+    """--video without --viz injects Newton GL on warp; Kit would need a full Isaac Sim install."""
     import sys
 
     newton_cfg_instance = object()
