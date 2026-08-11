@@ -489,19 +489,18 @@ def cable_segment_lifting(
     return torch.tanh(height / std)
 
 
-def cable_segment_ee_distance(
+def cable_ee_distance(
     env: ManagerBasedRLEnv,
     std: float,
-    segment_index: int,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
     ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
 ) -> torch.Tensor:
-    """Reward end-effector proximity to a cable segment with a tanh kernel (std [m])."""
+    """Reward end-effector proximity to the nearest cable segment with a tanh kernel (std [m])."""
     asset: CableObject = env.scene[asset_cfg.name]
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
-    segment_pos_w = asset.data.segment_pose_w.torch[:, segment_index, :3]
+    segment_pos_w = asset.data.segment_pose_w.torch[..., :3]
     ee_pos_w = ee_frame.data.target_pos_w.torch[..., 0, :]
-    distance = torch.linalg.norm(segment_pos_w - ee_pos_w, dim=1)
+    distance = torch.linalg.norm(segment_pos_w - ee_pos_w.unsqueeze(1), dim=2).min(dim=1).values
     return 1.0 - torch.tanh(distance / std)
 
 

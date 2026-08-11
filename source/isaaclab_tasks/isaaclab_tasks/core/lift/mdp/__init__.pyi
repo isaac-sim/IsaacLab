@@ -30,7 +30,7 @@ __all__ = [
     "DeformableUniformPoseCommandCfg",
     "cable_segment_lifting",
     "cable_segment_goal_reached",
-    "cable_segment_ee_distance",
+    "cable_ee_distance",
     "CableSegmentGoalDistance",
     "ObjectUniformPoseCommandCfg",
     "DifficultyScheduler",
@@ -89,7 +89,7 @@ from .observations import (
 from .rewards import (
     CableSegmentGoalDistance,
     DeformableComGoalDistance,
-    cable_segment_ee_distance,
+    cable_ee_distance,
     cable_segment_goal_reached,
     cable_segment_lifting,
     contact_count,

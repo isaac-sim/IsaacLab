@@ -5,3 +5,5 @@ Added
   a 12-segment cable by its middle segment with the Franka robot.
 
 * Added randomized support gaps for suspending the cable at reset.
+
+* Added a nearest-segment reaching reward for cable tasks.

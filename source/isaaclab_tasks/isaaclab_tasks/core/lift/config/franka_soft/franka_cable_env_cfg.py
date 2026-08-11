@@ -10,7 +10,7 @@ from __future__ import annotations
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
+from isaaclab.assets import CableObjectCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -19,7 +19,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -40,7 +39,7 @@ from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
 _CABLE_SEGMENT_COUNT = 12
 _CABLE_MIDDLE_SEGMENT_INDEX = _CABLE_SEGMENT_COUNT // 2
 _CABLE_SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
-    size=(0.02, 0.1, 0.05),
+    size=(0.1, 0.1, 0.05),
     rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
     collision_props=sim_utils.CollisionPropertiesCfg(),
@@ -91,7 +90,7 @@ class PhysicsCfg(PresetCfg):
             kd=100.0,
             mu=10.0,
         ),
-        num_substeps=2,
+        num_substeps=4,
     )
 
     default = newton_mjwarp_vbd_proxy
@@ -236,13 +235,12 @@ class EventCfg(FrankaSoftEventCfg):
 
 @configclass
 class RewardsCfg:
-    """Lift-to-target rewards based on cable segment 6."""
+    """Cable lifting rewards."""
 
     reaching_cable = RewTerm(
-        func=mdp.cable_segment_ee_distance,
+        func=mdp.cable_ee_distance,
         params={
             "std": 0.1,
-            "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,
             "asset_cfg": SceneEntityCfg("cable"),
         },
         weight=5.0,
@@ -252,7 +250,7 @@ class RewardsCfg:
         func=mdp.cable_segment_lifting,
         params={
             "std": 0.1,
-            "minimal_height": 0.06,
+            "minimal_height": 0.05,
             "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,
             "asset_cfg": SceneEntityCfg("cable"),
         },
