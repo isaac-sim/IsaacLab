@@ -677,7 +677,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             combined = torch.cat(safe_indices)
             executor = actuator_type._build_execution_actuator(safe_groups)
             batch = self._make_execution_batch(safe_names, safe_groups, combined, executor=executor)
-            self._validate_execution_batch(batch, safe_groups, parameter_names)
             self._bind_execution_batch_parameters(batch, safe_groups, parameter_names)
             for name in safe_names:
                 batch_by_group[name] = batch
@@ -690,54 +689,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             if id(batch) not in seen:
                 self._execution_batches.append(batch)
                 seen.add(id(batch))
-
-    def _validate_execution_batch(
-        self,
-        batch: ActuatorCollection._ExecutionBatch,
-        groups: Sequence[ActuatorBase],
-        parameter_names: tuple[str, ...],
-    ) -> None:
-        expected_joint_names = [name for group in groups for name in group.joint_names]
-        expected_num_joints = len(expected_joint_names)
-        if len(batch.group_names) != len(groups) or len(batch.group_slices) != len(groups):
-            raise ValueError("Execution batch group metadata is inconsistent.")
-        if any(self._groups[name] is not group for name, group in zip(batch.group_names, groups)):
-            raise ValueError("Execution batch group names do not match its logical groups.")
-        if batch.actuator.joint_names != expected_joint_names:
-            raise ValueError("Execution batch joint names do not match its logical groups.")
-        if batch.joint_indices.ndim != 1 or batch.joint_indices.shape[0] != expected_num_joints:
-            raise ValueError("Execution batch joint indices do not match its logical groups.")
-        if (
-            batch.joint_indices.dtype != torch.int32
-            or batch.joint_indices.device != torch.device(self.device)
-            or not batch.joint_indices.is_contiguous()
-        ):
-            raise ValueError("Execution batch joint indices use an unexpected dtype or device.")
-        if not torch.equal(batch.actuator.joint_indices, batch.joint_indices):
-            raise ValueError("Execution actuator joint indices do not match its batch.")
-        if (
-            batch.joint_indices_wp.shape[0] != expected_num_joints
-            or batch.joint_indices_wp.dtype != wp.int32
-            or batch.joint_indices_wp.device != wp.get_device(self.device)
-        ):
-            raise ValueError("Execution batch Warp joint indices do not match its logical groups.")
-
-        expected_start = 0
-        for group, group_slice in zip(groups, batch.group_slices):
-            expected_stop = expected_start + group.num_joints
-            if group_slice != slice(expected_start, expected_stop):
-                raise ValueError("Execution batch group slices are not contiguous.")
-            expected_start = expected_stop
-        if expected_start != expected_num_joints:
-            raise ValueError("Execution batch group slices do not cover all executor joints.")
-
-        tensor_names = (*parameter_names, "computed_effort", "applied_effort")
-        for name in tensor_names:
-            value = getattr(batch.actuator, name)
-            if value.shape != (self.num_instances, expected_num_joints):
-                raise ValueError(f"Execution batch tensor '{name}' has an unexpected shape.")
-            if value.device != torch.device(self.device) or value.dtype != getattr(groups[0], name).dtype:
-                raise ValueError(f"Execution batch tensor '{name}' has an unexpected dtype or device.")
 
     def _bind_execution_batch_parameters(
         self,
