@@ -841,39 +841,14 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     ) -> None:
         if joint_indices is None:
             joint_indices = self._joint_indices_as_wp(actuator)
-        target_inputs = [
-            control_action.joint_positions,
-            control_action.joint_velocities,
-            control_action.joint_efforts,
-            joint_indices,
-        ]
-        target_outputs = [
-            self._joint_pos_target_sim,
-            self._joint_vel_target_sim,
-            self._joint_effort_target_sim,
-        ]
-        stable_launch = type(actuator) in (IdealPDActuator, DCMotor)
-        if stable_launch:
-            self._launch_cache.launch(
-                ("scatter_targets", id(actuator)),
-                actuator_kernels.scatter_processed_targets,
-                dim=(self.num_instances, joint_indices.shape[0]),
-                inputs=target_inputs,
-                outputs=target_outputs,
-            )
-        else:
-            wp.launch(
-                actuator_kernels.scatter_processed_targets,
-                dim=(self.num_instances, joint_indices.shape[0]),
-                inputs=target_inputs,
-                outputs=target_outputs,
-                device=self.device,
-            )
         gear_ratio = getattr(actuator, "gear_ratio", None)
         has_gear_ratio = gear_ratio is not None
         if gear_ratio is None:
             gear_ratio = self._gear_ratio
-        telemetry_inputs = [
+        inputs = [
+            control_action.joint_positions,
+            control_action.joint_velocities,
+            control_action.joint_efforts,
             actuator.computed_effort,
             actuator.applied_effort,
             gear_ratio,
@@ -881,26 +856,30 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             has_gear_ratio,
             joint_indices,
         ]
-        telemetry_outputs = [
+        outputs = [
+            self._joint_pos_target_sim,
+            self._joint_vel_target_sim,
+            self._joint_effort_target_sim,
             self._computed_torque,
             self._applied_torque,
             self._gear_ratio,
             self._soft_joint_vel_limits,
         ]
+        stable_launch = type(actuator) in (IdealPDActuator, DCMotor)
         if stable_launch:
             self._launch_cache.launch(
-                ("scatter_telemetry", id(actuator)),
-                actuator_kernels.scatter_actuator_state_model,
+                ("scatter_outputs", id(actuator)),
+                actuator_kernels.scatter_explicit_actuator_outputs,
                 dim=(self.num_instances, joint_indices.shape[0]),
-                inputs=telemetry_inputs,
-                outputs=telemetry_outputs,
+                inputs=inputs,
+                outputs=outputs,
             )
         else:
             wp.launch(
-                actuator_kernels.scatter_actuator_state_model,
+                actuator_kernels.scatter_explicit_actuator_outputs,
                 dim=(self.num_instances, joint_indices.shape[0]),
-                inputs=telemetry_inputs,
-                outputs=telemetry_outputs,
+                inputs=inputs,
+                outputs=outputs,
                 device=self.device,
             )
 

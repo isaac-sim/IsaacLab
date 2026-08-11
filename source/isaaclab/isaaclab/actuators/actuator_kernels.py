@@ -69,18 +69,29 @@ def write_2d_float_with_mask(
 
 
 @wp.kernel(enable_backward=False)
-def scatter_processed_targets(
+def scatter_explicit_actuator_outputs(
     source_pos: wp.array2d(dtype=wp.float32),
     source_vel: wp.array2d(dtype=wp.float32),
     source_effort: wp.array2d(dtype=wp.float32),
+    source_computed_effort: wp.array2d(dtype=wp.float32),
+    source_applied_effort: wp.array2d(dtype=wp.float32),
+    source_gear_ratio: wp.array2d(dtype=wp.float32),
+    source_velocity_limit: wp.array2d(dtype=wp.float32),
+    has_gear_ratio: bool,
     joint_indices: wp.array(dtype=wp.int32),
     target_pos: wp.array2d(dtype=wp.float32),
     target_vel: wp.array2d(dtype=wp.float32),
     target_effort: wp.array2d(dtype=wp.float32),
+    target_computed_effort: wp.array2d(dtype=wp.float32),
+    target_applied_effort: wp.array2d(dtype=wp.float32),
+    target_gear_ratio: wp.array2d(dtype=wp.float32),
+    target_velocity_limit: wp.array2d(dtype=wp.float32),
 ):
-    """Scatter actuator command outputs into full articulation command buffers.
+    """Scatter explicit actuator outputs into full articulation buffers.
 
-    Only non-None source arrays are processed. Explicit actuator models (for example
+    Command outputs are scattered only when present. Computed and applied effort
+    and velocity-limit telemetry are always published, while gear ratio is
+    published when available. Explicit actuator models (for example
     :class:`~isaaclab.actuators.IdealPDActuator`) clear the position and velocity
     commands after computing the effort, so those sources may be null.
     """
@@ -92,24 +103,6 @@ def scatter_processed_targets(
         target_vel[env_id, target_joint_id] = source_vel[env_id, source_joint_id]
     if source_effort:
         target_effort[env_id, target_joint_id] = source_effort[env_id, source_joint_id]
-
-
-@wp.kernel(enable_backward=False)
-def scatter_actuator_state_model(
-    source_computed_effort: wp.array2d(dtype=wp.float32),
-    source_applied_effort: wp.array2d(dtype=wp.float32),
-    source_gear_ratio: wp.array2d(dtype=wp.float32),
-    source_velocity_limit: wp.array2d(dtype=wp.float32),
-    has_gear_ratio: bool,
-    joint_indices: wp.array(dtype=wp.int32),
-    target_computed_effort: wp.array2d(dtype=wp.float32),
-    target_applied_effort: wp.array2d(dtype=wp.float32),
-    target_gear_ratio: wp.array2d(dtype=wp.float32),
-    target_velocity_limit: wp.array2d(dtype=wp.float32),
-):
-    """Scatter actuator telemetry into full articulation actuator buffers."""
-    env_id, source_joint_id = wp.tid()
-    target_joint_id = joint_indices[source_joint_id]
     target_computed_effort[env_id, target_joint_id] = source_computed_effort[env_id, source_joint_id]
     target_applied_effort[env_id, target_joint_id] = source_applied_effort[env_id, source_joint_id]
     if has_gear_ratio:
