@@ -47,14 +47,6 @@ def _paused_gc():
     deterministic solver behavior and remain allowed; only the collector is
     deferred, and a collection runs immediately after the capture window,
     where freeing graph-scoped allocations is handled correctly.
-
-    Only generation 0 is collected afterwards: objects allocated inside the
-    window are still in gen 0, so this reclaims the graph-scoped garbage the
-    pause deferred, without the full-heap walk a ``gc.collect()`` would do
-    (hundreds of milliseconds once the replicated model exists). Cycles that
-    were already in an older generation before the window and became
-    unreachable during it -- a previous ``wp.Graph``/``State`` released on a
-    hard reset, for instance -- are left to the periodic collector.
     """
     was_enabled = gc.isenabled()
     gc.disable()
@@ -63,7 +55,7 @@ def _paused_gc():
     finally:
         if was_enabled:
             gc.enable()
-            gc.collect(0)
+            gc.collect()
 
 
 from newton import (
@@ -360,11 +352,6 @@ class NewtonManager(PhysicsManager):
         canonical state remains discoverable from external readers regardless of
         which subclass is active.
     """
-
-    @classmethod
-    def provides_implicit_damping(cls) -> bool:
-        # Newton's symplectic integrator has no implicit damping.
-        return False
 
     _solver_dt: float = 1.0 / 200.0
     _num_substeps: int = 1
