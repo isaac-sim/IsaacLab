@@ -29,6 +29,7 @@ from isaaclab.actuators import (
     IdealPDActuatorCfg,
     ImplicitActuator,
     ImplicitActuatorCfg,
+    actuator_kernels,
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
@@ -549,6 +550,36 @@ def test_custom_singleton_compute_receives_original_selector():
     collection.compute()
 
     assert collection["all"].observed_joint_indices == slice(None)
+
+
+def test_singleton_dc_motor_full_joint_group_skips_gather_launch(monkeypatch):
+    collection = ActuatorCollection(
+        {
+            "all": _dc_cfg(
+                [".*"],
+                stiffness=1.0,
+                damping=1.0,
+                effort_limit=10.0,
+                velocity_limit=10.0,
+                saturation_effort=20.0,
+            )
+        },
+        FakeActuatorControl(),
+    )
+
+    gather_launches = []
+    real_launch = wp.launch
+
+    def record_gather_launch(*args, **kwargs):
+        kernel = args[0] if args else kwargs.get("kernel")
+        if kernel is actuator_kernels.gather_actuator_batch:
+            gather_launches.append(kernel)
+        return real_launch(*args, **kwargs)
+
+    monkeypatch.setattr(wp, "launch", record_gather_launch)
+    collection.compute()
+
+    assert gather_launches == []
 
 
 def test_same_stateless_class_builds_one_execution_batch_with_group_views():

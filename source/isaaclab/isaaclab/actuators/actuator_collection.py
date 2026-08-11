@@ -632,6 +632,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 self._soft_joint_vel_limits,
             ]
         elif type(executor) in (IdealPDActuator, DCMotor):
+            if len(groups) == 1 and groups[0].joint_indices == slice(None):
+                return batch
             shape = (self.num_instances, joint_indices.shape[0])
             command_pos = torch.empty(shape, dtype=torch.float32, device=self.device)
             command_vel = torch.empty_like(command_pos)
