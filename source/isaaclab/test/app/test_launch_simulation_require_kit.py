@@ -94,14 +94,14 @@ def test_kernel_only_isaac_sim_reports_missing_runtime(
     from isaaclab.app import AppLauncher
 
     monkeypatch.setattr(AppLauncher, "is_available", lambda: False)
-    monkeypatch.setattr(sim_launcher.importlib.metadata, "version", lambda _name: "6.1.0rc3")
+    monkeypatch.setattr(sim_launcher.importlib.metadata, "version", lambda _name: "1.2.3")
     monkeypatch.setattr(sim_launcher.sys, "platform", platform)
 
     with caplog.at_level("ERROR"), pytest.raises(SystemExit) as exc_info:
         sim_launcher._ensure_isaac_sim_available()
 
     assert exc_info.value.code == 1
-    assert "Isaac Sim 6.1.0rc3 is installed, but its full runtime is unavailable" in caplog.text
+    assert "Isaac Sim 1.2.3 is installed, but its full runtime is unavailable" in caplog.text
     assert f"{installer} -i isaacsim" in caplog.text
     assert "Isaac Sim is not installed or not found on PYTHONPATH" not in caplog.text
 
