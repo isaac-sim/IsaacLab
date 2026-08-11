@@ -51,7 +51,7 @@ def _parse_args(argv: list[str]):
         parser,
         agent_default="rsl_rl_cfg_entry_point",
         agent_help="Name of the RL agent configuration entry point.",
-        include_distributed=False,
+        include_distributed=True,
         max_iterations_type=parse_positive_int,
     )
     cli_args.add_rsl_rl_args(parser)
@@ -92,22 +92,23 @@ def _parse_args(argv: list[str]):
         help="Omit per-iteration series data from the bundle to reduce file size.",
     )
 
+    from isaaclab.benchmark.distributed import validate_distributed_args
     from isaaclab.benchmark.entrypoints.early_stop import add_success_cli_args
 
     add_success_cli_args(parser)
 
-    if "--distributed" in argv:
-        parser.error("Distributed training benchmarks are not supported.")
-
     args_cli, remaining_args = setup_preset_cli(parser, argv)
+    validate_distributed_args(parser, args_cli)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args, cli_args
 
 
-def run(argv: list[str]) -> BenchmarkResult:
+def run(argv: list[str]) -> BenchmarkResult | None:
     """Run the RSL-RL training benchmark and write a :class:`~isaaclab.benchmark.TrainingBundle`.
+
+    Returns ``None`` on a distributed rank other than global rank 0, which trains but does not report.
 
     Args:
         argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
@@ -124,7 +125,16 @@ def run(argv: list[str]) -> BenchmarkResult:
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark import (
+        BaseIsaacLabBenchmark,
+        BenchmarkMonitor,
+        BenchmarkResult,
+        builders,
+        capture,
+        console,
+        stepping,
+    )
+    from isaaclab.benchmark.distributed import DistributedContext
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
@@ -148,6 +158,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     imports_t1 = time.perf_counter_ns()
 
     args_cli, remaining_args, cli_args = _parse_args(argv)
+    distributed = DistributedContext.from_env(args_cli.distributed)
 
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
@@ -177,6 +188,15 @@ def run(argv: list[str]) -> BenchmarkResult:
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
             env_cfg.seed = agent_cfg.seed
 
+            _common.validate_distributed_device(args_cli)
+            if distributed.enabled:
+                # Mirror the regular training entrypoint: the launcher pinned this rank to its own
+                # device, and offsetting the seed by the rank decorrelates exploration across ranks.
+                agent_cfg.device = env_cfg.sim.device
+                agent_cfg.seed += distributed.rank
+                env_cfg.seed = agent_cfg.seed
+            reported_num_envs, _ = distributed.global_work(env_cfg.scene.num_envs, agent_cfg.num_steps_per_env)
+
             cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
@@ -187,12 +207,12 @@ def run(argv: list[str]) -> BenchmarkResult:
                 output_path=args_cli.output_path,
                 use_recorders=True,
                 frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
-                output_prefix=f"benchmark_training_{args_cli.task}",
+                output_prefix=f"benchmark_training{'_multigpu' if distributed.enabled else ''}_{args_cli.task}",
                 workflow_metadata={
                     "metadata": [
                         {"name": "task", "data": args_cli.task},
                         {"name": "seed", "data": agent_cfg.seed},
-                        {"name": "num_envs", "data": env_cfg.scene.num_envs},
+                        {"name": "num_envs", "data": reported_num_envs},
                         {"name": "max_iterations", "data": agent_cfg.max_iterations},
                         {
                             "name": "environment_step_measurement_mode",
@@ -200,6 +220,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                         },
                         {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
                         {"name": "presets", "data": ",".join(cfg.presets)},
+                        {"name": "world_size", "data": distributed.world_size},
                     ]
                 },
             )
@@ -214,9 +235,12 @@ def run(argv: list[str]) -> BenchmarkResult:
             if agent_cfg.run_name:
                 log_dir += f"_{agent_cfg.run_name}"
             log_dir = os.path.join(log_root_path, log_dir)
-            _common.write_run_manifest(
-                log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent}
-            )
+            # RSL-RL silences logging on every rank but global rank 0, so only that rank has a
+            # populated run directory to describe.
+            if distributed.is_main:
+                _common.write_run_manifest(
+                    log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent}
+                )
             env_cfg.log_dir = log_dir
             _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
@@ -247,7 +271,14 @@ def run(argv: list[str]) -> BenchmarkResult:
                 warmup_steps=args_cli.warmup_steps,
             )
             with early, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
-                runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+                runner.learn(
+                    num_learning_iterations=agent_cfg.max_iterations,
+                    init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
+                )
+
+            # Every rank trains, but only global rank 0 keeps TensorBoard logs to report from.
+            if not distributed.is_main:
+                return None
 
             benchmark.update_manual_recorders()
 
@@ -260,12 +291,19 @@ def run(argv: list[str]) -> BenchmarkResult:
                     file=sys.stderr,
                 )
 
-            # RSL-RL reports collection and learning durations separately in seconds.
+            # RSL-RL reports collection and learning durations separately in seconds. Ranks train in
+            # lockstep, so rank 0's durations cover the whole world's work for that iteration.
             coll = log_data.get("Perf/collection_time", [])
             learn_ = log_data.get("Perf/learning_time", [])
             iteration_times_s = [c + lrn for c, lrn in zip(coll, learn_)]
-            collection_fps_series = [env.unwrapped.num_envs * agent_cfg.num_steps_per_env / c for c in coll if c > 0]
-            total_fps_series = list(log_data.get("Perf/total_fps", []))
+            num_envs, steps_per_iteration = distributed.global_work(env.unwrapped.num_envs, agent_cfg.num_steps_per_env)
+            collection_fps_series = [steps_per_iteration / c for c in coll if c > 0]
+            total_fps_series = (
+                # RSL-RL's own total_fps counts only this rank's environments.
+                [steps_per_iteration / t for t in iteration_times_s if t > 0]
+                if distributed.enabled
+                else list(log_data.get("Perf/total_fps", []))
+            )
 
             startup = StartupTime(
                 app_launch=(app_t1 - app_t0) / 1e9,
@@ -280,8 +318,8 @@ def run(argv: list[str]) -> BenchmarkResult:
                 iteration_times_s=iteration_times_s,
                 collection_fps=collection_fps_series,
                 total_fps=total_fps_series,
-                steps_per_iteration=env.unwrapped.num_envs * agent_cfg.num_steps_per_env,
-                frames_per_environment_step=env.unwrapped.num_envs,
+                steps_per_iteration=steps_per_iteration,
+                frames_per_environment_step=num_envs,
                 environment_step_warmup_steps=args_cli.warmup_steps,
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
@@ -314,7 +352,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 seed=seed,
                 start_utc=start_utc,
                 end_utc=end_utc,
-                num_envs=env.unwrapped.num_envs,
+                num_envs=num_envs,
                 max_iterations=agent_cfg.max_iterations,
             )
 
@@ -331,6 +369,11 @@ def run(argv: list[str]) -> BenchmarkResult:
                 success_rate=success_rate,
                 checkpoint_path=checkpoint_path,
                 video_path=video_path,
+                extra=(
+                    distributed.bundle_metadata(workload_scope="global", num_envs_per_rank=env.unwrapped.num_envs)
+                    if distributed.enabled
+                    else None
+                ),
             )
 
             benchmark.attach_bundle(bundle)
@@ -338,6 +381,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             output_paths = benchmark.finalize()
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
+            console.print_training_report(bundle, output_paths)
 
     return result
 

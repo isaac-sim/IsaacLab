@@ -16,4 +16,3 @@ when automation or a custom benchmark producer requires the Python API.
    benchmarks
    micro_benchmarks
    benchmark_framework
-   mock_interfaces

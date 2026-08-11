@@ -66,9 +66,29 @@ def random_agent(args: list[str] | None = None) -> None:
         args = sys.argv[1:]
     run_python_command(ISAACLAB_ROOT / "scripts" / "environments" / "random_agent.py", args, check=True)
 
+def teleop(args: list[str] | None = None) -> None:
+    """Run a live teleoperation, demonstration recording, or demonstration replay workflow.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    workflow_scripts = {
+        "run": ISAACLAB_ROOT / "scripts" / "environments" / "teleoperation" / "teleop_se3_agent.py",
+        "record": ISAACLAB_ROOT / "scripts" / "tools" / "record_demos.py",
+        "replay": ISAACLAB_ROOT / "scripts" / "tools" / "replay_demos.py",
+    }
+    parser = argparse.ArgumentParser(description="Run an Isaac Lab teleoperation workflow.")
+    parser.add_argument("command", choices=tuple(workflow_scripts), help="Teleoperation workflow to run.")
+    if args is None:
+        args = sys.argv[1:]
+    if not args or args[0] in ("-h", "--help"):
+        parser.parse_args(args)
+    parsed_args = parser.parse_args(args[:1])
+    run_python_command(workflow_scripts[parsed_args.command], args[1:], check=True)
+
 
 def benchmark(args: list[str] | None = None) -> None:
-    """Run a runtime, startup, training, or play benchmark.
+    """Run a runtime, startup, training, or play benchmark, optionally across several GPUs.
 
     Args:
         args: Command-line arguments. Uses sys.argv when omitted.
@@ -103,6 +123,9 @@ def cli() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
         subcommands[sys.argv[1]](sys.argv[2:])
         return
+    if len(sys.argv) > 1 and sys.argv[1] == "teleop":
+        teleop(sys.argv[2:])
+        return
 
     executable_name = Path(sys.argv[0]).name
     default_prog = "isaaclab.bat" if is_windows() else "isaaclab.sh"
@@ -113,12 +136,14 @@ def cli() -> None:
         epilog=(
             "commands:\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
+            "                  (append -multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
             "  train           Run scripts/reinforcement_learning/train.py\n"
             "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"
             "  play            Run scripts/reinforcement_learning/play.py\n"
             "  zero_agent      Run scripts/environments/zero_agent.py\n"
-            "  random_agent    Run scripts/environments/random_agent.py"
+            "  random_agent    Run scripts/environments/random_agent.py\n"
+            "  teleop          Run a live teleoperation, demo recording, or demo replay workflow"
         ),
     )
 
