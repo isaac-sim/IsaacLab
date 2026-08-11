@@ -194,10 +194,11 @@ rlinf = [
 leapp = [
     "leapp>=0.5.2",
 ]
-# Every backend, RL library, and visualizer in one flag. No extra is forked in
-# [tool.uv].conflicts, so Isaac Sim and both OV backends resolve into a single
-# environment. The specialized extras (rlinf, mimic, teleop, tetrahedralization,
-# video, leapp) and the developer ``test`` tooling stay opt-in by name.
+# Every backend, RL library, and visualizer in one flag. Isaac Sim and both OV
+# backends resolve into a single environment; only ``importers`` is forked in
+# [tool.uv].conflicts, so it is not part of ``all``. The specialized extras (rlinf,
+# mimic, teleop, tetrahedralization, video, leapp) and the developer ``test``
+# tooling stay opt-in by name.
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,isaacsim,ov]",
 ]
@@ -412,11 +413,8 @@ override-dependencies = [
     # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",
 ]
-# ``ov`` stays forked: it pulls ovrtx, which is not validated alongside Isaac Sim.
-# ``teleop`` bundles isaacsim, so both inherit the importers pair.
+# ``teleop`` bundles Isaac Sim, so it inherits the ``importers`` conflict.
 conflicts = [
-    [{ extra = "teleop" }, { extra = "ov" }],
-    [{ extra = "isaacsim" }, { extra = "ov" }],
     [{ extra = "isaacsim" }, { extra = "importers" }],
     [{ extra = "teleop" }, { extra = "importers" }],
 ]

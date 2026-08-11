@@ -2,7 +2,7 @@ Added
 ^^^^^
 
 * Added an ``importers`` extra carrying the standalone URDF and MJCF importers, so conversion works
-  without Isaac Sim. It cannot be combined with the ``isaacsim`` extra.
+  without Isaac Sim. It cannot be combined with the ``isaacsim`` or ``teleop`` extras.
 
 * Added :attr:`~isaaclab.sim.converters.AssetConverterBaseCfg.physics_variant` to choose which
   ``"Physics"`` variant the URDF and MJCF converters select.

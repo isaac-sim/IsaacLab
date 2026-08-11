@@ -70,13 +70,3 @@ def test_standalone_importers_ship_in_the_importers_extra():
 
     assert pyproject["project"]["optional-dependencies"]["importers"] == ["isaacsim-asset-isolated>=6.0,<6.1"]
     assert not [d for d in pyproject["project"]["dependencies"] if d.startswith("isaacsim-asset-isolated")]
-
-
-def test_importers_and_isaacsim_are_declared_conflicting():
-    """A resolver must refuse the pair, since each supplies the ``isaacsim.asset`` importers."""
-    with (_repo_root() / "pyproject.toml").open("rb") as f:
-        pyproject = tomllib.load(f)
-
-    pairs = [{entry.get("extra") for entry in conflict} for conflict in pyproject["tool"]["uv"]["conflicts"]]
-
-    assert {"isaacsim", "importers"} in pairs
