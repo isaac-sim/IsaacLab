@@ -48,7 +48,7 @@ Friction Model
     * - Kamino
       - Per-contact friction resolved inside the P-ADMM solve. Contact
         warm-starting is selectable via
-        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.solver_cfg.contact_warmstart_method`;
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.dynamics_solver_cfg.contact_warmstart_method`;
         the validated presets use ``"geom_pair_net_force"``.
 
 **Porting implication.** Tasks tuned for PhysX's patch friction can feel
@@ -173,12 +173,12 @@ Solver Convergence
         and convergence behaviour.
     * - Kamino
       - P-ADMM with separate
-        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.solver_cfg.primal_tolerance`,
-        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.solver_cfg.dual_tolerance`,
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.dynamics_solver_cfg.primal_tolerance`,
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.dynamics_solver_cfg.dual_tolerance`,
         and
-        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.solver_cfg.compl_tolerance`
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.dynamics_solver_cfg.compl_tolerance`
         gates, capped at
-        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.solver_cfg.max_iterations`.
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.dynamics_solver_cfg.max_iterations`.
         Acceleration and warm-starting are tunable.
 
 

@@ -51,10 +51,9 @@ Then run the same task with the Kamino preset if it is available:
 
 At the time of writing, the ``newton_kamino`` preset is defined for
 ``Isaac-Cartpole-Direct``, ``Isaac-Ant-Direct``, ``Isaac-Cartpole``,
-``Isaac-Ant``, and several locomotion tasks. DR Legs tasks also expose
-``newton_kamino_dvi``. Passing ``physics=newton_kamino`` to another
-task does not automatically enable Kamino; the task must define and validate its
-own ``newton_kamino`` preset.
+``Isaac-Ant``, and several locomotion tasks. Passing ``physics=newton_kamino`` to
+another task does not automatically enable Kamino; the task must define and validate
+its own ``newton_kamino`` preset.
 
 
 Add a Kamino Physics Preset
@@ -266,43 +265,43 @@ Configured through :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` at
 
     * - Parameter
       - Description
-    * - ``solver_cfg.max_iterations``
+    * - ``solver_cfg.dynamics_solver_cfg.max_iterations``
       - Default: ``100``. Maximum number of P-ADMM iterations per solver step. Higher values can improve convergence and increase runtime.
-    * - ``solver_cfg.primal_tolerance``
+    * - ``solver_cfg.dynamics_solver_cfg.primal_tolerance``
       - Default: ``1e-4``. Primal residual convergence tolerance.
-    * - ``solver_cfg.dual_tolerance``
+    * - ``solver_cfg.dynamics_solver_cfg.dual_tolerance``
       - Default: ``1e-4``. Dual residual convergence tolerance.
-    * - ``solver_cfg.compl_tolerance``
+    * - ``solver_cfg.dynamics_solver_cfg.compl_tolerance``
       - Default: ``1e-4``. Complementarity residual convergence tolerance for contacts and unilateral constraints.
-    * - ``solver_cfg.restart_tolerance``
+    * - ``solver_cfg.dynamics_solver_cfg.restart_tolerance``
       - Default: ``0.999``. Combined primal-dual residual tolerance for acceleration restarts.
-    * - ``solver_cfg.rho_0``
+    * - ``solver_cfg.dynamics_solver_cfg.rho_0``
       - Default: ``0.05``. Initial P-ADMM penalty parameter. This influences how strongly constraint residuals are penalized early in the solve.
-    * - ``solver_cfg.rho_min``
+    * - ``solver_cfg.dynamics_solver_cfg.rho_min``
       - Default: ``1e-5``. Lower bound on the penalty parameter.
-    * - ``solver_cfg.a_0``
+    * - ``solver_cfg.dynamics_solver_cfg.a_0``
       - Default: ``1.0``. Initial acceleration parameter.
-    * - ``solver_cfg.alpha``
+    * - ``solver_cfg.dynamics_solver_cfg.alpha``
       - Default: ``10.0``. Primal-dual residual threshold for penalty updates.
-    * - ``solver_cfg.tau``
+    * - ``solver_cfg.dynamics_solver_cfg.tau``
       - Default: ``1.5``. Penalty increase/decrease factor.
-    * - ``solver_cfg.eta``
+    * - ``solver_cfg.dynamics_solver_cfg.eta``
       - Default: ``1e-5``. Proximal regularization parameter. It must be greater than zero.
-    * - ``solver_cfg.penalty_update_freq``
+    * - ``solver_cfg.dynamics_solver_cfg.penalty_update_freq``
       - Default: ``1``. Frequency of penalty updates. Zero disables updates.
-    * - ``solver_cfg.penalty_update_method``
+    * - ``solver_cfg.dynamics_solver_cfg.penalty_update_method``
       - Default: ``"fixed"``. Penalty update method. Valid values are ``"fixed"`` and ``"balanced"``.
-    * - ``solver_cfg.linear_solver_tolerance``
+    * - ``solver_cfg.dynamics_solver_cfg.linear_solver_tolerance``
       - Default: ``0.0``. Absolute tolerance for the iterative linear solver. Zero leaves it unchanged.
-    * - ``solver_cfg.linear_solver_tolerance_ratio``
+    * - ``solver_cfg.dynamics_solver_cfg.linear_solver_tolerance_ratio``
       - Default: ``0.0``. Ratio adapting the linear solver tolerance from the ADMM primal residual.
-    * - ``solver_cfg.use_acceleration``
+    * - ``solver_cfg.dynamics_solver_cfg.use_acceleration``
       - Default: ``True``. Enables acceleration in the P-ADMM iterations. This usually improves convergence but should be validated per task.
-    * - ``solver_cfg.warmstart_mode``
+    * - ``solver_cfg.dynamics_solver_cfg.warmstart_mode``
       - Default: ``"containers"``. Warm-start source for P-ADMM. Valid values are ``"none"``, ``"internal"``, and ``"containers"``.
-    * - ``solver_cfg.contact_warmstart_method``
+    * - ``solver_cfg.dynamics_solver_cfg.contact_warmstart_method``
       - Default: ``"geom_pair_net_force"``. Contact warm-start matching method.
-    * - ``solver_cfg.use_graph_conditionals``
+    * - ``solver_cfg.dynamics_solver_cfg.use_graph_conditionals``
       - Default: ``False``. Uses CUDA graph conditional nodes for the iterative solver when ``True``. Setting it to ``False`` unrolls to fixed loops over the maximum iteration count.
 
 
@@ -318,23 +317,23 @@ Configured through :class:`~isaaclab_newton.physics.KaminoDVISolverCfg` at
 
     * - Parameter
       - Description
-    * - ``solver_cfg.max_alternating_iterations``
+    * - ``solver_cfg.dynamics_solver_cfg.max_alternating_iterations``
       - Default: ``20``. Maximum outer DVI iterations.
-    * - ``solver_cfg.tolerance``
+    * - ``solver_cfg.dynamics_solver_cfg.tolerance``
       - Default: ``1e-5``. Convergence tolerance on the projected update size.
-    * - ``solver_cfg.regularization``
+    * - ``solver_cfg.dynamics_solver_cfg.regularization``
       - Default: ``1e-6``. Diagonal regularization added to each projected update denominator.
-    * - ``solver_cfg.omega``
+    * - ``solver_cfg.dynamics_solver_cfg.omega``
       - Default: ``1.0``. Relaxation factor applied to projected Gauss-Seidel updates.
-    * - ``solver_cfg.inequality_sweeps_per_iteration``
+    * - ``solver_cfg.dynamics_solver_cfg.inequality_sweeps_per_iteration``
       - Default: ``1``. Projected Gauss-Seidel sweeps per DVI iteration.
-    * - ``solver_cfg.bilateral_solve_interval``
+    * - ``solver_cfg.dynamics_solver_cfg.bilateral_solve_interval``
       - Default: ``1``. DVI iterations between repeated direct bilateral solves.
-    * - ``solver_cfg.bilateral_solver_type``
+    * - ``solver_cfg.dynamics_solver_cfg.bilateral_solver_type``
       - Default: ``"LLTB"``. Direct linear solver for bilateral constraints. Use ``"LLTBRCM"`` for large sparse systems.
-    * - ``solver_cfg.warmstart_mode``
+    * - ``solver_cfg.dynamics_solver_cfg.warmstart_mode``
       - Default: ``"containers"``. Warm-start source for DVI. Valid values are ``"none"``, ``"internal"``, and ``"containers"``.
-    * - ``solver_cfg.contact_warmstart_method``
+    * - ``solver_cfg.dynamics_solver_cfg.contact_warmstart_method``
       - Default: ``"key_and_position_with_net_force_backup"``. Contact warm-start method for container warm-starts.
 
 

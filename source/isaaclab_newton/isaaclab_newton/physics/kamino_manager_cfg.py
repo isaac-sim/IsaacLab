@@ -296,8 +296,12 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
         Enabling this significantly increases solver runtime and should only be used for debugging.
     """
 
-    dynamics: KaminoDynamicsCfg = field(default_factory=KaminoDynamicsCfg)
-    """Constrained dynamics problem parameters."""
+    dynamics: KaminoDynamicsCfg | None = None
+    """Constrained dynamics problem parameters.
+
+    When ``None``, Newton selects defaults appropriate to the selected dynamics solver and
+    sparsity settings.
+    """
 
     constraints: KaminoConstraintsCfg = field(default_factory=KaminoConstraintsCfg)
     """Constraint stabilization parameters."""
@@ -380,7 +384,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
             collision_detector=collision_detector,
             fk=ForwardKinematicsSolverConfig(**_cfg_to_dict(self.fk)),
             constraints=ConstraintStabilizationConfig(**_cfg_to_dict(self.constraints)),
-            dynamics=ConstrainedDynamicsConfig(**_cfg_to_dict(self.dynamics)),
+            dynamics=None if self.dynamics is None else ConstrainedDynamicsConfig(**_cfg_to_dict(self.dynamics)),
             materials=MaterialManagerConfig(**_cfg_to_dict(self.materials)),
             **solver_configs,
         )
@@ -406,11 +410,6 @@ class KaminoDVISolverCfg(_KaminoSolverCfgBase):
 
     dynamics_solver_cfg: KaminoDVICfg = field(default_factory=KaminoDVICfg)
     """DVI forward-dynamics solver parameters."""
-
-    dynamics: KaminoDynamicsCfg = field(
-        default_factory=lambda: KaminoDynamicsCfg(preconditioning=False, linear_solver_type="LLTBRCM")
-    )
-    """Constrained dynamics problem parameters compatible with DVI."""
 
     def _get_dynamics_solver_config(self) -> tuple[Literal["dvi"], dict[str, Any]]:
         """Return DVI and its configuration keyword arguments."""
