@@ -527,6 +527,97 @@ independently.
              env.scene.robot.joint_ordering=mjwarp \
              env.scene.robot.body_ordering=mjwarp
 
+   .. tab-item:: Allegro cube reorientation
+      :sync: allegro
+
+      Task ``Isaac-Reorient-Cube-Allegro``. In-hand cube reorientation with the Allegro hand.
+      Allegro's branched finger topology means joint and body order differs between backends;
+      both cross-backend commands carry an ordering override naming the source convention.
+
+      .. tip::
+
+         Contact stiffness (``ke``), contact damping (``kd``), contact friction, joint damping,
+         and joint friction are the key parameters to tune. Increasing solver substeps to 4–16
+         significantly improves contact stability during in-hand manipulation.
+
+      **PhysX source**
+
+      Train:
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+             --task Isaac-Reorient-Cube-Allegro \
+             --run_name physx_source \
+             physics=isaacsim_physx
+
+      Set the checkpoint path:
+
+      .. code-block:: bash
+
+         PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/allegro_cube/physx_source/RUN_DIRECTORY/model_ITERATION.pt"
+
+      PP: reproduce source baseline in PhysX
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Reorient-Cube-Allegro \
+             --num_envs 32 \
+             --checkpoint "$PHYSX_CHECKPOINT" \
+             physics=isaacsim_physx
+
+      PN: deploy in Newton
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Reorient-Cube-Allegro \
+             --num_envs 32 \
+             --checkpoint "$PHYSX_CHECKPOINT" \
+             physics=newton_mjwarp \
+             env.scene.robot.joint_ordering=physx \
+             env.scene.robot.body_ordering=physx
+
+      **Newton source**
+
+      Train:
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+             --task Isaac-Reorient-Cube-Allegro \
+             --run_name mjwarp_source \
+             physics=newton_mjwarp
+
+      Set the checkpoint path:
+
+      .. code-block:: bash
+
+         NEWTON_CHECKPOINT="/path/to/logs/rsl_rl/allegro_cube/mjwarp_source/RUN_DIRECTORY/model_ITERATION.pt"
+
+      NN: reproduce source baseline in Newton
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Reorient-Cube-Allegro \
+             --num_envs 32 \
+             --checkpoint "$NEWTON_CHECKPOINT" \
+             physics=newton_mjwarp
+
+      NP: deploy in PhysX
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rsl_rl \
+             --task Isaac-Reorient-Cube-Allegro \
+             --num_envs 32 \
+             --checkpoint "$NEWTON_CHECKPOINT" \
+             physics=isaacsim_physx \
+             env.scene.robot.joint_ordering=mjwarp \
+             env.scene.robot.body_ordering=mjwarp
+
 
 Transfer demonstrations
 ~~~~~~~~~~~~~~~~~~~~~~~
