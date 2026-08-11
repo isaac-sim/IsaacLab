@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the OV-RTX override of the unused temporal-camera-data capability method.
+
+
 0.10.5 (2026-08-09)
 ~~~~~~~~~~~~~~~~~~~
 
