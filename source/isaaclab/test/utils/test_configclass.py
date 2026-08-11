@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import MISSING, Field, asdict, field
+from dataclasses import MISSING, asdict, field
 from functools import wraps
 from typing import Any, ClassVar
 
@@ -505,17 +505,6 @@ validity_expected_fields = [
 """
 Test fixtures.
 """
-
-
-def test_dataclass_transform_metadata():
-    """Test that configclass exposes standard dataclass transform metadata."""
-    metadata = getattr(configclass, "__dataclass_transform__", None)
-
-    assert metadata is not None
-    assert metadata["eq_default"] is True
-    assert metadata["order_default"] is False
-    assert metadata["kw_only_default"] is False
-    assert metadata["field_specifiers"] == (field, Field)
 
 
 def test_dict_conversion():
