@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import CableObjectCfg
@@ -75,6 +75,13 @@ class PhysicsCfg(PresetCfg):
                 )
             ],
             iterations=1,
+        ),
+        default_shape_cfg=NewtonShapeCfg(
+            margin=0.0,
+            gap=0.01,
+            ke=2.5e3,
+            kd=100.0,
+            mu=1.0,
         ),
         num_substeps=2,
     )
