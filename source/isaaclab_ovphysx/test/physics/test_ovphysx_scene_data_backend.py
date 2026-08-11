@@ -459,9 +459,19 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
 
     events = []
 
+    class FakeWriteFloorOp:
+        def __init__(self, ordinal):
+            self._ordinal = ordinal
+
+        def wait(self):
+            events.append(("seal", self._ordinal))
+
     class FakeStage:
         def __init__(self, name):
             events.append(("stage", name))
+
+        def advance_write_floor(self, ordinal):
+            return FakeWriteFloorOp(ordinal)
 
         def destroy(self):
             events.append(("destroy",))
@@ -511,6 +521,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     assert events == [
         ("stage", "isaaclab"),
         ("populate", stage, "#usda 1.0", 1, "all"),
+        ("seal", 1),
         ("attach", stage, 1),
         ("close_views", physx),
         ("reset",),
@@ -518,6 +529,33 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
         ("release",),
         ("destroy",),
     ]
+
+
+def test_manager_prefers_current_warmup_api():
+    """The current warmup API wins when both API generations are visible."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    calls = []
+    physx = SimpleNamespace(
+        warmup=lambda: calls.append("warmup"),
+        warmup_gpu=lambda: calls.append("warmup_gpu"),
+    )
+
+    OvPhysxManager._warmup_physx(physx)
+
+    assert calls == ["warmup"]
+
+
+def test_manager_supports_legacy_warmup_api():
+    """The released OVPhysX runtime keeps using its GPU-only warmup API."""
+    from isaaclab_ovphysx.physics import OvPhysxManager
+
+    calls = []
+    physx = SimpleNamespace(warmup_gpu=lambda: calls.append("warmup_gpu"))
+
+    OvPhysxManager._warmup_physx(physx)
+
+    assert calls == ["warmup_gpu"]
 
 
 def test_manager_destroys_ovstage_when_population_fails(monkeypatch):

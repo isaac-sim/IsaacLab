@@ -542,6 +542,14 @@ class OvPhysxManager(PhysicsManager):
         operation = physx.reset_stage()
         physx.wait_op(operation)
 
+    @staticmethod
+    def _warmup_physx(physx: Any) -> None:
+        """Warm a GPU runtime through its current or legacy API."""
+        warmup = getattr(physx, "warmup", None)
+        if warmup is None:
+            warmup = physx.warmup_gpu
+        warmup()
+
     @classmethod
     def close(cls) -> None:
         """Release ovphysx resources and clean up."""
@@ -589,7 +597,7 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _attach_ovstage(cls, stage_usda: str) -> None:
-        """Populate an OVStage from USDA text and attach it to the runtime."""
+        """Populate and seal an OVStage from USDA text, then attach it to the runtime."""
         import ovstage  # noqa: PLC0415
 
         stage = ovstage.Stage("isaaclab")
@@ -602,6 +610,9 @@ class OvPhysxManager(PhysicsManager):
                 # dependencies in physics-only population.
                 domains=ovstage.PopulationDomain.ALL,
             )
+            # Population finishes the writes but does not seal the ordinal.
+            # OVPhysX reads sealed data, including articulation and joint data.
+            stage.advance_write_floor(ordinal=1).wait()
             cls._physx.attach_ovstage(stage, read_ordinal=1)
         except Exception:
             stage.destroy()
@@ -816,8 +827,8 @@ class OvPhysxManager(PhysicsManager):
         choice and registers process-exit cleanup. On a forced re-warm before
         :meth:`close`, it reuses the active instance, attaches the new USD through
         OVStage, rebuilds active clone recipes through full-stage materialization
-        or runtime replay, and (on GPU) re-runs ``warmup_gpu`` so the new stage's
-        bodies are resident.
+        or runtime replay, and (on GPU) re-runs the supported warmup entry point
+        so the new stage's bodies are resident.
 
         Raises:
             RuntimeError: If ``SimulationContext`` is not set, or if a device
@@ -891,7 +902,7 @@ class OvPhysxManager(PhysicsManager):
         # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
         # instance carries its old buffer layout from the previous stage.
         if ovphysx_device == "gpu":
-            cls._physx.warmup_gpu()
+            cls._warmup_physx(cls._physx)
 
         # Initialize the SceneDataBackend now that the wheel's PhysX is live and
         # the OVStage is attached. The central
